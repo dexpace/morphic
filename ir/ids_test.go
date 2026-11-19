@@ -72,8 +72,8 @@ func TestTypeID_JSONRoundTrip(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// TestPropertyID_UsableAsMapKey pins that PropertyID (and by construction every ID
-// type sharing its underlying string representation) can be used as a JSON
+// TestPropertyID_UsableAsMapKey pins that PropertyID (and by construction every
+// ID type sharing its underlying string representation) can be used as a JSON
 // object key, since Property lookups and PropPath segments depend on that.
 func TestPropertyID_UsableAsMapKey(t *testing.T) {
 	t.Parallel()
@@ -130,10 +130,10 @@ func TestWellFormedID_Shape(t *testing.T) {
 	}
 }
 
-// TestPrimitiveTypeID_IsTheSharedScheme pins the spelling every compiler must reach
-// for a primitive. These IDs are written into every golden IR snapshot and are
-// the one identity two documents lowered from different formats have to agree
-// on, so a change here is a silent breaking change across formats.
+// TestPrimitiveTypeID_IsTheSharedScheme pins the spelling every compiler must
+// reach for a primitive. These IDs are written into every golden IR snapshot
+// and are the one identity two documents lowered from different formats have to
+// agree on, so a change here is a silent breaking change across formats.
 func TestPrimitiveTypeID_IsTheSharedScheme(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, ir.TypeID("type/primitive/string"), ir.PrimitiveTypeID(ir.PrimitiveString))
@@ -141,12 +141,12 @@ func TestPrimitiveTypeID_IsTheSharedScheme(t *testing.T) {
 		"a multi-word kind is spelled as its constant, not re-cased")
 }
 
-// TestPrimitiveTypeID_IsWellFormedAndInjective walks the whole primitive vocabulary
-// rather than a sample of it. Two properties have to hold for every kind, and a
-// sample cannot show either: the ID is one the grammar produces — irverify
-// rejects every document otherwise — and distinct kinds do not collide, since
-// two kinds sharing an ID would make the node reached for one of them depend on
-// which was interned first.
+// TestPrimitiveTypeID_IsWellFormedAndInjective walks the whole primitive
+// vocabulary rather than a sample of it. Two properties have to hold for every
+// kind, and a sample cannot show either: the ID is one the grammar produces —
+// irverify rejects every document otherwise — and distinct kinds do not
+// collide, since two kinds sharing an ID would make the node reached for one of
+// them depend on which was interned first.
 func TestPrimitiveTypeID_IsWellFormedAndInjective(t *testing.T) {
 	t.Parallel()
 	byID := make(map[ir.TypeID]ir.PrimitiveKind, len(primKindSpellings))

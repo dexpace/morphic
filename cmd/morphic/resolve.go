@@ -75,7 +75,8 @@ func names(c *cobra.Command, word string) bool {
 	return c.Name() == word || c.HasAlias(word)
 }
 
-// argumentsBeforeCommandName is how a command reads the arguments ahead of a word naming it.
+// argumentsBeforeCommandName is how a command reads the arguments ahead of a
+// word naming it.
 type argumentsBeforeCommandName int
 
 const (

@@ -390,8 +390,8 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	}
 }
 
-// foundOutcomes is what each oracle that found something in result found, sorted,
-// so a list need not follow Check's order to match it.
+// foundOutcomes is what each oracle that found something in result found,
+// sorted, so a list need not follow Check's order to match it.
 func foundOutcomes(result harness.Result) []harness.Outcome {
 	var out []harness.Outcome
 	for _, verdict := range result.Verdicts {

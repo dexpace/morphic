@@ -83,8 +83,8 @@ func tree(t *testing.T, v any) any {
 	return out
 }
 
-// valueAtPath follows path from v through maps by key and slices by index, and returns
-// nil where the path leaves the value.
+// valueAtPath follows path from v through maps by key and slices by index, and
+// returns nil where the path leaves the value.
 func valueAtPath(v any, path ...string) any {
 	for _, step := range path {
 		switch x := v.(type) {

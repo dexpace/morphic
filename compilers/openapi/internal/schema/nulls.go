@@ -20,15 +20,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// nullDeclaration is what one keyword family says about the null value. JSON Schema
-// conjoins keywords, so the families are read together rather than first-match:
-// a schema admits null when one family puts it in the value space and no other
-// takes it out.
+// nullDeclaration is what one keyword family says about the null value. JSON
+// Schema conjoins keywords, so the families are read together rather than
+// first-match: a schema admits null when one family puts it in the value space
+// and no other takes it out.
 type nullDeclaration int
 
 const (
-	// nullUnconstrained is a family the schema does not declare, or one that constrains
-	// only non-null instances. It forbids nothing.
+	// nullUnconstrained is a family the schema does not declare, or one that
+	// constrains only non-null instances. It forbids nothing.
 	nullUnconstrained nullDeclaration = iota
 	// nullAdmitted is a family that puts null in the value space.
 	nullAdmitted
@@ -55,7 +55,8 @@ type nullReading struct {
 	declared, lenient nullDeclaration
 }
 
-// nullReadingAlikeUnderBothPolicies is the reading of a family that reads the same under both.
+// nullReadingAlikeUnderBothPolicies is the reading of a family that reads the
+// same under both.
 func nullReadingAlikeUnderBothPolicies(nullDeclarationValue nullDeclaration) nullReading {
 	return nullReading{declared: nullDeclarationValue, lenient: nullDeclarationValue}
 }
@@ -68,13 +69,14 @@ func foldNullReadings(a, b nullReading) nullReading {
 	}
 }
 
-// admits reports whether the reading loweringContext's policy selects admits null: lenient
-// while the policy is on, declared once it is off.
+// admits reports whether the reading loweringContext's policy selects admits
+// null: lenient while the policy is on, declared once it is off.
 func (r nullReading) admits(loweringContext lowering.Ctx) bool {
 	return r.selected(loweringContext) == nullAdmitted
 }
 
-// forbids reports whether the reading loweringContext's policy selects keeps null out.
+// forbids reports whether the reading loweringContext's policy selects keeps
+// null out.
 func (r nullReading) forbids(loweringContext lowering.Ctx) bool {
 	return r.selected(loweringContext) == nullForbidden
 }
@@ -87,16 +89,17 @@ func (r nullReading) selected(loweringContext lowering.Ctx) nullDeclaration {
 	return r.declared
 }
 
-// ref returns a reference to target that admits null as loweringContext's policy reads it
-// (nullRef).
+// ref returns a reference to target that admits null as loweringContext's
+// policy reads it (nullRef).
 func (r nullReading) ref(loweringContext lowering.Ctx, target ir.TypeID) ir.TypeRef {
 	return nullRef(loweringContext, target, r.declared == nullAdmitted, r.lenient == nullAdmitted)
 }
 
-// nullRef returns a reference to target that admits null where the reading loweringContext's
-// policy selects does: lenient while it is on, declared once it is off. Where
-// only lenient admits null, the reference names the policy's heuristic in
-// Inferred, so the declared bit is still Nullable with Inferred empty.
+// nullRef returns a reference to target that admits null where the reading
+// loweringContext's policy selects does: lenient while it is on, declared once
+// it is off. Where only lenient admits null, the reference names the policy's
+// heuristic in Inferred, so the declared bit is still Nullable with Inferred
+// empty.
 func nullRef(loweringContext lowering.Ctx, target ir.TypeID, declared, lenient bool) ir.TypeRef {
 	if !loweringContext.NullableInference.Honours() {
 		return ir.TypeRef{Target: target, Nullable: declared}
@@ -108,21 +111,21 @@ func nullRef(loweringContext lowering.Ctx, target ir.TypeID, declared, lenient b
 	return out
 }
 
-// schemaAdmitsNull reports whether a schema admits the null value as loweringContext's policy
-// reads it. Lowering lifts every spelling of that onto the enclosing TypeRef
-// rather than into the type node, so the walk below is the one reading every
-// site computing a Nullable bit goes through: a definition site, a union, an
-// allOf conjunct and a $ref use site must never disagree about one schema. It
-// reports nothing; schemaNullRef is the reading a position takes its own bit
-// from.
+// schemaAdmitsNull reports whether a schema admits the null value as
+// loweringContext's policy reads it. Lowering lifts every spelling of that onto
+// the enclosing TypeRef rather than into the type node, so the walk below is
+// the one reading every site computing a Nullable bit goes through: a
+// definition site, a union, an allOf conjunct and a $ref use site must never
+// disagree about one schema. It reports nothing; schemaNullRef is the reading a
+// position takes its own bit from.
 func schemaAdmitsNull(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	nulls := newNulls(loweringContext)
 	return nulls.schema(schema, nullSite{}).admits(loweringContext)
 }
 
-// schemaNullRef returns a reference to target from schema, a schema that writes no
-// $ref, carrying what schema says about null, and reports each null the policy reads
-// in where site's position writes it (nullSite).
+// schemaNullRef returns a reference to target from schema, a schema that writes
+// no $ref, carrying what schema says about null, and reports each null the
+// policy reads in where site's position writes it (nullSite).
 func schemaNullRef(loweringContext lowering.Ctx, target ir.TypeID, schema *statement.Schema, site nullSite) (ir.TypeRef, []ir.Diagnostic) {
 	nulls := newNulls(loweringContext)
 	return nulls.schema(schema, site).ref(loweringContext, target), nulls.findings(loweringContext)
@@ -183,17 +186,17 @@ type nullFinding struct {
 	message string
 }
 
-// newNulls returns a read with the whole budget, over loweringContext's bindings and in the
-// dialect loweringContext reads its schemas in. It returns a value so the read lives on its
-// caller's stack, as one per position read is.
+// newNulls returns a read with the whole budget, over loweringContext's
+// bindings and in the dialect loweringContext reads its schemas in. It returns
+// a value so the read lives on its caller's stack, as one per position read is.
 func newNulls(loweringContext lowering.Ctx) nulls {
 	return nulls{c: loweringContext, nullable: loweringContext.SchemaRules().Defines("nullable"),
 		conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 }
 
-// findings returns what n found as diagnostics, or none while loweringContext's policy is
-// off: a null then admits only what its version says it does, and nothing is
-// read in for a report to say so.
+// findings returns what n found as diagnostics, or none while loweringContext's
+// policy is off: a null then admits only what its version says it does, and
+// nothing is read in for a report to say so.
 func (n *nulls) findings(loweringContext lowering.Ctx) []ir.Diagnostic {
 	if !loweringContext.NullableInference.Honours() || len(n.found) == 0 {
 		return nil
@@ -231,11 +234,11 @@ func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
 	return n.usage(js.Schema, n.lands(js), site)
 }
 
-// usage is schema, a schema writing a $ref, read over target, what the $ref lands
-// on: schema's own keywords conjoined with it, which the lenient reading widens
-// where they admit null (widenRef) or write `nullable: true` (widen). A read
-// of variants takes a union's null as its branches' and no keyword's beside
-// the $ref, so it widens nothing there.
+// usage is schema, a schema writing a $ref, read over target, what the $ref
+// lands on: schema's own keywords conjoined with it, which the lenient reading
+// widens where they admit null (widenRef) or write `nullable: true` (widen). A
+// read of variants takes a union's null as its branches' and no keyword's
+// beside the $ref, so it widens nothing there.
 func (n *nulls) usage(schema *statement.Schema, target nullReading, site nullSite) nullReading {
 	typed, union := n.valueParts(schema)
 	own := foldNullReadings(typed, n.allOf(schema, site))
@@ -307,8 +310,8 @@ type landedOn struct {
 // landsRead keys the count of hop readings lands has made.
 type landsRead struct{}
 
-// landingOf returns the landing of the reference site js as nullsValue reads it, one
-// per compile.
+// landingOf returns the landing of the reference site js as nullsValue reads
+// it, one per compile.
 func landingOf(nullsValue *nulls, js *statement.Statement) *landing {
 	return lowering.ReadOncePerRun(nullsValue.c, landedOn{js: js, rest: nullsValue.rest, variants: nullsValue.variants}, func() *landing { return &landing{} })
 }
@@ -319,8 +322,8 @@ func landingCount(loweringContext lowering.Ctx) *int {
 	return lowering.ReadOncePerRun(loweringContext, landsRead{}, func() *int { return new(int) })
 }
 
-// keep notes nullReadingValue as what landingValue lands on, kept unless the read's conjunct budget ran
-// out on the way.
+// keep notes nullReadingValue as what landingValue lands on, kept unless the
+// read's conjunct budget ran out on the way.
 func (n *nulls) keep(landingValue *landing, nullReadingValue nullReading) {
 	landingValue.reading, landingValue.kept = nullReadingValue, !n.conjuncts.Exhausted()
 }
@@ -338,12 +341,12 @@ func definesNullableIn(loweringContext lowering.Ctx, doc reftable.DocID) bool {
 	return loweringContext.Rules().In(doc).Defines("nullable")
 }
 
-// widenRef is the lenient reading of keywords beside a $ref that admit null
-// on their own, own, over the usage nullReadingValue they conjoin with what the $ref lands
-// on: "this reference, or null", as `nullable: true` beside a $ref is meant and
-// `type: [T, "null"]` is its spelling once nullable is gone. JSON Schema
-// conjoins the two, so where the target excludes null the declared usage does
-// too; one admitting null only so is noted at site.
+// widenRef is the lenient reading of keywords beside a $ref that admit null on
+// their own, own, over the usage nullReadingValue they conjoin with what the
+// $ref lands on: "this reference, or null", as `nullable: true` beside a $ref
+// is meant and `type: [T, "null"]` is its spelling once nullable is gone. JSON
+// Schema conjoins the two, so where the target excludes null the declared usage
+// does too; one admitting null only so is noted at site.
 func (n *nulls) widenRef(own, nullReadingValue nullReading, site nullSite) nullReading {
 	if own.lenient != nullAdmitted || nullReadingValue.lenient == nullAdmitted {
 		return nullReadingValue
@@ -369,16 +372,16 @@ func (n *nulls) keywords(schema *statement.Schema, site nullSite) nullReading {
 	return foldNullReadings(foldNullReadings(typed, union), n.allOf(schema, site))
 }
 
-// own is what schema says of null by its own keywords, its unions among them and
-// its conjuncts aside, widened as schema widens it.
+// own is what schema says of null by its own keywords, its unions among them
+// and its conjuncts aside, widened as schema widens it.
 func (n *nulls) own(schema *statement.Schema) nullReading {
 	typed, union := n.valueParts(schema)
 	own := foldNullReadings(typed, union)
 	return n.widenByBranch(schema, n.widen(schema, own, own, nullSite{}), nullSite{})
 }
 
-// valueParts is what schema's type, const and enum say of null, and apart what its
-// oneOf and anyOf say, as n reads a union.
+// valueParts is what schema's type, const and enum say of null, and apart what
+// its oneOf and anyOf say, as n reads a union.
 func (n *nulls) valueParts(schema *statement.Schema) (typed, union nullReading) {
 	var valueVerdictsValue valueVerdicts
 	switch {
@@ -393,8 +396,8 @@ func (n *nulls) valueParts(schema *statement.Schema) (typed, union nullReading) 
 	return n.typed(schema, valueVerdictsValue.constant, valueVerdictsValue.enum), valueVerdictsValue.union
 }
 
-// typed is what schema's type says of null under each reading, conjoined with the
-// verdicts of its const and enum.
+// typed is what schema's type says of null under each reading, conjoined with
+// the verdicts of its const and enum.
 func (n *nulls) typed(schema *statement.Schema, constant, enum nullDeclaration) nullReading {
 	return nullReading{
 		declared: foldNullVerdicts(n.declaredTypeVerdict(schema), constant, enum),
@@ -421,9 +424,9 @@ type valueVerdicts struct {
 	union          nullReading
 }
 
-// valueNulls returns schema's valueVerdicts, read once a run: every $ref to schema asks,
-// and the enum and union families scan each member and branch, so reading them
-// at each reference would cost the references times the members.
+// valueNulls returns schema's valueVerdicts, read once a run: every $ref to
+// schema asks, and the enum and union families scan each member and branch, so
+// reading them at each reference would cost the references times the members.
 func valueNulls(loweringContext lowering.Ctx, schema *statement.Schema) valueVerdicts {
 	return lowering.ReadOncePerRun(loweringContext, valueNullsOf{schema}, func() valueVerdicts {
 		valueVerdictsValue := valueSetNulls(loweringContext, schema)
@@ -432,8 +435,8 @@ func valueNulls(loweringContext lowering.Ctx, schema *statement.Schema) valueVer
 	})
 }
 
-// valueSetNulls returns what schema's const and enum say of null, read once a run,
-// with no union: a read of null on variants reads that otherwise
+// valueSetNulls returns what schema's const and enum say of null, read once a
+// run, with no union: a read of null on variants reads that otherwise
 // (nulls.variantsNull), asking no union whether it is distributed.
 func valueSetNulls(loweringContext lowering.Ctx, schema *statement.Schema) valueVerdicts {
 	return lowering.ReadOncePerRun(loweringContext, valueSetNullsOf{schema}, func() valueVerdicts {
@@ -441,11 +444,12 @@ func valueSetNulls(loweringContext lowering.Ctx, schema *statement.Schema) value
 	})
 }
 
-// widen is the lenient reading of `nullable: true` on schema: it admits null for
-// the whole of schema, whatever else schema says, where the declared reading makes it a
-// member of a `type` that the rest of schema conjoins with. own is what schema's own
-// keywords say, and nullReadingValue what schema says in all. A keyword that admits null only so
-// is noted at site, with why its version does not.
+// widen is the lenient reading of `nullable: true` on schema: it admits null
+// for the whole of schema, whatever else schema says, where the declared
+// reading makes it a member of a `type` that the rest of schema conjoins with.
+// own is what schema's own keywords say, and nullReadingValue what schema says
+// in all. A keyword that admits null only so is noted at site, with why its
+// version does not.
 func (n *nulls) widen(schema *statement.Schema, own, nullReadingValue nullReading, site nullSite) nullReading {
 	if !nullableTrue(schema) {
 		return nullReadingValue
@@ -459,11 +463,11 @@ func (n *nulls) widen(schema *statement.Schema, own, nullReadingValue nullReadin
 	return nullReadingValue
 }
 
-// why says why the declared reading of schema leaves it without null although schema
-// writes `nullable: true`, own being what schema's own keywords say. Once schema writes
-// a `type` the keyword adds null to, only an enum, a const or an allOf beside
-// it forbids it, which leaves own without null, or, for schema writing a $ref, what
-// that lands on, which own's null conjoins with.
+// why says why the declared reading of schema leaves it without null although
+// schema writes `nullable: true`, own being what schema's own keywords say.
+// Once schema writes a `type` the keyword adds null to, only an enum, a const
+// or an allOf beside it forbids it, which leaves own without null, or, for
+// schema writing a $ref, what that lands on, which own's null conjoins with.
 func (n *nulls) why(schema *statement.Schema, own nullReading) string {
 	switch {
 	case !n.nullable:
@@ -482,10 +486,10 @@ func (n *nulls) why(schema *statement.Schema, own nullReading) string {
 	}
 }
 
-// declaredTypeVerdict is typeNullVerdict as the dialect schema is read in reads a
-// `nullable: true` beside the type. Where it defines the keyword, as 3.0 does,
-// it adds null to a type written in the same Schema Object, beside a $ref as
-// anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
+// declaredTypeVerdict is typeNullVerdict as the dialect schema is read in reads
+// a `nullable: true` beside the type. Where it defines the keyword, as 3.0
+// does, it adds null to a type written in the same Schema Object, beside a $ref
+// as anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
 // conjoins like any type. Where it does not, nullable says nothing.
 func (n *nulls) declaredTypeVerdict(schema *statement.Schema) nullDeclaration {
 	nullDeclarationValue := typeNullVerdict(schema)
@@ -617,9 +621,9 @@ func pairMayAdmitNull(loweringContext lowering.Ctx, choice statement.Choice) boo
 	return !pairForbidsNull(&nulls, choice)
 }
 
-// pairForbidsNull reports whether nullsValue's walk, whose budget bounds this read as
-// the rest of the walk, finds the oneOf or the anyOf of choice keeping null
-// out: every branch of it does within that budget.
+// pairForbidsNull reports whether nullsValue's walk, whose budget bounds this
+// read as the rest of the walk, finds the oneOf or the anyOf of choice keeping
+// null out: every branch of it does within that budget.
 func pairForbidsNull(nullsValue *nulls, choice statement.Choice) bool {
 	for _, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if nullsValue.branchesNull(branches).forbids(nullsValue.c) && !nullsValue.conjuncts.Exhausted() {
@@ -642,9 +646,10 @@ func distributesUnion(loweringContext lowering.Ctx, schema *statement.Schema) bo
 }
 
 // NullAlone reports whether schema admits null and no other value by its own
-// keywords, as loweringContext's policy reads null (docs/compilers/openapi.md#null-alone).
-// Such a schema lowers to an Enum with no member behind a nullable reference,
-// and a union branch written so is the union's null.
+// keywords, as loweringContext's policy reads null
+// (docs/compilers/openapi.md#null-alone). Such a schema lowers to an Enum with
+// no member behind a nullable reference, and a union branch written so is the
+// union's null.
 func NullAlone(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	nullReading, ok := nullAloneReading(loweringContext, schema)
 	return ok && nullReading.admits(loweringContext)
@@ -661,13 +666,13 @@ type nullAloneRead struct {
 	ok      bool
 }
 
-// nullAloneReading is what schema, a schema whose own keywords leave it no value but
-// null (leavesOnlyNull), says of that null under each reading, and false for
-// any other schema. It writes no union, allOf or $ref, so its type, const and
-// enum, widened where it writes `nullable: true`, are all a read of the whole
-// schema finds (schemaAdmitsNull), read here without asking valueNulls, which
-// reads a union's branches by this. Every reader of a branch asks, so it is
-// read once a run.
+// nullAloneReading is what schema, a schema whose own keywords leave it no
+// value but null (leavesOnlyNull), says of that null under each reading, and
+// false for any other schema. It writes no union, allOf or $ref, so its type,
+// const and enum, widened where it writes `nullable: true`, are all a read of
+// the whole schema finds (schemaAdmitsNull), read here without asking
+// valueNulls, which reads a union's branches by this. Every reader of a branch
+// asks, so it is read once a run.
 func nullAloneReading(loweringContext lowering.Ctx, schema *statement.Schema) (nullReading, bool) {
 	nullAloneReadValue := lowering.ReadOncePerRun(loweringContext, nullAloneOf{schema}, func() nullAloneRead {
 		if !leavesOnlyNull(loweringContext, schema) {
@@ -680,8 +685,8 @@ func nullAloneReading(loweringContext lowering.Ctx, schema *statement.Schema) (n
 	return nullAloneReadValue.reading, nullAloneReadValue.ok
 }
 
-// leavesOnlyNull reports whether the keywords schema itself writes leave it no value
-// but null, whether or not they admit that one: it writes no $ref, allOf,
+// leavesOnlyNull reports whether the keywords schema itself writes leave it no
+// value but null, whether or not they admit that one: it writes no $ref, allOf,
 // oneOf, anyOf or $dynamicRef, which admit what other schemas do; an enum it
 // writes lists null and nothing else, within the member budget an enum past
 // which lowers to the top type (lowerEnum); and it writes a const, which the
@@ -718,9 +723,9 @@ func (n *nulls) allOf(schema *statement.Schema, site nullSite) nullReading {
 
 // pairKeepsNullOut reports whether schema and its inline allOf entries write a
 // oneOf and an anyOf between them, no one of them writing both, of which a
-// union keeps null out, read by nullsValue's walk (pairForbidsNull): an instance of the
-// position is one of each, so that union's null is no value it admits. One
-// schema writing both is read by unionNullReading.
+// union keeps null out, read by nullsValue's walk (pairForbidsNull): an
+// instance of the position is one of each, so that union's null is no value it
+// admits. One schema writing both is read by unionNullReading.
 func pairKeepsNullOut(nullsValue *nulls, schema *statement.Schema) bool {
 	var pair statement.Choice
 	note := func(statementSchema *statement.Schema) bool {
@@ -757,14 +762,14 @@ func pairKeepsNullOut(nullsValue *nulls, schema *statement.Schema) bool {
 	return forbids
 }
 
-// widenByBranch is the lenient reading of a `nullable: true` that folds: written
-// on an inline branch that speaks for the position, it says what the keyword
-// beside the allOf says, and widens all of schema (widen), a `type` beside the allOf
-// included, where the declared reading leaves it conjoined. A branch whose own
-// keywords admit null said so by themselves, so widen said nothing of it, and it
-// is noted here, where schema is written. A 3.1 `type: [T, "null"]` on a conjunct
-// stays conjoined, which beside a $ref it does not
-// (docs/compilers/openapi.md#allof-refinement).
+// widenByBranch is the lenient reading of a `nullable: true` that folds:
+// written on an inline branch that speaks for the position, it says what the
+// keyword beside the allOf says, and widens all of schema (widen), a `type`
+// beside the allOf included, where the declared reading leaves it conjoined. A
+// branch whose own keywords admit null said so by themselves, so widen said
+// nothing of it, and it is noted here, where schema is written. A 3.1
+// `type: [T, "null"]` on a conjunct stays conjoined, which beside a $ref it
+// does not (docs/compilers/openapi.md#allof-refinement).
 func (n *nulls) widenByBranch(schema *statement.Schema, nullReadingValue nullReading, site nullSite) nullReading {
 	for _, allOfBranch := range nullableFoldingBranches(n.c, schema) {
 		nullReadingValue.lenient = nullAdmitted
@@ -781,16 +786,18 @@ func (n *nulls) widenByBranch(schema *statement.Schema, nullReadingValue nullRea
 	return nullReadingValue
 }
 
-// nullableFoldingBranchesKey keys what nullableFoldingBranches read of one schema.
+// nullableFoldingBranchesKey keys what nullableFoldingBranches read of one
+// schema.
 type nullableFoldingBranchesKey struct {
 	schema *statement.Schema
 }
 
-// nullableFoldingBranches returns the branches of schema's flattened allOf, each at its pointer
-// under schema's, that speak for schema, write `nullable: true` and write no properties
-// (foldsNullable). Every use of schema asks, so it is read once a run. A branch writing
-// `false` widens nothing, though it speaks where the only `true` beside it is on a
-// $ref branch, which no fold compares.
+// nullableFoldingBranches returns the branches of schema's flattened allOf,
+// each at its pointer under schema's, that speak for schema, write
+// `nullable: true` and write no properties (foldsNullable). Every use of schema
+// asks, so it is read once a run. A branch writing `false` widens nothing,
+// though it speaks where the only `true` beside it is on a $ref branch, which
+// no fold compares.
 func nullableFoldingBranches(loweringContext lowering.Ctx, schema *statement.Schema) []allOfBranch {
 	return lowering.ReadOncePerRun(loweringContext, nullableFoldingBranchesKey{schema}, func() []allOfBranch {
 		if !allOfDecides(loweringContext, schema) {

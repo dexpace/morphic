@@ -64,12 +64,12 @@ func (r *reporter) report(sev ir.Severity, class string, ptr jsontext.Pointer, f
 	r.add(diag.Newf(sev, diag.Validation+"/"+class, r.locate(ptr), format, args...), ptr)
 }
 
-// add adds diagnostic, a finding about the node read at ptr, unless it was made already:
-// a node an alias mounts at two positions is read at each, and a defect in it
-// is one defect, at one node. Where readAt holds and that node is written
-// elsewhere, the message names the least position that read it, pointers
-// compared token by token, so the name is the document's and not the order a
-// walk met its mounts in.
+// add adds diagnostic, a finding about the node read at ptr, unless it was made
+// already: a node an alias mounts at two positions is read at each, and a
+// defect in it is one defect, at one node. Where readAt holds and that node is
+// written elsewhere, the message names the least position that read it,
+// pointers compared token by token, so the name is the document's and not the
+// order a walk met its mounts in.
 func (r *reporter) add(diagnostic ir.Diagnostic, ptr jsontext.Pointer) {
 	read, key := r.rootAt+ptr, diagnostic.Key()
 	sayingValue, made := r.said[key]
@@ -84,8 +84,8 @@ func (r *reporter) add(diagnostic ir.Diagnostic, ptr jsontext.Pointer) {
 	}
 }
 
-// readAs returns diagnostic naming read, the position that read it, where readAt holds
-// and diagnostic is placed elsewhere.
+// readAs returns diagnostic naming read, the position that read it, where
+// readAt holds and diagnostic is placed elsewhere.
 func (r *reporter) readAs(diagnostic ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic {
 	if r.readAt && diagnostic.Provenance.Pointer != "" && diagnostic.Provenance.Pointer != read {
 		diagnostic.Message += readAtClause + string(read)
@@ -119,8 +119,9 @@ func lessPointer(a, b jsontext.Pointer) bool {
 // readAtClause begins what Options.ReadAt adds to a message.
 const readAtClause = "; read at "
 
-// AsPlaced returns diagnostic without the position Options.ReadAt names: the finding as
-// it is placed, which is the same whichever position read the node it is about.
+// AsPlaced returns diagnostic without the position Options.ReadAt names: the
+// finding as it is placed, which is the same whichever position read the node
+// it is about.
 func AsPlaced(diagnostic ir.Diagnostic) ir.Diagnostic {
 	if i := strings.LastIndex(diagnostic.Message, readAtClause); i >= 0 {
 		diagnostic.Message = diagnostic.Message[:i]
@@ -183,8 +184,8 @@ func (r *reporter) ignoredBesideRef(key string, ptr jsontext.Pointer) {
 // define, OpenAPI's own among them, bar the $ref, the `$schema` naming the
 // dialect, `definitions`, whose schemas only a $ref reads, `$comment`, which
 // nothing reads, and the identifier, which the binder ignores there as the
-// dialect does (reftable.DialectRule.IgnoresRefFields). A key they define none for,
-// an extension or an unknown keyword, is kept as written either way.
+// dialect does (reftable.DialectRule.IgnoresRefFields). A key they define none
+// for, an extension or an unknown keyword, is kept as written either way.
 func readsBesideRef(rules SchemaRules, key string) bool {
 	switch key {
 	case "$ref", "$schema", "definitions", "$comment", rules.Identifier():

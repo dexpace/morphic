@@ -192,13 +192,13 @@ func TestCompile_DefsReferenceMergesTargetsOwnNullabilityAndDescription(t *testi
 	assert.Equal(t, "from-B", descriptionOf(doc, irProperty), "q must read B's own definition, not A's")
 }
 
-// descriptionOf returns property's own description when the property carries one
-// directly, or — when property's type reduced to a shared primitive with nowhere of
-// its own to hold it — the description merged onto property.Docs from the reference's
-// resolved target. Whichever field this compiler attaches it to, it must be
-// the referenced schema's OWN description, never a sibling's; this reads
-// whichever field is populated rather than assuming one, so the assertion
-// survives a refactor of exactly where the merge lands.
+// descriptionOf returns property's own description when the property carries
+// one directly, or — when property's type reduced to a shared primitive with
+// nowhere of its own to hold it — the description merged onto property.Docs
+// from the reference's resolved target. Whichever field this compiler attaches
+// it to, it must be the referenced schema's OWN description, never a sibling's;
+// this reads whichever field is populated rather than assuming one, so the
+// assertion survives a refactor of exactly where the merge lands.
 func descriptionOf(doc *ir.Document, property ir.Property) string {
 	if property.Docs.Description != "" {
 		return property.Docs.Description
@@ -417,9 +417,10 @@ components:
 // TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames pins the base a
 // nested $id gives, placed as the load phase places a $ref's document: a dot
 // segment, the root path or a document with an empty fragment is another base,
-// so b roots a resource and property's pointer reads b's $defs, from the resource's
-// root alone. The source itself, however spelled, is none, so the nearest
-// definition above property answers, pointer's. property's own never does.
+// so b roots a resource and property's pointer reads b's $defs, from the
+// resource's root alone. The source itself, however spelled, is none, so the
+// nearest definition above property answers, pointer's. property's own never
+// does.
 func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 	t.Parallel()
 	b := ids.Ptr("components", "schemas", "A", "properties", "b")

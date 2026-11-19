@@ -65,10 +65,10 @@ type sequence struct {
 	missed bool
 }
 
-// runSequence applies planValue to root and returns the grafter that wrote it, which
-// holds what the actions did, what it reported, and whether the tree is the
-// overlay applied: false once an action cannot apply, or one would build past
-// maxNodes or select past steps.
+// runSequence applies planValue to root and returns the grafter that wrote it,
+// which holds what the actions did, what it reported, and whether the tree is
+// the overlay applied: false once an action cannot apply, or one would build
+// past maxNodes or select past steps.
 func runSequence(ctx context.Context, planValue plan, root *yaml.Node, lax bool, maxNodes, steps budget.Limit,
 ) (*grafter, []ir.Diagnostic, bool) {
 	sequenceValue := &sequence{plan: planValue, root: root, lax: lax, steps: budget.New(steps), grafts: newGrafter(planValue.version, root)}
@@ -259,9 +259,9 @@ func (s *sequence) write(ctx context.Context, a action, positions []position, pa
 	return nil
 }
 
-// replaced reports replacementValue, a value the source declares that a replaced, at the
-// value that replaced it where the overlay writes it, and at the action where
-// it copies it from the source.
+// replaced reports replacementValue, a value the source declares that a
+// replaced, at the value that replaced it where the overlay writes it, and at
+// the action where it copies it from the source.
 func replaced(a action, replacementValue replacement) ir.Diagnostic {
 	at := a.overlay
 	if replacementValue.with.Line > 0 {
@@ -364,8 +364,8 @@ func newWeigher(limit budget.Limit) *weigher {
 	return &weigher{memo: map[*yaml.Node]int{}, onPath: map[*yaml.Node]bool{}, limit: limit}
 }
 
-// weigh returns how many nodes copying node builds, held at the first count past
-// the limit, which no sum of them overflows.
+// weigh returns how many nodes copying node builds, held at the first count
+// past the limit, which no sum of them overflows.
 func (w *weigher) weigh(node *yaml.Node, depth int) int {
 	if node == nil {
 		return 0

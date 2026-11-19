@@ -1,8 +1,8 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// Package specrules holds the OpenAPI Specification's rules as data, and the engine
-// that checks a source tree against them at the minor it declares.
+// Package specrules holds the OpenAPI Specification's rules as data, and the
+// engine that checks a source tree against them at the minor it declares.
 //
 // The table states, for every object of OpenAPI 3.0, 3.1 and 3.2, each field
 // with the minors defining and requiring it, the rules binding fields,

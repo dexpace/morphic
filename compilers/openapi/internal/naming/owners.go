@@ -18,13 +18,14 @@ import (
 // pointer a component schema's walk is rooted at.
 const componentSchemaTokens = 3
 
-// owner returns the hint of the object documentPointer belongs to and how many of documentPointer's
-// tokens lead to its schema, kinds being how the grammar reads the way to documentPointer
-// (reftable.ReferenceTargetTable.Kinds): the schema whose structure holds documentPointer
-// (structureRoot), named for what holds it there (ownerOf) or, where that
-// schema is a document's root, for the document (Document). A structure
-// nothing names an owner of, such as one only a $ref reaches under an x- key,
-// is named from its pointer alone (pointerOwner).
+// owner returns the hint of the object documentPointer belongs to and how many
+// of documentPointer's tokens lead to its schema, kinds being how the grammar
+// reads the way to documentPointer (reftable.ReferenceTargetTable.Kinds): the
+// schema whose structure holds documentPointer (structureRoot), named for what
+// holds it there (ownerOf) or, where that schema is a document's root, for the
+// document (Document). A structure nothing names an owner of, such as one only
+// a $ref reaches under an x- key, is named from its pointer alone
+// (pointerOwner).
 func (n *Namer) owner(documentPointer reftable.DocumentPointer, tokens []string, kinds []reftable.Kind) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)
@@ -69,8 +70,8 @@ func structureRoot(kinds []reftable.Kind) (int, bool) {
 
 // inStructure reports whether a position of kind kind can lie inside a schema's
 // structure: a schema, or a map or a list of them, a list being
-// reftable.KindOther. That kind covers objects such as a path item too, but each
-// holds a schema only through an owner, which ends a structure as raw YAML
+// reftable.KindOther. That kind covers objects such as a path item too, but
+// each holds a schema only through an owner, which ends a structure as raw YAML
 // does.
 func inStructure(kind reftable.Kind) bool {
 	return kind == reftable.KindSchema || kind == reftable.KindSchemaMap || kind == reftable.KindOther
@@ -125,10 +126,10 @@ func (n *Namer) mediaTypeOwner(doc reftable.DocID, holder jsontext.Pointer, kind
 	return n.contentOwner(doc, holder.Parent().Parent(), kinds[len(kinds)-2])
 }
 
-// contentOwner returns the hint of the object at at, of kind kind, whose content
-// a media type's schema is: a request body (requestBodyName), a response by
-// its component key, else "response", a parameter by its name and a header by
-// its key.
+// contentOwner returns the hint of the object at at, of kind kind, whose
+// content a media type's schema is: a request body (requestBodyName), a
+// response by its component key, else "response", a parameter by its name and a
+// header by its key.
 func (n *Namer) contentOwner(doc reftable.DocID, at jsontext.Pointer, kind reftable.Kind) (string, bool) {
 	switch kind {
 	case reftable.KindRequestBody:
@@ -170,10 +171,10 @@ func (n *Namer) text(doc reftable.DocID, at jsontext.Pointer, field string) stri
 	return scalarText(nodeview.Child(n.node(doc, at), field))
 }
 
-// scalarText returns the text of node as the parser's model reads a string field:
-// a string, a number or a boolean as written, and nothing for null, a node
-// that is no scalar, or a scalar under any other tag, such as !!binary or a
-// local one (docs/parser-library.md#undecoded-scalar).
+// scalarText returns the text of node as the parser's model reads a string
+// field: a string, a number or a boolean as written, and nothing for null, a
+// node that is no scalar, or a scalar under any other tag, such as !!binary or
+// a local one (docs/parser-library.md#undecoded-scalar).
 func scalarText(node *yaml.Node) string {
 	if node == nil || node.Kind != yaml.ScalarNode {
 		return ""

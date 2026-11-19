@@ -64,8 +64,8 @@ or one for a map's entries, each declared as that shape declares it ([the declar
 takes](../plan/types.md#the-declaration-a-shape-takes)), a part that field or those entries send
 taking the encoding `Content.CatchAllEncoding` keys under the type holding the catch-all, its
 pattern's where one matches the part's name and its `Value` where none does ([a catch-all's
-parts](../../ir/payloads.md#a-catch-alls-parts)), save that each `RequestText` names, its
-`Rest` among them, is a list of pairs, each pair sent as a field or a part of the body. Where
+parts](../../ir/payloads.md#a-catch-alls-parts)), save that each `RequestText` names, its `Rest`
+among them, is a list of pairs, each pair sent as a field or a part of the body. Where
 `Payload.Required` is not true, each field is optional, none set sends no body, and a member the
 shape requires left unset beside one that is set fails the call before anything is sent. So a member
 the source adds is a field the request type gains, however it is arranged. Holding the body whole
@@ -84,7 +84,8 @@ multipart content added later would retype a member its callers build. A declara
 for each such content needs a name the shape rules do not give, since which members are text follows
 the content's encoding and no shape. T-48 holds it. An emitter that does not read
 `Content.CatchAllEncoding` degrades to its own rule for the parts a catch-all admits, as for a
-property with no `Encoding` entry: the field restates the content type OpenAPI gives the value's type
-by default and the part's `RepeatsPerArrayItem` and `HasFilename`, so a rule deriving those from the type sends what
-the field says, and one that does not, sending an array value as one part or a binary one with no
-file name, sends a request the API may refuse, though never one missing a member.
+property with no `Encoding` entry: the field restates the content type OpenAPI gives the value's
+type by default and the part's `RepeatsPerArrayItem` and `HasFilename`, so a rule deriving those
+from the type sends what the field says, and one that does not, sending an array value as one part
+or a binary one with no file name, sends a request the API may refuse, though never one missing a
+member.

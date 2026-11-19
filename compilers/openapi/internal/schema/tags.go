@@ -22,15 +22,15 @@ import (
 const maxReportedTags = 3
 
 // deferUnionTags queues the discriminator-inference policy's reading of the
-// union union, unionAtValue lowered at pointer, where the policy is on: for the discriminator
-// standing with it declaring no mapping, or for none at all
+// union union, unionAtValue lowered at pointer, where the policy is on: for the
+// discriminator standing with it declaring no mapping, or for none at all
 // (docs/compilers/openapi.md#discriminator-inference). It reads what each
 // variant's type says of its tag, which only a registry every node is interned
 // in answers in any declaration order, so it is a settlement. A mapping the
 // document declares is read as written, beside the routes it implies
-// (spellImplicitRoutes), so one of those its variant rejects stands (#1798).
-// A discriminator union cannot hold (tagLocated) leaves union untagged, so nothing is
-// read.
+// (spellImplicitRoutes), so one of those its variant rejects stands (#1798). A
+// discriminator union cannot hold (tagLocated) leaves union untagged, so
+// nothing is read.
 func deferUnionTags(loweringContext lowering.Ctx, ts *compile.Types, unionAtValue unionAt, union *ir.Union, pointer jsontext.Pointer) {
 	if !loweringContext.DiscriminatorInference.Honours() {
 		return
@@ -118,14 +118,14 @@ func routedByName(tags [][]string, implicit []implicitRoute) bool {
 	return true
 }
 
-// inferUndeclared gives union, a closed union of two or more variants declaring no
-// discriminator, the one its variants carry in all but name: the first property
-// of the first variant, in layout order, that every variant requires and pins
-// to a set no other shares. A payload then names its variant by that value, as
-// validation would find it. An open union may meet a variant carrying any tag.
-// The other variants are flattened once, and only where the first pins one,
-// each keyed by wire name, so a candidate costs the same however many members
-// a variant has.
+// inferUndeclared gives union, a closed union of two or more variants declaring
+// no discriminator, the one its variants carry in all but name: the first
+// property of the first variant, in layout order, that every variant requires
+// and pins to a set no other shares. A payload then names its variant by that
+// value, as validation would find it. An open union may meet a variant carrying
+// any tag. The other variants are flattened once, and only where the first pins
+// one, each keyed by wire name, so a candidate costs the same however many
+// members a variant has.
 func (t unionTags) inferUndeclared(reg ir.TypeRegistry, union *ir.Union) []ir.Diagnostic {
 	if union.Discriminator != nil {
 		return t.invariant("holds a discriminator, though its source declares none")

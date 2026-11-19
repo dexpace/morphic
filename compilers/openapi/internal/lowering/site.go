@@ -13,11 +13,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// DocumentPlacement is one document of a compile as a lowering places and names what it
-// reads there: the BoundDocument.Sources entry its positions are recorded in, how
-// the IDs of what it declares are qualified, and its number in the bindings'
-// table. A context holds the site of the document whose content it reads,
-// which InDocument alone sets, so no lowering spells a source index.
+// DocumentPlacement is one document of a compile as a lowering places and names
+// what it reads there: the BoundDocument.Sources entry its positions are
+// recorded in, how the IDs of what it declares are qualified, and its number in
+// the bindings' table. A context holds the site of the document whose content
+// it reads, which InDocument alone sets, so no lowering spells a source index.
 type DocumentPlacement struct {
 	place provenance.Doc
 	ids   ids.DocumentIDNamespace
@@ -25,8 +25,8 @@ type DocumentPlacement struct {
 }
 
 // Place returns where the site places a pointer of its document: in another
-// document's own BoundDocument.Sources entry, and otherwise in the source's, the
-// overlay named as its writer for a position the overlay introduced or
+// document's own BoundDocument.Sources entry, and otherwise in the source's,
+// the overlay named as its writer for a position the overlay introduced or
 // rewrote.
 //
 // Every lowering places a pointer through it, entities and diagnostics alike

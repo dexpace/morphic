@@ -157,7 +157,8 @@ func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
 
 // TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
 // external reference names is reported: under its own rule and severity, in
-// that document's LoadedOpenAPIDocument.Sources entry, at the node it is about (GitHub #537,
+// that document's LoadedOpenAPIDocument.Sources entry, at the node it is about
+// (GitHub #537,
 // #1030). Findings come in the table's order: an object's missing fields, then
 // the fields it holds.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {

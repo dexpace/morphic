@@ -78,11 +78,11 @@ func (r *Registry) requirement(serviceContext service.Ctx, req *soa.SecurityRequ
 	return ir.AuthRequirement{Schemes: uses}, diags
 }
 
-// scheme returns the ID of the scheme key names in a requirement serviceContext lowers at
-// pointer, and what reading it reported. Where the document's minor reads a key
-// as a URI and it names no entry of the source, the table reads it as a
-// reference, against the document writing it (reftable.Config.KeysByURI); any other
-// key is the name of an entry of the source.
+// scheme returns the ID of the scheme key names in a requirement serviceContext
+// lowers at pointer, and what reading it reported. Where the document's minor
+// reads a key as a URI and it names no entry of the source, the table reads it
+// as a reference, against the document writing it (reftable.Config.KeysByURI);
+// any other key is the name of an entry of the source.
 func (r *Registry) scheme(serviceContext service.Ctx, key string, pointer jsontext.Pointer) (ir.AuthID, []ir.Diagnostic) {
 	if referenceTargetTable := serviceContext.Bindings().Table(); referenceTargetTable != nil {
 		if ref, isRef := referenceTargetTable.Reference(serviceContext.Position(pointer.AppendToken(key)), reftable.RefSecurityScheme); isRef {
@@ -128,9 +128,9 @@ func (r *Registry) referenced(serviceContext service.Ctx, key string, ref reftab
 	return r.landed(serviceContext, end)
 }
 
-// sourceEntry returns the name of the entry of the source's securitySchemes
-// key names, read as a reference against the document serviceContext reads, declared or
-// not, so a URI and the name it spells are one scheme.
+// sourceEntry returns the name of the entry of the source's securitySchemes key
+// names, read as a reference against the document serviceContext reads,
+// declared or not, so a URI and the name it spells are one scheme.
 func sourceEntry(serviceContext service.Ctx, key string) (string, bool) {
 	pointer, ok := serviceContext.RefScope().InternalPointer(key)
 	if !ok {
@@ -154,7 +154,8 @@ func whyNot(ref reftable.Reference) string {
 // own document the first time a requirement reaches it, so which reaches it
 // first decides nothing. One naming no mechanism, or that nothing could be
 // built for, is minted in the space ir reserves for that kind, at its position
-// in its document, as a key naming nothing is (ids.DocumentIDNamespace.UnresolvedAuth).
+// in its document, as a key naming nothing is
+// (ids.DocumentIDNamespace.UnresolvedAuth).
 func (r *Registry) landed(serviceContext service.Ctx, end reftable.DocumentPointer) (ir.AuthID, []ir.Diagnostic) {
 	dc, read := service.InDocument(serviceContext, end.Doc)
 	id := dc.IDs().Auth(end.Pointer)

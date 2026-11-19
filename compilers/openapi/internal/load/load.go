@@ -48,8 +48,8 @@ type Options struct {
 	// model is built, or nil for none. With empty Data, the document its Path
 	// names is read through Reader (readOverlay).
 	Overlay *overlay.Options
-	// OverlaySrcIndex is the index the overlay document takes in LoadedOpenAPIDocument.Sources.
-	// It is read only when Overlay is set.
+	// OverlaySrcIndex is the index the overlay document takes in
+	// LoadedOpenAPIDocument.Sources. It is read only when Overlay is set.
 	OverlaySrcIndex int
 	// MaxSourceBytes bounds the size in bytes of the source, of the overlay and
 	// of each document a reference reads, each checked before anything reads
@@ -76,10 +76,10 @@ type Options struct {
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
-	// document of sourcetreestats.MaxIndexedNodes nodes, and counts the indexes one
-	// load builds. Carrying it here rather than in a package-level variable keeps
-	// the bound an input to the stage, so nothing a test does to it is visible to
-	// a concurrent load.
+	// document of sourcetreestats.MaxIndexedNodes nodes, and counts the indexes
+	// one load builds. Carrying it here rather than in a package-level variable
+	// keeps the bound an input to the stage, so nothing a test does to it is
+	// visible to a concurrent load.
 	buildIndex func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements
 	// entered is told each phase a load enters, before the context is asked, or
 	// is nil. It is unexported because it is this package's test seam: a test
@@ -138,14 +138,13 @@ func noKey(key, _ *yaml.Node) bool {
 // its own, which the CLI reports on the channel it uses for being invoked wrong.
 var ErrParse = errors.New("parse source")
 
-// LoadedOpenAPIDocument is the successful output of the load phase: a parsed speakeasy
-// document, where each of its references lands, and the identity metadata the
-// rest of the compiler needs.
-// A nil *Document with error-severity diagnostics means the source is a spec
-// problem the compiler refuses to lower (e.g. an unsupported version). The
-// normalized "openapi" + major.minor format reaches the IR through
-// Source.Format alone; Document does not separately carry a
-// compilers.SourceFormat, since nothing downstream ever read one.
+// LoadedOpenAPIDocument is the successful output of the load phase: a parsed
+// speakeasy document, where each of its references lands, and the identity
+// metadata the rest of the compiler needs. A nil *Document with error-severity
+// diagnostics means the source is a spec problem the compiler refuses to lower
+// (e.g. an unsupported version). The normalized "openapi" + major.minor format
+// reaches the IR through Source.Format alone; Document does not separately
+// carry a compilers.SourceFormat, since nothing downstream ever read one.
 type LoadedOpenAPIDocument struct {
 	Doc    *soa.OpenAPI  // parsed document, whose references Bindings resolve
 	Source ir.SourceInfo // the entry LoadedOpenAPIDocument.Sources records for this source
@@ -165,9 +164,9 @@ type LoadedOpenAPIDocument struct {
 	// it reuses, which the parser does not model.
 	Siblings   Siblings
 	MediaTypes MediaTypes
-	// Others is every document a reference read beside the source, in the
-	// order LoadedOpenAPIDocument.Sources lists them after the source and its overlay, and
-	// Dialects the rows each schema of them is read with.
+	// Others is every document a reference read beside the source, in the order
+	// LoadedOpenAPIDocument.Sources lists them after the source and its
+	// overlay, and Dialects the rows each schema of them is read with.
 	Others   Others
 	Dialects dialect.SchemaDialectRows
 	// Rows is what the table says at the minor the source declares, in the
@@ -179,9 +178,9 @@ type LoadedOpenAPIDocument struct {
 }
 
 // Rows is what the rule table says at the minor a document is read at, in a
-// dialect: how its schemas read (specrules.SchemaRules), what its Encoding Objects
-// leave unwritten (specrules.EncodingRules), and how its Security Requirement
-// Objects name a scheme (specrules.SecurityRules).
+// dialect: how its schemas read (specrules.SchemaRules), what its Encoding
+// Objects leave unwritten (specrules.EncodingRules), and how its Security
+// Requirement Objects name a scheme (specrules.SecurityRules).
 type Rows struct {
 	Schema   specrules.SchemaRules
 	Encoding specrules.EncodingRules
@@ -193,12 +192,13 @@ type Rows struct {
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
 func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
-	// An overlay sharing the source's index is the one way to get the attribution
-	// silently wrong. Every position the overlay introduced would name the source,
-	// and LoadedOpenAPIDocument.Sources would carry an entry nothing references — no diagnostic,
-	// and nothing structural to catch it, because both indexes address a declared
-	// entry. An index past the end is caught downstream by irverify as the dangling
-	// reference it is; this collision is not, so it is checked here.
+	// An overlay sharing the source's index is the one way to get the
+	// attribution silently wrong. Every position the overlay introduced would
+	// name the source, and LoadedOpenAPIDocument.Sources would carry an entry
+	// nothing references — no diagnostic, and nothing structural to catch it,
+	// because both indexes address a declared entry. An index past the end is
+	// caught downstream by irverify as the dangling reference it is; this
+	// collision is not, so it is checked here.
 	if opts.Overlay != nil && opts.OverlaySrcIndex == srcIndex {
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
 	}
@@ -352,14 +352,14 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 	return diags
 }
 
-// namedWithin reports whether the pointers a compile of idx's tree names one
-// by one total within the bound its size allows, counting a value kept raw by
-// its root alone (reftable.NamedPointerBytes, GitHub #1499). A tree a reference
-// leaves, one too large to weigh so, one that may name a dialect, whose
-// schemas another grammar may read (namesDialect), and one a mapping of which
-// writes a key the Format section refuses, where the check of its keys spells
-// a pointer for every node to place its findings (specrules.BreaksFormat), are not
-// within it.
+// namedWithin reports whether the pointers a compile of idx's tree names one by
+// one total within the bound its size allows, counting a value kept raw by its
+// root alone (reftable.NamedPointerBytes, GitHub #1499). A tree a reference
+// leaves, one too large to weigh so, one that may name a dialect, whose schemas
+// another grammar may read (namesDialect), and one a mapping of which writes a
+// key the Format section refuses, where the check of its keys spells a pointer
+// for every node to place its findings (specrules.BreaksFormat), are not within
+// it.
 func namedWithin(ctx context.Context, idx sourcetreestats.Measurements) bool {
 	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || specrules.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
 		return false
@@ -428,9 +428,10 @@ func rowsAt(spec specrules.Spec, version, uri string) (rows Rows, unread bool) {
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
-// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the compiler supports it: a minor the rule table covers
-// (specrules.ParseMinor), so no document is compiled that the table holds to nothing.
+// supportedMinor returns the normalized major.minor prefix of an OpenAPI
+// version string and whether the compiler supports it: a minor the rule table
+// covers (specrules.ParseMinor), so no document is compiled that the table
+// holds to nothing.
 func supportedMinor(version string) (string, bool) {
 	minor, ok := specrules.ParseMinor(version)
 	if !ok {

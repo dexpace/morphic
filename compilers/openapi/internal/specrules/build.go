@@ -271,8 +271,8 @@ const (
 )
 
 // contentTypeDefault returns the value an Encoding Object's contentType takes
-// where the object leaves it unwritten, for a value of case defaultCase, at the minors minorVersionRange
-// holds.
+// where the object leaves it unwritten, for a value of case defaultCase, at the
+// minors minorVersionRange holds.
 func contentTypeDefault(defaultCase DefaultCase, value string, minorVersionRange MinorVersionRange, cites ...Cite) Default {
 	return Default{Field: "contentType", Value: value, Cites: cites, Span: minorVersionRange, Case: defaultCase}
 }

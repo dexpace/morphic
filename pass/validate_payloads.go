@@ -57,8 +57,8 @@ func checkCatchAllEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 }
 
 // appendCatchAllDiags appends to dst a diagnostic per statement of content's
-// CatchAllEncoding, at at and its key, that the holders of content's body refute,
-// asking the keys in ascending order, sorted in keys.
+// CatchAllEncoding, at at and its key, that the holders of content's body
+// refute, asking the keys in ascending order, sorted in keys.
 func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, content ir.Content, at string, keys *[]ir.TypeID,
 ) []ir.Diagnostic {
 	holders := map[ir.TypeID]bool{}
@@ -213,8 +213,8 @@ func forEachErrorPayload(errs []ir.ErrorCase, owner, field string, fn func(paylo
 	}
 }
 
-// siteOf is the payloadSite of payload, hanging from field of owner at index, or at
-// none for -1, request saying whether that position is a request.
+// siteOf is the payloadSite of payload, hanging from field of owner at index,
+// or at none for -1, request saying whether that position is a request.
 func siteOf(payload ir.Payload, owner, field string, index int, request bool) payloadSite {
 	return payloadSite{contents: payload.Contents, required: payload.Required, owner: owner, field: field, index: index, request: request}
 }

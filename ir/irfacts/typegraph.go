@@ -10,13 +10,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// typeGraph is the graph [DocumentFacts.Usage] spreads along and [DocumentFacts.Recursive]
-// reads cycles in (docs/ir/derived-facts.md). Each declared type has two
-// vertices: its shape, what a value of exactly that type holds, and its range,
-// every shape a value declared as that type may take. A held part reaches its
-// target's range when the target is polymorphic, and its shape otherwise. A
-// composed part reaches a shape, never a range, so a subtype including its
-// base's members does not reach the base's other subtypes through it.
+// typeGraph is the graph [DocumentFacts.Usage] spreads along and
+// [DocumentFacts.Recursive] reads cycles in (docs/ir/derived-facts.md). Each
+// declared type has two vertices: its shape, what a value of exactly that type
+// holds, and its range, every shape a value declared as that type may take. A
+// held part reaches its target's range when the target is polymorphic, and its
+// shape otherwise. A composed part reaches a shape, never a range, so a subtype
+// including its base's members does not reach the base's other subtypes through
+// it.
 type typeGraph struct {
 	ids   []ir.TypeID       // declared types, sorted: type i has shape 2i and range 2i+1
 	index map[ir.TypeID]int // each declared type's position in ids

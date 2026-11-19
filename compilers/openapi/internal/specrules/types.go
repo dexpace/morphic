@@ -272,8 +272,8 @@ type Field struct {
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// IsJSONSchemaKeyword marks a JSON Schema keyword, which the dialect a schema is
-	// read in defines rather than the minor (SchemaRules).
+	// IsJSONSchemaKeyword marks a JSON Schema keyword, which the dialect a
+	// schema is read in defines rather than the minor (SchemaRules).
 	IsJSONSchemaKeyword bool
 	// Decimal marks a numeric bound the schema lowering reads as the decimal
 	// its text spells, quoted or not, so the check judges it as read rather

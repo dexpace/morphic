@@ -261,8 +261,8 @@ func roleOf(stateValue state) Role {
 	}
 }
 
-// modelled reports whether the model holds a position read at stateValue as an object
-// or a list of its own, rather than as raw YAML or a scalar value.
+// modelled reports whether the model holds a position read at stateValue as an
+// object or a list of its own, rather than as raw YAML or a scalar value.
 func modelled(stateValue state) bool {
 	return stateValue != sRaw && stateValue != sValue
 }

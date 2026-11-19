@@ -23,9 +23,9 @@ import (
 // function that decides nothing and only keys, locates or converts belongs in
 // annotation, or the same call gains a second spelling.
 
-// PreserveUnknownKeywords records every keyword schema writes that no field of the
-// schema model names, or that the model names and the dialect does not define
-// (undefinedKeywords), and no reader above it already kept (GitHub #297).
+// PreserveUnknownKeywords records every keyword schema writes that no field of
+// the schema model names, or that the model names and the dialect does not
+// define (undefinedKeywords), and no reader above it already kept (GitHub #297).
 //
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read: a
@@ -40,9 +40,9 @@ func PreserveUnknownKeywords(loweringContext lowering.Ctx, unmodeled *ir.Unmodel
 	return append(diags, annotation.UndefinedKeywordsIn(unmodeled, schema, undefinedKeywords(loweringContext, schema), pointer, loweringContext.Place())...)
 }
 
-// unknownTaken returns the keys schema, written at pointer, writes that the schema
-// model names no field for and a reader other than PreserveUnknownKeywords
-// reads, by the dialect it is read in.
+// unknownTaken returns the keys schema, written at pointer, writes that the
+// schema model names no field for and a reader other than
+// PreserveUnknownKeywords reads, by the dialect it is read in.
 func unknownTaken(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []string {
 	var taken []string
 	if _, listed := listedItems(schema); listed {
@@ -74,12 +74,12 @@ func writesUnknown(loweringContext lowering.Ctx, schema *statement.Schema, key s
 	return annotation.UnknownKeyword(schema, key) && !slices.Contains(unknownTaken(loweringContext, schema, pointer), key)
 }
 
-// undefinedKeywords returns the keywords schema writes that the schema model names
-// but nothing reads, because the dialect schema is read in does not define them:
-// `nullable`, in a schema whose dialect defines no such keyword, as 3.1's and
-// 3.2's do not, unless the nullable-inference policy reads this one
-// (nullableRead). Where the dialect defines it, as in a 3.0 schema, one beside
-// its $ref included, it is read by its declared effect
+// undefinedKeywords returns the keywords schema writes that the schema model
+// names but nothing reads, because the dialect schema is read in does not
+// define them: `nullable`, in a schema whose dialect defines no such keyword,
+// as 3.1's and 3.2's do not, unless the nullable-inference policy reads this
+// one (nullableRead). Where the dialect defines it, as in a 3.0 schema, one
+// beside its $ref included, it is read by its declared effect
 // (docs/compilers/openapi.md#nullable).
 func undefinedKeywords(loweringContext lowering.Ctx, schema *statement.Schema) []string {
 	if !hasKey(schema, "nullable") || nullableRead(loweringContext, schema) {
@@ -88,10 +88,10 @@ func undefinedKeywords(loweringContext lowering.Ctx, schema *statement.Schema) [
 	return []string{"nullable"}
 }
 
-// nullableRead reports whether the `nullable` schema writes is read: by the dialect
-// that defines the keyword, or, where none does, by the nullable-inference
-// policy, which reads a boolean true and no other value. A keyword neither
-// reads is one the dialect does not define, kept as such
+// nullableRead reports whether the `nullable` schema writes is read: by the
+// dialect that defines the keyword, or, where none does, by the
+// nullable-inference policy, which reads a boolean true and no other value. A
+// keyword neither reads is one the dialect does not define, kept as such
 // (docs/compilers/openapi.md#nullable).
 func nullableRead(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return loweringContext.SchemaRules().Defines("nullable") || loweringContext.NullableInference.Honours() && nullableTrue(schema)

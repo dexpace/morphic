@@ -43,9 +43,9 @@ type refinement struct {
 	contradicts bool
 }
 
-// principalIs reports whether allOfBranchValue is the branch the position lowers from: its
-// schema at its pointer, as an entry writing a $ref beside other keys is two
-// branches at one pointer (statement.AllOfConjunct).
+// principalIs reports whether allOfBranchValue is the branch the position
+// lowers from: its schema at its pointer, as an entry writing a $ref beside
+// other keys is two branches at one pointer (statement.AllOfConjunct).
 func (r refinement) principalIs(allOfBranchValue allOfBranch) bool {
 	return r.principal != nil && r.principal.pointer == allOfBranchValue.pointer && r.principal.schema == allOfBranchValue.schema
 }
@@ -54,8 +54,8 @@ func (r refinement) principalIs(allOfBranchValue allOfBranch) bool {
 type refCandidacy uint8
 
 const (
-	// refCandidateForDecidingConjunct marks a $ref that could be the principal, and is, or lost
-	// to a value set.
+	// refCandidateForDecidingConjunct marks a $ref that could be the principal,
+	// and is, or lost to a value set.
 	refCandidateForDecidingConjunct refCandidacy = iota
 	// refNarrowed marks one another $ref beat, lying within more conjuncts.
 	refNarrowed
@@ -163,9 +163,9 @@ func branchAt(comp allOfComposition, i int) *allOfBranch {
 	return &comp.branches[i]
 }
 
-// branchStatement returns the statement of the branch of schema's allOf at index i, as
-// allOfBranches reads it, nil for -1: a reader of the decision with no pointer
-// builds no branch list.
+// branchStatement returns the statement of the branch of schema's allOf at
+// index i, as allOfBranches reads it, nil for -1: a reader of the decision with
+// no pointer builds no branch list.
 func branchStatement(loweringContext lowering.Ctx, schema *statement.Schema, i int) *statement.Statement {
 	if i < 0 {
 		return nil
@@ -173,8 +173,8 @@ func branchStatement(loweringContext lowering.Ctx, schema *statement.Schema, i i
 	return loweringContext.Statements().Read(loweringContext.Statements().Read(schema).Entries[i].Schema)
 }
 
-// decisionOf returns the decision on schema, read once a run, and none where its
-// allOf may not refine.
+// decisionOf returns the decision on schema, read once a run, and none where
+// its allOf may not refine.
 func decisionOf(loweringContext lowering.Ctx, schema *statement.Schema) decision {
 	if !allOfMayRefine(schema) {
 		return decision{}
@@ -183,18 +183,18 @@ func decisionOf(loweringContext lowering.Ctx, schema *statement.Schema) decision
 }
 
 // unionAside reports whether the oneOf or anyOf schema writes beside its allOf
-// shares no kind with what the rest of schema admits: no instance satisfies them
-// together, so the position lowers as the rest does and keeps the union
+// shares no kind with what the rest of schema admits: no instance satisfies
+// them together, so the position lowers as the rest does and keeps the union
 // (docs/compilers/openapi.md#union-beside-structure).
 func unionAside(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return decisionOf(loweringContext, schema).aside
 }
 
-// usesOneRef reports whether schema, whose flattened conjuncts are comp, is a use of
-// one target saying nothing of it: one conjunct is a $ref writing nothing
-// read beside it, as an entry read whole may (statement.ReadBeside), and schema
-// and every other conjunct state nothing (statesNothing), or, where a carrier
-// holds schema's position (carriedAt), nothing but what binds the use
+// usesOneRef reports whether schema, whose flattened conjuncts are comp, is a
+// use of one target saying nothing of it: one conjunct is a $ref writing
+// nothing read beside it, as an entry read whole may (statement.ReadBeside),
+// and schema and every other conjunct state nothing (statesNothing), or, where
+// a carrier holds schema's position (carriedAt), nothing but what binds the use
 // (bindsUseOnly), which the carrier holds. It is the reference, as the $ref
 // alone is (docs/compilers/openapi.md#allof-classification).
 func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) bool {
@@ -218,11 +218,11 @@ func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp all
 	return refs == 1 && quiet(schema)
 }
 
-// bindsUseOnly reports whether every key schema writes that says something of the
-// instance binds a use of the type rather than the type: one of
-// residueKeywords, or a `nullable: true` the nullable-inference policy reads
-// as widening the reference (docs/compilers/openapi.md#nullable), each of
-// which a carrier holds and a node cannot
+// bindsUseOnly reports whether every key schema writes that says something of
+// the instance binds a use of the type rather than the type: one of
+// residueKeywords, or a `nullable: true` the nullable-inference policy reads as
+// widening the reference (docs/compilers/openapi.md#nullable), each of which a
+// carrier holds and a node cannot
 // (docs/compilers/openapi.md#use-bound-annotations).
 func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return schema.Truth == statement.Stated && !slices.ContainsFunc(schema.Keys, func(key statement.Key) bool {
@@ -238,11 +238,11 @@ func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	})
 }
 
-// carriedAt reports whether a carrier holds the position the bindings place schema
-// at: a property a schema lists, or the schema of a parameter or a header,
-// its content's included. It reads the placement, never the lowering that
-// reaches schema, so every reader of schema's decision, the carrier's and a $ref's
-// naming the position alike, reads one answer.
+// carriedAt reports whether a carrier holds the position the bindings place
+// schema at: a property a schema lists, or the schema of a parameter or a
+// header, its content's included. It reads the placement, never the lowering
+// that reaches schema, so every reader of schema's decision, the carrier's and
+// a $ref's naming the position alike, reads one answer.
 func carriedAt(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	at, placed := siteOf(schema)
 	if !placed {
@@ -265,12 +265,12 @@ func carriedAt(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return loweringContext.Bindings().ObjectAt(holder, reftable.RefParameter) != nil || loweringContext.Bindings().ObjectAt(holder, reftable.RefHeader) != nil
 }
 
-// statesNothing reports whether schema states nothing of the instance: `true`, a
-// value written as no schema (docs/compilers/openapi.md#null-schema), or a
+// statesNothing reports whether schema states nothing of the instance: `true`,
+// a value written as no schema (docs/compilers/openapi.md#null-schema), or a
 // schema object writing nothing but the allOf its statement flattens, a list
 // holding an entry, and keys that say nothing of the instance
-// (statement.ReadBeside): a comment, an anchor, schemas a reference reaches,
-// a keyword left out.
+// (statement.ReadBeside): a comment, an anchor, schemas a reference reaches, a
+// keyword left out.
 func statesNothing(schema *statement.Schema) bool {
 	if schema.Truth == statement.Anything || schema.Truth == statement.Unwritten {
 		return true
@@ -373,9 +373,10 @@ func soleUnion(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts
 
 // unionPair returns the conjunct writing the union the position elects where
 // its conjuncts write a oneOf and an anyOf, on one inline entry or one each on
-// two, and nothing else conjoining with them (argumentStandsAlone): the position is
-// then one schema writing both (docs/compilers/openapi.md#competing-keywords),
-// whatever the kinds their branches admit.
+// two, and nothing else conjoining with them (argumentStandsAlone): the
+// position is then one schema writing both
+// (docs/compilers/openapi.md#competing-keywords), whatever the kinds their
+// branches admit.
 func unionPair(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts []conjunct) *conjunct {
 	unions := unionEntries(schema, conjuncts)
 	elected := pairElected(loweringContext, schema, unions)
@@ -496,8 +497,8 @@ func pairHeld(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts 
 }
 
 // unionEntries returns the conjuncts writing a union where each is an inline
-// entry writing no allOf of its own, schema writes no union and no conjunct is a
-// $ref, and nil otherwise. The unions are looked for first, as most composing
+// entry writing no allOf of its own, schema writes no union and no conjunct is
+// a $ref, and nil otherwise. The unions are looked for first, as most composing
 // allOfs write none.
 func unionEntries(schema *statement.Schema, conjuncts []conjunct) []*conjunct {
 	if declaresUnion(schema) {
@@ -517,12 +518,12 @@ func unionEntries(schema *statement.Schema, conjuncts []conjunct) []*conjunct {
 	return unions
 }
 
-// argumentStandsAlone reports whether nothing beside unions, the conjuncts writing
-// them, conjoins with them, elected writing the one the position is: no other
-// conjunct writes a discriminator, which routes that union, and each keyword a
-// conjunct writes that a variant would carry (siblingKeywords), an allOf
-// aside, every branch of each union says (branchesSay), a union declaring shape
-// against the rest where one is written.
+// argumentStandsAlone reports whether nothing beside unions, the conjuncts
+// writing them, conjoins with them, elected writing the one the position is: no
+// other conjunct writes a discriminator, which routes that union, and each
+// keyword a conjunct writes that a variant would carry (siblingKeywords), an
+// allOf aside, every branch of each union says (branchesSay), a union declaring
+// shape against the rest where one is written.
 func standsAlone(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts []conjunct, unions []*conjunct, elected *conjunct) bool {
 	written := false
 	for i := range conjuncts {
@@ -640,8 +641,8 @@ func setElected(admissionReaderValue *admissionReader, schema *statement.Schema,
 	return nil
 }
 
-// competingSet is what the value set schema writes admits read as the election of
-// competing keywords lowers it, its `const` before its `enum`, each alone
+// competingSet is what the value set schema writes admits read as the election
+// of competing keywords lowers it, its `const` before its `enum`, each alone
 // (docs/compilers/openapi.md#competing-keywords).
 func competingSet(admissionReaderValue *admissionReader, schema *statement.Schema) admitted {
 	if constant := schema.Const(); constant != nil {
@@ -659,7 +660,8 @@ func restKinds(loweringContext lowering.Ctx, schema *statement.Schema, comp allO
 	for _, allOfBranch := range comp.branches {
 		bs := allOfBranch.schema.Schema
 		if allOfBranch.schema.Ref == nil && declaresUnion(bs) {
-			// An entry's union is the one left out, as schema's own (entryUnionsApart).
+			// An entry's union is the one left out, as schema's own
+			// (entryUnionsApart).
 			rest.conjoinKinds(&admission{firm: declaredInstanceTypes(bs) & valueKinds(loweringContext, bs), claims: claimedKinds(loweringContext, bs)})
 			continue
 		}
@@ -753,11 +755,11 @@ func refinableBranches(comp allOfComposition) bool {
 }
 
 // conjuncts reads schema's own keywords, then each branch of comp but a `true`,
-// which says nothing, then a union schema writes beside the allOf as part of its
-// own keywords, as on an inline branch. A union sharing no kind with the rest,
-// one of null alone beside a rest admitting no null among them, is left out,
-// which the second result reports. A wrapper's own keywords are
-// read alone: its entries are conjuncts of their own.
+// which says nothing, then a union schema writes beside the allOf as part of
+// its own keywords, as on an inline branch. A union sharing no kind with the
+// rest, one of null alone beside a rest admitting no null among them, is left
+// out, which the second result reports. A wrapper's own keywords are read
+// alone: its entries are conjuncts of their own.
 func (w *admissionReader) conjuncts(schema *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
 	claims := inferredClaims(w.c, schema)
@@ -855,10 +857,10 @@ func claimsAll(loweringContext lowering.Ctx, schema *statement.Schema, claims ki
 	return claims != 0 && claims&^claimedKinds(loweringContext, schema) == 0
 }
 
-// inlineConjunct is what bs, an inline branch, admits as admissionReaderValue reads it: its own
-// keywords and the oneOf and anyOf it writes, whose branches name the kinds it
-// admits. Its allOf is read apart, since its entries are conjuncts of their
-// own.
+// inlineConjunct is what bs, an inline branch, admits as admissionReaderValue
+// reads it: its own keywords and the oneOf and anyOf it writes, whose branches
+// name the kinds it admits. Its allOf is read apart, since its entries are
+// conjuncts of their own.
 func inlineConjunct(admissionReaderValue *admissionReader, bs *statement.Schema) admitted {
 	read := admissionReaderValue.written(bs, admissionReaderValue.nullable)
 	if declaresUnion(bs) {
@@ -880,8 +882,8 @@ func unionsIn(admissionReaderValue *admissionReader, schema *statement.Schema) a
 	return read
 }
 
-// nullIdiom reports whether schema writes beside its $ref a type naming null alone,
-// which the nullable-inference policy reads as that reference or null
+// nullIdiom reports whether schema writes beside its $ref a type naming null
+// alone, which the nullable-inference policy reads as that reference or null
 // (docs/compilers/openapi.md#nullable): the null widens the reference rather
 // than conjoining with it, so the type says nothing else of the position.
 func nullIdiom(loweringContext lowering.Ctx, schema *statement.Schema) bool {

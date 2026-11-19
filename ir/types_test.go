@@ -288,22 +288,23 @@ var primKindSpellings = map[ir.PrimitiveKind]string{
 	ir.PrimitiveAny:            "any",
 }
 
-// TestPrimitiveKind_Constants pins the on-disk spelling of every PrimitiveKind value.
-// These strings are the primitive-scalar vocabulary written into every
+// TestPrimitiveKind_Constants pins the on-disk spelling of every PrimitiveKind
+// value. These strings are the primitive-scalar vocabulary written into every
 // golden IR snapshot; a typo fix later would be a silent breaking change.
 func TestPrimitiveKind_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, primKindSpellings, "unspecified")
 }
 
-// TestPrimitiveKind_TiesToConstBlock keeps PrimitiveKind.Valid tied to the const block.
-// Nothing rejects an invented kind on deserialization and ir.PrimitiveTypeID derives
-// an ID from any string, so irverify has Valid and nothing else to test
-// against. The tie is made by reading the ir package's declarations, as
-// typedef_completeness_test.go does for TypeKind. primKindSpellings and the
-// declared constants must name the same set, and every declared kind must be
-// Valid. The converse, a case added to Valid for a kind no constant declares,
-// cannot be enforced here: a switch body is not enumerable at run time.
+// TestPrimitiveKind_TiesToConstBlock keeps PrimitiveKind.Valid tied to the
+// const block. Nothing rejects an invented kind on deserialization and
+// ir.PrimitiveTypeID derives an ID from any string, so irverify has Valid and
+// nothing else to test against. The tie is made by reading the ir package's
+// declarations, as typedef_completeness_test.go does for TypeKind.
+// primKindSpellings and the declared constants must name the same set, and
+// every declared kind must be Valid. The converse, a case added to Valid for a
+// kind no constant declares, cannot be enforced here: a switch body is not
+// enumerable at run time.
 func TestPrimitiveKind_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "PrimitiveKind")
@@ -319,9 +320,9 @@ func TestPrimitiveKind_TiesToConstBlock(t *testing.T) {
 	require.ElementsMatch(t, spelled, values)
 }
 
-// TestPrimitiveKind_UnknownIsInvalid pins the other direction: Valid must reject a
-// kind no const declares, including the zero value a compiler leaves behind when
-// it forgets the field, and a re-cased spelling of a real one.
+// TestPrimitiveKind_UnknownIsInvalid pins the other direction: Valid must
+// reject a kind no const declares, including the zero value a compiler leaves
+// behind when it forgets the field, and a re-cased spelling of a real one.
 func TestPrimitiveKind_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
 	assert.False(t, ir.PrimitiveKind("").Valid())
@@ -369,8 +370,9 @@ func declaredPrimKinds(t *testing.T) []ir.PrimitiveKind {
 	return kinds
 }
 
-// TestPrimitiveKind_DomainParentsAreTheContainmentEdges holds the whole edge table,
-// strictly in both directions: every edge listed is returned, and nothing else.
+// TestPrimitiveKind_DomainParentsAreTheContainmentEdges holds the whole edge
+// table, strictly in both directions: every edge listed is returned, and
+// nothing else.
 func TestPrimitiveKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
 	t.Parallel()
 	for _, primitiveKind := range declaredPrimKinds(t) {
@@ -418,8 +420,9 @@ func TestPrimitiveKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 	assert.False(t, ir.PrimitiveInt8.StrictlyWithin(ir.PrimitiveKind("flt")))
 }
 
-// TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot holds domainRoots to
-// the declared set, so a kind added without an edge reddens here.
+// TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot holds
+// domainRoots to the declared set, so a kind added without an edge reddens
+// here.
 func TestPrimitiveKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
 	t.Parallel()
 	for _, primitiveKind := range declaredPrimKinds(t) {
@@ -473,10 +476,10 @@ func TestWireIDRange_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.WireIDRange{}, `{"from":0,"to":0}`, ir.WireIDRange{From: 100, To: 199})
 }
 
-// TestAdditionalProperties_JSONContract pins AdditionalProperties' contract that Value
-// carries no omitempty (a catch-all always has a value schema) and that a
-// fully populated AdditionalProperties — key schema and pattern-scoped value
-// schemas — round-trips.
+// TestAdditionalProperties_JSONContract pins AdditionalProperties' contract
+// that Value carries no omitempty (a catch-all always has a value schema) and
+// that a fully populated AdditionalProperties — key schema and pattern-scoped
+// value schemas — round-trips.
 func TestAdditionalProperties_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.AdditionalProperties{}, `{}`,
@@ -490,8 +493,8 @@ func TestAdditionalProperties_JSONContract(t *testing.T) {
 		})
 }
 
-// TestPatternProperties_JSONContract pins PatternProperties' contract that both fields
-// carry no omitempty and that a populated PatternProperties round-trips.
+// TestPatternProperties_JSONContract pins PatternProperties' contract that both
+// fields carry no omitempty and that a populated PatternProperties round-trips.
 func TestPatternProperties_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.PatternProperties{}, `{"pattern":"","value":{"target":"","nullable":false}}`,

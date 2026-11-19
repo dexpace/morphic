@@ -80,10 +80,10 @@ type statter interface {
 	Stat() (fs.FileInfo, error)
 }
 
-// stillStream refuses statterValue, opened as path, unless it is a FIFO or a character
-// device: what path names can change between the look that chose to write it
-// as a stream and the open, and a regular file written in place would be left
-// half old.
+// stillStream refuses statterValue, opened as path, unless it is a FIFO or a
+// character device: what path names can change between the look that chose to
+// write it as a stream and the open, and a regular file written in place would
+// be left half old.
 func stillStream(path string, statterValue statter) error {
 	info, err := statterValue.Stat()
 	if err != nil {

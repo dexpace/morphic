@@ -164,8 +164,8 @@ func (b *Bindings) Reference(model any) (reftable.Reference, bool) {
 	return b.table.Reference(at, kind)
 }
 
-// ObjectAt returns the wrapper of kind held at documentPointer, the first recorded there, or
-// nil.
+// ObjectAt returns the wrapper of kind held at documentPointer, the first
+// recorded there, or nil.
 func (b *Bindings) ObjectAt(documentPointer reftable.DocumentPointer, kind reftable.RefKind) any {
 	if b == nil {
 		return nil
@@ -208,9 +208,9 @@ func NewBuilder(table *reftable.ReferenceTargetTable) *Builder {
 		objectSites: map[any]objectSite{}, objects: map[objectSite]any{}}}
 }
 
-// decodeSchema decodes node into js as the parser decodes a schema of its model.
-// What decoding finds wrong with the schema is not kept: the load phase's rule
-// table judges the source, and what a reference reaches, itself.
+// decodeSchema decodes node into js as the parser decodes a schema of its
+// model. What decoding finds wrong with the schema is not kept: the load
+// phase's rule table judges the source, and what a reference reaches, itself.
 func decodeSchema(ctx context.Context, node *yaml.Node, js *schemaRef) error {
 	_, err := marshaller.UnmarshalNode(ctx, "", node, js)
 	return err
@@ -228,8 +228,8 @@ func (bd *Builder) decodeRecovered(ctx context.Context, node *yaml.Node, js *sch
 	return err
 }
 
-// Schema records that js was read at documentPointer. The first schema recorded at a
-// position is the one held there. A boolean one is noted, as the parser
+// Schema records that js was read at documentPointer. The first schema recorded
+// at a position is the one held there. A boolean one is noted, as the parser
 // decodes some written mappings as false (mend).
 func (bd *Builder) Schema(js *schemaRef, documentPointer reftable.DocumentPointer) {
 	if js == nil {
@@ -273,8 +273,9 @@ func (bd *Builder) mend(ctx context.Context) {
 	}
 }
 
-// Object records that model, a reference-or-inline wrapper of kind, was read
-// at documentPointer. The first recorded of a kind at a position is the one held there.
+// Object records that model, a reference-or-inline wrapper of kind, was read at
+// documentPointer. The first recorded of a kind at a position is the one held
+// there.
 func (bd *Builder) Object(model any, kind reftable.RefKind, documentPointer reftable.DocumentPointer) {
 	if model == nil || kind == 0 {
 		return
@@ -292,8 +293,8 @@ func (bd *Builder) HoldsObject(documentPointer reftable.DocumentPointer, kind re
 	return held
 }
 
-// Walk records js, read at documentPointer, and every schema below it, at the position each
-// is read at, until ctx is done: the library's walk reads no
+// Walk records js, read at documentPointer, and every schema below it, at the
+// position each is read at, until ctx is done: the library's walk reads no
 // context (docs/parser-library.md#context-unread), so Walk asks it before each
 // item.
 func (bd *Builder) Walk(ctx context.Context, js *schemaRef, documentPointer reftable.DocumentPointer) {
@@ -366,8 +367,9 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 	return out
 }
 
-// build builds the schema at landing, unless one is held there already: one inside
-// a landing built before it, or inside an object built for an object landing.
+// build builds the schema at landing, unless one is held there already: one
+// inside a landing built before it, or inside an object built for an object
+// landing.
 func (bd *Builder) build(ctx context.Context, landing reftable.Landing) Built {
 	built := Built{Landing: landing, Schema: bd.b.held[landing.At]}
 	if built.Schema != nil {

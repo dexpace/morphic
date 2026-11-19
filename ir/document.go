@@ -41,12 +41,12 @@ type Document struct {
 	IRVersion string `json:"irVersion,omitempty"`
 	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
 	// document's IDs of that kind live in. A producer states it as it stamps
-	// IRVersion, from the namespace constants it already names; irverify reports
-	// an ID whose namespace is not declared, which sees a path glued onto its
-	// namespace in every class. A type needs no entry for IDSpacePrimitive, which is
-	// ir's own. A kind with no namespace is left out. Each list is sorted by the
-	// byte order of its UTF-8 spelling, without repeats, and names no empty or
-	// separator-bearing namespace.
+	// IRVersion, from the namespace constants it already names; irverify
+	// reports an ID whose namespace is not declared, which sees a path glued
+	// onto its namespace in every class. A type needs no entry for
+	// IDSpacePrimitive, which is ir's own. A kind with no namespace is left
+	// out. Each list is sorted by the byte order of its UTF-8 spelling, without
+	// repeats, and names no empty or separator-bearing namespace.
 	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title, as the source declares it, or empty for a source
 	// that declares none.

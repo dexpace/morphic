@@ -11,9 +11,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// linkOps returns an operation "operation/x/get" declaring "parameter/x/get/id", and an
-// operation "operation/x/post" declaring "parameter/x/post/id" whose responses each carry
-// link: its success response, its error case and its default.
+// linkOps returns an operation "operation/x/get" declaring
+// "parameter/x/get/id", and an operation "operation/x/post" declaring
+// "parameter/x/post/id" whose responses each carry link: its success response,
+// its error case and its default.
 func linkOps(link ir.OperationLink) []ir.Operation {
 	get := ir.Operation{ID: "operation/x/get", Params: []ir.Parameter{{ID: "parameter/x/get/id", Name: ir.Naming{Source: "id"}}}}
 	post := ir.Operation{

@@ -88,10 +88,10 @@ type Policy struct {
 	BinaryInference       BinaryInference
 }
 
-// New derives the context for doc, at srcIndex, under policy. doc must not be nil:
-// the compiler lowers only a document its load returned. The streaming and
-// binary policies are normalized here so readers cannot disagree about a
-// media type.
+// New derives the context for doc, at srcIndex, under policy. doc must not be
+// nil: the compiler lowers only a document its load returned. The streaming and
+// binary policies are normalized here so readers cannot disagree about a media
+// type.
 //
 // It is the one place the load phase's document and the schema lowering's
 // values meet: what lowering.New reads of the load is built here.
@@ -156,10 +156,10 @@ func sourcesOf(doc *load.LoadedOpenAPIDocument) []ir.SourceInfo {
 	return out
 }
 
-// InDocument returns serviceContext for lowering what document id of the bindings' table
-// declares, at that document's own coordinates (lowering.InDocument), and
-// false, serviceContext unchanged, for a document the compile did not read beside the
-// source.
+// InDocument returns serviceContext for lowering what document id of the
+// bindings' table declares, at that document's own coordinates
+// (lowering.InDocument), and false, serviceContext unchanged, for a document
+// the compile did not read beside the source.
 func InDocument(serviceContext Ctx, id reftable.DocID) (Ctx, bool) {
 	in, ok := lowering.InDocument(serviceContext.Ctx, id)
 	if !ok {
@@ -203,19 +203,19 @@ func (c Ctx) MediaTypeUse(media *soa.MediaType) (*componentlookup.ReferencedMedi
 	return c.loaded.media.Use(media)
 }
 
-// EncodingRules returns the Encoding Object's rows an encoding serviceContext lowers is read
-// with, those of the document whose content serviceContext reads, as serviceContext.SchemaRules returns
-// the Schema Object's: what a part takes where its encoding leaves a field
-// unwritten.
+// EncodingRules returns the Encoding Object's rows an encoding serviceContext
+// lowers is read with, those of the document whose content serviceContext
+// reads, as serviceContext.SchemaRules returns the Schema Object's: what a part
+// takes where its encoding leaves a field unwritten.
 func EncodingRules(serviceContext Ctx) specrules.EncodingRules {
 	return serviceContext.loaded.encoding[serviceContext.Position("").Doc]
 }
 
-// Declared returns what the entry ref, written at usePtr in serviceContext's document,
-// resolves to, with the context its declaration is lowered in and the pointer
-// declaring it there: the position the chain of its Reference Object ends on,
-// in whichever document (InDocument), as the bindings' table places it, or,
-// for an inline entry, serviceContext and usePtr themselves. Past
+// Declared returns what the entry ref, written at usePtr in serviceContext's
+// document, resolves to, with the context its declaration is lowered in and the
+// pointer declaring it there: the position the chain of its Reference Object
+// ends on, in whichever document (InDocument), as the bindings' table places
+// it, or, for an inline entry, serviceContext and usePtr themselves. Past
 // [Policy.MaxReferenceExpansion] a $ref resolves to nothing
 // ([Ctx.ExpansionRefusal]).
 func Declared[T, S any, R chainable[T, S], P interface {

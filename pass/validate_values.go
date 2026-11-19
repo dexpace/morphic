@@ -140,8 +140,8 @@ func parameterOf(op *ir.Operation, id ir.ParameterID) *ir.Parameter {
 	return nil
 }
 
-// fits returns why value is no value of the site's type, or "" when it is one or
-// the check leaves it alone: a value that is a reference or a constructor, a
+// fits returns why value is no value of the site's type, or "" when it is one
+// or the check leaves it alone: a value that is a reference or a constructor, a
 // type nothing declares, one holding anything, a union or an external type, and
 // a value written in an encoding.
 func (s *valueSite) fits(value *ir.Value) string {
@@ -202,7 +202,8 @@ func fitsShape(value *ir.Value, sh shape, target ir.TypeID, b *bounds) string {
 	return ""
 }
 
-// admits reports whether a value of kind valueKind is one a type of shape sh holds.
+// admits reports whether a value of kind valueKind is one a type of shape sh
+// holds.
 func admits(sh shape, valueKind ir.ValueKind) bool {
 	switch sh {
 	case shapeBoolean:
@@ -242,8 +243,9 @@ func shapeWords(sh shape) string {
 	}
 }
 
-// kindWords says what a value of kind valueKind is. Null and the two kinds that stand
-// for another value are judged before it is asked, and are named by their kind.
+// kindWords says what a value of kind valueKind is. Null and the two kinds that
+// stand for another value are judged before it is asked, and are named by their
+// kind.
 func kindWords(valueKind ir.ValueKind) string {
 	switch valueKind {
 	case ir.ValueBool:
@@ -271,9 +273,9 @@ func kindWords(valueKind ir.ValueKind) string {
 	}
 }
 
-// outside reports whether value, a value its shape admits, lies outside the bounds
-// b holds: a number beyond an end, a string, bytes, list or object of a count
-// beyond a limit. A string for bytes is not measured.
+// outside reports whether value, a value its shape admits, lies outside the
+// bounds b holds: a number beyond an end, a string, bytes, list or object of a
+// count beyond a limit. A string for bytes is not measured.
 func outside(value *ir.Value, sh shape, b *bounds) bool {
 	switch {
 	case sh == shapeText:

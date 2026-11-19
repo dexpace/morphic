@@ -122,8 +122,8 @@ var (
 )
 
 // streamDiagnostics reports what the stream of the input at index, read for
-// what, held past the document taken, tail, as one error where the first dropped
-// document begins, or nothing for a stream of one document (GitHub #1079,
+// what, held past the document taken, tail, as one error where the first
+// dropped document begins, or nothing for a stream of one document (GitHub #1079,
 // #1078).
 func streamDiagnostics(index int, what streamOf, tail doctree.Tail) []ir.Diagnostic {
 	if tail.Dropped == 0 && !tail.Unparsed && !tail.Capped {

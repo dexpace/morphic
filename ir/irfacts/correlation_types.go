@@ -99,11 +99,11 @@ func (c *correlator) decoded(key string, encoding *ir.Encoding) {
 	}
 }
 
-// model offers the keys of irModel's members. The anonymous models irModel composes in
-// place are part of it, so their members are keyed as irModel's own, each wire name
-// keying the declaration irModel's flattening takes and none it overrides, and each
-// such model itself is keyed by irModel's key and allOf. Every catch-all among them
-// is keyed as irModel's.
+// model offers the keys of irModel's members. The anonymous models irModel
+// composes in place are part of it, so their members are keyed as irModel's
+// own, each wire name keying the declaration irModel's flattening takes and
+// none it overrides, and each such model itself is keyed by irModel's key and
+// allOf. Every catch-all among them is keyed as irModel's.
 func (c *correlator) model(key string, irModel *ir.Model) {
 	own := c.composedInPlace(irModel)
 	flat := ir.FlattenedProperties(c.doc.Types, irModel.ID)
@@ -184,9 +184,9 @@ func (c *correlator) members(key string, enum *ir.Enum) {
 	}
 }
 
-// property offers property its key, and, when property takes it, keys property's type, what its
-// encoding decodes to, the headers of a multipart part encoding it and its
-// field arguments.
+// property offers property its key, and, when property takes it, keys
+// property's type, what its encoding decodes to, the headers of a multipart
+// part encoding it and its field arguments.
 func (c *correlator) property(key string, property *ir.Property) {
 	c.offer(child(key, "prop", property.EffectiveWireName()), string(property.ID), func(correlatorValue *correlator, key string) {
 		correlatorValue.ref(part(key, "type"), &property.Type)

@@ -118,9 +118,9 @@ type objectSite struct {
 	kind reftable.RefKind
 }
 
-// build builds the object objectLanding stands for, unless one is held there or a build
-// was tried there before, and reports whether the building goes on: false
-// once ctx is done.
+// build builds the object objectLanding stands for, unless one is held there or
+// a build was tried there before, and reports whether the building goes on:
+// false once ctx is done.
 func (o *objectBuild) build(ctx context.Context, objectLanding reftable.ObjectLanding) bool {
 	key := objectSite{at: objectLanding.At, kind: objectLanding.Kind}
 	if o.tried[key] || o.bd.HoldsObject(objectLanding.At, objectLanding.Kind) {
@@ -141,10 +141,11 @@ func (o *objectBuild) build(ctx context.Context, objectLanding reftable.ObjectLa
 	return true
 }
 
-// besideRefs models the fields written beside each path item $ref of items,
-// the walk of the object built for objectLanding, as the source's own are (Siblings), and
-// indexes each model's walk where it is written, in objectLanding's document. A model the
-// parser faults on is reported as the object landing's failure, once.
+// besideRefs models the fields written beside each path item $ref of items, the
+// walk of the object built for objectLanding, as the source's own are
+// (Siblings), and indexes each model's walk where it is written, in
+// objectLanding's document. A model the parser faults on is reported as the
+// object landing's failure, once.
 func (o *objectBuild) besideRefs(ctx context.Context, objectLanding reftable.ObjectLanding, items iter.Seq[soa.WalkItem]) {
 	first, err := o.sibs.addLanding(ctx, items, objectLanding.At.Pointer)
 	for i := first; i < len(o.sibs.list); i++ {

@@ -433,7 +433,8 @@ func TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases(t *testing.T) 
 
 // byDocument places a finding at a position of table, which read other
 // documents: Source is the number the table reads the position's document
-// under, which indexes LoadedOpenAPIDocument.Sources in the order these tests read them.
+// under, which indexes LoadedOpenAPIDocument.Sources in the order these tests
+// read them.
 func byDocument(table *reftable.ReferenceTargetTable) places {
 	others := Others{byName: map[string]int{}}
 	for id := range reftable.DocID(table.Documents()) {
@@ -448,8 +449,8 @@ func byDocument(table *reftable.ReferenceTargetTable) places {
 // TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt pins where a
 // finding at a position of the bindings' table is placed: the source's where
 // the source places its pointer, another document's in that document's
-// LoadedOpenAPIDocument.Sources entry, and one in a document no entry lists, which a load
-// never produces, at the source's root rather than nowhere.
+// LoadedOpenAPIDocument.Sources entry, and one in a document no entry lists,
+// which a load never produces, at the source's root rather than nowhere.
 func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	t.Parallel()
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")

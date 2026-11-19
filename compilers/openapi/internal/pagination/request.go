@@ -182,9 +182,9 @@ func wholeNumber(value ir.Value) bool {
 	return err == nil && decimal.IsInt()
 }
 
-// notSendable says that placeValue names what a walk sends as what, and is of a type it
-// cannot send: not a plain number or string, as an enum, a constant or an
-// encoded string is not, whatever values it holds.
+// notSendable says that placeValue names what a walk sends as what, and is of a
+// type it cannot send: not a plain number or string, as an enum, a constant or
+// an encoded string is not, whatever values it holds.
 func notSendable(placeValue place, what string) string {
 	return fmt.Sprintf("%s names %s, and its type is no plain number or string", placeValue, what)
 }
@@ -355,8 +355,8 @@ func paramPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.
 	return continuations, limits
 }
 
-// memberPlaces returns the places the members of parameter name, where parameter's type
-// stands for a model, and none otherwise.
+// memberPlaces returns the places the members of parameter name, where
+// parameter's type stands for a model, and none otherwise.
 func memberPlaces(compiledDocumentView *compileddoc.CompiledDocumentView, parameter *ir.Parameter) (continuations, limits []place) {
 	for _, property := range compiledDocumentView.Members(parameter.Type.Target) {
 		switch roleValue := roleOf(property.Name.Canonical); {
@@ -447,8 +447,8 @@ func okOnly(responseConditions ir.ResponseConditions) bool {
 	return len(responseConditions.StatusCodes) == 1 && responseConditions.StatusCodes[0] == ir.StatusRange{From: http.StatusOK, To: http.StatusOK}
 }
 
-// statusOf spells the statuses responseConditions selects as a finding names them: a code, or
-// a range from its bounds.
+// statusOf spells the statuses responseConditions selects as a finding names
+// them: a code, or a range from its bounds.
 func statusOf(responseConditions ir.ResponseConditions) string {
 	spelled := make([]string, len(responseConditions.StatusCodes))
 	for i, statusRange := range responseConditions.StatusCodes {

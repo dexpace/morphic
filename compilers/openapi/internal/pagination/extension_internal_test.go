@@ -35,10 +35,11 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 // whose members reach its key (pager.reaching): with no member keeping the key
 // no model reaches it and the root is not read, and a level steps into a
 // member's model only where that model reaches the key. None of this changes
-// what a search finds, only what it reads, so it is held here; that no model
-// is then flattened is compileddoc.TestDocument_APromotionNoMemberMarksFlattensNoModel's.
-// A member naming a type the registry lacks, as a dangling reference would,
-// keeps nothing.
+// what a search finds, only what it reads, so it is held here; that no model is
+// then flattened is
+// compileddoc.TestDocument_APromotionNoMemberMarksFlattensNoModel's. A member
+// naming a type the registry lacks, as a dangling reference would, keeps
+// nothing.
 func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	t.Parallel()
 	src := promotion.ExtensionSource{Key: "x-k", Member: "purpose", Values: []string{"items"}}

@@ -39,8 +39,8 @@ var registryReadRatchet = ratchet{
 // registryReads names the registry's methods that read what was built.
 var registryReads = []string{"Lookup", "NodeAt", "Node", "Building"}
 
-// registrySelections returns where loadedPackage calls or names one of registryReads, by
-// method.
+// registrySelections returns where loadedPackage calls or names one of
+// registryReads, by method.
 func registrySelections(loadedPackage *decls.Package) map[string][]string {
 	out := map[string][]string{}
 	for expr, sel := range loadedPackage.Info.Selections {

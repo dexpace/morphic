@@ -103,9 +103,10 @@ func (g *grafter) flatten(ctx context.Context, node *yaml.Node) error {
 }
 
 // refusedMerge reports whether the `<<` value val reaches what the source's
-// format check refuses in a merge (specrules.CheckFormat), which no copy of a member
-// it brings in carries: a merge naming no mapping, or a key that is no scalar
-// in a mapping a merge brings in, at any depth. Each mapping is read once.
+// format check refuses in a merge (specrules.CheckFormat), which no copy of a
+// member it brings in carries: a merge naming no mapping, or a key that is no
+// scalar in a mapping a merge brings in, at any depth. Each mapping is read
+// once.
 func refusedMerge(val *yaml.Node) bool {
 	seen := map[*yaml.Node]bool{}
 	for todo := []*yaml.Node{val}; len(todo) > 0; {
@@ -172,11 +173,11 @@ func mergedKeys(node *yaml.Node) map[nodeview.Pair]*yaml.Node {
 
 // copyContent returns a copy of the tree under node, built after its nodes are
 // charged to the node budget: each node the tree holds, an alias kept as an
-// alias, so the copy is the size of what the source wrote and not of the
-// value it stands for. It drops anchors, keeps the line and column the source
-// writes each node at, and records as written what the overlay wrote. A copy
-// moved to another position than node's, an alias's or a merge's, is recorded as
-// one, since the source does not write it where it stands.
+// alias, so the copy is the size of what the source wrote and not of the value
+// it stands for. It drops anchors, keeps the line and column the source writes
+// each node at, and records as written what the overlay wrote. A copy moved to
+// another position than node's, an alias's or a merge's, is recorded as one,
+// since the source does not write it where it stands.
 func (g *grafter) copyContent(ctx context.Context, node *yaml.Node, moved bool) (*yaml.Node, error) {
 	size := nodeview.Walk{Nodes: math.MaxInt}.Run(ctx, node)
 	if size.Cut || !g.admit(ctx, size.Visited) {
@@ -204,9 +205,9 @@ func (g *grafter) copyTree(node *yaml.Node, moved bool) *yaml.Node {
 	return root
 }
 
-// copyNode returns a copy of node alone, its anchor dropped, moved where it does
-// not stand at node's position; a copied alias is one more alias naming what node
-// names.
+// copyNode returns a copy of node alone, its anchor dropped, moved where it
+// does not stand at node's position; a copied alias is one more alias naming
+// what node names.
 func (g *grafter) copyNode(node *yaml.Node, moved bool) *yaml.Node {
 	copied := &yaml.Node{Kind: node.Kind, Style: node.Style, Tag: node.Tag, Value: node.Value, Alias: node.Alias,
 		Line: node.Line, Column: node.Column}

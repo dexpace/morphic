@@ -54,12 +54,13 @@ type chainFrom struct {
 	decl *statement.Statement
 }
 
-// chainOf reads value, a value of discriminator's mapping or its defaultMapping, as
-// docs/compilers/openapi.md#discriminator does: the schema component of the
-// entry document it names, whatever its characters, else the position it
-// names as a URI reference written at discriminator (componentlookup.Scope.MappingTarget). It is
-// false for a value that resolves to no schema, which the caller reports. The
-// chain from a position is read once a run, as many values may name it.
+// chainOf reads value, a value of discriminator's mapping or its
+// defaultMapping, as docs/compilers/openapi.md#discriminator does: the schema
+// component of the entry document it names, whatever its characters, else the
+// position it names as a URI reference written at discriminator
+// (componentlookup.Scope.MappingTarget). It is false for a value that resolves
+// to no schema, which the caller reports. The chain from a position is read
+// once a run, as many values may name it.
 func chainOf(loweringContext lowering.Ctx, discriminator *statement.Discriminator, value string) (valueChain, bool) {
 	at, decl, ok := valuePosition(loweringContext, discriminator, value)
 	if !ok {
@@ -74,9 +75,10 @@ func chainOf(loweringContext lowering.Ctx, discriminator *statement.Discriminato
 	}), true
 }
 
-// valuePosition is the position value, a value of discriminator's mapping, names, and the
-// schema held there: the entry document's component it is the name of, else
-// where it lands read as a URI reference, false where it lands on no schema.
+// valuePosition is the position value, a value of discriminator's mapping,
+// names, and the schema held there: the entry document's component it is the
+// name of, else where it lands read as a URI reference, false where it lands on
+// no schema.
 func valuePosition(loweringContext lowering.Ctx, discriminator *statement.Discriminator, value string) (reftable.DocumentPointer, *statement.Statement, bool) {
 	if loweringContext.DeclaresSchema(value) {
 		at := reftable.DocumentPointer{Doc: reftable.Source, Pointer: ids.Ptr("components", "schemas", value)}
@@ -171,8 +173,8 @@ func newBranchIndex(variants []ir.Variant) *branchIndex {
 		several: map[ir.TypeID][]int{}}
 }
 
-// indexBranches indexes the branches of the union unionAtValue, whose variants are
-// built, so the mapping beside it routes to them (route). It reads the
+// indexBranches indexes the branches of the union unionAtValue, whose variants
+// are built, so the mapping beside it routes to them (route). It reads the
 // branches and the variants' IDs, never the registry, so no lowering order
 // reaches an answer. A branch's chain is read as a value's is (follow).
 func indexBranches(loweringContext lowering.Ctx, unionAtValue unionAt, variants []ir.Variant) *branchIndex {
@@ -280,12 +282,13 @@ func discriminatorDefault(loweringContext lowering.Ctx, ts *compile.Types, discr
 	return id, diags
 }
 
-// routeEntry returns the type value, the entry of discriminator that subject names,
-// written at at, routes to: on a union the variant route gives, and on a model,
-// or where no branch meets the chain, the type it ends on (hierarchyRoute),
-// which pass.Validate holds to being a subtype or a variant. A value that
-// resolves to no schema is reported here, once; one whose chain breaks routes
-// nowhere, unreported, as its failing $ref is reported where it is written.
+// routeEntry returns the type value, the entry of discriminator that subject
+// names, written at at, routes to: on a union the variant route gives, and on a
+// model, or where no branch meets the chain, the type it ends on
+// (hierarchyRoute), which pass.Validate holds to being a subtype or a variant.
+// A value that resolves to no schema is reported here, once; one whose chain
+// breaks routes nowhere, unreported, as its failing $ref is reported where it
+// is written.
 func routeEntry(loweringContext lowering.Ctx, ts *compile.Types, discriminator *statement.Discriminator, branchIndexValue *branchIndex, value, subject string,
 	at jsontext.Pointer,
 ) (ir.TypeID, bool, []ir.Diagnostic) {
@@ -318,11 +321,11 @@ func routeEntry(loweringContext lowering.Ctx, ts *compile.Types, discriminator *
 			"variant; routed to the first", subject, len(among), quotedOf(pointers, len(among)))}
 }
 
-// mappingWhy is the reason value, a value of discriminator's mapping, reports when it
-// resolves to no type: why it lands on no schema, or why the table never read
-// it, as unresolvedWhy says for a $ref. A value holding no '#' may have been
-// meant as a component's name, which is read first, so its reason says both
-// readings failed.
+// mappingWhy is the reason value, a value of discriminator's mapping, reports
+// when it resolves to no type: why it lands on no schema, or why the table
+// never read it, as unresolvedWhy says for a $ref. A value holding no '#' may
+// have been meant as a component's name, which is read first, so its reason
+// says both readings failed.
 func mappingWhy(loweringContext lowering.Ctx, discriminator *statement.Discriminator, value string) string {
 	why := unreadWhy(loweringContext.Bindings())
 	if mapping, ok := loweringContext.Bindings().Mapping(discriminator.At, value); ok {
@@ -336,10 +339,10 @@ func mappingWhy(loweringContext lowering.Ctx, discriminator *statement.Discrimin
 }
 
 // resolveDiscriminatorRoutes resolves the mapping and defaultMapping values of
-// schema's discriminator, written at pointer, where no node holds it and the census
-// keeps it verbatim: each value reaches what it names as a reference does, so
-// the type each chain ends on is promised a node, and one naming no schema is
-// reported at its entry, as on a model.
+// schema's discriminator, written at pointer, where no node holds it and the
+// census keeps it verbatim: each value reaches what it names as a reference
+// does, so the type each chain ends on is promised a node, and one naming no
+// schema is reported at its entry, as on a model.
 func resolveDiscriminatorRoutes(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	discriminator := schema.Discriminator()
 	if discriminator == nil {
@@ -356,10 +359,10 @@ type tagsOf struct {
 	d *statement.Discriminator
 }
 
-// mappingTagsFor returns every key discriminator's mapping spells for the type id, sorted
-// in byte order, as the caller elects the first and a mapping's key order is
-// no property of the document. They are the keys whose chain ends on id
-// unbroken, as hierarchyRoute routes them, so a base's Mapping and its
+// mappingTagsFor returns every key discriminator's mapping spells for the type
+// id, sorted in byte order, as the caller elects the first and a mapping's key
+// order is no property of the document. They are the keys whose chain ends on
+// id unbroken, as hierarchyRoute routes them, so a base's Mapping and its
 // subtypes' tags cannot disagree. Nothing sends the caller to the implicit
 // name, unlike the empty key, which is a tag. The mapping is read once a run,
 // not once for each subtype asking.

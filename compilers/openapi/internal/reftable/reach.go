@@ -22,10 +22,11 @@ type reach struct {
 	known bool
 }
 
-// reachOf builds the graph over what the pass b settled into referenceTargetTable, placing each
-// position through referenceTargetTable's bases, in the order referenceTargetTable lists them, so where the budget
-// runs out depends on no order of reading. Past the budget, or once the
-// binding's context is done, it links nothing more and is not known.
+// reachOf builds the graph over what the pass b settled into
+// referenceTargetTable, placing each position through referenceTargetTable's
+// bases, in the order referenceTargetTable lists them, so where the budget runs
+// out depends on no order of reading. Past the budget, or once the binding's
+// context is done, it links nothing more and is not known.
 func reachOf(b *binder, referenceTargetTable *ReferenceTargetTable) reach {
 	reachValue := reach{out: map[DocumentPointer][]DocumentPointer{}, work: b.work, known: true}
 	cut := false
@@ -133,12 +134,12 @@ type dynamicReach struct {
 	unknown map[dynamicKey]bool
 }
 
-// dynamicReachOf walks reachValue once for each name shared declares, its declaring
-// resources the origins, in name order, so where the budget runs out depends
-// on no order of reading (JSON Schema 2020-12 §8.2.3.2: the outermost
-// resource of the dynamic scope declaring the name wins). Once the graph is
-// not known, the budget is spent or the binding's context is done, nothing
-// more is known.
+// dynamicReachOf walks reachValue once for each name shared declares, its
+// declaring resources the origins, in name order, so where the budget runs out
+// depends on no order of reading (JSON Schema 2020-12 §8.2.3.2: the outermost
+// resource of the dynamic scope declaring the name wins). Once the graph is not
+// known, the budget is spent or the binding's context is done, nothing more is
+// known.
 func dynamicReachOf(ids *identifiers, b *bases, reachValue reach, shared map[string][]dynamicKey) dynamicReach {
 	out := dynamicReach{by: map[dynamicKey]bool{}, unknown: map[dynamicKey]bool{}}
 	stopped := !reachValue.known

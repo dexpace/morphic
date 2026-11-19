@@ -35,8 +35,8 @@ const (
 type admissionReader struct {
 	c lowering.Ctx
 	// nullable reports whether the dialect c reads its schemas in defines the
-	// nullable keyword (specrules.SchemaRules.Defines). A schema the read reaches
-	// elsewhere is read in its own document's (definesNullableAt).
+	// nullable keyword (specrules.SchemaRules.Defines). A schema the read
+	// reaches elsewhere is read in its own document's (definesNullableAt).
 	nullable bool
 	// cut marks a read that met what no cap answers for: a cycle, a $ref
 	// landing on no schema or a value it cannot convert. incomplete holds it
@@ -53,8 +53,9 @@ type admissionReader struct {
 	compared func()
 }
 
-// newAdmissionReader returns a read with the whole budget, in the dialect loweringContext reads its
-// schemas in. It returns a value so the read lives on its caller's stack.
+// newAdmissionReader returns a read with the whole budget, in the dialect
+// loweringContext reads its schemas in. It returns a value so the read lives on
+// its caller's stack.
 func newAdmissionReader(loweringContext lowering.Ctx) admissionReader {
 	return admissionReader{c: loweringContext, nullable: loweringContext.SchemaRules().Defines("nullable"),
 		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
@@ -83,11 +84,12 @@ func (w *admissionReader) of(js *statement.Statement) admitted {
 	return admission.admitted
 }
 
-// lowered is what js admits as the node it lowers to does: what admissionReaderValue reads of it,
-// narrowed to the kinds the kind-inference policy read off shape keywords
-// where nothing js declares names a kind (loweredAs). An election weighs what
-// each conjunct declares, and reads admissionReader.of; a reader asking whether a
-// position already says what a keyword does reads this.
+// lowered is what js admits as the node it lowers to does: what
+// admissionReaderValue reads of it, narrowed to the kinds the kind-inference
+// policy read off shape keywords where nothing js declares names a kind
+// (loweredAs). An election weighs what each conjunct declares, and reads
+// admissionReader.of; a reader asking whether a position already says what a
+// keyword does reads this.
 func lowered(admissionReaderValue *admissionReader, js *statement.Statement) admitted {
 	return loweredAs(admissionReaderValue.c, js, admissionReaderValue.of(js))
 }
@@ -119,12 +121,12 @@ func lowersTo(loweringContext lowering.Ctx, js *statement.Statement) (kindSet, b
 	return anyInstance, false
 }
 
-// writtenLowered is what schema's own keywords admit as admissionReaderValue reads them
-// (admissionReader.written), narrowed, where it writes no type, to the kinds it
-// lowers to (untypedKinds): those its conjuncts declare where its keywords
-// speak of them, else those the kind-inference policy reads off them. So a
-// body beside branches each declaring an object admits what it would writing
-// `type: object`.
+// writtenLowered is what schema's own keywords admit as admissionReaderValue
+// reads them (admissionReader.written), narrowed, where it writes no type, to
+// the kinds it lowers to (untypedKinds): those its conjuncts declare where its
+// keywords speak of them, else those the kind-inference policy reads off them.
+// So a body beside branches each declaring an object admits what it would
+// writing `type: object`.
 func writtenLowered(admissionReaderValue *admissionReader, schema *statement.Schema, nullable bool) admitted {
 	read := admissionReaderValue.written(schema, nullable)
 	if writesType(schema) {
@@ -164,8 +166,8 @@ func newDeclarationSet() declarationSet {
 	return declarationSet{properties: map[string]*place{}}
 }
 
-// add records schema and its `items`. An schema holding no schema object, a boolean
-// schema's, declares nothing: it writes no `items` and no property
+// add records schema and its `items`. An schema holding no schema object, a
+// boolean schema's, declares nothing: it writes no `items` and no property
 // (statement.Schema.Property).
 func (d *declarationSet) add(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema) {
 	d.schemas = append(d.schemas, schema)
@@ -196,8 +198,9 @@ func (d *declarationSet) property(memoizingSchemaReader *statement.MemoizingSche
 	return at
 }
 
-// declarationsOf returns what schema declares: itself, each allOf conjunct and what
-// a $ref lands on, read as admissionReaderValue reads them and within the same budget.
+// declarationsOf returns what schema declares: itself, each allOf conjunct and
+// what a $ref lands on, read as admissionReaderValue reads them and within the
+// same budget.
 func declarationsOf(admissionReaderValue *admissionReader, schema *statement.Schema) declarationSet {
 	out := newDeclarationSet()
 	out.add(admissionReaderValue.c.Statements(), schema)
@@ -205,8 +208,8 @@ func declarationsOf(admissionReaderValue *admissionReader, schema *statement.Sch
 	return out
 }
 
-// admits returns what p's declarations admit together, as admissionReaderValue reads them, read
-// once.
+// admits returns what p's declarations admit together, as admissionReaderValue
+// reads them, read once.
 func (p *place) admits(admissionReaderValue *admissionReader) admitted {
 	if p.held == nil {
 		held := lowered(admissionReaderValue, p.decls[0])
@@ -268,8 +271,8 @@ func (w *admissionReader) union(branches []statement.Subschema) admitted {
 }
 
 // definesNullableAt reports whether the dialect of the document holding js
-// defines nullable: where loweringContext's bindings place js, that document's, and loweringContext's own
-// for a schema they do not place.
+// defines nullable: where loweringContext's bindings place js, that document's,
+// and loweringContext's own for a schema they do not place.
 func definesNullableAt(loweringContext lowering.Ctx, js *statement.Statement) bool {
 	at, ok := siteOf(js.Schema)
 	if !ok {
@@ -278,8 +281,8 @@ func definesNullableAt(loweringContext lowering.Ctx, js *statement.Statement) bo
 	return definesNullableIn(loweringContext, at.Doc)
 }
 
-// written reads the keywords schema itself writes that say what a value is, in a
-// dialect defining nullable where nullable says: `type`, which a `nullable`
+// written reads the keywords schema itself writes that say what a value is, in
+// a dialect defining nullable where nullable says: `type`, which a `nullable`
 // adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
 // document is read in w.nullable's dialect.
 func (w *admissionReader) written(schema *statement.Schema, nullable bool) admitted {
@@ -322,7 +325,8 @@ func writtenKinds(schema *statement.Schema, nullable bool) kindSet {
 	return out
 }
 
-// formOf returns the format schema holds a value to. The redaction names no shape.
+// formOf returns the format schema holds a value to. The redaction names no
+// shape.
 func formOf(schema *statement.Schema) (scalarForm, bool) {
 	format := schema.FormatName()
 	if format == "" || annotation.DeclaresRedaction(schema) {
@@ -429,8 +433,8 @@ func (w *admissionReader) restates(held admitted, from, js *statement.Statement)
 	})
 }
 
-// holds reports whether what held admits says all that schema's keyword key does, so
-// a position lowered to held loses nothing leaving it unread.
+// holds reports whether what held admits says all that schema's keyword key
+// does, so a position lowered to held loses nothing leaving it unread.
 func (w *admissionReader) holds(held admitted, schema *statement.Schema, key string) bool {
 	switch key {
 	case "type":

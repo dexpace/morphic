@@ -114,10 +114,10 @@ func reachChildren(node *yaml.Node, reach func(*yaml.Node, step)) {
 	})
 }
 
-// eachChild hands visit each child of a mapping or sequence node, with the token
-// naming it and whether a pointer reaches it there: a pair under a `<<` merge
-// key is node's but has no pointer of its own, and an entry whose key is no
-// scalar, which every reader leaves out, has none either. A scalar holds
+// eachChild hands visit each child of a mapping or sequence node, with the
+// token naming it and whether a pointer reaches it there: a pair under a `<<`
+// merge key is node's but has no pointer of its own, and an entry whose key is
+// no scalar, which every reader leaves out, has none either. A scalar holds
 // nothing, and an alias's target is written elsewhere.
 func eachChild(node *yaml.Node, visit func(child *yaml.Node, token string, held bool)) {
 	switch node.Kind {
@@ -136,11 +136,11 @@ func eachChild(node *yaml.Node, visit func(child *yaml.Node, token string, held 
 	}
 }
 
-// pointerOf returns node's pointer in the tree steps indexes, or "" when the tree
-// does not hold node. A holder is indexed before what it holds, so the walk up
-// ends at the top in as many steps as node is deep. The pointer is spelled into
-// one buffer: appending token by token to a pointer copies it at each, half
-// node's depth in copies of the whole.
+// pointerOf returns node's pointer in the tree steps indexes, or "" when the
+// tree does not hold node. A holder is indexed before what it holds, so the
+// walk up ends at the top in as many steps as node is deep. The pointer is
+// spelled into one buffer: appending token by token to a pointer copies it at
+// each, half node's depth in copies of the whole.
 func pointerOf(steps map[*yaml.Node]step, node *yaml.Node) jsontext.Pointer {
 	var tokens []string
 	size := 0

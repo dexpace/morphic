@@ -80,9 +80,9 @@ func assertNoKeyIsBothReadAndKept(t *testing.T, doc *ir.Document) {
 	}
 }
 
-// assertEveryKeyIsReadOrKept holds the keeping of what a build did not
-// read to every key of domain, the census's, that statementSchema writes: kept unless read,
-// in the domain's order.
+// assertEveryKeyIsReadOrKept holds the keeping of what a build did not read to
+// every key of domain, the census's, that statementSchema writes: kept unless
+// read, in the domain's order.
 func assertEveryKeyIsReadOrKept(t *testing.T, statementSchema *statement.Schema, domain []string) {
 	t.Helper()
 	var written []string

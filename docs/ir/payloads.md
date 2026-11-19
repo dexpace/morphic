@@ -71,25 +71,25 @@ type Content struct {
 }
 
 type PartEncoding struct {
-    ContentTypes []string          // media type(s) of this part: as the source declares them, or,
+    ContentTypes        []string   // media type(s) of this part: as the source declares them, or,
                                    // where it declares none, the default its format gives the value
                                    // the encoding applies to, each item of a repeated part. Empty
                                    // where the format gives none. Not read where Style is set,
                                    // whose arrangement replaces it, and given no default there
-    Headers      []Header          // per-part headers
-    RepeatsPerArrayItem        bool              // part repeats, or may: an array member, or a union with a
+    Headers             []Header   // per-part headers
+    RepeatsPerArrayItem bool       // part repeats, or may: an array member, or a union with a
                                    // list among its variants → repeated parts
-    HasFilename     bool              // part carries a filename (file part); a part of a url-encoded
+    HasFilename         bool       // part carries a filename (file part); a part of a url-encoded
                                    // body, which names no file, never does
-    Inferred     Inferred          // "" = the source declares the part a file; else the heuristics
+    Inferred            Inferred   // "" = the source declares the part a file; else the heuristics
                                    // that read Filename in (OpenAPI's binary media types), so a
                                    // consumer taking only what was declared can set it aside. Set
                                    // only where Filename is (ir/part-encoding-inferred-not-filename)
-    Style        string            // set wherever the source arranges the part's value as a query
+    Style               string     // set wherever the source arranges the part's value as a query
                                    // parameter's is (HTTPParamBinding.Style), the style it names or
                                    // the one its format defaults to, so ContentTypes is not read;
                                    // "" = the value travels as ContentTypes says
-    Explode      *bool             // as declared beside Style; nil reads as Style's default
+    Explode             *bool      // as declared beside Style; nil reads as Style's default
     AllowReserved bool             // the part's value is written as HTTPParamBinding.AllowReserved
                                    // writes a parameter's: reserved characters and percent-encoded
                                    // triples pass unescaped. Set only beside Style
@@ -128,18 +128,18 @@ type ContentStream struct {
 ## A catch-all's parts
 
 A form or multipart body whose type admits members it names no property for, a map or a model
-holding `AdditionalProperties`, sends each such member as a part, and `Content.CatchAllEncoding` says how
-those parts travel. It is keyed by the `TypeID` of the type holding the catch-all, a `MapT` or a
-`Model`, since a catch-all is not flattened and a consumer reads the model's own ([the
+holding `AdditionalProperties`, sends each such member as a part, and `Content.CatchAllEncoding`
+says how those parts travel. It is keyed by the `TypeID` of the type holding the catch-all, a `MapT`
+or a `Model`, since a catch-all is not flattened and a consumer reads the model's own ([the
 flattening](./models.md#the-flattening)). The holders a key may name are the body's shapes: the
 content's type and, through its unions, each variant, as `Encoding` keys each variant's parts, read
 each by `ir.CatchAllHolders`: a map itself, or each model its flattening reads that holds
 `AdditionalProperties`. `Value` is the encoding of a part no pattern matches, `MapT.Value`'s or
-`AdditionalProperties.Value`'s, and `Patterns` a part's a pattern matches, keyed by the pattern's text,
-which its holder lists once. An entry states one of them (`ir/catch-all-encoding-empty`), and a key
-naming no holder among the body's shapes, a `Value` for a holder with none, or a pattern its holder
-does not list is `ir/encoding-key-unknown-catch-all`. No key means the source states nothing of
-those parts, and a consumer applies its own rule, as for a property with no `Encoding` entry.
+`AdditionalProperties.Value`'s, and `Patterns` a part's a pattern matches, keyed by the pattern's
+text, which its holder lists once. An entry states one of them (`ir/catch-all-encoding-empty`), and
+a key naming no holder among the body's shapes, a `Value` for a holder with none, or a pattern its
+holder does not list is `ir/encoding-key-unknown-catch-all`. No key means the source states nothing
+of those parts, and a consumer applies its own rule, as for a property with no `Encoding` entry.
 
 Three shapes lost. One `*PartEncoding` for the content, as `ItemEncoding` is, is wrong for a union
 body whose variants' catch-alls differ and for a model whose value and patterns differ in type.

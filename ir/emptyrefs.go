@@ -78,8 +78,8 @@ func (e *EmptyReferences) List() []EmptyReference {
 	return slices.Clone(e.found)
 }
 
-// appendEmpty records each empty ID the field refFieldValue of owner holds; at is where
-// owner sits.
+// appendEmpty records each empty ID the field refFieldValue of owner holds; at
+// is where owner sits.
 func (e *EmptyReferences) appendEmpty(owner reflect.Value, refFieldValue refField, at WalkPath) {
 	v := owner.Field(refFieldValue.index)
 	switch refFieldValue.shape {
@@ -106,8 +106,8 @@ func (e *EmptyReferences) appendEmpty(owner reflect.Value, refFieldValue refFiel
 	}
 }
 
-// appendEmptyValues records each empty ID the map m, the field refFieldValue of the struct
-// at at, holds as a value, in key order, as the walk ranges the map.
+// appendEmptyValues records each empty ID the map m, the field refFieldValue of
+// the struct at at, holds as a value, in key order, as the walk ranges the map.
 func (e *EmptyReferences) appendEmptyValues(m reflect.Value, refFieldValue refField, at WalkPath) {
 	if m.Len() == 0 {
 		return
@@ -126,7 +126,8 @@ func (e *EmptyReferences) record(refFieldValue refField, path string, locator bo
 	e.found = append(e.found, EmptyReference{Class: refFieldValue.class, Path: path, locator: locator})
 }
 
-// fieldPath spells the field refFieldValue of the struct at at, as the walk spells it.
+// fieldPath spells the field refFieldValue of the struct at at, as the walk
+// spells it.
 func fieldPath(at WalkPath, refFieldValue refField) string {
 	return at.String() + "." + refFieldValue.name
 }

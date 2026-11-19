@@ -39,8 +39,9 @@ func EnumMemberKey(value Value) (key string, ok bool) {
 	return tag + ":" + payload, true
 }
 
-// numberKey returns bigVal's canonical decimal, or bigVal as spelled when no Decimal holds
-// it. Every canonical decimal reads as one, so the two never meet as one key.
+// numberKey returns bigVal's canonical decimal, or bigVal as spelled when no
+// Decimal holds it. Every canonical decimal reads as one, so the two never meet
+// as one key.
 func numberKey(bigVal BigVal) string {
 	if decimal, err := bigVal.Decimal(); err == nil {
 		return decimal.String()

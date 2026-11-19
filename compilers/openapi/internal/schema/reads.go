@@ -56,8 +56,8 @@ func (k keySet) has(name string) bool {
 // its members, their catch-alls and which are required.
 var objectKeys = keySetOf("properties", "patternProperties", "additionalProperties", "required")
 
-// typeReadAs returns the type schema writes where a node of kind reads it: every
-// type schema names is kind, as its shape says.
+// typeReadAs returns the type schema writes where a node of kind reads it:
+// every type schema names is kind, as its shape says.
 func typeReadAs(schema *statement.Schema, kind statement.JSONSchemaTypeName) keySet {
 	types := effectiveTypes(schema)
 	if len(types) == 0 || slices.ContainsFunc(types, func(jsonSchemaTypeName statement.JSONSchemaTypeName) bool { return jsonSchemaTypeName != kind }) {
@@ -66,8 +66,8 @@ func typeReadAs(schema *statement.Schema, kind statement.JSONSchemaTypeName) key
 	return keyBit("type")
 }
 
-// scalarTypeRead returns the type schema writes where a scalar's build reads it:
-// every type schema names is one of a primitive's.
+// scalarTypeRead returns the type schema writes where a scalar's build reads
+// it: every type schema names is one of a primitive's.
 func scalarTypeRead(schema *statement.Schema) keySet {
 	types := effectiveTypes(schema)
 	if len(types) == 0 || slices.ContainsFunc(types, func(jsonSchemaTypeName statement.JSONSchemaTypeName) bool {
@@ -78,9 +78,10 @@ func scalarTypeRead(schema *statement.Schema) keySet {
 	return keyBit("type")
 }
 
-// boundsRead returns the value bounds schema writes that a reader of the kinds held
-// reads: those of its kinds, a count the load phase refuses, which no reader
-// holds, and one the reader kept on its node, unmodeled (keepCounts, keepTextBounds).
+// boundsRead returns the value bounds schema writes that a reader of the kinds
+// held reads: those of its kinds, a count the load phase refuses, which no
+// reader holds, and one the reader kept on its node, unmodeled (keepCounts,
+// keepTextBounds).
 func boundsRead(schema *statement.Schema, held kindSet, unmodeled ir.Unmodeled) keySet {
 	var out keySet
 	for _, k := range declaredConstraints(schema) {
@@ -102,9 +103,9 @@ func nodeBoundsRead(schema *statement.Schema, held kindSet, cons *ir.Constraints
 	return boundsRead(schema, held, unmodeled)
 }
 
-// collectionReads returns the collection bounds schema writes that a List or a Tuple
-// reads into its Constraints (collectionConstraints): uniqueItems, and a count
-// a field states (keptCount).
+// collectionReads returns the collection bounds schema writes that a List or a
+// Tuple reads into its Constraints (collectionConstraints): uniqueItems, and a
+// count a field states (keptCount).
 func collectionReads(schema *statement.Schema) keySet {
 	out := keyBit("uniqueItems")
 	for _, k := range []string{"minItems", "maxItems"} {
@@ -115,12 +116,12 @@ func collectionReads(schema *statement.Schema) keySet {
 	return out
 }
 
-// readElsewhere returns the keys of censusDomain schema writes that a reader outside
-// the build of the node it lowers to reads: a redaction format, the annotation
-// readers'; an additionalItems beside an items that is no list, the rest of
-// nothing, the unknown keywords' keeper's (PreserveUnknownKeywords); and a type
-// naming null alone, which the nulls reader reads as TypeRef.Nullable
-// (docs/compilers/openapi.md#null-alone).
+// readElsewhere returns the keys of censusDomain schema writes that a reader
+// outside the build of the node it lowers to reads: a redaction format, the
+// annotation readers'; an additionalItems beside an items that is no list, the
+// rest of nothing, the unknown keywords' keeper's (PreserveUnknownKeywords);
+// and a type naming null alone, which the nulls reader reads as
+// TypeRef.Nullable (docs/compilers/openapi.md#null-alone).
 func readElsewhere(schema *statement.Schema) keySet {
 	var out keySet
 	if annotation.DeclaresRedaction(schema) {
@@ -146,9 +147,9 @@ func readBeside(schema *statement.Schema, td ir.TypeDef) keySet {
 	return read
 }
 
-// referenceReads returns what the alias or carrier of a position schema lowered to
-// a reference reads (referenceConstraintsOf, CarrierConstraintsOf): the value
-// bounds the types it admits take, and where they admit an array its
+// referenceReads returns what the alias or carrier of a position schema lowered
+// to a reference reads (referenceConstraintsOf, CarrierConstraintsOf): the
+// value bounds the types it admits take, and where they admit an array its
 // collection bounds (boundHomes.reads).
 func referenceReads(loweringContext lowering.Ctx, schema *statement.Schema) keySet {
 	takes := boundKinds(loweringContext, schema)

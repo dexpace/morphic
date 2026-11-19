@@ -11,8 +11,8 @@ import (
 
 var _ Visitor = (*IDReferences)(nil)
 
-// propIDType is the reflect.Type of [PropertyID], the one class of ID no registry
-// resolves; see [IDReferences] for why.
+// propIDType is the reflect.Type of [PropertyID], the one class of ID no
+// registry resolves; see [IDReferences] for why.
 var propIDType = reflect.TypeFor[PropertyID]()
 
 // ownIDField names the field of a struct that holds the identity the struct
@@ -39,9 +39,9 @@ type IDReference struct {
 // references Document.Channels wherever it sits, bar a registry node's own ID,
 // so no field is listed and none can be forgotten.
 //
-// Integer indices have nothing to key on, and a [PropertyID] names a position inside
-// a model, so neither is kept; each is resolved by hand where checked. Only
-// [NewIDReferences] builds a usable one, for one walk on one goroutine.
+// Integer indices have nothing to key on, and a [PropertyID] names a position
+// inside a model, so neither is kept; each is resolved by hand where checked.
+// Only [NewIDReferences] builds a usable one, for one walk on one goroutine.
 type IDReferences struct {
 	// labels names the registry each class of reference resolves in, and so
 	// holds every class a reference can be of.
@@ -169,8 +169,9 @@ func (r *IDReferences) Unresolved(truncated bool) []IDReference {
 	return out
 }
 
-// dangles reports whether the kept reference idReference resolves in no registry, as
-// Unresolved says, truncated saying whether the walk was cut short.
+// dangles reports whether the kept reference idReference resolves in no
+// registry, as Unresolved says, truncated saying whether the walk was cut
+// short.
 func (r *IDReferences) dangles(idReference IDReference, truncated bool) bool {
 	_, keyed := r.keyed[idReference.Class]
 	return keyed || (!truncated && !r.declared[idReference.Class][idReference.ID])
@@ -178,9 +179,9 @@ func (r *IDReferences) dangles(idReference IDReference, truncated bool) bool {
 
 // Declares reports whether a node the walk reached declares id as its identity
 // of class, which is what a reference of a class no Document map keys resolves
-// against. PropertyID is answered too, so a check holding one to a declared property
-// need not read the declarations again. A map-keyed class is not: its references
-// resolve against the map, so Declares reports false for it.
+// against. PropertyID is answered too, so a check holding one to a declared
+// property need not read the declarations again. A map-keyed class is not: its
+// references resolve against the map, so Declares reports false for it.
 func (r *IDReferences) Declares(class reflect.Type, id string) bool {
 	return r.declared[class][id]
 }

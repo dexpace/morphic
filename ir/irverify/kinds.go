@@ -15,8 +15,8 @@ import (
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
-// PrimitiveKind to pick a target type, so an undeclared kind is one it can neither
-// lower nor report usefully.
+// PrimitiveKind to pick a target type, so an undeclared kind is one it can
+// neither lower nor report usefully.
 //
 // Nothing rejects it earlier: PrimitiveKind is a plain string type with no
 // UnmarshalJSONFrom, so a decoded or foreign document carries an invented kind

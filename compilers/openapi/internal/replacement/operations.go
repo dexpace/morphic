@@ -53,9 +53,10 @@ func (r *resolver) response(hs []ir.Header, payload *ir.Payload) []ir.Diagnostic
 	return append(r.headers(hs), r.payload(payload)...)
 }
 
-// payload fills the replacements of the headers each media type of payload declares
-// for a part or a stream's items, each among the headers beside it. A part's
-// encoding is a map value, whose Headers still share their array with payload.
+// payload fills the replacements of the headers each media type of payload
+// declares for a part or a stream's items, each among the headers beside it. A
+// part's encoding is a map value, whose Headers still share their array with
+// payload.
 func (r *resolver) payload(payload *ir.Payload) []ir.Diagnostic {
 	if payload == nil {
 		return nil

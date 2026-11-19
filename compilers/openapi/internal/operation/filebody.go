@@ -69,8 +69,8 @@ func readSchema(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceab
 	if !own.open() || len(union) == 0 {
 		return own
 	}
-	// The union holds beside what statementSchema says itself, so a string statementSchema keeps its
-	// branches to strings.
+	// The union holds beside what statementSchema says itself, so a string
+	// statementSchema keeps its branches to strings.
 	read := lowering.ReadOncePerRun(serviceContext.Ctx, unionFileOf{s: statementSchema, part: branch.part}, func() fileReading {
 		return readUnion(serviceContext, union, branch.read)
 	})
@@ -92,10 +92,10 @@ type branchReading struct {
 }
 
 // unionFileOf is what a union's reading as a file is remembered under
-// (lowering.ReadOncePerRun): s, the schema writing the union, which a $ref chain
-// ends on, and whether its branches are read as a part's, which reads a list
-// of bytes through its elements where a body's does not. The reading turns on
-// nothing else: the documents, and the bindings of their $refs.
+// (lowering.ReadOncePerRun): s, the schema writing the union, which a $ref
+// chain ends on, and whether its branches are read as a part's, which reads a
+// list of bytes through its elements where a body's does not. The reading turns
+// on nothing else: the documents, and the bindings of their $refs.
 type unionFileOf struct {
 	s    *statement.Schema
 	part bool
@@ -142,8 +142,9 @@ func besideRefsOpen(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referen
 
 // readHead reads what decides js, through the chain of $refs it starts, without
 // its keywords: its absence, a boolean or a null, or raw bytes it declares.
-// Where none does, decided is false and statementSchema is the schema whose keywords the
-// caller reads, never nil, as a position holding no schema reads as a boolean.
+// Where none does, decided is false and statementSchema is the schema whose
+// keywords the caller reads, never nil, as a position holding no schema reads
+// as a boolean.
 func readHead(serviceContext service.Ctx, js *statement.Statement) (statementSchema *statement.Schema, fileReadingValue fileReading, decided bool) {
 	end := serviceContext.Statements().Of(refEnd(serviceContext.Bindings(), statement.ParsedAt(js)))
 	switch {
@@ -183,9 +184,9 @@ func declaresBinary(s *oas3.Schema) bool {
 	return len(types) == 0 || slices.Contains(types, oas3.SchemaTypeString)
 }
 
-// readOpen reads statementSchema, a schema declaring no raw bytes, as a string, untyped or
-// other: other where it writes a keyword no file leaves open (openKeyword), or
-// a type other than string, alone or with null.
+// readOpen reads statementSchema, a schema declaring no raw bytes, as a string,
+// untyped or other: other where it writes a keyword no file leaves open
+// (openKeyword), or a type other than string, alone or with null.
 func readOpen(serviceContext service.Ctx, statementSchema *statement.Schema, unions bool) fileReading {
 	m := statement.Parsed(statementSchema)
 	if !writesOnlyOpenKeywords(serviceContext, statementSchema, unions) {
@@ -202,19 +203,20 @@ func readOpen(serviceContext service.Ctx, statementSchema *statement.Schema, uni
 	}
 }
 
-// writesOnlyOpenKeywords reports whether every keyword statementSchema, a schema of serviceContext,
-// writes is one a file's schema may write (openKeyword), a draft's spelling of
-// one read as its twin (schema.TwinKeyword).
+// writesOnlyOpenKeywords reports whether every keyword statementSchema, a
+// schema of serviceContext, writes is one a file's schema may write
+// (openKeyword), a draft's spelling of one read as its twin
+// (schema.TwinKeyword).
 func writesOnlyOpenKeywords(serviceContext service.Ctx, statementSchema *statement.Schema, unions bool) bool {
 	return writesOnly(statementSchema, func(key string) bool {
 		return openKeyword(schema.TwinKeyword(serviceContext.Ctx, statementSchema, key), unions)
 	})
 }
 
-// writesOnly reports whether every keyword statementSchema writes is one allowed takes, a
-// null standing for a keyword left out passing whatever its key. The keys are
-// the statement's, so a key it leaves out (statement.Schema.Truncated) is not
-// read here either.
+// writesOnly reports whether every keyword statementSchema writes is one
+// allowed takes, a null standing for a keyword left out passing whatever its
+// key. The keys are the statement's, so a key it leaves out
+// (statement.Schema.Truncated) is not read here either.
 func writesOnly(statementSchema *statement.Schema, allowed func(string) bool) bool {
 	for _, key := range statementSchema.Keys {
 		if !allowed(key.Name) && !annotation.WritesKeywordLeftOut(statementSchema, key.Name) {
@@ -299,10 +301,10 @@ func withoutNull(types []oas3.SchemaType) []oas3.SchemaType {
 }
 
 // bodyFile returns the FileInfo of a content entry under mt whose schema reads
-// as fileReadingValue, or nil where it is no file body: declared where the schema declares raw
-// bytes, or where it leaves the media type to say and that is
-// application/octet-stream, which RFC 2046 defines as arbitrary octets; marked
-// where it leaves it to a media type the binary policy names.
+// as fileReadingValue, or nil where it is no file body: declared where the
+// schema declares raw bytes, or where it leaves the media type to say and that
+// is application/octet-stream, which RFC 2046 defines as arbitrary octets;
+// marked where it leaves it to a media type the binary policy names.
 func bodyFile(serviceContext service.Ctx, mt string, fileReadingValue fileReading) *ir.FileInfo {
 	file := &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 	switch {

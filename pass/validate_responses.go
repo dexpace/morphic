@@ -67,8 +67,8 @@ func statusNames(rs []ir.StatusRange) string {
 	return strings.Join(names, " and ")
 }
 
-// answersCatchAllOnly reports whether responseConditions is the catch-all condition alone: one
-// range, the zero one (docs/ir/responses.md).
+// answersCatchAllOnly reports whether responseConditions is the catch-all
+// condition alone: one range, the zero one (docs/ir/responses.md).
 func answersCatchAllOnly(responseConditions ir.ResponseConditions) bool {
 	return len(responseConditions.StatusCodes) == 1 && responseConditions.StatusCodes[0] == ir.StatusRange{}
 }

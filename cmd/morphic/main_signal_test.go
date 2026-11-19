@@ -369,8 +369,8 @@ const unmodeled = "openapi/unknown-schema-keyword"
 // keyword no schema model has, and returns its path. Each keyword draws an info
 // diagnostic naming it twice, so the spec compiles quickly to a large report,
 // none of which reaches --fail-on: a run of it that finishes exits 0. A run
-// writes the whole report under --diagnostics-per-code-limit 0, as the text format otherwise
-// counts all but the first few of one code.
+// writes the whole report under --diagnostics-per-code-limit 0, as the text
+// format otherwise counts all but the first few of one code.
 func reportingSpec(t *testing.T, n int) string {
 	t.Helper()
 	keyword := strings.Repeat("k", 1000)

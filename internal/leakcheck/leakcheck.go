@@ -32,16 +32,16 @@ type Runner interface {
 	Run() int
 }
 
-// Main runs runner and fails the process if doing so leaves a goroutine behind. A
-// package whose tests start a goroutine calls it from a TestMain in place of
+// Main runs runner and fails the process if doing so leaves a goroutine behind.
+// A package whose tests start a goroutine calls it from a TestMain in place of
 // running runner.Run() directly:
 //
 //	func TestMain(runner *testing.M) { leakcheck.Main(runner) }
 //
-// Main's body is exactly one statement so that its coverage counter is
-// recorded the instant it is entered — before runner.Run() runs to completion and
-// writes the coverage profile, which is otherwise a trap: anything a test
-// binary executes only after runner.Run() returns is invisible to that profile, and
+// Main's body is exactly one statement so that its coverage counter is recorded
+// the instant it is entered — before runner.Run() runs to completion and writes
+// the coverage profile, which is otherwise a trap: anything a test binary
+// executes only after runner.Run() returns is invisible to that profile, and
 // the gate this repo runs treats one uncovered statement as a failure.
 func Main(runner Runner) {
 	os.Exit(verdict(runner.Run(), pprofLookup, os.Stderr))

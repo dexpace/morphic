@@ -144,8 +144,8 @@ func landingTargets(landings []reftable.Landing, written func(reftable.DocumentP
 	return out
 }
 
-// writtenIn returns the node the documents of table write at documentPointer, read through
-// view, and nil where none is there.
+// writtenIn returns the node the documents of table write at documentPointer,
+// read through view, and nil where none is there.
 func writtenIn(view *nodeview.View, table *reftable.ReferenceTargetTable, documentPointer reftable.DocumentPointer) *yaml.Node {
 	path, complete := view.DocumentPath(table.Document(documentPointer.Doc).Root, documentPointer.Pointer)
 	if !complete || len(path) == 0 {
@@ -154,14 +154,15 @@ func writtenIn(view *nodeview.View, table *reftable.ReferenceTargetTable, docume
 	return nodeview.Deref(path[len(path)-1])
 }
 
-// isTupleRest reports whether landing is the `additionalItems` of the tuple its site
-// writes (reftable.Landing), the one landing a schema holds as its own field.
+// isTupleRest reports whether landing is the `additionalItems` of the tuple its
+// site writes (reftable.Landing), the one landing a schema holds as its own
+// field.
 func isTupleRest(landing reftable.Landing) bool {
 	return landing.At.Doc == landing.Site.Doc && landing.At.Pointer == landing.Site.Pointer.AppendToken("additionalItems")
 }
 
-// isBoolean reports whether node is a boolean scalar, a schema JSON Schema reads
-// as true or false.
+// isBoolean reports whether node is a boolean scalar, a schema JSON Schema
+// reads as true or false.
 func isBoolean(node *yaml.Node) bool {
 	return node.Kind == yaml.ScalarNode && node.Tag == "!!bool"
 }
@@ -207,8 +208,8 @@ func outermost(targets map[objectKey]reachedTarget) map[string]map[jsontext.Poin
 	return out
 }
 
-// heldBy reports whether a pointer of pointers other than pointer is a token prefix
-// of pointer.
+// heldBy reports whether a pointer of pointers other than pointer is a token
+// prefix of pointer.
 func heldBy(pointer jsontext.Pointer, pointers map[jsontext.Pointer]bool) bool {
 	for up := pointer; up != ""; {
 		up = up[:strings.LastIndexByte(string(up), '/')]
@@ -274,12 +275,12 @@ func (v *reached) checkAll(ctx context.Context, sites places, targets map[object
 	return diags
 }
 
-// check judges reachedTargetValue's object and reports each finding where locatorFor places it,
-// naming the pointer it was read at where that is elsewhere, as the source's
-// own check does (specrules.Options.ReadAt). One already reported is not reported
-// again, as the source reports a finding once however many references share
-// its node; one about a node of a document no entry lists goes to site, the
-// $ref that reached it.
+// check judges reachedTargetValue's object and reports each finding where
+// locatorFor places it, naming the pointer it was read at where that is
+// elsewhere, as the source's own check does (specrules.Options.ReadAt). One
+// already reported is not reported again, as the source reports a finding once
+// however many references share its node; one about a node of a document no
+// entry lists goes to site, the $ref that reached it.
 func (v *reached) check(ctx context.Context, site ir.Provenance, reachedTargetValue reachedTarget) []ir.Diagnostic {
 	opts := specrules.Options{Start: reachedTargetValue.kind, Budget: v.limit, Locate: v.locatorFor(reachedTargetValue), ReadAt: true, Root: reachedTargetValue.at.Pointer,
 		Rows: v.dialects.At(v.positionOf(reachedTargetValue, reachedTargetValue.at.Pointer)),
@@ -316,15 +317,15 @@ func (v *reached) see(kind specrules.Kind, node *yaml.Node) {
 	}
 }
 
-// positionOf returns where pointer of the document holding reachedTargetValue's object is in
-// the bindings' table.
+// positionOf returns where pointer of the document holding reachedTargetValue's
+// object is in the bindings' table.
 func (v *reached) positionOf(reachedTargetValue reachedTarget, pointer jsontext.Pointer) reftable.DocumentPointer {
 	return reftable.DocumentPointer{Doc: reachedTargetValue.at.Doc, Pointer: pointer}
 }
 
-// versionOf returns the version reachedTargetValue's object is held to: that of the document
-// holding it, read at the minor it declares (Other), as locatorFor places a
-// finding there, and the source's for an object in the source or in a
+// versionOf returns the version reachedTargetValue's object is held to: that of
+// the document holding it, read at the minor it declares (Other), as locatorFor
+// places a finding there, and the source's for an object in the source or in a
 // document no entry lists.
 func (v *reached) versionOf(reachedTargetValue reachedTarget) string {
 	if other, listed := v.others.Named(reachedTargetValue.doc); listed && !reachedTargetValue.inSource() {
@@ -333,9 +334,10 @@ func (v *reached) versionOf(reachedTargetValue reachedTarget) string {
 	return v.version
 }
 
-// locatorFor returns where a finding about reachedTargetValue's object is placed: where the
-// source's tree holds the node it is about; else in the LoadedOpenAPIDocument.Sources entry
-// of the document holding the object, at the node's pointer there (GitHub
+// locatorFor returns where a finding about reachedTargetValue's object is
+// placed: where the source's tree holds the node it is about; else in the
+// LoadedOpenAPIDocument.Sources entry of the document holding the object, at
+// the node's pointer there (GitHub
 // #1030); and, for a document no entry lists, nowhere yet, marked foreign for
 // placeAt to put at the $ref.
 func (v *reached) locatorFor(reachedTargetValue reachedTarget) specrules.Locator {

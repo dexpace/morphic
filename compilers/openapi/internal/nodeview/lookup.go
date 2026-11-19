@@ -80,9 +80,9 @@ func childOfSource(val *yaml.Node, key string, path []*yaml.Node) (*yaml.Node, b
 	return nil, false
 }
 
-// Strings returns the text of each item of the sequence node, and whether node is a
-// list of strings as specrules.Checker reads one: scalars, none null, aliases followed.
-// A scalar's tag does not matter, as it does to the model
+// Strings returns the text of each item of the sequence node, and whether node
+// is a list of strings as specrules.Checker reads one: scalars, none null,
+// aliases followed. A scalar's tag does not matter, as it does to the model
 // (docs/parser-library.md#undecoded-scalar).
 func Strings(node *yaml.Node) ([]string, bool) {
 	node = Deref(node)

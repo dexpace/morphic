@@ -44,7 +44,8 @@ type Merger struct {
 	Walk FieldDeclarationContext
 }
 
-// FieldDeclarationContext is what a fold asks of the walk that declared the field.
+// FieldDeclarationContext is what a fold asks of the walk that declared the
+// field.
 type FieldDeclarationContext interface {
 	// Mint registers node, which stands for the declarations of the field
 	// pointer names (fieldSpan), or for what their types hold at a position
@@ -230,9 +231,9 @@ type folding struct {
 	decls []declaration
 	// field is the pointer the nodes the fold mints are named for: the
 	// declaration naming the field (fieldSpan), or the member a composing model
-	// declares, which no schema is written at, so assembled holds the
-	// positions it is assembled from, which place what it mints (FieldDeclarationContext.Mint);
-	// nil where a declaration names the field.
+	// declares, which no schema is written at, so assembled holds the positions
+	// it is assembled from, which place what it mints
+	// (FieldDeclarationContext.Mint); nil where a declaration names the field.
 	field     jsontext.Pointer
 	assembled []jsontext.Pointer
 	// pos is the declarations' types judged against each other, and rel, winner
@@ -392,9 +393,9 @@ func (f *folding) at(i int) string {
 	return f.named(f.place(i), f.g.Doc.Source)
 }
 
-// named is how a report standing in the document in names irProvenance, a place: its
-// pointer, followed by its document's name where that is another document, in
-// which the pointer alone would read as one in the report's.
+// named is how a report standing in the document in names irProvenance, a
+// place: its pointer, followed by its document's name where that is another
+// document, in which the pointer alone would read as one in the report's.
 func (f *folding) named(irProvenance ir.Provenance, in int) string {
 	if irProvenance.Source == in {
 		return string(irProvenance.Pointer)
@@ -423,8 +424,8 @@ func (f *folding) place(i int) ir.Provenance {
 	return ir.Provenance{Source: irProvenance.Source, Pointer: irProvenance.Pointer, WrittenBy: irProvenance.WrittenBy}
 }
 
-// unwritten reports whether declarationValue is a member an entry brings that its model's
-// composition settled where no schema is written (settledAt).
+// unwritten reports whether declarationValue is a member an entry brings that
+// its model's composition settled where no schema is written (settledAt).
 func (f *folding) unwritten(declarationValue declaration) bool {
 	if declarationValue.via == nil {
 		return false
@@ -551,14 +552,14 @@ func sameExamples(a, b []ir.Example) bool {
 	})
 }
 
-// takes reports whether the field takes value, which decls[i] wrote: a null where
-// the field admits null, which the top type always does (nullable), and any
-// other value every bound another declaration brought admits, where decls[i]'s
-// own type is the field's, but for those bounds (ownType), or the field's type
-// admits it. A value a declaration writes against its own type and bounds is
-// that declaration's to answer for, and a composed field has no declaration
-// whose type it is. The field's type is read where its nodes are written
-// (typeAt), not at the winner alone.
+// takes reports whether the field takes value, which decls[i] wrote: a null
+// where the field admits null, which the top type always does (nullable), and
+// any other value every bound another declaration brought admits, where
+// decls[i]'s own type is the field's, but for those bounds (ownType), or the
+// field's type admits it. A value a declaration writes against its own type and
+// bounds is that declaration's to answer for, and a composed field has no
+// declaration whose type it is. The field's type is read where its nodes are
+// written (typeAt), not at the winner alone.
 func (f *folding) takes(i int, value ir.Value, nullable bool) bool {
 	if value.Kind == ir.ValueNull {
 		return nullable
@@ -740,8 +741,8 @@ func writtenBefore(a, b ir.Provenance) bool {
 
 // sameEntry reports whether a and b, the entry two declarations give one key,
 // are one: written alike, and read against one base where they write a
-// reference (FieldDeclarationContext.Alike), which the same text under another base may read as
-// another schema.
+// reference (FieldDeclarationContext.Alike), which the same text under another
+// base may read as another schema.
 func sameEntry(walk FieldDeclarationContext, a, b ir.UnmodeledEntry) bool {
 	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || walk.Alike(a.Provenance, b.Provenance))
 }

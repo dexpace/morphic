@@ -40,7 +40,8 @@ const (
 // states neither class, to Default. opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107). Each
-// response's links go to loweringState's, which resolves them once the service is whole.
+// response's links go to loweringState's, which resolves them once the service
+// is whole.
 func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringState, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.

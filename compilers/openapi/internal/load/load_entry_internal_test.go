@@ -164,9 +164,9 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 }
 
 // TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
-// the lowering for the source (LoadedOpenAPIDocument.Rows): those of the minor it declares,
-// the Schema Object's and the Encoding Object's alike, in the dialect its
-// jsonSchemaDialect names.
+// the lowering for the source (LoadedOpenAPIDocument.Rows): those of the minor
+// it declares, the Schema Object's and the Encoding Object's alike, in the
+// dialect its jsonSchemaDialect names.
 func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	t.Parallel()
 	rowsOf := func(version, rest string) Rows {
@@ -316,13 +316,13 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 // TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
 // attribution can go wrong without anything noticing.
 //
-// The overlay's index and its place in LoadedOpenAPIDocument.Sources are decided in two
-// packages and have to agree. An index past the end disagrees loudly — irverify
-// reports it as the dangling reference it is — but an index equal to the
-// source's addresses a declared entry, so every position the overlay introduced
-// would quietly name the spec while Sources carried an entry nothing references.
-// That is a caller mistake rather than a document problem, so it leaves as a Go
-// error.
+// The overlay's index and its place in LoadedOpenAPIDocument.Sources are
+// decided in two packages and have to agree. An index past the end disagrees
+// loudly — irverify reports it as the dangling reference it is — but an index
+// equal to the source's addresses a declared entry, so every position the
+// overlay introduced would quietly name the spec while Sources carried an entry
+// nothing references. That is a caller mistake rather than a document problem,
+// so it leaves as a Go error.
 func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 	t.Parallel()
 	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")

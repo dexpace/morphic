@@ -168,10 +168,10 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
-// TestPreparedFor covers externalReads.preparedFor's outcomes: a file key
-// found as written, a URL key found under the one spelling componentlookup.Locate
-// gives it, which is what external.document records a fetched tree under, and
-// a key nothing was ever recorded under.
+// TestPreparedFor covers externalReads.preparedFor's outcomes: a file key found
+// as written, a URL key found under the one spelling componentlookup.Locate
+// gives it, which is what external.document records a fetched tree under, and a
+// key nothing was ever recorded under.
 func TestPreparedFor(t *testing.T) {
 	t.Parallel()
 

@@ -14,9 +14,9 @@ import (
 
 // walkSource returns the walk of doc with the fields beside each path item $ref
 // interleaved (Siblings.interleaved), followed by each components/mediaTypes
-// entry mediaTypes models, at its pointer, and with the model of each Media Type Object
-// it meets yielded after that object (within), so every pass meets them in the
-// order the source writes them.
+// entry mediaTypes models, at its pointer, and with the model of each Media
+// Type Object it meets yielded after that object (within), so every pass meets
+// them in the order the source writes them.
 func walkSource(ctx context.Context, doc *soa.OpenAPI, siblings Siblings, mediaTypes MediaTypes) iter.Seq[soa.WalkItem] {
 	items := walk(ctx, doc)
 	if len(siblings.list) > 0 {

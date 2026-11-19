@@ -400,10 +400,10 @@ func (r *rewriter) tiedAt(pointer string) (string, bool) {
 	return erased, atSite(r.ties, erased)
 }
 
-// leftOut reports whether an object at placeValue leaves its member name, holding v, out
-// of its form: an identity a place reads without, or a node it keys by its ID
-// that a tie decided, as a registry does, since a tie decides whether a fold
-// mints it.
+// leftOut reports whether an object at placeValue leaves its member name,
+// holding v, out of its form: an identity a place reads without, or a node it
+// keys by its ID that a tie decided, as a registry does, since a tie decides
+// whether a fold mints it.
 func (r *rewriter) leftOut(name string, v any, placeValue place) bool {
 	if placeValue.how&noIdentity != 0 {
 		return name == "id" || name == "provenance"

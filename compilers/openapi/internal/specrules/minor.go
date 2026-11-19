@@ -52,9 +52,9 @@ func ParseMinor(version string) (Minor, bool) {
 	return 0, false
 }
 
-// MinorVersionRange is a run of minors, inclusive at both ends. The zero Span holds no
-// minor, which is how a row says "never"; a zero Until leaves the run open,
-// reaching every later minor.
+// MinorVersionRange is a run of minors, inclusive at both ends. The zero Span
+// holds no minor, which is how a row says "never"; a zero Until leaves the run
+// open, reaching every later minor.
 type MinorVersionRange struct{ Since, Until Minor }
 
 // Always is every minor.

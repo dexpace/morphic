@@ -188,8 +188,8 @@ type jsonValue struct {
 	kind valueKind
 }
 
-// asScalar returns jsonValueValue as a scalar, and false for Nothing, an object or an
-// array.
+// asScalar returns jsonValueValue as a scalar, and false for Nothing, an object
+// or an array.
 func (r *reader) asScalar(ctx context.Context, jsonValueValue jsonValue) (scalar, bool, error) {
 	switch {
 	case jsonValueValue.kind == valueScalar:

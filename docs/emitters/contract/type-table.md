@@ -11,7 +11,7 @@ package typemap
 // Table maps the IR's leaf types to one target's types. A composite key is a map in a map (../plan/overview.md).
 type Table struct {
     Prims     map[ir.PrimitiveKind]map[string]Row // by primitive, then encoding name; "" = the default
-    Externals map[string]Row                 // by ir.External.Identity
+    Externals map[string]Row                      // by ir.External.Identity
 }
 
 type Row struct {
@@ -44,17 +44,17 @@ type Dependency struct {
   by the declaration its reference names.
 - **Lookup.** `{prim, encoding}`, then the default row of the primitive the value travels as: the
   one its encoding's `WireType` names, else `string` where `primitiveKind` is a string-spelled kind
-  ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else `primitiveKind`
-  itself. So an encoding with no row of its own stays in the IR and the SDK types the value as the
-  wire carries it, never writing it in a spelling the encoding did not name ([a row keyed by an
-  encoding](#a-row-keyed-by-an-encoding)). It is reported once per key as
+  ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else
+  `primitiveKind` itself. So an encoding with no row of its own stays in the IR and the SDK types
+  the value as the wire carries it, never writing it in a spelling the encoding did not name ([a row
+  keyed by an encoding](#a-row-keyed-by-an-encoding)). It is reported once per key as
   `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning where
-  that primitive is not `primitiveKind` and an info where it is. An `External` with no row takes the opaque
-  strategy of [external types](../refine/scalars.md), with a warning.
+  that primitive is not `primitiveKind` and an info where it is. An `External` with no row takes the
+  opaque strategy of [external types](../refine/scalars.md), with a warning.
 - **Built-in rows are defaults of an options version.** Every target's built-in table has a row for
-  every `PrimitiveKind` at every options version, so the fallback always lands, and for every key [a row
-  keyed by an encoding](#a-row-keyed-by-an-encoding) lists; T-17 holds each table to the kinds `ir`
-  declares and to those keys. Each target's lowering table lists version 1's rows
+  every `PrimitiveKind` at every options version, so the fallback always lands, and for every key [a
+  row keyed by an encoding](#a-row-keyed-by-an-encoding) lists; T-17 holds each table to the kinds
+  `ir` declares and to those keys. Each target's lowering table lists version 1's rows
   ([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)). Changing one changes
   what existing SDKs generate, so it is a new options version ([target options](options.md)). A
   built-in row that gives an arbitrary-precision primitive a width — `integer` as a 64-bit integer,
@@ -63,10 +63,10 @@ type Dependency struct {
 - **Merge.** A target's options carry the user's rows as a `typemap.Table` the shared package
   decodes strictly. A user row replaces the built-in row under the same key, a primitive's default
   included, and replaces it whole, never field by field, so a type, its codec, its imports and its
-  dependency come from one source. A row under a `PrimitiveKind` that `ir` does not declare, an empty
-  `Type`, a `Dependency` without both fields, a spelling the target cannot parse, a name `Type` or
-  `Codec` imports that `Imports` does not bind, and a key of `Imports` neither spells are options
-  errors.
+  dependency come from one source. A row under a `PrimitiveKind` that `ir` does not declare, an
+  empty `Type`, a `Dependency` without both fields, a spelling the target cannot parse, a name
+  `Type` or `Codec` imports that `Imports` does not bind, and a key of `Imports` neither spells are
+  options errors.
 - **Where it lives.** The target's `DecodeOptions` builds the merged table — the stated version's
   built-in rows under the user's — and refine reads it as `Ctx.Types` ([the refiner
   contract](../refine/pipeline.md)). It is not an `EmitterInput` field beside `Policy`, because

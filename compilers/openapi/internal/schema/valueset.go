@@ -31,8 +31,8 @@ type valueSetSite struct {
 	member  bool
 }
 
-// standingValueSet is the site of the value set schema, written at pointer, lowers
-// to, its node standing where st says.
+// standingValueSet is the site of the value set schema, written at pointer,
+// lowers to, its node standing where st says.
 func standingValueSet(schema *statement.Schema, pointer jsontext.Pointer, st stand) valueSetSite {
 	return valueSetSite{set: schema, written: pointer, at: st}
 }
@@ -73,9 +73,10 @@ func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveK
 	return conjunctPrim(loweringContext, refinement, position, own, fits)
 }
 
-// valueSetPrincipal returns the inline principal of refinementValue that lowers to a value
-// set, an enum, a const or a type of null alone, whose node stands at the
-// position, and false where refinementValue's principal is none, a $ref, or another schema.
+// valueSetPrincipal returns the inline principal of refinementValue that lowers
+// to a value set, an enum, a const or a type of null alone, whose node stands
+// at the position, and false where refinementValue's principal is none, a $ref,
+// or another schema.
 func valueSetPrincipal(refinementValue refinement) (allOfBranch, bool) {
 	allOfBranchValue := refinementValue.principal
 	if allOfBranchValue == nil || allOfBranchValue.schema.Ref != nil {
@@ -87,15 +88,16 @@ func valueSetPrincipal(refinementValue refinement) (allOfBranch, bool) {
 	return allOfBranch{}, false
 }
 
-// nullAlone reports whether schema writes a type naming null alone, which lowers
-// to the value set of null (lowerNullAlone).
+// nullAlone reports whether schema writes a type naming null alone, which
+// lowers to the value set of null (lowerNullAlone).
 func nullAlone(schema *statement.Schema) bool {
 	return writesType(schema) && len(effectiveTypes(schema)) == 0
 }
 
-// electedSet names the keyword of the value set refinementValue, a refinement of schema whose
-// conjuncts share no value, is elected for: its inline principal's, else the
-// one written beside the allOf, an enum or a const either way (setElected).
+// electedSet names the keyword of the value set refinementValue, a refinement
+// of schema whose conjuncts share no value, is elected for: its inline
+// principal's, else the one written beside the allOf, an enum or a const either
+// way (setElected).
 func electedSet(refinementValue refinement, schema *statement.Schema) string {
 	if allOfBranch, ok := valueSetPrincipal(refinementValue); ok {
 		return principalDispatch(allOfBranch).won
@@ -103,9 +105,9 @@ func electedSet(refinementValue refinement, schema *statement.Schema) string {
 	return dispatchOf(schema).besideAllOf().won
 }
 
-// principalDispatch is the election of the inline principal allOfBranchValue's own keywords:
-// a flattened wrapper's allOf is no rival of its value set, its entries being
-// conjuncts of the position (allOfBranches).
+// principalDispatch is the election of the inline principal allOfBranchValue's
+// own keywords: a flattened wrapper's allOf is no rival of its value set, its
+// entries being conjuncts of the position (allOfBranches).
 func principalDispatch(allOfBranchValue allOfBranch) dispatch {
 	dispatchValue := dispatchOf(allOfBranchValue.schema.Schema)
 	if allOfBranchValue.wrapper {
@@ -114,12 +116,12 @@ func principalDispatch(allOfBranchValue allOfBranch) dispatch {
 	return dispatchValue
 }
 
-// lowerPrincipalValueSet lowers the value set allOfBranchValue, r's inline principal, writes
-// at pointer, the position schema is written at, so one node stands for the
-// position whichever conjunct decides it (docs/compilers/openapi.md#allof-refinement).
-// What allOfBranchValue writes beside its set that the node has no field for is kept on it,
-// each keyword at its own pointer, as on any node a schema lowers to, before
-// fin finishes it.
+// lowerPrincipalValueSet lowers the value set allOfBranchValue, r's inline
+// principal, writes at pointer, the position schema is written at, so one node
+// stands for the position whichever conjunct decides it
+// (docs/compilers/openapi.md#allof-refinement). What allOfBranchValue writes
+// beside its set that the node has no field for is kept on it, each keyword at
+// its own pointer, as on any node a schema lowers to, before fin finishes it.
 func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, allOfBranchValue allOfBranch, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -161,10 +163,10 @@ type setType struct {
 }
 
 // refinedValueType returns the ValueType of the Enum or Literal the refinement
-// refinementValue of schema, written at pointer, lowers to, as its build types it, and none where
-// it lowers to no such node: its principal is a $ref or no value set, or its
-// set lowers to a union of literals or the top type. It reads the source
-// alone, so a reader of the position asks no registry.
+// refinementValue of schema, written at pointer, lowers to, as its build types
+// it, and none where it lowers to no such node: its principal is a $ref or no
+// value set, or its set lowers to a union of literals or the top type. It reads
+// the source alone, so a reader of the position asks no registry.
 func refinedValueType(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, pointer jsontext.Pointer) setType {
 	site := standingValueSet(schema, pointer, stand{})
 	dispatch := dispatchOf(schema).besideAllOf()
@@ -228,18 +230,19 @@ func (vs valueSetSite) literalType(loweringContext lowering.Ctx, val ir.Value) i
 }
 
 // valueTypeHoldsFormat reports whether a value set typed prim holds the format
-// schema pairs with its type: prim is that format's primitive or a narrower one.
+// schema pairs with its type: prim is that format's primitive or a narrower
+// one.
 func valueTypeHoldsFormat(prim ir.PrimitiveKind, schema *statement.Schema) bool {
 	paired, ok := formatPrimitive(schema)
 	return ok && narrowsOrIs(prim, paired)
 }
 
-// conjunctPrim returns, of own and the primitive each conjunct of refinementValue selects
-// (declaredPrim), the one narrowing every other, and own where none does: two
-// formats neither of which narrows the other say no one primitive. The conjuncts
-// are schema, each inline branch, and what decides what a $ref branch lands on
-// (conjunctSchemas). own is "" for a value no primitive types, which none fits,
-// so it stands.
+// conjunctPrim returns, of own and the primitive each conjunct of
+// refinementValue selects (declaredPrim), the one narrowing every other, and
+// own where none does: two formats neither of which narrows the other say no
+// one primitive. The conjuncts are schema, each inline branch, and what decides
+// what a $ref branch lands on (conjunctSchemas). own is "" for a value no
+// primitive types, which none fits, so it stands.
 func conjunctPrim(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	prims := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {
@@ -255,9 +258,10 @@ func conjunctPrim(loweringContext lowering.Ctx, refinementValue refinement, sche
 	return own
 }
 
-// conjunctSchemas returns the schemas whose keywords refinementValue's conjuncts write: schema, the
-// keywords beside the allOf, then each branch, a $ref's being what decides what
-// it lands on, read past a chain of $refs and refinements (DecidingSchema).
+// conjunctSchemas returns the schemas whose keywords refinementValue's
+// conjuncts write: schema, the keywords beside the allOf, then each branch, a
+// $ref's being what decides what it lands on, read past a chain of $refs and
+// refinements (DecidingSchema).
 func conjunctSchemas(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema) []*statement.Schema {
 	out := []*statement.Schema{schema}
 	for _, allOfBranch := range refinementValue.comp.branches {
@@ -278,9 +282,9 @@ func narrowsOrIs(primitiveKind, irPrimitiveKind ir.PrimitiveKind) bool {
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
-// declaredPrim returns the primitive schema's type and format select, else its type
-// alone, where fits says its values are of it, as a value set's own schema types
-// it (literalValueType), and false where schema selects none they fit.
+// declaredPrim returns the primitive schema's type and format select, else its
+// type alone, where fits says its values are of it, as a value set's own schema
+// types it (literalValueType), and false where schema selects none they fit.
 func declaredPrim(schema *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
 	if prim, paired := formatPrimitive(schema); paired && fits(prim) {
 		return prim, true

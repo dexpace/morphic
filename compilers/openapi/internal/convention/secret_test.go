@@ -20,8 +20,8 @@ func sensitiveKey(value string) ir.Unmodeled {
 	return ir.Unmodeled{"openapi:x-sensitive": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value)}}
 }
 
-// memberOf is a document holding one model, whose one property is property, over the
-// types of reg.
+// memberOf is a document holding one model, whose one property is property,
+// over the types of reg.
 func memberOf(property ir.Property, reg ir.TypeRegistry) *ir.Document {
 	types := registry(reg)
 	types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{property}}

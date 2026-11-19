@@ -43,8 +43,8 @@ func read(t testing.TB, text string) doctree.ParsedYAMLDocument {
 	return doc
 }
 
-// nodeAtSteps walks from node, a document node or a root, through each step: a key of a
-// mapping or an index of a sequence. It returns the value node.
+// nodeAtSteps walks from node, a document node or a root, through each step: a
+// key of a mapping or an index of a sequence. It returns the value node.
 func nodeAtSteps(t testing.TB, node *yaml.Node, steps ...string) *yaml.Node {
 	t.Helper()
 	require.NotNil(t, node)
@@ -75,8 +75,8 @@ func nodeAtSteps(t testing.TB, node *yaml.Node, steps ...string) *yaml.Node {
 	return node
 }
 
-// dump lists every node under node in document order as its kind, tag, value and
-// position, so two trees are equal when their dumps are.
+// dump lists every node under node in document order as its kind, tag, value
+// and position, so two trees are equal when their dumps are.
 func dump(node *yaml.Node) []string {
 	return collect(node, func(collected *yaml.Node) string {
 		return fmt.Sprintf("%d %s %q @%d:%d", collected.Kind, collected.Tag, collected.Value, collected.Line, collected.Column)
@@ -232,8 +232,8 @@ func TestRead_AStreamHoldingNoDocumentHasARootOfNoKind(t *testing.T) {
 }
 
 // TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken pins which %YAML
-// directive ParsedYAMLDocument.Directive reports: one in the prologue or after a
-// document end, on its own line, governing the document taken and no other.
+// directive ParsedYAMLDocument.Directive reports: one in the prologue or after
+// a document end, on its own line, governing the document taken and no other.
 func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -274,10 +274,10 @@ func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 	assert.NotErrorAs(t, err, &past)
 }
 
-// TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise pins ParsedYAMLDocument.Legacy: in
-// a document declaring YAML 1.1, each plain value scalar YAML 1.1 reads as
-// another JSON value than YAML 1.2 does, and each line-break character YAML 1.1
-// ends a line at, in document order.
+// TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise pins
+// ParsedYAMLDocument.Legacy: in a document declaring YAML 1.1, each plain value
+// scalar YAML 1.1 reads as another JSON value than YAML 1.2 does, and each
+// line-break character YAML 1.1 ends a line at, in document order.
 func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 	t.Parallel()
 	body := "openapi: 3.1.0\ninfo: {title: t, version: \"1\", description: \"a" + nel + "b\"}\npaths: {}\n" +

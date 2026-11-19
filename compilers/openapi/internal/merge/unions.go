@@ -50,9 +50,10 @@ func boundsBeside(registryValue registry, td ir.TypeDef) bool {
 	return slices.ContainsFunc(chain, func(scalar *ir.Scalar) bool { return scalar.Constraints != nil })
 }
 
-// byVariants relates a type to union, an untagged union, where against is the type
-// judged against one of union's variants: narrower where it is within union, which
-// holds says it may be, broader where union is within it, and unrelated otherwise.
+// byVariants relates a type to union, an untagged union, where against is the
+// type judged against one of union's variants: narrower where it is within
+// union, which holds says it may be, broader where union is within it, and
+// unrelated otherwise.
 func byVariants(typeJudgeValue typeJudge, against func(typeRef ir.TypeRef) relation, union *ir.Union, holds bool) relation {
 	switch {
 	case holds && withinUnion(typeJudgeValue, against, union):
@@ -64,15 +65,15 @@ func byVariants(typeJudgeValue typeJudge, against func(typeRef ir.TypeRef) relat
 	}
 }
 
-// tagged reports whether union is tagged, so its variants' values say nothing of
-// its own: a key-tagged union's wrap a variant's, and a discriminator routes by
-// a tag a variant's values need not agree with.
+// tagged reports whether union is tagged, so its variants' values say nothing
+// of its own: a key-tagged union's wrap a variant's, and a discriminator routes
+// by a tag a variant's values need not agree with.
 func tagged(union *ir.Union) bool { return union.WireTagged || union.Discriminator != nil }
 
-// unionWithin reports whether every value of union, an untagged union, is a value of
-// the type against judges: union is closed and has a variant, and each is within
-// that type. An open union admits a variant it does not list, which nothing
-// holds within the type. A read past the judgment's budget is no proof.
+// unionWithin reports whether every value of union, an untagged union, is a
+// value of the type against judges: union is closed and has a variant, and each
+// is within that type. An open union admits a variant it does not list, which
+// nothing holds within the type. A read past the judgment's budget is no proof.
 func unionWithin(typeJudgeValue typeJudge, against func(typeRef ir.TypeRef) relation, union *ir.Union) bool {
 	if tagged(union) || !union.Closed || len(union.Variants) == 0 {
 		return false
@@ -88,8 +89,8 @@ func unionWithin(typeJudgeValue typeJudge, against func(typeRef ir.TypeRef) rela
 	return true
 }
 
-// withinUnion reports whether every value of the type against judges is a
-// value of union, an untagged union: the type is within a variant of an inclusive
+// withinUnion reports whether every value of the type against judges is a value
+// of union, an untagged union: the type is within a variant of an inclusive
 // one, which admits what any variant does, or within exactly one variant of an
 // exclusive one and disjoint from every other, as one admits no value two
 // variants share. A read past the judgment's budget is no proof.

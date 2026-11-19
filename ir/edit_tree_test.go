@@ -1075,8 +1075,8 @@ func rewriteGroups(groups *[]ir.OperationGroup, pick treeID, remove bool, mark s
 	}
 }
 
-// requireReadsAgree holds every read of editor to the node model holds at its ID,
-// spelled by render, and every node of all model no longer holds to being
+// requireReadsAgree holds every read of editor to the node model holds at its
+// ID, spelled by render, and every node of all model no longer holds to being
 // held by editor no more.
 func requireReadsAgree(t *testing.T, editor *ir.Editor, model *ir.Document, all []treeID, at string) {
 	t.Helper()

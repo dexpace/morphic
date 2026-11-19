@@ -28,10 +28,11 @@ var foldKeywords = []string{
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
 }
 
-// foldEntry returns the one entry a position keeps keyword in once schema, a schema
-// of loweringContext, folds, and false for a keyword no fold reads. Keywords one entry holds
-// fold as one, so a branch's `then` and another's `if` cannot overwrite each
-// other, and a draft's spelling folds as its twin does (TwinKeyword).
+// foldEntry returns the one entry a position keeps keyword in once schema, a
+// schema of loweringContext, folds, and false for a keyword no fold reads.
+// Keywords one entry holds fold as one, so a branch's `then` and another's `if`
+// cannot overwrite each other, and a draft's spelling folds as its twin does
+// (TwinKeyword).
 func foldEntry(loweringContext lowering.Ctx, schema *statement.Schema, keyword string) (string, bool) {
 	switch keyword {
 	case "example", "examples":
@@ -90,14 +91,15 @@ func allOfMayRefine(schema *statement.Schema) bool {
 	return writesConjuncts(schema)
 }
 
-// allOfDecides reports whether schema's allOf is what its position lowers: one the
-// election of competing keywords made the value, or one refining, whose rival
-// there, an enum or a const beside it, is one of its conjuncts. An allOf that
-// value set beats otherwise stays verbatim
+// allOfDecides reports whether schema's allOf is what its position lowers: one
+// the election of competing keywords made the value, or one refining, whose
+// rival there, an enum or a const beside it, is one of its conjuncts. An allOf
+// that value set beats otherwise stays verbatim
 // (docs/compilers/openapi.md#competing-keywords). A union beside the composing
-// allOf or on one of its branches leaves it deciding, composed into each variant
-// the union distributes across, or into the Model keeping the union verbatim or
-// composing it as a mixin, and so does a $dynamicRef it keeps from expanding.
+// allOf or on one of its branches leaves it deciding, composed into each
+// variant the union distributes across, or into the Model keeping the union
+// verbatim or composing it as a mixin, and so does a $dynamicRef it keeps from
+// expanding.
 func allOfDecides(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	if !writesConjuncts(schema) {
 		return false
@@ -113,21 +115,21 @@ type allOfBranchFoldingKey struct {
 	schema *statement.Schema
 }
 
-// foldingAllOfBranches reports, for each branch of schema's flattened allOf, whether it folds:
-// it is inline, it writes something for the position, and each such keyword
-// agrees with every other conjunct writing it, schema's own keywords among them
-// (agreement). The answer reads the whole set, so no conjunct takes precedence
-// and no order decides. A null keyword writes nothing (WritesKeywordLeftOut).
-// Every use of schema asks, so it is read once a run.
+// foldingAllOfBranches reports, for each branch of schema's flattened allOf,
+// whether it folds: it is inline, it writes something for the position, and
+// each such keyword agrees with every other conjunct writing it, schema's own
+// keywords among them (agreement). The answer reads the whole set, so no
+// conjunct takes precedence and no order decides. A null keyword writes nothing
+// (WritesKeywordLeftOut). Every use of schema asks, so it is read once a run.
 func foldingAllOfBranches(loweringContext lowering.Ctx, schema *statement.Schema) []bool {
 	return allOfBranchFoldingOf(loweringContext, schema).branchFoldsIntoPosition
 }
 
-// allOfBranchFolding is what a schema's allOf says for the position holding it: whether
-// each branch of the flattened list folds, whether it lends a use what s and
-// the folding branches before it do not, an entry none of them writes, and
-// whether what it folds writes a relative $ref it reads against another base
-// than the position does (readsAtPosition), so nothing it writes folds.
+// allOfBranchFolding is what a schema's allOf says for the position holding it:
+// whether each branch of the flattened list folds, whether it lends a use what
+// s and the folding branches before it do not, an entry none of them writes,
+// and whether what it folds writes a relative $ref it reads against another
+// base than the position does (readsAtPosition), so nothing it writes folds.
 type allOfBranchFolding struct {
 	branchFoldsIntoPosition          []bool
 	addsKeywordNoEarlierBranchWrites []bool
@@ -188,11 +190,12 @@ func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 	return out
 }
 
-// underID reports whether bs, the inline allOf branch allOfBranchValue, or a wrapper holding
-// it writes an identifier. Only one can give the branch another base than the
-// position holding the allOf, so a branch under none reads at the position
-// without a base being looked up. The wrappers holding allOfBranchValue are the prefixes of
-// its pointer, as many as statement.MaxFlattenDepth allows, so each is looked up.
+// underID reports whether bs, the inline allOf branch allOfBranchValue, or a
+// wrapper holding it writes an identifier. Only one can give the branch another
+// base than the position holding the allOf, so a branch under none reads at the
+// position without a base being looked up. The wrappers holding
+// allOfBranchValue are the prefixes of its pointer, as many as
+// statement.MaxFlattenDepth allows, so each is looked up.
 func underID(allOfBranchValue allOfBranch, bs *statement.Schema, wrappers map[jsontext.Pointer]bool) bool {
 	if writesIdentifier(bs) {
 		return true
@@ -222,12 +225,13 @@ func foldsReference(loweringContext lowering.Ctx, bs *statement.Schema) bool {
 	})
 }
 
-// readsAtPosition reports whether the inline allOf branch allOfBranchValue reads its $refs
-// against the base the position holding the allOf does, so what it writes means
-// there what it means where it is written: an identifier at or above it naming
-// another URI gives the same spelling another schema. The position is allOfBranchValue's site
-// less allOfBranchValue's path from it, as the allOf may be read where a $ref landed. A base
-// the bindings cannot tell is no match.
+// readsAtPosition reports whether the inline allOf branch allOfBranchValue
+// reads its $refs against the base the position holding the allOf does, so what
+// it writes means there what it means where it is written: an identifier at or
+// above it naming another URI gives the same spelling another schema. The
+// position is allOfBranchValue's site less allOfBranchValue's path from it, as
+// the allOf may be read where a $ref landed. A base the bindings cannot tell is
+// no match.
 func readsAtPosition(loweringContext lowering.Ctx, allOfBranchValue allOfBranch) bool {
 	site, placed := siteOf(allOfBranchValue.schema.Schema)
 	at := reftable.DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(allOfBranchValue.pointer)))}
@@ -236,16 +240,17 @@ func readsAtPosition(loweringContext lowering.Ctx, allOfBranchValue allOfBranch)
 	return placed && known && knownAt && own == position
 }
 
-// disagreedWhy words why a branch that would have folded is kept, as branchNamesValue names
-// it: its keywords have homes, and what they say is what is in question.
+// disagreedWhy words why a branch that would have folded is kept, as
+// branchNamesValue names it: its keywords have homes, and what they say is what
+// is in question.
 func disagreedWhy(residue []string, branchNamesValue branchNames) string {
 	return "the conjuncts of this allOf disagree on a keyword " + branchNamesValue.this + " writes, so nothing it writes folds; " +
 		branchNamesValue.kept + " (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
-// disagreed reports whether residue, what a branch that did not fold keeps of bs,
-// holds a keyword folding reads: foldingAllOfBranches passes over a branch for writing none
-// or for a disagreement, and this tells them apart.
+// disagreed reports whether residue, what a branch that did not fold keeps of
+// bs, holds a keyword folding reads: foldingAllOfBranches passes over a branch
+// for writing none or for a disagreement, and this tells them apart.
 func disagreed(loweringContext lowering.Ctx, bs *statement.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
 		_, fold := foldEntry(loweringContext, bs, keyword)
@@ -278,10 +283,11 @@ func foldsNullable(bs *statement.Schema) bool {
 	return !hasKey(bs, "properties")
 }
 
-// positionFoldedBranches returns the folded branches of schema, written at pointer, as a reader of
-// what the position holds takes them, target being what the position lowered
-// to. A branch whose own node that is, the alias a $ref principal writing
-// keywords beside it stands at its entry, keeps what it writes there.
+// positionFoldedBranches returns the folded branches of schema, written at
+// pointer, as a reader of what the position holds takes them, target being what
+// the position lowered to. A branch whose own node that is, the alias a $ref
+// principal writing keywords beside it stands at its entry, keeps what it
+// writes there.
 func positionFoldedBranches(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.FoldedAllOfBranch {
 	if !allOfDecides(loweringContext, schema) {
 		return nil
@@ -301,8 +307,8 @@ func positionFoldedBranches(loweringContext lowering.Ctx, schema *statement.Sche
 	return out
 }
 
-// foldedBranchAt returns the folded branch of node, written at at, which reads its
-// `dependencies` in the dialect node is written in, as a fold of it does
+// foldedBranchAt returns the folded branch of node, written at at, which reads
+// its `dependencies` in the dialect node is written in, as a fold of it does
 // (TwinKeyword): an allOf entry naming a draft by its own `$schema` keeps the
 // draft's keyword beside a position read in 2020-12, as the same schema written
 // flat in the draft keeps it (docs/compilers/openapi.md#dialect-keywords).
@@ -310,13 +316,13 @@ func foldedBranchAt(loweringContext lowering.Ctx, node *statement.Schema, at jso
 	return annotation.FoldedAllOfBranch{Node: node, At: at, Dependencies: rulesOf(loweringContext, node).Defines("dependencies")}
 }
 
-// fallbackAllOfBranches returns the branches of schema that fold, each at its pointer below
-// schema, for a use
-// reading what schema addsKeyword it, but those writing only what schema or such a branch before
-// them writes: the writers of an entry a use reads agree (foldingAllOfBranches), so a
-// reader taking the nearest takes the same value from any of them, and a use of schema
-// pays for each entry once, not for each branch repeating it. Bounds, which agree
-// by meeting, are no such entry: a use never reads them through its $ref.
+// fallbackAllOfBranches returns the branches of schema that fold, each at its
+// pointer below schema, for a use reading what schema addsKeyword it, but those
+// writing only what schema or such a branch before them writes: the writers of
+// an entry a use reads agree (foldingAllOfBranches), so a reader taking the
+// nearest takes the same value from any of them, and a use of schema pays for
+// each entry once, not for each branch repeating it. Bounds, which agree by
+// meeting, are no such entry: a use never reads them through its $ref.
 func fallbackAllOfBranches(loweringContext lowering.Ctx, schema *statement.Schema) []allOfBranch {
 	if !allOfDecides(loweringContext, schema) {
 		return nil
@@ -331,33 +337,35 @@ func fallbackAllOfBranches(loweringContext lowering.Ctx, schema *statement.Schem
 	return out
 }
 
-// declaresScoped reports whether a folded branch writes what only the position can hold,
-// as declaresPositionScoped asks of the schema written there.
+// declaresScoped reports whether a folded branch writes what only the position
+// can hold, as declaresPositionScoped asks of the schema written there.
 func declaresScoped(loweringContext lowering.Ctx, foldedBranches []annotation.FoldedAllOfBranch) bool {
 	return slices.ContainsFunc(foldedBranches, func(foldedAllOfBranch annotation.FoldedAllOfBranch) bool {
 		return declaresPositionScoped(loweringContext, foldedAllOfBranch.Node)
 	})
 }
 
-// recordFoldedBranchResidue keeps on td, in hand, what binds a use that foldedBranches write
-// (recordResidue), each reported at the keyword it wrote, in FoldedBranchesInOverwriteOrder'
-// order: an entry several write is the nearest folded branch's kept apart, and the
-// schema written at the position records after them.
+// recordFoldedBranchResidue keeps on td, in hand, what binds a use that
+// foldedBranches write (recordResidue), each reported at the keyword it wrote,
+// in FoldedBranchesInOverwriteOrder' order: an entry several write is the
+// nearest folded branch's kept apart, and the schema written at the position
+// records after them.
 func recordFoldedBranchResidue(loweringContext lowering.Ctx, td ir.TypeDef, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(foldedBranches))
 	for _, foldedAllOfBranch := range FoldedBranchesInOverwriteOrder(foldedBranches) {
-		// What schema writes too is schema's to keep and report: one writing, as the
-		// foldedBranches agree.
+		// What schema writes too is schema's to keep and report: one writing,
+		// as the foldedBranches agree.
 		diags = append(diags, recordResidue(loweringContext, td.Common(), foldedAllOfBranch.Node, foldedAllOfBranch.At, func(keyword string) bool { return hasKey(schema, keyword) })...)
 	}
 	return diags
 }
 
-// FoldedBranchesInOverwriteOrder returns foldedBranches in the order a keeper overwriting what each
-// writes takes them: those kept whole, then the rest, each the last first. The
-// nearest folded branch kept apart holds a keyword several write, and one kept whole,
-// whose branch holds it (annotation.FoldedAllOfBranch.KeptWhole), only one no other writes,
-// which that branch then holds alone (dropFoldedIntoWhole).
+// FoldedBranchesInOverwriteOrder returns foldedBranches in the order a keeper
+// overwriting what each writes takes them: those kept whole, then the rest,
+// each the last first. The nearest folded branch kept apart holds a keyword
+// several write, and one kept whole, whose branch holds it
+// (annotation.FoldedAllOfBranch.KeptWhole), only one no other writes, which
+// that branch then holds alone (dropFoldedIntoWhole).
 func FoldedBranchesInOverwriteOrder(foldedBranches []annotation.FoldedAllOfBranch) []annotation.FoldedAllOfBranch {
 	out := make([]annotation.FoldedAllOfBranch, 0, len(foldedBranches))
 	for _, whole := range []bool{true, false} {

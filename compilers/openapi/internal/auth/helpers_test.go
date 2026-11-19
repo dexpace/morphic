@@ -64,8 +64,8 @@ func sortedPointersAt(diags []ir.Diagnostic, code string) []string {
 	return out
 }
 
-// unmodeledKeys returns unmodeled's keys sorted, so a caller pins the whole set rather
-// than probing for the ones it happened to think of.
+// unmodeledKeys returns unmodeled's keys sorted, so a caller pins the whole set
+// rather than probing for the ones it happened to think of.
 func unmodeledKeys(unmodeled ir.Unmodeled) []string {
 	return slices.Sorted(maps.Keys(unmodeled))
 }

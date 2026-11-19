@@ -17,8 +17,8 @@ var (
 	_ TypeDef = (*Any)(nil)
 )
 
-// PrimitiveKind names a built-in primitive scalar (docs/ir/primitives.md). The set
-// is the union of TypeSpec's intrinsic scalars, JSON Schema's types, and
+// PrimitiveKind names a built-in primitive scalar (docs/ir/primitives.md). The
+// set is the union of TypeSpec's intrinsic scalars, JSON Schema's types, and
 // Protobuf's needs.
 type PrimitiveKind string
 
@@ -46,15 +46,18 @@ const (
 	PrimitiveUint32 PrimitiveKind = "uint32"
 	// PrimitiveUint64 is an unsigned 64-bit integer.
 	PrimitiveUint64 PrimitiveKind = "uint64"
-	// PrimitiveInteger is an arbitrary-precision integer (JSON Schema/TypeSpec integer).
+	// PrimitiveInteger is an arbitrary-precision integer (JSON Schema/TypeSpec
+	// integer).
 	PrimitiveInteger PrimitiveKind = "integer"
 	// PrimitiveFloat32 is a 32-bit IEEE-754 float.
 	PrimitiveFloat32 PrimitiveKind = "float32"
 	// PrimitiveFloat64 is a 64-bit IEEE-754 float.
 	PrimitiveFloat64 PrimitiveKind = "float64"
-	// PrimitiveFloat is an arbitrary-precision binary float (supertype of float32/64).
+	// PrimitiveFloat is an arbitrary-precision binary float (supertype of
+	// float32/64).
 	PrimitiveFloat PrimitiveKind = "float"
-	// PrimitiveNumber is an arbitrary-precision number (JSON Schema number, TypeSpec numeric).
+	// PrimitiveNumber is an arbitrary-precision number (JSON Schema number,
+	// TypeSpec numeric).
 	PrimitiveNumber PrimitiveKind = "number"
 	// PrimitiveDecimal is an arbitrary-precision decimal.
 	PrimitiveDecimal PrimitiveKind = "decimal"
@@ -78,12 +81,12 @@ const (
 	PrimitiveAny PrimitiveKind = "any"
 )
 
-// Valid reports whether k is one of the kinds declared above. PrimitiveKind is a bare
-// string enum, so nothing rejects an invented or stale value on the wire, and
-// PrimitiveTypeID derives a consistent ID from any string it is handed — an invented
-// kind agrees with its own ID and reads as sound. irverify calls this so a kind
-// no emitter can switch on is reported as the compiler bug it is, rather than
-// reaching a target that has no type to lower it to.
+// Valid reports whether k is one of the kinds declared above. PrimitiveKind is
+// a bare string enum, so nothing rejects an invented or stale value on the
+// wire, and PrimitiveTypeID derives a consistent ID from any string it is
+// handed — an invented kind agrees with its own ID and reads as sound. irverify
+// calls this so a kind no emitter can switch on is reported as the compiler bug
+// it is, rather than reaching a target that has no type to lower it to.
 func (k PrimitiveKind) Valid() bool {
 	switch k {
 	case PrimitiveBool, PrimitiveString, PrimitiveBytes,
@@ -105,9 +108,9 @@ const maxDomainDepth = 8
 
 // domainParents returns the immediate supertypes of k by value domain: the
 // kinds that hold every finite value of k, with no kind between
-// (docs/ir/primitives.md). A kind with none is a root. PrimitiveAny is the top of
-// every kind without being an edge; see StrictlyWithin. The result is fresh, so
-// a caller may keep it.
+// (docs/ir/primitives.md). A kind with none is a root. PrimitiveAny is the top
+// of every kind without being an edge; see StrictlyWithin. The result is fresh,
+// so a caller may keep it.
 func (k PrimitiveKind) domainParents() []PrimitiveKind {
 	switch k {
 	case PrimitiveInt8:
@@ -249,9 +252,9 @@ type Model struct {
 	// Mixins is composition without subtyping (Smithy mixins, TypeSpec spread,
 	// extra allOf entries).
 	Mixins []TypeRef `json:"mixins,omitempty"`
-	// AdditionalProperties is the catch-all for members beside the model's declared
-	// structure. A catch-all with nothing beside it is a MapT, never a Model
-	// (AsMap).
+	// AdditionalProperties is the catch-all for members beside the model's
+	// declared structure. A catch-all with nothing beside it is a MapT, never a
+	// Model (AsMap).
 	AdditionalProperties *AdditionalProperties `json:"additionalProperties,omitzero"`
 	// Additional is the openness of the property set.
 	Additional AdditionalMode `json:"additional,omitempty"`
@@ -323,8 +326,8 @@ type Discriminator struct {
 	// property exists on no single model (TypeSpec @discriminated
 	// discriminatorPropertyName, OpenAPI discriminator on oneOf).
 	PropertyName string `json:"propertyName,omitempty"`
-	// TupleElementIndex is the 0-based tuple element carrying the tag Literal (Erlang tagged
-	// tuples, JSON arrays with a const head via prefixItems).
+	// TupleElementIndex is the 0-based tuple element carrying the tag Literal
+	// (Erlang tagged tuples, JSON arrays with a const head via prefixItems).
 	TupleElementIndex *int `json:"tupleElementIndex,omitzero"`
 	// Mapping maps a wire value to the type it routes to, a union's variant or
 	// a hierarchy's base or subtype, and no value is empty. Nil on a union, it
@@ -478,11 +481,11 @@ type List struct {
 	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
-// MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf
-// map, an OpenAPI object whose only statement about its members is
+// MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf map,
+// an OpenAPI object whose only statement about its members is
 // additionalProperties (docs/ir/containers.md). A catch-all beside any other
-// member fact stays a Model's AdditionalProperties; AsMap draws that line for every
-// producer.
+// member fact stays a Model's AdditionalProperties; AsMap draws that line for
+// every producer.
 type MapT struct {
 	TypeCommon
 	// Key is the key type; nil = string keys, the one spelling of them, as for

@@ -79,8 +79,9 @@ func (r Recorded) Judge(findings []Finding, reasons map[string]string) (unlisted
 	return unlisted, changed, stale, unreasoned
 }
 
-// Explains reports whether r lists finding at as, with finding's What: as is finding's case's
-// own name, or the name of the core case it projects to (Result.Like).
+// Explains reports whether r lists finding at as, with finding's What: as is
+// finding's case's own name, or the name of the core case it projects to
+// (Result.Like).
 func (r Recorded) Explains(finding Finding, as string) bool {
 	recordLine, ok := r[as]
 	return ok && recordLine.what == finding.What
@@ -107,8 +108,8 @@ func (r Recorded) Write(header string, findings []Finding) []byte {
 	return []byte(b.String())
 }
 
-// Findings returns what oracle found in each of results, in their order, and each
-// decline its record lists as it lists a finding (listed), whose What is
+// Findings returns what oracle found in each of results, in their order, and
+// each decline its record lists as it lists a finding (listed), whose What is
 // "declined: <reason>".
 func Findings(results []Result, oracle Oracle) []Finding {
 	var out []Finding
@@ -189,12 +190,12 @@ func byName(results []Result) map[string]Result {
 }
 
 // explained reports whether rec, or run, the results of the same run by name,
-// explains verdict, a verdict of result its record lists: rec lists what verdict found at result's
-// own name or at the core case result projects to; or verdict is a spelling of a case
-// writing two keywords whose every place it differs at, a part of its What, is
-// a place a spelling of either part differs at in run. Each part is held to
-// the records itself, so a place forgiven here is one already recorded or
-// reported where it stands alone.
+// explains verdict, a verdict of result its record lists: rec lists what
+// verdict found at result's own name or at the core case result projects to; or
+// verdict is a spelling of a case writing two keywords whose every place it
+// differs at, a part of its What, is a place a spelling of either part differs
+// at in run. Each part is held to the records itself, so a place forgiven here
+// is one already recorded or reported where it stands alone.
 func explained(rec Recorded, run map[string]Result, result Result, verdict Verdict) bool {
 	finding := findingOf(result, verdict)
 	if rec.Explains(finding, result.Spec) || rec.Explains(finding, result.Like) {

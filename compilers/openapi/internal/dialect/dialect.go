@@ -11,14 +11,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
-// SchemaDialectRows is the rows each schema of a compile is read with: by where it is
-// (At), by its node (Of), and by its document (In). Nothing writes it once a
-// Builder returns it, so every copy may read it at once. The zero Table reads
-// every schema with the zero rows, which define nothing.
+// SchemaDialectRows is the rows each schema of a compile is read with: by where
+// it is (At), by its node (Of), and by its document (In). Nothing writes it
+// once a Builder returns it, so every copy may read it at once. The zero Table
+// reads every schema with the zero rows, which define nothing.
 type SchemaDialectRows struct {
 	// byRoot is the rows of each schema resource root naming its dialect
-	// (reftable.ReferencedDocument.Dialects), and byNode those of each mapping and list such
-	// a root's tree holds, a root it holds governing its own.
+	// (reftable.ReferencedDocument.Dialects), and byNode those of each mapping
+	// and list such a root's tree holds, a root it holds governing its own.
 	byRoot map[reftable.DocumentPointer]specrules.SchemaRules
 	byNode map[*yaml.Node]specrules.SchemaRules
 	// byDoc is the rows each document's schemas no root governs are read with,
@@ -26,9 +26,10 @@ type SchemaDialectRows struct {
 	byDoc map[reftable.DocID]specrules.SchemaRules
 }
 
-// At returns the rows the schema at documentPointer is read with: those of the innermost
-// root at or above it naming its dialect, else those of documentPointer's document, else
-// the source's, as for a document the compile did not read beside it.
+// At returns the rows the schema at documentPointer is read with: those of the
+// innermost root at or above it naming its dialect, else those of
+// documentPointer's document, else the source's, as for a document the compile
+// did not read beside it.
 func (t SchemaDialectRows) At(documentPointer reftable.DocumentPointer) specrules.SchemaRules {
 	if schemaRules, ok := reftable.DialectAt(t.byRoot, documentPointer); ok {
 		return schemaRules
@@ -36,9 +37,9 @@ func (t SchemaDialectRows) At(documentPointer reftable.DocumentPointer) specrule
 	return t.In(documentPointer.Doc)
 }
 
-// RootAt returns the rows of the root naming its dialect at documentPointer, and false
-// where none is there, a root above documentPointer not counted: what a check entering the
-// schema at documentPointer switches to.
+// RootAt returns the rows of the root naming its dialect at documentPointer,
+// and false where none is there, a root above documentPointer not counted: what
+// a check entering the schema at documentPointer switches to.
 func (t SchemaDialectRows) RootAt(documentPointer reftable.DocumentPointer) (specrules.SchemaRules, bool) {
 	schemaRules, ok := t.byRoot[documentPointer]
 	return schemaRules, ok

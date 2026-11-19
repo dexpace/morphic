@@ -130,9 +130,10 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	return use{}, false
 }
 
-// annotationsAUseFallsBackTo returns the annotations td lends a carrier naming it: its Docs and
-// Deprecation, and none of a type the registry does not hold. Its Examples
-// describe the type and stay on it (docs/compilers/openapi.md#schema-examples).
+// annotationsAUseFallsBackTo returns the annotations td lends a carrier naming
+// it: its Docs and Deprecation, and none of a type the registry does not hold.
+// Its Examples describe the type and stay on it
+// (docs/compilers/openapi.md#schema-examples).
 func annotationsAUseFallsBackTo(td ir.TypeDef) annotations {
 	if td == nil {
 		return annotations{}
@@ -153,9 +154,9 @@ type annotations struct {
 	unmodeled    map[string][]ir.UnmodeledEntry
 }
 
-// notesOf returns the annotations a decorator's typeCommon holds. Its Name and its
-// Provenance go with the node the fold leaves out, so which spelling marks a
-// decorator Inferred is not compared.
+// notesOf returns the annotations a decorator's typeCommon holds. Its Name and
+// its Provenance go with the node the fold leaves out, so which spelling marks
+// a decorator Inferred is not compared.
 func notesOf(typeCommon *ir.TypeCommon) annotations {
 	return annotations{docs: typeCommon.Docs, deprecation: typeCommon.Deprecation, examples: typeCommon.Examples, availability: typeCommon.Availability,
 		unmodeled: entryLists(typeCommon.Unmodeled)}

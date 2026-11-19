@@ -58,9 +58,9 @@ func declaredOf(loweringContext lowering.Ctx, st *statement.Statement) (*stateme
 	return loweringContext.Statements().At(st.Ref.Entry.Hop.Target), st.Ref.Entry.Hop.Target
 }
 
-// declared returns the statement of the schema written where schemaStatement's $ref lands,
-// as declaredOf reads it, and an Unwritten one where it lands on none, for a
-// reader taking the statement of none (fallbackAnnotationsOf).
+// declared returns the statement of the schema written where schemaStatement's
+// $ref lands, as declaredOf reads it, and an Unwritten one where it lands on
+// none, for a reader taking the statement of none (fallbackAnnotationsOf).
 func declared(loweringContext lowering.Ctx, schemaStatement *statement.Statement) *statement.Statement {
 	if st, _ := declaredOf(loweringContext, schemaStatement); st != nil {
 		return st
@@ -68,8 +68,8 @@ func declared(loweringContext lowering.Ctx, schemaStatement *statement.Statement
 	return loweringContext.Statements().Read(nil)
 }
 
-// siteOf returns the position the bindings read schema at, and false for a schema
-// they do not place, which the statement reads at the zero position.
+// siteOf returns the position the bindings read schema at, and false for a
+// schema they do not place, which the statement reads at the zero position.
 func siteOf(schema *statement.Schema) (reftable.DocumentPointer, bool) {
 	if schema == nil || schema.At == (reftable.DocumentPointer{}) {
 		return reftable.DocumentPointer{}, false
@@ -86,15 +86,15 @@ func refKeyword(st *statement.Statement) string {
 	return st.Ref.Keyword
 }
 
-// writesConjuncts reports whether schema says what an allOf says: it writes one,
-// or it is the rest of an object writing a reference beside it, whose
+// writesConjuncts reports whether schema says what an allOf says: it writes
+// one, or it is the rest of an object writing a reference beside it, whose
 // conjuncts are the reference and the rest (statement.Schema.BesideRef).
 func writesConjuncts(schema *statement.Schema) bool {
 	return schema != nil && (len(schema.AllOf) > 0 || schema.BesideRef != nil)
 }
 
-// conjunctsIn returns the statements of the conjuncts schema writes beside its own
-// keywords, unflattened: the reference written beside them
+// conjunctsIn returns the statements of the conjuncts schema writes beside its
+// own keywords, unflattened: the reference written beside them
 // (writesConjuncts), then each schema its allOf lists.
 func conjunctsIn(loweringContext lowering.Ctx, schema *statement.Schema) []*statement.Statement {
 	if schema == nil {
@@ -124,8 +124,8 @@ func referenceOf(loweringContext lowering.Ctx, st *statement.Statement) *stateme
 	}
 }
 
-// allOfIn returns the schemas schema's allOf lists, nil for a nil schema and one
-// writing none.
+// allOfIn returns the schemas schema's allOf lists, nil for a nil schema and
+// one writing none.
 func allOfIn(schema *statement.Schema) []statement.Subschema {
 	if schema == nil {
 		return nil
@@ -133,9 +133,9 @@ func allOfIn(schema *statement.Schema) []statement.Subschema {
 	return schema.AllOf
 }
 
-// refWritten reports whether schema writes `$ref`, as the parser's model holds it:
-// a reference site under that keyword, not a $dynamicRef the bindings read as
-// one (statement.Reference).
+// refWritten reports whether schema writes `$ref`, as the parser's model holds
+// it: a reference site under that keyword, not a $dynamicRef the bindings read
+// as one (statement.Reference).
 func refWritten(schema *statement.Schema) bool {
 	return schema != nil && schema.Ref != nil && schema.Ref.Keyword == "$ref"
 }

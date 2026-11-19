@@ -8,12 +8,12 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
-// Reads returns how many schema objects memoizingSchemaReader has read, for the tests holding the
-// table to one read of each.
+// Reads returns how many schema objects memoizingSchemaReader has read, for the
+// tests holding the table to one read of each.
 func Reads(memoizingSchemaReader *MemoizingSchemaReader) int { return memoizingSchemaReader.reads }
 
-// Lookups returns how many statements memoizingSchemaReader has looked up, for the tests holding
-// a schema whose statement is built to reading it with none.
+// Lookups returns how many statements memoizingSchemaReader has looked up, for
+// the tests holding a schema whose statement is built to reading it with none.
 func Lookups(memoizingSchemaReader *MemoizingSchemaReader) int { return memoizingSchemaReader.lookups }
 
 // Compared returns how many keys schema compares name with to find it, for the

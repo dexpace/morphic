@@ -1067,9 +1067,9 @@ func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 
 // TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that a hoisted copy keeping
 // a reference is one type with a node held alike only where the two read it
-// against one base (FieldDeclarationContext.Alike): elsewhere they are two types declared apart,
-// which overlap, whether the other is a copy or a node declared elsewhere.
-// Copies keeping none say the same under any base.
+// against one base (FieldDeclarationContext.Alike): elsewhere they are two
+// types declared apart, which overlap, whether the other is a copy or a node
+// declared elsewhere. Copies keeping none say the same under any base.
 func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
@@ -1148,9 +1148,10 @@ func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
 }
 
 // TestInstance_NamesTheKindOfAValue pins the kind of JSON instance the other
-// side of a judgment is asked of a structure's source as (FieldDeclarationContext.Admits): a
-// primitive by its JSON spelling, an integer apart from a number with a
-// fraction, and a literal or a structure by its value.
+// side of a judgment is asked of a structure's source as
+// (FieldDeclarationContext.Admits): a primitive by its JSON spelling, an
+// integer apart from a number with a fraction, and a literal or a structure by
+// its value.
 func TestInstance_NamesTheKindOfAValue(t *testing.T) {
 	t.Parallel()
 	for primitiveKind, want := range map[ir.PrimitiveKind]JSONInstanceKind{

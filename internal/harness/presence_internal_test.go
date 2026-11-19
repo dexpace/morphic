@@ -64,7 +64,8 @@ func named(name string) *ir.Document {
 	return doc
 }
 
-// presenceOf returns the presence verdict of the keyword's case of product fakeValue.
+// presenceOf returns the presence verdict of the keyword's case of product
+// fakeValue.
 func presenceOf(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
 	res, ok := CheckCase(t.Context(), fakeValue, []int{caseWrite})

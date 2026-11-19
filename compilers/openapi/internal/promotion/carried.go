@@ -45,11 +45,11 @@ func Carried(promoter Promoter, own ir.Unmodeled, scopes ...string) ir.Unmodeled
 }
 
 // Shadowed returns, for each of scopes holding one, the entries own holds
-// beneath it for a key promoter reads that the carrier's own key or a nearer scope
-// states too, keyed unscoped: the statements Carried passes over. A carrier
-// reads each for its findings alone, so a misfit behind a nearer statement of
-// its key is reported once, at its own key. It returns nil where Carried
-// passes over nothing.
+// beneath it for a key promoter reads that the carrier's own key or a nearer
+// scope states too, keyed unscoped: the statements Carried passes over. A
+// carrier reads each for its findings alone, so a misfit behind a nearer
+// statement of its key is reported once, at its own key. It returns nil where
+// Carried passes over nothing.
 func Shadowed(promoter Promoter, own ir.Unmodeled, scopes ...string) []ir.Unmodeled {
 	var out []ir.Unmodeled
 	for i, scope := range scopes {
@@ -103,10 +103,11 @@ type carried struct {
 	entry ir.UnmodeledEntry
 }
 
-// WithOwnCarriedState returns from with what the objects own carries state, each read as a
-// $ref target's keys are: a single-sided fact holds where any states it, and
-// a deprecation's members fill from the nearest stating them. The carrier's
-// own keys are its caller's to read, and from is farther than any scope.
+// WithOwnCarriedState returns from with what the objects own carries state,
+// each read as a $ref target's keys are: a single-sided fact holds where any
+// states it, and a deprecation's members fill from the nearest stating them.
+// The carrier's own keys are its caller's to read, and from is farther than any
+// scope.
 func (p Promoter) WithOwnCarriedState(from Referent, own ir.Unmodeled, scopes ...string) Referent {
 	var fallbackReferent Referent
 	for i := range scopes {

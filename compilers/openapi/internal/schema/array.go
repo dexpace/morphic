@@ -23,8 +23,8 @@ import (
 // lowerArray hoists an array schema, written at pointer, at at, as a Tuple when
 // its `items` is a list its dialect reads as one (listedTuple), or when
 // prefixItems is present, else a List over its item schema, each with the
-// collection bounds it declares met with those foldedBranches write, fin finishing it
-// once built.
+// collection bounds it declares met with those foldedBranches write, fin
+// finishing it once built.
 func lowerArray(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer, at jsontext.Pointer,
 	foldedBranches []annotation.FoldedAllOfBranch, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -49,19 +49,19 @@ func lowerArray(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return id, diags
 }
 
-// listedTuple returns how many schemas schema writes `items` as a list of where the
-// rows of its dialect, read where schema is written (rulesOf) whatever pointer its
-// node stands at, read that list as a tuple, as the drafts before 2020-12 spell
-// one, and false where they do not or it writes no list. A list read so nowhere
-// is the table's to report (docs/compilers/openapi.md#tuples).
+// listedTuple returns how many schemas schema writes `items` as a list of where
+// the rows of its dialect, read where schema is written (rulesOf) whatever
+// pointer its node stands at, read that list as a tuple, as the drafts before
+// 2020-12 spell one, and false where they do not or it writes no list. A list
+// read so nowhere is the table's to report (docs/compilers/openapi.md#tuples).
 func listedTuple(loweringContext lowering.Ctx, schema *statement.Schema) (int, bool) {
 	n, listed := listedItems(schema)
 	return n, listed && rulesOf(loweringContext, schema).Takes("items", specrules.List)
 }
 
-// listedItems returns how many schemas schema writes `items` as a list of, a tuple
-// as the drafts before 2020-12 spell one, and false where it writes no list.
-// The parser's model has no form for such a list, so only its node tells.
+// listedItems returns how many schemas schema writes `items` as a list of, a
+// tuple as the drafts before 2020-12 spell one, and false where it writes no
+// list. The parser's model has no form for such a list, so only its node tells.
 func listedItems(schema *statement.Schema) (int, bool) {
 	node := keyNode(schema, "items")
 	if node == nil || node.Kind != yaml.SequenceNode {
@@ -70,9 +70,10 @@ func listedItems(schema *statement.Schema) (int, bool) {
 	return len(node.Content), true
 }
 
-// itemsSchema returns the one schema schema writes `items` as, and the zero Sub,
-// which names none, where it writes a list, a tuple, whose entries no reader
-// of one items schema reads: the parser's model holds the false schema there.
+// itemsSchema returns the one schema schema writes `items` as, and the zero
+// Sub, which names none, where it writes a list, a tuple, whose entries no
+// reader of one items schema reads: the parser's model holds the false schema
+// there.
 func itemsSchema(schema *statement.Schema) statement.Subschema {
 	if _, listed := listedItems(schema); listed || schema == nil || schema.Array == nil {
 		return statement.Subschema{}
@@ -80,14 +81,14 @@ func itemsSchema(schema *statement.Schema) statement.Subschema {
 	return schema.Array.Items
 }
 
-// buildListedTuple lowers the n schemas schema writes `items` as a list of into a
-// Tuple's Elems, the `additionalItems` beside them into its Rest, its
-// Constraints being cons. The parser's model holds none of
-// them, so each is the schema the load phase built at its position
-// (reftable.Landing). An absent additionalItems leaves every element past them
-// unconstrained, as `true` does, and `false` admits none. An entry or rest
-// written as a number, a string or a list lowers as `false` does, and a `null`
-// as one left out, as 2020-12's are, which the load phase reports.
+// buildListedTuple lowers the n schemas schema writes `items` as a list of into
+// a Tuple's Elems, the `additionalItems` beside them into its Rest, its
+// Constraints being cons. The parser's model holds none of them, so each is the
+// schema the load phase built at its position (reftable.Landing). An absent
+// additionalItems leaves every element past them unconstrained, as `true` does,
+// and `false` admits none. An entry or rest written as a number, a string or a
+// list lowers as `false` does, and a `null` as one left out, as 2020-12's are,
+// which the load phase reports.
 func buildListedTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int,
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {
@@ -111,9 +112,9 @@ func buildListedTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int
 	return tuple, diags
 }
 
-// keepPrefixItems keeps on unmodeled, verbatim, the prefixItems schema writes beside the
-// items list its dialect reads as the tuple, which is the dialect's own
-// spelling of one, where no text makes the two one tuple
+// keepPrefixItems keeps on unmodeled, verbatim, the prefixItems schema writes
+// beside the items list its dialect reads as the tuple, which is the dialect's
+// own spelling of one, where no text makes the two one tuple
 // (docs/compilers/openapi.md#tuples), and reports it once.
 func keepPrefixItems(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !hasKey(schema, "prefixItems") {
@@ -168,8 +169,8 @@ func ListedTuple(loweringContext lowering.Ctx, js *statement.Statement) (
 }
 
 // heldAt returns the statement of the schema the bindings hold at pointer of
-// loweringContext's document, the one the parser modelled or the load phase built there,
-// and an Unwritten one where they hold none.
+// loweringContext's document, the one the parser modelled or the load phase
+// built there, and an Unwritten one where they hold none.
 func heldAt(loweringContext lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
 	return loweringContext.Statements().At(loweringContext.Position(pointer))
 }
@@ -202,10 +203,10 @@ func buildTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return tuple, diags
 }
 
-// ownCollectionConstraints reads the collection bounds schema itself writes, which
-// bound the whole instance whether it lowers to a List or a Tuple, and nil
-// where it states none. Only the integer and boolean bounds are read here, as
-// the statement holds the model's, each count where the model holds the
+// ownCollectionConstraints reads the collection bounds schema itself writes,
+// which bound the whole instance whether it lowers to a List or a Tuple, and
+// nil where it states none. Only the integer and boolean bounds are read here,
+// as the statement holds the model's, each count where the model holds the
 // number its literal states (annotation.ExactCount); the census keeps one it
 // does not (keptCount).
 func ownCollectionConstraints(schema *statement.Schema) *ir.Constraints {

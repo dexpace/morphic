@@ -16,15 +16,17 @@ import (
 )
 
 // reading is what a Namer reads of the way to one position: how the grammar
-// reads each position on it (reftable.ReferenceTargetTable.Kinds) and the node written at each,
-// the root's first, so kinds[k] and path[k] are what tokens[:k] leads to. path
-// ends early where the document holds no node further on.
+// reads each position on it (reftable.ReferenceTargetTable.Kinds) and the node
+// written at each, the root's first, so kinds[k] and path[k] are what
+// tokens[:k] leads to. path ends early where the document holds no node further
+// on.
 type reading struct {
 	kinds []reftable.Kind
 	path  []*yaml.Node
 }
 
-// read returns the reading of the way to documentPointer, empty for a Namer with no table.
+// read returns the reading of the way to documentPointer, empty for a Namer
+// with no table.
 func (n *Namer) read(documentPointer reftable.DocumentPointer) reading {
 	if n.table == nil {
 		return reading{}
@@ -36,9 +38,9 @@ func (n *Namer) read(documentPointer reftable.DocumentPointer) reading {
 	return readingValue
 }
 
-// Title returns the name the title of the schema at documentPointer gives the node built
-// there (titles.at), and false where it gives none, as walking the structure
-// to documentPointer reads it.
+// Title returns the name the title of the schema at documentPointer gives the
+// node built there (titles.at), and false where it gives none, as walking the
+// structure to documentPointer reads it.
 func (n *Namer) Title(documentPointer reftable.DocumentPointer) (string, bool) {
 	hint, _, titled := n.walk(documentPointer)
 	if !titled {
@@ -61,12 +63,12 @@ type titles struct {
 }
 
 // at returns the words of the title the schema tokens leads to in doc writes,
-// as readingValue reads the way there, where they name the node built there; union marks
-// a oneOf or anyOf branch. They name none where the grammar reads no schema
-// there or the document holds no node; at a component schema, which its key
-// names; where the title has no word; and where its words are a component
-// schema's name, or another branch's of the list a branch is in (collides).
-// The position then keeps the name it has without a title.
+// as readingValue reads the way there, where they name the node built there;
+// union marks a oneOf or anyOf branch. They name none where the grammar reads
+// no schema there or the document holds no node; at a component schema, which
+// its key names; where the title has no word; and where its words are a
+// component schema's name, or another branch's of the list a branch is in
+// (collides). The position then keeps the name it has without a title.
 func (t *titles) at(doc reftable.DocID, tokens []string, readingValue reading, union bool) string {
 	k := len(tokens)
 	if k >= len(readingValue.path) || k >= len(readingValue.kinds) || readingValue.kinds[k] != reftable.KindSchema || componentRoot(tokens) {

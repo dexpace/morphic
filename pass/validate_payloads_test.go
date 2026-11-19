@@ -68,9 +68,9 @@ func encodingCarriers() []encodingCarrier {
 // TestValidate_EncodingKeyAddressesNoProperty plants an encoding key naming a
 // property that exists nowhere, in each field that carries a Payload.
 //
-// A key is a PropertyID and a property is a position inside its model, so no registry
-// resolves one and the type-driven reference walk cannot reach it: before
-// checkEncodingKeys every case here validated clean.
+// A key is a PropertyID and a property is a position inside its model, so no
+// registry resolves one and the type-driven reference walk cannot reach it:
+// before checkEncodingKeys every case here validated clean.
 func TestValidate_EncodingKeyAddressesNoProperty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range encodingCarriers() {

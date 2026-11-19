@@ -26,11 +26,11 @@ func nullBranch(loweringContext lowering.Ctx, js *statement.Statement) bool {
 	return inlineBranch(js) && NullAlone(loweringContext, js.Schema)
 }
 
-// variantsNull is what schema's oneOf and anyOf say of null where the IR holds a
-// union's null on its variants as on the reference to it, the two conjoined:
+// variantsNull is what schema's oneOf and anyOf say of null where the IR holds
+// a union's null on its variants as on the reference to it, the two conjoined:
 // each admits null where any branch does and keeps it out where every branch
-// does, each read by n, whose budget bounds them, so a branch left unread
-// keeps nothing out. That holds of a union however it lowers, so none is asked
+// does, each read by n, whose budget bounds them, so a branch left unread keeps
+// nothing out. That holds of a union however it lowers, so none is asked
 // whether it is distributed (unionNullReading), and the read starts no
 // classification.
 func (n *nulls) variantsNull(schema *statement.Schema) nullReading {
@@ -68,8 +68,8 @@ func disjoinNullVerdicts(a, b nullDeclaration) nullDeclaration {
 }
 
 // mayAdmitNull reports whether b admits null wherever the IR holds it, on a
-// variant of a union it is or reaches as on its own keywords, under the
-// reading loweringContext's policy selects. holder is a schema whose own union the read
+// variant of a union it is or reaches as on its own keywords, under the reading
+// loweringContext's policy selects. holder is a schema whose own union the read
 // leaves out, nil for none. A read past the walk's budget may, unless what it
 // read keeps null out, which no conjunct left unread lets back in.
 func mayAdmitNull(loweringContext lowering.Ctx, b *statement.Statement, holder *statement.Schema) bool {
@@ -133,11 +133,11 @@ type keptNullBranch struct {
 	written []string
 }
 
-// nullBranchKeeps returns the null branches of schema's union, written at pointer,
-// that write a key beside those saying the null (saysTheNull): an annotation,
-// an extension or any other keyword, but a `null` written for one, which is
-// that keyword left out (annotation.WritesKeywordLeftOut). A branch is no
-// variant, so nothing else keeps what it says.
+// nullBranchKeeps returns the null branches of schema's union, written at
+// pointer, that write a key beside those saying the null (saysTheNull): an
+// annotation, an extension or any other keyword, but a `null` written for one,
+// which is that keyword left out (annotation.WritesKeywordLeftOut). A branch is
+// no variant, so nothing else keeps what it says.
 func nullBranchKeeps(loweringContext lowering.Ctx, position, schema *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
 	var out []keptNullBranch
 	for _, b := range liftedNulls(loweringContext, position, schema, pointer) {
@@ -154,10 +154,10 @@ func nullBranchKeeps(loweringContext lowering.Ctx, position, schema *statement.S
 	return out
 }
 
-// recordNullBranches keeps each of kept whole in unmodeled under its key, as no_ir_home:
-// nothing is degraded, the null being typed exactly, and only what else the
-// branch says of that alternative has no field. One stored is reported at its
-// branch, and one the keeper cannot convert is reported by it instead.
+// recordNullBranches keeps each of kept whole in unmodeled under its key, as
+// no_ir_home: nothing is degraded, the null being typed exactly, and only what
+// else the branch says of that alternative has no field. One stored is reported
+// at its branch, and one the keeper cannot convert is reported by it instead.
 func recordNullBranches(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, kept []keptNullBranch) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range kept {

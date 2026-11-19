@@ -194,10 +194,11 @@ func TestValidate_ADefaultIsHeldToTheMembersOfAnEnumAsTheyAreWritten(t *testing.
 	}
 }
 
-// TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn holds a type that
-// needs only a type of a type cycle to none, however long the chain that leads into
-// it: each is dropped once nothing unfounded needs it, so the finding is at the
-// type cycle alone. A scalar with no base ends a chain of aliases unjudged.
+// TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn holds a type
+// that needs only a type of a type cycle to none, however long the chain that
+// leads into it: each is dropped once nothing unfounded needs it, so the
+// finding is at the type cycle alone. A scalar with no base ends a chain of
+// aliases unjudged.
 func TestValidate_ATypeOnlyATypeCycleNeedsHasNoFiniteValueOfItsOwn(t *testing.T) {
 	t.Parallel()
 	doc := noFiniteValueDoc(

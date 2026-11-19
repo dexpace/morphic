@@ -140,8 +140,8 @@ func (e *Editor) RemoveAuthScheme(id AuthID) {
 }
 
 // updateEntry is UpdateServer, UpdateChannel, UpdateMessage and
-// UpdateAuthScheme over registryValue, and refuses a node off its own ID's key besides what
-// updated refuses.
+// UpdateAuthScheme over registryValue, and refuses a node off its own ID's key
+// besides what updated refuses.
 func updateEntry[K ~string, V any](editor *Editor, registryValue registry[K, V], kind nodeKind[*V], id K, change func(*V)) {
 	current, ok := entryAt(editor, registryValue, "update", id)
 	if !ok {
@@ -168,9 +168,9 @@ func removeEntry[K ~string, V any](editor *Editor, registryValue registry[K, V],
 	}
 }
 
-// entryAt returns the node the edit holds at id in registryValue for a write verb names.
-// It refuses one the edit does not take (open), and an id it holds no node
-// at: an edit adds no ID.
+// entryAt returns the node the edit holds at id in registryValue for a write
+// verb names. It refuses one the edit does not take (open), and an id it holds
+// no node at: an edit adds no ID.
 func entryAt[K ~string, V any](editor *Editor, registryValue registry[K, V], verb string, id K) (V, bool) {
 	if !editor.open(verb, subjectAt(id)) {
 		var none V

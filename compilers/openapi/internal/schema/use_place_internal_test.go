@@ -21,9 +21,9 @@ import (
 )
 
 // TestUseDefault_PlacesEachSchemaOfTheChain pins where defaultAt places the
-// default each schema of a use's chain writes: the site's own at the carrier,
-// a folded branch's at the folded branch, a referent's where the bindings place it, and one
-// they place nowhere at the carrier, which reads it.
+// default each schema of a use's chain writes: the site's own at the carrier, a
+// folded branch's at the folded branch, a referent's where the bindings place
+// it, and one they place nowhere at the carrier, which reads it.
 func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
@@ -42,8 +42,8 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	}
 }
 
-// TestKeysOf_ANilSchemaFallsBackToNothing pins keysOf's guard: a nil schema writes
-// no key the policy reads, whatever the policy reads.
+// TestKeysOf_ANilSchemaFallsBackToNothing pins keysOf's guard: a nil schema
+// writes no key the policy reads, whatever the policy reads.
 func TestKeysOf_ANilSchemaFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
@@ -51,9 +51,9 @@ func TestKeysOf_ANilSchemaFallsBackToNothing(t *testing.T) {
 	assert.Equal(t, promotion.Referent{}, keysOf(lowerer.Ctx, nil))
 }
 
-// TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites pins appendFallbackChainRun on a $ref
-// the bindings read no hop for: the schema writing it is lent, and the run
-// ends there, on no schema.
+// TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites pins
+// appendFallbackChainRun on a $ref the bindings read no hop for: the schema
+// writing it is lent, and the run ends there, on no schema.
 func TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
@@ -66,9 +66,9 @@ func TestUseOf_ARunTheBindingsDoNotKnowFallsBackToWhatItWrites(t *testing.T) {
 	assert.Same(t, ref.GetSchema(), statement.Parsed(use.Referents[0]))
 }
 
-// TestUseOf_ARunEndingUnresolvedFallsBackToNothing pins appendFallbackChainRun on a $ref whose
-// chain the bindings read as ending nowhere: no schema of it is lent, and the
-// run ends on none.
+// TestUseOf_ARunEndingUnresolvedFallsBackToNothing pins appendFallbackChainRun
+// on a $ref whose chain the bindings read as ending nowhere: no schema of it is
+// lent, and the run ends on none.
 func TestUseOf_ARunEndingUnresolvedFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {$ref: '#/components/schemas/U'}\n"+

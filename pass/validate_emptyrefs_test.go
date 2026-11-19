@@ -204,9 +204,9 @@ func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
 
 // TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference pins that a
 // discriminator whose Property is empty while neither PropertyName nor Index
-// locates the tag is reported as an empty PropertyID reference, an error, at the
-// property, in the wording that says what it lacks, and as nothing else; one
-// PropertyName locates is clean.
+// locates the tag is reported as an empty PropertyID reference, an error, at
+// the property, in the wording that says what it lacks, and as nothing else;
+// one PropertyName locates is clean.
 func TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()

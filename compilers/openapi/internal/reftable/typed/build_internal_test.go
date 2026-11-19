@@ -102,7 +102,8 @@ func chainOf(depth int) string {
 }
 
 // decodedAt decodes src as the parser decodes a schema and records it, and
-// everything below it, at documentPointer, as the source's walk records its schemas.
+// everything below it, at documentPointer, as the source's walk records its
+// schemas.
 func decodedAt(t *testing.T, bd *Builder, src string, documentPointer reftable.DocumentPointer) {
 	t.Helper()
 	var node yaml.Node

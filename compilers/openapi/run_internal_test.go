@@ -19,8 +19,8 @@ import (
 )
 
 // TestRun_ReadsTheFinishedDocumentOnce holds every step reading the finished
-// document to one compileddoc.CompiledDocumentView a run: a document whose link and
-// paginations those steps read is read through one, built once.
+// document to one compileddoc.CompiledDocumentView a run: a document whose link
+// and paginations those steps read is read through one, built once.
 func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("../../testdata/conformance/openapi/body-alias.yaml")
@@ -40,10 +40,10 @@ func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 }
 
 // TestRun_AppendsNothingAfterAFirstAsk holds every step reading the finished
-// document to the rule compileddoc.CompiledDocumentView keeps its indexes by: none appends a
-// property, parameter, binding or header after a first ask. What the run's
-// one reading answers, once the run returns, is compared with a fresh reading
-// of the document it returned, over the cases each such step reads.
+// document to the rule compileddoc.CompiledDocumentView keeps its indexes by:
+// none appends a property, parameter, binding or header after a first ask. What
+// the run's one reading answers, once the run returns, is compared with a fresh
+// reading of the document it returned, over the cases each such step reads.
 func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{

@@ -134,10 +134,11 @@ func TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition(t *testing.T) {
 }
 
 // TestDialectRoots_ADocumentListsItsRootsInPointerOrder pins the order
-// reftable.ReferencedDocument.Dialects lists a document's roots in, whatever order the
-// source declares them: by pointer, so a root holding another comes before it,
-// which the load phase relies on to govern the inner first. Six roots make a
-// list left in the order a map yields them fail but once in hundreds of runs.
+// reftable.ReferencedDocument.Dialects lists a document's roots in, whatever
+// order the source declares them: by pointer, so a root holding another comes
+// before it, which the load phase relies on to govern the inner first. Six
+// roots make a list left in the order a map yields them fail but once in
+// hundreds of runs.
 func TestDialectRoots_ADocumentListsItsRootsInPointerOrder(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+"components:\n  schemas:\n"+

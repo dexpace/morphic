@@ -14,8 +14,9 @@ import (
 type shape uint8
 
 const (
-	// shapeNotChecked is a type the checks read no further: an enum, a literal, a
-	// union, an external type, a scalar with no base, and one nothing declares.
+	// shapeNotChecked is a type the checks read no further: an enum, a literal,
+	// a union, an external type, a scalar with no base, and one nothing
+	// declares.
 	shapeNotChecked shape = iota
 	shapeNumber
 	shapeInteger
@@ -31,8 +32,9 @@ const (
 // aliases ends.
 const maxAliasHops = 64
 
-// primShape is the shape of a primitive of kind primitiveKind. Every kind has one:
-// TestPrimShapes_EveryPrimKindHasARow holds the cases to the kinds ir declares.
+// primShape is the shape of a primitive of kind primitiveKind. Every kind has
+// one: TestPrimShapes_EveryPrimKindHasARow holds the cases to the kinds ir
+// declares.
 func primShape(primitiveKind ir.PrimitiveKind) shape {
 	switch primitiveKind {
 	case ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber, ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
@@ -68,8 +70,8 @@ type bounds struct {
 	minProps, maxProps *int64
 }
 
-// and conjoins the bounds constraints declares into b. A numeric bound that does not
-// parse is passed over: irverify reports it.
+// and conjoins the bounds constraints declares into b. A numeric bound that
+// does not parse is passed over: irverify reports it.
 func (b *bounds) and(constraints *ir.Constraints) {
 	if constraints == nil {
 		return
@@ -98,8 +100,8 @@ func (b *bounds) raise(bigVal *ir.BigVal, open bool) {
 	}
 }
 
-// lower takes bigVal as the upper end where it is less than the one held, or equal
-// to it and exclusive.
+// lower takes bigVal as the upper end where it is less than the one held, or
+// equal to it and exclusive.
 func (b *bounds) lower(bigVal *ir.BigVal, open bool) {
 	if bigVal == nil {
 		return
@@ -172,8 +174,8 @@ func settle(doc *ir.Document, target ir.TypeID, b *bounds) (shape, ir.TypeDef, b
 	return shapeNotChecked, nil, encoded
 }
 
-// empty reports whether the bounds b holds admit no value of shape shapeValue. A bound
-// that does not apply to shapeValue is not judged.
+// empty reports whether the bounds b holds admit no value of shape shapeValue.
+// A bound that does not apply to shapeValue is not judged.
 func (b *bounds) empty(shapeValue shape) bool {
 	switch shapeValue {
 	case shapeNumber, shapeInteger:
@@ -199,8 +201,8 @@ func crossed(minimum, maximum *int64) bool {
 	return minimum != nil && maximum != nil && *minimum > *maximum
 }
 
-// describe says which values b admits none of, for a shape shapeValue that b.empty
-// holds.
+// describe says which values b admits none of, for a shape shapeValue that
+// b.empty holds.
 func (b *bounds) describe(shapeValue shape) string {
 	switch shapeValue {
 	case shapeText:

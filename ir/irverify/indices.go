@@ -39,10 +39,10 @@ func checkIndices(*ir.Document) walkCheck {
 }
 
 // appendResponseIndexViolations appends to vs a violation per SuccessStatus key
-// on one operation's HTTP bindings that addresses no response it declares; entryReaderValue
-// reads each SuccessStatus map. Keys need no sorting first: every violation
-// carries its own key in Path, and Verify orders the whole result by (Code,
-// Path) before returning it.
+// on one operation's HTTP bindings that addresses no response it declares;
+// entryReaderValue reads each SuccessStatus map. Keys need no sorting first:
+// every violation carries its own key in Path, and Verify orders the whole
+// result by (Code, Path) before returning it.
 func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader, op reflect.Value, at ir.WalkPath) []Violation {
 	declared := op.FieldByName("Responses").Len()
 	bindings := op.FieldByName("Bindings").FieldByName("HTTP")

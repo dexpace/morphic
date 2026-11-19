@@ -43,13 +43,14 @@ func documentUnknownKeys(serviceContext service.Ctx, unmodeled *ir.Unmodeled) []
 	return diags
 }
 
-// metadataObjectSite is one object around the document metadata that lowers to no node of
-// its own, so its x-* and its undeclared keys ride on ir.Document, keyed under
-// scope: the path from the root down to the object, empty for the root itself,
-// which ir.Document stands for. A tag's path holds its index rather than its
-// name, which is the pointer it is written at: OpenAPI's requirement that tag
-// names be unique is the document's to keep, not this compiler's to rely on,
-// and two tags spelled alike would silently leave one entry.
+// metadataObjectSite is one object around the document metadata that lowers to
+// no node of its own, so its x-* and its undeclared keys ride on ir.Document,
+// keyed under scope: the path from the root down to the object, empty for the
+// root itself, which ir.Document stands for. A tag's path holds its index
+// rather than its name, which is the pointer it is written at: OpenAPI's
+// requirement that tag names be unique is the document's to keep, not this
+// compiler's to rely on, and two tags spelled alike would silently leave one
+// entry.
 type metadataObjectSite struct {
 	scope string
 	owner jsontext.Pointer

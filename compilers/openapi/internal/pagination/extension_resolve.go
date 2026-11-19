@@ -168,7 +168,8 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 
 // headerOutput is the header name, which every success response of op must
 // declare once: what an extension's expression reads, and what the inference
-// reads a next cursor from (headerCursor). compiledDocumentView is the document.
+// reads a next cursor from (headerCursor). compiledDocumentView is the
+// document.
 func headerOutput(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation, name string) (*ir.PropPath, string) {
 	if len(op.Responses) == 0 {
 		return nil, "reads response header " + strconv.Quote(name) + ", and the operation declares no success response"

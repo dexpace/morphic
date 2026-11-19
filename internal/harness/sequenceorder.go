@@ -160,9 +160,10 @@ func sameNodes(left, right []report, first, second func(string) (string, bool)) 
 	return keptLeft, keptRight
 }
 
-// nodeKey is reportValue's key with its node as identify writes it and no pointer, as a
-// report naming a node is erased (reportsOf), or empty, pairing with nothing,
-// where reportValue names no node or identify cannot tell the node by what it holds.
+// nodeKey is reportValue's key with its node as identify writes it and no
+// pointer, as a report naming a node is erased (reportsOf), or empty, pairing
+// with nothing, where reportValue names no node or identify cannot tell the
+// node by what it holds.
 func nodeKey(reportValue report, identify func(string) (string, bool)) string {
 	if reportValue.raw.Provenance.Node == "" {
 		return ""
@@ -384,9 +385,9 @@ func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSi
 	return grew
 }
 
-// inferenceTied reports whether union's discriminator was inferred from a member a
-// tie decided: the inference reads each variant's member the discriminator
-// names, so what it finds follows the tie.
+// inferenceTied reports whether union's discriminator was inferred from a
+// member a tie decided: the inference reads each variant's member the
+// discriminator names, so what it finds follows the tie.
 func inferenceTied(doc *ir.Document, union *ir.Union, isTied func(ir.PropertyDecl) bool) bool {
 	discriminator := union.Discriminator
 	if discriminator == nil || !discriminator.Inferred {

@@ -17,8 +17,8 @@ import (
 // source coordinate it was derived from — carrying that coordinate as its path.
 //
 // Neither half implies the other. Shape alone misses an ID that lost the
-// separator between its space and its path: "type/anonaddr" reads as a space named
-// "anonaddr". The recorded pointer catches it (GitHub #141).
+// separator between its space and its path: "type/anonaddr" reads as a space
+// named "anonaddr". The recorded pointer catches it (GitHub #141).
 //
 // Agreement is asked only of entities that record a pointer. A primitive
 // derives from no source position, so checkPrimIDs holds it to the ID its kind
@@ -149,13 +149,13 @@ func recordedPointer(node reflect.Value) jsontext.Pointer {
 }
 
 // checkPrimIDs asserts the one TypeID ir can derive is the one the document
-// carries: every primitive is interned at ir.PrimitiveTypeID of its kind, and nothing
-// else occupies the space those IDs live in.
+// carries: every primitive is interned at ir.PrimitiveTypeID of its kind, and
+// nothing else occupies the space those IDs live in.
 //
 // checkIDs cannot reach this. A primitive records no pointer, so shape alone
 // accepts a string primitive at type/openapi/components/schemas/Name or at
-// type/primitive/int32, and documents from different formats stop sharing one node per
-// kind (GitHub #73).
+// type/primitive/int32, and documents from different formats stop sharing one
+// node per kind (GitHub #73).
 //
 // The architecture test on ID derivation reaches only this repository's
 // compilers, so a Document decoded from JSON, rewritten by a pass or produced
@@ -200,9 +200,10 @@ func namesSource(doc *ir.Document, prim *ir.Primitive) bool {
 // primIDViolation names what is wrong with one primitive's ID.
 //
 // A kind that is empty is reported on its own terms rather than against a
-// destination. ir.PrimitiveTypeID derives type/primitive/ from it, which is not an ID at all
-// — checkIDs reports it malformed wherever it is used — so offering it as the
-// place the node belongs would send a reader to fix the wrong end.
+// destination. ir.PrimitiveTypeID derives type/primitive/ from it, which is not
+// an ID at all — checkIDs reports it malformed wherever it is used — so
+// offering it as the place the node belongs would send a reader to fix the
+// wrong end.
 func primIDViolation(id ir.TypeID, kind ir.PrimitiveKind, want ir.TypeID) Violation {
 	msg := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
 		" rather than the shared " + strconv.Quote(string(want))

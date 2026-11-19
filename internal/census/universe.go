@@ -90,7 +90,8 @@ func newUniverse(version string) (Universe, error) {
 	return universeOf(loadedPackage, root.Name())
 }
 
-// checkVersion refuses the package loadedPackage unless its IRVersion constant is want.
+// checkVersion refuses the package loadedPackage unless its IRVersion constant
+// is want.
 func checkVersion(loadedPackage *decls.Package, want string) error {
 	c, isConst := loadedPackage.Types.Scope().Lookup("IRVersion").(*types.Const)
 	if !isConst || c.Val().Kind() != constant.String {
@@ -103,8 +104,9 @@ func checkVersion(loadedPackage *decls.Package, want string) error {
 	return nil
 }
 
-// universeOf derives the universe of the named type root, which loadedPackage declares.
-// A type of another package that the root reaches is no fact of this one.
+// universeOf derives the universe of the named type root, which loadedPackage
+// declares. A type of another package that the root reaches is no fact of this
+// one.
 func universeOf(loadedPackage *decls.Package, root string) (Universe, error) {
 	shape, err := jsonshape.Read(loadedPackage, root)
 	if err != nil {
@@ -138,8 +140,8 @@ func universeOf(loadedPackage *decls.Package, root string) (Universe, error) {
 	return universe, nil
 }
 
-// add records the facts the type jsonshapeType declares: a struct's members and an
-// enumeration's values.
+// add records the facts the type jsonshapeType declares: a struct's members and
+// an enumeration's values.
 func (u *Universe) add(jsonshapeType jsonshape.Type) error {
 	if s, isStruct := jsonshapeType.Named.Underlying().(*types.Struct); isStruct {
 		return u.addStruct(jsonshapeType, s)
@@ -150,9 +152,10 @@ func (u *Universe) add(jsonshapeType jsonshape.Type) error {
 	return nil
 }
 
-// addStruct records the members of the struct jsonshapeType, each under its JSON name,
-// leaving out an embedding, whose members are its own. Every field must be
-// one the encoder reads, since the walk a census counts by reads every field.
+// addStruct records the members of the struct jsonshapeType, each under its
+// JSON name, leaving out an embedding, whose members are its own. Every field
+// must be one the encoder reads, since the walk a census counts by reads every
+// field.
 func (u *Universe) addStruct(jsonshapeType jsonshape.Type, s *types.Struct) error {
 	name := jsonshapeType.Named.Obj().Name()
 	sf := &structFacts{fields: make([]string, s.NumFields())}
@@ -177,9 +180,10 @@ func (u *Universe) addStruct(jsonshapeType jsonshape.Type, s *types.Struct) erro
 	return nil
 }
 
-// emptiable reports whether an empty value of the member member means something its
-// absence does not: member is a slice or a map tagged omitzero, which the encoder
-// writes as [] or {} when it is empty and leaves out only when it is nil.
+// emptiable reports whether an empty value of the member member means something
+// its absence does not: member is a slice or a map tagged omitzero, which the
+// encoder writes as [] or {} when it is empty and leaves out only when it is
+// nil.
 func emptiable(member jsonshape.Member) bool {
 	switch member.Field.Type().Underlying().(type) {
 	case *types.Slice, *types.Map:
@@ -189,9 +193,9 @@ func emptiable(member jsonshape.Member) bool {
 	}
 }
 
-// addEnum records the values the constants of jsonshapeType give it. It refuses a
-// constant that is neither a string nor an integer, since no value of it could
-// be counted.
+// addEnum records the values the constants of jsonshapeType give it. It refuses
+// a constant that is neither a string nor an integer, since no value of it
+// could be counted.
 func (u *Universe) addEnum(jsonshapeType jsonshape.Type) error {
 	enumerationValue := &enumeration{name: jsonshapeType.Named.Obj().Name(), declared: map[string]constant.Value{}}
 	for _, c := range jsonshapeType.Constants {
@@ -205,8 +209,8 @@ func (u *Universe) addEnum(jsonshapeType jsonshape.Type) error {
 	return nil
 }
 
-// addSum records the variants of the sealed sum jsonshapeType, each with the value of its
-// tag, which no field holds. The tag must be one of the package's
+// addSum records the variants of the sealed sum jsonshapeType, each with the
+// value of its tag, which no field holds. The tag must be one of the package's
 // enumerations, which is where a report lists its values.
 func (u *Universe) addSum(jsonshapeType jsonshape.Type) error {
 	pkg := jsonshapeType.Named.Obj().Pkg()

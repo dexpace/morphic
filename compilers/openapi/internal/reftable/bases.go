@@ -9,13 +9,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// bases answers the resource a position read as a schema is in (ReferenceTargetTable.Base,
-// ReferenceTargetTable.Resource) as resources.holding does, remembering the walk at each
-// position it passes. A position below one walked before starts there rather
-// than at its document's root, so asking at every level of a deep schema walks
-// its depth once rather than once a level. Where ids says a document is read
-// through its dialects (identifiers.readsDialects), each schema is read in the
-// one the schema holding it enters (resources.enterIn).
+// bases answers the resource a position read as a schema is in
+// (ReferenceTargetTable.Base, ReferenceTargetTable.Resource) as
+// resources.holding does, remembering the walk at each position it passes. A
+// position below one walked before starts there rather than at its document's
+// root, so asking at every level of a deep schema walks its depth once rather
+// than once a level. Where ids says a document is read through its dialects
+// (identifiers.readsDialects), each schema is read in the one the schema
+// holding it enters (resources.enterIn).
 type bases struct {
 	res   resources
 	walks map[DocumentPointer]walked
@@ -35,16 +36,16 @@ type walked struct {
 	held    bool
 }
 
-// newBases returns bases over resourcesValue, whose documents' dialect roots ids holds,
-// having walked nothing.
+// newBases returns bases over resourcesValue, whose documents' dialect roots
+// ids holds, having walked nothing.
 func newBases(resourcesValue resources, ids *identifiers) *bases {
 	return &bases{res: resourcesValue, walks: map[DocumentPointer]walked{}, ids: ids}
 }
 
-// holding is resources.holding of documentPointer read as a schema, along what its pointer
-// reaches from its document's root. A pointer that is not valid is walked from
-// the root each time, as holding spells a resource's root on one otherwise than
-// by its prefixes.
+// holding is resources.holding of documentPointer read as a schema, along what
+// its pointer reaches from its document's root. A pointer that is not valid is
+// walked from the root each time, as holding spells a resource's root on one
+// otherwise than by its prefixes.
 func (b *bases) holding(documentPointer DocumentPointer) (resource, bool) {
 	if !documentPointer.Pointer.IsValid() {
 		path, _ := b.res.docs.path(documentPointer)
@@ -126,10 +127,10 @@ func (b *bases) deepest(at []DocumentPointer) int {
 	return lo
 }
 
-// prefixes is the positions on the way to documentPointer from its document's root, documentPointer's
-// among them, of at most most tokens, as nodeview.View.DocumentPath follows at
-// most that many. documentPointer's pointer is valid, so each '/' past the first character
-// begins a token.
+// prefixes is the positions on the way to documentPointer from its document's
+// root, documentPointer's among them, of at most most tokens, as
+// nodeview.View.DocumentPath follows at most that many. documentPointer's
+// pointer is valid, so each '/' past the first character begins a token.
 func prefixes(documentPointer DocumentPointer, most int) []DocumentPointer {
 	at := []DocumentPointer{{Doc: documentPointer.Doc}}
 	for i := 1; i < len(documentPointer.Pointer) && len(at) <= most; i++ {
@@ -143,9 +144,9 @@ func prefixes(documentPointer DocumentPointer, most int) []DocumentPointer {
 	return at
 }
 
-// past is the walk from, gone on to node at here, which the grammar reads at stateValue:
-// a schema, or a position of a document of schemas, is entered, so an
-// identifier it writes starts the resource the walk is in past it, and its
+// past is the walk from, gone on to node at here, which the grammar reads at
+// stateValue: a schema, or a position of a document of schemas, is entered, so
+// an identifier it writes starts the resource the walk is in past it, and its
 // `$schema` the dialect (resources.holding).
 func (b *bases) past(from walked, node *yaml.Node, stateValue state, here DocumentPointer) walked {
 	out := walked{node: node, s: stateValue, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}

@@ -6,7 +6,7 @@ they name.
 ```go
 type MessageBinding struct {
     Channel   ChannelID
-    Direction MessageDirection     // send | receive (application perspective, AsyncAPI 3 semantics);
+    Direction MessageDirection // send | receive (application perspective, AsyncAPI 3 semantics);
                                // never empty: irverify reports another (ir/unknown-message-direction)
     Messages  []MessageID      // which of the channel's messages this operation uses
                                // (must be a subset — validated)

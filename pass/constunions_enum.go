@@ -35,9 +35,9 @@ type valuePart struct {
 }
 
 // valuesOf returns the values union holds, where union is a closed union saying
-// nothing an Enum cannot (plainUnion) whose every variant names values a
-// member can hold (appendValues), no value twice and all of one ValueType, and
-// false otherwise. Its members take IDs beneath union, which needs union's namespace
+// nothing an Enum cannot (plainUnion) whose every variant names values a member
+// can hold (appendValues), no value twice and all of one ValueType, and false
+// otherwise. Its members take IDs beneath union, which needs union's namespace
 // among spaces, those declared for members. Its values being distinct, an
 // instance matches one variant at most, so union's Exclusive says nothing lost.
 func (r *unionReading) valuesOf(union *ir.Union) (*unionValues, bool) {
@@ -65,12 +65,13 @@ func plainUnion(union ir.Union) bool {
 	return reflect.ValueOf(union).IsZero()
 }
 
-// appendValues appends to parts the values variant names, and returns them with the
-// primitive typing them, where variant says nothing but what it says of a value
-// (variantFacts) and names an anonymous type of strings saying nothing else
-// (branchValues, commonFacts). One value takes what variant and its type say of it.
-// Several are a set of their own, which branchValues gives only where variant is
-// their type's one reference, taken where neither says anything of them all.
+// appendValues appends to parts the values variant names, and returns them with
+// the primitive typing them, where variant says nothing but what it says of a
+// value (variantFacts) and names an anonymous type of strings saying nothing
+// else (branchValues, commonFacts). One value takes what variant and its type
+// say of it. Several are a set of their own, which branchValues gives only
+// where variant is their type's one reference, taken where neither says
+// anything of them all.
 func (r *unionReading) appendValues(parts []valuePart, variant ir.Variant) ([]valuePart, ir.PrimitiveKind, bool) {
 	said, plain := variantFacts(variant)
 	if !plain {
@@ -181,8 +182,8 @@ func (r *unionReading) distinct(vs *unionValues) bool {
 	return true
 }
 
-// addPart adds to keys the key of each value valuePartValue holds, bar those of taken,
-// whose keys keys holds already, and reports whether none was there.
+// addPart adds to keys the key of each value valuePartValue holds, bar those of
+// taken, whose keys keys holds already, and reports whether none was there.
 func (r *unionReading) addPart(keys map[string]bool, valuePartValue valuePart, taken *unionValues) bool {
 	switch valuePartValue.of {
 	case nil:
@@ -239,11 +240,11 @@ func (r *unionReading) enum(vs *unionValues) *ir.Enum {
 	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.prim, Members: members, Closed: true}
 }
 
-// commonFacts returns what typeCommon, the common part of a variant's type, says of a
-// value, and whether it says nothing else: the type is anonymous, named only by
-// the hint its position gives it, keeps no construct but vendor extensions, and
-// no heuristic inferred it, whose mark no member could carry. Its provenance
-// goes with the type.
+// commonFacts returns what typeCommon, the common part of a variant's type,
+// says of a value, and whether it says nothing else: the type is anonymous,
+// named only by the hint its position gives it, keeps no construct but vendor
+// extensions, and no heuristic inferred it, whose mark no member could carry.
+// Its provenance goes with the type.
 func commonFacts(typeCommon ir.TypeCommon) (memberFacts, bool) {
 	memberFactsValue := memberFacts{docs: typeCommon.Docs, deprecation: typeCommon.Deprecation, availability: typeCommon.Availability,
 		examples: typeCommon.Examples, unmodeled: typeCommon.Unmodeled}
@@ -255,10 +256,10 @@ func commonFacts(typeCommon ir.TypeCommon) (memberFacts, bool) {
 	return memberFactsValue, reflect.ValueOf(typeCommon).IsZero()
 }
 
-// variantFacts returns what variant says of its value, and whether it says nothing
-// else: no name a source declared, no construct kept but vendor extensions, no
-// nullable reference, no wire tag or number, XML hint or event, nor a field ir
-// adds later.
+// variantFacts returns what variant says of its value, and whether it says
+// nothing else: no name a source declared, no construct kept but vendor
+// extensions, no nullable reference, no wire tag or number, XML hint or event,
+// nor a field ir adds later.
 func variantFacts(variant ir.Variant) (memberFacts, bool) {
 	memberFactsValue := memberFacts{docs: variant.Docs, deprecation: variant.Deprecation, availability: variant.Availability,
 		examples: variant.Examples, unmodeled: variant.Unmodeled}
@@ -270,8 +271,8 @@ func variantFacts(variant ir.Variant) (memberFacts, bool) {
 	return memberFactsValue, reflect.ValueOf(variant).IsZero()
 }
 
-// declaresNoName reports whether naming names nothing a source declared, only the
-// hint a position gives an anonymous type or a bare branch.
+// declaresNoName reports whether naming names nothing a source declared, only
+// the hint a position gives an anonymous type or a bare branch.
 func declaresNoName(naming ir.Naming) bool {
 	return naming.Source == "" && naming.Canonical == "" && len(naming.Aliases) == 0
 }
@@ -315,8 +316,8 @@ func (f memberFacts) onto(enumMember ir.EnumMember) ir.EnumMember {
 	return enumMember
 }
 
-// with returns f joined with memberFactsValue, and whether no fact is said by both: a member
-// holds one of each, so choosing between two would drop one.
+// with returns f joined with memberFactsValue, and whether no fact is said by
+// both: a member holds one of each, so choosing between two would drop one.
 func (f memberFacts) with(memberFactsValue memberFacts) (memberFacts, bool) {
 	var ok [5]bool
 	f.docs, ok[0] = either(f.docs, memberFactsValue.docs)

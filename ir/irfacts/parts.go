@@ -88,8 +88,8 @@ func appendRef(dst []ir.TypeID, typeRef *ir.TypeRef) []ir.TypeID {
 	return appendTarget(dst, typeRef.Target)
 }
 
-// appendDecoded appends the type encoding says an encoded value holds once decoded,
-// if there is an encoding and it says one.
+// appendDecoded appends the type encoding says an encoded value holds once
+// decoded, if there is an encoding and it says one.
 func appendDecoded(dst []ir.TypeID, encoding *ir.Encoding) []ir.TypeID {
 	if encoding == nil {
 		return dst

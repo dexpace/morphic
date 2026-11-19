@@ -46,9 +46,10 @@ components:
 // TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs is the fix's core
 // scenario for a referenced path item (issue #107): two paths mounting one
 // #/components/pathItems/Shared must keep distinct operation identities —
-// they are different URI templates, so they must never collide on one OperationID
-// (issue #36's risk otherwise) — while the shared parameter, request, and
-// response schemas each intern once, at the shared component's own pointer.
+// they are different URI templates, so they must never collide on one
+// OperationID (issue #36's risk otherwise) — while the shared parameter,
+// request, and response schemas each intern once, at the shared component's own
+// pointer.
 func TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedPathItemSpec)

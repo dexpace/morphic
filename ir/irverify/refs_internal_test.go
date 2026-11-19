@@ -107,10 +107,10 @@ func docWithOverload(target ir.OperationID) *ir.Document {
 	}}}
 }
 
-// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on Document
-// covers. An operation is declared inside the Service→OperationGroup tree, so
-// every OperationID reference in the IR resolved against nothing until the registry was
-// derived from those declarations instead (GitHub #50).
+// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on
+// Document covers. An operation is declared inside the Service→OperationGroup
+// tree, so every OperationID reference in the IR resolved against nothing until
+// the registry was derived from those declarations instead (GitHub #50).
 func TestCheckReferentialIntegrity_DanglingOpRef(t *testing.T) {
 	got := refViolations(docWithOverload("operation/x/Missing"))
 	require.Len(t, got, 1)
@@ -147,10 +147,11 @@ func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
 
 // TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared drives the
 // class no node in the document declares. A Smithy resource names its lifecycle
-// operations, so an OperationID reference exists in a document holding no ir.Operation
-// at all — and a registry set read off the declarations rather than off the IR's
-// shape would have no entry for the class, which is not "nothing declares this
-// ID" but "this is no reference", the silence GitHub #50 is about.
+// operations, so an OperationID reference exists in a document holding no
+// ir.Operation at all — and a registry set read off the declarations rather
+// than off the IR's shape would have no entry for the class, which is not
+// "nothing declares this ID" but "this is no reference", the silence GitHub #50
+// is about.
 func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
 		ID: "service/x",
@@ -201,8 +202,9 @@ func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
 
 func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 	// Service.Renames is map[TypeID]Naming: the KEY is a reference into
-	// Document.Types. "type/x/ghost" resolves in no type, so the reference-typed map
-	// key must be reported even though the entry's Naming value is well-formed.
+	// Document.Types. "type/x/ghost" resolves in no type, so the
+	// reference-typed map key must be reported even though the entry's Naming
+	// value is well-formed.
 	doc := &ir.Document{
 		Types: ir.TypeRegistry{"type/x/M": &ir.Any{ID: "type/x/M"}},
 		Services: []ir.Service{{

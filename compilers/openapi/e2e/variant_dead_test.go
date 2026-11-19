@@ -89,8 +89,8 @@ var deadCases = []deadCase{
 		branches: []deadBranch{{schema: "{$ref: '#/components/schemas/B'}"}, {schema: "{type: string}", dead: true}}},
 }
 
-// deadSchema writes deadCaseValue's body beside, or on its second allOf entry, the union
-// keyword listing branches.
+// deadSchema writes deadCaseValue's body beside, or on its second allOf entry,
+// the union keyword listing branches.
 func deadSchema(deadCaseValue deadCase, keyword string, branches []deadBranch) string {
 	written := make([]string, 0, len(branches))
 	for _, b := range branches {

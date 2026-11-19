@@ -93,11 +93,12 @@ func branchesSay(loweringContext lowering.Ctx, union, beside *statement.Schema) 
 	})
 }
 
-// branchSays reports whether a branch admitting branch, as admissionReaderValue reads it, says all
-// that schema's keyword key does. A `type` is compared with null in it, which
-// admissionReader.holds leaves to the nulls reader: a union lowered alone lifts a null
-// branch onto the position, so a `type` leaving null out says more than a branch
-// admitting it. An `items` list says what no single schema does.
+// branchSays reports whether a branch admitting branch, as admissionReaderValue
+// reads it, says all that schema's keyword key does. A `type` is compared with
+// null in it, which admissionReader.holds leaves to the nulls reader: a union
+// lowered alone lifts a null branch onto the position, so a `type` leaving null
+// out says more than a branch admitting it. An `items` list says what no single
+// schema does.
 func branchSays(admissionReaderValue *admissionReader, branch admitted, schema *statement.Schema, key string) bool {
 	switch key {
 	case "type":
@@ -198,12 +199,13 @@ func classifyUnionSiblings(loweringContext lowering.Ctx, schema *statement.Schem
 	return classifyConjoined(loweringContext, schema, besideUnion(schema, pointer), pointer)
 }
 
-// classifyConjoined is how schema, written at pointer, lowers the union unionAtValue it
-// conjoins with a composing body, beside it or on a branch of its allOf, once
-// unionAtValue's own shape allows distribution: kept whole where the discriminator standing
-// with unionAtValue routes to branches composing schema (composedByBranch), composed as a mixin
-// where one on an ancestor routes to schema (routedSubtype, lowerSubtypeUnion), kept
-// whole where no branch lives beside schema (deadBranches); else distributed, the
+// classifyConjoined is how schema, written at pointer, lowers the union
+// unionAtValue it conjoins with a composing body, beside it or on a branch of
+// its allOf, once unionAtValue's own shape allows distribution: kept whole
+// where the discriminator standing with unionAtValue routes to branches
+// composing schema (composedByBranch), composed as a mixin where one on an
+// ancestor routes to schema (routedSubtype, lowerSubtypeUnion), kept whole
+// where no branch lives beside schema (deadBranches); else distributed, the
 // discriminator routing the composed variants (indexBranches).
 func classifyConjoined(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer) unionLowering {
 	if passedApart(loweringContext, schema, unionAtValue) {
@@ -224,13 +226,13 @@ func classifyConjoined(loweringContext lowering.Ctx, schema *statement.Schema, u
 	return unionDistributed
 }
 
-// passedApart reports whether a union the position written by schema passes over
-// for unionAtValue leaves no value unionAtValue admits beside the rest of schema (readPassed): one
-// shares no kind with that rest, one of null alone among them where the rest
-// admits no null, or together they leave the rest null alone and no branch of
-// unionAtValue admits null. It is a conjunct of the rest unionAtValue's branches are read against,
-// so no branch of unionAtValue reads as dead though none can be inhabited. A read cut
-// short says no.
+// passedApart reports whether a union the position written by schema passes
+// over for unionAtValue leaves no value unionAtValue admits beside the rest of
+// schema (readPassed): one shares no kind with that rest, one of null alone
+// among them where the rest admits no null, or together they leave the rest
+// null alone and no branch of unionAtValue admits null. It is a conjunct of the
+// rest unionAtValue's branches are read against, so no branch of unionAtValue
+// reads as dead though none can be inhabited. A read cut short says no.
 func passedApart(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt) bool {
 	passedRead, ok := readPassed(loweringContext, schema, unionAtValue)
 	if !ok {
@@ -241,15 +243,16 @@ func passedApart(loweringContext lowering.Ctx, schema *statement.Schema, unionAt
 	}) {
 		return true
 	}
-	// Left null alone, the rest admits no object for deadBranch to read unionAtValue's
-	// branches against (restAdmitsObjects).
+	// Left null alone, the rest admits no object for deadBranch to read
+	// unionAtValue's branches against (restAdmitsObjects).
 	return passedRead.nullLeft() && passedRead.union.kinds&kindNull == 0
 }
 
 // passedSharesNull reports whether the unions the position written by schema
-// passes over for unionAtValue leave the rest of schema null alone (readPassed), which unionAtValue
-// admits: the position admits that null and nothing else, as on the entries
-// of its allOf (docs/compilers/openapi.md#union-beside-structure).
+// passes over for unionAtValue leave the rest of schema null alone
+// (readPassed), which unionAtValue admits: the position admits that null and
+// nothing else, as on the entries of its allOf
+// (docs/compilers/openapi.md#union-beside-structure).
 func passedSharesNull(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt) bool {
 	passedRead, ok := readPassed(loweringContext, schema, unionAtValue)
 	return ok && passedRead.nullLeft() && passedRead.union.kinds&kindNull != 0
@@ -273,10 +276,10 @@ func (r passedRead) nullLeft() bool {
 	return len(r.passed) > 0 && left.reachable() && left.kinds == kindNull
 }
 
-// readPassed reads passedRead for unionAtValue: the other combinator unionAtValue's holder writes
-// and the union another inline entry of schema's allOf writes are passed over, each
-// other entry a conjunct of the rest. ok is false where a read is cut short
-// or the rest admits nothing.
+// readPassed reads passedRead for unionAtValue: the other combinator
+// unionAtValue's holder writes and the union another inline entry of schema's
+// allOf writes are passed over, each other entry a conjunct of the rest. ok is
+// false where a read is cut short or the rest admits nothing.
 func readPassed(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt) (passedRead, bool) {
 	admissionReader := newAdmissionReader(loweringContext)
 	var passedReadValue passedRead
@@ -304,16 +307,17 @@ func readPassed(loweringContext lowering.Ctx, schema *statement.Schema, unionAtV
 	return passedReadValue, !admissionReader.incomplete() && passedReadValue.rest.reachable()
 }
 
-// pairSharesNoValue reports whether schema writes a oneOf and an anyOf that share
-// no value, as every spelling of the two reads it (pairApart).
+// pairSharesNoValue reports whether schema writes a oneOf and an anyOf that
+// share no value, as every spelling of the two reads it (pairApart).
 func pairSharesNoValue(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return writesBothUnions(schema) && pairApart(loweringContext, schema) != nil
 }
 
-// routedSubtype reports whether a discriminator on an ancestor of schema, written at
-// pointer, routes to schema as its subtype: by a mapping key or by its name as a
-// component, the tag its lowering takes (subtypeDiscriminatorValue). That
-// lowering reports the tag's own diagnostics, so this reading drops them.
+// routedSubtype reports whether a discriminator on an ancestor of schema,
+// written at pointer, routes to schema as its subtype: by a mapping key or by
+// its name as a component, the tag its lowering takes
+// (subtypeDiscriminatorValue). That lowering reports the tag's own diagnostics,
+// so this reading drops them.
 func routedSubtype(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) bool {
 	tag, _ := subtypeDiscriminatorValue(loweringContext, schema, loweringContext.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
@@ -440,10 +444,10 @@ func lowerCoDeclaredUnion(loweringContext lowering.Ctx, ts *compile.Types, depth
 	}
 }
 
-// diagUnionsApart is the warning schema, written at pointer, draws where a union it
-// passes over shares no kind with its body and no allOf it writes reports its
-// conjuncts (docs/compilers/openapi.md#allof-disjoint-conjuncts): the body's
-// keywords and that union, as that report names them.
+// diagUnionsApart is the warning schema, written at pointer, draws where a
+// union it passes over shares no kind with its body and no allOf it writes
+// reports its conjuncts (docs/compilers/openapi.md#allof-disjoint-conjuncts):
+// the body's keywords and that union, as that report names them.
 func diagUnionsApart(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if writesConjuncts(schema) {
 		return nil
@@ -453,9 +457,10 @@ func diagUnionsApart(loweringContext lowering.Ctx, schema *statement.Schema, poi
 	return diagDisjointConjuncts(loweringContext, comp, "its body alone")
 }
 
-// diagUnionApartFromBody is the warning schema, written at pointer beside a body
-// that is no Model, draws where the unions it writes share no kind with that
-// body (unionApartFromBodyNames) and no allOf it writes reports its conjuncts.
+// diagUnionApartFromBody is the warning schema, written at pointer beside a
+// body that is no Model, draws where the unions it writes share no kind with
+// that body (unionApartFromBodyNames) and no allOf it writes reports its
+// conjuncts.
 func diagUnionApartFromBody(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if writesConjuncts(schema) {
 		return nil
@@ -465,8 +470,8 @@ func diagUnionApartFromBody(loweringContext lowering.Ctx, schema *statement.Sche
 	return diagDisjointConjuncts(loweringContext, comp, "its body alone")
 }
 
-// unionApartFromBodyNames names the body schema writes and each union beside it,
-// as conjunctAtoms names them, where they share no kind, and is nil where
+// unionApartFromBodyNames names the body schema writes and each union beside
+// it, as conjunctAtoms names them, where they share no kind, and is nil where
 // they share one.
 func unionApartFromBodyNames(loweringContext lowering.Ctx, schema *statement.Schema) []string {
 	return disjointAtoms(loweringContext, schema, unionAndBodyAtoms(loweringContext, schema))
@@ -484,8 +489,8 @@ func unionApartFromBody(loweringContext lowering.Ctx, schema *statement.Schema) 
 	return joint == 0 && !nullShared(loweringContext, schema)
 }
 
-// unionAndBodyAtoms are the atoms of the body schema writes and of each union it
-// writes, the union atoms conjunctAtoms adds replaced by both unions'.
+// unionAndBodyAtoms are the atoms of the body schema writes and of each union
+// it writes, the union atoms conjunctAtoms adds replaced by both unions'.
 func unionAndBodyAtoms(loweringContext lowering.Ctx, schema *statement.Schema) []conjunctAtom {
 	choice := schema.ChoiceKeywords()
 	atoms := slices.DeleteFunc(conjunctAtoms(loweringContext, schema, allOfComposition{}), func(a conjunctAtom) bool { return a.union != nil })
@@ -555,10 +560,10 @@ func lowerBesideUnmodeledUnion(loweringContext lowering.Ctx, ts *compile.Types, 
 	return owner, append(diags, siblings.diags...)
 }
 
-// preserveUnionSiblingsAt stores the raw oneOf/anyOf of schema under unmodeled, the
-// Unmodeled of the node standing at the position. A validation-only union joins
-// the validation-only keywords and is reported with it; anything else is a
-// degraded lowering and says so. why is the caller's complete sentence.
+// preserveUnionSiblingsAt stores the raw oneOf/anyOf of schema under unmodeled,
+// the Unmodeled of the node standing at the position. A validation-only union
+// joins the validation-only keywords and is reported with it; anything else is
+// a degraded lowering and says so. why is the caller's complete sentence.
 func preserveUnionSiblingsAt(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(loweringContext, unmodeled, schema, reason, pointer)
 	if reason == ir.ReasonValidationOnly || len(kept) == 0 {

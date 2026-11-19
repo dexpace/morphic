@@ -319,7 +319,8 @@ func isDigest(s string) bool {
 	return err == nil && len(b) == sha256.Size && strings.ToLower(s) == s
 }
 
-// stepFinding returns what is wrong with generationValue following prev, or "" if nothing.
+// stepFinding returns what is wrong with generationValue following prev, or ""
+// if nothing.
 func stepFinding(prev, generationValue generation) string {
 	order := compareVersions(prev.version, generationValue.version)
 	switch {

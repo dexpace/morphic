@@ -174,12 +174,12 @@ func (c cases) Write(at []int) (harness.CaseDocument, bool) {
 	return doc, true
 }
 
-// optionsFor returns the compiler options a case writing writtenValue compiles under:
-// for a type admitting null, the nullable-inference policy off. The policy
-// reads such a type beside a $ref as admitting null for the whole reference,
-// and beside an allOf conjoins it with the rest, as the standard does
-// (docs/compilers/openapi.md#nullable), so only with it off are the spellings
-// one; off, each reads the keyword as its version defines it.
+// optionsFor returns the compiler options a case writing writtenValue compiles
+// under: for a type admitting null, the nullable-inference policy off. The
+// policy reads such a type beside a $ref as admitting null for the whole
+// reference, and beside an allOf conjoins it with the rest, as the standard
+// does (docs/compilers/openapi.md#nullable), so only with it off are the
+// spellings one; off, each reads the keyword as its version defines it.
 func optionsFor(writtenValue written) map[string]string {
 	if slices.ContainsFunc(writtenValue.members, func(memberValue member) bool {
 		values, ok := memberValue.value.([]any)
@@ -202,11 +202,11 @@ func (c cases) parts(at []int) [][]int {
 	return [][]int{first, second}
 }
 
-// unit returns what the case at writes in one unit on targetValue at versionValue: its construct's
-// members then its second's, the components they name, the second's entries
-// and where the unit is written, the stricter of the two, and false where
-// either writes nothing. A row's second beside no construct is that row's
-// case, which writes it.
+// unit returns what the case at writes in one unit on targetValue at
+// versionValue: its construct's members then its second's, the components they
+// name, the second's entries and where the unit is written, the stricter of the
+// two, and false where either writes nothing. A row's second beside no
+// construct is that row's case, which writes it.
 func (c cases) unit(at []int, versionValue version, targetValue target) (written, bool) {
 	members, components, ok := c.construct(at[2], versionValue, targetValue)
 	if !ok {
@@ -270,8 +270,9 @@ func (c cases) holds(at []int) bool {
 }
 
 // construct returns the members the construct at index i of the construct axis
-// merges into targetValue's body at versionValue, and the components it names, or false where versionValue
-// lacks it or it is not said of targetValue. Index 0 is none, which writes nothing.
+// merges into targetValue's body at versionValue, and the components it names,
+// or false where versionValue lacks it or it is not said of targetValue. Index
+// 0 is none, which writes nothing.
 func (c cases) construct(i int, versionValue version, targetValue target) (object, object, bool) {
 	if i == 0 {
 		return nil, nil, true

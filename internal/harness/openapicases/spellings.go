@@ -55,11 +55,12 @@ func partnerOf(s string) (partner, rule string, ok bool) {
 	}
 }
 
-// spelt returns the schema a case writes at its position: for inline, targetValue's
-// body with writtenValue's members and entries merged in; otherwise the use of the target
-// saying writtenValue in spelling s. It is false where s writes no such use: the unit
-// stays where inline writes it, s would write a key twice, or an entry
-// spelling saying nothing writes wrap's document.
+// spelt returns the schema a case writes at its position: for inline,
+// targetValue's body with writtenValue's members and entries merged in;
+// otherwise the use of the target saying writtenValue in spelling s. It is
+// false where s writes no such use: the unit stays where inline writes it, s
+// would write a key twice, or an entry spelling saying nothing writes wrap's
+// document.
 func (c cases) spelt(writtenValue written, s string, targetValue target) (object, bool) {
 	if s == inline {
 		return targetValue.body.with(slices.Concat(writtenValue.members, allOfOf(writtenValue.entries))), true
@@ -93,10 +94,10 @@ func (c cases) staysAt(i int) stays {
 	return c.constructs[(i-1)/2].stays
 }
 
-// spell returns the use of the target ref names saying objectValue in spelling s, the
-// allOf entries follow right after ref, and false where s cannot write it: objectValue
-// names the keyword s writes the use with. Both products write their uses
-// through it.
+// spell returns the use of the target ref names saying objectValue in spelling
+// s, the allOf entries follow right after ref, and false where s cannot write
+// it: objectValue names the keyword s writes the use with. Both products write
+// their uses through it.
 func spell(s string, ref, objectValue object, follow []any) (object, bool) {
 	var use object
 	switch s {
@@ -157,9 +158,9 @@ func repeats(objectValue object) bool {
 	return false
 }
 
-// equal is what the case at, writing writtenValue, must equal: its partner spelling, nil
-// for a spelling with none or whose partner writes nothing. Beside a $ref at
-// 3.0 each keyword states the warning it draws there.
+// equal is what the case at, writing writtenValue, must equal: its partner
+// spelling, nil for a spelling with none or whose partner writes nothing.
+// Beside a $ref at 3.0 each keyword states the warning it draws there.
 func (c cases) equal(at []int, writtenValue written) *harness.Equal {
 	s := c.spellings[at[5]]
 	partner, rule, ok := partnerOf(s)

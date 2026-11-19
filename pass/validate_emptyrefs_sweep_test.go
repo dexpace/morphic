@@ -312,8 +312,9 @@ func TestValidate_BlankingAReferenceDrawsOneFindingFromBothCheckers(t *testing.T
 	}
 }
 
-// assertBlankedFindings blanks blankSiteValue in sweepDocumentValue and holds what each checker reports to
-// the position's form; baseOther are the errors sweepDocumentValue drew before.
+// assertBlankedFindings blanks blankSiteValue in sweepDocumentValue and holds
+// what each checker reports to the position's form; baseOther are the errors
+// sweepDocumentValue drew before.
 func assertBlankedFindings(t *testing.T, sweepDocumentValue sweepDocument, blankSiteValue blankSite, baseOther []string) {
 	t.Helper()
 	restore := blankSiteValue.blank()

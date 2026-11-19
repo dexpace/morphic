@@ -206,10 +206,10 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 	}, MergeUnmodeled(dst, src))
 }
 
-// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a folded branch may add: an
-// entry the site does not hold. One the site's own schema holds stays the
-// site's, its provenance with it; one another folded branch wrote takes the site's
-// provenance, so no order of the folded branches names a writer.
+// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a folded branch may
+// add: an entry the site does not hold. One the site's own schema holds stays
+// the site's, its provenance with it; one another folded branch wrote takes the
+// site's provenance, so no order of the folded branches names a writer.
 func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}
@@ -229,10 +229,10 @@ func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	assert.Nil(t, underlayValue.add(nil, nil, false, site), "nothing to add allocates nothing")
 }
 
-// TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne pins that a folded branch kept whole,
-// whose branch holds what it folds, counts as no writer: it fills a key alone,
-// gives it up to a folded branch kept apart in either order, and leaves one two folded branches
-// kept apart write at the site.
+// TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne pins that a folded
+// branch kept whole, whose branch holds what it folds, counts as no writer: it
+// fills a key alone, gives it up to a folded branch kept apart in either order,
+// and leaves one two folded branches kept apart write at the site.
 func TestUnderlayAdd_AFoldedBranchKeptWholeWritesForNoOne(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}

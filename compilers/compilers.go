@@ -190,11 +190,11 @@ func NewRegistry() *Registry {
 	return &Registry{byFormat: make(map[SourceFormat]*registered)}
 }
 
-// Register adds compiler under every format it reports. It rejects a nil compiler, and
-// a compiler reporting no formats, naming no dialect (an empty name or version,
-// or a name holding '@') or panicking in Formats, the last three with an error
-// wrapping ErrContract, and it fails if any format is already claimed. On
-// failure nothing is registered.
+// Register adds compiler under every format it reports. It rejects a nil
+// compiler, and a compiler reporting no formats, naming no dialect (an empty
+// name or version, or a name holding '@') or panicking in Formats, the last
+// three with an error wrapping ErrContract, and it fails if any format is
+// already claimed. On failure nothing is registered.
 //
 // Rejecting nil keeps a caller's mistake a Go error rather than a segmentation
 // fault in this package, so the check comes before any call on compiler.
@@ -228,8 +228,8 @@ func (r *Registry) Register(compiler Compiler) error {
 	return nil
 }
 
-// reported asks compiler for its formats, behind a barrier, and returns a copy: the
-// compiler may keep the slice it answered with and change it later.
+// reported asks compiler for its formats, behind a barrier, and returns a copy:
+// the compiler may keep the slice it answered with and change it later.
 func reported(compiler Compiler) ([]SourceFormat, error) {
 	var formats []SourceFormat
 	if err := barrier.Catch(func() { formats = compiler.Formats() }); err != nil {
@@ -266,9 +266,9 @@ func (cfg Configuration) valid() bool {
 	return cfg.FormatOptions == nil || len(cfg.Settings.Settings) == 0
 }
 
-// optionsFor resolves the options compiler would compile a source with under cfg:
-// FormatOptions, or what compiler decodes Settings to. A decoder that fails leaves
-// the zero Options, as whatever it had got partway is not options.
+// optionsFor resolves the options compiler would compile a source with under
+// cfg: FormatOptions, or what compiler decodes Settings to. A decoder that
+// fails leaves the zero Options, as whatever it had got partway is not options.
 func optionsFor(compiler Compiler, cfg Configuration) (Options, error) {
 	if len(cfg.Settings.Settings) == 0 {
 		return Options{FormatOptions: cfg.FormatOptions, Reader: cfg.Reader}, nil
@@ -469,8 +469,9 @@ func (e *registered) served() string {
 	return strings.Join(names, ", ")
 }
 
-// claim resolves what registeredValue recognized into the compiler that will compile the
-// source and the options it compiles with. The caller records the source.
+// claim resolves what registeredValue recognized into the compiler that will
+// compile the source and the options it compiles with. The caller records the
+// source.
 func (r *Registry) claim(registeredValue *registered, a answer, cfg Configuration) (Detection, bool, error) {
 	rec, opts, optsErr := a.rec, a.opts, a.optsErr
 	owner := r.byFormat[rec.Format]
@@ -495,12 +496,13 @@ func (r *Registry) claim(registeredValue *registered, a answer, cfg Configuratio
 	return Detection{Compiler: owner.c, Recognition: rec, Options: opts}, true, nil
 }
 
-// isNilCompiler reports whether compiler is unsafe to call: an untyped nil interface or
-// a typed nil pointer stored in one.
+// isNilCompiler reports whether compiler is unsafe to call: an untyped nil
+// interface or a typed nil pointer stored in one.
 //
-// The two spellings are one bug — a typed nil passes compiler == nil and panics on the
-// first method call that touches the receiver — so screening only the first
-// leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same way.
+// The two spellings are one bug — a typed nil passes compiler == nil and panics
+// on the first method call that touches the receiver — so screening only the
+// first leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same
+// way.
 func isNilCompiler(compiler Compiler) bool {
 	if compiler == nil {
 		return true

@@ -260,9 +260,9 @@ func encodingObject() Object {
 	}
 }
 
-// arranging returns field, one of the Encoding Object's RFC6570-style fields, with
-// the media types under which it takes effect, replacing the contentType: a
-// form body at every minor, and a multipart/form-data body from 3.1.
+// arranging returns field, one of the Encoding Object's RFC6570-style fields,
+// with the media types under which it takes effect, replacing the contentType:
+// a form body at every minor, and a multipart/form-data body from 3.1.
 func arranging(field Field, c func(Minor, string) Cite) Field {
 	return field.
 		within("application/x-www-form-urlencoded", Always(),

@@ -15,8 +15,8 @@ lowerings use what that release provides:
   ([discriminators](unions.md#discriminators)), presence is `omitzero`
   ([optionality](models.md#optionality)), and a union's fallback is `jsontext.Value` ([the
   fallback](unions.md#the-fallback)).
-- **`ir.PrimitiveUUID` maps to the standard library's `uuid.UUID`**, new in Go 1.27, so an SDK takes no
-  third-party dependency for it. It encodes as the canonical string, through its `MarshalText`.
+- **`ir.PrimitiveUUID` maps to the standard library's `uuid.UUID`**, new in Go 1.27, so an SDK takes
+  no third-party dependency for it. It encodes as the canonical string, through its `MarshalText`.
 - **The auto-pager is an `iter.Seq2[T, error]`** ([pagination](operations.md#pagination)), ranged
   over with `for item, err := range`.
 - **Runtime templates are tested with `testing/synctest` and `httptest.NewTestServer`**

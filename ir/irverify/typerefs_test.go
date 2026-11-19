@@ -33,10 +33,10 @@ func closedDoc(tds ...ir.TypeDef) *ir.Document {
 	return &ir.Document{Types: reg}
 }
 
-// operationDoc returns a closed document whose one operation takes parameter. It is
-// the fixture outside the type registry: a compiled document holds TypeRefs
-// under Services as well as under Types, so a check walking only document.Types
-// would miss those while every registry fixture stayed green.
+// operationDoc returns a closed document whose one operation takes parameter.
+// It is the fixture outside the type registry: a compiled document holds
+// TypeRefs under Services as well as under Types, so a check walking only
+// document.Types would miss those while every registry fixture stayed green.
 func operationDoc(parameter ir.Parameter) *ir.Document {
 	doc := closedDoc()
 	doc.Services = []ir.Service{{
@@ -100,11 +100,12 @@ func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 }
 
 // TestVerify_EmptyTargetIsReportedAtEveryCarrierShape holds the rule to be
-// about the TypeRef type rather than the variant position it was noticed at.
-// A by-value TypeRef, a slice element, and a non-nil pointer are each reported:
+// about the TypeRef type rather than the variant position it was noticed at. A
+// by-value TypeRef, a slice element, and a non-nil pointer are each reported:
 // the IR spells "no type here" as a nil *TypeRef, so a pointer that was
 // allocated and then given nothing to name is the same defect as a value. The
-// parameter row sits outside document.Types, pinning the walk to the whole document.
+// parameter row sits outside document.Types, pinning the walk to the whole
+// document.
 func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

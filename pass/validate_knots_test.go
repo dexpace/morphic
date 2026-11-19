@@ -83,14 +83,14 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 	}, got)
 }
 
-// TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle holds a type
-// that needs itself, through a required property, an element a list must hold,
-// a value a map must hold, a position a tuple must fill, a union's only
-// variant, or a base, to a warning at each type of the type cycle, naming what leads
-// on, never a base of a cycle told already; and the nearest founded type to
-// none: a property not required, a
-// reference that admits null, a list that may be empty, a union with another
-// variant, a type that only needs one with no finite value.
+// TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle holds a
+// type that needs itself, through a required property, an element a list must
+// hold, a value a map must hold, a position a tuple must fill, a union's only
+// variant, or a base, to a warning at each type of the type cycle, naming what
+// leads on, never a base of a cycle told already; and the nearest founded type
+// to none: a property not required, a reference that admits null, a list that
+// may be empty, a union with another variant, a type that only needs one with
+// no finite value.
 func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheTypeCycle(t *testing.T) {
 	t.Parallel()
 	const none = ", which has none either"
@@ -205,9 +205,9 @@ func TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone(t *test
 	assert.Len(t, found(t, doc, finiteCode), 2)
 }
 
-// TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst holds the findings
-// of one document to the compositions' first, then the values', each in ID
-// order, the types declared in the reverse.
+// TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst holds the
+// findings of one document to the compositions' first, then the values', each
+// in ID order, the types declared in the reverse.
 func TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst(t *testing.T) {
 	t.Parallel()
 	doc := noFiniteValueDoc(
@@ -221,7 +221,8 @@ func TestValidate_TheTypeCyclesAreReportedInIDOrderCompositionFirst(t *testing.T
 	assert.Equal(t, []string{cycleCode, cycleCode, finiteCode, finiteCode}, irtest.DiagCodes(got))
 }
 
-// onlyNoFiniteValueFindings returns the findings of the two type cycle codes, in the order drawn.
+// onlyNoFiniteValueFindings returns the findings of the two type cycle codes,
+// in the order drawn.
 func onlyNoFiniteValueFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, diagnostic := range diags {

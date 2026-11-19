@@ -39,8 +39,8 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      ParameterID            // this operation's own Operation.Params entry it binds, by ID
-    ParamPath  []PropertyID           // nested source field within the logical param, when the binding
+    Param      ParameterID        // this operation's own Operation.Params entry it binds, by ID
+    ParamPath  []PropertyID       // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param
     Location   HTTPLocation       // path | query | querystring | header | cookie | body |
@@ -77,7 +77,7 @@ type HTTPParamBinding struct {
                                   // @httpQueryParams); nil = the one field WireName names
                                   // (below)
     ContentType string            // param serialized as a media type (OpenAPI content-style params)
-    BodyPath   []PropertyID           // for body_property: where in the body model it lands (TypeSpec HttpProperty)
+    BodyPath   []PropertyID       // for body_property: where in the body model it lands (TypeSpec HttpProperty)
 }
 
 type Callback struct { Name, Expression string; Operations []OperationID } // Name: the callbacks-map key

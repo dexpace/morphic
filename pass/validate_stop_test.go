@@ -88,8 +88,8 @@ func propPathDocument(ghost bool) *ir.Document {
 
 // TestValidate_AStoppedWalkClaimsNoReferenceDangling holds Validate to leaving
 // a property reference unjudged when the walk that read the declarations
-// stopped: a PropertyID resolves against the properties the walk read, so a walk
-// cut between the reference and its declaration would otherwise call it
+// stopped: a PropertyID resolves against the properties the walk read, so a
+// walk cut between the reference and its declaration would otherwise call it
 // dangling. Every cut point is tried, and the control's dangling reference
 // shows the claim is made where the walk read everything.
 func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {

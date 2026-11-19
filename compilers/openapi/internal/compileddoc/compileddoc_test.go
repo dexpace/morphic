@@ -277,11 +277,11 @@ func TestDocument_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 	}
 }
 
-// TestDocument_StandsReadsThroughAliasScalarsToTheCap pins Stands to the type an
-// alias scalar stands for: the same type for one that is none, the model at the
-// end of as many as compileddoc.MaxAliasHops alias scalars, and nothing past that,
-// for a cycle of them, or for an alias of a type the registry lacks or holds as
-// a typed nil.
+// TestDocument_StandsReadsThroughAliasScalarsToTheCap pins Stands to the type
+// an alias scalar stands for: the same type for one that is none, the model at
+// the end of as many as compileddoc.MaxAliasHops alias scalars, and nothing
+// past that, for a cycle of them, or for an alias of a type the registry lacks
+// or holds as a typed nil.
 func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 	t.Parallel()
 	defs := slices.Concat(

@@ -16,10 +16,10 @@ import (
 )
 
 // MaxNesting bounds how deeply a document may nest, as
-// sourcetreestats.Measurements.Nesting counts it. What the parser pays per node grows
-// with the node's depth (docs/parser-library.md#nesting-cost), so a schema
-// thousands of levels deep cost seconds and gigabytes before the schema walk's
-// own bound refused it (GitHub #905).
+// sourcetreestats.Measurements.Nesting counts it. What the parser pays per node
+// grows with the node's depth (docs/parser-library.md#nesting-cost), so a
+// schema thousands of levels deep cost seconds and gigabytes before the schema
+// walk's own bound refused it (GitHub #905).
 //
 // Real specs nest far less: the deepest of the 1,839 OpenAPI 3 documents the
 // real-world sweep read in October 2026 nests 21 levels. Anything the lowering

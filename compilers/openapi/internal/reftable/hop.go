@@ -177,9 +177,9 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 const OffNetwork = "a reference in a document read over http or https reads only http and https URLs"
 
 // reachable reports whether a reference written in the resource in, of one of
-// docsValue's documents, may read the document named name: judged by the location
-// in's document was read from, never by a URI an $id gives in, so that no $id
-// moves a reference in a document read over the network onto a file.
+// docsValue's documents, may read the document named name: judged by the
+// location in's document was read from, never by a URI an $id gives in, so that
+// no $id moves a reference in a document read over the network onto a file.
 func reachable(docsValue *docs, in resource, name string) bool {
 	return Reachable(docsValue.name(in.root.Doc), name)
 }
@@ -202,11 +202,11 @@ func OverNetwork(location string) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }
 
-// read is the resource of the document named name, read through Config.Open
-// as a reference written in the resource in reads it, which the hop then
-// reaches, or why the read failed. The first read of a document waits until
-// the pass's walks are done (PendingExternalDocumentRead), since a document read meanwhile may
-// declare its name, and an identifier is not a location to read (goOn).
+// read is the resource of the document named name, read through Config.Open as
+// a reference written in the resource in reads it, which the hop then reaches,
+// or why the read failed. The first read of a document waits until the pass's
+// walks are done (PendingExternalDocumentRead), since a document read meanwhile
+// may declare its name, and an identifier is not a location to read (goOn).
 func (b *binder) read(name string, in resource) (resource, Reason, string) {
 	from := b.docs.name(in.root.Doc)
 	if b.reads.unread(b.docs, name, from) {
@@ -274,9 +274,9 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 	}
 }
 
-// hop is the hop of the $ref written at documentPointer, read once and remembered. Only a
-// position writing a $ref is asked, a site or a hop's target that writes one,
-// or a $dynamicRef that is the $ref it spells (holdsRef).
+// hop is the hop of the $ref written at documentPointer, read once and
+// remembered. Only a position writing a $ref is asked, a site or a hop's target
+// that writes one, or a $dynamicRef that is the $ref it spells (holdsRef).
 func (b *binder) hop(documentPointer DocumentPointer) Hop {
 	if hop, ok := b.hops[documentPointer]; ok {
 		return hop

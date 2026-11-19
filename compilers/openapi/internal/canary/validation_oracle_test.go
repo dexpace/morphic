@@ -4,8 +4,8 @@
 package canary_test
 
 // The validation oracle (GitHub #918): the compiler holds a document to the
-// OpenAPI Specification's rules itself (compilers/openapi/internal/specrules), and
-// this holds what it finds to what the parser library's validation finds in
+// OpenAPI Specification's rules itself (compilers/openapi/internal/specrules),
+// and this holds what it finds to what the parser library's validation finds in
 // the same document. The two agree except where the library reads the
 // specification otherwise, or where another package owns a rule; each such
 // disagreement is listed in validationDisagreements with the reason, and one

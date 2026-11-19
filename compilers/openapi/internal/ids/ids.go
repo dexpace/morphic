@@ -49,9 +49,9 @@ func Scope(segments ...string) string {
 // what is chosen here is which namespace a node belongs in, and the pointer that
 // is its path.
 const (
-	// OpenAPISpace and AnonymousSpace both address source coordinates: a component
-	// schema is named at its own pointer, an inline schema is anonymous at its
-	// own pointer, and no pointer is both.
+	// OpenAPISpace and AnonymousSpace both address source coordinates: a
+	// component schema is named at its own pointer, an inline schema is
+	// anonymous at its own pointer, and no pointer is both.
 	OpenAPISpace   compile.Space = "openapi"
 	AnonymousSpace compile.Space = "anonymous"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
@@ -149,14 +149,14 @@ func Namespaces(others ...DocumentIDNamespace) compile.Namespaces {
 	return ns
 }
 
-// DocumentIDNamespace is a document of the compile as the IDs of what it declares name
-// it. The zero value is the source, whose IDs take the bare spaces; another is
-// named by its label (In), which qualifies each space (compile.Space.Qualified),
-// so one pointer in two documents derives two IDs, each still the pointer it
-// records. Operations, parameters and services are named by where the source
-// mounts or names them, so they take no Document; a server, and a security
-// scheme a requirement key reaches outside the source's securitySchemes, is
-// named where it is declared, so it does.
+// DocumentIDNamespace is a document of the compile as the IDs of what it
+// declares name it. The zero value is the source, whose IDs take the bare
+// spaces; another is named by its label (In), which qualifies each space
+// (compile.Space.Qualified), so one pointer in two documents derives two IDs,
+// each still the pointer it records. Operations, parameters and services are
+// named by where the source mounts or names them, so they take no Document; a
+// server, and a security scheme a requirement key reaches outside the source's
+// securitySchemes, is named where it is declared, so it does.
 type DocumentIDNamespace struct {
 	label string
 }
@@ -165,7 +165,8 @@ type DocumentIDNamespace struct {
 // directory reaches it. The empty label is the source's.
 func In(label string) DocumentIDNamespace { return DocumentIDNamespace{label: label} }
 
-// space returns space as d names it: space itself for the source, else qualified by d.
+// space returns space as d names it: space itself for the source, else
+// qualified by d.
 func (d DocumentIDNamespace) space(space compile.Space) compile.Space {
 	if d.label == "" {
 		return space
@@ -412,7 +413,8 @@ const (
 	// componentlookup.Scope.ComponentRef, one the document declares.
 	NamedComponent
 	// UndeclaredComponent is a pointer shaped as a component schema's naming
-	// none the document declares, which only componentlookup.Scope.ComponentRef can tell.
+	// none the document declares, which only componentlookup.Scope.ComponentRef
+	// can tell.
 	UndeclaredComponent
 	// UnnamedComponent is the component schema keyed "", the position
 	// /components/schemas/ addresses. It is a component schema, and an empty name

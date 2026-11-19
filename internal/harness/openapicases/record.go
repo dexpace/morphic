@@ -27,9 +27,9 @@ var (
 	instanceFull string
 )
 
-// FullRecord returns what case oracle oracle is known to find at every case: the
-// lines at the core cases, and those at cases outside the core. A name listed
-// in both is an error.
+// FullRecord returns what case oracle oracle is known to find at every case:
+// the lines at the core cases, and those at cases outside the core. A name
+// listed in both is an error.
 func FullRecord(oracle harness.Oracle) (harness.Recorded, error) {
 	core, full, err := records(oracle)
 	if err != nil {
@@ -38,8 +38,8 @@ func FullRecord(oracle harness.Oracle) (harness.Recorded, error) {
 	return harness.ReadRecorded([]byte(core + "\n" + full))
 }
 
-// records returns the text of oracle's record at the core cases and of its record
-// outside them.
+// records returns the text of oracle's record at the core cases and of its
+// record outside them.
 func records(oracle harness.Oracle) (core, full string, err error) {
 	switch oracle {
 	case harness.OracleSpelling:

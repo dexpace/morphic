@@ -27,9 +27,9 @@ func main() {
 // run parses args and runs what they ask for, writing what it finds to stdout,
 // and returns the process exit code: 0 when nothing is found, 1 when anything
 // is, 2 on a usage or filesystem error. Paths are swept (sweep); -cases checks
-// the schema cases of fmts instead, and -case-index one of them. It exists so tests
-// can drive the CLI without a subprocess, over formats of their own; only main
-// calls os.Exit.
+// the schema cases of fmts instead, and -case-index one of them. It exists so
+// tests can drive the CLI without a subprocess, over formats of their own; only
+// main calls os.Exit.
 func run(ctx context.Context, fmts []format, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("morphic-harness", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -97,9 +97,9 @@ type format struct {
 	record func(harness.Oracle) (harness.Recorded, error)
 }
 
-// formats returns every product of schema cases -cases checks, in the order
-// -case-index counts their cases: the OpenAPI schema cases, then the test suite's
-// groups written as OpenAPI defaults.
+// formats returns every product of schema cases -cases checks, in the order -case-index
+// counts their cases: the OpenAPI schema cases, then the test suite's groups
+// written as OpenAPI defaults.
 func formats() []format {
 	return []format{
 		{cases: openapicases.New(), record: openapicases.FullRecord},

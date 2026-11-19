@@ -21,7 +21,8 @@ type reader struct {
 	pages  map[pageKey]page
 }
 
-// newReader returns a reader over compiledDocumentView that has read nothing yet.
+// newReader returns a reader over compiledDocumentView that has read nothing
+// yet.
 func newReader(compiledDocumentView *compileddoc.CompiledDocumentView) *reader {
 	return &reader{w: compiledDocumentView, models: &models{w: compiledDocumentView, read: map[ir.TypeID]*model{}}, pages: map[pageKey]page{}}
 }
@@ -86,9 +87,9 @@ type page struct {
 	nextHeader                                   bool
 }
 
-// equal reports whether p and pageValue, two pages a body holds, hold them at the same
-// members. Their links may differ: such a link is left unset (agreed), which
-// stops no walk.
+// equal reports whether p and pageValue, two pages a body holds, hold them at
+// the same members. Their links may differ: such a link is left unset (agreed),
+// which stops no walk.
 func (p page) equal(pageValue page) bool {
 	return slices.Equal(p.items, pageValue.items) && slices.Equal(p.next, pageValue.next) && slices.Equal(p.hasMore, pageValue.hasMore) &&
 		slices.Equal(p.totalCount, pageValue.totalCount) && slices.Equal(p.totalPages, pageValue.totalPages)
@@ -306,8 +307,9 @@ func flagName(canonical string) bool {
 	}
 }
 
-// leastFlag returns the least wire name of the booleans modelValue holds, or "" for
-// none or a nil modelValue, so a finding naming one reads the same in any order.
+// leastFlag returns the least wire name of the booleans modelValue holds, or ""
+// for none or a nil modelValue, so a finding naming one reads the same in any
+// order.
 func leastFlag(modelValue *model) string {
 	least := ""
 	if modelValue == nil {

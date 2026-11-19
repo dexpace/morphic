@@ -63,8 +63,8 @@ func (s Spec) EncodingRules(version string) EncodingRules {
 	return EncodingRules{rows: rows}
 }
 
-// ContentType returns the contentType a value of case defaultCase takes where its
-// Encoding Object writes none, and false where the minor gives that case no
+// ContentType returns the contentType a value of case defaultCase takes where
+// its Encoding Object writes none, and false where the minor gives that case no
 // default.
 func (r EncodingRules) ContentType(defaultCase DefaultCase) (string, bool) {
 	if r.rows == nil {

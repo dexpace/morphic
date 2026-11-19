@@ -379,10 +379,11 @@ func documentedEncodings(t *testing.T) []string {
 	return names
 }
 
-// coveringKinds returns the kinds immediately above primitiveKind by value domain: those primitiveKind
-// is strictly within, with no declared kind between, and never the top type.
-// It reads the containment through the exported StrictlyWithin, which is what
-// the unexported edge table in ir yields.
+// coveringKinds returns the kinds immediately above primitiveKind by value
+// domain: those primitiveKind is strictly within, with no declared kind
+// between, and never the top type. It reads the containment through the
+// exported StrictlyWithin, which is what the unexported edge table in ir
+// yields.
 func coveringKinds(kinds []ir.PrimitiveKind, primitiveKind ir.PrimitiveKind) []ir.PrimitiveKind {
 	var out []ir.PrimitiveKind
 	for _, irPrimitiveKind := range kinds {

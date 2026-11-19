@@ -540,9 +540,9 @@ components:
 
 // TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
 // the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
-// never reach a PropertyID, since no document key can spell them and the IR cannot
-// encode one that does: the multipart body's part, the property written beside
-// the $ref, keys the body's own property, whose pointer is the body's.
+// never reach a PropertyID, since no document key can spell them and the IR
+// cannot encode one that does: the multipart body's part, the property written
+// beside the $ref, keys the body's own property, whose pointer is the body's.
 func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0

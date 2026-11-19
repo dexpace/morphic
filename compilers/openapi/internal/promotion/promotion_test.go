@@ -443,11 +443,11 @@ func statingValue(target promotion.ExtensionTarget) string {
 	}
 }
 
-// appliers is one closure per method of Promoter. Each runs promoter's policy against a
-// carrier of its own holding unmodeled, the key "x-k" every caller below maps,
-// and reports whether that carrier changed. An undeprecated carrier reads a key
-// stating a deprecation, and a deprecated one a member of it, so the first two
-// together answer for the five targets the method holds.
+// appliers is one closure per method of Promoter. Each runs promoter's policy
+// against a carrier of its own holding unmodeled, the key "x-k" every caller
+// below maps, and reports whether that carrier changed. An undeprecated carrier
+// reads a key stating a deprecation, and a deprecated one a member of it, so
+// the first two together answer for the five targets the method holds.
 //
 // The census is hand-written, so a method this list does not know about is the
 // same gap one level down: the check beneath it would then declare a target
@@ -1037,8 +1037,8 @@ func TestPromoter_OffWritesNothing(t *testing.T) {
 	assert.Empty(t, on.Redaction(stating, promotion.Referent{}, nil, &ir.Provenance{}))
 }
 
-// TestPromoter_ReferentFallsBackBeneathOwnKeys pins the merge a use site makes, a
-// key on the carrier winning field by field and the rest coming from the
+// TestPromoter_ReferentFallsBackBeneathOwnKeys pins the merge a use site makes,
+// a key on the carrier winning field by field and the rest coming from the
 // referent. A referent's misfit reports nothing here, since it reports where it
 // is written, and a carrier's own still does.
 func TestPromoter_ReferentFallsBackBeneathOwnKeys(t *testing.T) {
@@ -1121,11 +1121,11 @@ func TestPromoter_ADeprecatedBaseHomesTheNodesMembers(t *testing.T) {
 	}
 }
 
-// TestPromoter_ReferentReadsWhatASchemaOffersAsFallback pins the reading of a $ref's target.
-// A key stating a deprecation or a redaction lends it, and a member lends only
-// where the target is deprecated: on a live one it annotates nothing, there or at
-// a use. What the target cannot hold lends nothing and returns no report, since
-// the target makes it where it is written.
+// TestPromoter_ReferentReadsWhatASchemaOffersAsFallback pins the reading of a
+// $ref's target. A key stating a deprecation or a redaction lends it, and a
+// member lends only where the target is deprecated: on a live one it annotates
+// nothing, there or at a use. What the target cannot hold lends nothing and
+// returns no report, since the target makes it where it is written.
 func TestPromoter_ReferentReadsWhatASchemaOffersAsFallback(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

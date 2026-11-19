@@ -49,10 +49,10 @@ func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
 	}
 }
 
-// substitutedString returns the first string within irValue, in source order, that
-// an expression is substituted into, and false for none. It walks with a
-// stack of its own rather than recursing, so irValue's depth, which value.FromNode
-// bounds, bounds no call stack here.
+// substitutedString returns the first string within irValue, in source order,
+// that an expression is substituted into, and false for none. It walks with a
+// stack of its own rather than recursing, so irValue's depth, which
+// value.FromNode bounds, bounds no call stack here.
 func substitutedString(irValue *ir.Value) (string, bool) {
 	stack := []*ir.Value{irValue}
 	for len(stack) > 0 {
@@ -97,8 +97,8 @@ func (ex exchange) read(expression runtimeexpr.Expression) (ir.LinkValue, *linkF
 	}
 }
 
-// request lowers what expression reads of the request: its body or a member of it, or
-// a parameter of from.
+// request lowers what expression reads of the request: its body or a member of
+// it, or a parameter of from.
 func (ex exchange) request(expression runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 	if expression.Part == runtimeexpr.PartBody {
 		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.from.Request, expression.Tokens, "request")
@@ -115,9 +115,9 @@ func (ex exchange) request(expression runtimeexpr.Expression) (ir.LinkValue, *li
 	return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Param: &found[0]}}, nil
 }
 
-// response lowers what expression reads of the response: its body or a member of it, or
-// one of its headers. A header the response declares twice, in two cases, is
-// no one header: either would be a choice the source does not make.
+// response lowers what expression reads of the response: its body or a member
+// of it, or one of its headers. A header the response declares twice, in two
+// cases, is no one header: either would be a choice the source does not make.
 func (ex exchange) response(expression runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 	switch expression.Part {
 	case runtimeexpr.PartBody:

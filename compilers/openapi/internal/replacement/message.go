@@ -20,9 +20,9 @@ import (
 // deprecated operation, parameter and model member names as its replacement,
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
-// every promotion (docs/compilers/openapi.md#policies), and reads nothing
-// while policy is off. promoter is the run's promoter, and compiledDocumentView the document, which is
-// whole.
+// every promotion (docs/compilers/openapi.md#policies), and reads nothing while
+// policy is off. promoter is the run's promoter, and compiledDocumentView the
+// document, which is whole.
 func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
@@ -90,13 +90,14 @@ type scope struct {
 	find  func(string) (ir.EntityRef, int)
 }
 
-// message fills, under the replacement policy, the replacements deprecatedValue's message
-// names, where deprecatedValue is deprecated and its own keys write none, so that nothing
-// the promotion fills is read over. Only a name a phrase introduces is read
-// (introducedNames). A message naming no entity of deprecatedValue's class, or deprecatedValue alone,
-// names no replacement. One naming another fills the field all or
-// none, deprecatedValue passed over and a repeat kept once: a name naming nothing, or
-// several entities, leaves it unset, reported, the prose keeping it. deprecatedValue is
+// message fills, under the replacement policy, the replacements
+// deprecatedValue's message names, where deprecatedValue is deprecated and its
+// own keys write none, so that nothing the promotion fills is read over. Only a
+// name a phrase introduces is read (introducedNames). A message naming no
+// entity of deprecatedValue's class, or deprecatedValue alone, names no
+// replacement. One naming another fills the field all or none, deprecatedValue
+// passed over and a repeat kept once: a name naming nothing, or several
+// entities, leaves it unset, reported, the prose keeping it. deprecatedValue is
 // marked where they fill it. The rule is
 // docs/compilers/openapi.md#replacement-inference.
 func (r *resolver) message(deprecatedValue deprecated, scopeValue scope) []ir.Diagnostic {

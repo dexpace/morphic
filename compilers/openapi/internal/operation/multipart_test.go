@@ -202,13 +202,13 @@ func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
 	}
 }
 
-// TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing holds a
-// part the walk finds that no property of the body's lowered type holds, as
-// one declared beside a keyword lowering the body to no model, or on a union
-// branch lowering to none, to no Content.Encoding key, never a PropertyID derived
-// from its pointer that no node holds: its flags key nothing, and an entry
-// written for it is kept whole at openapi:encoding/<key>, with one info at the
-// entry, while a part a model holds stays keyed.
+// TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing holds a part
+// the walk finds that no property of the body's lowered type holds, as one
+// declared beside a keyword lowering the body to no model, or on a union branch
+// lowering to none, to no Content.Encoding key, never a PropertyID derived from
+// its pointer that no node holds: its flags key nothing, and an entry written
+// for it is kept whole at openapi:encoding/<key>, with one info at the entry,
+// while a part a model holds stays keyed.
 func TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing(t *testing.T) {
 	t.Parallel()
 	const component = "components:\n  schemas:\n    NotAModel: {enum: [x], properties: {file: {type: string, format: binary}}}\n"

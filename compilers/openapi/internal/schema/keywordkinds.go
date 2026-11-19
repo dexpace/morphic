@@ -33,10 +33,10 @@ var keywordKinds = map[string]kindSet{
 	"minProperties":    kindObject,
 }
 
-// boundKinds returns the kinds a reader of the bounds schema writes takes: those
-// its home lowers to (docs/compilers/openapi.md#constraints), as the run reads
-// its statement once (admissionOf), its value sets, a type beside a $ref and
-// what a read of any size takes in among them. A read cut by a cycle of
+// boundKinds returns the kinds a reader of the bounds schema writes takes:
+// those its home lowers to (docs/compilers/openapi.md#constraints), as the run
+// reads its statement once (admissionOf), its value sets, a type beside a $ref
+// and what a read of any size takes in among them. A read cut by a cycle of
 // conjunct edges or a $ref landing on no schema leaves schema's own type to
 // decide, which takes every bound where it writes none. Where schema writes no
 // bound, nothing asks which kinds take one, and its own type is returned.
@@ -52,9 +52,9 @@ func boundKinds(loweringContext lowering.Ctx, schema *statement.Schema) kindSet 
 	return admission.kinds
 }
 
-// writesBound reports whether schema, or an inline branch of its flattened allOf,
-// writes a value or collection bound: where none does, no reader asks its types.
-// A bound beside a branch's own $ref is that branch's.
+// writesBound reports whether schema, or an inline branch of its flattened
+// allOf, writes a value or collection bound: where none does, no reader asks
+// its types. A bound beside a branch's own $ref is that branch's.
 func writesBound(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	if declaresBound(schema) {
 		return true
@@ -67,17 +67,18 @@ func writesBound(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return false
 }
 
-// declaresBound reports whether schema writes a value bound or a collection bound.
+// declaresBound reports whether schema writes a value bound or a collection
+// bound.
 func declaresBound(schema *statement.Schema) bool {
 	return declaresValueConstraints(schema) || hasAnyKey(schema, collectionBoundKeywords)
 }
 
 // writerTakes returns the kinds whose value bounds a reader of the kinds takes
-// reads of schema, a position's schema or an allOf branch folding there: those schema's
-// own types admit too, as a branch declaring a type bounds no value of another
-// kind. A reader's kinds are those its position admits (boundKinds), within
-// what the position's own schema declares, so that schema leaves them as they
-// are.
+// reads of schema, a position's schema or an allOf branch folding there: those
+// schema's own types admit too, as a branch declaring a type bounds no value of
+// another kind. A reader's kinds are those its position admits (boundKinds),
+// within what the position's own schema declares, so that schema leaves them as
+// they are.
 func writerTakes(takes kindSet, schema *statement.Schema) kindSet {
 	return takes & declaredInstanceTypes(schema)
 }

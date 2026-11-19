@@ -14,15 +14,16 @@ import (
 // coefficient: a number of n decimal digits has fewer than 4n of either.
 const stepFactorsPerDigit = 4
 
-// isMultipleOf reports whether decimal is an integral multiple of irDecimal, exactly. Read decimal
-// as vc·10^vl and irDecimal as mc·10^ml: the coefficients are the digits, and vl and ml
-// the exponents of their last digits.
+// isMultipleOf reports whether decimal is an integral multiple of irDecimal,
+// exactly. Read decimal as vc·10^vl and irDecimal as mc·10^ml: the coefficients
+// are the digits, and vl and ml the exponents of their last digits.
 //
-// If vl < ml, decimal is never a multiple, since mc·10^(ml−vl) divides vc only if 10
-// divides vc, and it does not. Otherwise decimal is a multiple iff mc divides
-// vc·10^k, with k = min(vl−ml, 4·len(irDecimal.Digits())): mc's powers of 2 and 5 are
-// each below 4 per digit, and the cofactor coprime to 10 is unaffected by the
-// shift. ok is false only for a zero step, which divides nothing.
+// If vl < ml, decimal is never a multiple, since mc·10^(ml−vl) divides vc only
+// if 10 divides vc, and it does not. Otherwise decimal is a multiple iff mc
+// divides vc·10^k, with k = min(vl−ml, 4·len(irDecimal.Digits())): mc's powers
+// of 2 and 5 are each below 4 per digit, and the cofactor coprime to 10 is
+// unaffected by the shift. ok is false only for a zero step, which divides
+// nothing.
 func isMultipleOf(decimal, irDecimal ir.Decimal) (multiple, ok bool) {
 	if irDecimal.Sign() == 0 {
 		return false, false
@@ -45,10 +46,11 @@ func isMultipleOf(decimal, irDecimal ir.Decimal) (multiple, ok bool) {
 const maxStepDigits = 1024
 
 // commonStep returns the step whose multiples are exactly the multiples of both
-// bigVal and irBigVal: one literal written twice, whichever of them is a multiple of the
-// other, or else their least common multiple, a number neither wrote. It returns
-// false where no such step can be read: a literal no Decimal holds, a step that is
-// not positive, a pair past maxStepDigits, or a multiple past what a Decimal holds.
+// bigVal and irBigVal: one literal written twice, whichever of them is a
+// multiple of the other, or else their least common multiple, a number neither
+// wrote. It returns false where no such step can be read: a literal no Decimal
+// holds, a step that is not positive, a pair past maxStepDigits, or a multiple
+// past what a Decimal holds.
 func commonStep(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
 	if bigVal == irBigVal {
 		return bigVal, true
@@ -101,9 +103,9 @@ func coefficient(decimal ir.Decimal) *big.Int {
 	return c
 }
 
-// lowestExponent returns the power of ten decimal's last significant digit carries.
-// decimal is not zero, and the result stays inside int64 because Decimal bounds the
-// leading digit's exponent by ir.MaxDecimalExp.
+// lowestExponent returns the power of ten decimal's last significant digit
+// carries. decimal is not zero, and the result stays inside int64 because
+// Decimal bounds the leading digit's exponent by ir.MaxDecimalExp.
 func lowestExponent(decimal ir.Decimal) int64 {
 	return decimal.Exponent() - int64(len(decimal.Digits())) + 1
 }

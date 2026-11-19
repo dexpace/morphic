@@ -74,18 +74,18 @@ func (r report) concerns() (kept, decided []ir.Provenance, known bool) {
 	return kept, decided, known
 }
 
-// placeOf is where provenance locates a declaration, as one string: its pointer, then
-// its source, the input that wrote it, whether it has a position, and the
-// heuristics that produced what it locates, each of which describes the place
-// and so changes sides with it in a mirrored report.
+// placeOf is where provenance locates a declaration, as one string: its
+// pointer, then its source, the input that wrote it, whether it has a position,
+// and the heuristics that produced what it locates, each of which describes the
+// place and so changes sides with it in a mirrored report.
 func placeOf(provenance ir.Provenance) string {
 	return string(provenance.Pointer) + "\x00" + strconv.Itoa(provenance.Source) + "\x00" + strconv.Itoa(provenance.WrittenBy) + "\x00" +
 		strconv.FormatBool(provenance.Position != ir.Position{}) + "\x00" + string(provenance.Inferred)
 }
 
-// sayingOf is what diagnostic, a report carrying a pair, says beside its two places of
-// the member its entry member lists, as diagnosticKey reads it: its severity,
-// its code, and that entry but for its node, each index of a reversed
+// sayingOf is what diagnostic, a report carrying a pair, says beside its two
+// places of the member its entry member lists, as diagnosticKey reads it: its
+// severity, its code, and that entry but for its node, each index of a reversed
 // sequence, written, erased.
 func sayingOf(diagnostic ir.Diagnostic, member ir.Provenance, written sequences) string {
 	member.Node, member.Pointer = "", jsontext.Pointer(erase(string(member.Pointer), written))

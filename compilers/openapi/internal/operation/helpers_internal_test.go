@@ -111,8 +111,8 @@ func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegis
 	return lowererValue, lowered, reg, loadDiags
 }
 
-// componentStatements yields each component schema of serviceContext's document under its
-// name, as run hands them to schema.LowerComponentSchemas.
+// componentStatements yields each component schema of serviceContext's document
+// under its name, as run hands them to schema.LowerComponentSchemas.
 func componentStatements(serviceContext service.Ctx) iter.Seq2[string, *statement.Statement] {
 	return func(yield func(string, *statement.Statement) bool) {
 		for name, js := range serviceContext.Doc.Components.GetSchemas().All() {

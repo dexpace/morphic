@@ -52,8 +52,8 @@ func (r *run) of(t *testing.T, cases harness.Cases, pick func([]int) bool) []har
 	return r.results
 }
 
-// checkShards checks cases' cases pick admits shard by shard in parallel subtests
-// of t, and reports whether each shard checked.
+// checkShards checks cases' cases pick admits shard by shard in parallel
+// subtests of t, and reports whether each shard checked.
 func checkShards(t *testing.T, cases harness.Cases, pick func([]int) bool) ([]harness.Result, bool) {
 	keys := shardKeys(t, cases, pick)
 	parts := make([][]harness.Result, len(keys))

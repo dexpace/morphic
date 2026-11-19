@@ -40,8 +40,8 @@ func ExamplesRaw(schema *statement.Schema) (ir.RawValue, []string, error) {
 	return combine(schema, "example", "examples")
 }
 
-// ClosesAfterComposition reports whether schema closes its model once composition
-// is resolved: it writes `unevaluatedProperties: false` and no
+// ClosesAfterComposition reports whether schema closes its model once
+// composition is resolved: it writes `unevaluatedProperties: false` and no
 // additionalProperties, which would evaluate every property the keyword could
 // apply to (JSON Schema 2020-12 §11.3). It reads the adjacent keyword alone, so
 // an applicator kept verbatim that evaluates a member leaves the closure typed
@@ -75,10 +75,11 @@ type keptUnevaluated struct {
 }
 
 // unevaluatedKept returns the unevaluated keywords schema writes that an entry
-// keeps, in keyword order. closure says the node took `unevaluatedProperties:
-// false` as its openness, so that form is left out, and dialect says where schema's
-// dialect reads the elements past a prefix. It asks the typed values first,
-// so a schema writing neither, nearly every one, costs no read of its node.
+// keeps, in keyword order. closure says the node took
+// `unevaluatedProperties: false` as its openness, so that form is left out, and
+// dialect says where schema's dialect reads the elements past a prefix. It asks
+// the typed values first, so a schema writing neither, nearly every one, costs
+// no read of its node.
 func unevaluatedKept(schema *statement.Schema, closure bool, dialect Dialect) []keptUnevaluated {
 	var out []keptUnevaluated
 	keep := func(keyword string) {
@@ -107,13 +108,14 @@ func unevaluatedMembers(kept []keptUnevaluated) []string {
 	return out
 }
 
-// inertBeside returns the keyword schema writes beside keyword, an unevaluated one,
-// that evaluates every location keyword could apply to, and "" where schema writes
-// none. Beside unevaluatedProperties that is an additionalProperties of any
-// value (JSON Schema 2020-12 §10.3.2.3). Beside unevaluatedItems it is an
-// `items` schema (§10.3.1.2), or, where dialect reads an `items` list as a
-// tuple, the additionalItems written beside it (2019-09 §9.3.1.2). An `items`
-// list any other dialect reads is no schema, and evaluates nothing.
+// inertBeside returns the keyword schema writes beside keyword, an unevaluated
+// one, that evaluates every location keyword could apply to, and "" where
+// schema writes none. Beside unevaluatedProperties that is an
+// additionalProperties of any value (JSON Schema 2020-12 §10.3.2.3). Beside
+// unevaluatedItems it is an `items` schema (§10.3.1.2), or, where dialect reads
+// an `items` list as a tuple, the additionalItems written beside it (2019-09
+// §9.3.1.2). An `items` list any other dialect reads is no schema, and
+// evaluates nothing.
 func inertBeside(schema *statement.Schema, keyword string, dialect Dialect) string {
 	if keyword == "unevaluatedProperties" {
 		if schema.ObjectKeywords().AdditionalProperties.SchemaValueForm() != statement.Unwritten {
@@ -159,12 +161,13 @@ func unevaluatedNote(kept []keptUnevaluated) string {
 	}
 }
 
-// combine renders the keys schema writes, of those given, as one raw JSON object,
-// and names the keys written; nothing written yields no object rather than an
-// empty one. The entry built from it has no position of its own, so those keys
-// are what its provenance is asked about (GitHub #534). They are named beside a
-// conversion error as well, because the report that stands in for an entry that
-// could not be kept is attributed as the entry would have been.
+// combine renders the keys schema writes, of those given, as one raw JSON
+// object, and names the keys written; nothing written yields no object rather
+// than an empty one. The entry built from it has no position of its own, so
+// those keys are what its provenance is asked about (GitHub #534). They are
+// named beside a conversion error as well, because the report that stands in
+// for an entry that could not be kept is attributed as the entry would have
+// been.
 func combine(schema *statement.Schema, keys ...string) (ir.RawValue, []string, error) {
 	members, written, err := presentMembers(schema, keys...)
 	if err != nil || len(members) == 0 {
@@ -174,9 +177,9 @@ func combine(schema *statement.Schema, keys ...string) (ir.RawValue, []string, e
 	return raw, written, err
 }
 
-// presentMembers collects the given keywords that are present on schema as raw JSON
-// members, preserving the requested order, and names the keywords present. A
-// keyword written as `null` states nothing, so it is read as left out.
+// presentMembers collects the given keywords that are present on schema as raw
+// JSON members, preserving the requested order, and names the keywords present.
+// A keyword written as `null` states nothing, so it is read as left out.
 //
 // A member that cannot be converted fails the whole combination rather than
 // being skipped: the entry is presented as the verbatim source, so dropping a
@@ -239,9 +242,9 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
-// among them where dialect defines it. own says schema is the schema written at the
-// position rather than a folded branch, whose unevaluated keywords stay with its branch
-// (schema.foldEntry), and closure is unevaluatedKept's.
+// among them where dialect defines it. own says schema is the schema written at
+// the position rather than a folded branch, whose unevaluated keywords stay
+// with its branch (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
 func validationOnlyAt(schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {

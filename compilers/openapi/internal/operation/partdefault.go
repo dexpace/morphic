@@ -233,7 +233,8 @@ func readLiteral(rules specrules.EncodingRules, literal *ir.Literal, encoding st
 	}
 }
 
-// byCase reads the content type rules give case defaultCase, none for the zero case.
+// byCase reads the content type rules give case defaultCase, none for the zero
+// case.
 func byCase(rules specrules.EncodingRules, defaultCase specrules.DefaultCase) valueReading {
 	ct, _ := rules.ContentType(defaultCase)
 	return valueReading{contentType: ct}
@@ -244,12 +245,12 @@ func byCase(rules specrules.EncodingRules, defaultCase specrules.DefaultCase) va
 // table gives a row of its own, where `base64url` takes a string's.
 const byteFormatEncoding = "base64"
 
-// primitiveCase is the case OpenAPI's table keys a value of primitive kind primitiveKind
-// by, encoding being the one a scalar over it names: bytes no scalar
-// re-encodes are raw binary, bytes base64 re-encodes a string of format byte,
-// bytes another encoding re-encodes, as base64url does, any other string, and
-// strings are keyed by whether they write contentEncoding (encodedCase). The
-// zero case, which has no row, is a kind of none.
+// primitiveCase is the case OpenAPI's table keys a value of primitive kind
+// primitiveKind by, encoding being the one a scalar over it names: bytes no
+// scalar re-encodes are raw binary, bytes base64 re-encodes a string of format
+// byte, bytes another encoding re-encodes, as base64url does, any other string,
+// and strings are keyed by whether they write contentEncoding (encodedCase).
+// The zero case, which has no row, is a kind of none.
 func primitiveCase(primitiveKind ir.PrimitiveKind, encoding string, encodedBy contentEncoding) specrules.DefaultCase {
 	switch primitiveKind {
 	case ir.PrimitiveAny:

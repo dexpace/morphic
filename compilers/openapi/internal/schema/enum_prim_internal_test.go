@@ -20,8 +20,8 @@ func scalar(tag, value string) *yaml.Node {
 
 // TestEnumMemberPrim_ReadsWhatEnumMembersGives pins enumMemberPrim, the reading
 // a position asking only its ValueType takes, to enumMembers' under a type's
-// ID: one PrimitiveKind and one refusal for each list, members of one kind, of two,
-// of a kind no Enum holds, and none.
+// ID: one PrimitiveKind and one refusal for each list, members of one kind, of
+// two, of a kind no Enum holds, and none.
 func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
 	t.Parallel()
 	for name, nodes := range map[string][]*yaml.Node{

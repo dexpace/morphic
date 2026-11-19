@@ -40,8 +40,8 @@ type ServerID string
 // PropertyID identifies a Property within the document.
 type PropertyID string
 
-// ParameterID identifies a Parameter. It is unique across the whole document: an
-// operation's parameters are scoped by the operation they belong to, so two
+// ParameterID identifies a Parameter. It is unique across the whole document:
+// an operation's parameters are scoped by the operation they belong to, so two
 // operations that declare the same name never share one.
 type ParameterID string
 
@@ -86,20 +86,23 @@ const IDSeparator = "/"
 // IDSpacePrimitive is the space the primitive leaves are addressed in.
 //
 // It is the one space that is not some format's own: every compiler must reach
-// the same node for the same PrimitiveKind, or two documents lowered from different
-// formats disagree about the identity of the same type. A space shared by
-// accident rather than on purpose is what naming it here makes visible.
+// the same node for the same PrimitiveKind, or two documents lowered from
+// different formats disagree about the identity of the same type. A space
+// shared by accident rather than on purpose is what naming it here makes
+// visible.
 const IDSpacePrimitive = "primitive"
 
 // IDSpaceUnresolved is the space the schemes of kind AuthKindUnresolved are
 // addressed in.
 //
-// It is every format's, like IDSpacePrimitive, and reserved like it, so no pointer a
-// reference can spell reaches such a scheme, and irverify can hold the kind and
-// the space together whichever format minted it (docs/ir/identity.md).
+// It is every format's, like IDSpacePrimitive, and reserved like it, so no
+// pointer a reference can spell reaches such a scheme, and irverify can hold
+// the kind and the space together whichever format minted it
+// (docs/ir/identity.md).
 const IDSpaceUnresolved = "unresolved"
 
-// PrimitiveTypeID returns the shared TypeID of the primitive of kind primitiveKind.
+// PrimitiveTypeID returns the shared TypeID of the primitive of kind
+// primitiveKind.
 //
 // It is the one ID this package derives from no other, as an enum member's
 // extends its enum's ([EnumMemberIDFor]). Every other path is the compiler's own

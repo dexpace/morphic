@@ -27,11 +27,11 @@ type dynamicRef struct {
 	node    *yaml.Node
 }
 
-// dynamicRefOf returns the dynamic reference schema, read at pointer of loweringContext's
-// document, writes, and false for none: a $dynamicRef in any dialect, as
-// 2020-12 reads one in a schema whose dialect lacks it, else a $recursiveRef
-// where the rows of the dialect schema is read in define it, as 2019-09's do
-// (docs/compilers/openapi.md#dynamic-ref).
+// dynamicRefOf returns the dynamic reference schema, read at pointer of
+// loweringContext's document, writes, and false for none: a $dynamicRef in any
+// dialect, as 2020-12 reads one in a schema whose dialect lacks it, else a
+// $recursiveRef where the rows of the dialect schema is read in define it, as
+// 2019-09's do (docs/compilers/openapi.md#dynamic-ref).
 func dynamicRefOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
 	if node := keyNode(schema, "$dynamicRef"); node != nil {
 		return dynamicRef{keyword: "$dynamicRef", node: node}, true
@@ -57,8 +57,8 @@ func dynamicTarget(loweringContext lowering.Ctx, schema *statement.Schema, point
 	return at, ok
 }
 
-// dynamicExpansion resolves the dynamic reference schema writes at pointer to the
-// position it names, or reports why it is irreducible. Expansion and
+// dynamicExpansion resolves the dynamic reference schema writes at pointer to
+// the position it names, or reports why it is irreducible. Expansion and
 // preservation both decide through it.
 //
 // Dynamic scope is static per document (docs/compilers/openapi.md#dynamic-ref):
@@ -83,8 +83,8 @@ func dynamicExpansion(loweringContext lowering.Ctx, schema *statement.Schema, po
 	return at, "", true
 }
 
-// expandableRef returns the dynamic reference schema, read at pointer, writes, or
-// why none can expand: none is written, it is co-declared with what an
+// expandableRef returns the dynamic reference schema, read at pointer, writes,
+// or why none can expand: none is written, it is co-declared with what an
 // expansion cannot carry, or its value is no string.
 func expandableRef(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dynamicRef, string, bool) {
 	ref, ok := dynamicRefOf(loweringContext, schema, pointer)
@@ -186,11 +186,11 @@ func recursiveScope(loweringContext lowering.Ctx, root reftable.DocumentPointer)
 	}
 }
 
-// dynamicRefSiblings reports whether schema writes anything beside its $dynamicRef
-// that the expansion would have to intersect with. JSON Schema conjoins
-// keywords and the IR has no node that intersects a reference with a shape, so
-// any of these makes the reference irreducible; expanding regardless would
-// assert the target's shape and drop the sibling in silence.
+// dynamicRefSiblings reports whether schema writes anything beside its
+// $dynamicRef that the expansion would have to intersect with. JSON Schema
+// conjoins keywords and the IR has no node that intersects a reference with a
+// shape, so any of these makes the reference irreducible; expanding regardless
+// would assert the target's shape and drop the sibling in silence.
 //
 // It counts narrowingKeywords as well as shapeKeywords, for the reason the
 // former record: an expansion takes the target whole, so a keyword it cannot
@@ -202,12 +202,13 @@ func dynamicRefSiblings(schema *statement.Schema) bool {
 	return writesSiblingKeyword(schema)
 }
 
-// soleAnchorSite returns the one position of loweringContext's document declaring the named
-// $dynamicAnchor, or the reason no single declaration answers for it. Two
-// declarations put the target back under the evaluation path's control, which no
-// static lowering can resolve, as does a resource of another document declaring
-// the name that reaches it, and an incomplete read may hide a second, which an
-// expansion would then rest on unverified (docs/compilers/openapi.md#dynamic-ref).
+// soleAnchorSite returns the one position of loweringContext's document
+// declaring the named $dynamicAnchor, or the reason no single declaration
+// answers for it. Two declarations put the target back under the evaluation
+// path's control, which no static lowering can resolve, as does a resource of
+// another document declaring the name that reaches it, and an incomplete read
+// may hide a second, which an expansion would then rest on unverified
+// (docs/compilers/openapi.md#dynamic-ref).
 func soleAnchorSite(loweringContext lowering.Ctx, name string) (reftable.DocumentPointer, string, bool) {
 	anchor := loweringContext.DynamicAnchor(name)
 	switch {
@@ -295,9 +296,9 @@ func dynamicHop(loweringContext lowering.Ctx, at reftable.DocumentPointer) (reft
 	return next, ok
 }
 
-// recordUnexpandedDynamicRef keeps a dynamic reference verbatim on unmodeled, under
-// the keyword it is written as, when it was not expanded, so the reference
-// survives the position lowering without it (the irreducible half of
+// recordUnexpandedDynamicRef keeps a dynamic reference verbatim on unmodeled,
+// under the keyword it is written as, when it was not expanded, so the
+// reference survives the position lowering without it (the irreducible half of
 // docs/compilers/openapi.md#dynamic-ref). An expanded one is already the
 // position's type and must not also be preserved — that would tell a consumer
 // the compiler ignored it — and one schema is a reference site under
@@ -319,8 +320,8 @@ func recordUnexpandedDynamicRef(loweringContext lowering.Ctx, unmodeled *ir.Unmo
 	return diags
 }
 
-// dynamicExpanded reports the expansion of the dynamic reference schema writes at
-// pointer to target, at the keyword it is written as.
+// dynamicExpanded reports the expansion of the dynamic reference schema writes
+// at pointer to target, at the keyword it is written as.
 func dynamicExpanded(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeID) ir.Diagnostic {
 	ref, _ := dynamicRefOf(loweringContext, schema, pointer)
 	what := "the one matching $dynamicAnchor in this document"
@@ -331,12 +332,12 @@ func dynamicExpanded(loweringContext lowering.Ctx, schema *statement.Schema, poi
 		ref.keyword, target, what)
 }
 
-// declaresDynamicRef reports whether schema writes a $dynamicRef or a $recursiveRef,
-// so a position that wrote one owns a node to keep an unexpanded reference on.
-// It reads either keyword in any dialect, so a reader asking it with no
-// context to read the dialect by takes a $recursiveRef 2020-12 does not define
-// as dynamic too, which each errs safely on: it keeps a composition it would
-// refine, or a node it would leave the alias to.
+// declaresDynamicRef reports whether schema writes a $dynamicRef or a
+// $recursiveRef, so a position that wrote one owns a node to keep an unexpanded
+// reference on. It reads either keyword in any dialect, so a reader asking it
+// with no context to read the dialect by takes a $recursiveRef 2020-12 does not
+// define as dynamic too, which each errs safely on: it keeps a composition it
+// would refine, or a node it would leave the alias to.
 func declaresDynamicRef(schema *statement.Schema) bool {
 	return hasKey(schema, "$dynamicRef") || hasKey(schema, "$recursiveRef")
 }

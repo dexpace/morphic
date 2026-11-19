@@ -10,19 +10,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// redact asks for property's redaction where its name says it holds a credential
-// (redactUse): a model's member or a header.
+// redact asks for property's redaction where its name says it holds a
+// credential (redactUse): a model's member or a header.
 func redact(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, property *ir.Property) {
 	redactUse(policy, promoter, reg, property.Name, property.Type, property.Unmodeled, &property.Secret, &property.Provenance)
 }
 
 // redactUse sets *secret, and marks prov, under the secret policy, on a use
-// named name, of type typeRef, keeping own, where the name's canonical words end in
-// a credential's (credentialName) and typeRef reads, through its scalars, as text
-// or bytes. It leaves alone a use already redacted, one whose type asks for
-// it, and one where the document writes a key the policy reads redaction from,
-// at the use or along its type, whatever the key says: the document has spoken
-// there. The rule is docs/compilers/openapi.md#secret-inference.
+// named name, of type typeRef, keeping own, where the name's canonical words
+// end in a credential's (credentialName) and typeRef reads, through its
+// scalars, as text or bytes. It leaves alone a use already redacted, one whose
+// type asks for it, and one where the document writes a key the policy reads
+// redaction from, at the use or along its type, whatever the key says: the
+// document has spoken there. The rule is
+// docs/compilers/openapi.md#secret-inference.
 func redactUse(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, name ir.Naming,
 	typeRef ir.TypeRef, own ir.Unmodeled, secret *bool, prov *ir.Provenance,
 ) {

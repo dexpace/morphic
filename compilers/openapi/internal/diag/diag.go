@@ -22,10 +22,10 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref, a schema's or a reference object's, whose
 	// own hop resolves to nothing, at the $ref, in whichever document writes
-	// it, with why (reftable.Hop.Why); a $ref whose chain ends on it reports nothing
-	// of its own (docs/compilers/openapi.md#references). The lowering reports a
-	// $ref it cannot follow at its position too, kept only where the load phase
-	// reported none there (openapi.withoutRereported).
+	// it, with why (reftable.Hop.Why); a $ref whose chain ends on it reports
+	// nothing of its own (docs/compilers/openapi.md#references). The lowering
+	// reports a $ref it cannot follow at its position too, kept only where the
+	// load phase reported none there (openapi.withoutRereported).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// UnresolvedSecurityScheme reports a security requirement naming a scheme
 	// the compiler resolved no mechanism for, at the requirement, from
@@ -496,8 +496,9 @@ const (
 	// rather than that one's error because such a document is legal and still
 	// lowers.
 	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
-	// UnknownKeyEntryAlreadyClaimed reports a key whose Unmodeled entry is already held by
-	// a construct declared somewhere else, so the key reached the IR in no form.
+	// UnknownKeyEntryAlreadyClaimed reports a key whose Unmodeled entry is
+	// already held by a construct declared somewhere else, so the key reached
+	// the IR in no form.
 	//
 	// The carriers holding more than one object's entries are where two constructs
 	// can spell one entry: a parameter's own keys and the keywords its schema had

@@ -78,10 +78,10 @@ func enumHolding(vt ir.PrimitiveKind, value ir.Value) *ir.Document {
 	}
 }
 
-// TestMemberKinds_EveryPrimKindHasARow holds the table above to the PrimitiveKind
-// constants ir declares, both ways: a value type added to ir without a row
-// would admit no kind or all of them, and a row for one ir does not declare is
-// a test of nothing.
+// TestMemberKinds_EveryPrimKindHasARow holds the table above to the
+// PrimitiveKind constants ir declares, both ways: a value type added to ir
+// without a row would admit no kind or all of them, and a row for one ir does
+// not declare is a test of nothing.
 func TestMemberKinds_EveryPrimKindHasARow(t *testing.T) {
 	t.Parallel()
 	consts, err := irDecls(t).StringConsts("PrimitiveKind")
@@ -155,8 +155,8 @@ func TestVerify_EnumMemberKindNamesBothKinds(t *testing.T) {
 }
 
 // TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType pins that an enum of
-// a value type no PrimitiveKind declares draws ir/unknown-prim-kind alone: there is
-// no row to hold its members to.
+// a value type no PrimitiveKind declares draws ir/unknown-prim-kind alone:
+// there is no row to hold its members to.
 func TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType(t *testing.T) {
 	t.Parallel()
 	got := Verify(enumHolding("bogus", ir.Value{Kind: ir.ValueString, String: "a"}))

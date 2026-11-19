@@ -19,17 +19,18 @@ import (
 )
 
 // Source is what a Table reads: the bindings holding each schema of the
-// documents and where it was read, and the rows each position's schema is
-// read with, those of the dialect in force there (dialect.SchemaDialectRows.At).
+// documents and where it was read, and the rows each position's schema is read
+// with, those of the dialect in force there (dialect.SchemaDialectRows.At).
 type Source struct {
 	Bindings *typed.Bindings
 	Rules    dialect.SchemaDialectRows
 }
 
-// MemoizingSchemaReader reads schema objects into statements and remembers each, keyed by the
-// parser's value, which is one per coordinate (docs/parser-library.md#alias-expansion).
-// What it remembers turns on the documents and their bindings alone, so every
-// walk of a run shares one. It is not safe for concurrent use.
+// MemoizingSchemaReader reads schema objects into statements and remembers
+// each, keyed by the parser's value, which is one per coordinate
+// (docs/parser-library.md#alias-expansion). What it remembers turns on the
+// documents and their bindings alone, so every walk of a run shares one. It is
+// not safe for concurrent use.
 type MemoizingSchemaReader struct {
 	src        Source
 	schemas    map[*model]*Schema
@@ -53,8 +54,8 @@ func NewTable(src Source) *MemoizingSchemaReader {
 	}
 }
 
-// At returns the statement of the schema the bindings hold at documentPointer, an Unwritten
-// one where they hold none.
+// At returns the statement of the schema the bindings hold at documentPointer,
+// an Unwritten one where they hold none.
 func (t *MemoizingSchemaReader) At(documentPointer reftable.DocumentPointer) *Statement {
 	return t.Of(t.src.Bindings.At(documentPointer))
 }
@@ -65,12 +66,12 @@ func (t *MemoizingSchemaReader) Subschema(subschema Subschema) *Statement {
 }
 
 // Read returns the statement of the schema object schema, for a caller lowering
-// an entry as a position of its own: the one Of built over schema, which schema keeps,
-// so that a schema read once more costs no lookup, or, for the rest of an
-// allOf entry (restOf), one listing its own allOf and no reference. A nil schema
-// reads as Unwritten, and so does one no table read, which holds no value. schema
-// is one t read: a schema another table built a statement over keeps that
-// statement, whichever table is asked.
+// an entry as a position of its own: the one Of built over schema, which schema
+// keeps, so that a schema read once more costs no lookup, or, for the rest of
+// an allOf entry (restOf), one listing its own allOf and no reference. A nil
+// schema reads as Unwritten, and so does one no table read, which holds no
+// value. schema is one t read: a schema another table built a statement over
+// keeps that statement, whichever table is asked.
 func (t *MemoizingSchemaReader) Read(schema *Schema) *Statement {
 	switch {
 	case schema == nil:
@@ -88,10 +89,10 @@ func (t *MemoizingSchemaReader) Read(schema *Schema) *Statement {
 
 // readKeys places each key schema's node writes, in the order the parser holds
 // them (nodeview.View.MappingPairs), in the slot rules give it, marks those
-// schema.Unknown lists, the keys the parser's model holds no field for, and marks schema
-// Truncated where its merges run past nodeview.MergeDepthLimit. Past
-// indexAbove keys it indexes them first, so that marking, and every later Key,
-// finds a key without scanning.
+// schema.Unknown lists, the keys the parser's model holds no field for, and
+// marks schema Truncated where its merges run past nodeview.MergeDepthLimit.
+// Past indexAbove keys it indexes them first, so that marking, and every later
+// Key, finds a key without scanning.
 func readKeys(schema *Schema, rules specrules.SchemaRules) {
 	view := nodeview.New()
 	pairs := view.MappingPairs(schema.Node)
@@ -112,8 +113,8 @@ func readKeys(schema *Schema, rules specrules.SchemaRules) {
 	}
 }
 
-// index maps each key of schema to its place, past indexAbove keys, and leaves schema
-// none at or below it.
+// index maps each key of schema to its place, past indexAbove keys, and leaves
+// schema none at or below it.
 func index(schema *Schema) {
 	schema.index = nil
 	if len(schema.Keys) <= indexAbove {
@@ -167,8 +168,8 @@ func (t *MemoizingSchemaReader) flatten(st *Statement) {
 	}
 }
 
-// conjoins reports whether schema writes a reference and a key beside it that it
-// reads. JSON Schema applies the keywords beside a $ref to the instance with
+// conjoins reports whether schema writes a reference and a key beside it that
+// it reads. JSON Schema applies the keywords beside a $ref to the instance with
 // it (Core 2020-12 §8.2.3.1), so schema says what an allOf of the two says: the
 // reference is one conjunct and the rest another
 // (docs/compilers/openapi.md#ref-use-site). A reference merged in past
@@ -180,9 +181,9 @@ func conjoins(schema *Schema) bool {
 	return slices.ContainsFunc(schema.Keys, func(key Key) bool { return ReadBeside(key.Name, key.Node, schema.Ref.Keyword) })
 }
 
-// failedEntry reports whether schema, writing a reference, is an allOf entry whose
-// reference the bindings read as ending on no schema. Such an entry is read
-// whole: nothing reads what it writes beside the reference, which the
+// failedEntry reports whether schema, writing a reference, is an allOf entry
+// whose reference the bindings read as ending on no schema. Such an entry is
+// read whole: nothing reads what it writes beside the reference, which the
 // composition keeps as the entry wrote it
 // (docs/compilers/openapi.md#allof-inline-residue). Written anywhere else, the
 // same object conjoins, as `{allOf: [{$ref: …}], …}` does.
@@ -201,8 +202,8 @@ func failedEntry(schema *Schema) bool {
 	return err == nil
 }
 
-// refKey returns the place in schema, which writes a reference, of the key naming
-// it, and false where none does: the model holds a $ref merged in past
+// refKey returns the place in schema, which writes a reference, of the key
+// naming it, and false where none does: the model holds a $ref merged in past
 // nodeview.MergeDepthLimit, which schema's keys do not list (Truncated).
 func refKey(schema *Schema) (int, bool) {
 	i, _ := schema.find(schema.Ref.Keyword)
@@ -250,8 +251,9 @@ func (t *MemoizingSchemaReader) restOf(schema *Schema) *Schema {
 	return otherSchema
 }
 
-// lessReference returns a copy of schema, which conjoins, holding every key but the
-// one writing its reference, and every slot it fills. It shares schema's values.
+// lessReference returns a copy of schema, which conjoins, holding every key but
+// the one writing its reference, and every slot it fills. It shares schema's
+// values.
 func lessReference(schema *Schema) *Schema {
 	schemaValue := *schema
 	schemaValue.Ref, schemaValue.of = nil, nil
@@ -282,8 +284,8 @@ func (t *MemoizingSchemaReader) reference(schema *Schema) *Schema {
 	return otherSchema
 }
 
-// open makes schema's struct of slot, where it has none yet: a key of the slot's
-// keywords opens it, whether or not its value is read.
+// open makes schema's struct of slot, where it has none yet: a key of the
+// slot's keywords opens it, whether or not its value is read.
 func open(schema *Schema, slot specrules.Slot) {
 	switch {
 	case slot == specrules.SlotKinds && schema.Kinds == nil:

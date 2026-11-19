@@ -63,30 +63,30 @@ type CheckMessage struct {
 }
 
 type EmitterInput struct {
-    Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
-    Facts   *irfacts.DocumentFacts        // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
-    Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (../plan/overview.md)
-    Policy  policy.Resolved       // runtime/SDK behavior per operation, its layers resolved —
-                                  // a SEPARATE tree, never in the IR (INV10; runtime-policy.md,
-                                  // embedded-policy.md)
+    Doc     *ir.Document           // the ABI — the ONLY structural input (INV1)
+    Facts   *irfacts.DocumentFacts // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
+    Plan    *plan.Plan             // language-neutral decisions, computed ONCE by the engine (../plan/overview.md)
+    Policy  policy.Resolved        // runtime/SDK behavior per operation, its layers resolved —
+                                   // a SEPARATE tree, never in the IR (INV10; runtime-policy.md,
+                                   // embedded-policy.md)
     Hints   map[EntityID]ShapeHint// SDK-shaping hints keyed by IR stable ID, their layers resolved
-                                  // (shaping-hints.md)
-    Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
-                                  // consumed so global decisions stay byte-identical
-    Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
-    Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
-                                  // one no pass sliced by version, a document stating none among
-                                  // them (../docs-and-mock.md#routes-and-links)
+                                   // (shaping-hints.md)
+    Scope   *Scope                 // nil = whole document; else "emit only these" — full Doc still
+                                   // consumed so global decisions stay byte-identical
+    Prior   *PriorState            // prior manifest + prior surface for write/integrate; nil first run
+    Snapshot string                // the label Document.Versions gives the snapshot Doc is; "" for
+                                   // one no pass sliced by version, a document stating none among
+                                   // them (../docs-and-mock.md#routes-and-links)
     Samples map[TargetKey]map[ir.OperationID][]Sample // the usage samples of each target a docs
-                                  // target's options name
-                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
-    Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
-                                  // Document.Versions gives it, "" for one no pass sliced,
-                                  // for a target whose Capabilities.CrossVersion is set
-                                  // (../docs-and-mock.md#routes-and-links)
-    Options TargetOptions         // the target's own typed options, decoded and validated before
-                                  // Generate runs, its type table and naming tables among them
-                                  // (options.md, type-table.md, ../refine/naming.md)
+                                   // target's options name
+                                   // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    Routes  map[string]RouteTable  // every version snapshot's routes, keyed by the label
+                                   // Document.Versions gives it, "" for one no pass sliced,
+                                   // for a target whose Capabilities.CrossVersion is set
+                                   // (../docs-and-mock.md#routes-and-links)
+    Options TargetOptions          // the target's own typed options, decoded and validated before
+                                   // Generate runs, its type table and naming tables among them
+                                   // (options.md, type-table.md, ../refine/naming.md)
 }
 
 type EmitterOutput struct {
@@ -162,9 +162,9 @@ language. Plan policy is document-level, not per-target — the plan is language
 definition, so there is nothing per-language to vary in it. A single-target invocation may compute
 the plan inline; the function is the same.
 
-The derived facts work the same way. The engine builds one `irfacts.DocumentFacts` for the document once the
-last pass has run, since an index answers for the document it was built from and a pass may change
-it ([derived-facts](../../ir/derived-facts.md)), and hands that index to `plan.Build` and, as
+The derived facts work the same way. The engine builds one `irfacts.DocumentFacts` for the document
+once the last pass has run, since an index answers for the document it was built from and a pass may
+change it ([derived-facts](../../ir/derived-facts.md)), and hands that index to `plan.Build` and, as
 `EmitterInput.Facts`, to every `Generate`. So the strongly connected components a refiner reads to
 break a recursive reference ([recursive references](../refine/models.md#recursive-references)) are
 found once per document, not once per target. An index is safe for concurrent use, so targets

@@ -1380,8 +1380,8 @@ func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"NullableWithCombinators announces the keyword it passed over and that its unions share no value")
 }
 
-// assertKeptRaw requires unmodeled to hold key under ReasonDegradedLowering with the
-// given JSON payload.
+// assertKeptRaw requires unmodeled to hold key under ReasonDegradedLowering
+// with the given JSON payload.
 func assertKeptRaw(t *testing.T, unmodeled ir.Unmodeled, key, want string) {
 	t.Helper()
 	entry := unmodeledEntry(t, unmodeled, key)

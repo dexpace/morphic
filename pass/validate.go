@@ -57,9 +57,9 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 		return nil, nil
 	}
 	doc, refused := withoutEmptyKeys(doc)
-	// One walk reads what the reference, PropertyID and parameter checks need, and
-	// asks ctx as it goes. checkParams leaves to the dangling check exactly what
-	// it reports.
+	// One walk reads what the reference, PropertyID and parameter checks need,
+	// and asks ctx as it goes. checkParams leaves to the dangling check exactly
+	// what it reports.
 	read, err := walkDocument(ctx, doc, walk)
 	if err != nil {
 		return nil, err

@@ -63,8 +63,9 @@ func electTypeSpelling(serviceContext service.Ctx, loweringState operationLoweri
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
-	// chooseSingleContentEntry takes it, and passedOverEntries keeps and reports what a
-	// document declares beyond it, rather than dropping that in silence (GitHub
+	// chooseSingleContentEntry takes it, and passedOverEntries keeps and
+	// reports what a document declares beyond it, rather than dropping that in
+	// silence (GitHub
 	// #139).
 	var diags []ir.Diagnostic
 	mt, media, ok := chooseSingleContentEntry(content)
@@ -138,8 +139,8 @@ func passedOverSpelling(serviceContext service.Ctx, unmodeled *ir.Unmodeled, roo
 			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
-// chooseSingleContentEntry returns the one entry a content-style header or parameter
-// lowers through, or false where no entry holds one.
+// chooseSingleContentEntry returns the one entry a content-style header or
+// parameter lowers through, or false where no entry holds one.
 //
 // OpenAPI requires exactly one entry at both positions, and ir.Property and
 // ir.Parameter each hold a single type, so a document declaring more needs an
@@ -210,11 +211,11 @@ func namedEntries(keys []string) string {
 // byKey orders two pairs of one mapping, whose keys differ.
 func byKey(a, b nodeview.Pair) int { return strings.Compare(a.Key, b.Key) }
 
-// contentEntryFields returns everything the Media Type Object mediaDeclValue declares at a
-// parameter's or header's elected `content` position beyond the one type that
-// position lowers: its example/examples, its x-* and undeclared keys, and the
-// fields contentOnlyFields names, none of which may vanish without a
-// diagnostic (GitHub #611).
+// contentEntryFields returns everything the Media Type Object mediaDeclValue
+// declares at a parameter's or header's elected `content` position beyond the
+// one type that position lowers: its example/examples, its x-* and undeclared
+// keys, and the fields contentOnlyFields names, none of which may vanish
+// without a diagnostic (GitHub #611).
 //
 // scope is the content entry's own path, so several media types and the
 // enclosing object cannot collide on one key. carrier and home name the

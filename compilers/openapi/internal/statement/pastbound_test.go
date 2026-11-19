@@ -91,7 +91,8 @@ func pastBoundReports(diags []ir.Diagnostic, pointer string) int {
 	return n
 }
 
-// withoutReport returns compiledPValue without the warning that P merges past the bound.
+// withoutReport returns compiledPValue without the warning that P merges past
+// the bound.
 func withoutReport(compiledPValue compiledP) compiledP {
 	compiledPValue.diags = slices.DeleteFunc(slices.Clone(compiledPValue.diags), func(d string) bool {
 		return strings.Contains(d, pastBoundReport)

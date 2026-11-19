@@ -19,13 +19,13 @@ const idempotencyKeyHeader = "Idempotency-Key"
 // names no constant for.
 const methodQuery = "QUERY"
 
-// idempotency names op's idempotency token, and marks op, under the
-// idempotency policy, where op states no idempotency, is bound to HTTP once, by
-// a method RFC 9110 does not define as safe, and binds exactly one header
-// parameter under idempotencyKeyHeader, compared without case. A safe method
-// states op's idempotency itself, so the header is not read there; a method
-// whose safety the compiler does not know, and the header bound twice, are
-// reported as undecided. compiledDocumentView is the document holding op. The rule is
+// idempotency names op's idempotency token, and marks op, under the idempotency
+// policy, where op states no idempotency, is bound to HTTP once, by a method
+// RFC 9110 does not define as safe, and binds exactly one header parameter
+// under idempotencyKeyHeader, compared without case. A safe method states op's
+// idempotency itself, so the header is not read there; a method whose safety
+// the compiler does not know, and the header bound twice, are reported as
+// undecided. compiledDocumentView is the document holding op. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
 func idempotency(policy IdempotencyInference, compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
 	if !policy.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||

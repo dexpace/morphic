@@ -132,11 +132,11 @@ func modelWithProp(id ir.TypeID, prop ir.Property) *ir.Model {
 	return &ir.Model{ID: id, Properties: []ir.Property{prop}}
 }
 
-// TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID is what the class-wide
-// skip hid alongside the copies above: two properties that are not copies of one
-// declaration, minted at one ID. Every PropertyID lookup downstream then resolves to
-// whichever the reader reaches first, with nothing in the document saying which
-// that is.
+// TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID is what the
+// class-wide skip hid alongside the copies above: two properties that are not
+// copies of one declaration, minted at one ID. Every PropertyID lookup
+// downstream then resolves to whichever the reader reaches first, with nothing
+// in the document saying which that is.
 //
 // One subtest per fingerprint component, because a component the fingerprint
 // stopped reading would leave that pair silently indistinguishable — and this
@@ -196,9 +196,9 @@ func TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean(t *testi
 }
 
 // TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty pins what a later
-// property on a PropertyID is compared with: the first one the walk meets, and not
-// the one met just before it, nor the PropertyID as a whole. Each copy and each
-// difference is placed by its own path, in the walk's order of the models.
+// property on a PropertyID is compared with: the first one the walk meets, and
+// not the one met just before it, nor the PropertyID as a whole. Each copy and
+// each difference is placed by its own path, in the walk's order of the models.
 func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
 	t.Parallel()
 	const dup ir.PropertyID = "property/x/dup"
@@ -259,9 +259,9 @@ func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
 
 // TestPropIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs leans on
 // when it lets a repeated PropertyID through: every node declaring one is an
-// ir.Property, the one node it fingerprints. A second node declaring a PropertyID
-// would repeat it unfingerprinted and pass for a copy, so adding one reddens
-// this, for the check to decide what tells two of them apart.
+// ir.Property, the one node it fingerprints. A second node declaring a
+// PropertyID would repeat it unfingerprinted and pass for a copy, so adding one
+// reddens this, for the check to decide what tells two of them apart.
 func TestPropIDs_AreDeclaredByPropertiesAlone(t *testing.T) {
 	t.Parallel()
 	var declaring []string
@@ -291,10 +291,10 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 // holds it to being declared once.
 //
 // Both checkers reach a reference by its Go type, so a class nothing resolves
-// against goes unchecked in silence, as every OperationID and ServiceID reference once
-// did (GitHub #50). Nothing derives the answer: a class with no map looks like
-// one nobody has reached, and an enum looks like an identity. The test below
-// fails when ir grows a type this does not account for.
+// against goes unchecked in silence, as every OperationID and ServiceID
+// reference once did (GitHub #50). Nothing derives the answer: a class with no
+// map looks like one nobody has reached, and an enum looks like an identity.
+// The test below fails when ir grows a type this does not account for.
 var identityClasses = map[string]string{
 	"TypeID":       "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
 	"ChannelID":    "identity: Document.Channels keys it; resolved and held as TypeID is",

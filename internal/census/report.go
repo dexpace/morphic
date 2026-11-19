@@ -31,8 +31,8 @@ func (c *Census) Report() string {
 	return b.String()
 }
 
-// writeValues writes the value lines of the enumeration enumerationValue: every value it
-// declares and every other value a document held.
+// writeValues writes the value lines of the enumeration enumerationValue: every
+// value it declares and every other value a document held.
 func (c *Census) writeValues(b *strings.Builder, enumerationValue *enumeration) {
 	values := maps.Clone(enumerationValue.declared)
 	for valueKey, v := range c.undeclared {

@@ -141,10 +141,10 @@ func appendExampleData(serviceContext service.Ctx, out []ir.Example, proto ir.Ex
 }
 
 // keepExampleSpelling keeps the node an Example Object writes under keyword
-// verbatim on unmodeled, at the keyword's own pointer beneath decl, and announces it
-// with why. node is the parser's own reading of the field, so a value merged in
-// through `<<` is kept like one written directly. It reports whether anything
-// was kept.
+// verbatim on unmodeled, at the keyword's own pointer beneath decl, and
+// announces it with why. node is the parser's own reading of the field, so a
+// value merged in through `<<` is kept like one written directly. It reports
+// whether anything was kept.
 func keepExampleSpelling(serviceContext service.Ctx, unmodeled *ir.Unmodeled, node *yaml.Node, keyword string,
 	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
 ) (bool, []ir.Diagnostic) {

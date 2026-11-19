@@ -180,13 +180,13 @@ func electsOneOfPair(loweringContext lowering.Ctx, schema *statement.Schema) boo
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
-// unionBranches elects of schema at position is a null branch (nullBranch). nullUnionCollapse has no
-// non-null branch to collapse a set like this onto, so without this check
-// lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
-// and interns a Union with none left — the empty value space irverify's
-// ir/union-no-variants rejects (GitHub #416). The branch set still admits
-// exactly one value, the one a schema of null alone at this position admits,
-// so lowerOneOfAnyOf lowers it the same way instead.
+// unionBranches elects of schema at position is a null branch (nullBranch).
+// nullUnionCollapse has no non-null branch to collapse a set like this onto, so
+// without this check lowerOneOfAnyOf's buildUnion fallback strips every branch
+// as a null marker and interns a Union with none left — the empty value space
+// irverify's ir/union-no-variants rejects (GitHub #416). The branch set still
+// admits exactly one value, the one a schema of null alone at this position
+// admits, so lowerOneOfAnyOf lowers it the same way instead.
 func allNullUnion(loweringContext lowering.Ctx, position, schema *statement.Schema) bool {
 	variants, _, _ := unionBranches(loweringContext, position, schema)
 	return len(variants) > 0 && !slices.ContainsFunc(variants, func(subschema statement.Subschema) bool {
@@ -217,9 +217,9 @@ func lowerNullOnlyUnion(loweringContext lowering.Ctx, ts *compile.Types, schema 
 	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(loweringContext, st.position(schema), schema, pointer))
 }
 
-// preserveNullOnlyUnion keeps schema's oneOf/anyOf verbatim under the Unmodeled of
-// td, in hand, the node lowerNullOnlyUnion built, an Enum with no member, which
-// holds no branch set of its own, and reports what it kept.
+// preserveNullOnlyUnion keeps schema's oneOf/anyOf verbatim under the Unmodeled
+// of td, in hand, the node lowerNullOnlyUnion built, an Enum with no member,
+// which holds no branch set of its own, and reports what it kept.
 func preserveNullOnlyUnion(loweringContext lowering.Ctx, td ir.TypeDef, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(loweringContext, &td.Common().Unmodeled, schema, ir.ReasonDegradedLowering, pointer)
 	if len(kept) == 0 {
@@ -233,12 +233,13 @@ func preserveNullOnlyUnion(loweringContext lowering.Ctx, td ir.TypeDef, schema *
 			"behind a nullable reference; %s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
 }
 
-// preserveBranchSets stores schema's declared oneOf/anyOf verbatim under unmodeled, in
-// keyword order, reporting one it cannot convert. ir.ReasonValidationOnly
-// routes each through the validation-only keyword-family reporting
-// (annotation.PreserveValidationOnlyKeyword) and returns no keywords. Every
-// other reason keeps each plainly (annotation.PreserveSchemaKeyword) and returns
-// the keywords kept, so a caller with a message of its own knows what to name.
+// preserveBranchSets stores schema's declared oneOf/anyOf verbatim under
+// unmodeled, in keyword order, reporting one it cannot convert.
+// ir.ReasonValidationOnly routes each through the validation-only
+// keyword-family reporting (annotation.PreserveValidationOnlyKeyword) and
+// returns no keywords. Every other reason keeps each plainly
+// (annotation.PreserveSchemaKeyword) and returns the keywords kept, so a caller
+// with a message of its own knows what to name.
 //
 // preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop: they keep
 // the same keywords because the node they attach to has no branch set of its
@@ -314,9 +315,9 @@ func (u unionAt) branches(loweringContext lowering.Ctx) ([]statement.Subschema, 
 	return unionBranches(loweringContext, u.schema, u.holder)
 }
 
-// restKeepsNull returns whether what unionAtValue's position writes but unionAtValue's own union
-// keeps null out (restForbidsNull), read on first asking: most unions hold no
-// variant admitting null.
+// restKeepsNull returns whether what unionAtValue's position writes but
+// unionAtValue's own union keeps null out (restForbidsNull), read on first
+// asking: most unions hold no variant admitting null.
 func restKeepsNull(loweringContext lowering.Ctx, unionAtValue unionAt) func() bool {
 	var read, forbids bool
 	return func() bool {
@@ -352,8 +353,9 @@ func restForbidsNull(loweringContext lowering.Ctx, body, holder *statement.Schem
 var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 
 // preserveUnusedCombinator keeps the branch set unionBranches passed over in
-// unionAtValue's holder verbatim on the Union the position lowers to, and reports it. A
-// holder declaring only one combinator passes over nothing and is left alone.
+// unionAtValue's holder verbatim on the Union the position lowers to, and
+// reports it. A holder declaring only one combinator passes over nothing and is
+// left alone.
 //
 // A schema writing both conjoins them, but one ir.Union carries one branch set,
 // so the other stays recoverable beside the elected one
@@ -449,12 +451,13 @@ func buildUnion(loweringContext lowering.Ctx, ts *compile.Types, unionAtValue un
 	return node, diags
 }
 
-// keepBranchDiscriminatorKeys keeps on union, the Union of unionAtValue, what the discriminator
-// unionAtValue's allOf branch writes says that reaches no field: its extensions and the
-// keys OpenAPI defines for no Discriminator Object. A schema's own are read onto
-// its position's node (annotation.Read), and a branch has no node, so they ride
-// on the node holding the discriminator, scoped by their path from it where they
-// lie beneath it (annotation.SchemaExtensions).
+// keepBranchDiscriminatorKeys keeps on union, the Union of unionAtValue, what
+// the discriminator unionAtValue's allOf branch writes says that reaches no
+// field: its extensions and the keys OpenAPI defines for no Discriminator
+// Object. A schema's own are read onto its position's node (annotation.Read),
+// and a branch has no node, so they ride on the node holding the discriminator,
+// scoped by their path from it where they lie beneath it
+// (annotation.SchemaExtensions).
 func keepBranchDiscriminatorKeys(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
 	if !unionAtValue.branch || unionAtValue.disc == nil || unionAtValue.discAt != unionAtValue.at {
 		return nil
@@ -467,9 +470,9 @@ func keepBranchDiscriminatorKeys(loweringContext lowering.Ctx, union *ir.Union, 
 	return diags
 }
 
-// discriminatorScope is where the discriminator standing with unionAtValue is written,
-// and the scope what a node at pointer keeps of it is keyed by: its path
-// beneath pointer, or `discriminator` where it is not beneath it.
+// discriminatorScope is where the discriminator standing with unionAtValue is
+// written, and the scope what a node at pointer keeps of it is keyed by: its
+// path beneath pointer, or `discriminator` where it is not beneath it.
 func discriminatorScope(unionAtValue unionAt, pointer jsontext.Pointer) (jsontext.Pointer, string) {
 	owner := unionAtValue.discAt + ids.Ptr("discriminator")
 	if rest, beneath := strings.CutPrefix(string(owner), string(pointer)+"/"); beneath {
@@ -538,15 +541,15 @@ type branchUnionIndex struct {
 	ok    bool
 }
 
-// branchUnion returns the union an inline branch of schema's allOf writes that schema,
-// written at pointer, conjoins with the rest of its composition, as it would
-// the same union written beside the allOf
+// branchUnion returns the union an inline branch of schema's allOf writes that
+// schema, written at pointer, conjoins with the rest of its composition, as it
+// would the same union written beside the allOf
 // (docs/compilers/openapi.md#union-beside-structure), with the discriminator
 // written on the branch, else beside the allOf, and how the position lowers it:
 // unionSharesNoKind where the unions its entries write share no kind with the
 // rest (unionApart), else as classifyConjoined says. ok is false where the
-// union stays with its branch, as for the base of a hierarchy the
-// discriminator routes.
+// union stays with its branch, as for the base of a hierarchy the discriminator
+// routes.
 func branchUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
 	at := branchUnionIndexOf(loweringContext, schema)
 	if !at.ok {
@@ -565,21 +568,21 @@ func branchUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer
 	return unionAtValue, how, how == unionDistributed || how == unionRoutedSubtype
 }
 
-// branchUnionIndexOf returns findBranchUnion's reading of schema, read once a run, as
-// every reader of a position schema is written at, and of a hierarchy schema is the base
-// of, asks.
+// branchUnionIndexOf returns findBranchUnion's reading of schema, read once a
+// run, as every reader of a position schema is written at, and of a hierarchy
+// schema is the base of, asks.
 func branchUnionIndexOf(loweringContext lowering.Ctx, schema *statement.Schema) branchUnionIndex {
 	return lowering.ReadOncePerRun(loweringContext, branchUnionOf{schema}, func() branchUnionIndex { return findBranchUnion(loweringContext, schema) })
 }
 
-// findBranchUnion is branchUnion's reading of schema alone: where schema lowers its
-// allOf, composing, not refining, the branch whose union declares shape
-// against schema without any entry's union, within the flattening depth, each $ref
-// branch naming a referent. Of several, the one writing a oneOf, each other
-// kept on every variant; two writing a oneOf, or several anyOfs, leave none,
-// in any order. One declaring no shape stays residue. A discriminator on both
-// schema and the branch leaves none: nothing says which routes it. A $ref site or a
-// union beside the allOf lowers first.
+// findBranchUnion is branchUnion's reading of schema alone: where schema lowers
+// its allOf, composing, not refining, the branch whose union declares shape
+// against schema without any entry's union, within the flattening depth, each
+// $ref branch naming a referent. Of several, the one writing a oneOf, each
+// other kept on every variant; two writing a oneOf, or several anyOfs, leave
+// none, in any order. One declaring no shape stays residue. A discriminator on
+// both schema and the branch leaves none: nothing says which routes it. A $ref
+// site or a union beside the allOf lowers first.
 func findBranchUnion(loweringContext lowering.Ctx, schema *statement.Schema) branchUnionIndex {
 	if declaresUnion(schema) || dispatchOf(schema).won != "allOf" {
 		return branchUnionIndex{}

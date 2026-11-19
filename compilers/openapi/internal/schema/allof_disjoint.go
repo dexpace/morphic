@@ -43,9 +43,10 @@ type conjunctAtom struct {
 // noValue is how a disjoint report names a conjunct admitting no value at all.
 const noValue = "no value"
 
-// disjointNames names what each conjunct of comp, the allOf schema writes, states
-// where they share no value: what their kinds leave (disjointAtoms), else,
-// where those share a kind, what the election found apart (conjunctsApart).
+// disjointNames names what each conjunct of comp, the allOf schema writes,
+// states where they share no value: what their kinds leave (disjointAtoms),
+// else, where those share a kind, what the election found apart
+// (conjunctsApart).
 func disjointNames(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) []string {
 	if names := disjointAtoms(loweringContext, schema, conjunctAtoms(loweringContext, schema, comp)); len(names) > 0 {
 		return names
@@ -53,11 +54,11 @@ func disjointNames(loweringContext lowering.Ctx, schema *statement.Schema, comp 
 	return conjunctsApart(loweringContext, schema)
 }
 
-// conjunctsApart names what each conjunct of the allOf schema writes states where
-// the election reads them sharing no value though their kinds share one, as
-// two enums sharing no member do: a value set by its member count
-// (decision.apart). A null they share (nullShared) is a value, so it names
-// none there.
+// conjunctsApart names what each conjunct of the allOf schema writes states
+// where the election reads them sharing no value though their kinds share one,
+// as two enums sharing no member do: a value set by its member count
+// (decision.apart). A null they share (nullShared) is a value, so it names none
+// there.
 func conjunctsApart(loweringContext lowering.Ctx, schema *statement.Schema) []string {
 	names := decisionOf(loweringContext, schema).apart
 	if len(names) == 0 {
@@ -69,12 +70,12 @@ func conjunctsApart(loweringContext lowering.Ctx, schema *statement.Schema) []st
 	return names
 }
 
-// apartNames names what each conjunct of schema, read as the election reads them,
-// states where their reads share no value at all, the null included, joint
-// being what they admit together: a value set by its member count, any other
-// conjunct by the kinds and formats it admits, one admitting every kind left
-// out, listed by what each states, so no order written orders them. It names
-// none where a conjunct admits no value by itself, which its own schema
+// apartNames names what each conjunct of schema, read as the election reads
+// them, states where their reads share no value at all, the null included,
+// joint being what they admit together: a value set by its member count, any
+// other conjunct by the kinds and formats it admits, one admitting every kind
+// left out, listed by what each states, so no order written orders them. It
+// names none where a conjunct admits no value by itself, which its own schema
 // reports where it is written, or fewer than two are named.
 func apartNames(schema *statement.Schema, comp allOfComposition, conjuncts []conjunct, joint admitted) []string {
 	if joint.reachable() {
@@ -100,8 +101,8 @@ func apartNames(schema *statement.Schema, comp allOfComposition, conjuncts []con
 	return names
 }
 
-// conjunctName is how a disjoint report names cj, a conjunct of comp, the
-// allOf schema writes, as conjunctAtoms names one: the keywords beside the allOf by
+// conjunctName is how a disjoint report names cj, a conjunct of comp, the allOf
+// schema writes, as conjunctAtoms names one: the keywords beside the allOf by
 // the value set or the type they write, a branch by its path, a $ref written
 // beside other keys by its own.
 func conjunctName(schema *statement.Schema, comp allOfComposition, cj conjunct) string {
@@ -146,11 +147,11 @@ func readWords(read admitted) string {
 	}
 }
 
-// contradictionShape describes what the refinement refinementValue of schema, whose conjuncts
-// share no value, lowered as, for diagDisjointConjuncts: the value set elected
-// before them, else the union an inline principal writes, else what the
-// keywords beside the allOf write, a family or a type, else the top type,
-// where they write neither.
+// contradictionShape describes what the refinement refinementValue of schema,
+// whose conjuncts share no value, lowered as, for diagDisjointConjuncts: the
+// value set elected before them, else the union an inline principal writes,
+// else what the keywords beside the allOf write, a family or a type, else the
+// top type, where they write neither.
 func contradictionShape(refinementValue refinement, schema *statement.Schema) string {
 	if won := electedSet(refinementValue, schema); won != "" {
 		return "the " + won + " it lowered as"
@@ -206,14 +207,14 @@ func disjointAtoms(loweringContext lowering.Ctx, schema *statement.Schema, atoms
 	return names
 }
 
-// conjunctAtoms returns the conjuncts of comp, in order: the `type` schema writes
-// beside it, the value set it writes there (valueSetAtom), each union schema writes
-// beside it that shares no kind with the rest (unionAside) or declares no
-// shape, else the one it passes over (passedOver), and each flattened branch:
-// a wrapper by its own `type`, an entry nested past statement.MaxFlattenDepth
-// as cut, an inline entry writing two unions as the one it elects and the
-// other, and a $ref entry writing keywords that narrow what it admits as the
-// reference and the keywords beside it.
+// conjunctAtoms returns the conjuncts of comp, in order: the `type` schema
+// writes beside it, the value set it writes there (valueSetAtom), each union
+// schema writes beside it that shares no kind with the rest (unionAside) or
+// declares no shape, else the one it passes over (passedOver), and each
+// flattened branch: a wrapper by its own `type`, an entry nested past
+// statement.MaxFlattenDepth as cut, an inline entry writing two unions as the
+// one it elects and the other, and a $ref entry writing keywords that narrow
+// what it admits as the reference and the keywords beside it.
 func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) []conjunctAtom {
 	out := make([]conjunctAtom, 0, 4+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(schema), words: schema})
@@ -251,12 +252,12 @@ func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp 
 	return out
 }
 
-// refinedAtoms returns the conjuncts of refinementValue's composition as conjunctAtoms reads
-// them, but for an inline principal lowering to a value set whose keywords
-// leave it no kind, which is read as the same keywords beside the allOf are:
-// its `type`, its set and each union it writes, a set holding no value its own
-// type admits saying so where it is written (valueSetAtom), as the election of
-// competing keywords lowers it there (setElected).
+// refinedAtoms returns the conjuncts of refinementValue's composition as
+// conjunctAtoms reads them, but for an inline principal lowering to a value set
+// whose keywords leave it no kind, which is read as the same keywords beside
+// the allOf are: its `type`, its set and each union it writes, a set holding no
+// value its own type admits saying so where it is written (valueSetAtom), as
+// the election of competing keywords lowers it there (setElected).
 func refinedAtoms(loweringContext lowering.Ctx, schema *statement.Schema, refinementValue refinement) []conjunctAtom {
 	atoms := conjunctAtoms(loweringContext, schema, refinementValue.comp)
 	allOfBranch, ok := valueSetPrincipal(refinementValue)
@@ -279,12 +280,13 @@ func refinedAtoms(loweringContext lowering.Ctx, schema *statement.Schema, refine
 	return slices.Concat(atoms[:at], own, atoms[at+1:])
 }
 
-// valueSetAtom returns the enum or the const schema writes beside its allOf as a
-// conjunct, as one an entry writes is (docs/compilers/openapi.md#allof-refinement):
-// the kinds its members leave, null aside (valueKinds), its read cut where no
-// reading converts them, and false where schema writes neither. It is written at schema,
-// whose report that the set holds no value its type admits leaves this report
-// none to make (toldWhereWritten).
+// valueSetAtom returns the enum or the const schema writes beside its allOf as
+// a conjunct, as one an entry writes is
+// (docs/compilers/openapi.md#allof-refinement): the kinds its members leave,
+// null aside (valueKinds), its read cut where no reading converts them, and
+// false where schema writes neither. It is written at schema, whose report that
+// the set holds no value its type admits leaves this report none to make
+// (toldWhereWritten).
 func valueSetAtom(loweringContext lowering.Ctx, schema *statement.Schema) (conjunctAtom, bool) {
 	name, members := "enum", schema.Enum()
 	switch {
@@ -338,9 +340,10 @@ func toldWhereWritten(loweringContext lowering.Ctx, st *statement.Statement) boo
 	return false
 }
 
-// conjunctsShareNothing reports whether the conjuncts of the allOf schema writes,
-// read as a disjoint report reads them, share no kind. A read cut short admits
-// more than the schema does, never less, so it never makes them share nothing.
+// conjunctsShareNothing reports whether the conjuncts of the allOf schema
+// writes, read as a disjoint report reads them, share no kind. A read cut short
+// admits more than the schema does, never less, so it never makes them share
+// nothing.
 func conjunctsShareNothing(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	at, _ := siteOf(schema)
 	joint := anyInstance
@@ -350,9 +353,9 @@ func conjunctsShareNothing(loweringContext lowering.Ctx, schema *statement.Schem
 	return joint == 0
 }
 
-// electedAtom is the inline entry allOfBranchValue of schema's allOf, named name, writing two
-// unions, as a conjunct beside the one it passes over: its own keywords and
-// the union it elects.
+// electedAtom is the inline entry allOfBranchValue of schema's allOf, named
+// name, writing two unions, as a conjunct beside the one it passes over: its
+// own keywords and the union it elects.
 func electedAtom(loweringContext lowering.Ctx, schema *statement.Schema, allOfBranchValue allOfBranch, name string, ref *statement.Statement) conjunctAtom {
 	admissionReader := newAdmissionReader(loweringContext)
 	elected, _, _ := unionBranches(loweringContext, schema, allOfBranchValue.schema.Schema)
@@ -377,8 +380,8 @@ func unionAtoms(loweringContext lowering.Ctx, keyword string, branches []stateme
 	return []conjunctAtom{atom}
 }
 
-// nullShared reports whether the conjuncts of the allOf schema writes may share a
-// null: each may admit it wherever the IR holds it, as mayAdmitNull reads it,
+// nullShared reports whether the conjuncts of the allOf schema writes may share
+// a null: each may admit it wherever the IR holds it, as mayAdmitNull reads it,
 // so one keeping it out, a union none of whose branches admits it among them,
 // leaves none to share. Where the read passes the walk's budget, which
 // conjuncts it reached would follow their order, so each is read on its own:
@@ -441,10 +444,10 @@ const composedShape = "a composition"
 // standing alone lowers to, for diagDisjointConjuncts.
 const unionShape = "the union it lowered as"
 
-// diagUnionsShareNothing is the warning schema, written at pointer and writing a
-// oneOf and an anyOf, draws where the two share no value (pairApart), a
-// null only where both may admit it, as the same two on its allOf's entries
-// draw (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
+// diagUnionsShareNothing is the warning schema, written at pointer and writing
+// a oneOf and an anyOf, draws where the two share no value (pairApart), a null
+// only where both may admit it, as the same two on its allOf's entries draw
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
 // keyword, and the position lowered as shape.
 func diagUnionsShareNothing(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
 	comp := allOfComposition{pointer: pointer}
@@ -482,13 +485,13 @@ func splitConjunctName(name string) (string, string) {
 // pairApartOf keys what pairApart read of a position.
 type pairApartOf struct{ s *statement.Schema }
 
-// pairApart names the oneOf and the anyOf written for the position schema, beside
-// its allOf or on its inline entries at any depth, where they share no value
-// as an admissionReader reads them, value sets included and a null only where
-// both admit it: each by where it is written and what it admits, nothing
+// pairApart names the oneOf and the anyOf written for the position schema,
+// beside its allOf or on its inline entries at any depth, where they share no
+// value as an admissionReader reads them, value sets included and a null only
+// where both admit it: each by where it is written and what it admits, nothing
 // being noValue, in the order every report names them (compareConjunctNames).
-// It is nil where they share one, the read is cut short, or no pair is
-// written. Read once a run, so every spelling reads one answer
+// It is nil where they share one, the read is cut short, or no pair is written.
+// Read once a run, so every spelling reads one answer
 // (docs/compilers/openapi.md#competing-keywords).
 func pairApart(loweringContext lowering.Ctx, schema *statement.Schema) []string {
 	return pairReadingOf(loweringContext, schema).apart

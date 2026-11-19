@@ -35,11 +35,11 @@ type bound struct {
 	others   Others
 }
 
-// bindTable resolves every $ref of the source in the compiler (internal/reftable),
-// never through the parser's resolver, which overflows the stack on a cycle of
-// schemas (docs/parser-library.md#schema-cycle-overflow) and reads a Reference
-// Object otherwise than RFC 6901 and the model do, by declaration order
-// (docs/parser-library.md#reference-object-cycle,
+// bindTable resolves every $ref of the source in the compiler
+// (internal/reftable), never through the parser's resolver, which overflows the
+// stack on a cycle of schemas (docs/parser-library.md#schema-cycle-overflow)
+// and reads a Reference Object otherwise than RFC 6901 and the model do, by
+// declaration order (docs/parser-library.md#reference-object-cycle,
 // docs/parser-library.md#trailing-empty-token,
 // docs/parser-library.md#duplicate-key). doc is the source's model, reader
 // reads other documents, or is nil, and dialectsValue reads each dialect's rows
@@ -150,8 +150,8 @@ func (m mediaFaults) diags(sites places, table *reftable.ReferenceTargetTable) [
 }
 
 // locate is reftable.Config.Locate for the source: the document uri names when
-// written in the one named base (componentlookup.Locate), named as bind names the
-// source when it is the source. A URL keeps its URL here, as an identifier
+// written in the one named base (componentlookup.Locate), named as bind names
+// the source when it is the source. A URL keeps its URL here, as an identifier
 // does: a caller's mapping is applied where the document is opened (mapTo).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
 	named, ok := refscope.Locate(uri, base)
@@ -161,10 +161,10 @@ func (s sourceDocument) locate(uri, base string) (string, bool) {
 	return s.nameOf(named), true
 }
 
-// mapTo is reftable.Config.Map for the source: where the document a located name
-// names is read, put where the caller mapped its URL (mapped) before anything
-// judges or reads it, or name itself. A URL a mapping puts at no location is
-// kept, and its read refused (external.unnamed).
+// mapTo is reftable.Config.Map for the source: where the document a located
+// name names is read, put where the caller mapped its URL (mapped) before
+// anything judges or reads it, or name itself. A URL a mapping puts at no
+// location is kept, and its read refused (external.unnamed).
 func (s sourceDocument) mapTo(name string) string {
 	if at, mapped, err := s.mapped(name); mapped && err == nil {
 		return s.nameOf(at)
@@ -190,9 +190,9 @@ func (s sourceDocument) nameOf(name string) string {
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
 // Reference Object's and then a schema's, at the $ref, in whichever document,
-// worded with the keyword it is written under (reftable.ReferenceSite.Keyword), so a chain
-// failing past its first hop is reported once, where it fails; each loop
-// of $refs once, where the table places it; and the budget or the merge
+// worded with the keyword it is written under (reftable.ReferenceSite.Keyword),
+// so a chain failing past its first hop is reported once, where it fails; each
+// loop of $refs once, where the table places it; and the budget or the merge
 // bound, if either stopped the reading.
 func bindingDiags(sites places, table *reftable.ReferenceTargetTable) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -269,9 +269,9 @@ func buildFailure(sites places, at, site reftable.DocumentPointer, name, kind st
 		"the $ref here reaches %s, where no %s could be built: %s", where, kind, err.Error())
 }
 
-// spellLoop names loop's members, in order: one in the document loop is reported in
-// by its pointer, and another document's by its pointer in that document's
-// name.
+// spellLoop names loop's members, in order: one in the document loop is
+// reported in by its pointer, and another document's by its pointer in that
+// document's name.
 func spellLoop(loop reftable.Loop, table *reftable.ReferenceTargetTable) string {
 	parts := make([]string, len(loop.Members))
 	for i, documentPointer := range loop.Members {
@@ -285,10 +285,10 @@ func spellLoop(loop reftable.Loop, table *reftable.ReferenceTargetTable) string 
 
 // document is reftable.Config.Open: the tree of the document named name, as a
 // reference in the document named from reads it, read once in the compile,
-// under its budgets (see externalReads.once), and prepared as the source is.
-// A name that is a URL (refscope.IsURL), spelled as it is located
-// (componentlookup.Locate), is read at that name; any other is read as the file it
-// names (see fileNamed).
+// under its budgets (see externalReads.once), and prepared as the source is. A
+// name that is a URL (refscope.IsURL), spelled as it is located
+// (componentlookup.Locate), is read at that name; any other is read as the file
+// it names (see fileNamed).
 func (e external) document(ctx context.Context, name, from string) (*yaml.Node, error) {
 	var a answer
 	if refscope.IsURL(name) {

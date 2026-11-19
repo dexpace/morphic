@@ -35,10 +35,11 @@ const (
 	float64Bits         = 64
 )
 
-// Admits reports whether value is a value of the primitive kind primitiveKind, judged exactly:
-// a bounded read of a number rather than a conversion, so an exponent no
-// machine type holds is refused, not overflowed. A kind with no judge admits
-// nothing, which keeps a value off a field it cannot be shown to fit.
+// Admits reports whether value is a value of the primitive kind primitiveKind,
+// judged exactly: a bounded read of a number rather than a conversion, so an
+// exponent no machine type holds is refused, not overflowed. A kind with no
+// judge admits nothing, which keeps a value off a field it cannot be shown to
+// fit.
 //
 // A null is not judged here: whether null is a value depends on the merged
 // field's nullability, not on a kind.
@@ -114,8 +115,9 @@ func admitsFormat(format string, value ir.Value) (admits, held bool) {
 	}
 }
 
-// decimalOf reads value as a number, reporting false for any other kind of value and
-// for a number no Decimal holds: reading that as zero would admit it everywhere.
+// decimalOf reads value as a number, reporting false for any other kind of
+// value and for a number no Decimal holds: reading that as zero would admit it
+// everywhere.
 func decimalOf(value ir.Value) (ir.Decimal, bool) {
 	if value.Kind != ir.ValueNumber {
 		return ir.Decimal{}, false
@@ -124,8 +126,8 @@ func decimalOf(value ir.Value) (ir.Decimal, bool) {
 	return decimal, err == nil
 }
 
-// inRange reports whether value is an integral number from lo to hi inclusive. An
-// end that reads as no number admits nothing.
+// inRange reports whether value is an integral number from lo to hi inclusive.
+// An end that reads as no number admits nothing.
 func inRange(value ir.Value, lo, hi ir.BigVal) bool {
 	decimal, ok := decimalOf(value)
 	low, lowErr := lo.Decimal()
@@ -149,11 +151,11 @@ func admitsDecimal128(value ir.Value) bool {
 	return digits <= decimal128Digits && decimal.Exponent() <= decimal128MaxMsdExp && lowest >= decimal128MinLowExp
 }
 
-// admitsFloat reports whether value rounds to a finite value of a binary float of
-// the given width, which strconv settles exactly: rounding is allowed, as
+// admitsFloat reports whether value rounds to a finite value of a binary float
+// of the given width, which strconv settles exactly: rounding is allowed, as
 // OpenAPI floats round, and a magnitude at or past the point where
-// round-to-nearest overflows is a range error. The float it returns is not kept,
-// so no value passes through one.
+// round-to-nearest overflows is a range error. The float it returns is not
+// kept, so no value passes through one.
 func admitsFloat(value ir.Value, bits int) bool {
 	decimal, ok := decimalOf(value)
 	if !ok {

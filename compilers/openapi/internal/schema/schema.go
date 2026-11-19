@@ -285,10 +285,11 @@ func (d *declaring) finish(td ir.TypeDef, _ keySet, held *principalKept) {
 	d.kept = keptOn(d.c, d.ts, d.s, d.target, d.pointer, td, held)
 }
 
-// keptOn keeps on td, in hand, the node the position schema, written at pointer,
-// lowered to target, stands at, what it keeps there: its census of a lowering
-// to a reference and the branches its refinement left (keepsAtOutcome). A
-// carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
+// keptOn keeps on td, in hand, the node the position schema, written at
+// pointer, lowered to target, stands at, what it keeps there: its census of a
+// lowering to a reference and the branches its refinement left
+// (keepsAtOutcome). A carrier keeps them where the position owns no node
+// (PreserveRefSiteKeywords).
 func keptOn(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
 	held *principalKept,
 ) []ir.Diagnostic {
@@ -361,8 +362,8 @@ func refinesToBranch(loweringContext lowering.Ctx, schema *statement.Schema, poi
 	return refines && refinement.principal != nil
 }
 
-// allOfComposes reports whether schema writes an allOf that composes rather than
-// refines, the one a union beside it distributes across or is kept beside.
+// allOfComposes reports whether schema writes an allOf that composes rather
+// than refines, the one a union beside it distributes across or is kept beside.
 func allOfComposes(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	if !writesConjuncts(schema) {
 		return false
@@ -381,9 +382,9 @@ func allOfComposes(loweringContext lowering.Ctx, schema *statement.Schema) bool 
 func lower(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	if st.of != nil {
-		// schema is the inline principal of the refinement st stands for, a wrapper's
-		// allOf being the position's conjuncts and no rival of its keywords
-		// (principalDispatch).
+		// schema is the inline principal of the refinement st stands for, a
+		// wrapper's allOf being the position's conjuncts and no rival of its
+		// keywords (principalDispatch).
 		return lowerElected(loweringContext, ts, depth, schema, pointer, dispatchOf(schema).besideAllOf(), fin, st)
 	}
 	dispatch, elected := electionOf(loweringContext, schema, pointer)
@@ -415,12 +416,13 @@ func lower(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *s
 	return reported(lowerPrincipal(loweringContext, ts, depth, schema, pointer, refinement, fin))
 }
 
-// refinedDisjoint reports the refinement refinementValue of schema whose union beside the allOf
-// shares no kind with the rest (unionAside), or whose conjuncts share no value
-// and lowered to the value set elected before them or to what the keywords
-// beside the allOf say (contradictionShape), at schema, as a composition reports
-// conjuncts sharing no value, standing being the node the position owns, nil
-// where it owns none, and held how its builder names it (refinedShape).
+// refinedDisjoint reports the refinement refinementValue of schema whose union
+// beside the allOf shares no kind with the rest (unionAside), or whose
+// conjuncts share no value and lowered to the value set elected before them or
+// to what the keywords beside the allOf say (contradictionShape), at schema, as
+// a composition reports conjuncts sharing no value, standing being the node the
+// position owns, nil where it owns none, and held how its builder names it
+// (refinedShape).
 func refinedDisjoint(loweringContext lowering.Ctx, schema *statement.Schema, refinementValue refinement, standing ir.TypeDef, held *principalKept) []ir.Diagnostic {
 	shape := refinedShape(loweringContext, schema, refinementValue.comp, refinementValue.principal, standing, held)
 	switch {
@@ -441,10 +443,10 @@ func refinedDisjoint(loweringContext lowering.Ctx, schema *statement.Schema, ref
 	return diagDisjointConjuncts(loweringContext, comp, shape)
 }
 
-// electionOf returns the election lower lowers schema by, written at pointer, and
-// false where an allOf refining it has a principal, which decides the position
-// instead: the keywords beside the allOf, as if none were written, for one
-// refining with none.
+// electionOf returns the election lower lowers schema by, written at pointer,
+// and false where an allOf refining it has a principal, which decides the
+// position instead: the keywords beside the allOf, as if none were written, for
+// one refining with none.
 func electionOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (dispatch, bool) {
 	refinement, refines := refinementOf(loweringContext, schema, pointer)
 	switch {
@@ -457,11 +459,12 @@ func electionOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer 
 	}
 }
 
-// lowersTypeArray reports whether schema, written at pointer, lowers by its type list
-// (lowerUnion): it lists more than one type, and lower elects no family. Nothing
-// lowerSchemaBody tries first takes such a schema: a type is a shape, so no
-// $dynamicRef expands and no union collapses beside it, and a union beside it or
-// on an allOf branch distributes only over the allOf, which the election elects.
+// lowersTypeArray reports whether schema, written at pointer, lowers by its
+// type list (lowerUnion): it lists more than one type, and lower elects no
+// family. Nothing lowerSchemaBody tries first takes such a schema: a type is a
+// shape, so no $dynamicRef expands and no union collapses beside it, and a
+// union beside it or on an allOf branch distributes only over the allOf, which
+// the election elects.
 func lowersTypeArray(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) bool {
 	if len(effectiveTypes(schema)) < 2 {
 		return false
@@ -470,15 +473,15 @@ func lowersTypeArray(loweringContext lowering.Ctx, schema *statement.Schema, poi
 	return elected && dispatch.won == ""
 }
 
-// lowerElected lowers schema, at pointer, by the family dispatchValue elects, which takes
-// precedence over the structural type, else by its effective (null-stripped)
-// type set. The families are conjoined where a schema writes more than one, so
-// electing a winner is a degradation
+// lowerElected lowers schema, at pointer, by the family dispatchValue elects,
+// which takes precedence over the structural type, else by its effective
+// (null-stripped) type set. The families are conjoined where a schema writes
+// more than one, so electing a winner is a degradation
 // (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
 // verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
 // never reads, such as `type: string` beside an allOf, goes through the census
-// (keepingUnread), which keeps what the build did not read. fin
-// finishes the node built at pointer after the census.
+// (keepingUnread), which keeps what the build did not read. fin finishes the
+// node built at pointer after the census.
 func lowerElected(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch, fin finisher,
 	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -549,10 +552,10 @@ func lowerTyped(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 }
 
 // lowerUntyped lowers schema, which writes no kind and no family lower() elects
-// first, by the election dispatchValue, as one writing the type its shape keywords speak
-// of (untypedKinds), its nodes marked where the kind-inference policy read the
-// kind, else to the top type. The keywords the node cannot hold are kept beside
-// it (keepingUnread), as for a schema writing that type.
+// first, by the election dispatchValue, as one writing the type its shape
+// keywords speak of (untypedKinds), its nodes marked where the kind-inference
+// policy read the kind, else to the top type. The keywords the node cannot hold
+// are kept beside it (keepingUnread), as for a schema writing that type.
 func lowerUntyped(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -587,14 +590,14 @@ func lowerUntyped(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 // the rest — which is why the two are derived together rather than separately.
 var familyOrder = []string{"const", "enum", "allOf"}
 
-// declaresFamily reports whether schema declares the named family. It is the single
-// definition of each family's guard: lower() lowers what dispatchOf elects and
-// recordSkippedFamilies keeps what the same walk passed over, so the winner and
-// the losers can never be read off two tests that disagree.
-// A name it does not know declares nothing, rather than falling through to
-// another family's guard: a familyOrder entry added without a case here would
-// otherwise report whichever guard the default happened to hold, electing that
-// name on schemas that never wrote it.
+// declaresFamily reports whether schema declares the named family. It is the
+// single definition of each family's guard: lower() lowers what dispatchOf
+// elects and recordSkippedFamilies keeps what the same walk passed over, so the
+// winner and the losers can never be read off two tests that disagree. A name
+// it does not know declares nothing, rather than falling through to another
+// family's guard: a familyOrder entry added without a case here would otherwise
+// report whichever guard the default happened to hold, electing that name on
+// schemas that never wrote it.
 func declaresFamily(schema *statement.Schema, family string) bool {
 	switch family {
 	case "const":
@@ -728,9 +731,10 @@ func recordSkippedFamilies(loweringContext lowering.Ctx, td ir.TypeDef, schema *
 	return append(diags, diagDisjointConjuncts(loweringContext, readAllOf(loweringContext, schema, pointer), "the "+dispatchValue.won+" it lowered as")...)
 }
 
-// writesType reports whether schema writes a type. A YAML null, which the parser reads
-// as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
-// none: `type: null` is the keyword left out, unlike `type: "null"`
+// writesType reports whether schema writes a type. A YAML null, which the
+// parser reads as a type spelled ""
+// (docs/parser-library.md#null-type-is-empty), declares none: `type: null` is
+// the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
 func writesType(schema *statement.Schema) bool {
 	return slices.ContainsFunc(schema.Types(), func(jsonSchemaTypeName statement.JSONSchemaTypeName) bool { return jsonSchemaTypeName != "" })
@@ -751,10 +755,11 @@ func effectiveTypes(schema *statement.Schema) []statement.JSONSchemaTypeName {
 	return out
 }
 
-// nullableTrue reports whether schema's `nullable` reads true whatever the dialect
-// defines, as a policy reads a 3.0 keyword in a 3.1 schema: the model's true
-// states it only where the key schema lists is a boolean, never a string the model
-// decodes as true, such as "yes" (docs/compilers/openapi.md#nullable, GitHub
+// nullableTrue reports whether schema's `nullable` reads true whatever the
+// dialect defines, as a policy reads a 3.0 keyword in a 3.1 schema: the model's
+// true states it only where the key schema lists is a boolean, never a string
+// the model decodes as true, such as "yes" (docs/compilers/openapi.md#nullable,
+// GitHub
 // #2007). The key is the node the model read, as the statement lists no
 // other (statement.Schema.Truncated).
 func nullableTrue(schema *statement.Schema) bool {

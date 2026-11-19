@@ -16,13 +16,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// scalarTypeID maps a scalar (type, format) pair to a TypeID via typeformat.Lookup: a
-// known pairing interns the shared primitive; a pairing typeformat.LookupEncoded
-// knows, such as byte, a number carried as text, one neither table lists, and
-// the 2020-12 content vocabulary beside a string each hoist a named Scalar
-// wrapping the base primitive with an Encoding, so what the position wrote never
-// leaks onto the shared primitive every other declaration of that type also
-// resolves to.
+// scalarTypeID maps a scalar (type, format) pair to a TypeID via
+// typeformat.Lookup: a known pairing interns the shared primitive; a pairing
+// typeformat.LookupEncoded knows, such as byte, a number carried as text, one
+// neither table lists, and the 2020-12 content vocabulary beside a string each
+// hoist a named Scalar wrapping the base primitive with an Encoding, so what
+// the position wrote never leaks onto the shared primitive every other
+// declaration of that type also resolves to.
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
@@ -38,8 +38,8 @@ func scalarTypeID(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 	return id, 0, diags
 }
 
-// writtenFormat returns the format schema writes, but for a redaction, which names no
-// shape: the annotation readers hold it.
+// writtenFormat returns the format schema writes, but for a redaction, which
+// names no shape: the annotation readers hold it.
 func writtenFormat(schema *statement.Schema) string {
 	if annotation.DeclaresRedaction(schema) {
 		return ""
@@ -59,13 +59,13 @@ type scalarShape struct {
 	read keySet
 }
 
-// scalarShapeOf returns what a scalar of type st that schema writes, with format,
-// lowers to: a pairing typeformat.LookupEncoded knows, such as byte, a Scalar over
-// the primitive it names with its encoding and wire type; a pairing neither
-// table lists a Scalar over the type's base keeping the format as its encoding
-// name; and a pairing typeformat.Lookup lists the primitive it selects, shared
-// unless schema writes the content vocabulary for a type that takes it, a string's
-// (keywordKinds).
+// scalarShapeOf returns what a scalar of type st that schema writes, with
+// format, lowers to: a pairing typeformat.LookupEncoded knows, such as byte, a
+// Scalar over the primitive it names with its encoding and wire type; a pairing
+// neither table lists a Scalar over the type's base keeping the format as its
+// encoding name; and a pairing typeformat.Lookup lists the primitive it
+// selects, shared unless schema writes the content vocabulary for a type that
+// takes it, a string's (keywordKinds).
 func scalarShapeOf(schema *statement.Schema, st statement.JSONSchemaTypeName, format string) scalarShape {
 	key := string(st)
 	var read keySet
@@ -140,11 +140,12 @@ func baseForType(st statement.JSONSchemaTypeName) ir.PrimitiveKind {
 // position wrote a node of its own: the encoding scalarEncoding builds from the
 // shape's format name and the wire type it names, if any.
 //
-// The node carries the value constraints schema and foldedBranches, the position's, write
-// that apply to the kinds takes, because owning a node is what stops
-// hoistDeclarationHome hoisting the alias that would otherwise carry them: that
-// fallback resolves to whatever node the pointer already owns. A scalar hoisted
-// for its format must not lose the bounds written beside it (invariant 2).
+// The node carries the value constraints schema and foldedBranches, the
+// position's, write that apply to the kinds takes, because owning a node is
+// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
+// them: that fallback resolves to whatever node the pointer already owns. A
+// scalar hoisted for its format must not lose the bounds written beside it
+// (invariant 2).
 //
 // fin finishes the Scalar once built.
 func hoistScalar(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, shape scalarShape, takes kindSet,
@@ -192,9 +193,9 @@ func hoistScalar(loweringContext lowering.Ctx, ts *compile.Types, depth int, sch
 	return id, diags
 }
 
-// textBounds is the keeping of bounds, the value bounds schema, written at pointer,
-// writes on a Scalar carrying a number as text, which holds none of them
-// (keepTextBounds).
+// textBounds is the keeping of bounds, the value bounds schema, written at
+// pointer, writes on a Scalar carrying a number as text, which holds none of
+// them (keepTextBounds).
 func textBounds(loweringContext lowering.Ctx, schema *statement.Schema, bounds []string, pointer jsontext.Pointer) keeping {
 	return keeping{keys: bounds, reason: ir.ReasonNoIRHome, keep: func(unmodeled *ir.Unmodeled, keys []string) []ir.Diagnostic {
 		return keepTextBounds(loweringContext, unmodeled, schema, keys, pointer)
@@ -244,9 +245,9 @@ func encodingName(loweringContext lowering.Ctx, schema *statement.Schema, format
 	return content, diags
 }
 
-// contentOverridesFormat reports whether schema's contentEncoding names an encoding
-// other than formatName, the one its format names, which encodingName lowers
-// in the format's place.
+// contentOverridesFormat reports whether schema's contentEncoding names an
+// encoding other than formatName, the one its format names, which encodingName
+// lowers in the format's place.
 func contentOverridesFormat(schema *statement.Schema, formatName string) bool {
 	content := schema.TextKeywords().ContentEncoding
 	return formatName != "" && content != "" && content != formatName
@@ -285,15 +286,16 @@ func takesContent(takes kindSet) bool {
 	return taken(takes, "contentEncoding")
 }
 
-// declaresContentVocabulary reports whether schema writes any content-vocabulary
-// keyword, so a position that wrote one owns a node to keep it on.
+// declaresContentVocabulary reports whether schema writes any
+// content-vocabulary keyword, so a position that wrote one owns a node to keep
+// it on.
 func declaresContentVocabulary(schema *statement.Schema) bool {
 	text := schema.TextKeywords()
 	return text.ContentEncoding != "" || text.ContentMediaType != "" || written(text.ContentSchema)
 }
 
-// recordUnplacedContent keeps each content keyword verbatim on unmodeled, for a position
-// whose lowering produced no ir.Encoding to hold it.
+// recordUnplacedContent keeps each content keyword verbatim on unmodeled, for a
+// position whose lowering produced no ir.Encoding to hold it.
 //
 // A string position lowers them (scalarEncoding), and a type array listing a
 // string on its string variant. Any other type, an alias over a $ref, or a
@@ -302,8 +304,9 @@ func declaresContentVocabulary(schema *statement.Schema) bool {
 // turns out to be a string, so they are kept rather than dropped. It asks the
 // node the position lowered to (holdsContent), not lower()'s dispatch.
 func recordUnplacedContent(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) []ir.Diagnostic {
-	// Called directly, never through a keeping: unmodeled is a carrier's field on most
-	// calls, which a call through a function value would move to the heap.
+	// Called directly, never through a keeping: unmodeled is a carrier's field
+	// on most calls, which a call through a function value would move to the
+	// heap.
 	keys, why := unplacedContentKeys(loweringContext, schema, td, pointer)
 	return keepContentKeywords(loweringContext, unmodeled, schema, keys, pointer, why)
 }
@@ -320,10 +323,10 @@ func unplacedContent(loweringContext lowering.Ctx, schema *statement.Schema, td 
 
 // unplacedContentKeys returns the content keywords schema, written at pointer,
 // writes that td, the node it lowered to, holds no ir.Encoding for
-// (holdsContent), and why, for their report. Where td holds the Encoding of
-// the inline principal schema lowers from (principalEncoding), a keyword schema writes
-// as that principal does is read there, and any other is kept beside it, the
-// report saying whose the Encoding is.
+// (holdsContent), and why, for their report. Where td holds the Encoding of the
+// inline principal schema lowers from (principalEncoding), a keyword schema
+// writes as that principal does is read there, and any other is kept beside it,
+// the report saying whose the Encoding is.
 func unplacedContentKeys(loweringContext lowering.Ctx, schema *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) (keys []string, why string) {
 	if !declaresContentVocabulary(schema) || holdsContent(loweringContext, schema, td, pointer) {
 		return nil, ""
@@ -362,8 +365,8 @@ const (
 // principalEncoding returns the inline principal of the allOf schema writes at
 // pointer where td, the node it built for the position, holds the content
 // vocabulary it writes (holdsContent): a Scalar's Encoding, or that of a type
-// list's string variant. It is nil where schema lowers from no inline principal or
-// td holds none.
+// list's string variant. It is nil where schema lowers from no inline principal
+// or td holds none.
 func principalEncoding(loweringContext lowering.Ctx, schema *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) *statement.Schema {
 	refinement, refined := refinementOf(loweringContext, schema, pointer)
 	if !refined || refinement.principal == nil || refinement.principal.schema.Ref != nil {
@@ -376,8 +379,8 @@ func principalEncoding(loweringContext lowering.Ctx, schema *statement.Schema, t
 }
 
 // keepContentKeyword keeps the content keyword schema, the schema at pointer,
-// writes under keyword verbatim on unmodeled, as no_ir_home, and reports it at the
-// keyword, where no ir.Encoding holds it, for why (noEncodingField).
+// writes under keyword verbatim on unmodeled, as no_ir_home, and reports it at
+// the keyword, where no ir.Encoding holds it, for why (noEncodingField).
 func keepContentKeyword(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string, pointer jsontext.Pointer, why string,
 ) []ir.Diagnostic {
 	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer, loweringContext.Place())
@@ -388,11 +391,11 @@ func keepContentKeyword(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, s
 		"%s is content-vocabulary data the IR holds in ir.Encoding, and %s; kept verbatim under Unmodeled", keyword, why))
 }
 
-// holdsContent reports whether td, the node schema lowered to at pointer, holds the
-// content vocabulary schema writes: a Scalar carrying an Encoding for a type that
-// takes it, or the Union of a type array listing a string, whose string variant
-// carries one (lowerTypeVariant). A nil td is the property-carrier case — no
-// node, so no Encoding.
+// holdsContent reports whether td, the node schema lowered to at pointer, holds
+// the content vocabulary schema writes: a Scalar carrying an Encoding for a
+// type that takes it, or the Union of a type array listing a string, whose
+// string variant carries one (lowerTypeVariant). A nil td is the
+// property-carrier case — no node, so no Encoding.
 func holdsContent(loweringContext lowering.Ctx, schema *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) bool {
 	if !takesContent(declaredInstanceTypes(schema)) {
 		return false

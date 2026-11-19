@@ -67,10 +67,11 @@ type mediaDecl struct {
 }
 
 // declaredMedia returns what the content entry media, written at mediaPtr in
-// serviceContext's document, stands for (mediaDecl), and false for one written as a $ref
-// resolving to nothing, which lowers nothing, as any reference object does
-// (docs/compilers/openapi.md#references), where the load phase reported why.
-// The keys beside each $ref of use's chain are the Content's (lowerContent).
+// serviceContext's document, stands for (mediaDecl), and false for one written
+// as a $ref resolving to nothing, which lowers nothing, as any reference object
+// does (docs/compilers/openapi.md#references), where the load phase reported
+// why. The keys beside each $ref of use's chain are the Content's
+// (lowerContent).
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
@@ -89,12 +90,13 @@ func declaredMedia(serviceContext service.Ctx, media *soa.MediaType, mediaPtr js
 	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, entryCtx: serviceContext, entryPtr: mediaPtr}, true
 }
 
-// mediaTypeDocs returns the docs of the media type mediaDeclValue declares: its own
-// description, which OpenAPI 3.2 adds and the parser's model names no field
-// for, with the summary and description beside each $ref of mediaDeclValue's use folded
-// over it (docs/compilers/openapi.md#reference-object-siblings), and the keys
-// it read for the census to leave alone. It reads the description at every
-// version, as load reports the key below 3.2 (diag.LaterVersionConstruct).
+// mediaTypeDocs returns the docs of the media type mediaDeclValue declares: its
+// own description, which OpenAPI 3.2 adds and the parser's model names no field
+// for, with the summary and description beside each $ref of mediaDeclValue's
+// use folded over it (docs/compilers/openapi.md#reference-object-siblings), and
+// the keys it read for the census to leave alone. It reads the description at
+// every version, as load reports the key below 3.2
+// (diag.LaterVersionConstruct).
 func mediaTypeDocs(mediaDeclValue mediaDecl, unmodeled *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
 	description, read, diags := annotation.TakeString(unmodeled, mediaDeclValue.media.GetRootNode(), "description", nil,
 		mediaDeclValue.ctx.Place(), mediaDeclValue.pointer, "")
@@ -110,7 +112,8 @@ func mediaTypeDocs(mediaDeclValue mediaDecl, unmodeled *ir.Unmodeled) (ir.Docs, 
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, whether it streams, docs and
-// extensions, as mediaDeclValue declares them, under mt, the key it is written under.
+// extensions, as mediaDeclValue declares them, under mt, the key it is written
+// under.
 func lowerContent(mediaDeclValue mediaDecl, loweringState operationLoweringState, mt string) (ir.Content, []ir.Diagnostic) {
 	serviceContext, media, mediaPtr := mediaDeclValue.ctx, mediaDeclValue.media, mediaDeclValue.pointer
 	mediaType, diags := schema.Ref(serviceContext.Ctx, loweringState.types, schema.TopLevelDepth, mediaDeclValue.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))

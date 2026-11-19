@@ -45,12 +45,12 @@ type bodyReading struct {
 	own bool
 }
 
-// readBody reads schema, the schema at the position of a union holder writes, for
-// the union's branches to be judged against: holder's own keywords without its
-// oneOf and anyOf, as where schema itself is the holder, so a union is judged by the
-// rest whichever entry writes it. Where holder is an entry, another inline
-// entry's union is no body either, as two unions beside the allOf judge each
-// other by neither.
+// readBody reads schema, the schema at the position of a union holder writes,
+// for the union's branches to be judged against: holder's own keywords without
+// its oneOf and anyOf, as where schema itself is the holder, so a union is
+// judged by the rest whichever entry writes it. Where holder is an entry,
+// another inline entry's union is no body either, as two unions beside the
+// allOf judge each other by neither.
 func readBody(loweringContext lowering.Ctx, schema, holder *statement.Schema) *bodyReading {
 	bodyReadingValue := &bodyReading{w: newAdmissionReader(loweringContext), body: schema}
 	bodyReadingValue.held = writtenLowered(&bodyReadingValue.w, schema, bodyReadingValue.w.nullable)
@@ -65,17 +65,17 @@ func readBody(loweringContext lowering.Ctx, schema, holder *statement.Schema) *b
 }
 
 // otherEntryUnion reports whether b, a conjunct of schema, is an inline entry
-// writing a union of its own beside holder, another entry of schema, which neither
-// it nor a $ref it writes beside its keywords holds.
+// writing a union of its own beside holder, another entry of schema, which
+// neither it nor a $ref it writes beside its keywords holds.
 func otherEntryUnion(b *statement.Statement, schema, holder *statement.Schema) bool {
 	return holder != schema && b.Ref == nil && b.BesideRef == nil && b.Schema != holder && declaresUnion(b.Schema) &&
 		!slices.ContainsFunc(b.Entries, func(allOfConjunct statement.AllOfConjunct) bool { return allOfConjunct.Schema == holder })
 }
 
-// readOwnBody reads only what schema itself writes: its own keywords, and its own
-// properties and items as the declarations of what a branch nests, each read
-// whole as readBody reads it. It spends a budget of its own, so what it reads
-// the whole reading does not pay for.
+// readOwnBody reads only what schema itself writes: its own keywords, and its
+// own properties and items as the declarations of what a branch nests, each
+// read whole as readBody reads it. It spends a budget of its own, so what it
+// reads the whole reading does not pay for.
 func readOwnBody(loweringContext lowering.Ctx, schema *statement.Schema) *bodyReading {
 	bodyReadingValue := &bodyReading{w: newAdmissionReader(loweringContext), body: schema, own: true}
 	bodyReadingValue.held = writtenLowered(&bodyReadingValue.w, schema, bodyReadingValue.w.nullable)
@@ -111,11 +111,12 @@ func unionBranchesDeclareShape(loweringContext lowering.Ctx, schema *statement.S
 }
 
 // setsDeclareShape is unionBranchesDeclareShape for the branches of sets,
-// written by holder, schema or an allOf branch of it, judged against schema as the body,
-// read without holder's unions; a nil holder reads the conjunction whole. The
-// body's own reading settles first each branch restating what schema itself writes
-// (ownRestatements), and only the rest are judged against the whole reading,
-// which they would restate under too, as more declarations admit less.
+// written by holder, schema or an allOf branch of it, judged against schema as
+// the body, read without holder's unions; a nil holder reads the conjunction
+// whole. The body's own reading settles first each branch restating what schema
+// itself writes (ownRestatements), and only the rest are judged against the
+// whole reading, which they would restate under too, as more declarations admit
+// less.
 func setsDeclareShape(loweringContext lowering.Ctx, schema, holder *statement.Schema, sets ...[]statement.Subschema) bool {
 	branches := statementsOf(loweringContext, slices.Concat(sets...))
 	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return referenceOf(loweringContext, b) != nil }) {
@@ -139,10 +140,10 @@ func setsDeclareShape(loweringContext lowering.Ctx, schema, holder *statement.Sc
 	return found || bodyReadingValue != nil && bodyReadingValue.w.incomplete()
 }
 
-// ownRestatements marks, by index, the inline branches of branches that
-// restate schema read alone (readOwnBody), judged all, and none where that reading
-// ran out: which branches it settled before running out would follow their
-// order, and with it what the whole reading is left to read (GitHub #1423).
+// ownRestatements marks, by index, the inline branches of branches that restate
+// schema read alone (readOwnBody), judged all, and none where that reading ran
+// out: which branches it settled before running out would follow their order,
+// and with it what the whole reading is left to read (GitHub #1423).
 func ownRestatements(loweringContext lowering.Ctx, schema *statement.Schema, branches []*statement.Statement) []bool {
 	var bodyReadingValue *bodyReading
 	body := func() *bodyReading {
@@ -164,11 +165,11 @@ func ownRestatements(loweringContext lowering.Ctx, schema *statement.Schema, bra
 }
 
 // branchDeclaresShape reports whether the inline union branch b declares data
-// shape beside the body body reads, its schemas read from memoizingSchemaReader. A boolean never does, and any other does
-// where one keyword it writes does: bare or beside a repeated `type`, a keyword
-// is judged alike, so restating the body changes no verdict. A branch writing
-// no key judged against the body, `required` alone the commonest, leaves it
-// unread.
+// shape beside the body body reads, its schemas read from
+// memoizingSchemaReader. A boolean never does, and any other does where one
+// keyword it writes does: bare or beside a repeated `type`, a keyword is judged
+// alike, so restating the body changes no verdict. A branch writing no key
+// judged against the body, `required` alone the commonest, leaves it unread.
 func branchDeclaresShape(memoizingSchemaReader *statement.MemoizingSchemaReader, body func() *bodyReading, b *statement.Statement) bool {
 	if b.Truth != statement.Stated {
 		return false
@@ -183,9 +184,9 @@ func branchDeclaresShape(memoizingSchemaReader *statement.MemoizingSchemaReader,
 	return !bodyReadingValue.restates(claim{written: b, held: bodyReadingValue.held})
 }
 
-// judged reports whether schema's key is judged against what the body says: it is
-// neither shapeless, its schemas read from memoizingSchemaReader, nor a `type` naming only null,
-// which contributes the null.
+// judged reports whether schema's key is judged against what the body says: it
+// is neither shapeless, its schemas read from memoizingSchemaReader, nor a
+// `type` naming only null, which contributes the null.
 func judged(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema, key string) bool {
 	return !shapeless(memoizingSchemaReader, schema, key) && (key != "type" || len(effectiveTypes(schema)) > 0)
 }
@@ -239,14 +240,14 @@ func (r *bodyReading) restates(top claim) bool {
 	return true
 }
 
-// keysRestate reports whether each key claimValue writes says nothing of shape the body
-// does not, and returns the allOf conjuncts, which restate what claimValue does, and the
-// properties and element it writes, for restates to judge. A key declares none
-// where it is not judged, a `$ref` landing where claimValue's declarations compose, or a
-// `type`, `format`, `enum` or `const` every value c.held admits holds to. A
-// boolean conjunct says nothing or only forbids. Keys are the statement's,
-// which hold the keywords the model has no field for
-// (docs/parser-library.md#unmodeled-keywords).
+// keysRestate reports whether each key claimValue writes says nothing of shape
+// the body does not, and returns the allOf conjuncts, which restate what
+// claimValue does, and the properties and element it writes, for restates to
+// judge. A key declares none where it is not judged, a `$ref` landing where
+// claimValue's declarations compose, or a `type`, `format`, `enum` or `const`
+// every value c.held admits holds to. A boolean conjunct says nothing or only
+// forbids. Keys are the statement's, which hold the keywords the model has no
+// field for (docs/parser-library.md#unmodeled-keywords).
 func (r *bodyReading) keysRestate(claimValue claim) ([]statement.Subschema, []nested, bool) {
 	if !stated(claimValue.written.Schema) {
 		return nil, nil, true
@@ -281,9 +282,9 @@ func (r *bodyReading) keysRestate(claimValue claim) ([]statement.Subschema, []ne
 	return conjuncts, inner, true
 }
 
-// declarationsAt returns what the body declares of what claimValue nests: its own
-// declarations for the branch itself, and what claimValue's place declares otherwise,
-// each read the first time a claim nests something.
+// declarationsAt returns what the body declares of what claimValue nests: its
+// own declarations for the branch itself, and what claimValue's place declares
+// otherwise, each read the first time a claim nests something.
 func (r *bodyReading) declarationsAt(claimValue claim) declarationSet {
 	if claimValue.at == nil {
 		return r.declared()
@@ -291,14 +292,14 @@ func (r *bodyReading) declarationsAt(claimValue claim) declarationSet {
 	return claimValue.at.declares(&r.w)
 }
 
-// claimOf returns the claim nestedValue makes, and false for open where nestedValue says nothing
-// whatever its keys: a boolean says nothing or only forbids what it is written
-// for, a declaration written alike against one base says the same, and
-// declarations admitting nothing together leave nothing to say. ok is false
-// where the body declares nothing there, so nestedValue is new shape. What nestedValue restates is
-// what its declarations say together, each read as an admissionReader reads it, the
-// keywords beside a $ref conjoining with it at every version
-// (docs/compilers/openapi.md#ref-use-site).
+// claimOf returns the claim nestedValue makes, and false for open where
+// nestedValue says nothing whatever its keys: a boolean says nothing or only
+// forbids what it is written for, a declaration written alike against one base
+// says the same, and declarations admitting nothing together leave nothing to
+// say. ok is false where the body declares nothing there, so nestedValue is new
+// shape. What nestedValue restates is what its declarations say together, each
+// read as an admissionReader reads it, the keywords beside a $ref conjoining
+// with it at every version (docs/compilers/openapi.md#ref-use-site).
 func (r *bodyReading) claimOf(nestedValue nested) (sub claim, open, ok bool) {
 	if nestedValue.at == nil {
 		return claim{}, false, false
@@ -316,10 +317,11 @@ func (r *bodyReading) claimOf(nestedValue nested) (sub claim, open, ok bool) {
 	return claim{written: nestedValue.written, held: held, at: nestedValue.at}, true, true
 }
 
-// lands reports whether the $ref claimValue writes lands on a schema claimValue's declarations
-// compose, through allOf conjuncts and $refs, so it names what they already
-// imply. The branch itself restates no declaration: unionBranchesDeclareShape
-// settles a $ref branch, and a $ref conjunct of one declares shape as it does.
+// lands reports whether the $ref claimValue writes lands on a schema
+// claimValue's declarations compose, through allOf conjuncts and $refs, so it
+// names what they already imply. The branch itself restates no declaration:
+// unionBranchesDeclareShape settles a $ref branch, and a $ref conjunct of one
+// declares shape as it does.
 func (r *bodyReading) lands(claimValue claim) bool {
 	if claimValue.at == nil {
 		return false
@@ -331,8 +333,8 @@ func (r *bodyReading) lands(claimValue claim) bool {
 // shapeless reports whether schema's keyword key declares no shape whatever it
 // holds: a null that reads as the keyword left out, an extension, a keyword
 // shapelessKeywords names, or an unevaluatedProperties other than false, read
-// from memoizingSchemaReader, which is validation logic where false closes the object
-// (docs/ir/boundaries.md#validation-only-constructs).
+// from memoizingSchemaReader, which is validation logic where false closes the
+// object (docs/ir/boundaries.md#validation-only-constructs).
 func shapeless(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(schema, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
@@ -350,7 +352,8 @@ func conjunctWithout(admissionReaderValue *admissionReader, b *statement.Stateme
 		return writtenLowered(admissionReaderValue, holder, admissionReaderValue.nullable)
 	case holder != nil && b.BesideRef != nil && holder.WrittenBeside == b.BesideRef:
 		// An entry writing its union beside a $ref is listed as that reference
-		// and the rest of its keywords (statement.MemoizingSchemaReader.restOf), the holder.
+		// and the rest of its keywords
+		// (statement.MemoizingSchemaReader.restOf), the holder.
 		return lowered(admissionReaderValue, admissionReaderValue.c.Statements().Read(b.BesideRef)).and(writtenLowered(admissionReaderValue, holder, admissionReaderValue.nullable))
 	}
 	if holder == nil || !slices.ContainsFunc(b.Entries, func(allOfConjunct statement.AllOfConjunct) bool { return allOfConjunct.Schema == holder }) {

@@ -444,10 +444,11 @@ components:
 }
 
 // TestAt_NamesWhatAReferenceReadsAsASchema pins positions the grammar reads as
-// raw YAML, or in another document, named as the reference reaching them
-// reads them (reftable.ReferenceTargetTable.Kinds): a schema an extension holds is named from
-// its pointer, as no owner names it, a parameter another document holds by
-// its name, and a document a reference reads as a schema after the document.
+// raw YAML, or in another document, named as the reference reaching them reads
+// them (reftable.ReferenceTargetTable.Kinds): a schema an extension holds is
+// named from its pointer, as no owner names it, a parameter another document
+// holds by its name, and a document a reference reads as a schema after the
+// document.
 func TestAt_NamesWhatAReferenceReadsAsASchema(t *testing.T) {
 	t.Parallel()
 	tb := table(t, head+`x-lib: {Thing: {type: object, properties: {p: {type: object}}}}

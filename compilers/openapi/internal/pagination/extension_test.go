@@ -82,8 +82,8 @@ func compilePaged(t *testing.T, op string, policy openapi.ExtensionPromotions) (
 	return doc, openapitest.FirstOp(t, doc.Services[0]), diags
 }
 
-// renderPage spells pagination by the names its fields reach, so a case reads as the
-// document it compiles: a parameter as param:<name>, the request body as
+// renderPage spells pagination by the names its fields reach, so a case reads
+// as the document it compiles: a parameter as param:<name>, the request body as
 // body:<members>, and a page value as its members, or header:<name>.
 func renderPage(doc *ir.Document, op ir.Operation, pagination *ir.Pagination) string {
 	if pagination == nil {

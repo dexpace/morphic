@@ -101,8 +101,8 @@ func tagGroups(promoter promotion.Promoter, groups []ir.OperationGroup, defs []i
 	return diags
 }
 
-// vendorExtensions returns the entries of unmodeled kept as the tag's own vendor
-// extensions, unscoped: its externalDocs object's stay on the tag alone.
+// vendorExtensions returns the entries of unmodeled kept as the tag's own
+// vendor extensions, unscoped: its externalDocs object's stay on the tag alone.
 func vendorExtensions(unmodeled ir.Unmodeled) ir.Unmodeled {
 	var out ir.Unmodeled
 	for key, entry := range unmodeled {
@@ -137,12 +137,12 @@ type filing struct {
 }
 
 // filingFor resolves where the active strategy files src, declared at decl in
-// serviceContext's document and mounted at path. A group is resolved by identity: its ID is
-// its key here and in the IR, so two operations share a group exactly when they
-// share an ID. GroupByExtension files src by the first path its extension
-// states, or by GroupingExtension.Fallback where it states none, and names a
-// remount for each other path it or its aliases state, whichever strategy files
-// it (docs/compilers/openapi.md#extension-groups).
+// serviceContext's document and mounted at path. A group is resolved by
+// identity: its ID is its key here and in the IR, so two operations share a
+// group exactly when they share an ID. GroupByExtension files src by the first
+// path its extension states, or by GroupingExtension.Fallback where it states
+// none, and names a remount for each other path it or its aliases state,
+// whichever strategy files it (docs/compilers/openapi.md#extension-groups).
 func (g *serviceGroups) filingFor(serviceContext service.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
 	if serviceContext.Grouping != service.GroupByExtension {
 		return g.filingBy(serviceContext.Grouping, src, path)

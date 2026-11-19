@@ -78,8 +78,8 @@ func writesCatchAll(schema *statement.Schema) bool {
 	return schema.ObjectKeywords().AdditionalProperties.SchemaValueForm() != statement.Unwritten || len(schema.ObjectKeywords().PatternProperties) > 0
 }
 
-// declaresMembers reports whether schema names a member its additionalProperties
-// leaves alone: a property, or a pattern.
+// declaresMembers reports whether schema names a member its
+// additionalProperties leaves alone: a property, or a pattern.
 func declaresMembers(schema *statement.Schema) bool {
 	return len(schema.ObjectKeywords().Properties) > 0 || len(schema.ObjectKeywords().PatternProperties) > 0
 }
@@ -128,10 +128,10 @@ func fillComposedAdditional(loweringContext lowering.Ctx, ts *compile.Types, dep
 
 // keepUnclosing keeps the additionalProperties schema, the position written at
 // pointer, writes beside an allOf an entry of which declares members: the
-// keyword reads schema's own properties alone, so it applies to those members too,
-// and typing it on the model would close or type members it never read, where
-// schema refuses an instance setting one the keyword does not admit. The model stays
-// open and the keyword is reported.
+// keyword reads schema's own properties alone, so it applies to those members
+// too, and typing it on the model would close or type members it never read,
+// where schema refuses an instance setting one the keyword does not admit. The
+// model stays open and the keyword is reported.
 func keepUnclosing(loweringContext lowering.Ctx, model *ir.Model, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	kept, diags := annotation.PreserveSchemaKeyword(&model.Unmodeled, schema, "additionalProperties", ir.ReasonDegradedLowering, pointer, loweringContext.Place())
 	if !kept {

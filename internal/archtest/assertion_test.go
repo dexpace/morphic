@@ -187,13 +187,14 @@ func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls
 // package-level var can name it.
 var optionalInterfaces = []string{"ir.CycleVisitor"}
 
-// missingAssertions returns a line for each type loadedPackage declares that implements an
-// exported interface loadedPackage or a package loadedPackage imports declares in the module, with no
-// var in loadedPackage asserting it, sorted, and how many such pairs it found: every pair
-// of an exported type that is not generic, and any type's with an optional
-// interface, a generic one read as instantiated with its own type parameters.
-// An interface elsewhere is left out, as loadedPackage could not assert it without a new
-// import, and so is a generic interface.
+// missingAssertions returns a line for each type loadedPackage declares that
+// implements an exported interface loadedPackage or a package loadedPackage
+// imports declares in the module, with no var in loadedPackage asserting it,
+// sorted, and how many such pairs it found: every pair of an exported type that
+// is not generic, and any type's with an optional interface, a generic one read
+// as instantiated with its own type parameters. An interface elsewhere is left
+// out, as loadedPackage could not assert it without a new import, and so is a
+// generic interface.
 func missingAssertions(loadedPackage *decls.Package, root string) ([]string, int) {
 	ifaces := moduleInterfaces(loadedPackage)
 	asserted := assertedInterfaces(loadedPackage)
@@ -234,7 +235,8 @@ type moduleInterface struct {
 }
 
 // moduleInterfaces returns the exported, non-generic interfaces with methods
-// that loadedPackage and each module package loadedPackage imports declare, as loadedPackage's load sees them.
+// that loadedPackage and each module package loadedPackage imports declare, as
+// loadedPackage's load sees them.
 func moduleInterfaces(loadedPackage *decls.Package) []moduleInterface {
 	var out []moduleInterface
 	for _, pkg := range append([]*types.Package{loadedPackage.Types}, loadedPackage.Types.Imports()...) {
@@ -254,11 +256,11 @@ func moduleInterfaces(loadedPackage *decls.Package) []moduleInterface {
 	return out
 }
 
-// assertedInterfaces returns, for each named type a package-level var in loadedPackage
-// holds as an interface, the interfaces such vars give it: a conversion's, as
-// in var _ = I(T{}), or else the var's declared type's. The value's type is
-// read with any pointer and alias taken off. A named var asserts as var _
-// does.
+// assertedInterfaces returns, for each named type a package-level var in
+// loadedPackage holds as an interface, the interfaces such vars give it: a
+// conversion's, as in var _ = I(T{}), or else the var's declared type's. The
+// value's type is read with any pointer and alias taken off. A named var
+// asserts as var _ does.
 func assertedInterfaces(loadedPackage *decls.Package) map[*types.TypeName][]*types.Interface {
 	out := map[*types.TypeName][]*types.Interface{}
 	for _, f := range loadedPackage.Syntax {

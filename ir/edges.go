@@ -108,11 +108,11 @@ func (w *edgeWalk) common(typeCommon *TypeCommon) {
 	w.instantiation(typeCommon.Instantiation)
 }
 
-// value yields the types value refers to, through every nested list, object member
-// and constructor argument, taking a step for value. depth counts one level per
-// step down; the reflection walk charges each of those steps at least twice,
-// so it is cut first. A list, object or constructor met again from inside
-// itself is not entered again.
+// value yields the types value refers to, through every nested list, object
+// member and constructor argument, taking a step for value. depth counts one
+// level per step down; the reflection walk charges each of those steps at least
+// twice, so it is cut first. A list, object or constructor met again from
+// inside itself is not entered again.
 func (w *edgeWalk) value(value *Value, depth int) {
 	if value == nil || depth > MaxWalkDepth || !w.steps.take() {
 		return

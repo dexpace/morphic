@@ -131,11 +131,11 @@ func deadOf(loweringContext lowering.Ctx, unionAtValue unionAt, dead []bool) []d
 	return out
 }
 
-// keepDeadBranches keeps each branch of unionAtValue, a union distributed over body,
-// written at pointer, that no instance of body satisfies (unionAtValue.dead) verbatim
-// under unmodeled, the Union's Unmodeled (unionBranchKey), and reports them once, at
-// body (diagDeadBranches). Such a branch is no variant and lowers nowhere, so
-// this is its one home.
+// keepDeadBranches keeps each branch of unionAtValue, a union distributed over
+// body, written at pointer, that no instance of body satisfies
+// (unionAtValue.dead) verbatim under unmodeled, the Union's Unmodeled
+// (unionBranchKey), and reports them once, at body (diagDeadBranches). Such a
+// branch is no variant and lowers nowhere, so this is its one home.
 func keepDeadBranches(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, body *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -150,10 +150,10 @@ func keepDeadBranches(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bod
 }
 
 // diagDeadBranches is the one warning body, written at pointer, draws whose
-// union unionAtValue holds branches no instance of it satisfies, as dead marks them: it
-// names each by its path from the body, with the kinds it admits, and says
-// whether the union lives on in the others, keeping them where kept says each
-// was stored, or the body lowers alone.
+// union unionAtValue holds branches no instance of it satisfies, as dead marks
+// them: it names each by its path from the body, with the kinds it admits, and
+// says whether the union lives on in the others, keeping them where kept says
+// each was stored, or the body lowers alone.
 func diagDeadBranches(loweringContext lowering.Ctx, body *statement.Schema, unionAtValue unionAt, dead []bool, pointer jsontext.Pointer,
 	kept bool,
 ) []ir.Diagnostic {
@@ -269,11 +269,12 @@ func (r deadReport) none(loweringContext lowering.Ctx, body, holder *statement.S
 		"its body alone", opening, len(r.branches), but, either, r.listed, none)
 }
 
-// diagDeadEntryUnion is the one warning schema, written at pointer, draws where unionAtValue,
-// the union on an entry of its allOf, keeps no branch beside the rest of it
-// (unionNoLiveBranch) and the report of conjuncts sharing no value
+// diagDeadEntryUnion is the one warning schema, written at pointer, draws where
+// unionAtValue, the union on an entry of its allOf, keeps no branch beside the
+// rest of it (unionNoLiveBranch) and the report of conjuncts sharing no value
 // (docs/compilers/openapi.md#allof-disjoint-conjuncts) is silent, as where a
-// null branch of unionAtValue takes a null the rest admits, which the two then share.
+// null branch of unionAtValue takes a null the rest admits, which the two then
+// share.
 func diagDeadEntryUnion(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(disjointNames(loweringContext, schema, allOfBranches(loweringContext, schema, pointer))) > 0 {
 		return nil
@@ -289,12 +290,12 @@ type deadRoute struct {
 	keyword, tag, target string
 }
 
-// deadRoutesOf returns the routes the discriminator standing with unionAtValue takes to
-// a dead branch: each value of its mapping and its defaultMapping whose chain
-// a dead branch meets first, every branch but a null one indexed as
+// deadRoutesOf returns the routes the discriminator standing with unionAtValue
+// takes to a dead branch: each value of its mapping and its defaultMapping
+// whose chain a dead branch meets first, every branch but a null one indexed as
 // indexBranches indexes a variant's, and the name of each dead branch's
-// component that no entry keys and no other branch names, which OpenAPI
-// routes by. A union with no dead branch has none.
+// component that no entry keys and no other branch names, which OpenAPI routes
+// by. A union with no dead branch has none.
 func deadRoutesOf(loweringContext lowering.Ctx, unionAtValue unionAt) []deadRoute {
 	if unionAtValue.disc == nil || !slices.Contains(unionAtValue.dead, true) {
 		return nil
@@ -338,11 +339,12 @@ func deadRoutesOf(loweringContext lowering.Ctx, unionAtValue unionAt) []deadRout
 	return out
 }
 
-// keepDeadRoutes keeps on union, the Union of unionAtValue, each route its discriminator
-// writes to a dead branch of unionAtValue, which union's Discriminator leaves out: verbatim,
-// keyed by its path from union's position as the discriminator's extensions are
-// (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
-// union. Where union holds no discriminator the census keeps it whole.
+// keepDeadRoutes keeps on union, the Union of unionAtValue, each route its
+// discriminator writes to a dead branch of unionAtValue, which union's
+// Discriminator leaves out: verbatim, keyed by its path from union's position
+// as the discriminator's extensions are (discriminatorScope),
+// `openapi:discriminator/mapping/<tag>` beside the union. Where union holds no
+// discriminator the census keeps it whole.
 func keepDeadRoutes(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
 	if union.Discriminator == nil {
 		return nil
@@ -366,12 +368,12 @@ func keepDeadRoutes(loweringContext lowering.Ctx, union *ir.Union, unionAtValue 
 	return diags
 }
 
-// routesClause is what the warning of unionAtValue's dead branches says of the routes
-// its discriminator takes to them (deadRoutesOf), pronoun naming the branches:
-// none routes, and those it writes are kept. Each route is listed by the byte
-// order of what the clause says of it, which puts the defaultMapping first,
-// then the mapping keys and then the names, as no order of the mapping is the
-// document's.
+// routesClause is what the warning of unionAtValue's dead branches says of the
+// routes its discriminator takes to them (deadRoutesOf), pronoun naming the
+// branches: none routes, and those it writes are kept. Each route is listed by
+// the byte order of what the clause says of it, which puts the defaultMapping
+// first, then the mapping keys and then the names, as no order of the mapping
+// is the document's.
 func routesClause(unionAtValue unionAt, pronoun string) string {
 	if len(unionAtValue.deadRoutes) == 0 {
 		return ""
@@ -397,7 +399,8 @@ func routesClause(unionAtValue unionAt, pronoun string) string {
 	return clause
 }
 
-// hasLiveBranch reports whether some branch of unionAtValue is neither dead nor null.
+// hasLiveBranch reports whether some branch of unionAtValue is neither dead nor
+// null.
 func hasLiveBranch(loweringContext lowering.Ctx, unionAtValue unionAt, dead []bool) bool {
 	branches, _, _ := unionAtValue.branches(loweringContext)
 	for i, b := range branches {
@@ -413,8 +416,8 @@ func pathFrom(pointer, at jsontext.Pointer) string {
 	return strings.TrimPrefix(string(at), string(pointer)+"/")
 }
 
-// keepsDeadUnion reports whether schema, read at the position its bindings place it
-// at, writes a union beside its object body none of whose branches an
+// keepsDeadUnion reports whether schema, read at the position its bindings
+// place it at, writes a union beside its object body none of whose branches an
 // instance of the body satisfies, which schema reports where it is written
 // (diagDeadBranches), as distributesUnion reads a distribution there.
 func keepsDeadUnion(loweringContext lowering.Ctx, schema *statement.Schema) bool {

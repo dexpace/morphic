@@ -470,9 +470,9 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertMaps pins docs/ir/containers.md's line between the two map shapes: an
 // object whose one member fact is its catch-all is a MapT, carrying its value
 // type and entry bounds, and a catch-all beside anything else is a Model's
-// AdditionalProperties. An explicit `true` types the catch-all as the top type in
-// either. `unevaluatedProperties: false` closes the object once composition is
-// resolved only where no additionalProperties leaves it inert, and beside
+// AdditionalProperties. An explicit `true` types the catch-all as the top type
+// in either. `unevaluatedProperties: false` closes the object once composition
+// is resolved only where no additionalProperties leaves it inert, and beside
 // patterns alone nothing types a key they miss.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }

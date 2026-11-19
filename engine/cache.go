@@ -36,10 +36,11 @@ type cacheBinding struct {
 	build string
 }
 
-// WithCache answers a run from cacheValue when an earlier one had the same inputs, and
-// stores what a run compiled there. A run's result is the same either way, bar
-// the work and Result.CacheErr: architecture.md §2.6 says what a key covers. A
-// run setting Verify or FormatOptions takes no part, nor does RunDocument.
+// WithCache answers a run from cacheValue when an earlier one had the same
+// inputs, and stores what a run compiled there. A run's result is the same
+// either way, bar the work and Result.CacheErr: architecture.md §2.6 says what
+// a key covers. A run setting Verify or FormatOptions takes no part, nor does
+// RunDocument.
 //
 // build names everything that decides what this engine compiles, its compilers
 // and passes among them, as cache.BuildID does for a whole executable. Reusing

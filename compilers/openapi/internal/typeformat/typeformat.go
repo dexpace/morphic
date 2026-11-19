@@ -138,14 +138,15 @@ func Relate(a, b ir.PrimitiveKind) Relation {
 }
 
 // narrows reports whether narrow is strictly within broad: by value domain
-// (ir.PrimitiveKind.StrictlyWithin), or because narrow is a string-spelled format
-// and broad is string.
+// (ir.PrimitiveKind.StrictlyWithin), or because narrow is a string-spelled
+// format and broad is string.
 func narrows(narrow, broad ir.PrimitiveKind) bool {
 	return narrow.StrictlyWithin(broad) || (broad == ir.PrimitiveString && refinesString(narrow))
 }
 
-// refinesString reports whether some string/* row of the table selects primitiveKind. The
-// edge set is read off the table rather than restated beside it.
+// refinesString reports whether some string/* row of the table selects
+// primitiveKind. The edge set is read off the table rather than restated beside
+// it.
 func refinesString(primitiveKind ir.PrimitiveKind) bool {
 	for key, prim := range formatTable {
 		if prim == primitiveKind && strings.HasPrefix(key, "string/") {

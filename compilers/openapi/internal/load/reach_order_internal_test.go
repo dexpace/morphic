@@ -146,7 +146,8 @@ func TestExternal_AJudgementThatPassesBoundsTheDocumentForLaterAskers(t *testing
 		"read for the file, judged once for the public document, and the private one admitted unread")
 }
 
-// proxiedExternal reads through proxiedReaderValue beside a source at spec.yaml.
+// proxiedExternal reads through proxiedReaderValue beside a source at
+// spec.yaml.
 func proxiedExternal(proxiedReaderValue *proxiedReader) *external {
 	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: proxiedReaderValue}, newExternalReads(src, budget.Unbounded()), &aside{})

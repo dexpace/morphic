@@ -78,11 +78,12 @@ func (r reader) choice(name string, raw jsontext.Value, where ir.Provenance) (ir
 	return choice, ir.Diagnostic{}, true
 }
 
-// readChoice reads the choice name: an object stating a boolean optional and two
-// variants or more, each naming parameters, of which none every request
+// readChoice reads the choice name: an object stating a boolean optional and
+// two variants or more, each naming parameters, of which none every request
 // carries sits in some variants only. A variant names only parameters the
-// operation declares one by one (compileddoc.ParamIndex.Named), as ir.ParamChoice
-// requires: a sum the document declares is a schema's union, never a choice.
+// operation declares one by one (compileddoc.ParamIndex.Named), as
+// ir.ParamChoice requires: a sum the document declares is a schema's union,
+// never a choice.
 func (r reader) readChoice(name string, raw jsontext.Value, where ir.Provenance) (ir.ParamChoice, *refusal) {
 	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {

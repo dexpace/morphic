@@ -53,8 +53,9 @@ func checkRawPayloads(*ir.Document) walkCheck {
 }
 
 // appendEntries appends check's verdict on every entry of the payload map m, at
-// at, to vs, reading the entries through entryReaderValue and their payloads through payloadReaderValue. Both
-// callers key on a plain string, so the key spells the entry's path.
+// at, to vs, reading the entries through entryReaderValue and their payloads
+// through payloadReaderValue. Both callers key on a plain string, so the key
+// spells the entry's path.
 func appendEntries(vs []Violation, entryReaderValue *entryReader, payloadReaderValue *payloadReader, m reflect.Value, at ir.WalkPath,
 	check func(otherPayloadReader *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {

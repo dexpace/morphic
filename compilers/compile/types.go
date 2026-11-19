@@ -252,9 +252,9 @@ func (t *Types) Building(id ir.TypeID) bool {
 	return !built
 }
 
-// PrimRef interns the primitive of kind primitiveKind on first use and returns a reference
-// to it. Primitives are leaves reached by kind rather than by position, so they
-// never enter the pointer-keyed table.
+// PrimRef interns the primitive of kind primitiveKind on first use and returns
+// a reference to it. Primitives are leaves reached by kind rather than by
+// position, so they never enter the pointer-keyed table.
 //
 // Its Provenance.Source is ir.NoSource: one primitive is shared by every
 // position of its kind in every source, so no single file declared it (GitHub

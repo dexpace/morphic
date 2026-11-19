@@ -53,8 +53,8 @@ type replacement struct {
 	with         *yaml.Node
 }
 
-// newGrafter returns a grafter of the rules of version versionValue over root, its node
-// budget unbounded until the sequence sets it.
+// newGrafter returns a grafter of the rules of version versionValue over root,
+// its node budget unbounded until the sequence sets it.
 func newGrafter(versionValue version, root *yaml.Node) *grafter {
 	return &grafter{version: versionValue, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
 		copies: map[*yaml.Node]bool{}}
@@ -314,13 +314,13 @@ func (g *grafter) clone(node *yaml.Node, depth int) (*yaml.Node, error) {
 	})
 }
 
-// copyOf returns a copy of node, which holder is to hold, depth levels below the
-// node an action selected. The copy holds no alias: an alias is replaced by a
-// copy of what it names, the value it stands for. It keeps no anchor, since
-// the node it named is not the one being written, and no line and column,
-// since the document it lands in does not write it there. built, when set, is
-// handed each node built, the node it copies and its holder, nil for the root,
-// and stops the copy by answering false.
+// copyOf returns a copy of node, which holder is to hold, depth levels below
+// the node an action selected. The copy holds no alias: an alias is replaced by
+// a copy of what it names, the value it stands for. It keeps no anchor, since
+// the node it named is not the one being written, and no line and column, since
+// the document it lands in does not write it there. built, when set, is handed
+// each node built, the node it copies and its holder, nil for the root, and
+// stops the copy by answering false.
 func copyOf(node, holder *yaml.Node, depth int, built func(from, holder, copied *yaml.Node) bool) (*yaml.Node, error) {
 	if depth > maxPayloadDepth {
 		return nil, fmt.Errorf("it writes a value nested past %d levels", maxPayloadDepth)

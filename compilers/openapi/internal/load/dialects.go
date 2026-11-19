@@ -75,14 +75,15 @@ func (d *dialects) at(version, uri string) dialectRows {
 	return d.rows[dialectKeyValue]
 }
 
-// readDialects returns the rows of each dialect a schema of the documents
-// table read names, and an openapi/unread-dialect warning for each absolute URI
+// readDialects returns the rows of each dialect a schema of the documents table
+// read names, and an openapi/unread-dialect warning for each absolute URI
 // naming one the table has no rows for, whose schemas read their minor's own:
 // at each such `$schema`, placed by sites, and at each document's
 // jsonSchemaDialect, the source's among them. A value no absolute URI names
 // chooses nothing and draws none: validation reports it where it judges it,
 // which in a document a reference reaches is only what the reference reaches.
-// Each document is read under one name (componentlookup.Locate), so warned of once.
+// Each document is read under one name (componentlookup.Locate), so warned of
+// once.
 func readDialects(table *reftable.ReferenceTargetTable, others Others, dialectsValue *dialects, sites places) (dialect.SchemaDialectRows, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	unread := func(at ir.Provenance, keyword, uri string) {
@@ -142,14 +143,14 @@ func versionOf(table *reftable.ReferenceTargetTable, others Others, dialectsValu
 }
 
 // dialectRuleOf returns what the binder reads otherwise in uri's dialect, whose
-// rows rules are, than in 2020-12 (reftable.DialectRule): the identifier, `$id`, or
-// draft 4's `id` where the rows define it alone; one naming a fragment alone as
-// an anchor where they define no `$anchor`, by the plain-name grammar where
-// they give the identifier it; that grammar for `$anchor` where they give it;
-// `definitions`, `dependencies`'s schemas and `$recursiveAnchor` where they
-// define them; an `items` list as a tuple where they take one; no identifier
-// beside a `$ref` where they ignore what is there; and whether uri names one at
-// all (specrules.NamesDialect).
+// rows rules are, than in 2020-12 (reftable.DialectRule): the identifier,
+// `$id`, or draft 4's `id` where the rows define it alone; one naming a
+// fragment alone as an anchor where they define no `$anchor`, by the plain-name
+// grammar where they give the identifier it; that grammar for `$anchor` where
+// they give it; `definitions`, `dependencies`'s schemas and `$recursiveAnchor`
+// where they define them; an `items` list as a tuple where they take one; no
+// identifier beside a `$ref` where they ignore what is there; and whether uri
+// names one at all (specrules.NamesDialect).
 func dialectRuleOf(rules specrules.SchemaRules, uri string) reftable.DialectRule {
 	rule := reftable.DialectRule{Keyword: rules.Identifier(), Definitions: rules.Takes("definitions", specrules.Map),
 		Dependencies: rules.Defines("dependencies"), Tuples: rules.Takes("items", specrules.List),

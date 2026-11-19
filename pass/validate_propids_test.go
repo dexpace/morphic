@@ -1,9 +1,10 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// This file covers the PropertyID reference class, whose two checks make different
-// claims about the same kind of identity: membership anywhere in the document,
-// and — where the root is written down — membership in the type that names it.
+// This file covers the PropertyID reference class, whose two checks make
+// different claims about the same kind of identity: membership anywhere in the
+// document, and — where the root is written down — membership in the type that
+// names it.
 package pass_test
 
 import (
@@ -20,8 +21,8 @@ import (
 )
 
 // propPathOperation returns an operation whose HTTP binding walks path through
-// the response body — one of the PropertyID carriers the reference walk sees and no
-// registry can resolve.
+// the response body — one of the PropertyID carriers the reference walk sees
+// and no registry can resolve.
 func propPathOperation(path []ir.PropertyID) ir.Operation {
 	return ir.Operation{
 		ID: "operation/o", Name: ir.Naming{Source: "o"},
@@ -98,10 +99,10 @@ func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 }
 
 // TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
-// PropertyID reached as a map key is a Content.Encoding key, and checkEncodingKeys
-// resolves it against the properties of the model the content names — a tighter
-// claim about the same defect. One defect must read as one location, so the
-// membership check stays out of that map.
+// PropertyID reached as a map key is a Content.Encoding key, and
+// checkEncodingKeys resolves it against the properties of the model the content
+// names — a tighter claim about the same defect. One defect must read as one
+// location, so the membership check stays out of that map.
 func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 	t.Parallel()
 	doc := docWithOperation(ir.Operation{

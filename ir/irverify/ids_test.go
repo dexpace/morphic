@@ -143,10 +143,10 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 }
 
 // TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms pins the one case with no
-// destination to name. ir.PrimitiveTypeID derives t/prim/ from the zero-value kind,
-// which is not an ID at all, so the message must not offer it as the place the
-// node belongs — a reader sent there fixes the wrong end, and the check would be
-// telling them to write an ID checkIDs reports as malformed.
+// destination to name. ir.PrimitiveTypeID derives t/prim/ from the zero-value
+// kind, which is not an ID at all, so the message must not offer it as the
+// place the node belongs — a reader sent there fixes the wrong end, and the
+// check would be telling them to write an ID checkIDs reports as malformed.
 //
 // The kindless primitive breaks two claims at once and each is stated: the ID is
 // not the one its kind derives, and the kind is not one ir declares. They name
@@ -169,9 +169,9 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 
 // TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.
 // The space is reserved rather than conventional: a node there either collides
-// with the primitive of that kind outright, or squats a name the next PrimitiveKind
-// takes — and either way which node is reached depends on what was interned
-// first, which is invariant 3's corollary.
+// with the primitive of that kind outright, or squats a name the next
+// PrimitiveKind takes — and either way which node is reached depends on what
+// was interned first, which is invariant 3's corollary.
 func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

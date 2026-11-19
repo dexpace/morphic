@@ -76,12 +76,12 @@ func checkModelDiscriminator(doc *ir.Document, facts *irfacts.DocumentFacts, mod
 // checkDiscriminatorProperty requires a model discriminator's tag property to be
 // one the model exposes — its own, or one it composes in.
 //
-// checkPropIDRefs already holds every PropertyID to naming a property the document
-// declares somewhere. This is the tighter claim available where the root is
-// written down: a tag on a property of some unrelated model routes nothing, and
-// an emitter building a decoder reads the tag off *this* model's instance. A
-// tag naming a declaration the model's flattening overrides passes, though
-// docs/ir/models.md#the-flattening has it name the one taken, as
+// checkPropIDRefs already holds every PropertyID to naming a property the
+// document declares somewhere. This is the tighter claim available where the
+// root is written down: a tag on a property of some unrelated model routes
+// nothing, and an emitter building a decoder reads the tag off *this* model's
+// instance. A tag naming a declaration the model's flattening overrides passes,
+// though docs/ir/models.md#the-flattening has it name the one taken, as
 // appendUnknownPartDiags says.
 func checkDiscriminatorProperty(facts *irfacts.DocumentFacts, model *ir.Model) []ir.Diagnostic {
 	prop := model.Discriminator.Property

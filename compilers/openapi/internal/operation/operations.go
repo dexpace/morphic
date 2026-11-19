@@ -94,13 +94,13 @@ type Lowered struct {
 	Links   Links
 }
 
-// operationLoweringState is what lowering a service's operations accumulates across all of them,
-// whichever route mounts each: the type registry, the operationId claims judged
-// once every operation has lowered, the server registry a path item's and an
-// operation's servers go into, the scheme registry a requirement's names go
-// into, what the walk keeps for the Document, and the links resolved once the
-// service is whole. One is built per service and handed down by value, since
-// each field is the shared accumulator itself.
+// operationLoweringState is what lowering a service's operations accumulates
+// across all of them, whichever route mounts each: the type registry, the
+// operationId claims judged once every operation has lowered, the server
+// registry a path item's and an operation's servers go into, the scheme
+// registry a requirement's names go into, what the walk keeps for the Document,
+// and the links resolved once the service is whole. One is built per service
+// and handed down by value, since each field is the shared accumulator itself.
 type operationLoweringState struct {
 	types   *compile.Types
 	claims  *operationIDClaims
@@ -111,13 +111,13 @@ type operationLoweringState struct {
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
-// where the operation is mounted and fixes its identity — OperationID, its parameters'
-// IDs, and the root its callback operations hang from. decl is where its body
-// is declared, which its provenance names: the same node for an inline
-// operation, the component's own pointer when the operation was reached through
-// a $ref'd path item or callback (issue #107). Passing them as one value is
-// what keeps two same-typed pointer arguments from being transposed at a call
-// site.
+// where the operation is mounted and fixes its identity — OperationID, its
+// parameters' IDs, and the root its callback operations hang from. decl is
+// where its body is declared, which its provenance names: the same node for an
+// inline operation, the component's own pointer when the operation was reached
+// through a $ref'd path item or callback (issue #107). Passing them as one
+// value is what keeps two same-typed pointer arguments from being transposed at
+// a call site.
 type opPointers struct {
 	mount jsontext.Pointer
 	decl  jsontext.Pointer

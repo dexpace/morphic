@@ -612,11 +612,12 @@ const (
 	optPromotionPrefixes = "promotion-prefixes"
 )
 
-// switchOptions maps the name of each policy in options that text turns on or off to
-// the field saying it is off: the text names a policy as on or off, and the Go
-// field its being off, as each policy's Disabled does. A name is the marker
-// the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
-// for the title-names policy's, which leaves none.
+// switchOptions maps the name of each policy in options that text turns on or
+// off to the field saying it is off: the text names a policy as on or off, and
+// the Go field its being off, as each policy's Disabled does. A name is the
+// marker the policy leaves on what it fills
+// (docs/compilers/openapi.md#policies), but for the title-names policy's, which
+// leaves none.
 func switchOptions(options *Options) map[string]*bool {
 	return map[string]*bool{
 		string(NullableInferenceHeuristic):            &options.NullableInference.Disabled,
@@ -634,8 +635,8 @@ func switchOptions(options *Options) map[string]*bool {
 	}
 }
 
-// limitOptions maps the name of each budget in limits to the field it sets, so a
-// caller holding only text sets the budgets a Go caller does.
+// limitOptions maps the name of each budget in limits to the field it sets, so
+// a caller holding only text sets the budgets a Go caller does.
 func limitOptions(limits *Limits) map[string]*int {
 	return map[string]*int{
 		"max-source-bytes":        &limits.MaxSourceBytes,
@@ -843,8 +844,8 @@ func decodeLocations(out *[]Location, value string) error {
 	return nil
 }
 
-// mappingsOf is ls as the load phase reads it, each prefix spelled as a
-// located URL is (reftable.NormalURI), or why a prefix match could mistake one: a
+// mappingsOf is ls as the load phase reads it, each prefix spelled as a located
+// URL is (reftable.NormalURI), or why a prefix match could mistake one: a
 // prefix that is no absolute URI, holds a query or a fragment, or ends in no
 // "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
 // prefix written twice however it is spelled, an empty location, and a URL

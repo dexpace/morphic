@@ -58,8 +58,8 @@ func (s *settler) visit(node *yaml.Node, _ int) nodeview.Step {
 	return nodeview.Descend
 }
 
-// resolve tags the scalar node, when the parser left it plain, as YAML 1.2's core
-// schema reads it (docs/parser-library.md#scalar-resolution): a number the
+// resolve tags the scalar node, when the parser left it plain, as YAML 1.2's
+// core schema reads it (docs/parser-library.md#scalar-resolution): a number the
 // core schema does not spell is a string, and so are a date and a `<<` that is
 // no key (docs/parser-library.md#undecoded-scalar). A key keeps the parser's
 // tag but a date's. Its text is never changed.

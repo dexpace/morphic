@@ -125,8 +125,8 @@ type Tree struct {
 
 // Node returns where a finding about node is placed in Doc.Source: where the
 // overlay put node, with the overlay as its writer, for a node it introduced or
-// rewrote, and otherwise at node's line and column and its pointer in the tree. A
-// node the parser did not place has no line or column, which is the zero
+// rewrote, and otherwise at node's line and column and its pointer in the tree.
+// A node the parser did not place has no line or column, which is the zero
 // Position rather than one at 0:0. A nil node is the document as a whole.
 //
 // The tree's root has the empty pointer, which beside a position reads as none,

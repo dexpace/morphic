@@ -90,8 +90,9 @@ func paramInput(compiledDocumentView *compileddoc.CompiledDocumentView, op *ir.O
 }
 
 // walkedType is the type of the member tokens walk to from root, a walk
-// compileddoc.CompiledDocumentView.Walk has already taken, so each step reads a kept answer.
-// It is "" where a step finds no member, which no such walk leaves.
+// compileddoc.CompiledDocumentView.Walk has already taken, so each step reads a
+// kept answer. It is "" where a step finds no member, which no such walk
+// leaves.
 func walkedType(compiledDocumentView *compileddoc.CompiledDocumentView, root ir.TypeID, tokens []string) ir.TypeID {
 	at := root
 	for _, token := range tokens {

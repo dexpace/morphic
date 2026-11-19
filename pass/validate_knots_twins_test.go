@@ -11,11 +11,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue holds the types that
-// look like a type cycle and are not: each leads back to itself, and each has a
-// value that needs no other. A list with no bounds at all may be empty, a
-// union with a variant that is null or names nothing the document declares
-// has that variant for a value, and a map may be empty as well.
+// TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue holds the types
+// that look like a type cycle and are not: each leads back to itself, and each
+// has a value that needs no other. A list with no bounds at all may be empty, a
+// union with a variant that is null or names nothing the document declares has
+// that variant for a value, and a map may be empty as well.
 func TestValidate_ATypeWithAWayOutOfItsTypeCycleHasAFiniteValue(t *testing.T) {
 	t.Parallel()
 	for name, def := range map[string]ir.TypeDef{

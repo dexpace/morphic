@@ -150,9 +150,9 @@ func heldListsOf(t reflect.Type) []heldList {
 	return out
 }
 
-// appendListViolations reports each entry of the held list heldListValue that breaks its
-// rule, at the entry itself; owner is where the struct holding it sits, and
-// entries is what the list is read through.
+// appendListViolations reports each entry of the held list heldListValue that
+// breaks its rule, at the entry itself; owner is where the struct holding it
+// sits, and entries is what the list is read through.
 func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, heldListValue heldList,
 	entries *scratchstate.Map[string, int],
 ) []Violation {
@@ -177,8 +177,8 @@ func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath,
 	return vs
 }
 
-// entryPath spells entry i of the held list heldListValue of the struct at owner, as the walk
-// spells the entry itself.
+// entryPath spells entry i of the held list heldListValue of the struct at
+// owner, as the walk spells the entry itself.
 func entryPath(owner ir.WalkPath, heldListValue heldList, i int) string {
 	return owner.String() + "." + heldListValue.name + "[" + strconv.Itoa(i) + "]"
 }

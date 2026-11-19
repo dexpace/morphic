@@ -331,7 +331,8 @@ func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 }
 
 // TestDynamicAnchor_ReadsTheBindingsOfItsDocument pins that the declarations
-// are the table's for the document serviceContext reads, every one of them counted.
+// are the table's for the document serviceContext reads, every one of them
+// counted.
 func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
@@ -388,7 +389,8 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 	assert.Empty(t, slices.Collect(off.Promoter().Keys()))
 }
 
-// atSource returns the copy of loweringContext InDocument takes to the source's coordinates.
+// atSource returns the copy of loweringContext InDocument takes to the source's
+// coordinates.
 func atSource(t *testing.T, loweringContext lowering.Ctx) lowering.Ctx {
 	t.Helper()
 	at, ok := lowering.InDocument(loweringContext, reftable.Source)

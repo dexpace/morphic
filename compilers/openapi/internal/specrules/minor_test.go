@@ -54,8 +54,8 @@ func TestMinor_StringSpellsTheMinor(t *testing.T) {
 	assert.Equal(t, "none", specrules.Minor(0).String())
 }
 
-// validSpan reports whether minorVersionRange is empty or runs forward over the minors the
-// table covers, which every span a row writes must be.
+// validSpan reports whether minorVersionRange is empty or runs forward over the
+// minors the table covers, which every span a row writes must be.
 func validSpan(minorVersionRange specrules.MinorVersionRange) bool {
 	if minorVersionRange.Since == 0 {
 		return minorVersionRange.Until == 0

@@ -166,10 +166,10 @@ func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 }
 
 // TestObject_CatchAllBesideAnotherFactStaysModel pins the other side of the map
-// rule: a catch-all beside any other member fact is a Model's AdditionalProperties,
-// and an object that writes no additionalProperties states no catch-all at all.
-// An explicit `true` beside properties types the catch-all as the top type, as
-// `{}` would, rather than reading as unwritten.
+// rule: a catch-all beside any other member fact is a Model's
+// AdditionalProperties, and an object that writes no additionalProperties
+// states no catch-all at all. An explicit `true` beside properties types the
+// catch-all as the top type, as `{}` would, rather than reading as unwritten.
 func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	t.Parallel()
 	const base = "    B: {type: object, properties: {b: {type: string}}}\n"

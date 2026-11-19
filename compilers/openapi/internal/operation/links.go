@@ -109,8 +109,8 @@ func draftLinks(serviceContext service.Ctx, r *soa.Response, rptr jsontext.Point
 	return drafts, diags
 }
 
-// draftLink drafts the link l named name, declared at ptr in serviceContext's document. It
-// holds l whole, as it resolved, for keep.
+// draftLink drafts the link l named name, declared at ptr in serviceContext's
+// document. It holds l whole, as it resolved, for keep.
 func draftLink(serviceContext service.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (linkDraft, []ir.Diagnostic) {
 	linkDraftValue := linkDraft{
 		c: serviceContext, ptr: ptr, name: name,
@@ -128,10 +128,10 @@ func draftLink(serviceContext service.Ctx, l *soa.Link, ptr jsontext.Pointer, na
 	return linkDraftValue, append(diags, annotation.UnknownKeysIn(&linkDraftValue.extra, l, serviceContext.Place(), ptr)...)
 }
 
-// keep records d verbatim in unmodeled, under openapi:links/<name>, reporting whether
-// it wrote the entry and what preserving it reports. A link that does not
-// lower is kept whole, as it resolved, so nothing of it is lost, a $ref'd one
-// included; one that lowers is not converted at all, so nothing about its
+// keep records d verbatim in unmodeled, under openapi:links/<name>, reporting
+// whether it wrote the entry and what preserving it reports. A link that does
+// not lower is kept whole, as it resolved, so nothing of it is lost, a $ref'd
+// one included; one that lowers is not converted at all, so nothing about its
 // verbatim form is reported.
 func (d *linkDraft) keep(unmodeled *ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(unmodeled, "openapi:"+ids.Scope("links", d.name),

@@ -244,8 +244,8 @@ func TestDeclaredAt_NamesAPositionByItsPointerBeforeItIsInterned(t *testing.T) {
 }
 
 // TestChainOf_ReadsEachPositionOnce pins that the chain from the position a
-// mapping value names is read once a compile (lowering.ReadOncePerRun), not once
-// for each value or each union naming it.
+// mapping value names is read once a compile (lowering.ReadOncePerRun), not
+// once for each value or each union naming it.
 func TestChainOf_ReadsEachPositionOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    Cat: {type: object}\n"+

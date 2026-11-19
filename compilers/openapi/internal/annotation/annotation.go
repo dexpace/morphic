@@ -21,10 +21,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// EffectiveDeprecated reports whether a schema of chain (SchemaPositionAnnotationSources.Chain) is
-// deprecated. JSON Schema reads a location deprecated where any occurrence of
-// the keyword applying to it is true, and an occurrence false as one omitted,
-// so no schema of a chain withdraws another's.
+// EffectiveDeprecated reports whether a schema of chain
+// (SchemaPositionAnnotationSources.Chain) is deprecated. JSON Schema reads a
+// location deprecated where any occurrence of the keyword applying to it is
+// true, and an occurrence false as one omitted, so no schema of a chain
+// withdraws another's.
 func EffectiveDeprecated(chain []*statement.Schema) bool {
 	return anyFlag(chain, func(notes *statement.Notes) *bool { return notes.Deprecated })
 }
@@ -162,10 +163,10 @@ const (
 // references another type and may carry annotations of its own.
 type Kind int
 
-// SchemaPositionAnnotationSources is what a schema position declares: Node is the schema written there,
-// Folded branches the inline allOf branches read as written beside it, and Referents,
-// honoured only for a reference site, what a use site's annotations fall back
-// to, nearest first.
+// SchemaPositionAnnotationSources is what a schema position declares: Node is
+// the schema written there, Folded branches the inline allOf branches read as
+// written beside it, and Referents, honoured only for a reference site, what a
+// use site's annotations fall back to, nearest first.
 //
 // A Site At builds carries none of either: a declaration's annotations bind the
 // position they are written at (attachDeclaredAnnotations), and a component
@@ -207,8 +208,8 @@ type Dialect struct {
 	ListedTuple       bool
 }
 
-// FoldedAllOfBranch is an inline allOf branch and where it is written, so what it declares
-// is read, and reported, at its own pointer, in its own dialect.
+// FoldedAllOfBranch is an inline allOf branch and where it is written, so what
+// it declares is read, and reported, at its own pointer, in its own dialect.
 type FoldedAllOfBranch struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
@@ -267,7 +268,8 @@ type Home int
 
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves, since obtaining a referent is reference resolution — walk
-// work. SchemaPositionAnnotationSources.Referents holds each hop of the $ref's chain, nearest first.
+// work. SchemaPositionAnnotationSources.Referents holds each hop of the $ref's
+// chain, nearest first.
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.
@@ -291,22 +293,22 @@ type Set struct {
 // format table gives it as a hint to obscure the value.
 const redactionFormat = "password"
 
-// DeclaresRedaction reports whether schema asks for its value to be redacted, by
-// writing `format: password`. It is honoured whatever type schema declares: the
-// table lists it for strings, but hiding a value no one needed hidden is the
-// safe reading. It is an annotation rather than a (type, format) pairing, so
-// the shape a position lowers to is read without it.
+// DeclaresRedaction reports whether schema asks for its value to be redacted,
+// by writing `format: password`. It is honoured whatever type schema declares:
+// the table lists it for strings, but hiding a value no one needed hidden is
+// the safe reading. It is an annotation rather than a (type, format) pairing,
+// so the shape a position lowers to is read without it.
 func DeclaresRedaction(schema *statement.Schema) bool {
 	return schema != nil && schema.Format != nil && schema.Format.Name == redactionFormat
 }
 
 // Read reads every site-local annotation at st: what its schema writes at
-// pointer, then what each foldedBranch writes at its own. A foldedBranch agrees with what
-// spoke before it wherever both write a keyword (schema.foldingAllOfBranches), so an
-// entry is kept once: the site's own, else, where several folded branches kept apart
-// write it, at pointer, no one writer's (underlay). A folded branch's unevaluated
-// keywords fold nowhere (schema.foldEntry): its branch, kept whole, is their
-// one record.
+// pointer, then what each foldedBranch writes at its own. A foldedBranch agrees
+// with what spoke before it wherever both write a keyword
+// (schema.foldingAllOfBranches), so an entry is kept once: the site's own,
+// else, where several folded branches kept apart write it, at pointer, no one
+// writer's (underlay). A folded branch's unevaluated keywords fold nowhere
+// (schema.foldEntry): its branch, kept whole, is their one record.
 //
 // This is the one place the site-versus-referent choice is made, so no
 // position attaching annotations makes it apart.
@@ -388,11 +390,13 @@ func lessNote(diags []ir.Diagnostic, at ir.Provenance, key string) []ir.Diagnost
 	})
 }
 
-// readLocal reads what schema, written at pointer, says of the position alone: the
-// annotations no use inherits. own says schema is the schema written at the position,
-// rather than a folded branch, whose dialect keywords, discriminator and unevaluated
-// keywords no fold reads and whose residue keeps them, dialect is what its
-// dialect spells otherwise (SchemaPositionAnnotationSources.Dialect), and closure is SchemaPositionAnnotationSources.Closure.
+// readLocal reads what schema, written at pointer, says of the position alone:
+// the annotations no use inherits. own says schema is the schema written at the
+// position, rather than a folded branch, whose dialect keywords, discriminator
+// and unevaluated keywords no fold reads and whose residue keeps them, dialect
+// is what its dialect spells otherwise
+// (SchemaPositionAnnotationSources.Dialect), and closure is
+// SchemaPositionAnnotationSources.Closure.
 func readLocal(schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
 	var out Set
 	out.XML = XMLHints(schema.XML())
@@ -420,8 +424,9 @@ func readLocal(schema *statement.Schema, pointer jsontext.Pointer, doc provenanc
 // Unmodeled map, so the entries ride on the schema's node, keyed apart by the
 // keyword each was written under. The census is graded as an OpenAPI object's,
 // not a schema keyword's. It first reads the XML object's nodeType into hints
-// (applyNodeType). discriminator says whether schema's discriminator is read. An
-// object schema does not write is not asked, so a schema writing none costs nothing.
+// (applyNodeType). discriminator says whether schema's discriminator is read.
+// An object schema does not write is not asked, so a schema writing none costs
+// nothing.
 func subObjectKeys(schema *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
@@ -463,14 +468,14 @@ func DiscriminatorKeys(schema *statement.Schema, pointer jsontext.Pointer, doc p
 	return out, append(diags, UnknownKeysNamed(&out, discriminator.Unknown, discriminator.Node, doc, owner, "discriminator")...)
 }
 
-// applyNodeType places the nodeType the XML object xml writes on hints, which the
-// parser's model has no field for (GitHub #615), and returns the keys it read
-// for the census to leave alone. It reads at every version, as load reports the
-// field below 3.2 (diag.LaterVersionConstruct). A non-empty value outside the
-// five the specification defines is kept verbatim on unmodeled instead, as nothing else
-// may fill XMLHints.NodeType. An attribute flag the nodeType contradicts, which
-// 3.2 forbids writing beside it, is kept verbatim on unmodeled rather than placed, so
-// the hints never name two kinds of node.
+// applyNodeType places the nodeType the XML object xml writes on hints, which
+// the parser's model has no field for (GitHub #615), and returns the keys it
+// read for the census to leave alone. It reads at every version, as load
+// reports the field below 3.2 (diag.LaterVersionConstruct). A non-empty value
+// outside the five the specification defines is kept verbatim on unmodeled
+// instead, as nothing else may fill XMLHints.NodeType. An attribute flag the
+// nodeType contradicts, which 3.2 forbids writing beside it, is kept verbatim
+// on unmodeled rather than placed, so the hints never name two kinds of node.
 func applyNodeType(unmodeled *ir.Unmodeled, hints *ir.XMLHints, xml *statement.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	nodeType, read, diags := TakeString(unmodeled, xml.Node, "nodeType", definedNodeType, doc, owner, "xml")
 	if !read {
@@ -569,10 +574,10 @@ func dialectRead(keyword string, dialect Dialect) string {
 	}
 }
 
-// dialectAt keeps each dialect keyword schema declares verbatim and announces it, so
-// the exclusion is visible in the output rather than only in this comment:
-// those DialectKeywords names, and draft 4's `id` where dialect says schema is read
-// in a dialect spelling its identifier so.
+// dialectAt keeps each dialect keyword schema declares verbatim and announces
+// it, so the exclusion is visible in the output rather than only in this
+// comment: those DialectKeywords names, and draft 4's `id` where dialect says
+// schema is read in a dialect spelling its identifier so.
 func dialectAt(schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
 	var unmodeled ir.Unmodeled
 	var diags []ir.Diagnostic
@@ -586,8 +591,9 @@ func dialectAt(schema *statement.Schema, pointer jsontext.Pointer, doc provenanc
 }
 
 // KeepDialectKeyword keeps keyword, one of DialectKeywords or draft 4's `id`,
-// verbatim on unmodeled where schema, the schema at pointer, writes it, out of scope, and
-// announces it at the keyword, as dialectAt does for each one a site writes.
+// verbatim on unmodeled where schema, the schema at pointer, writes it, out of
+// scope, and announces it at the keyword, as dialectAt does for each one a site
+// writes.
 func KeepDialectKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string, pointer jsontext.Pointer,
 	doc provenance.Doc, dialect Dialect,
 ) []ir.Diagnostic {

@@ -13,10 +13,10 @@ import (
 
 // places is where the load places a finding at a pointer of the source, which
 // source places as the lowering does, or of another document a reference read
-// beside it, in that document's own LoadedOpenAPIDocument.Sources entry. A document no entry
-// holds, which a document read for its content always has, is placed at the
-// source's root rather than nowhere. table names the documents a position of
-// the bindings is in; it is nil before binding.
+// beside it, in that document's own LoadedOpenAPIDocument.Sources entry. A
+// document no entry holds, which a document read for its content always has, is
+// placed at the source's root rather than nowhere. table names the documents a
+// position of the bindings is in; it is nil before binding.
 type places struct {
 	source provenance.Doc
 	others Others

@@ -183,10 +183,10 @@ type walker struct {
 	reporter
 }
 
-// objectToCheck is an object to read: its kind, node, pointer, the key its parent
-// holds it under, and the kind of that parent, zero at the root. rows is the
-// rows of the schema holding it, where one does, and shared says its parent's
-// frame is shared (frame.shared).
+// objectToCheck is an object to read: its kind, node, pointer, the key its
+// parent holds it under, and the kind of that parent, zero at the root. rows is
+// the rows of the schema holding it, where one does, and shared says its
+// parent's frame is shared (frame.shared).
 type objectToCheck struct {
 	node   *yaml.Node
 	ptr    jsontext.Pointer
@@ -218,8 +218,8 @@ type frame struct {
 	shared bool
 }
 
-// sharedNode reports whether another place may read node: it is an alias, or the
-// node it names is anchored.
+// sharedNode reports whether another place may read node: it is an alias, or
+// the node it names is anchored.
 func sharedNode(node *yaml.Node) bool {
 	if node == nil {
 		return false
@@ -301,8 +301,8 @@ func reportStop(walkerValue *walker, ptr jsontext.Pointer) {
 		"the OpenAPI %s check stopped at this depth or work budget; what lies below is unchecked", walkerValue.minor))
 }
 
-// object checks the mapping objectToCheckValue holds as an object of its kind, and what lies
-// below it.
+// object checks the mapping objectToCheckValue holds as an object of its kind,
+// and what lies below it.
 func (w *walker) object(objectToCheckValue objectToCheck, depth int) {
 	obj, ok := w.spec.Object(objectToCheckValue.kind)
 	node := nodeview.Deref(objectToCheckValue.node)
@@ -349,11 +349,11 @@ func (w *walker) object(objectToCheckValue objectToCheck, depth int) {
 	w.rules(frameValue)
 }
 
-// rawKeys reads for repeated keys the value of each key frameValue's object reads as no
-// field and the lowering keeps verbatim: an extension, and a key the object
-// defines at no minor, which unknown reports. An object taking patterned keys
-// reads each other key as an entry, as a schema reads a keyword its dialect
-// added later as a field.
+// rawKeys reads for repeated keys the value of each key frameValue's object
+// reads as no field and the lowering keeps verbatim: an extension, and a key
+// the object defines at no minor, which unknown reports. An object taking
+// patterned keys reads each other key as an entry, as a schema reads a keyword
+// its dialect added later as a field.
 func rawKeys(walkerValue *walker, frameValue frame, depth int) {
 	_, patterned := frameValue.obj.patternAt(walkerValue.minor)
 	for _, pair := range frameValue.pairs {
@@ -368,9 +368,9 @@ func rawKeys(walkerValue *walker, frameValue frame, depth int) {
 	}
 }
 
-// unknown reports each key frameValue's mapping writes that its object neither defines
-// at any minor nor admits: no field, no patterned key, no x- extension. A
-// Schema Object's keywords are its dialect's, and an object taking patterned
+// unknown reports each key frameValue's mapping writes that its object neither
+// defines at any minor nor admits: no field, no patterned key, no x- extension.
+// A Schema Object's keywords are its dialect's, and an object taking patterned
 // keys at the declared minor admits every key, so neither is judged here. A key
 // merged through `<<` is placed where it is written, as every field is.
 func (w *walker) unknown(frameValue frame) {
@@ -396,9 +396,9 @@ func (w *walker) unknown(frameValue frame) {
 	}
 }
 
-// rowsAt returns the rows the Schema Object objectToCheckValue names is read with: a dialect
-// root's own (Options.RootRows), else those of the schema holding it, else its
-// document's (Options.Rows).
+// rowsAt returns the rows the Schema Object objectToCheckValue names is read
+// with: a dialect root's own (Options.RootRows), else those of the schema
+// holding it, else its document's (Options.Rows).
 func (w *walker) rowsAt(objectToCheckValue objectToCheck) SchemaRules {
 	if w.rootRows != nil {
 		if rows, root := w.rootRows(w.rootAt + objectToCheckValue.ptr); root && rows.rows != nil {
@@ -421,8 +421,8 @@ func frameOf(frameValue frame, node *yaml.Node, view *nodeview.View) frame {
 	return frameValue
 }
 
-// notMapping reports a node that is no mapping where frameValue's kind needs one,
-// unless the kind admits a boolean there, and tells Options.Judged which.
+// notMapping reports a node that is no mapping where frameValue's kind needs
+// one, unless the kind admits a boolean there, and tells Options.Judged which.
 func (w *walker) notMapping(frameValue frame, node *yaml.Node) {
 	if frameValue.obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
 		w.accept(frameValue.shared, node)
@@ -639,8 +639,8 @@ func itemPointer(ptr jsontext.Pointer, i int) jsontext.Pointer {
 	return ptr.AppendToken(strconv.Itoa(i))
 }
 
-// citeFor picks the citation to name for a finding at minor minor: the latest one
-// the minor has reached, else the first.
+// citeFor picks the citation to name for a finding at minor minor: the latest
+// one the minor has reached, else the first.
 func citeFor(cites []Cite, minor Minor) Cite {
 	var best Cite
 	for _, cite := range cites {

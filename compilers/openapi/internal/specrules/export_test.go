@@ -34,8 +34,8 @@ func SchemaDialectIDs() []string {
 	return ids
 }
 
-// KeywordsOf returns the fields schemaRules defines and those it defines later, each
-// sorted by name, for the external tests reading every keyword of a row.
+// KeywordsOf returns the fields schemaRules defines and those it defines later,
+// each sorted by name, for the external tests reading every keyword of a row.
 func KeywordsOf(schemaRules SchemaRules) (defined, later []Field) {
 	byName := func(a, b Field) int { return strings.Compare(a.Name, b.Name) }
 	return slices.SortedFunc(maps.Values(schemaRules.rows.fields), byName), slices.SortedFunc(maps.Values(schemaRules.rows.later), byName)

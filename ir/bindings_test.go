@@ -228,8 +228,8 @@ func TestMessageBinding_BindingsDeterministic(t *testing.T) {
 	assert.Contains(t, got, sortedProtocolBindingsJSON)
 }
 
-// TestMessageDirection_Constants pins the on-disk spelling of both MessageDirection
-// values.
+// TestMessageDirection_Constants pins the on-disk spelling of both
+// MessageDirection values.
 func TestMessageDirection_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, map[ir.MessageDirection]string{

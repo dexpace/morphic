@@ -13,12 +13,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// untypedKinds returns the kinds schema, which writes no kind of its own, lowers to
-// as its shape keywords speak of them (shapeKinds), and whether the
-// kind-inference policy read them (lowersTo). Where its conjuncts, as a
-// union kept beside it, admit a kind the keywords do not speak of, there are
-// none, as where nothing names a kind. Else schema lowers to the kinds they admit:
-// the policy's where it read any, off schema or a conjunct, the document's
+// untypedKinds returns the kinds schema, which writes no kind of its own,
+// lowers to as its shape keywords speak of them (shapeKinds), and whether the
+// kind-inference policy read them (lowersTo). Where its conjuncts, as a union
+// kept beside it, admit a kind the keywords do not speak of, there are none, as
+// where nothing names a kind. Else schema lowers to the kinds they admit: the
+// policy's where it read any, off schema or a conjunct, the document's
 // otherwise.
 func untypedKinds(loweringContext lowering.Ctx, schema *statement.Schema) (kindSet, bool) {
 	claims := shapeKinds(schema)
@@ -37,12 +37,12 @@ func untypedKinds(loweringContext lowering.Ctx, schema *statement.Schema) (kindS
 // whichever order the keywords are written in.
 var inferredKinds = []statement.JSONSchemaTypeName{statement.KindObject, statement.KindArray}
 
-// lowerUntypedUnion lowers schema, which writes no type, by types, as a type list
-// naming them beside its keywords lowers (lowerUnion): an object and an array
-// its shape keywords speak of, or the kinds an allOf electing no entry admits
-// (lowerUndecided). Where the policy read the kinds, the union and each
-// variant are marked, as each variant's kind was read off the keywords too.
-// The union stands where st says.
+// lowerUntypedUnion lowers schema, which writes no type, by types, as a type
+// list naming them beside its keywords lowers (lowerUnion): an object and an
+// array its shape keywords speak of, or the kinds an allOf electing no entry
+// admits (lowerUndecided). Where the policy read the kinds, the union and each
+// variant are marked, as each variant's kind was read off the keywords too. The
+// union stands where st says.
 func lowerUntypedUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer,
 	types []statement.JSONSchemaTypeName, inferred bool, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -56,11 +56,11 @@ func lowerUntypedUnion(loweringContext lowering.Ctx, ts *compile.Types, depth in
 	return id, append(diags, census.diags...)
 }
 
-// claimedKinds returns the kinds loweringContext's kind-inference policy reads off the
-// keywords schema writes that give a type to the instances they apply to, a
-// member's, an element's or a value's (siblingKeyword.infers), and none where
-// the policy is off. The run's admission reads it as the kinds a statement
-// declaring none lowers to (readOne), which lowerUntyped lowers by
+// claimedKinds returns the kinds loweringContext's kind-inference policy reads
+// off the keywords schema writes that give a type to the instances they apply
+// to, a member's, an element's or a value's (siblingKeyword.infers), and none
+// where the policy is off. The run's admission reads it as the kinds a
+// statement declaring none lowers to (readOne), which lowerUntyped lowers by
 // (untypedKinds).
 func claimedKinds(loweringContext lowering.Ctx, schema *statement.Schema) kindSet {
 	if !loweringContext.KindInference.Honours() {
@@ -77,12 +77,12 @@ func claimedKinds(loweringContext lowering.Ctx, schema *statement.Schema) kindSe
 	return out
 }
 
-// shapeKinds returns the kinds of instance the shape keywords schema writes apply
-// to alone, whether or not they infer one: an object for a `discriminator` and
-// for each keyword whose row in shapeKeywords or narrowingKeywords claims one,
-// as its predicate reads it written, an array likewise
-// (docs/compilers/openapi.md#shape-applicator). It is the one reading of what
-// they speak of.
+// shapeKinds returns the kinds of instance the shape keywords schema writes
+// apply to alone, whether or not they infer one: an object for a
+// `discriminator` and for each keyword whose row in shapeKeywords or
+// narrowingKeywords claims one, as its predicate reads it written, an array
+// likewise (docs/compilers/openapi.md#shape-applicator). It is the one reading
+// of what they speak of.
 func shapeKinds(schema *statement.Schema) kindSet {
 	var out kindSet
 	if schema.Discriminator() != nil {
@@ -188,8 +188,9 @@ func siblingKeywords(schema *statement.Schema) []string {
 	return out
 }
 
-// writesSiblingKeyword reports whether siblingKeywords(schema) holds any keyword,
-// without building the list, as most schemas a reader asks of write one.
+// writesSiblingKeyword reports whether siblingKeywords(schema) holds any
+// keyword, without building the list, as most schemas a reader asks of write
+// one.
 func writesSiblingKeyword(schema *statement.Schema) bool {
 	writes := func(siblingKeywordValue siblingKeyword) bool { return siblingKeywordValue.writes(schema) }
 	return slices.ContainsFunc(shapeKeywords, writes) || slices.ContainsFunc(narrowingKeywords, writes)

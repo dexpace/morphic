@@ -43,8 +43,8 @@ func (c *correlator) seedLayer() {
 	}
 }
 
-// named is the segment of kind naming what naming's source declares, and "" when
-// the source declares no name, which keys nothing.
+// named is the segment of kind naming what naming's source declares, and ""
+// when the source declares no name, which keys nothing.
 func named(kind string, naming ir.Naming) string {
 	if naming.Source == "" {
 		return ""
@@ -211,11 +211,11 @@ func (c *correlator) params(key string, op *ir.Operation) {
 	}
 }
 
-// paramKey is the key of parameter, a parameter of op keyed key. A host binding is
-// passed over: it fills a host-prefix label in addition to the binding at the
-// parameter's modeled location (docs/ir/http-binding.md), which places it. A
-// binding under a prefix names no field of its own, so it is keyed by where it
-// travels and its prefix, in a segment of another kind than a wire name's
+// paramKey is the key of parameter, a parameter of op keyed key. A host binding
+// is passed over: it fills a host-prefix label in addition to the binding at
+// the parameter's modeled location (docs/ir/http-binding.md), which places it.
+// A binding under a prefix names no field of its own, so it is keyed by where
+// it travels and its prefix, in a segment of another kind than a wire name's
 // (docs/ir/http-binding.md#prefix-bindings).
 func paramKey(key string, op *ir.Operation, parameter *ir.Parameter) string {
 	for _, b := range op.Bindings.HTTP {
@@ -371,8 +371,8 @@ func (c *correlator) headers(key string, hs []ir.Header) {
 	}
 }
 
-// headerKey extends key by what names header on the wire, in lower case: its name,
-// or the prefix of one under a prefix, which names no field of its own
+// headerKey extends key by what names header on the wire, in lower case: its
+// name, or the prefix of one under a prefix, which names no field of its own
 // (docs/ir/responses.md#prefix-headers). The two segments differ in kind, so a
 // prefix and a header of the same name never share a key.
 func headerKey(key string, header *ir.Header) string {

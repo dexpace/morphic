@@ -81,7 +81,8 @@ func (s boundSite) keeps(keyword string) int {
 	return n
 }
 
-// boundField reports whether constraints holds the field the value bound keyword fills.
+// boundField reports whether constraints holds the field the value bound
+// keyword fills.
 func boundField(constraints *ir.Constraints, keyword string) bool {
 	if constraints == nil {
 		return false

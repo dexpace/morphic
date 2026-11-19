@@ -90,8 +90,8 @@ func modelSiblings(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree) 
 	return siblingsFrom(ctx, walk(ctx, doc), tree, buildSibling)
 }
 
-// refBeside reports whether node is a reference writing a field beside its $ref,
-// as every use site holding fields beside its $ref is (see withoutRef).
+// refBeside reports whether node is a reference writing a field beside its
+// $ref, as every use site holding fields beside its $ref is (see withoutRef).
 func refBeside(node *yaml.Node) bool {
 	return isReference(node) && writesBeside(node)
 }

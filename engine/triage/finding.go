@@ -64,9 +64,9 @@ func (s Ruleset) Rate(diags []ir.Diagnostic) ([]Finding, []Rule) {
 	return findings, unused
 }
 
-// match returns the position of the rule diagnostic meets, and false when it meets
-// none. A pointer places diagnostic in the spec only when diagnostic is in source 0, as a
-// pointer locates a position of its own source alone.
+// match returns the position of the rule diagnostic meets, and false when it
+// meets none. A pointer places diagnostic in the spec only when diagnostic is
+// in source 0, as a pointer locates a position of its own source alone.
 func (s Ruleset) match(diagnostic ir.Diagnostic) (int, bool) {
 	prov := diagnostic.Provenance
 	if prov.Pointer != "" && prov.Source == 0 {

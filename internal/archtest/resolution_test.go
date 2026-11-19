@@ -214,12 +214,12 @@ func typeKey(t types.Type) string {
 	return obj.Pkg().Path() + "." + obj.Name()
 }
 
-// resolutionAPI derives the library's resolution API from libGraphValue: every exported
-// function or method that, through calls the type checker resolves, runs the
-// resolver, or touches a field of the schema's package that resolving a schema
-// writes. A non-schema reference's answer is read by GetObject, the accessor of
-// every parameter and response, and stays with the library (GitHub #920), so
-// only running its resolver counts; Walk reads no resolution state, and
+// resolutionAPI derives the library's resolution API from libGraphValue: every
+// exported function or method that, through calls the type checker resolves,
+// runs the resolver, or touches a field of the schema's package that resolving
+// a schema writes. A non-schema reference's answer is read by GetObject, the
+// accessor of every parameter and response, and stays with the library (GitHub #920),
+// so only running its resolver counts; Walk reads no resolution state, and
 // GetTarget and Validate reach it only through GetObject. Each member maps to
 // why it is one.
 func resolutionAPI(libGraphValue libGraph, resolver, schemaResolve, schemaPkg string) map[string]string {
@@ -283,8 +283,8 @@ func writtenFrom(libGraphValue libGraph, from, prefix string) map[string]bool {
 	return written
 }
 
-// rootReason says why libFuncValue belongs to the API on its own account, or "" when it
-// does not: it is the resolver, calls it, or touches resolution state.
+// rootReason says why libFuncValue belongs to the API on its own account, or ""
+// when it does not: it is the resolver, calls it, or touches resolution state.
 func rootReason(name string, libFuncValue *libFunc, resolver string, state map[string]bool) string {
 	switch {
 	case name == resolver:
@@ -392,8 +392,8 @@ func deriveResolutionAPI() ([]resolutionMember, error) {
 	return membersOf(libGraphValue, api)
 }
 
-// anchor returns the full name of the function name loadedPackage declares, or of the
-// method name of the type typeName when that is not "".
+// anchor returns the full name of the function name loadedPackage declares, or
+// of the method name of the type typeName when that is not "".
 func anchor(loadedPackage *decls.Package, typeName, name string) (string, error) {
 	if typeName == "" {
 		fn, ok := loadedPackage.Types.Scope().Lookup(name).(*types.Func)
@@ -438,13 +438,13 @@ func libraryPackages() ([]string, error) {
 	return slices.Compact(paths), nil
 }
 
-// resolutionUses returns where loadedPackage uses each member, by short name. A use is any
-// identifier the type checker resolves to a member: a call, a method value or
-// expression, a method promoted through an embedded field. One resolved to an
-// interface's method, a constraint's included, counts toward each member of that
-// name whose type has a method of every name the interface declares, since the
-// call may reach it. A method reached by reflection names no identifier and is
-// not seen.
+// resolutionUses returns where loadedPackage uses each member, by short name. A
+// use is any identifier the type checker resolves to a member: a call, a method
+// value or expression, a method promoted through an embedded field. One
+// resolved to an interface's method, a constraint's included, counts toward
+// each member of that name whose type has a method of every name the interface
+// declares, since the call may reach it. A method reached by reflection names
+// no identifier and is not seen.
 func resolutionUses(loadedPackage *decls.Package, members []resolutionMember) map[string][]token.Position {
 	byFull := map[string]resolutionMember{}
 	byName := map[string][]resolutionMember{}
@@ -515,9 +515,9 @@ var resolutionRatchet = ratchet{
 	rise:   "each deepens the compiler's dependence on the library's reference resolution (GitHub #558)",
 }
 
-// baselineFindings compares sites, by package and key, with ratchetValue's counts and
-// returns one message per difference, sorted: a rise names each site, a fall
-// asks for the table to be lowered.
+// baselineFindings compares sites, by package and key, with ratchetValue's
+// counts and returns one message per difference, sorted: a rise names each
+// site, a fall asks for the table to be lowered.
 func baselineFindings(ratchetValue ratchet, sites map[string]map[string][]string) []string {
 	var out []string
 	for _, pkg := range sortedUnion(sites, ratchetValue.counts) {

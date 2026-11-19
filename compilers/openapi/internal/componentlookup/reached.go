@@ -32,8 +32,8 @@ func (r *Reached) Has(pointer jsontext.Pointer) bool {
 	return r != nil && r.at[pointer]
 }
 
-// noteSource records the pointer of documentPointer, a position of the source, unless r is
-// nil or documentPointer is another document's.
+// noteSource records the pointer of documentPointer, a position of the source,
+// unless r is nil or documentPointer is another document's.
 func (r *Reached) noteSource(documentPointer reftable.DocumentPointer) {
 	if r != nil && documentPointer.Doc == reftable.Source {
 		r.at[documentPointer.Pointer] = true

@@ -24,8 +24,8 @@ var allReasons = []ir.UnmodeledReason{
 	ir.ReasonNoIRHome, ir.ReasonOutOfScope,
 }
 
-// docWithUnmodeled hangs unmodeled off validDoc's model, an Unmodeled site the walk
-// reaches through the Types registry.
+// docWithUnmodeled hangs unmodeled off validDoc's model, an Unmodeled site the
+// walk reaches through the Types registry.
 func docWithUnmodeled(unmodeled ir.Unmodeled) *ir.Document {
 	doc := validDoc()
 	doc.Types["type/x/Model"].Common().Unmodeled = unmodeled

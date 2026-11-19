@@ -22,10 +22,10 @@ var abOrder = permutation{
 	moved:   sequences{"/components/schemas/AB/allOf": 2},
 }
 
-// declaring is a model of the name holding one member, typeID, of the target type.
-// Its IDs and pointers are the ones the compiler gives a schema declared under
-// components.schemas, the member's provenance included, so a shape line that
-// kept it would tell two declarations apart.
+// declaring is a model of the name holding one member, typeID, of the target
+// type. Its IDs and pointers are the ones the compiler gives a schema declared
+// under components.schemas, the member's provenance included, so a shape line
+// that kept it would tell two declarations apart.
 func declaring(name string, typeID ir.TypeID) *ir.Model {
 	return &ir.Model{
 		ID:   ir.TypeID("type/openapi/components/schemas/" + name),

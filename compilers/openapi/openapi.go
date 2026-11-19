@@ -230,11 +230,11 @@ func run(ctx context.Context, serviceContext service.Ctx, inf inferences, ts *co
 	schema.ReserveNodesAtReferenceTargets(serviceContext.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
-	// (compile.Types.ReserveNodeAtCoordinate), and what was deferred until the registry is whole
-	// is decided (compile.Settlement), before the check that refuses a registry
-	// either phase left cut short. What Finish reports carries each entry the
-	// registry refused, a compiler bug that would otherwise leave every reference
-	// to it dangling with nothing said.
+	// (compile.Types.ReserveNodeAtCoordinate), and what was deferred until the
+	// registry is whole is decided (compile.Settlement), before the check that
+	// refuses a registry either phase left cut short. What Finish reports
+	// carries each entry the registry refused, a compiler bug that would
+	// otherwise leave every reference to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
@@ -245,11 +245,11 @@ func run(ctx context.Context, serviceContext service.Ctx, inf inferences, ts *co
 	// docs/compilers/openapi.md#policies gives: links, then promotions, then
 	// inferences, an inference filling only what no keyword or promotion
 	// states. A link names operations and members anywhere in the service, and
-	// a server it names registers then too, so the servers are read after it.
-	// A replacement may be declared after what it replaces, and what a name
+	// a server it names registers then too, so the servers are read after it. A
+	// replacement may be declared after what it replaces, and what a name
 	// implies turns on the type a $ref names, built in any order. Each step
-	// reads the document through compiledDocumentView, which lists and indexes it once for all;
-	// newWhole is compileddoc.New, which a test counts.
+	// reads the document through compiledDocumentView, which lists and indexes
+	// it once for all; newWhole is compileddoc.New, which a test counts.
 	compiledDocumentView := newWhole(out)
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(serviceContext, compiledDocumentView, srv))
@@ -293,9 +293,9 @@ func run(ctx context.Context, serviceContext service.Ctx, inf inferences, ts *co
 	return out, acc.List(), nil
 }
 
-// componentStatements yields each component schema of serviceContext's document under its
-// name, in source order, as the statement serviceContext's table reads of it, read when the
-// schema walk asks for it.
+// componentStatements yields each component schema of serviceContext's document
+// under its name, in source order, as the statement serviceContext's table
+// reads of it, read when the schema walk asks for it.
 func componentStatements(serviceContext service.Ctx) iter.Seq2[string, *statement.Statement] {
 	return func(yield func(string, *statement.Statement) bool) {
 		for name, js := range serviceContext.Doc.Components.GetSchemas().All() {

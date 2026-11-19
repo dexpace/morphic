@@ -127,8 +127,9 @@ func checkFlagValue(t *testing.T, fresh func() flagValue, typeName string, cases
 	}
 }
 
-// TestFormatFlag_SetReadsEachFormat pins the formats --diagnostics-format takes, as
-// literal text, and the refusal of any other, the empty string among them.
+// TestFormatFlag_SetReadsEachFormat pins the formats --diagnostics-format
+// takes, as literal text, and the refusal of any other, the empty string among
+// them.
 func TestFormatFlag_SetReadsEachFormat(t *testing.T) {
 	t.Parallel()
 	checkFlagValue(t, func() flagValue { return new(formatText) }, "format", []flagCase{
@@ -138,9 +139,9 @@ func TestFormatFlag_SetReadsEachFormat(t *testing.T) {
 	})
 }
 
-// TestShowFlag_SetReadsEachSeverity pins the severities --min-severity takes, and the
-// refusal of what names none, a threshold's none and the empty string among
-// them.
+// TestShowFlag_SetReadsEachSeverity pins the severities --min-severity takes,
+// and the refusal of what names none, a threshold's none and the empty string
+// among them.
 func TestShowFlag_SetReadsEachSeverity(t *testing.T) {
 	t.Parallel()
 	checkFlagValue(t, func() flagValue { return new(minSeverityFlag("info")) }, "severity", []flagCase{
@@ -151,8 +152,8 @@ func TestShowFlag_SetReadsEachSeverity(t *testing.T) {
 	})
 }
 
-// TestLimitFlag_SetReadsACount pins the counts --diagnostics-per-code-limit takes, zero
-// among them, and the refusal of what is no count of 0 or more.
+// TestLimitFlag_SetReadsACount pins the counts --diagnostics-per-code-limit
+// takes, zero among them, and the refusal of what is no count of 0 or more.
 func TestLimitFlag_SetReadsACount(t *testing.T) {
 	t.Parallel()
 	checkFlagValue(t, func() flagValue { return new(perCodeLimitFlag(3)) }, "count", []flagCase{

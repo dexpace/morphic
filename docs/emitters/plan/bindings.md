@@ -11,16 +11,16 @@ target lowers, so RPC/OTP single-response ops with empty conditions are handled 
 
 ```go
 type BindingView struct {
-    All      []ProtoBinding  // every binding: OpBindings.RPC, then HTTP in its order, then
-                             // Message, GraphQL and OTP (below)
+    All      []ProtoBinding   // every binding: OpBindings.RPC, then HTTP in its order, then
+                              // Message, GraphQL and OTP (below)
 }
 type ProtoBinding struct {
-    Protocol Protocol        // the OpBindings field this binding comes from
-    Params   []ParamBind     // HTTP's neutralized param placement, one per HTTPParamBinding
+    Protocol Protocol         // the OpBindings field this binding comes from
+    Params   []ParamBind      // HTTP's neutralized param placement, one per HTTPParamBinding
     ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
                                   // sub-field of the payload; nil = the whole payload
-    NoBody   bool            // no response under this binding carries a body: an HTTP binding
-                             // whose method is HEAD (below)
+    NoBody   bool             // no response under this binding carries a body: an HTTP binding
+                              // whose method is HEAD (below)
     // The binding itself, by reference, not restructured; exactly the one Protocol names is set:
     HTTP     *ir.HTTPBinding    // method/URITemplate/status map
     RPC      *ir.RPCBinding     // System says which RPC system
@@ -29,23 +29,23 @@ type ProtoBinding struct {
     OTP      *ir.OTPBinding     // the behaviour, call/cast/info, the process and the request tag
 }
 type ParamBind struct {
-    Param    ir.ParameterID      // the bound Operation.Params entry; one name may be two params
-    ParamPath []ir.PropertyID    // HTTPParamBinding.ParamPath: the member of the param this binding
-                             // sends, as a transcoding's {book.name} does; empty = the whole param
-    Where    ir.HTTPLocation // where it is sent, in HTTPParamBinding.Location's vocabulary
-    WireName string          // never a rendered identifier (INV4)
+    Param    ir.ParameterID   // the bound Operation.Params entry; one name may be two params
+    ParamPath []ir.PropertyID // HTTPParamBinding.ParamPath: the member of the param this binding
+                              // sends, as a transcoding's {book.name} does; empty = the whole param
+    Where    ir.HTTPLocation  // where it is sent, in HTTPParamBinding.Location's vocabulary
+    WireName string           // never a rendered identifier (INV4)
     Style    string; Explode *bool; Prefix *string  // form/label/matrix/deepObject serialization
     AllowReserved, AllowEmptyValue bool             // the binding's escaping and empty-value facts
-    PathPattern string       // HTTPParamBinding.PathPattern: a pattern of several segments is
-                             // escaped by its own rule (../refine/text.md#escaping)
-    Text     bool            // no Style arranges a value of the param's type, so the input is its
-                             // caller's text: a string in a path, a host label or a header, pairs
-                             // of strings in a query or a cookie
-                             // (../refine/text.md#a-value-no-style-arranges)
-    ContentType string       // a content-style param's media type; "" = serialized by Style
-    BodyPath []ir.PropertyID     // body_property: where in the body model the param lands
+    PathPattern string        // HTTPParamBinding.PathPattern: a pattern of several segments is
+                              // escaped by its own rule (../refine/text.md#escaping)
+    Text     bool             // no Style arranges a value of the param's type, so the input is its
+                              // caller's text: a string in a path, a host label or a header, pairs
+                              // of strings in a query or a cookie
+                              // (../refine/text.md#a-value-no-style-arranges)
+    ContentType string        // a content-style param's media type; "" = serialized by Style
+    BodyPath []ir.PropertyID  // body_property: where in the body model the param lands
 }
-type Protocol string         // "http" | "rpc" | "message" | "graphql" | "otp"
+type Protocol string          // "http" | "rpc" | "message" | "graphql" | "otp"
 ```
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the

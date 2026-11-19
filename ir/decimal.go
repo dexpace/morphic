@@ -251,11 +251,11 @@ func (d Decimal) Sign() int {
 	}
 }
 
-// Cmp returns -1, 0 or +1 as d is less than, equal to or greater than decimal. It is
-// exact however far apart the magnitudes are: sign first, then the power of ten
-// the leading digit carries, then the digits as strings. That last step is exact
-// because trailing zeros are stripped, so at one exponent a run that is a strict
-// prefix of another is the smaller value.
+// Cmp returns -1, 0 or +1 as d is less than, equal to or greater than decimal.
+// It is exact however far apart the magnitudes are: sign first, then the power
+// of ten the leading digit carries, then the digits as strings. That last step
+// is exact because trailing zeros are stripped, so at one exponent a run that
+// is a strict prefix of another is the smaller value.
 func (d Decimal) Cmp(decimal Decimal) int {
 	if order := cmp.Compare(d.Sign(), decimal.Sign()); order != 0 {
 		return order

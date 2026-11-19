@@ -96,10 +96,10 @@ func (f *frame) position(positions *provenance.Positions) *provenance.Position {
 	return f.at
 }
 
-// children returns the frames beneath frameValue, placed the way the compiler places
-// them: a mapping's values under their keys as nodeview.KeyOf names them, a
-// sequence's elements under their positions, and a `<<` merge's value at the
-// mapping merging it.
+// children returns the frames beneath frameValue, placed the way the compiler
+// places them: a mapping's values under their keys as nodeview.KeyOf names
+// them, a sequence's elements under their positions, and a `<<` merge's value
+// at the mapping merging it.
 //
 // Mapping keys are not walked in their own right; each rides on its value's
 // frame, since a member is added with its key. An alias node is a leaf,

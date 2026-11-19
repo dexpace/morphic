@@ -17,10 +17,10 @@ import (
 )
 
 // sourceDocument is the source as its references' binding reads it: the path
-// they are relative to (Location), the one LoadedOpenAPIDocument.Sources records, the bytes
-// and the tree its model was built from, what the table found in it, and where
-// a finding about a node of that tree is placed, at the $ref that reached it
-// where the tree holds no node.
+// they are relative to (Location), the one LoadedOpenAPIDocument.Sources
+// records, the bytes and the tree its model was built from, what the table
+// found in it, and where a finding about a node of that tree is placed, at the
+// $ref that reached it where the tree holds no node.
 //
 // A $ref from another document back into the source reads this tree, not the
 // file, so it reaches what the compile holds: the tree an overlay patched, and
@@ -45,8 +45,9 @@ func treeOf(ctx context.Context, doc provenance.Doc, root *yaml.Node) provenance
 	return provenance.Tree{Doc: doc, Pointers: scan.Pointers(ctx, root)}
 }
 
-// treeHolds reports whether tree holds node, so a finding about node is placed in
-// tree's document. A tree with no pointers, such as the zero Tree, holds none.
+// treeHolds reports whether tree holds node, so a finding about node is placed
+// in tree's document. A tree with no pointers, such as the zero Tree, holds
+// none.
 func treeHolds(tree provenance.Tree, node *yaml.Node) bool {
 	if tree.Pointers == nil {
 		return false

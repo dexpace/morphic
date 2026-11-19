@@ -10,11 +10,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// DocumentFacts holds the facts of one [ir.Document]. Each of its indexes is built in
-// full the first time one of its facts needs it, and never written again. A
-// relation [ir] walks, subtypes and exposed properties, is walked as ir walks
-// it while the walks cost less than indexing would: until they have taken as
-// many steps as the registry holds types.
+// DocumentFacts holds the facts of one [ir.Document]. Each of its indexes is
+// built in full the first time one of its facts needs it, and never written
+// again. A relation [ir] walks, subtypes and exposed properties, is walked as
+// ir walks it while the walks cost less than indexing would: until they have
+// taken as many steps as the registry holds types.
 //
 // An Index never writes its document. Its answers do not follow later changes,
 // so a caller that changes the document builds a new Index. It is safe for
@@ -72,9 +72,9 @@ func (x *DocumentFacts) IsSubtype(target, base ir.TypeID) bool {
 	return ir.IsSubtype(x.doc, target, base)
 }
 
-// Subtypes returns every type of the document that [DocumentFacts.IsSubtype] holds a
-// subtype of base, in sorted order, as a slice the caller owns. It is nil when
-// there are none.
+// Subtypes returns every type of the document that [DocumentFacts.IsSubtype]
+// holds a subtype of base, in sorted order, as a slice the caller owns. It is
+// nil when there are none.
 func (x *DocumentFacts) Subtypes(base ir.TypeID) []ir.TypeID {
 	return x.hierarchyIndex().descendants(base)
 }

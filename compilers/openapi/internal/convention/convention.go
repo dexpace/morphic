@@ -12,10 +12,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Apply fills what compiledDocumentView's names imply, under each policy of policy it honours,
-// and returns what the readings report. promoter is the run's promoter, whose keys a
-// reading defers to, and compiledDocumentView the document its lowerings built, whose service
-// tree and registry are whole.
+// Apply fills what compiledDocumentView's names imply, under each policy of
+// policy it honours, and returns what the readings report. promoter is the
+// run's promoter, whose keys a reading defers to, and compiledDocumentView the
+// document its lowerings built, whose service tree and registry are whole.
 func Apply(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
 	for _, op := range compiledDocumentView.Ops {
 		diags = append(diags, operation(policy, promoter, compiledDocumentView, op)...)

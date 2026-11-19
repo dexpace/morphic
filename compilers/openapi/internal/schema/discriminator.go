@@ -22,15 +22,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerDiscriminator lowers discriminator, a discriminator the schema written at pointer
-// declares, nil for none: its tag, located by exactly one of Property,
-// PropertyName and Index (docs/ir/models.md#discriminator), and its routes,
-// each mapping value and the defaultMapping read by discriminatorMapping. model is
-// the model declaring it, whose property's PropertyID locates the tag, else
-// PropertyName; a nil model, for a union, names it by PropertyName alone. branchIndexValue is a
-// union's branches, nil for a model: a union routes to its variants
-// (branchIndex.route), a model to the type each value's chain ends on
-// (hierarchyRoute).
+// lowerDiscriminator lowers discriminator, a discriminator the schema written
+// at pointer declares, nil for none: its tag, located by exactly one of
+// Property, PropertyName and Index (docs/ir/models.md#discriminator), and its
+// routes, each mapping value and the defaultMapping read by
+// discriminatorMapping. model is the model declaring it, whose property's
+// PropertyID locates the tag, else PropertyName; a nil model, for a union,
+// names it by PropertyName alone. branchIndexValue is a union's branches, nil
+// for a model: a union routes to its variants (branchIndex.route), a model to
+// the type each value's chain ends on (hierarchyRoute).
 func lowerDiscriminator(loweringContext lowering.Ctx, ts *compile.Types, discriminator *statement.Discriminator, pointer jsontext.Pointer, model *ir.Model, branchIndexValue *branchIndex) (*ir.Discriminator, []ir.Diagnostic) {
 	if discriminator == nil || !tagLocated(discriminator, model) {
 		return nil, nil
@@ -47,11 +47,11 @@ func lowerDiscriminator(loweringContext lowering.Ctx, ts *compile.Types, discrim
 	return disc, append(diags, defaultDiags...)
 }
 
-// tagLocated reports whether the IR can locate the tag discriminator names, on model where a
-// model declares it: by any name but the empty one, which PropertyName empty
-// cannot spell, and by that one only as the PropertyID of a property model declares
-// itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
-// node's, and the census keeps it verbatim.
+// tagLocated reports whether the IR can locate the tag discriminator names, on
+// model where a model declares it: by any name but the empty one, which
+// PropertyName empty cannot spell, and by that one only as the PropertyID of a
+// property model declares itself (docs/compilers/openapi.md#discriminator). One
+// it cannot locate is no node's, and the census keeps it verbatim.
 func tagLocated(discriminator *statement.Discriminator, model *ir.Model) bool {
 	if discriminator.PropertyName != "" {
 		return true
@@ -60,9 +60,10 @@ func tagLocated(discriminator *statement.Discriminator, model *ir.Model) bool {
 	return ok
 }
 
-// propIDByName returns the PropertyID of the model property with the given source
-// name, if the model declares it. model is nil-safe: lowerDiscriminator's
-// oneOf/anyOf union case has no model to search, only a tag name.
+// propIDByName returns the PropertyID of the model property with the given
+// source name, if the model declares it. model is nil-safe:
+// lowerDiscriminator's oneOf/anyOf union case has no model to search, only a
+// tag name.
 func propIDByName(model *ir.Model, name string) (ir.PropertyID, bool) {
 	if model == nil {
 		return "", false
@@ -144,14 +145,15 @@ type listedBy struct {
 }
 
 // routesByName reports whether the discriminator the ancestor a declares routes
-// the component schema schema by its name, OpenAPI's implicit mapping. One standing
-// with no oneOf or anyOf routes every schema composing a through allOf. One
-// standing with either (standingUnion) routes the schemas that union lists,
-// every possible one listed there (docs/compilers/openapi.md#discriminator-value):
-// those a $ref branch of it ends on, as discriminatedAncestors reads a $ref,
-// read once a run, as every subtype of a asks. Any other schema composing a
-// narrows that union, each instance carrying its variant's tag, and composes
-// it as written (docs/ir/models.md#a-union-a-composition-names).
+// the component schema schema by its name, OpenAPI's implicit mapping. One
+// standing with no oneOf or anyOf routes every schema composing a through
+// allOf. One standing with either (standingUnion) routes the schemas that union
+// lists, every possible one listed there
+// (docs/compilers/openapi.md#discriminator-value): those a $ref branch of it
+// ends on, as discriminatedAncestors reads a $ref, read once a run, as every
+// subtype of a asks. Any other schema composing a narrows that union, each
+// instance carrying its variant's tag, and composes it as written
+// (docs/ir/models.md#a-union-a-composition-names).
 func routesByName(loweringContext lowering.Ctx, a, schema *statement.Schema) bool {
 	holder := standingUnion(loweringContext, a)
 	if !stated(holder) {
@@ -192,9 +194,10 @@ func standingUnion(loweringContext lowering.Ctx, a *statement.Schema) *statement
 const maxDiscriminatorAncestorDepth = 256
 
 // discriminatedAncestors returns schema's composition ancestors declaring a
-// discriminator, nearest first: the resolved targets of schema's own $ref branches
-// in source order, then theirs, level by level. Nearest means fewest hops,
-// which decides between two ancestors whose mappings name the same subtype.
+// discriminator, nearest first: the resolved targets of schema's own $ref
+// branches in source order, then theirs, level by level. Nearest means fewest
+// hops, which decides between two ancestors whose mappings name the same
+// subtype.
 //
 // The visited set bounds the work; the depth cap bounds only the levels. A
 // schema reached by several branches would be walked once per path, so the
@@ -209,10 +212,10 @@ func discriminatedAncestors(loweringContext lowering.Ctx, schema *statement.Sche
 func ancestorLevels(loweringContext lowering.Ctx, schema *statement.Schema) [][]*statement.Schema {
 	var out [][]*statement.Schema
 	visited := make(map[*statement.Schema]bool)
-	// schema is visited before the walk starts, so a composition cycle cannot bring it
-	// back as one of its own ancestors. Without this a schema in a cycle that
-	// declares a discriminator answers to its own mapping, which is a hierarchy of
-	// one thing standing above itself.
+	// schema is visited before the walk starts, so a composition cycle cannot
+	// bring it back as one of its own ancestors. Without this a schema in a
+	// cycle that declares a discriminator answers to its own mapping, which is
+	// a hierarchy of one thing standing above itself.
 	visited[schema] = true
 	level := []*statement.Schema{schema}
 	for depth := 0; depth < maxDiscriminatorAncestorDepth && len(level) > 0; depth++ {
@@ -240,14 +243,15 @@ type composedByOf struct {
 	schema, holder *statement.Schema
 }
 
-// composedByBranch reports whether a branch of unionAtValue, a union of schema's, the combinator
-// unionBranches elects, composes schema through allOf at any depth, so that schema's
-// discriminator routes to a subtype of schema: schema is then the base of a hierarchy,
-// which a union of its subtypes would no longer be
-// (docs/compilers/openapi.md#union-beside-structure). Such a branch finds schema's
-// discriminator among its ancestors' (discriminatedAncestors). Where schema writes
-// one, it is the one standing with unionAtValue (findBranchUnion). Every reader of the
-// position asks, so it is read once a run.
+// composedByBranch reports whether a branch of unionAtValue, a union of
+// schema's, the combinator unionBranches elects, composes schema through allOf
+// at any depth, so that schema's discriminator routes to a subtype of schema:
+// schema is then the base of a hierarchy, which a union of its subtypes would
+// no longer be (docs/compilers/openapi.md#union-beside-structure). Such a
+// branch finds schema's discriminator among its ancestors'
+// (discriminatedAncestors). Where schema writes one, it is the one standing
+// with unionAtValue (findBranchUnion). Every reader of the position asks, so it
+// is read once a run.
 func composedByBranch(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt) bool {
 	discriminator := schema.Discriminator()
 	if discriminator == nil {
@@ -267,10 +271,11 @@ func composedByBranch(loweringContext lowering.Ctx, schema *statement.Schema, un
 	})
 }
 
-// unvisitedRefTargets returns the schemas schema's $ref composition branches resolve
-// to, in source order, skipping those already seen and marking those it returns.
-// Marking as it enqueues rather than when the walk reaches them is what keeps a
-// schema two branches both name from being queued, and walked, twice.
+// unvisitedRefTargets returns the schemas schema's $ref composition branches
+// resolve to, in source order, skipping those already seen and marking those it
+// returns. Marking as it enqueues rather than when the walk reaches them is
+// what keeps a schema two branches both name from being queued, and walked,
+// twice.
 func unvisitedRefTargets(loweringContext lowering.Ctx, schema *statement.Schema, visited map[*statement.Schema]bool) []*statement.Schema {
 	var out []*statement.Schema
 	for b := range allOfRefBranches(loweringContext, schema) {
@@ -285,11 +290,11 @@ func unvisitedRefTargets(loweringContext lowering.Ctx, schema *statement.Schema,
 }
 
 // discriminatorBesideUnion returns the finisher queueing a settlement for the
-// discriminator schema writes, which the model in hand holds beside the union holder
-// writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion, or with
-// its allOf branch. A body that lowered to anything else holds none: the census
-// kept its discriminator where it kept the rest, a multi-typed body's on its
-// union (lowerTypeVariant).
+// discriminator schema writes, which the model in hand holds beside the union
+// holder writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion,
+// or with its allOf branch. A body that lowered to anything else holds none:
+// the census kept its discriminator where it kept the rest, a multi-typed
+// body's on its union (lowerTypeVariant).
 func discriminatorBesideUnion(loweringContext lowering.Ctx, ts *compile.Types, schema, holder *statement.Schema, pointer jsontext.Pointer) finisher {
 	return func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		if isKind(td, ir.KindModel) {
@@ -336,8 +341,8 @@ func componentNamed(scope componentlookup.Scope, b *statement.Statement) (string
 	return name, id, true
 }
 
-// spellImplicitRoutes writes into the discriminator of union, the Union at lowers,
-// the route OpenAPI implies to each variant no mapping entry routes:
+// spellImplicitRoutes writes into the discriminator of union, the Union at
+// lowers, the route OpenAPI implies to each variant no mapping entry routes:
 // the name of the component its $ref branch names, unless another branch names
 // it too or an entry spells it. The IR routes by type name only where the
 // Mapping is nil (docs/ir/models.md#discriminator), so these are written where
@@ -416,9 +421,10 @@ func typesAreNamed(routes []implicitRoute, variants []ir.Variant) bool {
 	return true
 }
 
-// implicitRoutes returns the implicit route to each branch of the union unionAtValue
-// that is a variant (unionAt.variantBranch), in branch order: one per variant.
-// A branch written inline, or a $ref to any other position, names none.
+// implicitRoutes returns the implicit route to each branch of the union
+// unionAtValue that is a variant (unionAt.variantBranch), in branch order: one
+// per variant. A branch written inline, or a $ref to any other position, names
+// none.
 func implicitRoutes(loweringContext lowering.Ctx, unionAtValue unionAt) []implicitRoute {
 	scope := loweringContext.RefScope()
 	branches, _, _ := unionAtValue.branches(loweringContext)
@@ -491,12 +497,12 @@ func (d besideUnionDiscriminator) Settle(_ context.Context, reg ir.TypeRegistry)
 			"stay there; kept verbatim under Unmodeled beside the union it was written for"))
 }
 
-// routesToSubtypes reports whether every type model's discriminator routes to is a
-// subtype of model: each mapping target, the default, and each of named. Each is
-// one ir.IsSubtype walk rather than a question of an irfacts.DocumentFacts, which
-// indexes the whole registry: a settlement asks a few questions, of a registry
-// the settlements before it may have rewritten. Walks are not shared between
-// settlements (GitHub #1008).
+// routesToSubtypes reports whether every type model's discriminator routes to
+// is a subtype of model: each mapping target, the default, and each of named.
+// Each is one ir.IsSubtype walk rather than a question of an
+// irfacts.DocumentFacts, which indexes the whole registry: a settlement asks a
+// few questions, of a registry the settlements before it may have rewritten.
+// Walks are not shared between settlements (GitHub #1008).
 func routesToSubtypes(reg ir.TypeRegistry, model *ir.Model, named []ir.TypeID) bool {
 	doc := &ir.Document{Types: reg}
 	routes := slices.AppendSeq(slices.Clone(named), maps.Values(model.Discriminator.Mapping))

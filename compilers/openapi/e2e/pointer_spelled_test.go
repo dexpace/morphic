@@ -29,8 +29,8 @@ type spelledHop struct {
 	to         specrules.Kind
 }
 
-// spelledHops lists the steps from object to each object it holds: under a field or
-// a patterned key, in place, as a map's entry or as a list's item.
+// spelledHops lists the steps from object to each object it holds: under a
+// field or a patterned key, in place, as a map's entry or as a list's item.
 func spelledHops(object specrules.Object) []spelledHop {
 	held := func(key string, shape specrules.Shape, of specrules.Kind) (spelledHop, bool) {
 		switch shape {

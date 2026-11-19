@@ -16,12 +16,13 @@ import (
 // (docs/ir/constraints.md#encodings).
 const httpDateEncoding = "http-date"
 
-// httpDate gives header, a response header, the text its field's definition gives a
-// date, an HTTP-date, and marks it, under the HTTP-date policy, where its field
-// is one httpDateField names, it writes no encoding of its own and names one
-// field, and its type reads, through its scalars, as a datetime_offset none of
-// them names an encoding for. It reports each such header, whose format says
-// RFC 3339's text. The rule is docs/compilers/openapi.md#http-date-inference.
+// httpDate gives header, a response header, the text its field's definition
+// gives a date, an HTTP-date, and marks it, under the HTTP-date policy, where
+// its field is one httpDateField names, it writes no encoding of its own and
+// names one field, and its type reads, through its scalars, as a
+// datetime_offset none of them names an encoding for. It reports each such
+// header, whose format says RFC 3339's text. The rule is
+// docs/compilers/openapi.md#http-date-inference.
 func httpDate(policy HTTPDateInference, promoter promotion.Promoter, reg ir.TypeRegistry, header *ir.Header) []ir.Diagnostic {
 	if !policy.Honours() || header.Encoding != nil || header.Prefix != nil ||
 		!httpDateField(header.EffectiveWireName()) {
@@ -70,8 +71,8 @@ func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, compil
 	return diags
 }
 
-// headerName returns the name the first of the placements ix holds for parameter puts
-// it in a header under, and false where none does.
+// headerName returns the name the first of the placements ix holds for
+// parameter puts it in a header under, and false where none does.
 func headerName(ix compileddoc.ParamIndex, parameter *ir.Parameter) (string, bool) {
 	for _, at := range ix.Placements(parameter.ID) {
 		if at.Location == ir.HTTPLocationHeader {

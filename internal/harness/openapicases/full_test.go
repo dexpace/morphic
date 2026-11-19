@@ -188,8 +188,8 @@ func TestFull_EachLineNamesACaseOutsideTheCore(t *testing.T) {
 	}
 }
 
-// outsideCore reports whether name names a case of cases, each of its values one
-// of its axis's, one of which at least is not core.
+// outsideCore reports whether name names a case of cases, each of its values
+// one of its axis's, one of which at least is not core.
 func outsideCore(cases harness.Cases, name string) bool {
 	axes := cases.Axes()
 	values := strings.Split(name, "/")

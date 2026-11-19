@@ -82,12 +82,13 @@ type reading struct {
 }
 
 // once returns the answer the document under key got when it was read, as an
-// asker bounded by reach is answered. The first read of the compile, charged
-// to the document budget, reads it with read, and refuses it unread past the
+// asker bounded by reach is answered. The first read of the compile, charged to
+// the document budget, reads it with read, and refuses it unread past the
 // budget; every later ask gets the same answer, so a document is read and
 // charged once however many references name it. A read refused to its asker
-// alone (reftable.BarredError) is no answer: an asker the refusal covers, bounded
-// no wider, is refused again unread, for its own reach, and a wider one reads.
+// alone (reftable.BarredError) is no answer: an asker the refusal covers,
+// bounded no wider, is refused again unread, for its own reach, and a wider one
+// reads.
 func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
 	rd := r.reading(key)
 	rd.mu.Lock()

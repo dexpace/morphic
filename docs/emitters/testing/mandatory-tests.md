@@ -87,11 +87,11 @@ throughout these documents.
     by reflection and fails on one [annotations](../../ir/annotations.md#decorators) has not
     classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
-    every `PrimitiveKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
-    row under its key whole; an encoding with no row is typed as its value travels and reported once
-    (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a
-    Go `Codec` is an options error; and two rows that spell one name for two packages generate code
-    that compiles in a file using both ([type table](../contract/type-table.md)).
+    every `PrimitiveKind` `ir` declares, read through `internal/decls`; a user row replaces the
+    built-in row under its key whole; an encoding with no row is typed as its value travels and
+    reported once (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does
+    not use, or a Go `Codec` is an options error; and two rows that spell one name for two packages
+    generate code that compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
@@ -208,19 +208,19 @@ throughout these documents.
     sending it; a frame whose data is the `Terminator` of a side the client reads ends the stream
     undecoded, a side it writes sends it last, and a `bytes` side draws `terminator-unframed`; a
     line under a content with no `Item` and a `string` root reaches the caller as text, where a
-    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `ElementType`, one
-    frame at a time, a `string` `ElementType` decoding as JSON on a line and arriving as `data` on an SSE
-    frame; an SSE element, a union of event shapes among them, reads the frame's fields under
-    `FrameMembers` and the frame's `data` otherwise; an `sse` reader ends a line at a CR, an LF and
-    a CRLF, skips a comment line and yields nothing for a frame with no `data` line; a `json_lines`
-    reader ends a line at an LF alone, so `a\rb` is one frame, `[DONE]\r\n` matches a `[DONE]`
-    `Terminator` and a blank line yields nothing; over HTTP a stream whose `Initial` is set reads
-    its first frame as an element, sends the initial request's members as the binding places them
-    and gives the initial response's members as declared headers; a stream method gives a caller in
-    another unit the declared headers of the response it reads, typed, before its first frame,
-    against a server holding that frame back until they are read, those of the `Others` entry whose
-    content streams where `Return` declares others, each collection of one Kotlin `Flow` given its
-    own response's, a Kotlin caller leaving `onHeaders` out building, and a Swift caller, whom
+    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `ElementType`,
+    one frame at a time, a `string` `ElementType` decoding as JSON on a line and arriving as `data`
+    on an SSE frame; an SSE element, a union of event shapes among them, reads the frame's fields
+    under `FrameMembers` and the frame's `data` otherwise; an `sse` reader ends a line at a CR, an
+    LF and a CRLF, skips a comment line and yields nothing for a frame with no `data` line; a
+    `json_lines` reader ends a line at an LF alone, so `a\rb` is one frame, `[DONE]\r\n` matches a
+    `[DONE]` `Terminator` and a blank line yields nothing; over HTTP a stream whose `Initial` is set
+    reads its first frame as an element, sends the initial request's members as the binding places
+    them and gives the initial response's members as declared headers; a stream method gives a
+    caller in another unit the declared headers of the response it reads, typed, before its first
+    frame, against a server holding that frame back until they are read, those of the `Others` entry
+    whose content streams where `Return` declares others, each collection of one Kotlin `Flow` given
+    its own response's, a Kotlin caller leaving `onHeaders` out building, and a Swift caller, whom
     `tailMetricsStream(onHeaders:)` has pass a block, given them, and a response's first declared
     header adds a field and changes no signature; a stream under a binding other than HTTP draws no
     `unframed-stream`; a media type only a compiler option names gets the one stream method, as
@@ -297,12 +297,12 @@ throughout these documents.
     merge-patch body and read in a response, is inclusive in its patch shape and a closed sum where
     it is read, and adding the `PATCH` operation changes no other declaration; sent as that body's
     list, its elements keep the member and it stays closed. A required member no shape holds
-    (`Visibility.InvisibleInEveryLifecycle`) is required of no value, and of two tuple variants, one with two required
-    positions and one with one and no `Rest`, each admits only its own length. A `null` that two
-    nullable variants admit, one of them a nullable reference to an enum with no member, or a
-    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
-    variant admits takes the fallback on an open union and is a coded error on a closed one
-    ([unions](../refine/unions.md#a-value-several-variants-admit),
+    (`Visibility.InvisibleInEveryLifecycle`) is required of no value, and of two tuple variants, one
+    with two required positions and one with one and no `Rest`, each admits only its own length. A
+    `null` that two nullable variants admit, one of them a nullable reference to an enum with no
+    member, or a variant that is such a union does, is held by the reference, as a nullable one's
+    is. A value no variant admits takes the fallback on an open union and is a coded error on a
+    closed one ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
     and a map of models with a `readOnly` and a `writeOnly` member each, sent in a `POST`, a `PUT`

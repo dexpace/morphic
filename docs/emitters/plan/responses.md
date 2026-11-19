@@ -21,12 +21,12 @@ type ResponsePlan struct {
 // which its reader gets and its writer is given as text
 // (../refine/text.md#a-value-no-style-arranges).
 type TextPlan struct {
-    Content bool           // the content itself: a text/plain one whose type is no leaf, or a
-                           // response's form or multipart one read raw (below)
-    Props   []ir.PropertyID    // a request content's fields and parts, in TypePlan.Flattened's
-                           // order; a response's headers, in Headers' order
-    Rest    bool           // a request content's fields and parts no member declares: its
-                           // model's catch-all's, or its entries where its type is a map
+    Content bool            // the content itself: a text/plain one whose type is no leaf, or a
+                            // response's form or multipart one read raw (below)
+    Props   []ir.PropertyID // a request content's fields and parts, in TypePlan.Flattened's
+                            // order; a response's headers, in Headers' order
+    Rest    bool            // a request content's fields and parts no member declares: its
+                            // model's catch-all's, or its entries where its type is a map
 }
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.

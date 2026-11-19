@@ -51,7 +51,7 @@ type Operation struct {
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
                                      // (TypeSpec @parameterVisibility); nil = protocol default
     ReturnTypeVisibility []Lifecycle // filter override for the response view; nil = protocol default
-    OverloadOf *OperationID              // TypeSpec @overload grouping
+    OverloadOf *OperationID       // TypeSpec @overload grouping
 
     Bindings   OpBindings         // docs/ir/bindings.md — how the core maps onto concrete protocols
     Examples   []Example
@@ -60,7 +60,7 @@ type Operation struct {
 }
 
 type Parameter struct {
-    ID         ParameterID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
+    ID         ParameterID         // param/<space>/<operation's path>/parameters/<name>/<in>, and
                                    // /<n> after it on the n-th holder of one name and location;
                                    // the bindings, pagination inputs, stream conditions and
                                    // idempotency token name a parameter by it, not by Name, which

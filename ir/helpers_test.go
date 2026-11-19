@@ -593,9 +593,9 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 	return out, truncated
 }
 
-// flatLines renders each member of flattening on one line: the declaration it takes as
-// ID@owner, each it overrides after a <, "required" when an instance must
-// carry it, "secret" when its value is redacted, and the message of its
+// flatLines renders each member of flattening on one line: the declaration it
+// takes as ID@owner, each it overrides after a <, "required" when an instance
+// must carry it, "secret" when its value is redacted, and the message of its
 // deprecation where it has one.
 func flatLines(flattening ir.Flattening) []string {
 	out := make([]string, 0, len(flattening.Properties))
@@ -744,8 +744,8 @@ func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
 	return below
 }
 
-// entriesOf returns the live models model's entries compose in, read through alias
-// scalars.
+// entriesOf returns the live models model's entries compose in, read through
+// alias scalars.
 func entriesOf(types ir.TypeRegistry, model *ir.Model) []ir.TypeID {
 	if model == nil {
 		return nil

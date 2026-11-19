@@ -59,8 +59,8 @@ type memberIndex struct {
 	merges bool
 }
 
-// newLocator returns a locator over the tree grafterValue writes, charging what it
-// does to steps. The tree holds a value (sequence.selected).
+// newLocator returns a locator over the tree grafterValue writes, charging what
+// it does to steps. The tree holds a value (sequence.selected).
 func newLocator(grafterValue *grafter, steps *budget.Budget) *locator {
 	root := prefix{node: nodeview.Deref(nodeview.DocumentRoot(grafterValue.root))}
 	return &locator{g: grafterValue, steps: steps, ids: map[jsonpath.Path]int{{}: 0}, named: map[prefixKey]int{},

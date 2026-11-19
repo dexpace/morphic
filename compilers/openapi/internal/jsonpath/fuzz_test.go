@@ -45,8 +45,8 @@ func suiteSelectors(f *testing.F) []string {
 	return out
 }
 
-// within evaluates query over root within fuzzSteps, requiring that it spends no
-// more and that only a bound refuses it.
+// within evaluates query over root within fuzzSteps, requiring that it spends
+// no more and that only a bound refuses it.
 func within(t *testing.T, query jsonpath.Query, root *yaml.Node) ([]jsonpath.Located, bool) {
 	t.Helper()
 	b := budget.New(budget.AtMost(fuzzSteps))

@@ -31,8 +31,8 @@ const (
 	compositionOnly edgeSet = iota
 	// needsWithComposition holds everything a type needs for a value.
 	needsWithComposition
-	// needsExcludingComposition holds what a type needs but for its composition, which is told
-	// as a cycle of its own where it is one.
+	// needsExcludingComposition holds what a type needs but for its
+	// composition, which is told as a cycle of its own where it is one.
 	needsExcludingComposition
 )
 
@@ -170,9 +170,9 @@ func (s *edgeSink) model(ix typeIndex, model *ir.Model, set edgeSet) {
 	}
 }
 
-// tuple adds the positions a value of tuple must fill, its first MinItems: Elems
-// types positions without requiring them (docs/ir/containers.md), so a tuple
-// with no minimum needs nothing, and Rest types those past Elems.
+// tuple adds the positions a value of tuple must fill, its first MinItems:
+// Elems types positions without requiring them (docs/ir/containers.md), so a
+// tuple with no minimum needs nothing, and Rest types those past Elems.
 func (s *edgeSink) tuple(ix typeIndex, tuple *ir.Tuple) {
 	if tuple.Constraints == nil || tuple.Constraints.MinItems == nil {
 		return
@@ -189,12 +189,12 @@ func (s *edgeSink) tuple(ix typeIndex, tuple *ir.Tuple) {
 	}
 }
 
-// composition adds the base and the mixins of model. A model composing a union is
-// its conjunct and no construction of it: Shape's oneOf of Circle beside
+// composition adds the base and the mixins of model. A model composing a union
+// is its conjunct and no construction of it: Shape's oneOf of Circle beside
 // Circle's allOf of Shape narrows nothing, each instance of the union being a
-// variant (docs/ir/models.md), so for the needs of a value, which forNeeds
-// says the edges are for, an entry that names a union, or an alias of one, is
-// not one.
+// variant (docs/ir/models.md), so for the needs of a value, which forNeeds says
+// the edges are for, an entry that names a union, or an alias of one, is not
+// one.
 func (s *edgeSink) composition(ix typeIndex, model *ir.Model, forNeeds bool) {
 	if model.Base != nil {
 		s.compose(ix, model.Base, forNeeds, edgeBase, 0)
@@ -213,7 +213,8 @@ func (s *edgeSink) compose(ix typeIndex, ref *ir.TypeRef, forNeeds bool, kind ed
 	s.emit(ix, ref, kind, index)
 }
 
-// atLeastOne reports whether the bound pick reads from constraints is set and at least 1.
+// atLeastOne reports whether the bound pick reads from constraints is set and
+// at least 1.
 func atLeastOne(constraints *ir.Constraints, pick func(*ir.Constraints) *int64) bool {
 	if constraints == nil {
 		return false
@@ -222,9 +223,9 @@ func atLeastOne(constraints *ir.Constraints, pick func(*ir.Constraints) *int64) 
 	return n != nil && *n >= 1
 }
 
-// everyVariantNeeded reports whether each variant of union is a live type that is
-// not nullable: otherwise that variant is a value that needs nothing. A union
-// of no variant has none to need, and no edge.
+// everyVariantNeeded reports whether each variant of union is a live type that
+// is not nullable: otherwise that variant is a value that needs nothing. A
+// union of no variant has none to need, and no edge.
 func everyVariantNeeded(union *ir.Union, ix typeIndex) bool {
 	for j := range union.Variants {
 		if _, ok := ix.of(&union.Variants[j].Type); !ok {
@@ -234,13 +235,13 @@ func everyVariantNeeded(union *ir.Union, ix typeIndex) bool {
 	return true
 }
 
-// typesWithNoFiniteValue returns the vertices of a graph that no finite construction reaches.
-// Vertex i needs targets[starts[i]:starts[i+1]], all of them where every[i] and
-// any one where not. A vertex is founded when it has no need, when every of
-// its needs is, or when one is. The unfounded vertices that no other
-// unfounded vertex needs are then dropped, one at a time, so what remains lies
-// on a cycle of needs, or between two, and not merely before one. Each edge is
-// read a constant number of times and the lists are made once.
+// typesWithNoFiniteValue returns the vertices of a graph that no finite
+// construction reaches. Vertex i needs targets[starts[i]:starts[i+1]], all of
+// them where every[i] and any one where not. A vertex is founded when it has no
+// need, when every of its needs is, or when one is. The unfounded vertices that
+// no other unfounded vertex needs are then dropped, one at a time, so what
+// remains lies on a cycle of needs, or between two, and not merely before one.
+// Each edge is read a constant number of times and the lists are made once.
 func typesWithNoFiniteValue(n int, starts, targets []int32, every []bool) []bool {
 	reverse, from := reversed(n, starts, targets)
 	founded := make([]bool, n)
@@ -335,7 +336,8 @@ func release(work, needs []int32, founded []bool, needed []int32) []int32 {
 	return work
 }
 
-// graph is the edges the types of a document hold, in the form type cycle reads.
+// graph is the edges the types of a document hold, in the form type cycle
+// reads.
 type graph struct {
 	starts, targets []int32
 }
@@ -372,12 +374,13 @@ func buildGraph(doc *ir.Document, ix typeIndex, composition bool, cyclic []bool)
 	return graphValue
 }
 
-// checkCompositionCyclesAndInfiniteTypes reports each type that lies on a cycle of bases and mixins
-// (pass/composition-cycle), and each that has no finite value, since each of
-// what it needs for one needs it in turn (pass/no-finite-value). Both are
-// warnings: the IR permits a composition cycle and a target reads it to its
-// fixpoint, so no target is refused (docs/ir/models.md). Each is told at every
-// type of the type cycle, naming the entry that leads on, the composition ones first.
+// checkCompositionCyclesAndInfiniteTypes reports each type that lies on a cycle
+// of bases and mixins (pass/composition-cycle), and each that has no finite
+// value, since each of what it needs for one needs it in turn
+// (pass/no-finite-value). Both are warnings: the IR permits a composition cycle
+// and a target reads it to its fixpoint, so no target is refused
+// (docs/ir/models.md). Each is told at every type of the type cycle, naming the
+// entry that leads on, the composition ones first.
 func checkCompositionCyclesAndInfiniteTypes(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
@@ -398,9 +401,10 @@ func checkCompositionCyclesAndInfiniteTypes(doc *ir.Document, ids []ir.TypeID) [
 	return appendTypeCycleFindings(diags, doc, ix, empty, false, cyclic, "pass/no-finite-value")
 }
 
-// appendTypeCycleFindings reports each type in type cycle, naming the first edge leading into the
-// type cycle of those edgesOf picks for it, so a type of the composition type cycle is read
-// without its composition, as the graph of needs was built.
+// appendTypeCycleFindings reports each type in type cycle, naming the first
+// edge leading into the type cycle of those edgesOf picks for it, so a type of
+// the composition type cycle is read without its composition, as the graph of
+// needs was built.
 func appendTypeCycleFindings(diags []ir.Diagnostic, doc *ir.Document, ix typeIndex, infiniteGroupOf []bool, composition bool, cyclic []bool,
 	code string,
 ) []ir.Diagnostic {

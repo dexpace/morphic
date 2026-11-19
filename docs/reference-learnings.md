@@ -114,14 +114,15 @@ avoid — model facts, let emitters decide). fastapi *drops* the discriminator w
 non-object because Pydantic can't express it — **target capability leaking into the compiler**, the
 exact anti-pattern.
 
-**Recommendation:** Morphic's `Discriminator{Property | PropertyName | Index, Mapping map[string]
-TypeID, Default, Envelope, EnvelopeValueName, Inferred}` already covers all of this and points mappings
-at **TypeIDs not names** (severing openapi-generator's triple-name coupling). Two concrete emitter
-obligations the references surface: (1) the plan/emit layer **must be able to materialize a
-discriminator property that is not declared** on the base (`Discriminator.PropertyName` deliberately
-has no PropertyID) — TypeSpec proves this is required; (2) the "drop discriminator for non-object variants"
-decision belongs in the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's
-mistake). Copy ogen's mapping-ref resolution fallback into the compiler.
+**Recommendation:** Morphic's
+`Discriminator{Property | PropertyName | Index, Mapping map[string] TypeID, Default, Envelope, EnvelopeValueName, Inferred}`
+already covers all of this and points mappings at **TypeIDs not names** (severing
+openapi-generator's triple-name coupling). Two concrete emitter obligations the references surface:
+(1) the plan/emit layer **must be able to materialize a discriminator property that is not
+declared** on the base (`Discriminator.PropertyName` deliberately has no PropertyID) — TypeSpec
+proves this is required; (2) the "drop discriminator for non-object variants" decision belongs in
+the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's mistake). Copy ogen's
+mapping-ref resolution fallback into the compiler.
 
 ## A5. Pagination & streaming: plan-layer traversal over un-lowered IR — CONFIRMS
 
@@ -379,15 +380,17 @@ parses).
 
 Repeatedly, references *drop* what a richer emitter needs: openapi-python captures constraints then
 ignores them (only `format` drives type choice), drops `patternProperties`/`unevaluatedProperties`/
-non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum openness;
-fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep `Constraints`,
-`Enum{Closed,Flags,FallbackMember,ValueType}`, `AdditionalProperties{Value,Key,Patterns}` + `AdditionalMode`,
-`Exclusive`/`WireTagged`, `x-*` everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema
-default) but the bit exists for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow
-**duplicate member values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy
-into the shared validate pass; capture `x-enum-varnames` member names (openapi-python) so emitters
-don't invent `VALUE_1`. TypeSpec confirms `additionalProperties:false`→`Additional=closed`,
-`unevaluatedProperties:false`→`closed_after_composition`, and typed map keys (`indexer.key: Scalar`).
+non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum
+openness; fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep
+`Constraints`, `Enum{Closed,Flags,FallbackMember,ValueType}`,
+`AdditionalProperties{Value,Key,Patterns}` + `AdditionalMode`, `Exclusive`/`WireTagged`, `x-*`
+everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema default) but the bit exists
+for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow **duplicate member
+values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy into the shared
+validate pass; capture `x-enum-varnames` member names (openapi-python) so emitters don't invent
+`VALUE_1`. TypeSpec confirms `additionalProperties:false`→`Additional=closed`,
+`unevaluatedProperties:false`→`closed_after_composition`, and typed map keys
+(`indexer.key: Scalar`).
 
 ## B6. Heuristics are injectable, `Inferred`-marked policy — CONFIRMS #6, with cautionary tales
 

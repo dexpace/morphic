@@ -15,8 +15,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// RedeclaredWireNameTable is what a model's composition says of the wire names more than one
-// model declares: for each, the declaration its flattening takes
+// RedeclaredWireNameTable is what a model's composition says of the wire names
+// more than one model declares: for each, the declaration its flattening takes
 // (ir.FlattenedProperties), which a model settled before holds folded from
 // every other its composition gives the name. A name one model alone declares
 // never decides a member twice, so a settlement reads none.
@@ -32,8 +32,8 @@ type Declared struct {
 	TypeAt []ir.Provenance
 }
 
-// DeclaredAt is propertyDecl as a model's flattening takes it unsettled: its type is
-// written where it is.
+// DeclaredAt is propertyDecl as a model's flattening takes it unsettled: its
+// type is written where it is.
 func DeclaredAt(propertyDecl ir.PropertyDecl) Declared {
 	return Declared{PropertyDecl: propertyDecl, TypeAt: []ir.Provenance{propertyDecl.Property.Provenance}}
 }
@@ -265,24 +265,25 @@ func assembledFrom(decls []declaration) []jsontext.Pointer {
 	return out
 }
 
-// isBrought reports whether declarationValue is a declaration an entry brings, which another
-// model holds.
+// isBrought reports whether declarationValue is a declaration an entry brings,
+// which another model holds.
 func isBrought(declarationValue declaration) bool { return declarationValue.via != nil }
 
-// heldAlone reports whether no model but this one holds declarationValue, its own
-// declaration, so the member it decides may keep declarationValue's identity: declarationValue is written
-// inside the model's schema, as the body a distributed variant shares with its
-// siblings is not, and no schema between the two stands as a node of its own
-// (Merger.carriedApart).
+// heldAlone reports whether no model but this one holds declarationValue, its
+// own declaration, so the member it decides may keep declarationValue's
+// identity: declarationValue is written inside the model's schema, as the body
+// a distributed variant shares with its siblings is not, and no schema between
+// the two stands as a node of its own (Merger.carriedApart).
 func (idx *ModelPropertyDeclarations) heldAlone(merger Merger, declarationValue declaration) bool {
 	model, at := idx.m.Provenance.Pointer, declarationValue.prop.Provenance.Pointer
 	return model.Contains(at) && !merger.carriedApart(at, model)
 }
 
-// place writes property as the model's property at pos, or appends it where pos is
-// -1. A discriminator naming the property it replaces names property, and so does one
-// naming by its name a member the model did not declare when the walk read
-// it, which the model now declares (docs/compilers/openapi.md#discriminator).
+// place writes property as the model's property at pos, or appends it where pos
+// is -1. A discriminator naming the property it replaces names property, and so
+// does one naming by its name a member the model did not declare when the walk
+// read it, which the model now declares
+// (docs/compilers/openapi.md#discriminator).
 func (idx *ModelPropertyDeclarations) place(pos int, property ir.Property) {
 	discriminator := idx.m.Discriminator
 	if pos < 0 {
@@ -376,8 +377,9 @@ type ownership struct {
 	walks map[ir.TypeID]*ownerWalk
 }
 
-// newOwnership returns the ownership one settlement reads through registryValue, charging
-// reads, which nil leaves without bound, as a Merger naming none does.
+// newOwnership returns the ownership one settlement reads through
+// registryValue, charging reads, which nil leaves without bound, as a Merger
+// naming none does.
 func newOwnership(registryValue registry, reads *budget.Budget) ownership {
 	if reads == nil {
 		reads = new(budget.Budget)

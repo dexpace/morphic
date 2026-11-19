@@ -76,8 +76,9 @@ func nameOf(passValue pass.Pass) (string, error) {
 	return name, err
 }
 
-// isNilPass reports whether passValue is unsafe to call: an untyped nil interface or a
-// typed nil pointer, which a method with a value receiver dereferences.
+// isNilPass reports whether passValue is unsafe to call: an untyped nil
+// interface or a typed nil pointer, which a method with a value receiver
+// dereferences.
 func isNilPass(passValue pass.Pass) bool {
 	if passValue == nil {
 		return true

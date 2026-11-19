@@ -19,8 +19,8 @@ import (
 // what it lowers to, and which are kept verbatim: each is read off what builds
 // the node, the position's types, and never off the node it built. A union of
 // types holds a value bound in the node built for the type that takes it, and
-// none of an object's, which the model of a type list builds with no folded branch, so
-// a bound written for an object there is kept rather than dropped.
+// none of an object's, which the model of a type list builds with no folded
+// branch, so a bound written for an object there is kept rather than dropped.
 func TestRefinement_AnOwnedNodeHoldsTheBoundsItsLoweringFolds(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

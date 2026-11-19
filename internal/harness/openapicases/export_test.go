@@ -5,8 +5,8 @@ package openapicases
 
 import "github.com/dexpace/morphic/internal/harness"
 
-// Record returns what case oracle oracle is known to find at the core cases, the
-// lines the core tests hold their run to.
+// Record returns what case oracle oracle is known to find at the core cases,
+// the lines the core tests hold their run to.
 func Record(oracle harness.Oracle) (harness.Recorded, error) {
 	core, _, err := records(oracle)
 	if err != nil {

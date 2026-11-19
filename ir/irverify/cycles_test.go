@@ -163,7 +163,8 @@ func selfArgumentDoc() *ir.Document {
 	return examplesDoc(ctorValue(constructorValue))
 }
 
-// groupsDoc returns a document whose one service holds operationGroups as its groups.
+// groupsDoc returns a document whose one service holds operationGroups as its
+// groups.
 func groupsDoc(operationGroups []ir.OperationGroup) *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
@@ -263,9 +264,9 @@ func TestVerify_SharedReferenceIsNotACycle(t *testing.T) {
 // TestVerify_RegistryKeysCannotMakeASharedPointerACycle builds the one place a
 // path spelling could lie. A registry key is any string, so the entry under
 // "type/x/M]." is written document.Types[t/x/M].], which reads as nested below
-// document.Types[t/x/M] to anything that tells ancestry from the rendered path. The
-// one model both keys hold is shared, not contained, so the only defect is the
-// key that disagrees with the node.
+// document.Types[t/x/M] to anything that tells ancestry from the rendered path.
+// The one model both keys hold is shared, not contained, so the only defect is
+// the key that disagrees with the node.
 func TestVerify_RegistryKeysCannotMakeASharedPointerACycle(t *testing.T) {
 	t.Parallel()
 	doc := examplesDoc()

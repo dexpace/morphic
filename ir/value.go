@@ -16,7 +16,8 @@ const (
 	ValueBool ValueKind = "bool"
 	// ValueString is a string value carried in Value.String.
 	ValueString ValueKind = "string"
-	// ValueNumber is an arbitrary-precision numeric value carried in Value.Number.
+	// ValueNumber is an arbitrary-precision numeric value carried in
+	// Value.Number.
 	ValueNumber ValueKind = "number"
 	// ValueBytes is a byte-string value carried in Value.Bytes.
 	ValueBytes ValueKind = "bytes"
@@ -31,11 +32,12 @@ const (
 	// Its string form is "ref"; the constant is named ValueRefKind because
 	// ValueRef is the referenced struct.
 	ValueRefKind ValueKind = "reference"
-	// ValueConstructor is a value built by a named scalar constructor, carried in
-	// Value.Constructor (TypeSpec scalar constructors such as plainDate.fromISO).
+	// ValueConstructor is a value built by a named scalar constructor, carried
+	// in Value.Constructor (TypeSpec scalar constructors such as
+	// plainDate.fromISO).
 	ValueConstructor ValueKind = "constructor"
-	// ValueInfinity is IEEE 754 positive infinity, which no BigVal holds and which
-	// carries no payload (a protobuf `[default = inf]`).
+	// ValueInfinity is IEEE 754 positive infinity, which no BigVal holds and
+	// which carries no payload (a protobuf `[default = inf]`).
 	ValueInfinity ValueKind = "infinity"
 	// ValueNegativeInfinity is IEEE 754 negative infinity, carrying no payload.
 	ValueNegativeInfinity ValueKind = "negative-infinity"
@@ -61,7 +63,8 @@ type Value struct {
 	Bool bool `json:"bool,omitzero"`
 	// String is the payload for ValueString and ValueSymbol.
 	String string `json:"string,omitempty"`
-	// Number is the payload for ValueNumber, an arbitrary-precision decimal string.
+	// Number is the payload for ValueNumber, an arbitrary-precision decimal
+	// string.
 	Number BigVal `json:"number,omitempty"`
 	// Bytes is the payload for ValueBytes, base64-encoded in JSON form.
 	Bytes []byte `json:"bytes,omitempty"`
@@ -72,7 +75,8 @@ type Value struct {
 	Object []Field `json:"object,omitempty"`
 	// Ref is the payload for ValueRefKind, a reference to a declared constant.
 	Ref *ValueRef `json:"ref,omitzero"`
-	// Constructor is the payload for ValueConstructor, a constructor-built value.
+	// Constructor is the payload for ValueConstructor, a constructor-built
+	// value.
 	Constructor *ConstructorValue `json:"constructor,omitzero"`
 }
 
@@ -93,8 +97,8 @@ type ValueRef struct {
 	Member string `json:"member,omitempty"`
 }
 
-// ConstructorValue captures a value built by a named scalar constructor, such as
-// utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
+// ConstructorValue captures a value built by a named scalar constructor, such
+// as utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
 // inherently non-literal, so compilers must not fold them (docs/ir/values.md).
 type ConstructorValue struct {
 	// Scalar identifies the scalar whose constructor is invoked; never empty.

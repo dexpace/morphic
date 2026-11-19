@@ -7,10 +7,10 @@ package ir
 // value of type root falls under, each a key Content.CatchAllEncoding admits
 // (docs/ir/payloads.md#a-catch-alls-parts): root, read through alias scalars,
 // where it is a map, else each model its flattening reads holding
-// AdditionalProperties, root's first, as a catch-all is not flattened. A union is
-// its caller's to read variant by variant. Each type is read once, so a cyclic
-// composition or alias chain ends, and the walk takes one step per composition
-// entry of the models it meets.
+// AdditionalProperties, root's first, as a catch-all is not flattened. A union
+// is its caller's to read variant by variant. Each type is read once, so a
+// cyclic composition or alias chain ends, and the walk takes one step per
+// composition entry of the models it meets.
 func CatchAllHolders(types TypeRegistry, root TypeID) []TypeID {
 	seen := map[TypeID]bool{}
 	id := throughAliases(types, root, seen)

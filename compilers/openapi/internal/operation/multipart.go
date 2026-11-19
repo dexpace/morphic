@@ -35,8 +35,9 @@ import (
 //
 // It returns the parts' and catch-alls' maps, empty, and the content's
 // Unmodeled: what they hold reads the type behind body, which a $ref may have
-// promised (compile.Types.ReserveNodeAtCoordinate), so partKeys settles them and each entry's
-// records once every node exists, for every body stating a schema.
+// promised (compile.Types.ReserveNodeAtCoordinate), so partKeys settles them
+// and each entry's records once every node exists, for every body stating a
+// schema.
 func partEncodings(serviceContext service.Ctx, loweringState operationLoweringState, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
 	map[ir.PropertyID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
@@ -179,8 +180,8 @@ func keepUnkeyedEncodings(serviceContext service.Ctx, media *soa.MediaType, medi
 }
 
 // keepEntry keeps entry, the encoding entry named name written at at, whole
-// under unmodeled at annotation.EntryKey("encoding", name) for reason, with one info
-// saying, as why completes it, why Content.Encoding has no key for it. The
+// under unmodeled at annotation.EntryKey("encoding", name) for reason, with one
+// info saying, as why completes it, why Content.Encoding has no key for it. The
 // model reads an entry that is no mapping as one with no node, so nothing is
 // kept for it and load's error is its one finding. written reports whether the
 // entry was kept.
@@ -314,11 +315,11 @@ func mayHoldParts(td ir.TypeDef) bool {
 	}
 }
 
-// declared returns the encoding of keyedPartValue as property, one of the declarations the body's
-// type holds of its name, declares it: the entry written, with the structural
-// flags and the default content type read off property and part, the schemas
-// declaring it (declarationSchemas), so a part two variants declare apart
-// reads as each declares it.
+// declared returns the encoding of keyedPartValue as property, one of the
+// declarations the body's type holds of its name, declares it: the entry
+// written, with the structural flags and the default content type read off
+// property and part, the schemas declaring it (declarationSchemas), so a part
+// two variants declare apart reads as each declares it.
 func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), keyedPartValue keyedPart, part bodyPart, property *ir.Property) ir.PartEncoding {
 	one := []*ir.Property{property}
 	multipart := isMultipart(k.mediaType)
@@ -371,11 +372,12 @@ func declaredProp(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Reference
 	return dc.IDs().Prop(at.Pointer), placed && read
 }
 
-// keepWhole keeps the entry of keyedPartValue, a part the body's type holds no property for,
-// whole, as keepUnkeyedEncodings keeps one naming no part. Where the entry
-// cannot be kept, what its lowering kept of it stands instead, so what the
-// lowering announced holds. A part with no entry keeps nothing: the schema
-// lowering kept the properties declaring it, which say what its flags would.
+// keepWhole keeps the entry of keyedPartValue, a part the body's type holds no
+// property for, whole, as keepUnkeyedEncodings keeps one naming no part. Where
+// the entry cannot be kept, what its lowering kept of it stands instead, so
+// what the lowering announced holds. A part with no entry keeps nothing: the
+// schema lowering kept the properties declaring it, which say what its flags
+// would.
 func (k partKeys) keepWhole(keyedPartValue keyedPart) []ir.Diagnostic {
 	if keyedPartValue.entry == nil {
 		return nil
@@ -492,9 +494,9 @@ func walkBodyParts(loweringContext lowering.Ctx, js *oas3.JSONSchema[oas3.Refere
 // part, at its first declaration's place, with every declaration kept
 // (dedupeParts). The allOf branches are the lowering's own
 // (schema.FlattenedAllOf); a $ref branch and a union branch are followed here,
-// up to maxPartRefHops. partVisitsValue records the fewest hops each target was entered at,
-// so one met again by no shorter path yields no parts, and the bounds that cut
-// the walk.
+// up to maxPartRefHops. partVisitsValue records the fewest hops each target was
+// entered at, so one met again by no shorter path yields no parts, and the
+// bounds that cut the walk.
 func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, partVisitsValue partVisits) partWalk {
 	s := schemaOf(partVisitsValue.c.Bindings(), js)
 	if s == nil || hops > maxPartRefHops {
@@ -552,8 +554,8 @@ func admitsMembers(memoizingSchemaReader *statement.MemoizingSchemaReader, s *oa
 		s.GetPatternProperties().Len() > 0
 }
 
-// admitting reports whether js, a catch-all's schema as memoizingSchemaReader reads it, admits a
-// member: it is written, and is not the false schema.
+// admitting reports whether js, a catch-all's schema as memoizingSchemaReader
+// reads it, admits a member: it is written, and is not the false schema.
 func admitting(memoizingSchemaReader *statement.MemoizingSchemaReader, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	truth := memoizingSchemaReader.Of(js).Truth
 	return truth != statement.Unwritten && !truth.ReadsFalse()

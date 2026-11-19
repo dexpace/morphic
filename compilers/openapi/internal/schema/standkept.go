@@ -96,11 +96,12 @@ func sharedOf(a, b ir.UnmodeledReason) ir.UnmodeledReason {
 	return ir.ReasonDegradedLowering
 }
 
-// keepAround finishes td for one reader of schema, written at pointer, keeping keepingValue
-// on it. On the schema's own node it keeps, then runs fin, the frames outside.
-// On the node standing for st's position it says what it will keep, lets fin,
-// the position's finisher among it, write first, and keeps after
-// (keepStanding): neither schema can know what the other keeps before it has.
+// keepAround finishes td for one reader of schema, written at pointer, keeping
+// keepingValue on it. On the schema's own node it keeps, then runs fin, the
+// frames outside. On the node standing for st's position it says what it will
+// keep, lets fin, the position's finisher among it, write first, and keeps
+// after (keepStanding): neither schema can know what the other keeps before it
+// has.
 func keepAround(loweringContext lowering.Ctx, ts *compile.Types, st stand, td ir.TypeDef, read keySet, held *principalKept,
 	schema *statement.Schema, pointer jsontext.Pointer, keepingValue keeping, fin finisher,
 ) []ir.Diagnostic {
@@ -115,14 +116,15 @@ func keepAround(loweringContext lowering.Ctx, ts *compile.Types, st stand, td ir
 	return keepStanding(loweringContext, ts, allOfBranches(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, keepingValue)
 }
 
-// keepStanding keeps keepingValue, what one reader keeps of schema, the inline principal of
-// comp written at pointer, on unmodeled, the Unmodeled of the node standing for comp's
-// position, which that position has written: nothing where it keeps schema whole,
-// the entry holding them, else each keyword as heldAgainst places it, one
-// whose own key is free as keepingValue keeps it, and one that key holds otherwise under
-// schema's entry's key (keepApart). This is the one way a keyword of schema reaches the
-// node once the position has written. A discriminator resolves its routes
-// wherever it is kept (routesKept).
+// keepStanding keeps keepingValue, what one reader keeps of schema, the inline
+// principal of comp written at pointer, on unmodeled, the Unmodeled of the node
+// standing for comp's position, which that position has written: nothing where
+// it keeps schema whole, the entry holding them, else each keyword as
+// heldAgainst places it, one whose own key is free as keepingValue keeps it,
+// and one that key holds otherwise under schema's entry's key (keepApart). This
+// is the one way a keyword of schema reaches the node once the position has
+// written. A discriminator resolves its routes wherever it is kept
+// (routesKept).
 func keepStanding(loweringContext lowering.Ctx, ts *compile.Types, comp allOfComposition, held *principalKept, unmodeled *ir.Unmodeled,
 	schema *statement.Schema, pointer jsontext.Pointer, keepingValue keeping,
 ) []ir.Diagnostic {
@@ -138,14 +140,14 @@ func keepStanding(loweringContext lowering.Ctx, ts *compile.Types, comp allOfCom
 	return append(diags, keepApart(loweringContext, ts, comp, held, unmodeled, schema, pointer, apart, keepingValue.reason)...)
 }
 
-// heldAgainst splits keys, keywords schema, an entry of comp written at pointer that
-// its position lowers from, keeps, by what unmodeled, the Unmodeled the position has
-// written, holds: plain where each one's own key is free, apart where it holds
-// another value, and neither where it, or the key of an entry around schema
-// (aroundOf), holds the same, kept once there. Two values are the same where
-// they render to the same JSON, a number's spelling and an array's order with
-// them (writtenKeys.note); one that cannot render is plain, its keeper's to
-// refuse as written flat.
+// heldAgainst splits keys, keywords schema, an entry of comp written at pointer
+// that its position lowers from, keeps, by what unmodeled, the Unmodeled the
+// position has written, holds: plain where each one's own key is free, apart
+// where it holds another value, and neither where it, or the key of an entry
+// around schema (aroundOf), holds the same, kept once there. Two values are the
+// same where they render to the same JSON, a number's spelling and an array's
+// order with them (writtenKeys.note); one that cannot render is plain, its
+// keeper's to refuse as written flat.
 func heldAgainst(unmodeled ir.Unmodeled, comp allOfComposition, schema *statement.Schema, pointer jsontext.Pointer, keys []string,
 ) (plain, apart []string) {
 	around := aroundOf(unmodeled, comp, pointer)
@@ -170,9 +172,9 @@ func heldAgainst(unmodeled ir.Unmodeled, comp allOfComposition, schema *statemen
 	return plain, apart
 }
 
-// aroundOf returns the members of what unmodeled holds under the key of each entry
-// around the one written at pointer: a wrapper of comp out of whose allOf it
-// is flattened, settled before it (outcomeKeeps.lowered). A keyword one of
+// aroundOf returns the members of what unmodeled holds under the key of each
+// entry around the one written at pointer: a wrapper of comp out of whose allOf
+// it is flattened, settled before it (outcomeKeeps.lowered). A keyword one of
 // them holds alike is that wrapper's writing, the outermost standing.
 func aroundOf(unmodeled ir.Unmodeled, comp allOfComposition, pointer jsontext.Pointer) []map[string]ir.RawValue {
 	var out []map[string]ir.RawValue
@@ -205,11 +207,12 @@ func keptMembers(raw ir.RawValue) map[string]ir.RawValue {
 	return out
 }
 
-// besideHeld returns unmodeled with the value the position schema writes under each of
-// keys whose own key unmodeled does not hold yet: one a field reads, or the inline
-// principal writing it alike keeps after, holds that key all the same, so a
-// wrapper around the principal writing it otherwise is kept under its own
-// entry's key, the plain key the position's. Where none is, unmodeled itself.
+// besideHeld returns unmodeled with the value the position schema writes under
+// each of keys whose own key unmodeled does not hold yet: one a field reads, or
+// the inline principal writing it alike keeps after, holds that key all the
+// same, so a wrapper around the principal writing it otherwise is kept under
+// its own entry's key, the plain key the position's. Where none is, unmodeled
+// itself.
 func besideHeld(unmodeled ir.Unmodeled, schema *statement.Schema, keys []string) ir.Unmodeled {
 	view, copied := unmodeled, false
 	for _, key := range keys {
@@ -230,13 +233,14 @@ func besideHeld(unmodeled ir.Unmodeled, schema *statement.Schema, keys []string)
 	return view
 }
 
-// keepApart keeps on unmodeled, the Unmodeled of the node standing for the position
-// comp is written at, the keywords apart that schema, comp's inline principal
-// written at pointer, writes otherwise than the position keeps them: under its
-// entry's key, openapi:allOf/<n>, one object holding those and what held says
-// readers before kept there, the rest of schema lowered, for the reason they share,
-// at the entry, with one report naming apart. A discriminator among them
-// resolves its routes, as one kept anywhere does (resolveDiscriminatorRoutes).
+// keepApart keeps on unmodeled, the Unmodeled of the node standing for the
+// position comp is written at, the keywords apart that schema, comp's inline
+// principal written at pointer, writes otherwise than the position keeps them:
+// under its entry's key, openapi:allOf/<n>, one object holding those and what
+// held says readers before kept there, the rest of schema lowered, for the
+// reason they share, at the entry, with one report naming apart. A
+// discriminator among them resolves its routes, as one kept anywhere does
+// (resolveDiscriminatorRoutes).
 func keepApart(loweringContext lowering.Ctx, ts *compile.Types, comp allOfComposition, held *principalKept, unmodeled *ir.Unmodeled,
 	schema *statement.Schema, pointer jsontext.Pointer, apart []string, reason ir.UnmodeledReason,
 ) []ir.Diagnostic {
@@ -256,10 +260,10 @@ func keepApart(loweringContext lowering.Ctx, ts *compile.Types, comp allOfCompos
 	return append(diags, routesKept(loweringContext, ts, schema, apart, pointer)...)
 }
 
-// holdApart writes on unmodeled the object the entry's key of schema, comp's inline
-// principal written at pointer, holds: the keywords apart and those held says
-// were kept there before, as schema writes them, for the reason they share. It
-// reports whether it wrote, and held then counts apart among them.
+// holdApart writes on unmodeled the object the entry's key of schema, comp's
+// inline principal written at pointer, holds: the keywords apart and those held
+// says were kept there before, as schema writes them, for the reason they
+// share. It reports whether it wrote, and held then counts apart among them.
 func holdApart(loweringContext lowering.Ctx, comp allOfComposition, held *principalKept, unmodeled *ir.Unmodeled, schema *statement.Schema,
 	pointer jsontext.Pointer, apart []string, reason ir.UnmodeledReason,
 ) (bool, []ir.Diagnostic) {
@@ -281,12 +285,12 @@ func holdApart(loweringContext lowering.Ctx, comp allOfComposition, held *princi
 }
 
 // keepBuiltAround finishes td by fin, the frames outside every reader of the
-// inline principal schema written at pointer, the position's among them, holding
-// back what the principal's build kept on td itself: a keyword kept beside the
-// field it could not fill, which no reader keeps after the position. Those
-// entries leave the node while the position writes, and are kept after it
-// against what it wrote (keepBuilt), so whatever a build keeps reaches the
-// node through the one writer too.
+// inline principal schema written at pointer, the position's among them,
+// holding back what the principal's build kept on td itself: a keyword kept
+// beside the field it could not fill, which no reader keeps after the position.
+// Those entries leave the node while the position writes, and are kept after it
+// against what it wrote (keepBuilt), so whatever a build keeps reaches the node
+// through the one writer too.
 func keepBuiltAround(loweringContext lowering.Ctx, st stand, td ir.TypeDef, read keySet, held *principalKept, schema *statement.Schema,
 	pointer jsontext.Pointer, fin finisher,
 ) []ir.Diagnostic {
@@ -300,8 +304,8 @@ func keepBuiltAround(loweringContext lowering.Ctx, st stand, td ir.TypeDef, read
 	return keepBuilt(loweringContext, allOfBranches(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, built)
 }
 
-// takeBuilt removes from unmodeled, and returns, the entries written at pointer or
-// beneath it: what the schema written there kept on the node it built.
+// takeBuilt removes from unmodeled, and returns, the entries written at pointer
+// or beneath it: what the schema written there kept on the node it built.
 func takeBuilt(unmodeled *ir.Unmodeled, pointer jsontext.Pointer) ir.Unmodeled {
 	var built ir.Unmodeled
 	for key, entry := range *unmodeled {
@@ -318,14 +322,14 @@ func takeBuilt(unmodeled *ir.Unmodeled, pointer jsontext.Pointer) ir.Unmodeled {
 	return built
 }
 
-// keepBuilt keeps on unmodeled, which the position has written, the entries built,
-// what the build of schema, comp's inline principal written at pointer, kept: each
-// under its own key where that is free; once where the key holds the same
-// value, or the position keeps schema whole, the entry holding it, or an entry
-// around schema holds it alike (aroundOf); and under schema's entry's key where the
-// position's keyword holds another (holdApart). The build reported each where
-// kept, as written flat, which stays true. A key no keyword of schema names cannot
-// be held otherwise.
+// keepBuilt keeps on unmodeled, which the position has written, the entries
+// built, what the build of schema, comp's inline principal written at pointer,
+// kept: each under its own key where that is free; once where the key holds the
+// same value, or the position keeps schema whole, the entry holding it, or an
+// entry around schema holds it alike (aroundOf); and under schema's entry's key
+// where the position's keyword holds another (holdApart). The build reported
+// each where kept, as written flat, which stays true. A key no keyword of
+// schema names cannot be held otherwise.
 func keepBuilt(loweringContext lowering.Ctx, comp allOfComposition, held *principalKept, unmodeled *ir.Unmodeled, schema *statement.Schema,
 	pointer jsontext.Pointer, built ir.Unmodeled,
 ) []ir.Diagnostic {
@@ -367,10 +371,11 @@ func keyWrittenAlike(a, b *statement.Schema, key string) bool {
 	return errA == nil && errB == nil && bytes.Equal(x, y)
 }
 
-// routesKept resolves the mapping of the discriminator schema, written at pointer,
-// writes where kept, keywords kept another way than keepUnhomed keeps them,
-// holds it: a discriminator kept verbatim resolves its routes wherever it is
-// kept, as keepUnhomed resolves the one it keeps (resolveDiscriminatorRoutes).
+// routesKept resolves the mapping of the discriminator schema, written at
+// pointer, writes where kept, keywords kept another way than keepUnhomed keeps
+// them, holds it: a discriminator kept verbatim resolves its routes wherever it
+// is kept, as keepUnhomed resolves the one it keeps
+// (resolveDiscriminatorRoutes).
 func routesKept(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, kept []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !slices.Contains(kept, "discriminator") {
 		return nil

@@ -277,9 +277,9 @@ func refusedByName(opts Options, self string, places *refscope.Places) func(uri 
 	}
 }
 
-// namesSource reports whether uri, a $ref's document part, names the source
-// at self, read as every reference is (componentlookup.Locate), where the files lie in
-// places.
+// namesSource reports whether uri, a $ref's document part, names the source at
+// self, read as every reference is (componentlookup.Locate), where the files
+// lie in places.
 func namesSource(places *refscope.Places, self, uri string) bool {
 	named, ok := refscope.Locate(uri, self)
 	return ok && places.SameDocument(self, named)
@@ -348,8 +348,8 @@ func directoryNamed(dir string) string {
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set. The
 // node budget holds the read as it holds the source's. Unparsable or empty
-// bytes are refused as such, the parser's reason kept (reftable.UnparsableError,
-// reftable.ErrEmptyDocument).
+// bytes are refused as such, the parser's reason kept
+// (reftable.UnparsableError, reftable.ErrEmptyDocument).
 func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]byte, error) {
 	if !e.opts.MaxSourceBytes.Admits(len(data)) {
 		return nil, refused(id, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
@@ -382,10 +382,10 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 // to (prepare).
 //
 // Any finding refuses it, the scan's report that it could not finish included,
-// where the source carries that one forward as a warning. A refused document
-// is not read into the compile, so it has no LoadedOpenAPIDocument.Sources entry a finding
-// could name: the reference that named the document is what fails, with the
-// findings as its reason.
+// where the source carries that one forward as a warning. A refused document is
+// not read into the compile, so it has no LoadedOpenAPIDocument.Sources entry a
+// finding could name: the reference that named the document is what fails, with
+// the findings as its reason.
 func (e external) admit(ctx context.Context, key string, doc doctree.ParsedYAMLDocument) error {
 	place := nowhere()
 	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts, false)

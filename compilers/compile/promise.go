@@ -11,10 +11,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ReserveNodeAtCoordinate records that a node is expected at coordinate: a reference names it
-// and leaves building it to the lowering that owns it, so the node is built in
-// its owner's context whichever lowering reached it first. Once every lowering
-// has returned, build builds it if none did (Finish).
+// ReserveNodeAtCoordinate records that a node is expected at coordinate: a
+// reference names it and leaves building it to the lowering that owns it, so
+// the node is built in its owner's context whichever lowering reached it first.
+// Once every lowering has returned, build builds it if none did (Finish).
 //
 // A coordinate promised again keeps its first build: a build lowers the
 // coordinate in the context its own position gives it, not its referrer's, so

@@ -14,8 +14,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 )
 
-// ParsedYAMLDocument is one input's bytes read into the tree of its first document that
-// holds content.
+// ParsedYAMLDocument is one input's bytes read into the tree of its first
+// document that holds content.
 type ParsedYAMLDocument struct {
 	// Root is a document node, or a node of no kind for a stream holding none.
 	Root *yaml.Node

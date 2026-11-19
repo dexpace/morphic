@@ -772,11 +772,11 @@ paths:
 	}
 }
 
-// TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches pins that a use
-// site borrows what its schema $ref ends on, a default, a description, a form
-// body's parts, a file body or a discriminator, whichever documents the chain
-// passes, as its type reaches that schema there. A form body's parts are keyed
-// to the properties of the model in the document declaring it, so none
+// TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches pins that
+// a use site borrows what its schema $ref ends on, a default, a description, a
+// form body's parts, a file body or a discriminator, whichever documents the
+// chain passes, as its type reaches that schema there. A form body's parts are
+// keyed to the properties of the model in the document declaring it, so none
 // addresses a property the IR lacks (GitHub #1023), and a model composing a
 // discriminated base from another document takes its discriminator value.
 func TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches(t *testing.T) {

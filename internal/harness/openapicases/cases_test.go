@@ -105,12 +105,12 @@ func eachCoreCaseCompilesWithNoError(t *testing.T, cases harness.Cases) {
 	compilesWithNoError(t, cases, shards(t, cases, harness.Core(cases)))
 }
 
-// compilesWithNoError compiles each case of byShard, cases of harnessCases by version
-// and target, as the harness's first three oracles hold a spec: verified, so a
-// broken invariant or a panic fails the run, and with no error diagnostic.
-// Each case is a valid document of its version, so a case the compiler refuses
-// is the writer's defect. An info or a warning stands: it is the compiler's
-// account of a valid construct, which the case oracles judge.
+// compilesWithNoError compiles each case of byShard, cases of harnessCases by
+// version and target, as the harness's first three oracles hold a spec:
+// verified, so a broken invariant or a panic fails the run, and with no error
+// diagnostic. Each case is a valid document of its version, so a case the
+// compiler refuses is the writer's defect. An info or a warning stands: it is
+// the compiler's account of a valid construct, which the case oracles judge.
 func compilesWithNoError(t *testing.T, harnessCases harness.Cases, byShard map[[2]int][][]int) {
 	t.Helper()
 	axes := harnessCases.Axes()

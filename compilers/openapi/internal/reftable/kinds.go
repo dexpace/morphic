@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// Kind is what the OpenAPI grammar reads a position as, in the terms the
-// nodes built beneath it are named in (ReferenceTargetTable.Kinds). An object or a list the
-// grammar models and naming does not tell apart is KindOther.
+// Kind is what the OpenAPI grammar reads a position as, in the terms the nodes
+// built beneath it are named in (ReferenceTargetTable.Kinds). An object or a
+// list the grammar models and naming does not tell apart is KindOther.
 type Kind uint8
 
 const (
@@ -71,12 +71,12 @@ func kindOf(stateValue state) Kind {
 	}
 }
 
-// Kinds returns how the grammar reads each position on the way to documentPointer from its
-// document's root, the root's first: the source's own grammar from its root,
-// and, at a position it reads as raw YAML, or in another document, the kind a
-// reference read the position at, where one did (GitHub #981). A position
-// written in the source is what its own position makes it, whatever a
-// reference expects it to be; where references read one position as two
+// Kinds returns how the grammar reads each position on the way to
+// documentPointer from its document's root, the root's first: the source's own
+// grammar from its root, and, at a position it reads as raw YAML, or in another
+// document, the kind a reference read the position at, where one did (GitHub #981).
+// A position written in the source is what its own position makes it, whatever
+// a reference expects it to be; where references read one position as two
 // kinds, the lesser counts, so the answer depends on no reading order.
 func (t *ReferenceTargetTable) Kinds(documentPointer DocumentPointer) []Kind {
 	var out []Kind
@@ -84,15 +84,16 @@ func (t *ReferenceTargetTable) Kinds(documentPointer DocumentPointer) []Kind {
 	return out
 }
 
-// Reading is how the grammar reads one position (ReferenceTargetTable.ReadingAt), so that a
-// walk beneath it reads each position below without spelling out its pointer.
-// The zero Reading reads raw YAML.
+// Reading is how the grammar reads one position
+// (ReferenceTargetTable.ReadingAt), so that a walk beneath it reads each
+// position below without spelling out its pointer. The zero Reading reads raw
+// YAML.
 type Reading struct{ p place }
 
-// ReadingAt returns how the grammar reads documentPointer, as Kinds reads the last position
-// on the way to it: as a reference object written there reads what it names,
-// afresh (place). A pointer past the tokens Kinds reads, or a nil table, reads
-// raw YAML.
+// ReadingAt returns how the grammar reads documentPointer, as Kinds reads the
+// last position on the way to it: as a reference object written there reads
+// what it names, afresh (place). A pointer past the tokens Kinds reads, or a
+// nil table, reads raw YAML.
 func (t *ReferenceTargetTable) ReadingAt(documentPointer DocumentPointer) Reading {
 	if t == nil {
 		return Reading{}
@@ -121,10 +122,11 @@ func (r Reading) Referable() bool {
 	return ok && r.p.held()
 }
 
-// statesTo hands visit how the grammar reads each position on the way to documentPointer,
-// the root's first, as Kinds documents, roots holding what the references a
-// table followed read positions as (rooted). It reports whether it read every
-// token of documentPointer's pointer rather than stopping at maxPointerTokens.
+// statesTo hands visit how the grammar reads each position on the way to
+// documentPointer, the root's first, as Kinds documents, roots holding what the
+// references a table followed read positions as (rooted). It reports whether it
+// read every token of documentPointer's pointer rather than stopping at
+// maxPointerTokens.
 func statesTo(roots map[DocumentPointer]state, documentPointer DocumentPointer, visit func(state)) bool {
 	stateValue := sRaw
 	if documentPointer.Doc == Source {
@@ -149,8 +151,8 @@ func statesTo(roots map[DocumentPointer]state, documentPointer DocumentPointer, 
 	return i >= len(pointer)
 }
 
-// rooted returns stateValue, the state the grammar reads at, or, where that is raw
-// YAML, the state a reference read at as a root of its own, where roots
+// rooted returns stateValue, the state the grammar reads at, or, where that is
+// raw YAML, the state a reference read at as a root of its own, where roots
 // records one.
 func rooted(roots map[DocumentPointer]state, at DocumentPointer, stateValue state) state {
 	if stateValue != sRaw {

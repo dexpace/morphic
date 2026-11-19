@@ -51,12 +51,12 @@ var chainWant = map[string]struct{ def, desc string }{
 	"own": {"f", "from-use"},
 }
 
-// TestUseOf_FallsBackToEachHopOfTheChain pins a use reading its $ref chain one hop at
-// a time, nearest first: an alias's description and an alias's default are each
-// the nearest hop writing that field, not the chain's end's, so a hop writing
-// one and not the other lends the one and lets the other fall through to the
-// next hop. A property's own words still win. Both declaration orders read the
-// same, and the only findings are the two infos main already draws.
+// TestUseOf_FallsBackToEachHopOfTheChain pins a use reading its $ref chain one
+// hop at a time, nearest first: an alias's description and an alias's default
+// are each the nearest hop writing that field, not the chain's end's, so a hop
+// writing one and not the other lends the one and lets the other fall through
+// to the next hop. A property's own words still win. Both declaration orders
+// read the same, and the only findings are the two infos main already draws.
 func TestUseOf_FallsBackToEachHopOfTheChain(t *testing.T) {
 	t.Parallel()
 	for name, reverse := range map[string]bool{"declared order": false, "reversed order": true} {
@@ -83,9 +83,9 @@ func TestUseOf_FallsBackToEachHopOfTheChain(t *testing.T) {
 	}
 }
 
-// TestUseOf_FallsBackToEachHopAcrossTwoDocuments pins the same reading where the chain
-// leaves the document: the alias and the leaf it names are written in another
-// file, and the use's own alias in this one.
+// TestUseOf_FallsBackToEachHopAcrossTwoDocuments pins the same reading where
+// the chain leaves the document: the alias and the leaf it names are written in
+// another file, and the use's own alias in this one.
 func TestUseOf_FallsBackToEachHopAcrossTwoDocuments(t *testing.T) {
 	t.Parallel()
 	const other = `components:
@@ -136,10 +136,11 @@ func aliasChain(n, writer int) string {
 	return b.String()
 }
 
-// TestUseOf_AnAliasHopIsNoReadThrough pins that a run of aliases is read within one
-// turn: no length of it, whether one alias or well past the bound on read-throughs,
-// costs the end's default or description. A hop in the middle of the run that
-// writes a description is the nearest to write one, at every length.
+// TestUseOf_AnAliasHopIsNoReadThrough pins that a run of aliases is read within
+// one turn: no length of it, whether one alias or well past the bound on
+// read-throughs, costs the end's default or description. A hop in the middle of
+// the run that writes a description is the nearest to write one, at every
+// length.
 func TestUseOf_AnAliasHopIsNoReadThrough(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{1, 2, 63, 64, 65, 70, 200} {
@@ -162,8 +163,9 @@ func TestUseOf_AnAliasHopIsNoReadThrough(t *testing.T) {
 	}
 }
 
-// TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments is the same run of aliases
-// cut in two: the first half is written here and the second in another file.
+// TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments is the same run of
+// aliases cut in two: the first half is written here and the second in another
+// file.
 func TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{2, 65, 70} {
@@ -201,10 +203,11 @@ func TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments(t *testing.T) {
 	}
 }
 
-// readThroughChainSpec returns n schemas that each narrow the next by an enum written
-// beside an allOf naming it, so a use passes over one $ref per link, and the
-// last, whose description is what a use that reached it reads. Where aliases is
-// above zero, that many aliases stand between each link and the next.
+// readThroughChainSpec returns n schemas that each narrow the next by an enum
+// written beside an allOf naming it, so a use passes over one $ref per link,
+// and the last, whose description is what a use that reached it reads. Where
+// aliases is above zero, that many aliases stand between each link and the
+// next.
 func readThroughChainSpec(n, aliases int) string {
 	var b strings.Builder
 	for i := range n {
@@ -221,11 +224,11 @@ func readThroughChainSpec(n, aliases int) string {
 	return b.String()
 }
 
-// TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone pins the bound on the read-throughs
-// one use reads on through, which an alias between two links does not move: a
-// chain of links under it ends on the schema that describes it, and one at or
-// past it stops short, with the same verdict whether or not aliases stand
-// between the links.
+// TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone pins the bound on the
+// read-throughs one use reads on through, which an alias between two links does
+// not move: a chain of links under it ends on the schema that describes it, and
+// one at or past it stops short, with the same verdict whether or not aliases
+// stand between the links.
 func TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone(t *testing.T) {
 	t.Parallel()
 	const readThroughs = 64
@@ -395,13 +398,12 @@ components:
 	assert.NotNil(t, propertyOf(t, doc, "H", "g").Default)
 }
 
-// TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing pins a use of a chain of
-// three aliases whose middle one, and a property beside it, write a $ref
-// merged in past nodeview.MergeDepthLimit, which the parser's model holds and
-// the table never read: each lands nowhere and lends nothing past it, so a
-// property naming the chain takes its first hop's words and the other none,
-// its own lying past the bound too, and each such $ref is reported
-// unresolved.
+// TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing pins a use of a
+// chain of three aliases whose middle one, and a property beside it, write a
+// $ref merged in past nodeview.MergeDepthLimit, which the parser's model holds
+// and the table never read: each lands nowhere and lends nothing past it, so a
+// property naming the chain takes its first hop's words and the other none, its
+// own lying past the bound too, and each such $ref is reported unresolved.
 func TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n"+

@@ -440,10 +440,11 @@ func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
 	}
 }
 
-// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field property redeclared as
-// a $ref to its branch's sibling field vx and as an inline copy of vx, in either
-// order. vx's pointer begins with property's but is not under it, so vx was declared
-// apart and wins in both orders with nothing reported or kept.
+// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field property
+// redeclared as a $ref to its branch's sibling field vx and as an inline copy
+// of vx, in either order. vx's pointer begins with property's but is not under
+// it, so vx was declared apart and wins in both orders with nothing reported or
+// kept.
 func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 	t.Parallel()
 	const enum = "{type: string, enum: [a, b]}"

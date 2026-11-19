@@ -6,9 +6,9 @@ package nodeview
 import yaml "go.yaml.in/yaml/v3"
 
 // Unread turns node into the null every reader takes for a field left out,
-// keeping what the source wrote there for Written. The null keeps node's place in
-// the tree, its position, anchor and comments, so an alias of node reads the null
-// too. The decoder and the encoder read a scalar's Alias field nowhere
+// keeping what the source wrote there for Written. The null keeps node's place
+// in the tree, its position, anchor and comments, so an alias of node reads the
+// null too. The decoder and the encoder read a scalar's Alias field nowhere
 // (docs/parser-library.md#alias-field-on-scalar), and no walk here follows it
 // but on an alias. A node already turned is left as it is.
 func Unread(node *yaml.Node) {

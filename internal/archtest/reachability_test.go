@@ -302,10 +302,10 @@ func marker(fd *ast.FuncDecl, fn *types.Func) bool {
 	})
 }
 
-// unreached returns what the check finds in programValue: each function neither a binary
-// nor an entry of roots reaches, outside the packages spared names; each entry
-// of roots a binary reaches, or naming no function of programValue; and each entry of
-// spared that spares no function.
+// unreached returns what the check finds in programValue: each function neither
+// a binary nor an entry of roots reaches, outside the packages spared names;
+// each entry of roots a binary reaches, or naming no function of programValue;
+// and each entry of spared that spares no function.
 func unreached(programValue program, roots, spared map[string]string) []string {
 	byName := make(map[string]*ssa.Function, len(programValue.funcs))
 	for _, sourceFunc := range programValue.funcs {

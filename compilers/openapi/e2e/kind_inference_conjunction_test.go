@@ -323,7 +323,8 @@ func missingItemsOf(version string, kept bool, entries []string, typed string) [
 		slices.Index(entries, typed))}}
 }
 
-// assertMinItems holds constraints to a minItems of want, and to none where want is 0.
+// assertMinItems holds constraints to a minItems of want, and to none where
+// want is 0.
 func assertMinItems(t *testing.T, constraints *ir.Constraints, want int) {
 	t.Helper()
 	if want == 0 {

@@ -228,8 +228,8 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: exactly one spec file, and no text option beside --diagnostics-format json,
-// which would be accepted and ignored. The command's own name is in the
+// parsed: exactly one spec file, and no text option beside --diagnostics-format
+// json, which would be accepted and ignored. The command's own name is in the
 // message, so a misuse names what was typed. No flag's value is checked here:
 // each refuses a bad one as it is set, and which pass names exist is the
 // engine's to say.

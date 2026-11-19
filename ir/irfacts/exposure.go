@@ -14,8 +14,8 @@ import (
 // Exposes reports whether the type id names exposes the property prop, as
 // ir.ExposedProperties answers it: id, or a type its composition or its alias
 // scalars lead to, declares prop. Its first questions are walked, as
-// [DocumentFacts.IsSubtype]'s are. After that a question is a few comparisons when one
-// model declares prop, unless the comparisons leave the pair open as
+// [DocumentFacts.IsSubtype]'s are. After that a question is a few comparisons
+// when one model declares prop, unless the comparisons leave the pair open as
 // IsSubtype's may be. A property several models declare and an open pair are
 // walked.
 func (x *DocumentFacts) Exposes(id ir.TypeID, prop ir.PropertyID) bool {
@@ -36,8 +36,8 @@ func (x *DocumentFacts) Exposes(id ir.TypeID, prop ir.PropertyID) bool {
 // sharedProp is the owner of a property more than one model declares.
 const sharedProp = -1
 
-// exposure indexes the relation ir.ExposedProperties walks. A model leads to its
-// Base, Implements and Mixins and an alias scalar to its Base, and a type
+// exposure indexes the relation ir.ExposedProperties walks. A model leads to
+// its Base, Implements and Mixins and an alias scalar to its Base, and a type
 // exposes what it and every type it leads to declare, so a property declared by
 // one model is exposed by the types that reach that model.
 type exposure struct {
@@ -128,9 +128,9 @@ func (e *exposure) own(prop ir.PropertyID, i int) {
 	e.owner[prop] = i
 }
 
-// exposes answers [DocumentFacts.Exposes] from the intervals, with settled false when
-// they cannot: several models declare prop, or the intervals leave open
-// whether id reaches the one that does.
+// exposes answers [DocumentFacts.Exposes] from the intervals, with settled
+// false when they cannot: several models declare prop, or the intervals leave
+// open whether id reaches the one that does.
 func (e *exposure) exposes(id ir.TypeID, prop ir.PropertyID) (exposed, settled bool) {
 	v, declared := e.vertex[id]
 	owner, owned := e.owner[prop]

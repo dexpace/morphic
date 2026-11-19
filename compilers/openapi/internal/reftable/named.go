@@ -147,9 +147,9 @@ func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 	return w.memo[top]
 }
 
-// below returns the (node, state) pairs namedKeyValue's shape is made of, and notes the
-// references namedKeyValue writes. A scalar read raw holds none, so a raw value costs a
-// step for each mapping and list it holds.
+// below returns the (node, state) pairs namedKeyValue's shape is made of, and
+// notes the references namedKeyValue writes. A scalar read raw holds none, so a
+// raw value costs a step for each mapping and list it holds.
 func (w *named) below(namedKeyValue namedKey) []namedFrame {
 	node := namedKeyValue.n
 	if node == nil {
@@ -168,9 +168,9 @@ func (w *named) below(namedKeyValue namedKey) []namedFrame {
 	return out
 }
 
-// measured is namedKeyValue's shape once what it is made of is measured. A node read raw
-// names what a compile names inside it and not itself, which the node holding
-// it adds (rawNamed).
+// measured is namedKeyValue's shape once what it is made of is measured. A node
+// read raw names what a compile names inside it and not itself, which the node
+// holding it adds (rawNamed).
 func (w *named) measured(namedKeyValue namedKey) namedShape {
 	node := namedKeyValue.n
 	if node == nil {
@@ -213,12 +213,12 @@ func rawNamed(node *yaml.Node) namedShape {
 	return out
 }
 
-// eachNamedChild hands visit each child of node read at stateValue, what an alias names in
-// its place, with the state it is read at and the bytes its step adds to a
-// pointer: a key or an index, and a '/'. A mapping's are its members' values
-// as the binder reads them (nodeview.View.MappingPairs): those a `<<` merge key
-// brings in among its own, which a compile names at the mapping, and a key
-// written twice at its last copy.
+// eachNamedChild hands visit each child of node read at stateValue, what an
+// alias names in its place, with the state it is read at and the bytes its step
+// adds to a pointer: a key or an index, and a '/'. A mapping's are its members'
+// values as the binder reads them (nodeview.View.MappingPairs): those a `<<`
+// merge key brings in among its own, which a compile names at the mapping, and
+// a key written twice at its last copy.
 func (w *named) eachNamedChild(node *yaml.Node, stateValue state, visit func(child *yaml.Node, otherState state, edge int)) {
 	switch node.Kind {
 	case yaml.MappingNode:
@@ -234,9 +234,9 @@ func (w *named) eachNamedChild(node *yaml.Node, stateValue state, visit func(chi
 	}
 }
 
-// noteRefs notes what the mapping namedKeyValue reads as a reference: its $ref where its
-// state reads one, and for a schema its $dynamicRef, which lands as a $ref
-// does or on the anchor its plain name expands to, and each value its
+// noteRefs notes what the mapping namedKeyValue reads as a reference: its $ref
+// where its state reads one, and for a schema its $dynamicRef, which lands as a
+// $ref does or on the anchor its plain name expands to, and each value its
 // discriminator names a schema by (mappingValues), by its text whatever its
 // tag, that spells no schema component's key, which names that component where
 // it is declared. A Security Requirement Object's are its keys (noteKeys).

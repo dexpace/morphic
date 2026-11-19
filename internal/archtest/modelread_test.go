@@ -24,14 +24,14 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// modelReadBaseline counts, by repo-relative package path, how many times
-// each selects a member of the parser library's schema types outside the
-// statement adapter (statement's model.go), or names a bridge (bridgeKey). It
-// holds the two modelHolders besides the adapter that read the model's fields:
-// the operation walk, and reftable/typed, which builds the bindings from the model
+// modelReadBaseline counts, by repo-relative package path, how many times each
+// selects a member of the parser library's schema types outside the statement
+// adapter (statement's model.go), or names a bridge (bridgeKey). It holds the
+// two modelHolders besides the adapter that read the model's fields: the
+// operation walk, and reftable/typed, which builds the bindings from the model
 // before any statement is read. A count rising is a second reading beside the
-// statement, and one falling asks for the map to be lowered, so it only
-// shrinks (GitHub #1991).
+// statement, and one falling asks for the map to be lowered, so it only shrinks
+// (GitHub #1991).
 var modelReadBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/reftable/typed": {
 		"GetCore":   1,
@@ -240,14 +240,14 @@ func pointee(t types.Type) types.Type {
 	}
 }
 
-// modelSelections returns where loadedPackage selects a member of one of schemaModelValue's types
-// (reaches), by member, whatever type declares the member, so one promoted
-// from an embedded model counts: a field, a method value or call, and a method
-// expression. A call through an interface or a type parameter and a library
-// function handed a schema select no member of schemaModelValue's types, and holds does not
-// recognize a type defined over one, such as `type s oas3.Schema`: none of
-// these is counted. It leaves out those in the file adapter names and returns
-// how many there were.
+// modelSelections returns where loadedPackage selects a member of one of
+// schemaModelValue's types (reaches), by member, whatever type declares the
+// member, so one promoted from an embedded model counts: a field, a method
+// value or call, and a method expression. A call through an interface or a type
+// parameter and a library function handed a schema select no member of
+// schemaModelValue's types, and holds does not recognize a type defined over
+// one, such as `type s oas3.Schema`: none of these is counted. It leaves out
+// those in the file adapter names and returns how many there were.
 func modelSelections(loadedPackage *decls.Package, schemaModelValue schemaModel, adapter string) (outside map[string][]token.Position, inAdapter int) {
 	outside = map[string][]token.Position{}
 	for expr, sel := range loadedPackage.Info.Selections {
@@ -411,10 +411,10 @@ func TestModelSelections_PlantedSpellingsAreCounted(t *testing.T) {
 	assert.Equal(t, 2, inAdapter, "the adapter's reads are its own")
 }
 
-// holdingExpressions returns where loadedPackage has an expression whose type mentions one
-// of schemaModelValue's types, in source order. An expression is a name, a call, a selector
-// or a type written out, so one with a type inferred from a call is found
-// where it is first used.
+// holdingExpressions returns where loadedPackage has an expression whose type
+// mentions one of schemaModelValue's types, in source order. An expression is a
+// name, a call, a selector or a type written out, so one with a type inferred
+// from a call is found where it is first used.
 func holdingExpressions(loadedPackage *decls.Package, schemaModelValue schemaModel) []token.Position {
 	var out []token.Position
 	for expr, tv := range loadedPackage.Info.Types {

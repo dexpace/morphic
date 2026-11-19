@@ -137,13 +137,13 @@ type aloneSpelling struct {
 	name, entry, flat string
 }
 
-// aloneSpellings writes aloneUnionValue on an allOf entry beside nothing a variant would
-// carry, at version: alone, one allOf deeper, beside a `{}` entry and, from
-// 3.1, a `true` one, with a note or, unless aloneUnionValue is untyped, a type every branch
-// says, null included, on its own entry, on another before or after it, or
-// beside the allOf, and with a bound, an annotation or an extension on an entry
-// after it or beside the allOf; each in both orders of the branches. A respelt
-// union is written in four of these.
+// aloneSpellings writes aloneUnionValue on an allOf entry beside nothing a
+// variant would carry, at version: alone, one allOf deeper, beside a `{}` entry
+// and, from 3.1, a `true` one, with a note or, unless aloneUnionValue is
+// untyped, a type every branch says, null included, on its own entry, on
+// another before or after it, or beside the allOf, and with a bound, an
+// annotation or an extension on an entry after it or beside the allOf; each in
+// both orders of the branches. A respelt union is written in four of these.
 func aloneSpellings(version string, aloneUnionValue aloneUnion) []aloneSpelling {
 	all := aloneSpellingsOf(version, aloneUnionValue)
 	if !aloneUnionValue.respelt {

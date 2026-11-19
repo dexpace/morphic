@@ -212,10 +212,11 @@ func TestPromotion_ARefinementFallsBackToWhatItRefines(t *testing.T) {
 	}
 }
 
-// TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn holds a node a $ref speaks on
-// after losing the type, to a value set narrowing it or an enum beside its allOf
-// (docs/compilers/openapi.md#ref-use-site), to that $ref's keys as to its
-// keyword: the $ref is no Base of the node, so nothing else reaches them.
+// TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn holds a node a $ref
+// speaks on after losing the type, to a value set narrowing it or an enum
+// beside its allOf (docs/compilers/openapi.md#ref-use-site), to that $ref's
+// keys as to its keyword: the $ref is no Base of the node, so nothing else
+// reaches them.
 func TestPromotion_ALostRefFallsBackToTheNodeItIsWrittenOn(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileUse(t, `openapi: 3.1.0

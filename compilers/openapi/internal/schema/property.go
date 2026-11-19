@@ -61,10 +61,10 @@ func fillPropertyVisibility(loweringContext lowering.Ctx, property *ir.Property,
 // carrier at this position: a property's schema is read through CarriedRef, so
 // it hoists no node of its own to hold either.
 //
-// It reads ref and its foldedBranches and never the $ref target, which is why no referent
-// reaches it: bounds conjoin rather than override, so a referent's bound merged
-// here under use-site precedence would publish the wider of the two as the whole
-// truth. It stays on the node the reference points at instead
+// It reads ref and its foldedBranches and never the $ref target, which is why
+// no referent reaches it: bounds conjoin rather than override, so a referent's
+// bound merged here under use-site precedence would publish the wider of the
+// two as the whole truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
 func fillPropertyConstraints(loweringContext lowering.Ctx, property *ir.Property, ref *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer) []ir.Diagnostic {
 	cons, diags := CarrierConstraintsOf(loweringContext, &property.Unmodeled, ref, foldedBranches, property.Type, pointer)
@@ -107,12 +107,12 @@ func fillPropertyAnnotations(loweringContext lowering.Ctx, property *ir.Property
 	return append(diags, PreserveCarriedKeywords(loweringContext, &property.Unmodeled, ref, pointer)...)
 }
 
-// PreserveCarriedKeywords keeps on unmodeled, a carrier's Unmodeled, what a schema that
-// lowered to no node of its own wrote and no field of the carrier holds: the
-// content vocabulary, an unexpanded $dynamicRef and any keyword nothing reads,
-// which attachDeclaredAnnotations keeps on a node. It is one call so that a
-// property, a header and a parameter cannot differ in what they keep, and it runs
-// last, as PreserveUnknownKeywords requires.
+// PreserveCarriedKeywords keeps on unmodeled, a carrier's Unmodeled, what a
+// schema that lowered to no node of its own wrote and no field of the carrier
+// holds: the content vocabulary, an unexpanded $dynamicRef and any keyword
+// nothing reads, which attachDeclaredAnnotations keeps on a node. It is one
+// call so that a property, a header and a parameter cannot differ in what they
+// keep, and it runs last, as PreserveUnknownKeywords requires.
 func PreserveCarriedKeywords(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// nil node: only a schema with no node of its own comes here, so nothing here
 	// can be carrying an Encoding.
@@ -135,10 +135,10 @@ func PromoteUse(loweringContext lowering.Ctx, from promotion.Referent, unmodeled
 	return append(diags, loweringContext.Promoter().Redaction(unmodeled, from, redact, prov)...)
 }
 
-// FallbackKeysForCarrier returns what the mapped keys of what a carrier of js falls back to
-// lend it, js written at pointer and lowered to typeRef (Use.fallbackKeys). A position
-// owning a node lends its carrier none, as it lends no keyword: the node takes
-// them (attachDeclaredAnnotations).
+// FallbackKeysForCarrier returns what the mapped keys of what a carrier of js
+// falls back to lend it, js written at pointer and lowered to typeRef
+// (Use.fallbackKeys). A position owning a node lends its carrier none, as it
+// lends no keyword: the node takes them (attachDeclaredAnnotations).
 func FallbackKeysForCarrier(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	if js.Truth != statement.Stated || LoweredToOwnNode(loweringContext, pointer, typeRef) {
 		return promotion.Referent{}
@@ -146,15 +146,15 @@ func FallbackKeysForCarrier(loweringContext lowering.Ctx, js *statement.Statemen
 	return readUse(loweringContext, js, typeRef, pointer).fallbackKeys(loweringContext)
 }
 
-// LoweredToOwnNode reports whether typeRef, what the declaration at pointer in loweringContext's
-// document lowered to, is a type node of its own — the node
+// LoweredToOwnNode reports whether typeRef, what the declaration at pointer in
+// loweringContext's document lowered to, is a type node of its own — the node
 // attachDeclaredAnnotations then fills, leaving its carrier nothing to hold.
 //
 // A position's node, whatever its kind, takes the ID its pointer names
-// (internNode), so typeRef names it exactly when typeRef names that ID. Nothing asks the
-// registry what is interned there: a $ref naming an inline position hoists that
-// position's home for its own use, and an answer read off the registry would
-// turn on which lowering reached the position first (GitHub #1991).
+// (internNode), so typeRef names it exactly when typeRef names that ID. Nothing
+// asks the registry what is interned there: a $ref naming an inline position
+// hoists that position's home for its own use, and an answer read off the
+// registry would turn on which lowering reached the position first (GitHub #1991).
 func LoweredToOwnNode(loweringContext lowering.Ctx, pointer jsontext.Pointer, typeRef ir.TypeRef) bool {
 	return typeRef.Target == loweringContext.IDs().ForPointer(pointer)
 }

@@ -47,8 +47,8 @@ func (r *scriptedReader) asked(location string) []compilers.AddressSpace {
 	return out
 }
 
-// externalWithin reads through documentReader beside a source at self, charging each
-// document it reads to documents.
+// externalWithin reads through documentReader beside a source at self, charging
+// each document it reads to documents.
 func externalWithin(documentReader compilers.DocumentReader, self string, documents budget.Limit) *external {
 	src := sourceDocument{path: self, judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: documentReader}, newExternalReads(src, documents), &aside{})

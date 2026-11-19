@@ -33,8 +33,8 @@ func (f *fakeProfile) WriteTo(w io.Writer, _ int) error {
 	return err
 }
 
-// lookupFake returns a lookup function that hands back profile regardless of the
-// name asked for.
+// lookupFake returns a lookup function that hands back profile regardless of
+// the name asked for.
 func lookupFake(profile leakcheck.Profile) func(string) leakcheck.Profile {
 	return func(string) leakcheck.Profile { return profile }
 }

@@ -145,8 +145,8 @@ var newTypeDefByKind = map[TypeKind]func() TypeDef{
 	KindAny:       func() TypeDef { return &Any{} },
 }
 
-// NewTypeDef returns a new zero-valued concrete TypeDef for kind typeKind, or false
-// when typeKind is not a registered kind.
+// NewTypeDef returns a new zero-valued concrete TypeDef for kind typeKind, or
+// false when typeKind is not a registered kind.
 func NewTypeDef(typeKind TypeKind) (TypeDef, bool) {
 	ctor, ok := newTypeDefByKind[typeKind]
 	if !ok {

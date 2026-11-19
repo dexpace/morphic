@@ -26,8 +26,8 @@ type builder struct {
 }
 
 // mint registers node at pointer, its parts brought where brought says and
-// placed as the field is (folding.assembled; FieldDeclarationContext.Mint), or in a dry run names
-// nothing.
+// placed as the field is (folding.assembled; FieldDeclarationContext.Mint), or
+// in a dry run names nothing.
 func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
 	if b.dry {
 		return ""
@@ -127,8 +127,8 @@ func (b *builder) tuple(tuple *ir.Tuple, all []member, nodes []ir.TypeDef, point
 	return &out, true
 }
 
-// shapedAs reports whether every node is a tuple of tuple's length, and admits what
-// follows its last position where tuple does.
+// shapedAs reports whether every node is a tuple of tuple's length, and admits
+// what follows its last position where tuple does.
 func shapedAs(tuple *ir.Tuple, nodes []ir.TypeDef) bool {
 	for _, td := range nodes {
 		irTuple, ok := td.(*ir.Tuple)
@@ -246,8 +246,9 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	return built
 }
 
-// adoptEncoding sets on list, a list giving no encoding, the first one nodes[1:]
-// give, reporting each later list giving another as adopt reports a field.
+// adoptEncoding sets on list, a list giving no encoding, the first one
+// nodes[1:] give, reporting each later list giving another as adopt reports a
+// field.
 func (b *builder) adoptEncoding(list *ir.List, all []member, nodes []ir.TypeDef) {
 	for k, td := range nodes[1:] {
 		other, ok := td.(*ir.List)

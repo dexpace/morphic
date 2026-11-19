@@ -1621,8 +1621,8 @@ func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *t
 
 // TestRefinement_ABranchHoldsWhatItsNodeDoes pins an inline principal: a value
 // set's node stands at the position, holding what the branch writes as any
-// conjunct's folded branch, a keyword nothing reads kept with the branch whole, and one
-// that reduces to a shared primitive speaks at the position.
+// conjunct's folded branch, a keyword nothing reads kept with the branch whole,
+// and one that reduces to a shared primitive speaks at the position.
 func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:

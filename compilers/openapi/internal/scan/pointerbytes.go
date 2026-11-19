@@ -11,11 +11,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxPointerAmplification bounds how many times the bytes a document writes
-// the pointers naming its nodes may total (sourcetreestats.Measurements.PointerBytes). A
-// node's pointer holds every key above it, and a compile spells one for each
-// node it reads, so long keys nested deep cost gigabytes inside every other
-// bound (GitHub #931).
+// maxPointerAmplification bounds how many times the bytes a document writes the
+// pointers naming its nodes may total
+// (sourcetreestats.Measurements.PointerBytes). A node's pointer holds every key
+// above it, and a compile spells one for each node it reads, so long keys
+// nested deep cost gigabytes inside every other bound (GitHub #931).
 //
 // Of 2,332 specs the real-world sweep and the repository's own testdata held
 // in November 2026, the 1,955 real ones measure 14.9 at most, and the highest

@@ -32,9 +32,9 @@ const maxTypes = 4096
 // deep.
 const maxDepth = 32
 
-// Describe returns the JSON shape of the named type root, which loadedPackage declares,
-// and of every type it reaches, spelled one entry per named type, sorted by
-// name. It refuses what Read refuses.
+// Describe returns the JSON shape of the named type root, which loadedPackage
+// declares, and of every type it reaches, spelled one entry per named type,
+// sorted by name. It refuses what Read refuses.
 func Describe(loadedPackage *decls.Package, root string) (string, error) {
 	shape, err := Read(loadedPackage, root)
 	if err != nil {
@@ -43,10 +43,10 @@ func Describe(loadedPackage *decls.Package, root string) (string, error) {
 	return shape.String(), nil
 }
 
-// Read returns the JSON shape of the named type root, which loadedPackage declares, and
-// of every type it reaches. It refuses a type whose shape it cannot read from
-// the declarations, such as one held in a non-sealed interface, rather than
-// return less than the encoder reads.
+// Read returns the JSON shape of the named type root, which loadedPackage
+// declares, and of every type it reaches. It refuses a type whose shape it
+// cannot read from the declarations, such as one held in a non-sealed
+// interface, rather than return less than the encoder reads.
 func Read(loadedPackage *decls.Package, root string) (*Shape, error) {
 	if loadedPackage == nil {
 		return nil, errors.New("jsonshape: no package")
@@ -94,7 +94,8 @@ type walker struct {
 	queue  []*types.Named
 }
 
-// methodDecls indexes the methods loadedPackage declares by the object each defines.
+// methodDecls indexes the methods loadedPackage declares by the object each
+// defines.
 func methodDecls(loadedPackage *decls.Package) map[*types.Func]*ast.FuncDecl {
 	out := map[*types.Func]*ast.FuncDecl{}
 	for _, file := range loadedPackage.Syntax {

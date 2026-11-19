@@ -5,10 +5,10 @@
 // of the documents and the node's coordinate (GitHub #981), so which
 // lowering reaches a coordinate first cannot change what it is called.
 //
-// A name is an owner's, then the structure beneath it. The owner is the
-// nearest object holding a schema as the grammar reads it (reftable.ReferenceTargetTable.Kinds):
-// a component schema, request body, response, parameter or header, or a
-// document whose root it is. Each keyword beneath composes the name of the
-// position it leads to, a title names its schema, and a branch holding a $ref
-// takes its target's.
+// A name is an owner's, then the structure beneath it. The owner is the nearest
+// object holding a schema as the grammar reads it
+// (reftable.ReferenceTargetTable.Kinds): a component schema, request body,
+// response, parameter or header, or a document whose root it is. Each keyword
+// beneath composes the name of the position it leads to, a title names its
+// schema, and a branch holding a $ref takes its target's.
 package naming

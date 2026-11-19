@@ -199,10 +199,10 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 }
 
 // dependsOnAmplifier reports whether something node's weight depends on (see
-// childrenOf), every one of which holds a weight by the time node is weighed, is
-// itself past the allowance. A node a cycle cut holds the weight the cut gave
-// it rather than one computed, so it is no amplifier, and the node depending
-// on it is the innermost there is.
+// childrenOf), every one of which holds a weight by the time node is weighed,
+// is itself past the allowance. A node a cycle cut holds the weight the cut
+// gave it rather than one computed, so it is no amplifier, and the node
+// depending on it is the innermost there is.
 func (w *aliasWeigher) dependsOnAmplifier(node *yaml.Node) bool {
 	return slices.ContainsFunc(childrenOf(node), func(child *yaml.Node) bool {
 		return !w.cut[child] && !w.allowance.Admits(w.weight[child])

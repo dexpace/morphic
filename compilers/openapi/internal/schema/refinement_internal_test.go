@@ -44,9 +44,9 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 	assert.False(t, unionHeld(&cut, refinementValue, StandaloneSchema(js.GetSchema()), "anyOf"), "the integer branch's read runs past it")
 }
 
-// TestRecordFoldedBranchResidue_KeepsWhatItsFoldedBranchesWrite pins the residue a
-// position's foldedBranches write, kept on the node in hand and reported, and nothing
-// where no folded branch speaks.
+// TestRecordFoldedBranchResidue_KeepsWhatItsFoldedBranchesWrite pins the
+// residue a position's foldedBranches write, kept on the node in hand and
+// reported, and nothing where no folded branch speaks.
 func TestRecordFoldedBranchResidue_KeepsWhatItsFoldedBranchesWrite(t *testing.T) {
 	t.Parallel()
 	lowerer, schema, at := lowererDeclaringS(t)
@@ -116,10 +116,10 @@ func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 	assert.NotContains(t, read.values, "string:z")
 }
 
-// TestFoldingAllOfBranches_ReadsASchemaOnce pins that what folds is read once a run however
-// many uses of a schema ask, which keeps a schema's uses times its branches from
-// being the cost of a wide composition: its allOf goes after the first read, which
-// no lowering does, so only a remembered answer stays.
+// TestFoldingAllOfBranches_ReadsASchemaOnce pins that what folds is read once a
+// run however many uses of a schema ask, which keeps a schema's uses times its
+// branches from being the cost of a wide composition: its allOf goes after the
+// first read, which no lowering does, so only a remembered answer stays.
 func TestFoldingAllOfBranches_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
@@ -133,9 +133,10 @@ func TestFoldingAllOfBranches_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, foldingAllOfBranches(lowerer.Ctx, StatedIn(lowerer, s)), "the second ask reads what the first read")
 }
 
-// TestNullableFoldingBranches_ReadsASchemaOnce pins that the branches widening a schema
-// are read once a run, as its folding is, since every use of the schema asks:
-// its allOf goes after the first read, so only a remembered answer stays.
+// TestNullableFoldingBranches_ReadsASchemaOnce pins that the branches widening
+// a schema are read once a run, as its folding is, since every use of the
+// schema asks: its allOf goes after the first read, so only a remembered answer
+// stays.
 func TestNullableFoldingBranches_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
@@ -172,9 +173,10 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, union, valueNulls(lowerer.Ctx, StatedIn(lowerer, u)), "the second ask reads what the first read")
 }
 
-// TestFallbackAllOfBranches_FallsBackToEachEntryOnce pins what a use of a wide composition
-// reads: a branch repeating what s or a branch before it writes lends nothing
-// more, so a use pays for each entry once, while one writing a new entry lends it.
+// TestFallbackAllOfBranches_FallsBackToEachEntryOnce pins what a use of a wide
+// composition reads: a branch repeating what s or a branch before it writes
+// lends nothing more, so a use pays for each entry once, while one writing a
+// new entry lends it.
 func TestFallbackAllOfBranches_FallsBackToEachEntryOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
@@ -204,9 +206,10 @@ func TestFallbackAllOfBranches_FallsBackToEachEntryOnce(t *testing.T) {
 	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
 }
 
-// TestAnnotationsAUseFallsBackTo_ReadsATargetOnce pins that what a schema lends is read once a run
-// however many $refs name it, for the reason foldingAllOfBranches's answer is: its allOf
-// goes after the first read, so only a remembered chain stays.
+// TestAnnotationsAUseFallsBackTo_ReadsATargetOnce pins that what a schema lends
+// is read once a run however many $refs name it, for the reason
+// foldingAllOfBranches's answer is: its allOf goes after the first read, so
+// only a remembered chain stays.
 func TestAnnotationsAUseFallsBackTo_ReadsATargetOnce(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
@@ -237,11 +240,11 @@ func TestWrittenText_RendersASchemaOnce(t *testing.T) {
 	assert.Equal(t, text, writtenText(lowerer.Ctx, lowerer.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
-// TestReadAllOfBranchFolding_RendersEachValueOnce pins what a first writer costs: every later
-// conjunct compares with it, so rendering it for each comparison made a document's
-// branches times its longest value the cost of one composition. It is not parallel,
-// as the count is the process's, and takes the least of three counts, since
-// anything else allocating only adds to one.
+// TestReadAllOfBranchFolding_RendersEachValueOnce pins what a first writer
+// costs: every later conjunct compares with it, so rendering it for each
+// comparison made a document's branches times its longest value the cost of one
+// composition. It is not parallel, as the count is the process's, and takes the
+// least of three counts, since anything else allocating only adds to one.
 func TestReadAllOfBranchFolding_RendersEachValueOnce(t *testing.T) {
 	big := strings.Repeat("x", 1<<20)
 	cost := func(later int) uint64 {
@@ -267,11 +270,11 @@ func TestReadAllOfBranchFolding_RendersEachValueOnce(t *testing.T) {
 	assert.Less(t, cost(256), 2*cost(64), "four times the branches, not four times the value")
 }
 
-// TestRead_AFoldedBranchCostsItsOwnEntries pins what a site's folded branches cost: each adds its
-// own entries, where overlaying what came before on each made the cost of a
-// composition its branches squared. It is not parallel, as the count is the
-// process's, and takes the least of three counts for the same reason as
-// TestReadAllOfBranchFolding_RendersEachValueOnce.
+// TestRead_AFoldedBranchCostsItsOwnEntries pins what a site's folded branches
+// cost: each adds its own entries, where overlaying what came before on each
+// made the cost of a composition its branches squared. It is not parallel, as
+// the count is the process's, and takes the least of three counts for the same
+// reason as TestReadAllOfBranchFolding_RendersEachValueOnce.
 func TestRead_AFoldedBranchCostsItsOwnEntries(t *testing.T) {
 	const at = "/components/schemas/T"
 	cost := func(voices int) uint64 {

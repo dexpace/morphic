@@ -13,14 +13,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// InferWalks fills the Pagination of each GET or QUERY of doc the client sends that
-// holds none, where a query parameter names where its walk continues and its
-// success responses say where a page holds its items, and a cursor walk's next
-// cursor (docs/compilers/openapi.md#pagination-policy), marking it inferred on
-// the Pagination and in the operation's Provenance. An operation whose
-// parameters name a walk it cannot settle keeps none, reported as an info
+// InferWalks fills the Pagination of each GET or QUERY of doc the client sends
+// that holds none, where a query parameter names where its walk continues and
+// its success responses say where a page holds its items, and a cursor walk's
+// next cursor (docs/compilers/openapi.md#pagination-policy), marking it
+// inferred on the Pagination and in the operation's Provenance. An operation
+// whose parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
-// pagination, nor any while policy is off. compiledDocumentView is the whole document.
+// pagination, nor any while policy is off. compiledDocumentView is the whole
+// document.
 func InferWalks(policy Inference, compiledDocumentView *compileddoc.CompiledDocumentView, stated map[ir.OperationID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil

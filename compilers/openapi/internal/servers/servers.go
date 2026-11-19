@@ -73,9 +73,9 @@ func (r *Registry) Root(serviceContext service.Ctx) ([]ir.ServerID, []ir.Diagnos
 }
 
 // Declared registers the servers list the object at owner declares and returns
-// their IDs in source order, or nil when it lowers none. serviceContext is the context of the
-// document that declares the list, so each server's ID and provenance name its
-// own position there, whichever mount reached it.
+// their IDs in source order, or nil when it lowers none. serviceContext is the
+// context of the document that declares the list, so each server's ID and
+// provenance name its own position there, whichever mount reached it.
 //
 // A nil entry, which no valid document writes, lowers nothing and keeps the
 // index it occupies, so the next entry's ID is still its own position. An empty
@@ -101,9 +101,10 @@ func (r *Registry) Declared(serviceContext service.Ctx, list []*soa.Server, owne
 	return out, diags
 }
 
-// At registers the server s declared at at and returns its ID, lowering it
-// the first time any mount reaches it. serviceContext is the context of the document
-// declaring it, as for Declared. A Link Object's server is one no list holds.
+// At registers the server s declared at at and returns its ID, lowering it the
+// first time any mount reaches it. serviceContext is the context of the
+// document declaring it, as for Declared. A Link Object's server is one no list
+// holds.
 func (r *Registry) At(serviceContext service.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
 	id := serviceContext.IDs().Server(at)
 	if _, held := r.byID[id]; held {

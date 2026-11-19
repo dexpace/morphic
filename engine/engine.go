@@ -249,8 +249,8 @@ func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOpt
 	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, plan)
 }
 
-// runHeld runs the pipeline over spec, whose bytes it holds, located where
-// its Path lies (Engine.located), and judges the Result at planValue's threshold. A
+// runHeld runs the pipeline over spec, whose bytes it holds, located where its
+// Path lies (Engine.located), and judges the Result at planValue's threshold. A
 // reference or a setting naming spec.Path is served those bytes, as
 // reader.Memory names a document, so the run reads one spec even where a
 // compiler asks for it again. Every other document is read from disk.

@@ -18,8 +18,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// PreserveInto records raw under key in unmodeled, located at prov, or records nothing
-// when there are no bytes to record.
+// PreserveInto records raw under key in unmodeled, located at prov, or records
+// nothing when there are no bytes to record.
 //
 // len rather than a nil comparison: nil and a zero-length slice are distinct
 // states, and an empty payload is the worse of the two. It preserves no
@@ -64,11 +64,11 @@ func PreserveNodeInto(unmodeled *ir.Unmodeled, key string, node *yaml.Node,
 }
 
 // PreserveSchemaKeyword is PreserveNodeInto addressed by keyword: it keeps what
-// schema, the schema at pointer, writes under keyword, keyed by EntryKey and located
-// at the keyword itself. Those are the key and the position the census checks
-// before keeping a keyword on its own (unrecorded). Deriving both here leaves
-// no caller a way to have the census keep the keyword again under another key,
-// or report a collision with this entry.
+// schema, the schema at pointer, writes under keyword, keyed by EntryKey and
+// located at the keyword itself. Those are the key and the position the census
+// checks before keeping a keyword on its own (unrecorded). Deriving both here
+// leaves no caller a way to have the census keep the keyword again under
+// another key, or report a collision with this entry.
 //
 // An absent keyword is no construct: it keeps and places nothing.
 func PreserveSchemaKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
@@ -143,12 +143,12 @@ func validationOnlyMessage(label string) string {
 	return fmt.Sprintf("validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
-// CopyEntriesInto writes onto unmodeled a copy of each entry of src, its value cloned,
-// for a reader keeping one set of entries on several carriers. Unlike
-// MergeUnmodeled it never replaces an entry unmodeled holds: that one stays, and the
-// entry from src is reported missing from unmodeled (diag.UnknownKeyEntryAlreadyClaimed), in
-// key order as the census reports. Another carrier may hold it, so the finding
-// does not say the IR lacks it.
+// CopyEntriesInto writes onto unmodeled a copy of each entry of src, its value
+// cloned, for a reader keeping one set of entries on several carriers. Unlike
+// MergeUnmodeled it never replaces an entry unmodeled holds: that one stays,
+// and the entry from src is reported missing from unmodeled
+// (diag.UnknownKeyEntryAlreadyClaimed), in key order as the census reports.
+// Another carrier may hold it, so the finding does not say the IR lacks it.
 func CopyEntriesInto(unmodeled *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
 	if len(src) == 0 {
 		return nil
@@ -202,11 +202,11 @@ type underlay struct {
 
 // add adds to dst each entry of src, one folded branch's, it lacks, walking src
 // alone so no branch pays for those before it. An entry own keeps stays its. A
-// folded branch kept whole is no writer of what it folds, which its branch holds:
-// it fills a key no other folded branch writes, which the first folded branch kept
-// apart writing it takes. One that two folded branches kept apart write alike, as
-// folded branches agree, is no one writer's, so it takes site, and no order of the
-// folded branches decides where it points
+// folded branch kept whole is no writer of what it folds, which its branch
+// holds: it fills a key no other folded branch writes, which the first folded
+// branch kept apart writing it takes. One that two folded branches kept apart
+// write alike, as folded branches agree, is no one writer's, so it takes site,
+// and no order of the folded branches decides where it points
 // (docs/compilers/openapi.md#allof-inline-residue).
 func (u *underlay) add(dst, src ir.Unmodeled, whole bool, site ir.Provenance) ir.Unmodeled {
 	if dst == nil && len(src) > 0 {

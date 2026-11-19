@@ -216,8 +216,8 @@ var nestingArms = map[string]func(ir.Value) ir.Value{
 	},
 }
 
-// nestedLiteral returns a literal whose value reaches a ref to "type/deep" through
-// levels nested values.
+// nestedLiteral returns a literal whose value reaches a ref to "type/deep"
+// through levels nested values.
 func nestedLiteral(wrap func(ir.Value) ir.Value, levels int) *ir.Literal {
 	value := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/deep"}}
 	for range levels {
@@ -264,7 +264,8 @@ func TestTypeEdges_ArgumentWithoutValueFromYieldsItsType(t *testing.T) {
 	assert.Equal(t, []ir.TypeID{"type/arg"}, slices.Collect(ir.TypeEdges(model)))
 }
 
-// edgeLiteral returns a literal holding value, and the edges TypeEdges yields from it.
+// edgeLiteral returns a literal holding value, and the edges TypeEdges yields
+// from it.
 func edgeLiteral(value ir.Value) []ir.TypeID {
 	return slices.Collect(ir.TypeEdges(&ir.Literal{Value: value}))
 }

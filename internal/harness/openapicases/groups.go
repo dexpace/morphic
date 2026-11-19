@@ -128,9 +128,9 @@ func (c groupCases) Write(at []int) (harness.CaseDocument, bool) {
 // within reports whether i indexes of.
 func within[T any](i int, of []T) bool { return i >= 0 && i < len(of) }
 
-// groupDocument returns the document of group's case: root, holding a carrier of
-// each of tests at its node, and group's schema, held as schema. It compiles with
-// the default kind-inference policy, as every other case does. The suite's
+// groupDocument returns the document of group's case: root, holding a carrier
+// of each of tests at its node, and group's schema, held as schema. It compiles
+// with the default kind-inference policy, as every other case does. The suite's
 // instances are valid against the kind a schema declares, not the one its shape
 // keywords imply, so the instance oracle excuses an instance of another kind
 // than the node inferred for its schema, and no more (harness's admitted).
@@ -238,8 +238,9 @@ func (c groupCases) equal(at []int) *harness.Equal {
 	return &harness.Equal{To: to, Rule: rulePrefix + rule, Relocate: relocation(carriersOf(c.positions[at[2]]))}
 }
 
-// carriersOf is the pointer every carrier positionValue writes for a group lies beneath:
-// its own schema's pointer less that schema and the carrier's name or index.
+// carriersOf is the pointer every carrier positionValue writes for a group lies
+// beneath: its own schema's pointer less that schema and the carrier's name or
+// index.
 func carriersOf(positionValue position) string {
 	at := strings.TrimSuffix(positionValue.pointer, "/schema")
 	return at[:strings.LastIndex(at, "/")+1]

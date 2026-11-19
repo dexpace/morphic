@@ -193,8 +193,8 @@ any, dropped, unrepresentable — differs at every one of them.
 
 `t/prim/<kind>` is the one exception to "derivation left behind", and for the reason the rest of the
 row states: a compiler's path is its own, so the framework cannot compute one. A primitive has no
-path. It derives from no source position at all — its identity is its `PrimitiveKind`, which is an `ir`
-type — so `ir.PrimitiveTypeID` is the one ID `ir` *can* derive, and it derives it (#73's second
+path. It derives from no source position at all — its identity is its `PrimitiveKind`, which is an
+`ir` type — so `ir.PrimitiveTypeID` is the one ID `ir` *can* derive, and it derives it (#73's second
 acceptance bullet).
 
 Placement follows the same argument that took the naming grammar past `compilers/compile` in §3.1,
@@ -388,10 +388,10 @@ it: one algorithm, not three layers.
 
 What that hid is where the boundary actually is. It does not run between files; it runs between two
 questions. *What does this `$ref` name, and is something already interned there* needs two facts
-about the document and nothing else — that is `internal/componentlookup`. *Follow it far enough to lower
-what it points at* is the schema walk reached through a reference, and recurses back into it. Seven
-of `resolve.go`'s functions answered the first question and left; eight answered the second and
-stayed. Deriving that split is what the command below does:
+about the document and nothing else — that is `internal/componentlookup`. *Follow it far enough to
+lower what it points at* is the schema walk reached through a reference, and recurses back into it.
+Seven of `resolve.go`'s functions answered the first question and left; eight answered the second
+and stayed. Deriving that split is what the command below does:
 
 The split is derivable rather than asserted: a function belongs on the resolution side exactly when
 its body reaches nothing but the two document facts and the type registry.
@@ -567,21 +567,21 @@ property, parameter or header carrying it) and the depth the schema bound counts
 path reaches a coordinate first builds the node that role gives it, so `Intern`'s first build
 stands for every later one and no answer follows declaration order. Three mechanisms keep it.
 
-1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives in the
-   target's document and promises the node (`compile.Types.ReserveNodeAtCoordinate`). The declaration owning the
-   position builds it in its own walk; `Finish`, after every declaration and before any settlement,
-   builds in coordinate order only what none interned, each build a walk of its own from the top
-   level, under the hint the position's own lowering recorded.
+1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives in the target's
+   document and promises the node (`compile.Types.ReserveNodeAtCoordinate`). The declaration owning
+   the position builds it in its own walk; `Finish`, after every declaration and before any
+   settlement, builds in coordinate order only what none interned, each build a walk of its own from
+   the top level, under the hint the position's own lowering recorded.
 2. A lowering that mounts an object another position declares, a request body or a header written
    elsewhere, lowers it in its declaration's document and names it by where it is declared, never
    by where it is mounted, so every mount builds the node the declaration builds.
 3. A decision that reads a node another lowering interns, such as which property a form part names,
-   is a `compile.Settlement`, taken once the registry is whole. Its diagnostics follow the walk's, an
-   order no golden may be updated over unexplained (§6.1). The `allOf` merge folds every field
+   is a `compile.Settlement`, taken once the registry is whole. Its diagnostics follow the walk's,
+   an order no golden may be updated over unexplained (§6.1). The `allOf` merge folds every field
    declared more than once that way, from all its declarations at once. That fold finishes a node
-   its walk left open, so it is a completion (`compile.Types.QueueSettlementBeforeDeferredOnes`), which Finish takes before
-   every other settlement: one that reads the merged property, as a form part's flags do, reads it
-   folded.
+   its walk left open, so it is a completion (`compile.Types.QueueSettlementBeforeDeferredOnes`),
+   which Finish takes before every other settlement: one that reads the merged property, as a form
+   part's flags do, reads it folded.
 
 The alternative #917 drafted assigned each coordinate a role in the binding table. The table knows
 what a position is (a schema, raw YAML, another object), not the context its declaration lowers it
@@ -593,8 +593,8 @@ reported (#750) nor where it met the depth bound (#748).
 
 *Later:* names did move to the table (#981). The drift this section feared needs two readings, and
 the declaration walk now gives no name at all: every lowering asks `lowering.NameAt`, which reads
-the grammar's kinds (`reftable.ReferenceTargetTable.Kinds`) and the document, so the table's is the only reading. The
-home a declaration lowers in is still the declaration walk's.
+the grammar's kinds (`reftable.ReferenceTargetTable.Kinds`) and the document, so the table's is the
+only reading. The home a declaration lowers in is still the declaration walk's.
 
 ## 7. Enforcement
 
@@ -687,8 +687,8 @@ Two assertions, neither implying the other:
 - `ID → pointer` injectivity catches a grammar that **collapses** two distinct pointers.
 
 Primitives are excluded from both: `t/prim/<kind>` is shared and derives from no source position.
-What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the `PrimitiveKind`
-it keys rather than with a pointer there is none of — see §3.4.
+What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the
+`PrimitiveKind` it keys rather than with a pointer there is none of — see §3.4.
 
 `irverify` cannot host this as things stand — it is Layer 0 and imports only `ir`, while the grammar
 is headed for `compilers/compile`. `internal/harness` is outside the pipeline and can, which is the

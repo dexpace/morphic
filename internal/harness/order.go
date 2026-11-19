@@ -56,10 +56,10 @@ func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool
 		})
 }
 
-// comparePermuted is oracle's verdict on a source whose re-encoding is baseline and
-// whose permutation is permuted: it compiles both and judge gives the verdict
-// on the two. It declines a baseline no compiler takes, or one refused where
-// the source compiled.
+// comparePermuted is oracle's verdict on a source whose re-encoding is baseline
+// and whose permutation is permuted: it compiles both and judge gives the
+// verdict on the two. It declines a baseline no compiler takes, or one refused
+// where the source compiled.
 func comparePermuted(ctx context.Context, oracle Oracle, spec string, baseline, permuted []byte, compiled bool,
 	judge func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) Verdict,
 ) Verdict {
@@ -424,8 +424,9 @@ func encodeStream(w io.Writer, docs []*yaml.Node) error {
 	return enc.Close()
 }
 
-// reverseNode reverses node's entry pairs when node is a mapping, then descends. It
-// declines a mapping with a duplicate key, and a tree deeper than the bound.
+// reverseNode reverses node's entry pairs when node is a mapping, then
+// descends. It declines a mapping with a duplicate key, and a tree deeper than
+// the bound.
 //
 // An alias needs no case of its own. It holds its target in Alias rather than in
 // Content, so the descent below reaches nothing through it and the anchored
@@ -477,8 +478,8 @@ func hoistAnchors(doc *yaml.Node) Decline {
 	return hoistFirstUses(doc, 0, anchored, map[*yaml.Node]bool{})
 }
 
-// findAnchors records, below node, where each anchored node sits, and declines a
-// tree giving one name to two nodes or nested past the bound.
+// findAnchors records, below node, where each anchored node sits, and declines
+// a tree giving one name to two nodes or nested past the bound.
 func findAnchors(node *yaml.Node, depth int, anchored map[*yaml.Node]slot, named map[string]*yaml.Node) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
@@ -497,10 +498,10 @@ func findAnchors(node *yaml.Node, depth int, anchored map[*yaml.Node]slot, named
 	return ""
 }
 
-// hoistFirstUses walks below node in the order an encoder writes it. An alias met
-// before the node it names trades places with that node, which then sits where
-// it is first named, and the walk goes on into it there. anchored tracks where
-// each anchored node sits, and written holds those already passed.
+// hoistFirstUses walks below node in the order an encoder writes it. An alias
+// met before the node it names trades places with that node, which then sits
+// where it is first named, and the walk goes on into it there. anchored tracks
+// where each anchored node sits, and written holds those already passed.
 func hoistFirstUses(node *yaml.Node, depth int, anchored map[*yaml.Node]slot, written map[*yaml.Node]bool) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep

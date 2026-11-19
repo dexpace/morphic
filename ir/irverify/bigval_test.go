@@ -140,11 +140,12 @@ func TestVerify_CanonicalBigValIsClean(t *testing.T) {
 	}
 }
 
-// TestVerify_UnusedNumIsNotABound pins the one distinction the walk has to draw.
-// Value.Number is not a pointer and is the zero string on every Value that is not a
-// number — most of the values a document holds — so an empty one there says the
-// field is unused. A bound is carried by pointer and is present because
-// something set it, so an empty one there is a bound that constrains nothing.
+// TestVerify_UnusedNumIsNotABound pins the one distinction the walk has to
+// draw. Value.Number is not a pointer and is the zero string on every Value
+// that is not a number — most of the values a document holds — so an empty one
+// there says the field is unused. A bound is carried by pointer and is present
+// because something set it, so an empty one there is a bound that constrains
+// nothing.
 func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 	t.Parallel()
 	prov := ir.Provenance{Source: ir.NoSource}

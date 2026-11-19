@@ -40,9 +40,9 @@ const qualifier = "@"
 const UnresolvedSpace Space = ir.IDSpaceUnresolved
 
 // The primitive leaves take no Space of their own here. Their ID is
-// ir.PrimitiveTypeID, derived in ir beside the PrimitiveKind that is the whole of a
-// primitive's identity — the one path no compiler owns, and so the one an ir
-// consumer can check for itself (GitHub #73).
+// ir.PrimitiveTypeID, derived in ir beside the PrimitiveKind that is the whole
+// of a primitive's identity — the one path no compiler owns, and so the one an
+// ir consumer can check for itself (GitHub #73).
 
 // The kind prefix that opens an ID. A consumer switching on a prefix — a
 // diagnostic renderer, an IR diff, the structural verifier — reads every

@@ -22,9 +22,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// foldedBranchesDoc is a document of Base, A and B, objects, Meta, an object anchored
-// dynamically, Holder, an object using S through a $ref, and a component S
-// written as written.
+// foldedBranchesDoc is a document of Base, A and B, objects, Meta, an object
+// anchored dynamically, Holder, an object using S through a $ref, and a
+// component S written as written.
 func foldedBranchesDoc(written string) string {
 	return openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, properties: {id: {type: string}}}\n"+
 		"    A: {type: object, properties: {a: {type: string}}}\n"+
@@ -49,10 +49,11 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 	"beside a $dynamicRef":     {", $dynamicRef: '#meta'", diag.DegradedConstruct, "/$dynamicRef"},
 }
 
-// TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
-// branch to the same keyword beside the allOf, at each outcome besideTheAllOf
-// names: for each one the two lower to the same nodes, a $ref use of S among them,
-// the branch's kept nowhere else and reported nowhere but where it is written.
+// TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword
+// on an inline branch to the same keyword beside the allOf, at each outcome
+// besideTheAllOf names: for each one the two lower to the same nodes, a $ref
+// use of S among them, the branch's kept nowhere else and reported nowhere but
+// where it is written.
 func TestAllOfBranchFolding_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
@@ -136,12 +137,12 @@ func severityCodes(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome pins that what keeps a branch
-// whole, or meets two, holds at each outcome besideTheAllOf names as it does
-// alone (docs/compilers/openapi.md#allof-inline-residue): a branch disagreeing
-// with a conjunct, or reading a $ref against another base, stays whole on each
-// Model the composition lowers to, with one report saying why and nothing it
-// writes folded, and two bounds meet there in either order.
+// TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome pins that what
+// keeps a branch whole, or meets two, holds at each outcome besideTheAllOf
+// names as it does alone (docs/compilers/openapi.md#allof-inline-residue): a
+// branch disagreeing with a conjunct, or reading a $ref against another base,
+// stays whole on each Model the composition lowers to, with one report saying
+// why and nothing it writes folded, and two bounds meet there in either order.
 func TestAllOfBranchFolding_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -216,10 +217,10 @@ func keptBranches(model *ir.Model) []string {
 	return out
 }
 
-// TestAllOfBranchFolding_AFalseFlagAgreesWithATrue pins the boolean annotations JSON Schema
-// reads in force where any occurrence is true: a branch writing one false says
-// nothing another's true disagrees with, so both fold, in either order, and the
-// use reads the flag in force.
+// TestAllOfBranchFolding_AFalseFlagAgreesWithATrue pins the boolean annotations
+// JSON Schema reads in force where any occurrence is true: a branch writing one
+// false says nothing another's true disagrees with, so both fold, in either
+// order, and the use reads the flag in force.
 func TestAllOfBranchFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -238,9 +239,10 @@ func TestAllOfBranchFolding_AFalseFlagAgreesWithATrue(t *testing.T) {
 	}
 }
 
-// TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder pins that a keyword two
-// conjuncts write differently has no winner: the keywords beside the allOf stand,
-// and each branch writing another value stays whole, whichever comes first.
+// TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder pins that a
+// keyword two conjuncts write differently has no winner: the keywords beside
+// the allOf stand, and each branch writing another value stays whole, whichever
+// comes first.
 func TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -291,14 +293,14 @@ func TestAllOfBranchFolding_ABranchDisagreeingFoldsNothingInEveryOrder(t *testin
 	assert.Empty(t, irModel.Docs.Description, "no precedence chooses between two descriptions")
 }
 
-// TestAllOfBranchFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
-// they meet as a redeclared field's do, each taking what they say together, in
-// either order. A writer stating no value, as a 3.0 exclusive modifier with no
-// bound beside it or one of false, parts none (GitHub #1494): both fold, and the
-// modifier that bounds nothing is kept and warned of at its own branch. A count
-// folds into the model a Base declaring no type composes, and a numeric bound
-// into the scalar a refinement of a number lowers to, the node of a kind that
-// takes it.
+// TestAllOfBranchFolding_BoundsMeetInEveryOrder pins value bounds two conjuncts
+// write apart: they meet as a redeclared field's do, each taking what they say
+// together, in either order. A writer stating no value, as a 3.0 exclusive
+// modifier with no bound beside it or one of false, parts none (GitHub #1494):
+// both fold, and the modifier that bounds nothing is kept and warned of at its
+// own branch. A count folds into the model a Base declaring no type composes,
+// and a numeric bound into the scalar a refinement of a number lowers to, the
+// node of a kind that takes it.
 func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -351,12 +353,13 @@ func TestAllOfBranchFolding_BoundsMeetInEveryOrder(t *testing.T) {
 	}
 }
 
-// TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
-// written beside a Base declaring an object: the allOf lowers to a model, which
-// takes property counts alone, so it holds the count written beside the allOf
-// and keeps the string bound there under its keyword, and the numeric bound each
-// inline branch writes under its own, each with one info at its branch, in
-// either order of the branches (docs/compilers/openapi.md#constraints).
+// TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a
+// value bound written beside a Base declaring an object: the allOf lowers to a
+// model, which takes property counts alone, so it holds the count written
+// beside the allOf and keeps the string bound there under its keyword, and the
+// numeric bound each inline branch writes under its own, each with one info at
+// its branch, in either order of the branches
+// (docs/compilers/openapi.md#constraints).
 func TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -382,11 +385,12 @@ func TestAllOfBranchFolding_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *te
 	}
 }
 
-// TestAllOfBranchFolding_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
-// refuses, in either order (GitHub #1494): the refused value states nothing, so
-// both branches fold, the stated bound reaches the node, and the refusal is
-// reported once, at the keyword, as it is beside the allOf. Base is a number,
-// so the node the branches fold into, a scalar over it, takes the bound.
+// TestAllOfBranchFolding_ARefusedBoundPartsNoWriter pins a bound beside one the
+// rule table refuses, in either order (GitHub #1494): the refused value states
+// nothing, so both branches fold, the stated bound reaches the node, and the
+// refusal is reported once, at the keyword, as it is beside the allOf. Base is
+// a number, so the node the branches fold into, a scalar over it, takes the
+// bound.
 func TestAllOfBranchFolding_ARefusedBoundPartsNoWriter(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -404,8 +408,8 @@ func TestAllOfBranchFolding_ARefusedBoundPartsNoWriter(t *testing.T) {
 	}
 }
 
-// TestAllOfBranchFolding_AgreeingConjunctsSayItOnce pins that a keyword two conjuncts write
-// alike is one statement: it folds, once.
+// TestAllOfBranchFolding_AgreeingConjunctsSayItOnce pins that a keyword two
+// conjuncts write alike is one statement: it folds, once.
 func TestAllOfBranchFolding_AgreeingConjunctsSayItOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, foldedBranchesDoc("{description: same, example: {id: a}, allOf: ["+
@@ -418,9 +422,10 @@ func TestAllOfBranchFolding_AgreeingConjunctsSayItOnce(t *testing.T) {
 	assert.Len(t, model.Examples, 1)
 }
 
-// TestAllOfBranchFolding_ANullKeywordWritesNothing pins a branch writing a keyword as null,
-// which reads as the keyword left out: it disagrees with no conjunct, so what
-// another branch writes folds, in either order, as it does with the key removed.
+// TestAllOfBranchFolding_ANullKeywordWritesNothing pins a branch writing a
+// keyword as null, which reads as the keyword left out: it disagrees with no
+// conjunct, so what another branch writes folds, in either order, as it does
+// with the key removed.
 func TestAllOfBranchFolding_ANullKeywordWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, branches := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
@@ -432,11 +437,11 @@ func TestAllOfBranchFolding_ANullKeywordWritesNothing(t *testing.T) {
 	}
 }
 
-// TestAllOfBranchFolding_ADisagreementIsReportedAsOne pins the words a kept branch draws: its
-// keywords have homes, so the report names the disagreement that kept them from
-// folding, in a composition and in a refinement, and says neither that the node
-// has no home nor that nothing reads it. A branch with nothing to fold keeps the
-// wording of what it does keep.
+// TestAllOfBranchFolding_ADisagreementIsReportedAsOne pins the words a kept
+// branch draws: its keywords have homes, so the report names the disagreement
+// that kept them from folding, in a composition and in a refinement, and says
+// neither that the node has no home nor that nothing reads it. A branch with
+// nothing to fold keeps the wording of what it does keep.
 func TestAllOfBranchFolding_ADisagreementIsReportedAsOne(t *testing.T) {
 	t.Parallel()
 	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline branch writes"
@@ -485,9 +490,10 @@ func TestAllOfBranchFolding_ADisagreementIsReportedAsOne(t *testing.T) {
 	assert.Contains(t, kept[0].Message, "nested past the flattening depth", "a capped branch says so first")
 }
 
-// TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees pins that a keyword renders to
-// nothing without failing: two conjuncts writing `example: null` agree, so both
-// fold, where one that cannot be rendered agrees with nothing.
+// TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees pins that a
+// keyword renders to nothing without failing: two conjuncts writing
+// `example: null` agree, so both fold, where one that cannot be rendered agrees
+// with nothing.
 func TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, foldedBranchesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+
@@ -501,9 +507,10 @@ func TestAllOfBranchFolding_AnExampleRenderingNothingStillAgrees(t *testing.T) {
 	assert.Empty(t, model.Unmodeled)
 }
 
-// TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing pins two branches writing one
-// value no JSON holds: neither can be shown to say what the other does, so neither
-// folds, and each is reported as the whole branch it could not keep.
+// TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing pins two
+// branches writing one value no JSON holds: neither can be shown to say what
+// the other does, so neither folds, and each is reported as the whole branch it
+// could not keep.
 func TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing(t *testing.T) {
 	t.Parallel()
 	const bad = "{x-t: " + unpreservableValue + "}"
@@ -513,9 +520,10 @@ func TestAllOfBranchFolding_AValueThatWillNotRenderAgreesWithNothing(t *testing.
 	}
 }
 
-// TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a position keeps
-// in one entry: written on two branches they would overwrite each other, so they
-// are compared as the entry. The same entry written twice folds.
+// TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne pins the keywords a
+// position keeps in one entry: written on two branches they would overwrite
+// each other, so they are compared as the entry. The same entry written twice
+// folds.
 func TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -542,11 +550,11 @@ func TestAllOfBranchFolding_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	assert.Contains(t, irModel.Unmodeled, "openapi:if-then-else")
 }
 
-// TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch pins that no unevaluated
-// keyword folds: on a branch it applies to what that branch alone evaluates,
-// which beside the allOf it would not, so it stays with the branch kept whole,
-// whatever its form, whether or not the branch speaks for the position, and
-// the position keeps none of it.
+// TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch pins that no
+// unevaluated keyword folds: on a branch it applies to what that branch alone
+// evaluates, which beside the allOf it would not, so it stays with the branch
+// kept whole, whatever its form, whether or not the branch speaks for the
+// position, and the position keeps none of it.
 func TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -588,10 +596,10 @@ func TestAllOfBranchFolding_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T)
 	}
 }
 
-// TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default
-// on a branch: a carrier holds them as beside the allOf, a union distributed across
-// it or not, and with no carrier a node the position owns keeps them verbatim,
-// reported at the keyword.
+// TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode pins
+// readOnly and default on a branch: a carrier holds them as beside the allOf, a
+// union distributed across it or not, and with no carrier a node the position
+// owns keeps them verbatim, reported at the keyword.
 func TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {id: {type: string}}}
@@ -622,8 +630,8 @@ func TestAllOfBranchFolding_AUseBindingKeywordReachesItsCarrierOrItsNode(t *test
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Bare/allOf/1/readOnly"))
 }
 
-// TestAllOfBranchFolding_APromotedExtensionReadsFromABranch pins a key the promotion policy
-// maps: on a branch it reads as it does beside the allOf.
+// TestAllOfBranchFolding_APromotedExtensionReadsFromABranch pins a key the
+// promotion policy maps: on a branch it reads as it does beside the allOf.
 func TestAllOfBranchFolding_APromotedExtensionReadsFromABranch(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {a: {type: string}}}
@@ -647,11 +655,11 @@ func TestAllOfBranchFolding_APromotedExtensionReadsFromABranch(t *testing.T) {
 	assert.Equal(t, "gone", property.Deprecation.Message)
 }
 
-// TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch pins that what an allOf
-// entry writes beside its $ref is a conjunct of the position, as an inline
-// entry is: it folds where it agrees with every other conjunct, and where it
-// disagrees neither folds and each entry is kept whole. The $ref is the Base
-// itself in both, with no node hoisted at the entry.
+// TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch pins that
+// what an allOf entry writes beside its $ref is a conjunct of the position, as
+// an inline entry is: it folds where it agrees with every other conjunct, and
+// where it disagrees neither folds and each entry is kept whole. The $ref is
+// the Base itself in both, with no node hoisted at the entry.
 func TestAllOfBranchFolding_AnEntrysKeywordsBesideItsRefAreAFoldedBranch(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

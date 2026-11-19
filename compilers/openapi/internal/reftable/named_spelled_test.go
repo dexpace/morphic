@@ -263,8 +263,9 @@ func eachMap(item func(m string) string, maps ...string) []string {
 // wideMember is the member a wider document writes at each `%` of a spot.
 const wideMember = ", x-wwwwwwwwwwwwwwwwwwwwwwww: {a: b}"
 
-// spotDocument writes the document of a minor holding, at each `@` of spotValue, the
-// leaf chain brings to broughtCopies positions by each bringer in turn.
+// spotDocument writes the document of a minor holding, at each `@` of
+// spotValue, the leaf chain brings to broughtCopies positions by each bringer
+// in turn.
 func spotDocument(spotValue spot, version string, chain []bringer, wide bool) string {
 	var defs, mounts []string
 	schema, more := broughtLeaf(wide), ""

@@ -34,8 +34,8 @@ type definitions struct {
 // definition is where a "#/$defs/..." pointer written at site, reached along
 // path, in its document's own resource, lands, by the rule
 // docs/compilers/openapi.md#references states: the position it names from the
-// document's root, which readingValue and reason read, else the definitions of the
-// nearest object above site holding "$defs" in the model, whatever was read
+// document's root, which readingValue and reason read, else the definitions of
+// the nearest object above site holding "$defs" in the model, whatever was read
 // before (docs/parser-library.md#defs-order, docs/parser-library.md#root-defs).
 // A schema's own answer only where an identifier makes it a resource, which
 // resolve reads instead; where schema says site's own hold the key, the reason
@@ -101,8 +101,8 @@ func (d definitions) ancestorDefinition(site DocumentPointer, path []*yaml.Node,
 	return reading{}, why
 }
 
-// below is the node tokens name from node in document id, or nil, and whether the
-// read stopped at a mapping merging past the view's bound (see absent).
+// below is the node tokens name from node in document id, or nil, and whether
+// the read stopped at a mapping merging past the view's bound (see absent).
 func (d definitions) below(id DocID, node *yaml.Node, tokens []string) (*yaml.Node, bool) {
 	for _, t := range tokens {
 		if !d.work.spend(1) {

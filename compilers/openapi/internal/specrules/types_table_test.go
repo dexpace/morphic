@@ -169,9 +169,9 @@ func withinIsWellFormed(t *testing.T, where string, field specrules.Field) {
 	}
 }
 
-// defaultsAreWellFormed holds each default of object to a field object defines at every
-// minor the default holds at, and the defaults of one field and case to
-// disjoint minors, so at each minor a case has one value.
+// defaultsAreWellFormed holds each default of object to a field object defines
+// at every minor the default holds at, and the defaults of one field and case
+// to disjoint minors, so at each minor a case has one value.
 func defaultsAreWellFormed(t *testing.T, object specrules.Object) {
 	t.Helper()
 	defined := func(name string, minor specrules.Minor) bool {

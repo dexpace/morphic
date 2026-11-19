@@ -153,8 +153,9 @@ func (w *finder) identifyAll() {
 	}
 }
 
-// declared notes the identifiers the schema at frameValue, holding node, declares, and
-// returns frameValue as its children read it: in the resource its content is in.
+// declared notes the identifiers the schema at frameValue, holding node,
+// declares, and returns frameValue as its children read it: in the resource its
+// content is in.
 func (w *finder) declared(node *yaml.Node, frameValue frame) frame {
 	if frameValue.state == sSchema || frameValue.state == sLoose {
 		frameValue.res, frameValue.dialect = w.ids.declare(resources{w.docs}, frameValue.res, frameValue.at, node, frameValue.dialect)
@@ -179,9 +180,9 @@ func (w *finder) visit(node *yaml.Node, frameValue frame) {
 	w.mappingsOf(node, frameValue.at)
 }
 
-// objectOf notes the position frameValue, holding node, as a reference object of the kind
-// its state reads, where it writes a $ref: a string one, read as the model
-// reads the mapping, a `<<` merging it in included.
+// objectOf notes the position frameValue, holding node, as a reference object
+// of the kind its state reads, where it writes a $ref: a string one, read as
+// the model reads the mapping, a `<<` merging it in included.
 func (w *finder) objectOf(node *yaml.Node, frameValue frame) {
 	kind, ok := refKinds[frameValue.state]
 	if !ok {
@@ -196,10 +197,10 @@ func (w *finder) objectOf(node *yaml.Node, frameValue frame) {
 	}
 }
 
-// requirementKeys notes each key of the Security Requirement Object node, at frameValue,
-// that names no securitySchemes component of the source, as a reference to a
-// Security Scheme Object written where the key is, the key its URI, where the
-// document holding it reads a key as a URI (Config.KeysByURI).
+// requirementKeys notes each key of the Security Requirement Object node, at
+// frameValue, that names no securitySchemes component of the source, as a
+// reference to a Security Scheme Object written where the key is, the key its
+// URI, where the document holding it reads a key as a URI (Config.KeysByURI).
 func (w *finder) requirementKeys(node *yaml.Node, frameValue frame) {
 	if node.Kind != yaml.MappingNode || !w.docs.keysByURI(frameValue.at.Doc) {
 		return
@@ -217,11 +218,11 @@ func (w *finder) requirementKeys(node *yaml.Node, frameValue frame) {
 	}
 }
 
-// tupleOf notes each schema the schema at frameValue, holding node and read in frameValue's
-// dialect, writes where the parser's model has no member to hold one: each
-// entry of an `items` written as a list the dialect reads as a tuple, and the
-// `additionalItems` beside it, its rest. The table builds a schema for each,
-// as for a landing, held by the schema writing it.
+// tupleOf notes each schema the schema at frameValue, holding node and read in
+// frameValue's dialect, writes where the parser's model has no member to hold
+// one: each entry of an `items` written as a list the dialect reads as a tuple,
+// and the `additionalItems` beside it, its rest. The table builds a schema for
+// each, as for a landing, held by the schema writing it.
 func (w *finder) tupleOf(node *yaml.Node, frameValue frame) {
 	schema := frameValue.state == sSchema || frameValue.state == sLoose
 	if !schema || !dialectRule(w.docs, frameValue.at.Doc, frameValue.dialect).Tuples || !listsItems(w.docs, frameValue.at.Doc, node) {
@@ -252,13 +253,13 @@ type expansion struct {
 	from, to DocumentPointer
 }
 
-// dynamicOf notes the dynamic reference the schema at frameValue, holding node and read in
-// frameValue's dialect, writes: a $dynamicRef, which settle reads as the $ref it spells
-// or as dynamic (staticSites), and a $recursiveRef of "#" where the dialect
-// defines one (DialectRule.Recursive). Nothing but a reference builds a schema
-// the model does not hold, another document's or raw YAML's (landed), and an
-// expansion is one, so settle lands on what each dynamic one names
-// (landDynamic).
+// dynamicOf notes the dynamic reference the schema at frameValue, holding node
+// and read in frameValue's dialect, writes: a $dynamicRef, which settle reads
+// as the $ref it spells or as dynamic (staticSites), and a $recursiveRef of "#"
+// where the dialect defines one (DialectRule.Recursive). Nothing but a
+// reference builds a schema the model does not hold, another document's or raw
+// YAML's (landed), and an expansion is one, so settle lands on what each
+// dynamic one names (landDynamic).
 func (w *finder) dynamicOf(node *yaml.Node, frameValue frame) {
 	view := w.docs.list[frameValue.at.Doc].view
 	if ref, ok := dynamicRefValue(w.docs, frameValue.at.Doc, node); ok {
@@ -280,10 +281,10 @@ func (w *finder) landOn(from DocumentPointer, hop Hop) {
 }
 
 // mappingsOf notes each value of the discriminator the schema at at, holding
-// node, writes that names no schema component of the source (Config.Components):
-// a URI reference, with a fragment or without, as OpenAPI reads a value naming
-// no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
-// so each is bound here.
+// node, writes that names no schema component of the source
+// (Config.Components): a URI reference, with a fragment or without, as OpenAPI
+// reads a value naming no schema. The parser reads none
+// (docs/parser-library.md#mapping-unresolved), so each is bound here.
 func (w *finder) mappingsOf(node *yaml.Node, at DocumentPointer) {
 	disc := DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
 	for _, mappingValue := range mappingValues(w.docs.list[at.Doc].view, node) {
@@ -314,12 +315,13 @@ func mappingValues(view *nodeview.View, node *yaml.Node) []*yaml.Node {
 	return slices.DeleteFunc(values, func(otherNode *yaml.Node) bool { return otherNode == nil || otherNode.Kind != yaml.ScalarNode })
 }
 
-// pushChildren returns stack with the positions directly below frameValue, whose node is
-// node, appended in order, so a walk reads its children with no slice of their
-// own. Nothing beside a reference object's $ref is read but a path item's
-// fields (refsOnly): OpenAPI ignores it, so it holds no reference and declares
-// no identifier. Every frame a walk reads past its root is pushed here, which
-// is where a test counts the pointers the walks spell (Config.pushed).
+// pushChildren returns stack with the positions directly below frameValue,
+// whose node is node, appended in order, so a walk reads its children with no
+// slice of their own. Nothing beside a reference object's $ref is read but a
+// path item's fields (refsOnly): OpenAPI ignores it, so it holds no reference
+// and declares no identifier. Every frame a walk reads past its root is pushed
+// here, which is where a test counts the pointers the walks spell
+// (Config.pushed).
 func (w *finder) pushChildren(stack []frame, node *yaml.Node, frameValue frame) []frame {
 	if w.refsOnly(node, frameValue) {
 		return stack
@@ -346,8 +348,8 @@ func (w *finder) pushChildren(stack []frame, node *yaml.Node, frameValue frame) 
 	return stack
 }
 
-// refsOnly reports whether frameValue, holding node, is a reference object other than a
-// path item, whose fields beside its $ref OpenAPI gives a meaning
+// refsOnly reports whether frameValue, holding node, is a reference object
+// other than a path item, whose fields beside its $ref OpenAPI gives a meaning
 // (docs/compilers/openapi.md#path-item-ref-fields): one whose $ref is all of it
 // the specification reads.
 func (w *finder) refsOnly(node *yaml.Node, frameValue frame) bool {
@@ -414,9 +416,10 @@ type mappingKey struct {
 	value string
 }
 
-// mapping is where the mapping value mappingKeyValue names, read as a $ref written at the
-// discriminator: a hop, and the chain on from where it lands. It reports waits
-// where either waits for a document the pass has yet to read (waits).
+// mapping is where the mapping value mappingKeyValue names, read as a $ref
+// written at the discriminator: a hop, and the chain on from where it lands. It
+// reports waits where either waits for a document the pass has yet to read
+// (waits).
 func (b *binder) mapping(mappingKeyValue mappingKey) (Mapping, bool) {
 	// A discriminator is a position its document holds, so the path reaches it.
 	path, _ := b.docs.path(mappingKeyValue.at)

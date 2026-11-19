@@ -24,9 +24,9 @@ func fill(m map[string]int, n int) {
 }
 
 // TestMap_EmptiesInPlaceUpToTheLimit holds Emptied to reusing the map it holds
-// while the last collection left it at most scratchstate.Limit entries, and to handing
-// a fresh one past that: Go never shrinks a map, so emptying one that held a
-// huge collection costs in proportion to it, at every collection after.
+// while the last collection left it at most scratchstate.Limit entries, and to
+// handing a fresh one past that: Go never shrinks a map, so emptying one that
+// held a huge collection costs in proportion to it, at every collection after.
 func TestMap_EmptiesInPlaceUpToTheLimit(t *testing.T) {
 	t.Parallel()
 	var mapValue scratchstate.Map[string, int]

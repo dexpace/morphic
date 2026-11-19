@@ -56,8 +56,8 @@ func literalCarrierDoc(value ir.Value) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{literal.ID: literal}}
 }
 
-// enumMemberCarrierDoc embeds value as the one member value of an otherwise sound
-// Enum type.
+// enumMemberCarrierDoc embeds value as the one member value of an otherwise
+// sound Enum type.
 func enumMemberCarrierDoc(value ir.Value) *ir.Document {
 	enum := &ir.Enum{
 		ID:        "type/x/E",
@@ -68,8 +68,8 @@ func enumMemberCarrierDoc(value ir.Value) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{enum.ID: enum}}
 }
 
-// streamConditionCarrierDoc carries value as the value a request body member holds
-// to ask for an operation's stream.
+// streamConditionCarrierDoc carries value as the value a request body member
+// holds to ask for an operation's stream.
 func streamConditionCarrierDoc(value ir.Value) *ir.Document {
 	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
 	op := &doc.Services[0].Groups[0].Operations[0]
@@ -81,8 +81,8 @@ func streamConditionCarrierDoc(value ir.Value) *ir.Document {
 	return doc
 }
 
-// linkConstantCarrierDoc gives the operation a response whose link passes value to
-// the operation's own parameter.
+// linkConstantCarrierDoc gives the operation a response whose link passes value
+// to the operation's own parameter.
 func linkConstantCarrierDoc(value ir.Value) *ir.Document {
 	doc := parameterCarrierDoc(ir.Value{Kind: ir.ValueNull})
 	op := &doc.Services[0].Groups[0].Operations[0]
@@ -94,9 +94,10 @@ func linkConstantCarrierDoc(value ir.Value) *ir.Document {
 	return doc
 }
 
-// otpCarrierDoc embeds value as the request tag of one OTP-bound operation, nested
-// under one service and one group and reached through Document.Services rather
-// than Document.Types, where a walk scoped to Types would never reach it.
+// otpCarrierDoc embeds value as the request tag of one OTP-bound operation,
+// nested under one service and one group and reached through Document.Services
+// rather than Document.Types, where a walk scoped to Types would never reach
+// it.
 func otpCarrierDoc(value ir.Value) *ir.Document {
 	const ch ir.ChannelID = "c/x/Proc"
 	op := ir.Operation{
@@ -124,8 +125,9 @@ func otpCarrierDoc(value ir.Value) *ir.Document {
 	}
 }
 
-// parameterCarrierDoc embeds value as the default of one operation's one parameter,
-// which like the OTP request tag is reached only through Document.Services.
+// parameterCarrierDoc embeds value as the default of one operation's one
+// parameter, which like the OTP request tag is reached only through
+// Document.Services.
 func parameterCarrierDoc(value ir.Value) *ir.Document {
 	op := ir.Operation{
 		ID:     "operation/x/Get",

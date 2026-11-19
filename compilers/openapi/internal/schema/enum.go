@@ -101,13 +101,13 @@ func readEnum(nodes []*yaml.Node) []enumEntry {
 // isNull reports whether e converts to the null value.
 func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.ValueNull }
 
-// enumEntries returns the entries of schema's enum that a member or a variant holds:
-// each but a null, which is the reference's (lowerEnum). Two kinds of entry
-// admit no instance, since JSON Schema conjoins enum with the keywords beside
-// it, and each is reported at itself as a warning: a null where those keywords
-// exclude null, which nothing then holds, and a value no type schema declares
-// admits, a type of null included, which is kept as written beside the type
-// the census keeps verbatim.
+// enumEntries returns the entries of schema's enum that a member or a variant
+// holds: each but a null, which is the reference's (lowerEnum). Two kinds of
+// entry admit no instance, since JSON Schema conjoins enum with the keywords
+// beside it, and each is reported at itself as a warning: a null where those
+// keywords exclude null, which nothing then holds, and a value no type schema
+// declares admits, a type of null included, which is kept as written beside the
+// type the census keeps verbatim.
 func enumEntries(loweringContext lowering.Ctx, schema *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(loweringContext, schema)
 	types := schema.Types()
@@ -133,8 +133,8 @@ func enumEntries(loweringContext lowering.Ctx, schema *statement.Schema, entries
 	return kept, diags
 }
 
-// typesAdmit reports whether irValue is a value of one of types, read by the JSON
-// kinds the admission reading gives a type and a value (kindOfType,
+// typesAdmit reports whether irValue is a value of one of types, read by the
+// JSON kinds the admission reading gives a type and a value (kindOfType,
 // kindOfValue). An empty list declares no type, and a type no schema defines
 // judges nothing, which validation reports; either admits irValue.
 func typesAdmit(types []statement.JSONSchemaTypeName, irValue ir.Value) bool {
@@ -206,8 +206,8 @@ func emptyEnum(loweringContext lowering.Ctx, site valueSetSite, common ir.TypeCo
 // enumMembers converts the entries enumEntries kept into scalar members,
 // reporting ok=false for an entry that converts to no value, a non-scalar
 // member or members heterogeneous in kind. No entry kept is an Enum with no
-// member, whose PrimitiveKind is the top type's; otherwise the PrimitiveKind is the one
-// every member maps to, meaningful only when ok.
+// member, whose PrimitiveKind is the top type's; otherwise the PrimitiveKind is
+// the one every member maps to, meaningful only when ok.
 //
 // Each member's ID is keyed by its value beneath enum, the enum's ID, and a
 // repeat is kept, numbered; enumRepeats reports it. An ID no member fits under
@@ -248,8 +248,8 @@ func enumMemberOf(entries []enumEntry, i int) (ir.PrimitiveKind, string, bool) {
 	return enumMemberForm(enumEntryValue.val)
 }
 
-// enumMemberPrim is the PrimitiveKind enumMembers gives entries, and false where it
-// refuses one (enumMemberOf), read with no member built: a value
+// enumMemberPrim is the PrimitiveKind enumMembers gives entries, and false
+// where it refuses one (enumMemberOf), read with no member built: a value
 // enumMemberForm admits always has a key, and a type's ID always places one. A
 // position asking only its ValueType names no member (enumSetType).
 func enumMemberPrim(entries []enumEntry) (ir.PrimitiveKind, bool) {
@@ -463,12 +463,12 @@ func structural(st statement.JSONSchemaTypeName) bool {
 	return st == statement.KindObject || st == statement.KindArray
 }
 
-// literalTyped reports whether lit holds the type schema declares: its ValueType is
-// the primitive that one type, or the type and format, select, which
-// literalValueType took because the value is one of it, or a format of the
-// type, as bytes is of string, or the type is the object or array a composite
-// value already is. A type set naming no shape holds where it admits the
-// value; one naming several, or a type the value is not, reached no field.
+// literalTyped reports whether lit holds the type schema declares: its
+// ValueType is the primitive that one type, or the type and format, select,
+// which literalValueType took because the value is one of it, or a format of
+// the type, as bytes is of string, or the type is the object or array a
+// composite value already is. A type set naming no shape holds where it admits
+// the value; one naming several, or a type the value is not, reached no field.
 func literalTyped(lit *ir.Literal, schema *statement.Schema) bool {
 	types := effectiveTypes(schema)
 	if len(types) == 0 {
@@ -491,8 +491,8 @@ func literalTyped(lit *ir.Literal, schema *statement.Schema) bool {
 }
 
 // membersTyped reports whether every member of an Enum is a value of the type
-// set schema declares, which then says nothing the members do not. One a member is
-// no value of is a type the Enum's ValueType does not take (enumValueType).
+// set schema declares, which then says nothing the members do not. One a member
+// is no value of is a type the Enum's ValueType does not take (enumValueType).
 func membersTyped(members []ir.EnumMember, schema *statement.Schema) bool {
 	types := schema.Types()
 	return !slices.ContainsFunc(members, func(enumMember ir.EnumMember) bool { return !typesAdmit(types, enumMember.Value) })
@@ -508,10 +508,10 @@ func enumMembersAre(members []ir.EnumMember, prim ir.PrimitiveKind) bool {
 	return true
 }
 
-// enumMemberForm classifies one lowered value as an Enum member: the PrimitiveKind
-// its kind declares and the literal text that names the member. ok=false means
-// the kind has no place in an Enum, and the caller degrades the whole enum to a
-// Union of Literals with a diagnostic.
+// enumMemberForm classifies one lowered value as an Enum member: the
+// PrimitiveKind its kind declares and the literal text that names the member.
+// ok=false means the kind has no place in an Enum, and the caller degrades the
+// whole enum to a Union of Literals with a diagnostic.
 //
 // Its switch has one arm per ir.ValueKind, as ir.EnumMemberKey's does; the
 // exhaustive linter fails when ir adds a kind either lacks. The default arm
@@ -521,9 +521,10 @@ func enumMemberForm(irValue ir.Value) (ir.PrimitiveKind, string, bool) {
 	case ir.ValueString:
 		return ir.PrimitiveString, irValue.String, true
 	case ir.ValueSymbol:
-		// An interned symbol has no primitive of its own; PrimitiveString is the form
-		// it takes on a JSON wire. Unreachable from OpenAPI, whose values come
-		// from YAML nodes, but ValueKind is IR-wide and this is its enum home.
+		// An interned symbol has no primitive of its own; PrimitiveString is
+		// the form it takes on a JSON wire. Unreachable from OpenAPI, whose
+		// values come from YAML nodes, but ValueKind is IR-wide and this is its
+		// enum home.
 		return ir.PrimitiveString, irValue.String, true
 	case ir.ValueNumber:
 		return ir.PrimitiveNumber, string(irValue.Number), true

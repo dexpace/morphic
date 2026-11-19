@@ -55,9 +55,9 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	assert.False(t, got.Deprecated)
 }
 
-// TestAnnotations_AFoldedBranchReadsAsTheSiteDoes pins what a foldedBranch lends a site: each
-// annotation it writes, read at its own pointer, under what the site writes
-// itself, and over its referents.
+// TestAnnotations_AFoldedBranchReadsAsTheSiteDoes pins what a foldedBranch
+// lends a site: each annotation it writes, read at its own pointer, under what
+// the site writes itself, and over its referents.
 func TestAnnotations_AFoldedBranchReadsAsTheSiteDoes(t *testing.T) {
 	t.Parallel()
 	node := schemaFromYAML(t, "description: site\nx-site: 1\n")
@@ -729,9 +729,10 @@ func standaloneSchema(s *oas3.Schema) *statement.Schema {
 
 // TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce pins one writing two
 // schemas of a site write: an entry the site keeps is the site's alone, so a
-// foldedBranch writing it draws no second report, a keyword of several folded in one
-// entry among them; and a keyword the site leaves to a branch its position
-// keeps whole (SchemaPositionAnnotationSources.Leaves) is kept and reported by neither reading here.
+// foldedBranch writing it draws no second report, a keyword of several folded
+// in one entry among them; and a keyword the site leaves to a branch its
+// position keeps whole (SchemaPositionAnnotationSources.Leaves) is kept and
+// reported by neither reading here.
 func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
 	t.Parallel()
 	const written = "not: {type: string}\nif: {type: string}\nthen: {minLength: 1}\nx-a: 1\n"

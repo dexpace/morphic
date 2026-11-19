@@ -85,8 +85,8 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 	assert.True(t, file.HasFilename, "the structural flag is read off the merged type of the inherited part")
 
 	// Every key must name a property some type in the document declares. A part
-	// keyed by a PropertyID nothing holds is the failure this lowering can produce
-	// while still looking well-formed.
+	// keyed by a PropertyID nothing holds is the failure this lowering can
+	// produce while still looking well-formed.
 	for id := range enc {
 		assert.True(t, propIDExists(doc, id), "encoding key %s names no property in the document", id)
 	}

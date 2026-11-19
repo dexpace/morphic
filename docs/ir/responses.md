@@ -51,7 +51,7 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
 
 type OperationLink struct {      // how a response leads to another request
     Name       Naming
-    Operation  OperationID               // the operation it leads to
+    Operation  OperationID        // the operation it leads to
     Params     []LinkParam        // values for Operation's parameters, each once, in source order
     Body       *LinkValue         // the value of Operation's request body; nil = none
     Server     *ServerID          // the server Operation is called on; nil = its own
@@ -148,9 +148,9 @@ keeps it.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
 - **An error's body is of any kind**, a model or a union, a list or a primitive, and
-  `irfacts.DocumentFacts.Usage` marks what it reaches `UsageError` ([derived-facts](./derived-facts.md)),
-  with status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
-  catch-all).
+  `irfacts.DocumentFacts.Usage` marks what it reaches `UsageError`
+  ([derived-facts](./derived-facts.md)), with status conditions and range collapsing exactly as
+  Kiota's error mappings (`404`, `4XX`, catch-all).
 - **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its
   own class (RFC 9110 §15): a status below 400 lowers to a `Response`, and one from 400 to an
   `ErrorCase` whose `Fault` is `client` for 4xx and `server` for 5xx, since that is what the code

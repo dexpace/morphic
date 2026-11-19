@@ -11,10 +11,11 @@ import (
 )
 
 // UsageFlags is a bitset recording how a type is used across the API surface,
-// from the client's side of the wire. [DocumentFacts.Usage] derives it and no type
-// stores it, so the bits cannot disagree with the operations they describe.
-// Input and Output say which way a value travels, Error and Multipart in what
-// role, so a type in an error payload also carries the side it travels on.
+// from the client's side of the wire. [DocumentFacts.Usage] derives it and no
+// type stores it, so the bits cannot disagree with the operations they
+// describe. Input and Output say which way a value travels, Error and Multipart
+// in what role, so a type in an error payload also carries the side it travels
+// on.
 type UsageFlags uint32
 
 // Usage bits.
@@ -55,9 +56,9 @@ type usageStep struct {
 	flags  UsageFlags
 }
 
-// newUsage derives the usage of every type of doc over typeGraphValue, the graph of its
-// registry. A vertex passes on only the flags it had not reached before, so it
-// is expanded at most once per flag and a cycle ends.
+// newUsage derives the usage of every type of doc over typeGraphValue, the
+// graph of its registry. A vertex passes on only the flags it had not reached
+// before, so it is expanded at most once per flag and a cycle ends.
 func newUsage(doc *ir.Document, typeGraphValue *typeGraph) map[ir.TypeID]UsageFlags {
 	roots := usageRoots{}
 	roots.document(doc)
@@ -235,13 +236,15 @@ func (r usageRoots) message(doc *ir.Document, id ir.MessageID, flags UsageFlags)
 	r.ref(message.Headers, flags)
 }
 
-// errorCase records the payload and headers of errorCase as errors travelling on side.
+// errorCase records the payload and headers of errorCase as errors travelling
+// on side.
 func (r usageRoots) errorCase(errorCase *ir.ErrorCase, side UsageFlags) {
 	r.payload(errorCase.Payload, side|UsageError)
 	r.headers(errorCase.Headers, side|UsageError)
 }
 
-// stream records the event and initial-message types of streamDetail, when there is one.
+// stream records the event and initial-message types of streamDetail, when
+// there is one.
 func (r usageRoots) stream(streamDetail *ir.StreamDetail, flags UsageFlags) {
 	if streamDetail == nil {
 		return
@@ -273,7 +276,8 @@ func (r usageRoots) headers(hs []ir.Header, flags UsageFlags) {
 	}
 }
 
-// payload records the types of each content of payload, when there is a payload.
+// payload records the types of each content of payload, when there is a
+// payload.
 func (r usageRoots) payload(payload *ir.Payload, flags UsageFlags) {
 	if payload == nil {
 		return

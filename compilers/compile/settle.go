@@ -24,21 +24,22 @@ type Settlement interface {
 	Settle(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic
 }
 
-// Defer queues settlement for Finish to settle. A nil settlement cannot be taken and is
-// refused, as is one deferred after Finish, which would never be.
+// Defer queues settlement for Finish to settle. A nil settlement cannot be
+// taken and is refused, as is one deferred after Finish, which would never be.
 func (t *Types) Defer(settlement Settlement) { t.queue(&t.pending, "defer", settlement) }
 
-// QueueSettlementBeforeDeferredOnes queues settlement for Finish to settle before every settlement Defer queued,
-// whenever either was queued, and refuses what Defer refuses. It is for a
-// settlement that finishes a node its lowering left open, because finishing it
-// reads nodes not built yet, such as a field several declarations write: every
-// settlement Defer queued then reads that node finished, whether it only reads
-// it or rewrites it too.
+// QueueSettlementBeforeDeferredOnes queues settlement for Finish to settle
+// before every settlement Defer queued, whenever either was queued, and refuses
+// what Defer refuses. It is for a settlement that finishes a node its lowering
+// left open, because finishing it reads nodes not built yet, such as a field
+// several declarations write: every settlement Defer queued then reads that
+// node finished, whether it only reads it or rewrites it too.
 func (t *Types) QueueSettlementBeforeDeferredOnes(settlement Settlement) {
 	t.queue(&t.completing, "complete", settlement)
 }
 
-// queue appends settlement to settlements, which verb names, or refuses it as Defer documents.
+// queue appends settlement to settlements, which verb names, or refuses it as
+// Defer documents.
 func (t *Types) queue(settlements *[]Settlement, verb string, settlement Settlement) {
 	if t.settled {
 		t.refuse("%s rejected: the registry has already settled", verb)

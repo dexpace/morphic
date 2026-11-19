@@ -868,8 +868,8 @@ func TestNodeView_SharedViewAnswersAsAFreshOne(t *testing.T) {
 	})
 }
 
-// linksAbove returns a mapping that reaches node through the given number of `<<`
-// merges, one mapping per link.
+// linksAbove returns a mapping that reaches node through the given number of
+// `<<` merges, one mapping per link.
 func linksAbove(node *yaml.Node, links int) *yaml.Node {
 	for range links {
 		node = ynode.Map(ynode.Merge(), ynode.Alias(node))

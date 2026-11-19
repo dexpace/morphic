@@ -45,10 +45,10 @@ func New(table *reftable.ReferenceTargetTable, byTitle bool) *Namer {
 	return namer
 }
 
-// At returns the hint the node at documentPointer is named by: the hint compile.NamingHint
-// takes, before it is made neutral. A component schema's own node is named by
-// its key and carries no hint, but the positions beneath it compose theirs
-// from it, so At answers for it too.
+// At returns the hint the node at documentPointer is named by: the hint
+// compile.NamingHint takes, before it is made neutral. A component schema's own
+// node is named by its key and carries no hint, but the positions beneath it
+// compose theirs from it, so At answers for it too.
 func (n *Namer) At(documentPointer reftable.DocumentPointer) string {
 	if hint, ok := n.memo[documentPointer]; ok {
 		return hint
@@ -58,10 +58,10 @@ func (n *Namer) At(documentPointer reftable.DocumentPointer) string {
 	return hint
 }
 
-// at is At having followed hops $refs already. It neither reads nor writes
-// the memo: a chain followed from another position stops at MaxHops sooner
-// than one followed from documentPointer, so a name remembered from either would make the
-// other depend on which was asked first.
+// at is At having followed hops $refs already. It neither reads nor writes the
+// memo: a chain followed from another position stops at MaxHops sooner than one
+// followed from documentPointer, so a name remembered from either would make
+// the other depend on which was asked first.
 func (n *Namer) at(documentPointer reftable.DocumentPointer, hops int) string {
 	hint, branch, _ := n.walk(documentPointer)
 	if branch && !n.conjoined(documentPointer) {
@@ -70,11 +70,11 @@ func (n *Namer) at(documentPointer reftable.DocumentPointer, hops int) string {
 	return hint
 }
 
-// conjoined reports whether the schema at documentPointer writes a key beside its reference
-// that it reads (statement.ReadBeside), which makes it the conjunction of the
-// two, a node of the position's own, named by its position as any other
-// (docs/compilers/openapi.md#naming); a reference alone is named after what it
-// names.
+// conjoined reports whether the schema at documentPointer writes a key beside
+// its reference that it reads (statement.ReadBeside), which makes it the
+// conjunction of the two, a node of the position's own, named by its position
+// as any other (docs/compilers/openapi.md#naming); a reference alone is named
+// after what it names.
 func (n *Namer) conjoined(documentPointer reftable.DocumentPointer) bool {
 	if n.table == nil {
 		return false
@@ -88,10 +88,10 @@ func (n *Namer) conjoined(documentPointer reftable.DocumentPointer) bool {
 	})
 }
 
-// walk names documentPointer from its owner down the structure to it (steps), reading the
-// title of each schema on the way (titles.at) where titles name, and reports
-// whether documentPointer is a composition branch its title does not name, and whether its
-// title names it.
+// walk names documentPointer from its owner down the structure to it (steps),
+// reading the title of each schema on the way (titles.at) where titles name,
+// and reports whether documentPointer is a composition branch its title does
+// not name, and whether its title names it.
 func (n *Namer) walk(documentPointer reftable.DocumentPointer) (hint string, branch, titled bool) {
 	tokens := slices.Collect(documentPointer.Pointer.Tokens())
 	reading := n.read(documentPointer)
@@ -105,17 +105,17 @@ func (n *Namer) walk(documentPointer reftable.DocumentPointer) (hint string, bra
 	return steps(owner, tokens[start:], title)
 }
 
-// branch names the composition branch at documentPointer, which steps named positionally
-// for want of a title: a branch holding a $ref is named after it (Through),
-// keeping its positional name where the $ref suggests none.
+// branch names the composition branch at documentPointer, which steps named
+// positionally for want of a title: a branch holding a $ref is named after it
+// (Through), keeping its positional name where the $ref suggests none.
 func (n *Namer) branch(documentPointer reftable.DocumentPointer, positional string, hops int) string {
 	return cmp.Or(n.through(documentPointer, hops), positional)
 }
 
-// Through returns the name the $ref written at documentPointer suggests: the hint of the
-// position it lands on, else what its text suggests (unresolvedName). It is ""
-// where documentPointer holds no $ref, and where a $ref names nothing either way, such as
-// one landing on a component keyed "".
+// Through returns the name the $ref written at documentPointer suggests: the
+// hint of the position it lands on, else what its text suggests
+// (unresolvedName). It is "" where documentPointer holds no $ref, and where a
+// $ref names nothing either way, such as one landing on a component keyed "".
 func (n *Namer) Through(documentPointer reftable.DocumentPointer) string {
 	return n.through(documentPointer, 0)
 }

@@ -57,9 +57,10 @@ const (
 	objFields
 )
 
-// fieldsOf returns the fixed fields of objectValue, as the Overlay Specification gives
-// them, each with the version that first defines it. An overlay's version and
-// its actions are read apart, since what they refuse is said otherwise.
+// fieldsOf returns the fixed fields of objectValue, as the Overlay
+// Specification gives them, each with the version that first defines it. An
+// overlay's version and its actions are read apart, since what they refuse is
+// said otherwise.
 func fieldsOf(objectValue object) []field {
 	switch objectValue {
 	case objOverlay:
@@ -82,7 +83,8 @@ func fieldsOf(objectValue object) []field {
 	}
 }
 
-// fieldOf returns the field of objectValue named name, and whether objectValue has one.
+// fieldOf returns the field of objectValue named name, and whether objectValue
+// has one.
 func fieldOf(objectValue object, name string) (field, bool) {
 	for _, field := range fieldsOf(objectValue) {
 		if field.name == name {
@@ -92,9 +94,9 @@ func fieldOf(objectValue object, name string) (field, bool) {
 	return field{}, false
 }
 
-// fits reports whether node, a field's value with its alias followed, takes form
-// formValue, reading a scalar as the compiler reads one: a timestamp is the string it
-// spells.
+// fits reports whether node, a field's value with its alias followed, takes
+// form formValue, reading a scalar as the compiler reads one: a timestamp is
+// the string it spells.
 func fits(node *yaml.Node, formValue form) bool {
 	switch formValue {
 	case formAny:
@@ -138,11 +140,11 @@ func (r *reader) invalid(at jsontext.Pointer, format string, args ...any) {
 		ir.Provenance{Source: r.at.Source, Pointer: at}, "invalid overlay: "+format, args...))
 }
 
-// object reads node, at the pointer at, as the object objectValue, named what in a
-// finding: each fixed field the version defines in its form, each x- field
-// taken as an extension, and any other refused, as is a required field
-// missing. It returns the fields written, a field of the wrong form held as
-// nil, and nil where node is no object.
+// object reads node, at the pointer at, as the object objectValue, named what
+// in a finding: each fixed field the version defines in its form, each x- field
+// taken as an extension, and any other refused, as is a required field missing.
+// It returns the fields written, a field of the wrong form held as nil, and nil
+// where node is no object.
 func (r *reader) object(node *yaml.Node, at jsontext.Pointer, objectValue object, what string) map[string]*yaml.Node {
 	if node == nil || node.Kind != yaml.MappingNode {
 		r.invalid(at, "%s is no object", what)
@@ -167,9 +169,9 @@ func (r *reader) object(node *yaml.Node, at jsontext.Pointer, objectValue object
 	return got
 }
 
-// field returns the value pair writes for a field of objectValue, or nil, refusing it,
-// where objectValue defines no such field at the version read or pair's value is of the
-// wrong form.
+// field returns the value pair writes for a field of objectValue, or nil,
+// refusing it, where objectValue defines no such field at the version read or
+// pair's value is of the wrong form.
 func (r *reader) field(objectValue object, what string, at jsontext.Pointer, pair nodeview.Pair) *yaml.Node {
 	field, defined := fieldOf(objectValue, pair.Key)
 	switch {

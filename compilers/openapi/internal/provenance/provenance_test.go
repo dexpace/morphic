@@ -117,8 +117,8 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 2}, tree.Node(nil), "the tree is not asked about no node")
 }
 
-// positionAtPointer returns the position pointer names in positions, recording it and every
-// position above it.
+// positionAtPointer returns the position pointer names in positions, recording
+// it and every position above it.
 func positionAtPointer(positions *provenance.Positions, pointer jsontext.Pointer) *provenance.Position {
 	position := positions.Root()
 	for token := range pointer.Tokens() {

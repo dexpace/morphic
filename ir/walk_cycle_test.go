@@ -39,9 +39,9 @@ type valueCycle struct {
 	Path, Entered, Type string
 }
 
-// valueCycles walks root from "document" with a recorder that prunes nothing and
-// returns the cycles it was told of, in walk order, with whether the depth cap
-// truncated the walk.
+// valueCycles walks root from "document" with a recorder that prunes nothing
+// and returns the cycles it was told of, in walk order, with whether the depth
+// cap truncated the walk.
 func valueCycles(root any) ([]valueCycle, bool) {
 	var recorderValue recorder
 	truncated := ir.WalkValues(root, "document", &recorderValue)

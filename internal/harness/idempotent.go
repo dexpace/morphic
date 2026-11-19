@@ -107,8 +107,8 @@ func settled(ctx context.Context, alone []solo, result *ir.Document) (string, bo
 	return "", true
 }
 
-// runEncoded runs compileEngine's passes over doc and returns the document the run
-// returned, beside its encoding (encodeOwn).
+// runEncoded runs compileEngine's passes over doc and returns the document the
+// run returned, beside its encoding (encodeOwn).
 func runEncoded(ctx context.Context, compileEngine *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
 	res, err := compileEngine.RunDocument(ctx, doc, runOptions())
 	if err != nil {

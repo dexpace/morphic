@@ -164,7 +164,8 @@ func (w *sequenceWalk) mapping(node *yaml.Node, mode reading, depth int) Decline
 	return ""
 }
 
-// valueReading is how the value node of key k is read in a mapping read as mode.
+// valueReading is how the value node of key k is read in a mapping read as
+// mode.
 func valueReading(mode reading, k string, node *yaml.Node) reading {
 	switch {
 	case mode == asData:

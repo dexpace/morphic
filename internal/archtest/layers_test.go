@@ -315,8 +315,8 @@ func layerViolations(sites []importSite, table map[string]layer, libraries map[l
 	return out
 }
 
-// crossing explains why site importSiteValue, in a package of layer from, is refused, or
-// returns "" when it is not.
+// crossing explains why site importSiteValue, in a package of layer from, is
+// refused, or returns "" when it is not.
 func crossing(importSiteValue importSite, from layer, table map[string]layer, libraries map[layer][]string) string {
 	if rest, ok := strings.CutPrefix(importSiteValue.path, module+"/"+compilerInternal+"/"); ok {
 		to, layered := table[rest]

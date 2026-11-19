@@ -17,11 +17,11 @@ import (
 )
 
 // Resolve lowers every link l holds onto the response carrying it, now that
-// compiledDocumentView, the document, is whole, and registers the server a link names in srv. A
-// link whose target, parameters or values do not all resolve is kept verbatim
-// on that response instead, with the finding that says why: a link is lowered
-// whole or not at all, so no consumer reads one missing a value its source
-// states. serviceContext is the source's context.
+// compiledDocumentView, the document, is whole, and registers the server a link
+// names in srv. A link whose target, parameters or values do not all resolve is
+// kept verbatim on that response instead, with the finding that says why: a
+// link is lowered whole or not at all, so no consumer reads one missing a value
+// its source states. serviceContext is the source's context.
 func (l *Links) Resolve(serviceContext service.Ctx, compiledDocumentView *compileddoc.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
@@ -41,8 +41,8 @@ func (l *Links) Resolve(serviceContext service.Ctx, compiledDocumentView *compil
 	return diags
 }
 
-// place lowers pendingLinkValue onto the response of from it sits on, or keeps it verbatim
-// there.
+// place lowers pendingLinkValue onto the response of from it sits on, or keeps
+// it verbatim there.
 func place(ix opIndex, compiledDocumentView *compileddoc.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, pendingLinkValue *pendingLink) []ir.Diagnostic {
 	linkDraft := &pendingLinkValue.draft
 	at := pendingLinkValue.slot.in(from)
@@ -66,8 +66,8 @@ func place(ix opIndex, compiledDocumentView *compileddoc.CompiledDocumentView, s
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written. key names the response, which compileddoc.CompiledDocumentView
-// indexes its headers under.
+// where the link is written. key names the response, which
+// compileddoc.CompiledDocumentView indexes its headers under.
 type responseView struct {
 	key       compileddoc.ResponseKey
 	links     *[]ir.OperationLink
@@ -157,8 +157,9 @@ type opIndex struct {
 	byDecl map[jsontext.Pointer][]*ir.Operation
 }
 
-// indexOperations indexes ops, the document's operations (compileddoc.CompiledDocumentView.Ops).
-// byDecl holds those the source declares, whose provenance names serviceContext's source.
+// indexOperations indexes ops, the document's operations
+// (compileddoc.CompiledDocumentView.Ops). byDecl holds those the source
+// declares, whose provenance names serviceContext's source.
 func indexOperations(serviceContext service.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OperationID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
 	source := serviceContext.Place().Source
@@ -179,8 +180,8 @@ func (ix opIndex) add(op *ir.Operation, source int) {
 	}
 }
 
-// target returns the operation linkDraftValue leads to, which it names by operationId or by
-// operationRef, never both.
+// target returns the operation linkDraftValue leads to, which it names by
+// operationId or by operationRef, never both.
 func (ix opIndex) target(linkDraftValue *linkDraft) (*ir.Operation, *linkFailure) {
 	switch {
 	case linkDraftValue.operationID != nil && linkDraftValue.operationRef != nil:
@@ -194,11 +195,11 @@ func (ix opIndex) target(linkDraftValue *linkDraft) (*ir.Operation, *linkFailure
 	}
 }
 
-// byReference returns the operation linkDraftValue's operationRef names: the one mounted at
-// the position it points to, else the one declared there. A reference whose
-// fragment is no JSON pointer, a bare `#` among them, names no operation; one
-// into another document names an operation this compile does not lower; and a
-// declaration mounted more than once names several.
+// byReference returns the operation linkDraftValue's operationRef names: the
+// one mounted at the position it points to, else the one declared there. A
+// reference whose fragment is no JSON pointer, a bare `#` among them, names no
+// operation; one into another document names an operation this compile does not
+// lower; and a declaration mounted more than once names several.
 func (ix opIndex) byReference(linkDraftValue *linkDraft) (*ir.Operation, *linkFailure) {
 	ref := *linkDraftValue.operationRef
 	if _, ok := componentlookup.FragmentPointer(ref); !ok {

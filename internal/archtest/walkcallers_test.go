@@ -131,9 +131,9 @@ func collectorQueries(ir *decls.Package) []string {
 	return queries
 }
 
-// walkUses returns, for one package loadedPackage outside ir, the functions naming each of
-// names in loadedPackage's own copy of ir, keyed as the table is: a name with no dot is a
-// package-level object, and "Type.Method" a method.
+// walkUses returns, for one package loadedPackage outside ir, the functions
+// naming each of names in loadedPackage's own copy of ir, keyed as the table
+// is: a name with no dot is a package-level object, and "Type.Method" a method.
 func walkUses(loadedPackage *decls.Package, names []string) map[string][]string {
 	rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
 	// Only a direct import names a walk, and only its own copy of ir holds the
@@ -161,9 +161,10 @@ func walkUses(loadedPackage *decls.Package, names []string) map[string][]string 
 	return uses
 }
 
-// valuesNaming returns rel.<name> for each package-level var or const of loadedPackage whose
-// declaration names obj: a walk held in a func value is called through the
-// value, which no function names the walk for, so the value answers for a stop.
+// valuesNaming returns rel.<name> for each package-level var or const of
+// loadedPackage whose declaration names obj: a walk held in a func value is
+// called through the value, which no function names the walk for, so the value
+// answers for a stop.
 func valuesNaming(loadedPackage *decls.Package, rel string, obj types.Object) []string {
 	var out []string
 	for _, f := range loadedPackage.Syntax {

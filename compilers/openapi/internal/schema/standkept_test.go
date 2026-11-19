@@ -548,9 +548,9 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }
 
-// TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions pins what the build of
-// a principal's node keeps of the position's own keywords, read beside the
-// principal: a 3.0 exclusive modifier with no bound beside it. It is the
+// TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions pins what the
+// build of a principal's node keeps of the position's own keywords, read beside
+// the principal: a 3.0 exclusive modifier with no bound beside it. It is the
 // position's, held back with nothing of the principal's, and one the principal
 // writes alike is kept once.
 func TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions(t *testing.T) {

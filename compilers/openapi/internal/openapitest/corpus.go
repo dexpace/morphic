@@ -110,8 +110,8 @@ func throughReference(ref written, tree []jsontext.Pointer) []jsontext.Pointer {
 	return out
 }
 
-// treePaths appends the pointer of each node in the tree under node, below at, to
-// out, and each $ref it writes to refs, and reports false once past
+// treePaths appends the pointer of each node in the tree under node, below at,
+// to out, and each $ref it writes to refs, and reports false once past
 // MaxTreeDepth, which fails tb. A model's tree is the mapping it was built
 // from, and one built in code has none.
 func treePaths(tb TB, node *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {

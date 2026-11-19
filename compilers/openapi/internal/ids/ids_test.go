@@ -334,7 +334,8 @@ func TestDeclarationHint_PrefersTheComponentName(t *testing.T) {
 // TestGroupIDs_SpellEachRule pins the spelling of every group ID, written out
 // rather than derived so a test cannot agree with a change to the derivation.
 // The empty key is the odd one: a space naming a single node takes no trailing
-// separator, so the tag "" is "operation-group/tags" and not a malformed "operation-group/tags/".
+// separator, so the tag "" is "operation-group/tags" and not a malformed
+// "operation-group/tags/".
 func TestGroupIDs_SpellEachRule(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

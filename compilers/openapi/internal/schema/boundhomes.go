@@ -24,10 +24,10 @@ type boundHomes struct {
 }
 
 // reads returns the bounds schema writes that a node holding what h says reads,
-// schema being the position's own schema or a folded branch of it: the value bounds of the
-// kinds h.value names (boundsRead), and where h.collection holds, the
-// collection bounds a field states, uniqueItems only where it holds it, true
-// (referenceHolds).
+// schema being the position's own schema or a folded branch of it: the value
+// bounds of the kinds h.value names (boundsRead), and where h.collection holds,
+// the collection bounds a field states, uniqueItems only where it holds it,
+// true (referenceHolds).
 func (h boundHomes) reads(schema *statement.Schema) keySet {
 	out := boundsRead(schema, h.value, nil)
 	if h.collection {
@@ -39,12 +39,13 @@ func (h boundHomes) reads(schema *statement.Schema) keySet {
 	return out
 }
 
-// homesAt returns which bounds the position schema is written at, lowered to target,
-// holds for its folded branches, as the census asks of those written beside its allOf. A
-// carrier or an alias holds the value bounds the types the position admits take
-// (boundKinds), and collection bounds where it is a use of the principal, a
-// reference (referenceReads), where those types admit an array. A node the position
-// owns holds what the lowering that builds it folds of them (ownHomes).
+// homesAt returns which bounds the position schema is written at, lowered to
+// target, holds for its folded branches, as the census asks of those written
+// beside its allOf. A carrier or an alias holds the value bounds the types the
+// position admits take (boundKinds), and collection bounds where it is a use of
+// the principal, a reference (referenceReads), where those types admit an
+// array. A node the position owns holds what the lowering that builds it folds
+// of them (ownHomes).
 func homesAt(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(loweringContext, pointer, target) {
 		refinement, refined := refinementOf(loweringContext, schema, pointer)
@@ -54,10 +55,10 @@ func homesAt(loweringContext lowering.Ctx, schema *statement.Schema, target ir.T
 	return ownHomes(loweringContext, schema, pointer)
 }
 
-// ownHomes returns which bounds the node the refinement schema, written at pointer,
-// owns holds for the folded branches of its allOf: where an inline principal built it,
-// that principal's (nodeHomes), none for a value set's or a $ref's, and
-// otherwise what schema's own election builds.
+// ownHomes returns which bounds the node the refinement schema, written at
+// pointer, owns holds for the folded branches of its allOf: where an inline
+// principal built it, that principal's (nodeHomes), none for a value set's or a
+// $ref's, and otherwise what schema's own election builds.
 func ownHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) boundHomes {
 	takes := boundKinds(loweringContext, schema)
 	if refinement, refined := refinementOf(loweringContext, schema, pointer); refined && refinement.principal != nil {
@@ -71,13 +72,13 @@ func ownHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer js
 	return nodeHomes(loweringContext, schema, pointer, dispatch, takes)
 }
 
-// nodeHomes returns which bounds the node schema, written at pointer, lowers to by
-// the election dispatchValue holds, as its builder reads them of the folded branches, takes the
-// kinds its position admits: none of a value set's, the value bounds of the
-// types a Scalar built for each type its lowering names takes, the collection
-// bounds of an array's List or Tuple, a type list's variant's among them, a
-// union's of oneOf or anyOf the value bounds alone, and none of an object's,
-// which lowerModel builds with no folded branch.
+// nodeHomes returns which bounds the node schema, written at pointer, lowers to
+// by the election dispatchValue holds, as its builder reads them of the folded
+// branches, takes the kinds its position admits: none of a value set's, the
+// value bounds of the types a Scalar built for each type its lowering names
+// takes, the collection bounds of an array's List or Tuple, a type list's
+// variant's among them, a union's of oneOf or anyOf the value bounds alone, and
+// none of an object's, which lowerModel builds with no folded branch.
 func nodeHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, dispatchValue dispatch, takes kindSet) boundHomes {
 	if dispatchValue.won == "const" || dispatchValue.won == "enum" {
 		return boundHomes{}
@@ -108,11 +109,11 @@ func nodeHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer j
 	return homes
 }
 
-// nodeTypes returns the types the nodes of the position schema, written at pointer,
-// are built for where it elects no family and declares no union: the types it
-// writes, none where it writes only null, and else the ones its shape keywords
-// speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
-// admits none, which lowers to an alias of the top type.
+// nodeTypes returns the types the nodes of the position schema, written at
+// pointer, are built for where it elects no family and declares no union: the
+// types it writes, none where it writes only null, and else the ones its shape
+// keywords speak of (untypedKinds) or its allOf admits (lowerUndecided), top
+// where it admits none, which lowers to an alias of the top type.
 func nodeTypes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (types []statement.JSONSchemaTypeName, top bool) {
 	if types := effectiveTypes(schema); len(types) > 0 {
 		return types, false

@@ -191,10 +191,10 @@ func findingsTable() []ir.SourceInfo {
 
 // TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings holds the two
 // readings of a finding to one answer: each malformed finding, verified alone,
-// draws what Verify reports beneath document.Diagnostics of a document holding it,
-// the path rebased onto findings, and all of them at once draw it in Verify's
-// order. Each row must draw something, so a finding neither reports cannot
-// pass for agreement.
+// draws what Verify reports beneath document.Diagnostics of a document holding
+// it, the path rebased onto findings, and all of them at once draw it in
+// Verify's order. Each row must draw something, so a finding neither reports
+// cannot pass for agreement.
 func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.T) {
 	t.Parallel()
 	all := malformedFindings()
@@ -206,8 +206,8 @@ func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.
 	assert.Equal(t, verifiedFindings(all), irverify.VerifyFindings(all, findingsTable()), "every finding at once")
 }
 
-// verifiedFindings returns what Verify reports beneath document.Diagnostics of a
-// sound document holding diags, read against findingsTable, each path rebased
+// verifiedFindings returns what Verify reports beneath document.Diagnostics of
+// a sound document holding diags, read against findingsTable, each path rebased
 // onto findings.
 func verifiedFindings(diags []ir.Diagnostic) []irverify.Violation {
 	doc := validDoc()

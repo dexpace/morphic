@@ -54,9 +54,9 @@ type measureFrame struct {
 	expanded bool
 }
 
-// Of is the nesting of the subtree under node, and 0 for nil. Past the measure's
-// limit, or once ctx is done, it stops, answers in part and reports Truncated.
-// It asks ctx every nodeview.AskEvery steps, counted across calls.
+// Of is the nesting of the subtree under node, and 0 for nil. Past the
+// measure's limit, or once ctx is done, it stops, answers in part and reports
+// Truncated. It asks ctx every nodeview.AskEvery steps, counted across calls.
 //
 // The walk is iterative, so a deep tree costs no stack. A node is pushed only
 // while neither measured nor in flight, so each is expanded once whatever
@@ -149,8 +149,8 @@ func (s shape) holding(child shape, edge int) shape {
 	return s
 }
 
-// edge is how many bytes a pointer grows by from node to the child at index i of
-// its Content: the key of the pair that child belongs to in a mapping, its
+// edge is how many bytes a pointer grows by from node to the child at index i
+// of its Content: the key of the pair that child belongs to in a mapping, its
 // index in a sequence, each with a '/', and nothing anywhere else.
 func edge(node *yaml.Node, i int) int {
 	switch node.Kind {
@@ -200,8 +200,8 @@ func Level(node *yaml.Node) int {
 	return 0
 }
 
-// scalarText is the bytes of text a scalar node holds, and nothing for any other
-// node: an alias adds what it names, which the shape it stands for holds.
+// scalarText is the bytes of text a scalar node holds, and nothing for any
+// other node: an alias adds what it names, which the shape it stands for holds.
 func scalarText(node *yaml.Node) int {
 	if node.Kind != yaml.ScalarNode {
 		return 0

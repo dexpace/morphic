@@ -167,13 +167,14 @@ func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
-// can narrow: two bare primitives (typeformat.Relate); a Scalar, Enum or Literal
-// against a bare primitive; an alias against the type it stands for, by what it
-// adds (standsFor); then each as the node it stands for (view): two identical
-// such nodes; two literals of different values, disjoint; two enums (enums);
-// two models alike (models); two nodes holding bounds (boundedNodes), two alike
-// in every member and detail taking the copy rule (sameNodes); and a structure
-// against one it says it is (structures). Any other pair is unrelated here.
+// can narrow: two bare primitives (typeformat.Relate); a Scalar, Enum or
+// Literal against a bare primitive; an alias against the type it stands for, by
+// what it adds (standsFor); then each as the node it stands for (view): two
+// identical such nodes; two literals of different values, disjoint; two enums
+// (enums); two models alike (models); two nodes holding bounds (boundedNodes),
+// two alike in every member and detail taking the copy rule (sameNodes); and a
+// structure against one it says it is (structures). Any other pair is unrelated
+// here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
@@ -362,13 +363,13 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 }
 
 // againstOtherInstance is the verdict on td, a structure through any aliases,
-// against a type whose values are of the kind other, from td's side. Where
-// td's source and each alias's admit every instance of that kind, exactly
-// (FieldDeclarationContext.Admits), td admits every value of the other type, so that one is
-// narrower: `properties` alone constrains objects and admits a string. A node
-// saying more than that, such as examples, overlaps instead, as topAt reads an
-// alias of `{}`, since a type replacing it would lose it. Any other structure
-// is disjoint from the other type.
+// against a type whose values are of the kind other, from td's side. Where td's
+// source and each alias's admit every instance of that kind, exactly
+// (FieldDeclarationContext.Admits), td admits every value of the other type, so
+// that one is narrower: `properties` alone constrains objects and admits a
+// string. A node saying more than that, such as examples, overlaps instead, as
+// topAt reads an alias of `{}`, since a type replacing it would lose it. Any
+// other structure is disjoint from the other type.
 func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int, other JSONInstanceKind) relation {
 	chain, end := j.aliasChain(td)
 	if !isStructural(end) || !sourceAdmits(j.sites.walk, end.Common().Provenance, other) {
@@ -393,16 +394,17 @@ func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, de
 }
 
 // sourceAdmits reports whether the source written at at admits every instance
-// of kind, by a read of walk's that follows all it writes (FieldDeclarationContext.Admits): one
-// that does not decides nothing, and the structure stays disjoint from the
-// other type.
+// of kind, by a read of walk's that follows all it writes
+// (FieldDeclarationContext.Admits): one that does not decides nothing, and the
+// structure stays disjoint from the other type.
 func sourceAdmits(walk FieldDeclarationContext, at ir.Provenance, kind JSONInstanceKind) bool {
 	admits, exact := walk.Admits(at, kind)
 	return admits && exact
 }
 
-// primInstance returns the kind of JSON instance a value of primitiveKind is: a boolean, an
-// integer, a number, or a string, which every other primitive is written as.
+// primInstance returns the kind of JSON instance a value of primitiveKind is: a
+// boolean, an integer, a number, or a string, which every other primitive is
+// written as.
 func primInstance(primitiveKind ir.PrimitiveKind) JSONInstanceKind {
 	switch {
 	case primitiveKind == ir.PrimitiveBool:
@@ -442,10 +444,10 @@ func nodeInstance(td ir.TypeDef) JSONInstanceKind {
 	}
 }
 
-// structureAddsNothingBeyondBase reports whether td holds nothing in its TypeCommon but
-// where it was declared, and, where carried, what a reference carries down to
-// its use, as aliasAddsNothingBeyondBase reads an alias. What else a structure holds
-// constrains only values of its own instance type.
+// structureAddsNothingBeyondBase reports whether td holds nothing in its
+// TypeCommon but where it was declared, and, where carried, what a reference
+// carries down to its use, as aliasAddsNothingBeyondBase reads an alias. What
+// else a structure holds constrains only values of its own instance type.
 func structureAddsNothingBeyondBase(td ir.TypeDef, carried bool) bool {
 	typeCommon := siteless(*td.Common())
 	if carried {
@@ -504,13 +506,14 @@ func (r registry) aliasChain(td ir.TypeDef) ([]*ir.Scalar, ir.TypeDef) {
 }
 
 // againstKind judges td, which ends in no primitive kind and is no structure
-// (classify judges those), against kindRef, a type that ends in valueKindValue and resolves
-// to kindNode, from td's side. Anything but a literal, such as a union, is
-// unrelated to it. A literal overlaps it, since which values meet is
-// not decided here, unless a held format narrows valueKindValue. Then the literal is
-// disjoint where kindRef refuses its value, as against a kind with a judge,
-// narrower where kindRef admits it and says nothing more (saysOnlyFormat), and
-// otherwise judged by what else kindNode says (literalBesideDetail).
+// (classify judges those), against kindRef, a type that ends in valueKindValue
+// and resolves to kindNode, from td's side. Anything but a literal, such as a
+// union, is unrelated to it. A literal overlaps it, since which values meet is
+// not decided here, unless a held format narrows valueKindValue. Then the
+// literal is disjoint where kindRef refuses its value, as against a kind with a
+// judge, narrower where kindRef admits it and says nothing more
+// (saysOnlyFormat), and otherwise judged by what else kindNode says
+// (literalBesideDetail).
 func (j typeJudge) againstKind(td ir.TypeDef, kindRef ir.TypeRef, kindNode ir.TypeDef, valueKindValue valueKind) relation {
 	lit, ok := td.(*ir.Literal)
 	switch {
@@ -609,8 +612,8 @@ func hoistedAt(td ir.TypeDef, sites []ir.Provenance) bool {
 	return slices.ContainsFunc(sites, func(at ir.Provenance) bool { return hoistedUnder(typeCommon, at) })
 }
 
-// hoistedUnder reports whether the node typeCommon describes is a hoisted one written
-// at or under at, in at's document.
+// hoistedUnder reports whether the node typeCommon describes is a hoisted one
+// written at or under at, in at's document.
 func hoistedUnder(typeCommon *ir.TypeCommon, at ir.Provenance) bool {
 	pointer := typeCommon.Provenance.Pointer
 	return typeCommon.Anonymous && typeCommon.Provenance.Source == at.Source &&
@@ -699,9 +702,9 @@ func sameEnum(enum, irEnum ir.Enum) bool {
 	return reflect.DeepEqual(enum, irEnum)
 }
 
-// siteless returns typeCommon with what names where its node was declared zeroed: ID,
-// Name, Anonymous, Provenance and the Provenance of each Unmodeled entry. It
-// copies the Unmodeled map, which belongs to the registry.
+// siteless returns typeCommon with what names where its node was declared
+// zeroed: ID, Name, Anonymous, Provenance and the Provenance of each Unmodeled
+// entry. It copies the Unmodeled map, which belongs to the registry.
 func siteless(typeCommon ir.TypeCommon) ir.TypeCommon {
 	typeCommon.ID, typeCommon.Name, typeCommon.Anonymous, typeCommon.Provenance = "", ir.Naming{}, false, ir.Provenance{}
 	if typeCommon.Unmodeled == nil {
@@ -779,9 +782,9 @@ func (r registry) topAt(td ir.TypeDef, depth int) bool {
 	return false
 }
 
-// aliasAddsNothingBeyondBase reports whether the alias scalar holds nothing but its base and
-// where it was declared, and, where carried, what a reference carries down to
-// its use.
+// aliasAddsNothingBeyondBase reports whether the alias scalar holds nothing but
+// its base and where it was declared, and, where carried, what a reference
+// carries down to its use.
 func aliasAddsNothingBeyondBase(scalar *ir.Scalar, carried bool) bool {
 	bare := *scalar
 	bare.TypeCommon, bare.Base = siteless(scalar.TypeCommon), nil
@@ -975,11 +978,11 @@ func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
 	return verdict(values, detail, adoptable)
 }
 
-// memberHolding is the holding of typeRef and irTypeRef, two members of containers judged
-// rel against each other, null included, and false where neither holds the
-// other and the fold builds no member of the two: two members that meet are
-// built into one, and two that compose, as two models or a model beside a map
-// or a union do (composedBeside), are composed.
+// memberHolding is the holding of typeRef and irTypeRef, two members of
+// containers judged rel against each other, null included, and false where
+// neither holds the other and the fold builds no member of the two: two members
+// that meet are built into one, and two that compose, as two models or a model
+// beside a map or a union do (composedBeside), are composed.
 func (j typeJudge) memberHolding(typeRef, irTypeRef ir.TypeRef, rel relation) (holding, bool) {
 	holdingValue, ok := holdingOf(rel)
 	if !ok && j.composedBeside(typeRef, irTypeRef) {
@@ -988,8 +991,9 @@ func (j typeJudge) memberHolding(typeRef, irTypeRef ir.TypeRef, rel relation) (h
 	return holdingValue.and(nullHolding(typeRef, irTypeRef)), ok
 }
 
-// composedBeside reports whether the fold composes typeRef and irTypeRef beside each other:
-// each a model, a map or a union, and one of them a model (position.composition).
+// composedBeside reports whether the fold composes typeRef and irTypeRef beside
+// each other: each a model, a map or a union, and one of them a model
+// (position.composition).
 func (j typeJudge) composedBeside(typeRef, irTypeRef ir.TypeRef) bool {
 	xn, xok := j.composable(typeRef)
 	yn, yok := j.composable(irTypeRef)
@@ -1019,8 +1023,9 @@ func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relati
 	return verdict(values, detail, adoptable)
 }
 
-// admitsEmpty reports whether a container with extrasValue admits the empty one: true when
-// extrasValue.Constraints is nil or holds neither MinItems nor MinProperties above zero.
+// admitsEmpty reports whether a container with extrasValue admits the empty
+// one: true when extrasValue.Constraints is nil or holds neither MinItems nor
+// MinProperties above zero.
 func admitsEmpty(extrasValue extras) bool {
 	constraints := extrasValue.Constraints
 	if constraints == nil {
@@ -1095,8 +1100,8 @@ func heldFormat(enc *ir.Encoding) (string, bool) {
 	return enc.Name, true
 }
 
-// relateKinds relates two kinds as typeformat.Relate does, reading a held format
-// as a string format of its own (formatAgainst).
+// relateKinds relates two kinds as typeformat.Relate does, reading a held
+// format as a string format of its own (formatAgainst).
 func relateKinds(a, b valueKind) relation {
 	switch {
 	case a.format != "":
@@ -1108,11 +1113,11 @@ func relateKinds(a, b valueKind) relation {
 	}
 }
 
-// formatAgainst relates the held format f to the kind valueKindValue, from f's side, as
-// typeformat.Relate relates one string format to another kind: the same as
-// itself, within string and the top, an overlap with bytes, which octets may
-// spell, and disjoint from any other kind, a string format or another family,
-// since no string satisfies two formats' grammars
+// formatAgainst relates the held format f to the kind valueKindValue, from f's
+// side, as typeformat.Relate relates one string format to another kind: the
+// same as itself, within string and the top, an overlap with bytes, which
+// octets may spell, and disjoint from any other kind, a string format or
+// another family, since no string satisfies two formats' grammars
 // (TestAdmitsFormat_SharesNoStringWithAKind).
 func formatAgainst(f string, valueKindValue valueKind) relation {
 	switch {
@@ -1165,10 +1170,11 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	return valueKind{}, false
 }
 
-// travelsAs returns the type the values of scalar are instances of: its Base, but
-// for a Base its Encoding's WireType does not spell, whose values then travel
-// as that type, as an instant written as its seconds is a number. A Base the
-// WireType spells keeps its own kind, as bytes written as a base64 string do.
+// travelsAs returns the type the values of scalar are instances of: its Base,
+// but for a Base its Encoding's WireType does not spell, whose values then
+// travel as that type, as an instant written as its seconds is a number. A Base
+// the WireType spells keeps its own kind, as bytes written as a base64 string
+// do.
 func (r registry) travelsAs(scalar *ir.Scalar) ir.TypeID {
 	if scalar.Encoding == nil || scalar.Encoding.WireType == nil {
 		return scalar.Base.Target
@@ -1183,16 +1189,17 @@ func (r registry) travelsAs(scalar *ir.Scalar) ir.TypeID {
 	return scalar.Encoding.WireType.Target
 }
 
-// spelledIn reports whether JSON writes a value of primitiveKind as an instance of wire:
-// primitiveKind is wire or narrows it, as bytes and datetime_offset narrow string.
+// spelledIn reports whether JSON writes a value of primitiveKind as an instance
+// of wire: primitiveKind is wire or narrows it, as bytes and datetime_offset
+// narrow string.
 func spelledIn(primitiveKind, wire ir.PrimitiveKind) bool {
 	rel := typeformat.Relate(primitiveKind, wire)
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
-// kindUnder is the valueKind of the primitive primitiveKind, reached under enc, the first
-// Encoding on the chain: a held format over string narrows it (heldFormat),
-// and a text enc names over a string format leaves it unjudged
+// kindUnder is the valueKind of the primitive primitiveKind, reached under enc,
+// the first Encoding on the chain: a held format over string narrows it
+// (heldFormat), and a text enc names over a string format leaves it unjudged
 // (rewritesText).
 func kindUnder(enc *ir.Encoding, primitiveKind ir.PrimitiveKind) valueKind {
 	if format, held := heldFormat(enc); held && primitiveKind == ir.PrimitiveString {
@@ -1201,21 +1208,21 @@ func kindUnder(enc *ir.Encoding, primitiveKind ir.PrimitiveKind) valueKind {
 	return valueKind{prim: primitiveKind, unjudged: rewritesText(enc, primitiveKind)}
 }
 
-// rewritesText reports whether enc names a text for primitiveKind, a string format: primitiveKind's
-// grammar reads primitiveKind's own text, as datetime_offset's reads RFC 3339, so it
-// cannot judge a value enc writes otherwise, even under a name whose grammar
-// the compiler holds, as time's is another text. A kind JSON spells otherwise,
-// string itself included, is judged by its JSON type, which no encoding name
-// changes.
+// rewritesText reports whether enc names a text for primitiveKind, a string
+// format: primitiveKind's grammar reads primitiveKind's own text, as
+// datetime_offset's reads RFC 3339, so it cannot judge a value enc writes
+// otherwise, even under a name whose grammar the compiler holds, as time's is
+// another text. A kind JSON spells otherwise, string itself included, is judged
+// by its JSON type, which no encoding name changes.
 func rewritesText(enc *ir.Encoding, primitiveKind ir.PrimitiveKind) bool {
 	return enc != nil && enc.Name != "" && typeformat.Relate(primitiveKind, ir.PrimitiveString) == typeformat.ANarrower
 }
 
-// admits reports whether value is a value of the type ref names. A null is judged
-// against ref.Nullable, or the top type; any other value against the type: a
-// bare primitive by its kind, an Enum by its members, a Literal by its value, a
-// Scalar by its base and its Encoding (encodingAdmits), and a list or map by
-// each member. A Scalar, list or map also holds value to its Constraints
+// admits reports whether value is a value of the type ref names. A null is
+// judged against ref.Nullable, or the top type; any other value against the
+// type: a bare primitive by its kind, an Enum by its members, a Literal by its
+// value, a Scalar by its base and its Encoding (encodingAdmits), and a list or
+// map by each member. A Scalar, list or map also holds value to its Constraints
 // (admitsConstraints). Nesting past maxJudgeDepth is refused.
 func (r registry) admits(ref ir.TypeRef, value ir.Value) bool { return r.admitsAt(ref, value, 0) }
 

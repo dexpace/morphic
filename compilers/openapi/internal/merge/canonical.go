@@ -11,8 +11,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// canonicalValue spells value so that two JSON-equal values spell alike: a number
-// by its value (ir.Decimal.String), an object by its members in name
+// canonicalValue spells value so that two JSON-equal values spell alike: a
+// number by its value (ir.Decimal.String), an object by its members in name
 // order. ok is false for a kind JSON has no instance of, a number no Decimal
 // holds, or nesting past maxJudgeDepth.
 func canonicalValue(value ir.Value, depth int) (string, bool) {

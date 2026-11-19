@@ -71,8 +71,8 @@ func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 	}
 }
 
-// concerning is diagnostic concerning the declaration kept at kept and the members
-// decided, in the order a fold and ReportOnce list them.
+// concerning is diagnostic concerning the declaration kept at kept and the
+// members decided, in the order a fold and ReportOnce list them.
 func concerning(diagnostic ir.Diagnostic, kept jsontext.Pointer, decided ...string) ir.Diagnostic {
 	diagnostic.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: kept}}}
 	for _, node := range decided {

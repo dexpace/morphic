@@ -29,11 +29,12 @@ func responseTargets() []promotion.ExtensionTarget {
 	}
 }
 
-// Promote fills the pagination each operation of compiledDocumentView, the document, declares
-// through the extensions the promotion policy maps to it, where the operation
-// holds none (docs/compilers/openapi.md#extension-pagination), whole or not
-// at all: one whose values do not all resolve, or which states no way to the
-// next page, is reported at the operation. promoter is the run's promoter.
+// Promote fills the pagination each operation of compiledDocumentView, the
+// document, declares through the extensions the promotion policy maps to it,
+// where the operation holds none
+// (docs/compilers/openapi.md#extension-pagination), whole or not at all: one
+// whose values do not all resolve, or which states no way to the next page, is
+// reported at the operation. promoter is the run's promoter.
 //
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those an inference leaves alone, by that rule's precedence.

@@ -262,8 +262,8 @@ func (r ruler) forbiddenWhen(rule Rule) {
 	}
 }
 
-// reportFieldWithoutRequiredValue reports a field written with another value than the rule demands,
-// where the conditions hold.
+// reportFieldWithoutRequiredValue reports a field written with another value
+// than the rule demands, where the conditions hold.
 func (r ruler) reportFieldWithoutRequiredValue(rule Rule) {
 	got, ok := r.f.text(rule.Field)
 	if !ok || r.f.test(rule.When) != answerYes || strings.EqualFold(got, rule.Value) {

@@ -26,18 +26,19 @@ import (
 // branches are flattened first. Inline branches contribute their properties,
 // with provenance into their source branch.
 //
-// Value constraints written beside the allOf (minProperties, ...), or on a branch
-// that folds, are read as lowerModel reads a plain object's, on the same field,
-// not Unmodeled (GitHub #407). A composition that leaves only a
-// catch-all is a map, as a plain object's is (objectNode). Where discriminated is
-// false, a union the model composes, mixin where not nil, took schema's discriminator
-// (lowerSubtypeUnion). fin finishes the node.
+// Value constraints written beside the allOf (minProperties, ...), or on a
+// branch that folds, are read as lowerModel reads a plain object's, on the same
+// field, not Unmodeled (GitHub #407). A composition that leaves only a
+// catch-all is a map, as a plain object's is (objectNode). Where discriminated
+// is false, a union the model composes, mixin where not nil, took schema's
+// discriminator (lowerSubtypeUnion). fin finishes the node.
 func lowerAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, discriminated bool, mixin *unionAt,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(loweringContext, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		// The one flattened list; the readers composeModel calls take it, not schema.
+		// The one flattened list; the readers composeModel calls take it, not
+		// schema.
 		td, read, modelDiags := composeModel(loweringContext, ts, depth, schema, pointer, discriminated, common, readAllOf(loweringContext, schema, pointer))
 		diags = modelDiags
 		diags = append(diags, composeMixin(loweringContext, ts, depth, td, mixin, pointer)...)
@@ -46,8 +47,8 @@ func lowerAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return id, diags
 }
 
-// composeModel builds the Model of schema, written at pointer, composing comp, its
-// flattened conjuncts, and returns what it read of schema.
+// composeModel builds the Model of schema, written at pointer, composing comp,
+// its flattened conjuncts, and returns what it read of schema.
 func composeModel(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer,
 	discriminated bool, common ir.TypeCommon, comp allOfComposition,
 ) (ir.TypeDef, keySet, []ir.Diagnostic) {
@@ -114,10 +115,10 @@ type allOfComposition struct {
 	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
 	// is nil otherwise (readAllOf).
 	disjoint []string
-	// branchFoldsIntoPosition marks each branch that folds at the position (foldingAllOfBranches), and
-	// rebased each whose folding keywords write a relative $ref it reads against
-	// another base, so it does not. They are nil where the allOf is not what the
-	// position lowers (allOfDecides).
+	// branchFoldsIntoPosition marks each branch that folds at the position
+	// (foldingAllOfBranches), and rebased each whose folding keywords write a
+	// relative $ref it reads against another base, so it does not. They are nil
+	// where the allOf is not what the position lowers (allOfDecides).
 	branchFoldsIntoPosition []bool
 	rebased                 []bool
 	// conjoins is the pointer of the branch whose union the position lowers,
@@ -136,15 +137,16 @@ type allOfComposition struct {
 	kept []keptEntry
 }
 
-// foldsIntoPositionAt reports whether the branch at index i folds at the position.
+// foldsIntoPositionAt reports whether the branch at index i folds at the
+// position.
 func (a allOfComposition) foldsIntoPositionAt(i int) bool {
 	return a.branchFoldsIntoPosition != nil && a.branchFoldsIntoPosition[i]
 }
 
-// allOfBranches returns the branches of schema's allOf as its statement flattens
-// them (statement.Statement.Entries), each with the pointer it was written at,
-// under the schema written at pointer. allOf is associative, so the list
-// classifies exactly as its flat spelling would.
+// allOfBranches returns the branches of schema's allOf as its statement
+// flattens them (statement.Statement.Entries), each with the pointer it was
+// written at, under the schema written at pointer. allOf is associative, so the
+// list classifies exactly as its flat spelling would.
 func allOfBranches(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	entries := loweringContext.Statements().Read(schema).Entries
 	out := make([]allOfBranch, 0, len(entries))
@@ -155,12 +157,12 @@ func allOfBranches(loweringContext lowering.Ctx, schema *statement.Schema, point
 }
 
 // readAllOf is allOfBranches of the schema written at pointer, with what its
-// conjuncts jointly admit read and, where the allOf is what the position lowers,
-// which branches fold there (allOfBranchFoldingOf) and which writes the union the position
-// lowers (branchUnion), for a lowering that composes it. That gate is
-// positionFoldedBranches', so a branch gives up a keyword only where a reader of the
-// position takes it up; both composers pass it, and the report of an allOf the
-// election passed over does not.
+// conjuncts jointly admit read and, where the allOf is what the position
+// lowers, which branches fold there (allOfBranchFoldingOf) and which writes the
+// union the position lowers (branchUnion), for a lowering that composes it.
+// That gate is positionFoldedBranches', so a branch gives up a keyword only
+// where a reader of the position takes it up; both composers pass it, and the
+// report of an allOf the election passed over does not.
 func readAllOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(loweringContext, schema, pointer)
 	comp.disjoint = disjointNames(loweringContext, schema, comp)
@@ -204,9 +206,9 @@ type FlatBranch struct {
 	Capped bool
 }
 
-// FlattenedAllOf returns schema's allOf as the lowering reads it, so a reader outside
-// this package takes the same flattening and the same cap, in the same order
-// (docs/compilers/openapi.md#allof-classification). It reads the entries
+// FlattenedAllOf returns schema's allOf as the lowering reads it, so a reader
+// outside this package takes the same flattening and the same cap, in the same
+// order (docs/compilers/openapi.md#allof-classification). It reads the entries
 // allOfBranches does.
 func FlattenedAllOf(loweringContext lowering.Ctx, schema *statement.Schema) []FlatBranch {
 	entries := loweringContext.Statements().Read(schema).Entries
@@ -261,8 +263,9 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 //
 // An inline branch merges in place: its `properties` and `required`
 // (requireMembers) merge, its catch-all keywords where it closes the model
-// (closerOf), what it writes for the position folds there (foldingAllOfBranches), and
-// the rest stays verbatim beside the model (preserveUnmergedBranch, GitHub
+// (closerOf), what it writes for the position folds there
+// (foldingAllOfBranches), and the rest stays verbatim beside the model
+// (preserveUnmergedBranch, GitHub
 // #123).
 //
 // A $ref branch is the reference alone, composing what it names
@@ -295,12 +298,12 @@ func fillAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, model
 	return append(diags, keepUncomposedRefs(loweringContext, ts, model, comp.pointer, apart, uncomposed)...)
 }
 
-// composesRef reports whether the $ref entry allOfBranchValue is a Base or a Mixin of the
-// composition: the schema it lands on lowers to an object alone, null aside
-// (lowersTo), or to the union of a type list holding an object, whose object
-// variant it composes (objectVariant), or its read is cut short, which leaves
-// the composition as it is with no read. A model composes only models
-// (docs/compilers/openapi.md#allof-classification).
+// composesRef reports whether the $ref entry allOfBranchValue is a Base or a
+// Mixin of the composition: the schema it lands on lowers to an object alone,
+// null aside (lowersTo), or to the union of a type list holding an object,
+// whose object variant it composes (objectVariant), or its read is cut short,
+// which leaves the composition as it is with no read. A model composes only
+// models (docs/compilers/openapi.md#allof-classification).
 func composesRef(loweringContext lowering.Ctx, allOfBranchValue allOfBranch) bool {
 	target, _ := declaredOf(loweringContext, allOfBranchValue.schema)
 	if target == nil || admissionOf(loweringContext, target).cut {
@@ -391,17 +394,17 @@ func fillRefBranch(loweringContext lowering.Ctx, ts *compile.Types, fields model
 	return diags, true
 }
 
-// applyFalseBranches closes model for each boolean `false` allOf branch and keeps
-// the branch verbatim under Unmodeled. It runs after fillComposedAdditional,
-// whose result it overrides, the catch-all included
+// applyFalseBranches closes model for each boolean `false` allOf branch and
+// keeps the branch verbatim under Unmodeled. It runs after
+// fillComposedAdditional, whose result it overrides, the catch-all included
 // (docs/compilers/openapi.md#allof-false-branch).
 //
 // A `false` branch admits nothing, so model must not stay open; the rule
 // docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
-// the same way. model keeps the other branches' contributions, because emptying it
-// would trade one silent loss for another. The verbatim branch tells this from
-// a plain `additionalProperties: false`; a diagnostic does not, being no part
-// of the document. A `true` branch constrains nothing and is skipped.
+// the same way. model keeps the other branches' contributions, because emptying
+// it would trade one silent loss for another. The verbatim branch tells this
+// from a plain `additionalProperties: false`; a diagnostic does not, being no
+// part of the document. A `true` branch constrains nothing and is skipped.
 func applyFalseBranches(loweringContext lowering.Ctx, model *ir.Model, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, allOfBranch := range comp.branches {
@@ -466,9 +469,9 @@ func compositionResidue(loweringContext lowering.Ctx, comp allOfComposition, i i
 	})
 }
 
-// diagUnmergedBranch builds the diagnostic announcing the branch keptEntryValue keeps whole,
-// naming the keywords so two branches of the same schema are told apart. The
-// caller records it.
+// diagUnmergedBranch builds the diagnostic announcing the branch keptEntryValue
+// keeps whole, naming the keywords so two branches of the same schema are told
+// apart. The caller records it.
 //
 // A branch declaring a type that cannot be an object is a warning rather than
 // info: the composed ir.Model asserts the value *is* an object, which the branch
@@ -625,8 +628,8 @@ func selectAllOfBase(loweringContext lowering.Ctx, branches []allOfBranch, id ir
 	})
 }
 
-// routesTo reports whether the mapping of a discriminator schema, a stated schema,
-// or one of its discriminated ancestors declares names id, the node a
+// routesTo reports whether the mapping of a discriminator schema, a stated
+// schema, or one of its discriminated ancestors declares names id, the node a
 // composition of schema lowers to; an empty id is no node, which none names.
 func routesTo(loweringContext lowering.Ctx, schema *statement.Schema, id ir.TypeID) bool {
 	return slices.ContainsFunc(append([]*statement.Schema{schema}, discriminatedAncestors(loweringContext, schema)...), func(a *statement.Schema) bool {
@@ -652,10 +655,10 @@ type inHierarchyOf struct {
 	schema *statement.Schema
 }
 
-// inHierarchy reports whether schema takes part in a discriminator hierarchy: it
-// declares a discriminator, or composes through allOf, at any depth, a schema
-// that does, the ancestors whose routes tag it (discriminatedAncestors). It
-// reads the source, so no lowering order decides it, and every composition
+// inHierarchy reports whether schema takes part in a discriminator hierarchy:
+// it declares a discriminator, or composes through allOf, at any depth, a
+// schema that does, the ancestors whose routes tag it (discriminatedAncestors).
+// It reads the source, so no lowering order decides it, and every composition
 // naming schema asks, so it is read once a run.
 func inHierarchy(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return lowering.ReadOncePerRun(loweringContext, inHierarchyOf{schema}, func() bool {

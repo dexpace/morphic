@@ -16,13 +16,13 @@ import (
 )
 
 // Resolve fills, on every deprecated node of doc whose own keys name its
-// replacements, the entities those names resolve to, each named as the
-// document names an entity of the node's class: an operation by its
-// operationId, a parameter by `<in>.<name>` or its name within its operation,
-// a header by name among the headers beside it, a property by name within its
-// model, a schema by its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). promoter is the run's promoter,
-// and compiledDocumentView the document, which is whole.
+// replacements, the entities those names resolve to, each named as the document
+// names an entity of the node's class: an operation by its operationId, a
+// parameter by `<in>.<name>` or its name within its operation, a header by name
+// among the headers beside it, a property by name within its model, a schema by
+// its components name, and a security scheme by its key
+// (docs/compilers/openapi.md#extension-promotion). promoter is the run's
+// promoter, and compiledDocumentView the document, which is whole.
 func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	resolverValue := resolver{p: promoter, w: compiledDocumentView}
 	if !resolverValue.p.Maps(promotion.TargetDeprecationReplacedBy) {
@@ -44,12 +44,13 @@ func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.Comp
 }
 
 // resolver is what one Resolve or Infer reads its names against. A security
-// scheme and a header are found by scanning their list for each name, so a
-// list whose every entry names another costs its length squared: only a
-// mapping reads their replacements, and 8,000 such headers add under half a
-// second to a compile, which an index per list would not repay. A model's
-// member, which messages every compile reads name, is read by its name alone
-// (compileddoc.CompiledDocumentView.Member), which indexes a model's own properties once.
+// scheme and a header are found by scanning their list for each name, so a list
+// whose every entry names another costs its length squared: only a mapping
+// reads their replacements, and 8,000 such headers add under half a second to a
+// compile, which an index per list would not repay. A model's member, which
+// messages every compile reads name, is read by its name alone
+// (compileddoc.CompiledDocumentView.Member), which indexes a model's own
+// properties once.
 type resolver struct {
 	p promotion.Promoter
 	w *compileddoc.CompiledDocumentView

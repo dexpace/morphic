@@ -186,9 +186,9 @@ type unionShapedBound struct {
 }
 
 // unionShapedBounds are a type list's array variant and the kind-inference
-// policy's taking a collection bound, as the flat spelling's do, and the
-// bounds no node of the position takes kept on the Union: one a oneOf with an
-// array branch writes beside it, as flat, and an object bound of a folded branch,
+// policy's taking a collection bound, as the flat spelling's do, and the bounds
+// no node of the position takes kept on the Union: one a oneOf with an array
+// branch writes beside it, as flat, and an object bound of a folded branch,
 // which no object variant reads (#2062).
 var unionShapedBounds = []unionShapedBound{
 	{"type list's array", "type: [string, array], items: {type: string}", "minItems", "minItems", "13", "/type/1", false, true},

@@ -158,7 +158,8 @@ func (s *scanner) blank() bool {
 	return s.pos > start
 }
 
-// enter counts one more nesting of kind nestingValue, refusing one past maxDepth.
+// enter counts one more nesting of kind nestingValue, refusing one past
+// maxDepth.
 func (p *parser) enter(nestingValue nesting) error {
 	if p.open[nestingValue] == maxDepth {
 		return p.fail(fmt.Sprintf("the query nests %s past the depth of %d the compiler reads", [...]string{

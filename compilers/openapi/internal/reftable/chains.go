@@ -37,10 +37,10 @@ func (b *binder) chain(site DocumentPointer) (Chain, bool) {
 	return b.chains[site], false
 }
 
-// follow walks the chain from documentPointer onto path until it reaches a position settled
-// before, a position already on path, which closes a loop, or a hop that ends
-// it, and returns the answer for the last position left on path's successor,
-// or reports that it waits (chain).
+// follow walks the chain from documentPointer onto path until it reaches a
+// position settled before, a position already on path, which closes a loop, or
+// a hop that ends it, and returns the answer for the last position left on
+// path's successor, or reports that it waits (chain).
 func (b *binder) follow(documentPointer DocumentPointer, path *[]DocumentPointer, on map[DocumentPointer]int) (Chain, bool) {
 	for {
 		if chain, done := b.chains[documentPointer]; done {
@@ -101,9 +101,9 @@ func newWaits() *waits {
 }
 
 // requeue forgets each held hop, and notes each held site, mapping value and
-// reference object in finderValue to settle again, now the documents they wait for are
-// read. A held position waits no longer, so its own chain reads its hop again;
-// one that leads to it waits on until release.
+// reference object in finderValue to settle again, now the documents they wait
+// for are read. A held position waits no longer, so its own chain reads its hop
+// again; one that leads to it waits on until release.
 func (w *waits) requeue(finderValue *finder, hops map[DocumentPointer]Hop, objHops map[DocumentPointer]objectHop) {
 	for _, documentPointer := range w.held {
 		delete(hops, documentPointer)
@@ -131,11 +131,11 @@ func (w *waits) requeue(finderValue *finder, hops map[DocumentPointer]Hop, objHo
 	w.held, w.heldObjects, w.heldMappings, w.released, w.declaring = nil, nil, nil, false, nil
 }
 
-// release notes in finderValue every site, mapping value and reference object that
-// waits, to settle once more now nothing is held, and reports whether there
-// was any. A second release with no held document read since would meet the
-// same hops, so it releases nothing, which bounds the pass: what still waits
-// then has no entry.
+// release notes in finderValue every site, mapping value and reference object
+// that waits, to settle once more now nothing is held, and reports whether
+// there was any. A second release with no held document read since would meet
+// the same hops, so it releases nothing, which bounds the pass: what still
+// waits then has no entry.
 func (w *waits) release(finderValue *finder) bool {
 	if w.released || len(w.sites) == 0 && len(w.mappings) == 0 && len(w.objects) == 0 {
 		return false
@@ -152,9 +152,9 @@ func (w *waits) release(finderValue *finder) bool {
 	return true
 }
 
-// holdsRef reports whether documentPointer writes a $ref of its own, which a chain landing
-// there follows on, or a $dynamicRef that is the $ref it spells, or may be
-// once the document its hop waits for is read (namesDynamic).
+// holdsRef reports whether documentPointer writes a $ref of its own, which a
+// chain landing there follows on, or a $dynamicRef that is the $ref it spells,
+// or may be once the document its hop waits for is read (namesDynamic).
 func (b *binder) holdsRef(documentPointer DocumentPointer) bool {
 	// Only a hop's target is asked, a position its document holds, so the path
 	// reaches it.

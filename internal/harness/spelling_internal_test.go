@@ -77,7 +77,8 @@ func spellingPair(version, partner, spelling string, eq Equal) fake {
 	}}
 }
 
-// spellingVerdict is the spelling oracle's verdict on the second case of fakeValue.
+// spellingVerdict is the spelling oracle's verdict on the second case of
+// fakeValue.
 func spellingVerdict(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
 	withAsked(t, spelled)

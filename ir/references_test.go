@@ -260,8 +260,8 @@ func TestIDReferences_TruncatedWalkClaimsNoDeclaredClass(t *testing.T) {
 // TestIDReferences_PropIDIsDeclaredButNeverKept pins the one class no registry
 // resolves. A PropertyID names a position inside its model, so a document-wide
 // answer would report one defect twice where a tighter check knows the model;
-// the declarations are still answered, for the check that holds a PropertyID to a
-// declared property.
+// the declarations are still answered, for the check that holds a PropertyID to
+// a declared property.
 func TestIDReferences_PropIDIsDeclaredButNeverKept(t *testing.T) {
 	t.Parallel()
 	doc := docWithRef("type/x/Holder")
@@ -383,9 +383,9 @@ func TestNewIDReferences_ReadsKeysWithoutAllocatingEach(t *testing.T) {
 
 // TestRefNoun_NamesTheReferenceClass pins the singular both checkers spell a
 // dangling-reference code with, so one defect reads under one code whichever of
-// them reports it. PropertyID is included though it addresses no registry: the noun
-// is derived from the type, and pass.Validate reports ir/dangling-property-ref with
-// it.
+// them reports it. PropertyID is included though it addresses no registry: the
+// noun is derived from the type, and pass.Validate reports
+// ir/dangling-property-ref with it.
 func TestRefNoun_NamesTheReferenceClass(t *testing.T) {
 	t.Parallel()
 	for want, idType := range map[string]reflect.Type{

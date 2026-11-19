@@ -587,10 +587,10 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 
 // TestAliases_ARecursiveAnchorBelowTheTrackedDepthReachesTheCut pins that a
 // parsed document reaches pushChildren's cut: a recursive anchor nested past
-// the depth the index tracks ancestors to (sourcetreestats' maxTrackedDepth) is no
-// anchor cycle the index finds, so the weigh walk meets the cycle and the cut
-// carries the document to an amplification refusal, while Nesting refuses it
-// as too deep. One level up, the index finds it, anchorCycle refuses it and
+// the depth the index tracks ancestors to (sourcetreestats' maxTrackedDepth) is
+// no anchor cycle the index finds, so the weigh walk meets the cycle and the
+// cut carries the document to an amplification refusal, while Nesting refuses
+// it as too deep. One level up, the index finds it, anchorCycle refuses it and
 // Nesting leaves it alone. The deeper row is the deepest nesting the parser
 // decodes.
 func TestAliases_ARecursiveAnchorBelowTheTrackedDepthReachesTheCut(t *testing.T) {

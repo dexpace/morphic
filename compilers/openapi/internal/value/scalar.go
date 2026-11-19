@@ -190,9 +190,9 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // base-ten integer is copied, at any length.
 const maxBasedDigits = 256
 
-// coreLiteral renders coreInteger, an integer the core schema spells, as its decimal
-// literal: a base-ten one as written, its leading zeros dropped, and an 0o or
-// 0x one converted, up to maxBasedDigits digits.
+// coreLiteral renders coreInteger, an integer the core schema spells, as its
+// decimal literal: a base-ten one as written, its leading zeros dropped, and an
+// 0o or 0x one converted, up to maxBasedDigits digits.
 func coreLiteral(coreInteger nodeview.CoreInteger) (ir.BigVal, error) {
 	if coreInteger.Base == 10 {
 		digits := strings.TrimLeft(coreInteger.Digits, "0")

@@ -17,12 +17,12 @@ import (
 // into doc.Types, a SchemeUse.Scheme into doc.Auth.
 //
 // Sites and registries come from reflection over the document's own shape
-// (ir.IDReferences, which ir/irverify resolves through too), not a list of field
-// names, which would drift behind the IR unnoticed. Integer-index references are
-// enumerated by hand in validate_indices.go, and ir.PropertyID is checkPropIDRefs's.
-// Provenance.Source is irverify's: a stale index is a compiler bug, and this
-// pass's own ir.NoSource diagnostics would make a document-wide check report
-// its own output.
+// (ir.IDReferences, which ir/irverify resolves through too), not a list of
+// field names, which would drift behind the IR unnoticed. Integer-index
+// references are enumerated by hand in validate_indices.go, and ir.PropertyID
+// is checkPropIDRefs's. Provenance.Source is irverify's: a stale index is a
+// compiler bug, and this pass's own ir.NoSource diagnostics would make a
+// document-wide check report its own output.
 func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if truncated {
@@ -58,14 +58,15 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 	return diags
 }
 
-// checkPropIDRefs reports every PropertyID a document carries that names no property
-// it declares, unless the walk reading both was cut short: it then read part of
-// the declarations, so it claims nothing, and checkDanglingRefs reports the cut.
+// checkPropIDRefs reports every PropertyID a document carries that names no
+// property it declares, unless the walk reading both was cut short: it then
+// read part of the declarations, so it claims nothing, and checkDanglingRefs
+// reports the cut.
 //
 // A property is a position inside its model and addresses no registry, so
-// checkDanglingRefs cannot see a PropertyID. The claim is membership: the ID names
-// a property declared somewhere. Reflection supplies the sites but not each
-// path's root, which only a hand-kept list of fields could add;
+// checkDanglingRefs cannot see a PropertyID. The claim is membership: the ID
+// names a property declared somewhere. Reflection supplies the sites but not
+// each path's root, which only a hand-kept list of fields could add;
 // checkDiscriminators makes the model-scoped claim for Discriminator.Property,
 // whose root is the model declaring it.
 func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
@@ -108,11 +109,11 @@ var propIDType = reflect.TypeFor[ir.PropertyID]()
 // a property refs has already read, the property's own ID among them,
 // resolves, so it is not kept.
 //
-// A PropertyID reached as a map key is left out. The one PropertyID-keyed map the IR
-// declares is Content.Encoding, and checkEncodingKeys resolves those keys
-// against the properties of the model the content names, a tighter claim about
-// the same defect. Reporting both would give one defect two codes, which the
-// package doc rules out.
+// A PropertyID reached as a map key is left out. The one PropertyID-keyed map
+// the IR declares is Content.Encoding, and checkEncodingKeys resolves those
+// keys against the properties of the model the content names, a tighter claim
+// about the same defect. Reporting both would give one defect two codes, which
+// the package doc rules out.
 type propIDSites struct {
 	refs  *ir.IDReferences
 	sites []ir.IDReference

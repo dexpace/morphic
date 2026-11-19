@@ -51,9 +51,10 @@ func lowerModel(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return id, diags
 }
 
-// modelReads returns what the build of model read of schema, a Model's or a MapT's
-// schema: its members and their catch-alls, a type naming an object, the
-// discriminator model holds, and the value bounds of the kinds held model's reader took.
+// modelReads returns what the build of model read of schema, a Model's or a
+// MapT's schema: its members and their catch-alls, a type naming an object, the
+// discriminator model holds, and the value bounds of the kinds held model's
+// reader took.
 func modelReads(schema *statement.Schema, model *ir.Model, held kindSet) keySet {
 	read := objectKeys | typeReadAs(schema, statement.KindObject) | nodeBoundsRead(schema, held, model.Constraints, model.Unmodeled)
 	if model.Discriminator != nil {
@@ -62,12 +63,12 @@ func modelReads(schema *statement.Schema, model *ir.Model, held kindSet) keySet 
 	return read
 }
 
-// objectNode is the node an object lowering yields: the MapT model is when it is a
-// map and nothing else, else model (docs/ir/containers.md). It reads the built
-// Model rather than the schema, so a keyword that comes to fill a Model field
-// keeps the position a Model without a second predicate to update. A union
-// variant composing its branch holds it as a Base or Mixin, and a false schema
-// is closed, so neither is ever a map.
+// objectNode is the node an object lowering yields: the MapT model is when it
+// is a map and nothing else, else model (docs/ir/containers.md). It reads the
+// built Model rather than the schema, so a keyword that comes to fill a Model
+// field keeps the position a Model without a second predicate to update. A
+// union variant composing its branch holds it as a Base or Mixin, and a false
+// schema is closed, so neither is ever a map.
 func objectNode(model *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(model); ok {
 		return mt
@@ -77,11 +78,11 @@ func objectNode(model *ir.Model) ir.TypeDef {
 
 // modelFields is how the walk fills one model's properties: the context the
 // model is lowered in, the types its nodes are registered with, the model, and
-// the index of what it declares and composes (merge.ModelPropertyDeclarations). A member more
-// than one declaration decides settles once every lowering has returned
-// (settleMembers), so a settlement reading the merged field, such as a form
-// part's flags, finds it folded, and a fold mid-walk would follow the order the
-// declarations lower in (GitHub #898). It is the walk the fold asks
+// the index of what it declares and composes (merge.ModelPropertyDeclarations).
+// A member more than one declaration decides settles once every lowering has
+// returned (settleMembers), so a settlement reading the merged field, such as a
+// form part's flags, finds it folded, and a fold mid-walk would follow the
+// order the declarations lower in (GitHub #898). It is the walk the fold asks
 // (merge.FieldDeclarationContext). pointer is where the model is written.
 type modelFields struct {
 	c       lowering.Ctx
@@ -91,15 +92,16 @@ type modelFields struct {
 	pointer jsontext.Pointer
 }
 
-// newModelFields returns the fields of model, which holds no property yet, lowered
-// in loweringContext and registered with ts.
+// newModelFields returns the fields of model, which holds no property yet,
+// lowered in loweringContext and registered with ts.
 func newModelFields(loweringContext lowering.Ctx, ts *compile.Types, model *ir.Model) modelFields {
 	return modelFields{c: loweringContext, ts: ts, m: model, idx: merge.NewModelPropertyDeclarations(model), pointer: model.Provenance.Pointer}
 }
 
-// merge lands property on the model, or records it as one more declaration of the
-// field its wire name names (merge.ModelPropertyDeclarations.MergeProperty), noting the model
-// at its first redeclaration.
+// merge lands property on the model, or records it as one more declaration of
+// the field its wire name names
+// (merge.ModelPropertyDeclarations.MergeProperty), noting the model at its
+// first redeclaration.
 func (f modelFields) merge(property ir.Property, source merge.DeclarationConstructRenderer, secretBy ir.Inferred) {
 	if f.idx.MergeProperty(property, source, secretBy) {
 		membersOf(f.c).note(f)
@@ -120,15 +122,15 @@ func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 	return ok
 }
 
-// place returns where provenance is in the bindings' table, read at f.c's position for
-// its pointer, as the model's own document holds it, and false for a site in
-// another document, such as a component a $ref there reached.
+// place returns where provenance is in the bindings' table, read at f.c's
+// position for its pointer, as the model's own document holds it, and false for
+// a site in another document, such as a component a $ref there reached.
 func (f modelFields) place(provenance ir.Provenance) (reftable.DocumentPointer, bool) {
 	return f.c.Position(provenance.Pointer), provenance.Source == f.c.Place().At(provenance.Pointer).Source
 }
 
-// Alike is merge.FieldDeclarationContext.Alike. A site place does not place, or one whose base the
-// bindings cannot tell, is no match.
+// Alike is merge.FieldDeclarationContext.Alike. A site place does not place, or
+// one whose base the bindings cannot tell, is no match.
 func (f modelFields) Alike(a, b ir.Provenance) bool {
 	base := func(provenance ir.Provenance) (string, bool) {
 		at, placed := f.place(provenance)
@@ -140,14 +142,15 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 	return okA && okB && ua == ub
 }
 
-// Admits is merge.FieldDeclarationContext.Admits: the schema written at provenance admits every instance
-// of kind, as the run reads what its statement admits (admissionOf), its value
-// sets, unions and the keywords beside a $ref among them, and no keyword it
-// takes in refuses some instance of kind (narrowedWithin), a variant read with
-// every schema holding it (variantHolders). A site place does not place, one
-// holding no schema object, and a read cut short or meeting a keyword it does
-// not follow that could refuse a kind (looseIn) are not exact, which keeps the
-// verdict a structure had before its source was read.
+// Admits is merge.FieldDeclarationContext.Admits: the schema written at
+// provenance admits every instance of kind, as the run reads what its statement
+// admits (admissionOf), its value sets, unions and the keywords beside a $ref
+// among them, and no keyword it takes in refuses some instance of kind
+// (narrowedWithin), a variant read with every schema holding it
+// (variantHolders). A site place does not place, one holding no schema object,
+// and a read cut short or meeting a keyword it does not follow that could
+// refuse a kind (looseIn) are not exact, which keeps the verdict a structure
+// had before its source was read.
 func (f modelFields) Admits(provenance ir.Provenance, kind merge.JSONInstanceKind) (admits, exact bool) {
 	at, placed := f.place(provenance)
 	if !placed {
@@ -239,13 +242,14 @@ func instanceKinds(kind merge.JSONInstanceKind) kindSet {
 }
 
 // Mint registers node, the type of the field the declaration at pointer names
-// (merge.FieldDeclarationContext.Mint). That pointer denotes the declaration's own schema, so node
-// takes the ID of a node no schema occupies (ids.ComposedType) and points back
-// at it, as a distributed variant points at its branch. The variants of one
-// distributed union fold the same declarations, so each mints this one node,
-// alike. A model composes each part where brought says, and is noted so its
-// members settle (Members). A node minted where no schema is written is placed
-// by the positions it is assembled from (assembled).
+// (merge.FieldDeclarationContext.Mint). That pointer denotes the declaration's
+// own schema, so node takes the ID of a node no schema occupies
+// (ids.ComposedType) and points back at it, as a distributed variant points at
+// its branch. The variants of one distributed union fold the same declarations,
+// so each mints this one node, alike. A model composes each part where brought
+// says, and is noted so its members settle (Members). A node minted where no
+// schema is written is placed by the positions it is assembled from
+// (assembled).
 func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, assembled []jsontext.Pointer) ir.TypeID {
 	id := f.c.IDs().ComposedType(pointer)
 	site, common := commonFor(f.c, id, pointer), node.Common()
@@ -334,11 +338,11 @@ func redeclarationSource(js *statement.Statement) merge.DeclarationConstructRend
 	}
 }
 
-// requireMembers lands each name of required on model, once model holds every own
-// property: as Required on the property of that wire name, never cleared once
-// set, and otherwise in model.Requires, once, in the order required names it. A
-// name no own property declares is one a Base or Mixin declares, or one only
-// the catch-all governs, and JSON Schema requires it all the same
+// requireMembers lands each name of required on model, once model holds every
+// own property: as Required on the property of that wire name, never cleared
+// once set, and otherwise in model.Requires, once, in the order required names
+// it. A name no own property declares is one a Base or Mixin declares, or one
+// only the catch-all governs, and JSON Schema requires it all the same
 // (docs/ir/models.md). Each object lowering calls it once, on a model that
 // lists none yet.
 func requireMembers(model *ir.Model, required []string) {
@@ -371,10 +375,10 @@ func fillAdditional(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 }
 
 // fillCatchAll is fillAdditional with its sources named: the
-// additionalProperties additional, and the patternProperties schema writes, both
-// written in the schema object at pointer, and whether an
-// unevaluatedProperties: false closes model after composition. A composition reads
-// them off the object closing it (fillComposedAdditional).
+// additionalProperties additional, and the patternProperties schema writes,
+// both written in the schema object at pointer, and whether an
+// unevaluatedProperties: false closes model after composition. A composition
+// reads them off the object closing it (fillComposedAdditional).
 func fillCatchAll(loweringContext lowering.Ctx, ts *compile.Types, depth int, model *ir.Model, additional statement.Subschema,
 	schema *statement.Schema, pointer jsontext.Pointer, closes bool,
 ) []ir.Diagnostic {

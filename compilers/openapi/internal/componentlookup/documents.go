@@ -65,8 +65,8 @@ func normalURL(located string) string {
 	return reftable.NormalURI(u)
 }
 
-// networkURL returns base parsed as an http or https URL (reftable.OverNetwork),
-// and false for any other location.
+// networkURL returns base parsed as an http or https URL
+// (reftable.OverNetwork), and false for any other location.
 func networkURL(base string) (*url.URL, bool) {
 	if !reftable.OverNetwork(base) {
 		return nil, false

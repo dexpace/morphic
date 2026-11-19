@@ -53,8 +53,8 @@ func seconds() []second {
 	}
 }
 
-// typeOf returns the type targetValue's body writes, and false for a target writing
-// none.
+// typeOf returns the type targetValue's body writes, and false for a target
+// writing none.
 func typeOf(targetValue target) (any, bool) {
 	i := slices.IndexFunc(targetValue.body, func(memberValue member) bool { return memberValue.name == "type" })
 	if i < 0 {
@@ -69,8 +69,8 @@ func targetType(targetValue target, _ version) (written, bool) {
 	return written{members: object{{"type", typ}}}, ok
 }
 
-// typeNull is from 3.1 the spelling of a nullable targetValue, its type and "null";
-// before it a type is one name, and the nullable second says it.
+// typeNull is from 3.1 the spelling of a nullable targetValue, its type and
+// "null"; before it a type is one name, and the nullable second says it.
 func typeNull(targetValue target, versionValue version) (written, bool) {
 	typ, ok := typeOf(targetValue)
 	if !ok || !versionValue.dialect {
@@ -80,8 +80,8 @@ func typeNull(targetValue target, versionValue version) (written, bool) {
 }
 
 // secondRef is an allOf entry naming, by a second $ref, a schema saying what
-// targetValue says, so the use holds every instance targetValue does. It follows the target's
-// reference in every spelling (written.entries).
+// targetValue says, so the use holds every instance targetValue does. It
+// follows the target's reference in every spelling (written.entries).
 func secondRef(targetValue target, _ version) (written, bool) {
 	ref := object{{"$ref", "#/components/schemas/" + secondSchema}}
 	return written{entries: []any{ref}, components: object{{secondSchema, targetValue.body}}}, true
@@ -115,11 +115,11 @@ func (w written) names() []string {
 	return out
 }
 
-// secondAt returns what the second at index j of the second axis writes on targetValue
-// at versionValue, and false where it writes nothing there: at a version or a target like
-// another, whose findings beside a second repeat that one's, as they do with
-// none; where its row is not said of targetValue or versionValue lacks it; where own says nothing
-// of targetValue.
+// secondAt returns what the second at index j of the second axis writes on
+// targetValue at versionValue, and false where it writes nothing there: at a
+// version or a target like another, whose findings beside a second repeat that
+// one's, as they do with none; where its row is not said of targetValue or
+// versionValue lacks it; where own says nothing of targetValue.
 func (c cases) secondAt(j int, versionValue version, targetValue target) (written, bool) {
 	sec := c.seconds[j]
 	if sec.name != none && (versionValue.like != "" || narrowed(targetValue.name) != "") {
@@ -144,11 +144,11 @@ func (c cases) secondAt(j int, versionValue version, targetValue target) (writte
 	return out, true
 }
 
-// fits reports whether the case at can write sec, its second, beside first,
-// its construct's members, on targetValue: not beside a construct the second excludes,
-// nor writing a keyword first writes; and at inline neither restating targetValue's
-// body nor, as a row's value, replacing a member of it, so that the merged
-// document would no longer say which keyword is the second.
+// fits reports whether the case at can write sec, its second, beside first, its
+// construct's members, on targetValue: not beside a construct the second
+// excludes, nor writing a keyword first writes; and at inline neither restating
+// targetValue's body nor, as a row's value, replacing a member of it, so that
+// the merged document would no longer say which keyword is the second.
 func (c cases) fits(at []int, sec written, first object, targetValue target) bool {
 	if at[2] > 0 {
 		if _, excluded := c.seconds[at[3]].excludes[c.constructs[(at[2]-1)/2].keyword]; excluded {

@@ -22,14 +22,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ConstraintsOf returns the value constraints schema and its foldedBranches write that apply
-// to a value of the kinds takes, the position's types', and of each writer's
-// (writerTakes), or nil where they write none, for the node or carrier at
-// pointer to hold (docs/compilers/openapi.md#constraints). A bound several
-// write meets (merge.Constraints): a folded branch speaks only where its bounds meet
-// every other writer's (docs/compilers/openapi.md#allof-inline-residue). Of two
-// patterns the first writer's stands: schema's, but the position's own keywords'
-// (annotation.FoldedAllOfBranch.Beside) before an inline principal's (patternBeside).
+// ConstraintsOf returns the value constraints schema and its foldedBranches
+// write that apply to a value of the kinds takes, the position's types', and of
+// each writer's (writerTakes), or nil where they write none, for the node or
+// carrier at pointer to hold (docs/compilers/openapi.md#constraints). A bound
+// several write meets (merge.Constraints): a folded branch speaks only where
+// its bounds meet every other writer's
+// (docs/compilers/openapi.md#allof-inline-residue). Of two patterns the first
+// writer's stands: schema's, but the position's own keywords'
+// (annotation.FoldedAllOfBranch.Beside) before an inline principal's
+// (patternBeside).
 //
 // unmodeled is the Unmodeled of that node or carrier, keeping a 3.0 exclusive
 // modifier with no bound beside it (GitHub #286).
@@ -69,20 +71,20 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 		sc.Encoding.WireType != nil
 }
 
-// carriesText reports whether the Scalar a type st that schema writes lowers to,
-// taking format, is one carriesNumberAsText holds, read off the shape
+// carriesText reports whether the Scalar a type st that schema writes lowers
+// to, taking format, is one carriesNumberAsText holds, read off the shape
 // scalarTypeID builds it by.
 func carriesText(schema *statement.Schema, st statement.JSONSchemaTypeName, format string) bool {
 	shape := scalarShapeOf(schema, st, format)
 	return shape.format == numberTextEncoding && shape.wire != nil
 }
 
-// keepTextBounds keeps each of bounds, value bounds schema writes, verbatim on unmodeled,
-// under openapi:<keyword> with no_ir_home, for a position carrying a number as
-// text, whose Constraints hold none (carriesNumberAsText), with an info at
-// each: those written beside the position's own keywords, and those an inline
-// allOf entry keeps (recordOwnKeywords). The node keeps them, and a carrier of
-// it keeps none (CarrierConstraintsOf).
+// keepTextBounds keeps each of bounds, value bounds schema writes, verbatim on
+// unmodeled, under openapi:<keyword> with no_ir_home, for a position carrying a
+// number as text, whose Constraints hold none (carriesNumberAsText), with an
+// info at each: those written beside the position's own keywords, and those an
+// inline allOf entry keeps (recordOwnKeywords). The node keeps them, and a
+// carrier of it keeps none (CarrierConstraintsOf).
 func keepTextBounds(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, bounds []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range bounds {
@@ -98,19 +100,19 @@ func keepTextBounds(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schem
 	return diags
 }
 
-// exclusiveIsBoolean reports whether schema spells an exclusive bound as a boolean
-// modifying the bound beside it, the shape 3.0's rows and draft 4's give
-// exclusiveMinimum, rather than as the bound itself. A keyword's shape is the
-// dialect's, which a schema can name, so it is asked of the rows of where schema is
-// (rulesOf), as the agreement reads a conjunct's bounds where it has schema alone.
-// The exclusiveMaximum row agrees in every row set, so one answer reads both
-// (specrules.TestSchemaRules_AnswerAsTheTableDoes).
+// exclusiveIsBoolean reports whether schema spells an exclusive bound as a
+// boolean modifying the bound beside it, the shape 3.0's rows and draft 4's
+// give exclusiveMinimum, rather than as the bound itself. A keyword's shape is
+// the dialect's, which a schema can name, so it is asked of the rows of where
+// schema is (rulesOf), as the agreement reads a conjunct's bounds where it has
+// schema alone. The exclusiveMaximum row agrees in every row set, so one answer
+// reads both (specrules.TestSchemaRules_AnswerAsTheTableDoes).
 func exclusiveIsBoolean(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return rulesOf(loweringContext, schema).Takes("exclusiveMinimum", specrules.Boolean)
 }
 
-// constraintsAt reads what schema, written at pointer, bounds of the groups take
-// names.
+// constraintsAt reads what schema, written at pointer, bounds of the groups
+// take names.
 func constraintsAt(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, take annotation.Bounds) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(schema) {
 		return nil, nil
@@ -124,13 +126,14 @@ func constraintsAt(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema
 // keepCounts keeps them.
 var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "minProperties"}
 
-// keepCounts keeps verbatim in unmodeled each value count that writers, a position's
-// schema and its folded branches, write and no field states (keptCount), of those a
-// reader of the kinds takes reads of each (writerTakes): of several writing one
-// keyword, the one binding the rest (bindingCount), so the entry is the same
-// whatever their order. Each writer's kept counts are reported once, where it
-// was written (docs/compilers/openapi.md#constraints). A count no such reader
-// reads is the node's finishing to keep (keepUnread).
+// keepCounts keeps verbatim in unmodeled each value count that writers, a
+// position's schema and its folded branches, write and no field states
+// (keptCount), of those a reader of the kinds takes reads of each
+// (writerTakes): of several writing one keyword, the one binding the rest
+// (bindingCount), so the entry is the same whatever their order. Each writer's
+// kept counts are reported once, where it was written
+// (docs/compilers/openapi.md#constraints). A count no such reader reads is the
+// node's finishing to keep (keepUnread).
 func keepCounts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, writers []annotation.FoldedAllOfBranch, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
@@ -183,9 +186,10 @@ func bindingCount(writers []annotation.FoldedAllOfBranch, keyword string, takes 
 	return best
 }
 
-// keptLiteral returns the decimal literal of the count keyword schema writes, where
-// keptCount keeps it: the value YAML resolved it to (value.NumericLiteral), or
-// its text where that carries a power of ten no ir.BigVal holds.
+// keptLiteral returns the decimal literal of the count keyword schema writes,
+// where keptCount keeps it: the value YAML resolved it to
+// (value.NumericLiteral), or its text where that carries a power of ten no
+// ir.BigVal holds.
 func keptLiteral(schema *statement.Schema, keyword string) (string, bool) {
 	if !keptCount(schema, keyword, countOf(schema, keyword)) {
 		return "", false
@@ -262,11 +266,12 @@ func plus(n string, offset int64) string {
 	return strings.TrimLeft(string(out), "0")
 }
 
-// keptCount reports whether keyword, a count schema writes, is one the lowering keeps
-// verbatim rather than in Constraints: a non-negative integer, as the check
-// reads one (specrules.Natural), that the parser's model does not hold exactly, as it
-// does not one past int64 (annotation.CountIsExact). Any other literal the model
-// misreads is the load phase's to report, and reaches no field.
+// keptCount reports whether keyword, a count schema writes, is one the lowering
+// keeps verbatim rather than in Constraints: a non-negative integer, as the
+// check reads one (specrules.Natural), that the parser's model does not hold
+// exactly, as it does not one past int64 (annotation.CountIsExact). Any other
+// literal the model misreads is the load phase's to report, and reaches no
+// field.
 func keptCount(schema *statement.Schema, keyword string, model *int64) bool {
 	node := keyNode(schema, keyword)
 	return node != nil && specrules.Natural.Admits(node) && !annotation.CountIsExact(schema, keyword, model)
@@ -314,10 +319,11 @@ func stampConstraintDiags(loweringContext lowering.Ctx, diags []ir.Diagnostic, p
 	return diags
 }
 
-// CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type typeRef.
-// A position owning its node leaves every bound to it, held or kept there, one
-// home per declaration (docs/ir/annotations.md#one-structural-home-per-declaration),
-// so its carrier holds none. One owning none holds those a reference does
+// CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type
+// typeRef. A position owning its node leaves every bound to it, held or kept
+// there, one home per declaration
+// (docs/ir/annotations.md#one-structural-home-per-declaration), so its carrier
+// holds none. One owning none holds those a reference does
 // (referenceConstraintsOf), since the census hoists an alias to keep any other.
 // PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, typeRef ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
@@ -327,15 +333,15 @@ func CarrierConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled,
 	return nil, nil
 }
 
-// referenceConstraintsOf is ConstraintsOf for a position that lowered to target,
-// a reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
-// refinement: no node of its own holds the collection bounds it wrote, so they
-// join its value bounds on the alias or carrier it owns
-// (docs/compilers/openapi.md#constraints), with those its foldedBranches write where
-// the position holds them (homesAt). Every bound is read by the types the
-// position admits, those of the schemas it names among them (boundKinds),
-// so a collection bound is held only where they admit an array, and the census
-// keeps one they do not (unreadByReference).
+// referenceConstraintsOf is ConstraintsOf for a position that lowered to
+// target, a reference, a $ref site, a collapsed union, an expanded $dynamicRef
+// or a refinement: no node of its own holds the collection bounds it wrote, so
+// they join its value bounds on the alias or carrier it owns
+// (docs/compilers/openapi.md#constraints), with those its foldedBranches write
+// where the position holds them (homesAt). Every bound is read by the types the
+// position admits, those of the schemas it names among them (boundKinds), so a
+// collection bound is held only where they admit an array, and the census keeps
+// one they do not (unreadByReference).
 func referenceConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(schema) {
 		return nil, nil
@@ -352,8 +358,8 @@ func referenceConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodele
 	return cons, diags
 }
 
-// collectionBoundsMetWithFoldedBranches is cons met with the collection bounds foldedBranches write,
-// which agree where they speak (foldingAllOfBranches).
+// collectionBoundsMetWithFoldedBranches is cons met with the collection bounds
+// foldedBranches write, which agree where they speak (foldingAllOfBranches).
 func collectionBoundsMetWithFoldedBranches(cons *ir.Constraints, foldedBranches []annotation.FoldedAllOfBranch) *ir.Constraints {
 	for _, foldedAllOfBranch := range foldedBranches {
 		cons = merge.Constraints(cons, heldCollectionBounds(foldedAllOfBranch.Node))
@@ -361,8 +367,9 @@ func collectionBoundsMetWithFoldedBranches(cons *ir.Constraints, foldedBranches 
 	return cons
 }
 
-// heldCollectionBounds returns the collection bounds of schema that a reference's
-// constraints hold (referenceHolds), and nil where it writes none of them.
+// heldCollectionBounds returns the collection bounds of schema that a
+// reference's constraints hold (referenceHolds), and nil where it writes none
+// of them.
 func heldCollectionBounds(schema *statement.Schema) *ir.Constraints {
 	if !slices.ContainsFunc(collectionBoundKeywords, func(k string) bool { return referenceHolds(schema, k) }) {
 		return nil
@@ -378,10 +385,10 @@ func heldCollectionBounds(schema *statement.Schema) *ir.Constraints {
 }
 
 // referenceHolds reports whether referenceConstraintsOf fills the collection
-// bound keyword from schema, which is the census's whole test at a reference, so a
-// bound ir.Constraints cannot state stays verbatim: a count the parser misread
-// (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
-// tell from unset and which would stop an alias being a decorator.
+// bound keyword from schema, which is the census's whole test at a reference,
+// so a bound ir.Constraints cannot state stays verbatim: a count the parser
+// misread (annotation.CountIsExact), and a false uniqueItems, which a plain
+// bool cannot tell from unset and which would stop an alias being a decorator.
 func referenceHolds(schema *statement.Schema, keyword string) bool {
 	array := schema.ArrayKeywords()
 	switch keyword {

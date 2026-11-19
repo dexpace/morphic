@@ -179,8 +179,9 @@ func smallerCount(x, y int64) (int64, bool) { return min(x, y), true }
 // no order.
 func onlyEqual(x, y int64) (int64, bool) { return x, x == y }
 
-// largerNumber returns the larger of bigVal and irBigVal, and false where they have no
-// order (compareNumbers). It keeps bigVal's spelling of one number written twice.
+// largerNumber returns the larger of bigVal and irBigVal, and false where they
+// have no order (compareNumbers). It keeps bigVal's spelling of one number
+// written twice.
 func largerNumber(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
 	order, ok := compareNumbers(bigVal, irBigVal)
 	if order < 0 {
@@ -189,8 +190,9 @@ func largerNumber(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
 	return bigVal, ok
 }
 
-// smallerNumber returns the smaller of bigVal and irBigVal, and false where they have no
-// order (compareNumbers). It keeps bigVal's spelling of one number written twice.
+// smallerNumber returns the smaller of bigVal and irBigVal, and false where
+// they have no order (compareNumbers). It keeps bigVal's spelling of one number
+// written twice.
 func smallerNumber(bigVal, irBigVal ir.BigVal) (ir.BigVal, bool) {
 	order, ok := compareNumbers(bigVal, irBigVal)
 	if order > 0 {

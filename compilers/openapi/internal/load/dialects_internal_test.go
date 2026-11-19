@@ -210,9 +210,9 @@ func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) (co
 }
 
 // TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce pins that a document
-// two references spell two ways, one LoadedOpenAPIDocument.Sources entry and one name to
-// the binder (componentlookup.Locate), is warned of once: its `$schema` is one
-// finding, whichever spelling reached it.
+// two references spell two ways, one LoadedOpenAPIDocument.Sources entry and
+// one name to the binder (componentlookup.Locate), is warned of once: its
+// `$schema` is one finding, whichever spelling reached it.
 func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
@@ -233,9 +233,9 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 }
 
 // TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds pins that a
-// document only a pass that did not stand read, which LoadedOpenAPIDocument.Sources leaves
-// out, draws no warning: its `$schema` governs nothing the result holds, and
-// no entry would place the finding.
+// document only a pass that did not stand read, which
+// LoadedOpenAPIDocument.Sources leaves out, draws no warning: its `$schema`
+// governs nothing the result holds, and no entry would place the finding.
 func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	t.Parallel()
 	reader := documentsReader{

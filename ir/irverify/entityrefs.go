@@ -105,7 +105,8 @@ func appendEntityRefShape(vs []Violation, ref reflect.Value, at ir.WalkPath) []V
 }
 
 // appendSelfReplacement reports each replacement the Deprecation of node, a
-// carrier replacementCarrierValue indexes, names that is node itself: of its ID's class and value.
+// carrier replacementCarrierValue indexes, names that is node itself: of its
+// ID's class and value.
 func appendSelfReplacement(vs []Violation, node reflect.Value, replacementCarrierValue replacementCarrier, at ir.WalkPath) []Violation {
 	dep := node.Field(replacementCarrierValue.deprecation)
 	own := node.Field(replacementCarrierValue.id).String()

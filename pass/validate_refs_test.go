@@ -74,8 +74,8 @@ func payloadAndVersioningSites() []refSite {
 			requestContent(document).File = &ir.FileInfo{Contents: &ir.TypeRef{Target: typeID}}
 		}, "type/ghost/file-contents"},
 		{"multipart part encoding headers", ".Encoding[", func(document *ir.Document, typeID ir.TypeID) {
-			// The key names typeID/m's own property, so only the header target dangles:
-			// an unknown key is its own defect (checkEncodingKeys).
+			// The key names typeID/m's own property, so only the header target
+			// dangles: an unknown key is its own defect (checkEncodingKeys).
 			requestContent(document).Encoding = map[ir.PropertyID]ir.PartEncoding{"property/m/a": {Headers: []ir.Header{{
 				ID: "property/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: typeID},
 			}}}}
@@ -953,9 +953,9 @@ func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 }
 
 // TestCheckPropIDRefs_SettlingAKeptReferenceCostsNothing holds settling a
-// PropertyID the walk kept to spelling nothing once it resolves: a pagination path
-// sits in a service, which the walk reaches before the property it names. It
-// is not run in parallel: AllocsPerRun measures the process.
+// PropertyID the walk kept to spelling nothing once it resolves: a pagination
+// path sits in a service, which the walk reaches before the property it names.
+// It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckPropIDRefs_SettlingAKeptReferenceCostsNothing(t *testing.T) {
 	doc := docWithOperation(ir.Operation{ID: "operation/o", Pagination: &ir.Pagination{
 		Items: &ir.PropPath{Segments: []ir.PropertyID{"property/m/a"}},

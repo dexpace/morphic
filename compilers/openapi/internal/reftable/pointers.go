@@ -23,10 +23,10 @@ func (b *binder) readPointer(id DocID, pointer jsontext.Pointer) (reading, Reaso
 // pointer's length rather than its square.
 func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (reading, Reason, objectKey) {
 	readingValue := reading{at: DocumentPointer{Doc: id}, node: b.docs.list[id].root, state: b.docs.rootState(id)}
-	// grammar is the state the grammar places readingValue's position at, which says where
-	// a reference object stands: readingValue's own in the source, and in another OpenAPI
-	// document what it places there although readingValue reads raw YAML, which no model
-	// holds (docs.identityState).
+	// grammar is the state the grammar places readingValue's position at, which
+	// says where a reference object stands: readingValue's own in the source,
+	// and in another OpenAPI document what it places there although
+	// readingValue reads raw YAML, which no model holds (docs.identityState).
 	grammar := b.docs.identityState(id)
 	var soFar []byte
 	tokens := 0
@@ -52,22 +52,22 @@ func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (read
 	return readingValue.spelledAs(soFar), NoReason, objectKey{}
 }
 
-// writesRef reports whether readingValue, read at a reference object's state, writes a
-// $ref, which makes it a reference.
+// writesRef reports whether readingValue, read at a reference object's state,
+// writes a $ref, which makes it a reference.
 func (d *docs) writesRef(readingValue reading) bool {
 	_, ok := d.refOf(readingValue.at.Doc, readingValue.node)
 	return ok
 }
 
-// through carries readingValue, a reference object of kind with token left to read, on to
-// where its chain ends, read at readingValue's state afresh (place): a pointer through a
-// response reads on in the response it names, in whichever document. A path
-// item's token the mapping writes beside its $ref is read where it is written,
-// as a mount keeps the nearer layer
-// (docs/compilers/openapi.md#path-item-ref-fields). A chain
-// that does not resolve is Unpassable, and one that waits for documents a pass
-// has yet to read is Held. Without settle, a chain not settled is returned as
-// what the read needs.
+// through carries readingValue, a reference object of kind with token left to
+// read, on to where its chain ends, read at readingValue's state afresh
+// (place): a pointer through a response reads on in the response it names, in
+// whichever document. A path item's token the mapping writes beside its $ref is
+// read where it is written, as a mount keeps the nearer layer
+// (docs/compilers/openapi.md#path-item-ref-fields). A chain that does not
+// resolve is Unpassable, and one that waits for documents a pass has yet to
+// read is Held. Without settle, a chain not settled is returned as what the
+// read needs.
 func (b *binder) through(readingValue reading, kind RefKind, token string, settle bool) (reading, Reason, objectKey) {
 	if kind == RefPathItem && token != "$ref" && b.docs.child(readingValue.at.Doc, readingValue.node, token) != nil {
 		return readingValue, NoReason, objectKey{}

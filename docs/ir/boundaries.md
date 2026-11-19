@@ -9,24 +9,24 @@ JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`
 `contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
 `unevaluatedProperties`, and the earlier drafts' `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, express *validation logic*, not data shape; no target
-language's type system represents them, and none of the other source formats has an equivalent.
-The IR deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
-(`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
-emit an `info` diagnostic, so the information is never silently lost and a future
-validation-oriented emitter (request validators, mock servers) can still consume them — selecting
-on the reason rather than sifting vendor metadata out of the same bag
-([unmodeled](./unmodeled.md#reasons)). The one structural carve-back: a live
-`unevaluatedProperties: false` is *shape* (a closed model after composition) and lowers to
-`Model.Additional = closed_after_composition` where a model holds it. Every other `unevaluated*`
-form stays verbatim: `unevaluatedProperties` with a schema value, a `false` no model holds, and one
-a keyword beside it leaves inert, as `additionalProperties` leaves `unevaluatedProperties` and
-`items` leaves `unevaluatedItems`, each evaluating every location the other could apply to. An
-inert one is kept with that keyword, so the entry, read beside what its position states, means what
-the source means: nothing. Read as a schema of its own an `unevaluated*` entry means something
-else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second
-carve-back onto `AdditionalProperties.Key`: it constrains *every* key of the object, including the ones
-`properties` declares — where there is no `AdditionalProperties` to hold a key type at all — and it is a
-whole schema rather than a type, so only its degenerate `{type: string}` form names one.
+language's type system represents them, and none of the other source formats has an equivalent. The
+IR deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
+(`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and emit
+an `info` diagnostic, so the information is never silently lost and a future validation-oriented
+emitter (request validators, mock servers) can still consume them — selecting on the reason rather
+than sifting vendor metadata out of the same bag ([unmodeled](./unmodeled.md#reasons)). The one
+structural carve-back: a live `unevaluatedProperties: false` is *shape* (a closed model after
+composition) and lowers to `Model.Additional = closed_after_composition` where a model holds it.
+Every other `unevaluated*` form stays verbatim: `unevaluatedProperties` with a schema value, a
+`false` no model holds, and one a keyword beside it leaves inert, as `additionalProperties` leaves
+`unevaluatedProperties` and `items` leaves `unevaluatedItems`, each evaluating every location the
+other could apply to. An inert one is kept with that keyword, so the entry, read beside what its
+position states, means what the source means: nothing. Read as a schema of its own an `unevaluated*`
+entry means something else, as what it applies to depends on the keywords beside it. `propertyNames`
+is not a second carve-back onto `AdditionalProperties.Key`: it constrains *every* key of the object,
+including the ones `properties` declares — where there is no `AdditionalProperties` to hold a key
+type at all — and it is a whole schema rather than a type, so only its degenerate `{type: string}`
+form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
@@ -81,9 +81,9 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
 - **Erlang `fun()` types** — `External{Identity: "erlang:fun"}` + full spec text in
   `Unmodeled["erlang:fun-spec"]` + `warning` diagnostic (non-portable member). No function
   type node exists.
-- **Erlang heterogeneous map association lists** (`#{atom() => a(), integer() => b()}`) —
-  lower to a `MapT` whose key and value are unions ([containers](./containers.md)), or to
-  union-typed `AdditionalProperties` beside a map's `:=` associations, + `Unmodeled["erlang:map-assocs"]`
+- **Erlang heterogeneous map association lists** (`#{atom() => a(), integer() => b()}`) — lower to a
+  `MapT` whose key and value are unions ([containers](./containers.md)), or to union-typed
+  `AdditionalProperties` beside a map's `:=` associations, + `Unmodeled["erlang:map-assocs"]`
   verbatim, since a union on each side loses which key type pairs with which value type.
 - **Erlang `-opaque`** — the shape lowers structurally and losslessly; what degrades is the
   abstraction boundary the attribute declares, which no IR node states.

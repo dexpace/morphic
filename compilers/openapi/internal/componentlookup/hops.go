@@ -15,12 +15,12 @@ type Hop[R any] struct {
 	At  reftable.DocumentPointer
 }
 
-// Hops returns the references the chain of ref passes after ref itself,
-// nearest first, as the bindings' table follows it: each position a hop lands
-// on that writes a $ref of its own. The position the chain ends at is no hop,
-// and neither an inline entry nor one whose chain does not resolve has any. It
-// follows as many hops as the chain counts (reftable.Chain.Hops), so a loop, which
-// resolves nowhere, is never followed.
+// Hops returns the references the chain of ref passes after ref itself, nearest
+// first, as the bindings' table follows it: each position a hop lands on that
+// writes a $ref of its own. The position the chain ends at is no hop, and
+// neither an inline entry nor one whose chain does not resolve has any. It
+// follows as many hops as the chain counts (reftable.Chain.Hops), so a loop,
+// which resolves nowhere, is never followed.
 func Hops[T, S any, R interface {
 	*S
 	Referenced[T]

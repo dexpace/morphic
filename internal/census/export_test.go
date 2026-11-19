@@ -14,7 +14,8 @@ import (
 // declarations do not describe.
 var ErrNoDeclaration = errNoDeclaration
 
-// UniverseOf derives the universe of the named type root, which loadedPackage declares.
+// UniverseOf derives the universe of the named type root, which loadedPackage
+// declares.
 func UniverseOf(loadedPackage *decls.Package, root string) (Universe, error) {
 	return universeOf(loadedPackage, root)
 }

@@ -18,7 +18,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// statedBounds returns the names of the fields constraints states, none for a nil constraints.
+// statedBounds returns the names of the fields constraints states, none for a
+// nil constraints.
 func statedBounds(constraints *ir.Constraints) []string {
 	if constraints == nil {
 		return nil

@@ -187,8 +187,8 @@ So the core converts first. The dependency is one-way and checkable: the core re
 
 `resolve.go` turned out to answer two questions, not one. *What does this `$ref` name, and is
 something already interned there* needs the document's own path, what it declares, and the type
-registry — nothing else, so it became `internal/componentlookup`. *Follow it far enough to lower what it
-points at* is the schema walk reached through a reference: it calls into `schema.go` and
+registry — nothing else, so it became `internal/componentlookup`. *Follow it far enough to lower
+what it points at* is the schema walk reached through a reference: it calls into `schema.go` and
 `compose.go`, which call back, and no package boundary can be drawn through it.
 
 So seven functions left and eight stayed, and the eight go to `internal/schema` at #176 rather than

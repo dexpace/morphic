@@ -13,8 +13,9 @@ import (
 // for it, since a $ref carrying siblings composes the branch's own alias node,
 // not the schema it points at (docs/ir/models.md#composition-entries). Mixins
 // are absent on purpose: a mixin contributes members without making the model a
-// member of anything, so it belongs to [ExposedProperties], not to subtype identity.
-// An id naming no live model yields nil, and an unset reference is skipped.
+// member of anything, so it belongs to [ExposedProperties], not to subtype
+// identity. An id naming no live model yields nil, and an unset reference is
+// skipped.
 func Supertypes(doc *Document, id TypeID) []TypeID {
 	left := math.MaxInt
 	supers, _ := supertypes(nil, doc, id, &left)
@@ -154,8 +155,8 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 	return false, true
 }
 
-// ExposedProperties returns the property IDs the type root names exposes: its own
-// plus those it composes in through Base, Implements and Mixins
+// ExposedProperties returns the property IDs the type root names exposes: its
+// own plus those it composes in through Base, Implements and Mixins
 // (docs/ir/models.md), the flat set an emitter renders. A root naming an alias
 // scalar exposes the parts of the model the alias stands for, and one naming
 // neither that nor a live model exposes none. A visited set ends the walk on a
@@ -173,11 +174,11 @@ func ExposedProperties(doc *Document, root TypeID) map[PropertyID]bool {
 	return props
 }
 
-// ExposesWithin answers whether [ExposedProperties] holds prop by the same walk,
-// which stops at the first type declaring prop, in at most limit steps: one
-// for root and for each part source it follows, and one for each property it
-// reads. spent is the steps it took, and ok is false when the walk needed more
-// than limit and stopped without an answer.
+// ExposesWithin answers whether [ExposedProperties] holds prop by the same
+// walk, which stops at the first type declaring prop, in at most limit steps:
+// one for root and for each part source it follows, and one for each property
+// it reads. spent is the steps it took, and ok is false when the walk needed
+// more than limit and stopped without an answer.
 func ExposesWithin(doc *Document, root TypeID, prop PropertyID, limit int) (exposed bool, spent int, ok bool) {
 	left := limit
 	ok = exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {

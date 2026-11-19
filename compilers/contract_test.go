@@ -56,7 +56,8 @@ func keeping() *scripted {
 	}
 }
 
-// detected is the detection a registry would hand back for spec claimed by compiler.
+// detected is the detection a registry would hand back for spec claimed by
+// compiler.
 func detected(compiler compilers.Compiler, parsed any) compilers.Detection {
 	return compilers.Detection{
 		Source: spec, Compiler: compiler, Recognition: compilers.Recognition{Format: alpha, Parsed: parsed},

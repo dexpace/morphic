@@ -32,8 +32,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
-- visibility classes (incl. custom, `@invisible` → Visibility.InvisibleInEveryLifecycle) → Visibility, op overrides →
-  ParameterVisibility/ReturnTypeVisibility
+- visibility classes (incl. custom, `@invisible` → Visibility.InvisibleInEveryLifecycle) →
+  Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility
 - `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality
 - interfaces → OperationGroups (versionable)
 - `@overload` → OverloadOf
@@ -180,13 +180,13 @@ highlights, and the list moves to a specification of its own when the compiler l
 
 - [Erlang/OTP binding](../ir/otp-binding.md)
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
-  `Constraints.MinItems = len(ElementTypes)` and no Rest, `tuple()` of any arity → Tuple with no ElementTypes and
-  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.TupleElementIndex, records →
-  Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
-  `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
-  `:=`/`=>` → Properties(Required)/AdditionalProperties w/ typed keys, a map of `=>` associations alone →
-  MapT, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` → List of char scalar,
-  parametrized types monomorphized w/ Instantiation
+  `Constraints.MinItems = len(ElementTypes)` and no Rest, `tuple()` of any arity → Tuple with no
+  ElementTypes and a Rest of the top type, tagged-tuple unions → WireTagged Union +
+  Discriminator.TupleElementIndex, records → Model{Positional} w/ 1-based WireIDs, atoms → symbol
+  Values / Literal types / `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer
+  Scalar + Min/Max, maps `:=`/`=>` → Properties(Required)/AdditionalProperties w/ typed keys, a map
+  of `=>` associations alone → MapT, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` →
+  List of char scalar, parametrized types monomorphized w/ Instantiation
 - behaviours: gen_server call/cast → Operations + OTPBinding (cast → OneWay), info → channel
   Messages received, gen_event → Channel w/ N messages, gen_statem states →
   `Unmodeled["otp:states"]`

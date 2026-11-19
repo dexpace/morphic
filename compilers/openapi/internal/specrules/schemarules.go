@@ -89,8 +89,9 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 }
 
 // definedAt returns the Schema Object's fields obj defines at minor in dialect
-// dialectValue, in table order: every one the minor defines where dialectValue reads the minor's own
-// keywords, else OpenAPI's own fields and then dialectValue's keywords.
+// dialectValue, in table order: every one the minor defines where dialectValue
+// reads the minor's own keywords, else OpenAPI's own fields and then
+// dialectValue's keywords.
 func definedAt(obj Object, minor Minor, dialectValue dialect) []Field {
 	var keywords []Field
 	if dialectValue.keywords != nil {

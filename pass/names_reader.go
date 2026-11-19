@@ -129,8 +129,8 @@ func (sc scope) label(i int) string {
 	return sc.ids[i]
 }
 
-// writeMessagePrefix writes what holds sc, as a message about it begins, or nothing for a
-// scope the document holds.
+// writeMessagePrefix writes what holds sc, as a message about it begins, or
+// nothing for a scope the document holds.
 func (sc scope) writeMessagePrefix(b *strings.Builder) {
 	if sc.in == "" {
 		return
@@ -180,8 +180,8 @@ func sized(s []int, n int) []int {
 	return slices.Grow(s[:0], n)[:n]
 }
 
-// sum hashes the name by compares partyValue by: its words, joined where by joins them,
-// or else its spelling.
+// sum hashes the name by compares partyValue by: its words, joined where by
+// joins them, or else its spelling.
 func (r *nameReader) sum(by comparison, partyValue party) uint64 {
 	r.hash.Reset()
 	switch {
@@ -233,9 +233,10 @@ func (r *nameReader) setOf(by comparison, head, i int) int {
 	return -1
 }
 
-// namesCompareEqual reports whether by compares the names of a and b alike. A name with no
-// word character is compared by its spelling alone, which every target names
-// alike and no neutral name equals, as each holds a letter or digit.
+// namesCompareEqual reports whether by compares the names of a and b alike. A
+// name with no word character is compared by its spelling alone, which every
+// target names alike and no neutral name equals, as each holds a letter or
+// digit.
 func namesCompareEqual(by comparison, a, b party) bool {
 	switch {
 	case a.words == "" || b.words == "":

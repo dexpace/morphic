@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestChooseSingleContentEntry_SkipsANilEntry holds the election to an entry that can
-// lower: a nil one, which no parse yields, sorts first and is not taken, in
-// either order.
+// TestChooseSingleContentEntry_SkipsANilEntry holds the election to an entry
+// that can lower: a nil one, which no parse yields, sorts first and is not
+// taken, in either order.
 func TestChooseSingleContentEntry_SkipsANilEntry(t *testing.T) {
 	t.Parallel()
 	entry := &soa.MediaType{}

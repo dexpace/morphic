@@ -39,10 +39,11 @@ func TwinKeyword(loweringContext lowering.Ctx, schema *statement.Schema, key str
 	}
 }
 
-// rulesOf returns the rows schema is read with, for a reading that has schema and not
-// where it is: those of where the bindings place it (placedAt), so a node an
-// alias places under two roots reads at each the dialect of that place, and
-// those of its node where they place it nowhere (dialect.SchemaDialectRows.Of).
+// rulesOf returns the rows schema is read with, for a reading that has schema
+// and not where it is: those of where the bindings place it (placedAt), so a
+// node an alias places under two roots reads at each the dialect of that place,
+// and those of its node where they place it nowhere
+// (dialect.SchemaDialectRows.Of).
 func rulesOf(loweringContext lowering.Ctx, schema *statement.Schema) specrules.SchemaRules {
 	if there, at, placed := placedAt(loweringContext, schema); placed {
 		return there.Rules().At(there.Position(at))
@@ -50,9 +51,9 @@ func rulesOf(loweringContext lowering.Ctx, schema *statement.Schema) specrules.S
 	return loweringContext.Rules().Of(schema.Node)
 }
 
-// placedAt returns where the bindings place schema (statement.Schema.At), in the
-// context of its document, whichever loweringContext reads, and false where they place it
-// nowhere or in a document the compile did not read.
+// placedAt returns where the bindings place schema (statement.Schema.At), in
+// the context of its document, whichever loweringContext reads, and false where
+// they place it nowhere or in a document the compile did not read.
 func placedAt(loweringContext lowering.Ctx, schema *statement.Schema) (lowering.Ctx, jsontext.Pointer, bool) {
 	if at, placed := siteOf(schema); placed {
 		if there, read := lowering.InDocument(loweringContext, at.Doc); read {

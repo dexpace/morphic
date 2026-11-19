@@ -872,8 +872,9 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	// field the inline branch also declares. The co-declared property is read
 	// after the allOf, as a schema's own properties are, so it wins the tie and
 	// the branch is reported, and the message must not claim "allOf branches
-	// redeclare" — it must read correctly for a co-declared sibling property too
-	// (merge.ModelPropertyDeclarations's MergeProperty folds both cases the same way).
+	// redeclare" — it must read correctly for a co-declared sibling property
+	// too (merge.ModelPropertyDeclarations's MergeProperty folds both cases the
+	// same way).
 	spec := openapitest.ComponentSpec(`    Along:
       type: object
       properties:

@@ -138,8 +138,9 @@ func firstSpan(s string) string {
 	return ""
 }
 
-// fieldProblems reports each field keydocEntry leaves unwritten, a version or pin that
-// is written naming nothing, and a Code field that names no declaration.
+// fieldProblems reports each field keydocEntry leaves unwritten, a version or
+// pin that is written naming nothing, and a Code field that names no
+// declaration.
 func fieldProblems(keydocEntry keydoc.Entry, got entry) []string {
 	var problems []string
 	for _, field := range []string{verifiedField, pinnedField, codeField} {

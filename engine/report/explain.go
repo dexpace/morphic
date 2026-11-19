@@ -184,8 +184,8 @@ func WriteExplanation(w io.Writer, explanation Explanation) error {
 	return lw.err
 }
 
-// writeKept writes explanation's Unmodeled entries, a line each, when it has any, and a
-// line saying the list can lack some when the walk was truncated.
+// writeKept writes explanation's Unmodeled entries, a line each, when it has
+// any, and a line saying the list can lack some when the walk was truncated.
 func writeKept(lw *lineWriter, explanation Explanation) {
 	if len(explanation.Unmodeled) > 0 {
 		lw.printf("  kept unmodeled at or below it (%d):\n", len(explanation.Unmodeled))

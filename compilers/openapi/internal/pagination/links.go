@@ -168,8 +168,8 @@ func (r *reader) linkWalk(op *ir.Operation) (*ir.Pagination, string) {
 	}, ""
 }
 
-// sameLinkPage reports whether pageValue and otherPage hold a link walk's page, links
-// included, at the same members.
+// sameLinkPage reports whether pageValue and otherPage hold a link walk's page,
+// links included, at the same members.
 func sameLinkPage(pageValue, otherPage page) bool {
 	return pageValue.equal(otherPage) && slices.Equal(pageValue.nextLink, otherPage.nextLink) && slices.Equal(pageValue.prevLink, otherPage.prevLink)
 }

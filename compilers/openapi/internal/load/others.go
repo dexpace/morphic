@@ -23,16 +23,17 @@ import (
 )
 
 // Other is a document the compile read beside the source because a reference
-// named it: where LoadedOpenAPIDocument.Sources records it, how the IDs of what it declares
-// name it, and the minor it is read at, which is the one it declares, or the
-// source's where it declares none the table covers.
+// named it: where LoadedOpenAPIDocument.Sources records it, how the IDs of what
+// it declares name it, and the minor it is read at, which is the one it
+// declares, or the source's where it declares none the table covers.
 type Other struct {
 	// Index is its position in LoadedOpenAPIDocument.Sources.
 	Index int
 	// Label is its location as the source's directory reaches it, which
 	// qualifies the IDs of what it declares (ids.In).
 	Label string
-	// Info is its LoadedOpenAPIDocument.Sources entry, whose Format names the minor.
+	// Info is its LoadedOpenAPIDocument.Sources entry, whose Format names the
+	// minor.
 	Info ir.SourceInfo
 	// Rows is what the table says at the minor in the dialect its
 	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
@@ -45,25 +46,25 @@ type Other struct {
 }
 
 // Others is every document a reference reached beside the source, in the order
-// LoadedOpenAPIDocument.Sources lists them, the names a reference reads each by, and where
-// each one's trees write a node (see tree).
+// LoadedOpenAPIDocument.Sources lists them, the names a reference reads each
+// by, and where each one's trees write a node (see tree).
 type Others struct {
 	list   []Other
 	byName map[string]int
 	trees  []provenance.Tree
-	// found is what reading each document found in its own entry: a stream
-	// past its first document, and a YAML version it declares and is not read
-	// as. repeats is each key one of its mappings writes twice
-	// (specrules.CheckRepeatedKeys), reported unless a reached object's check reports
-	// it first (unreportedRepeats).
+	// found is what reading each document found in its own entry: a stream past
+	// its first document, and a YAML version it declares and is not read as.
+	// repeats is each key one of its mappings writes twice
+	// (specrules.CheckRepeatedKeys), reported unless a reached object's check
+	// reports it first (unreportedRepeats).
 	found, repeats []ir.Diagnostic
 }
 
 // tree returns where a node of the document a reference reads by name is
 // placed, as the source's tree places its own: in that document's
-// LoadedOpenAPIDocument.Sources entry, at the node's line and column, and at its pointer in
-// whichever of the document's trees holds it. It returns false for a document
-// the compile did not read beside the source.
+// LoadedOpenAPIDocument.Sources entry, at the node's line and column, and at
+// its pointer in whichever of the document's trees holds it. It returns false
+// for a document the compile did not read beside the source.
 func (o Others) tree(name string) (provenance.Tree, bool) {
 	i, ok := o.index(name)
 	if !ok {
@@ -72,11 +73,12 @@ func (o Others) tree(name string) (provenance.Tree, bool) {
 	return o.trees[i], true
 }
 
-// List returns the documents, in the order LoadedOpenAPIDocument.Sources lists them.
+// List returns the documents, in the order LoadedOpenAPIDocument.Sources lists
+// them.
 func (o Others) List() []Other { return slices.Clone(o.list) }
 
-// At returns the document at index in LoadedOpenAPIDocument.Sources, and false for an
-// index no document of o is at.
+// At returns the document at index in LoadedOpenAPIDocument.Sources, and false
+// for an index no document of o is at.
 func (o Others) At(index int) (Other, bool) {
 	if len(o.list) == 0 {
 		return Other{}, false
@@ -105,8 +107,8 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (reftable.ReferencedDocument.Unreached). Such a document lowers nothing and is no input
-// of the result.
+// in (reftable.ReferencedDocument.Unreached). Such a document lowers nothing
+// and is no input of the result.
 func unreachedKeys(table *reftable.ReferenceTargetTable) map[string]bool {
 	unused := map[string]bool{}
 	for id := range reftable.DocID(table.Documents()) {
@@ -118,12 +120,12 @@ func unreachedKeys(table *reftable.ReferenceTargetTable) map[string]bool {
 }
 
 // newOthers lists the documents read prepares beside the source, the first at
-// LoadedOpenAPIDocument.Sources index first, but those under the keys unused holds. They are
-// ordered by label, not as they were read, so the order no declaration order
-// changes; two names one label reaches, a file spelled two ways, are one
-// document, as RFC 3986 reads a path. Each is read at the minor it declares,
-// one declaring none the table covers at the source's (dialects), and in the
-// dialect its jsonSchemaDialect names.
+// LoadedOpenAPIDocument.Sources index first, but those under the keys unused
+// holds. They are ordered by label, not as they were read, so the order no
+// declaration order changes; two names one label reaches, a file spelled two
+// ways, are one document, as RFC 3986 reads a path. Each is read at the minor
+// it declares, one declaring none the table covers at the source's (dialects),
+// and in the dialect its jsonSchemaDialect names.
 func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
@@ -207,14 +209,14 @@ func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	return filepath.ToSlash(clean), false
 }
 
-// shownPathOf is the path LoadedOpenAPIDocument.Sources records for the document read
-// under key: a URL's as spelled, and a file's as the path the caller handed
-// names the source, so a source named relatively lists the documents beside it
-// relatively too, wherever its Location lies. That is its label joined to the
-// handed path's directory, keeping the dot segments a label climbing out of
-// that directory starts with, since a link may place the directory elsewhere
-// than cleaning them away would. A file no relative path reaches from the
-// source is its path as read (fileNamed).
+// shownPathOf is the path LoadedOpenAPIDocument.Sources records for the
+// document read under key: a URL's as spelled, and a file's as the path the
+// caller handed names the source, so a source named relatively lists the
+// documents beside it relatively too, wherever its Location lies. That is its
+// label joined to the handed path's directory, keeping the dot segments a label
+// climbing out of that directory starts with, since a link may place the
+// directory elsewhere than cleaning them away would. A file no relative path
+// reaches from the source is its path as read (fileNamed).
 func (s sourceDocument) shownPathOf(key string) string {
 	label, relative := s.labelOf(key)
 	dir, local := filepath.Dir(s.handed), filepath.FromSlash(label)

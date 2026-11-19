@@ -215,8 +215,8 @@ func runChild(name, path string) int {
 }
 
 // recovering runs childValue over input, reporting a panic it recovers in this
-// goroutine as what childValue found. A panic that still ends the process happened
-// where no recover in the caller's goroutine reaches.
+// goroutine as what childValue found. A panic that still ends the process
+// happened where no recover in the caller's goroutine reaches.
 func recovering(childValue child, input []byte) (report string) {
 	defer func() {
 		if r := recover(); r != nil {

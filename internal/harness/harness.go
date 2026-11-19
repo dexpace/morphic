@@ -296,10 +296,10 @@ var compileSources = func(ctx context.Context, sources []compilers.Source, optio
 	return res.Document, res.Diagnostics, nil
 }
 
-// runOn runs sources through compileEngine under runOptions and options. One source is a
-// spec on disk, held in memory: what its references name is read from disk
-// beside it, as a corpus spec split across files needs. More are every
-// document the run may read, held in memory, and nothing else is read.
+// runOn runs sources through compileEngine under runOptions and options. One
+// source is a spec on disk, held in memory: what its references name is read
+// from disk beside it, as a corpus spec split across files needs. More are
+// every document the run may read, held in memory, and nothing else is read.
 func runOn(ctx context.Context, compileEngine *engine.Engine, sources []compilers.Source, options map[string]string) (*engine.Result, error) {
 	opts := runOptions()
 	opts.CompilerOptions = options
@@ -436,9 +436,9 @@ type reportLine struct {
 	outcome      Outcome
 }
 
-// linesOf is what Report renders for result: a line per finding among its verdicts,
-// in Check's order, then the fault that ended its run (Faulted); or its
-// outcome alone.
+// linesOf is what Report renders for result: a line per finding among its
+// verdicts, in Check's order, then the fault that ended its run (Faulted); or
+// its outcome alone.
 func linesOf(result Result) []reportLine {
 	var lines []reportLine
 	for _, verdict := range result.Verdicts {

@@ -82,8 +82,9 @@ func (r *admission) settleKinds() {
 	}
 }
 
-// addChildReadCostAndCheckCaps adds what child's read took in and met to r's, and reports whether r
-// is still within both caps. One past either stops (past).
+// addChildReadCostAndCheckCaps adds what child's read took in and met to r's,
+// and reports whether r is still within both caps. One past either stops
+// (past).
 func (r *admission) addChildReadCostAndCheckCaps(child *admission) bool {
 	r.cut = r.cut || child.cut
 	r.loose = r.loose || child.loose
@@ -156,8 +157,8 @@ func admissionOf(loweringContext lowering.Ctx, st *statement.Statement) *admissi
 	return store.read[st]
 }
 
-// admissionStore returns the run's admissions in the dialect loweringContext reads an
-// unplaced schema in.
+// admissionStore returns the run's admissions in the dialect loweringContext
+// reads an unplaced schema in.
 func admissionStore(loweringContext lowering.Ctx) *admissions {
 	return lowering.ReadOncePerRun(loweringContext, admissionsIn{loweringContext.SchemaRules().Defines("nullable")}, func() *admissions {
 		return &admissions{read: map[*statement.Statement]*admission{}}
@@ -288,9 +289,10 @@ func (w *admissionWalk) follow(from int, next *statement.Statement) {
 	w.low[from] = min(w.low[from], at)
 }
 
-// settle pops the component whose root is admissionFrameValue's statement and records what each
-// of its statements admits: one holding more than one statement, or one naming
-// itself, is a cycle; any other reads over its edges, each settled.
+// settle pops the component whose root is admissionFrameValue's statement and
+// records what each of its statements admits: one holding more than one
+// statement, or one naming itself, is a cycle; any other reads over its edges,
+// each settled.
 func (w *admissionWalk) settle(admissionFrameValue *admissionFrame) {
 	from := len(w.open) - 1
 	for w.open[from] != admissionFrameValue.st {
@@ -405,13 +407,13 @@ func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *a
 	return out
 }
 
-// narrowedWithin returns the kinds some instance of which schema's own keywords may
-// refuse while admitting others: every kind for a value set, a number for a
+// narrowedWithin returns the kinds some instance of which schema's own keywords
+// may refuse while admitting others: every kind for a value set, a number for a
 // numeric bound, a string for a string bound, a string and a number for a
 // format, and an array or an object for a keyword applying to that kind alone
-// (specrules.SlotOf), `dependentSchemas` and the drafts' `dependencies` among them,
-// but one refusing none (refusesNothing). A `type` refuses a kind whole, which
-// admits holds; a `not` or an `if` makes the read loose (looseIn); and a
+// (specrules.SlotOf), `dependentSchemas` and the drafts' `dependencies` among
+// them, but one refusing none (refusesNothing). A `type` refuses a kind whole,
+// which admits holds; a `not` or an `if` makes the read loose (looseIn); and a
 // keyword written null is left out.
 func narrowedWithin(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema) kindSet {
 	var out kindSet
@@ -448,11 +450,11 @@ func narrowedWithin(memoizingSchemaReader *statement.MemoizingSchemaReader, sche
 	return out
 }
 
-// refusesNothing reports whether the keyword name schema writes refuses no instance
-// of the kind it applies to: a schema applied to each of an instance's parts
-// that states nothing, `true` or `{}`, or a `properties`, `patternProperties`
-// or `prefixItems` each of whose schemas states nothing. Any other array or
-// object keyword is read as refusing some.
+// refusesNothing reports whether the keyword name schema writes refuses no
+// instance of the kind it applies to: a schema applied to each of an instance's
+// parts that states nothing, `true` or `{}`, or a `properties`,
+// `patternProperties` or `prefixItems` each of whose schemas states nothing.
+// Any other array or object keyword is read as refusing some.
 func refusesNothing(memoizingSchemaReader *statement.MemoizingSchemaReader, schema *statement.Schema, name string) bool {
 	statesNothing := func(sub statement.Subschema) bool {
 		return sub.SchemaValueForm() == statement.Anything || sub.SchemaValueForm() == statement.Stated && len(memoizingSchemaReader.Subschema(sub).Keys) == 0
@@ -479,10 +481,10 @@ func refusesNothing(memoizingSchemaReader *statement.MemoizingSchemaReader, sche
 	}
 }
 
-// looseIn reports whether schema writes a keyword the read of what it admits does
-// not follow and that could refuse a value of some kind: a `not`, an `if` or a
-// `dependentSchemas` holding a schema. One written null is the keyword left
-// out (docs/compilers/openapi.md#null-schema), and refuses nothing.
+// looseIn reports whether schema writes a keyword the read of what it admits
+// does not follow and that could refuse a value of some kind: a `not`, an `if`
+// or a `dependentSchemas` holding a schema. One written null is the keyword
+// left out (docs/compilers/openapi.md#null-schema), and refuses nothing.
 func looseIn(schema *statement.Schema) bool {
 	if schema.Logic == nil {
 		return false

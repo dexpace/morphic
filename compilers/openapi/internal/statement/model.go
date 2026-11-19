@@ -36,11 +36,11 @@ func (t *MemoizingSchemaReader) Of(js *model) *Statement {
 	return st
 }
 
-// Parsed returns the parser's schema object schema was read from, nil for a nil schema
-// and for a value that is no schema object: what the operation walk reads
-// beside the statement (GitHub #1991). For a Truncated schema it is the copy fill
-// read, holding only what schema's keys list (listedOnly), so the walk reads what
-// the statement holds. It goes once that walk reads none.
+// Parsed returns the parser's schema object schema was read from, nil for a nil
+// schema and for a value that is no schema object: what the operation walk
+// reads beside the statement (GitHub #1991). For a Truncated schema it is the
+// copy fill read, holding only what schema's keys list (listedOnly), so the
+// walk reads what the statement holds. It goes once that walk reads none.
 func Parsed(schema *Schema) *oas3.Schema {
 	if schema == nil {
 		return nil
@@ -96,8 +96,8 @@ func (t *MemoizingSchemaReader) read(js *model) *Schema {
 	return schemaValue
 }
 
-// SchemaValueForm returns what the schema s names states, as MemoizingSchemaReader.Subschema reads it, with no
-// lookup.
+// SchemaValueForm returns what the schema s names states, as
+// MemoizingSchemaReader.Subschema reads it, with no lookup.
 func (s Subschema) SchemaValueForm() SchemaValueForm {
 	return truthOf(s.m)
 }
@@ -150,11 +150,11 @@ func truthOf(js *model) SchemaValueForm {
 	}
 }
 
-// fill reads each slot's values. A typed value is m's, the parser's model,
-// as the walk reads the model; for a Truncated schema, only where schema's keys list
-// its keyword (listedOnly). A value kept as the node it was written as is its
-// key's. Each keyword lands in its own slot (specrules.SlotOf) whatever the rows
-// say: a policy reads a 3.0 `nullable` in a 3.1 schema
+// fill reads each slot's values. A typed value is m's, the parser's model, as
+// the walk reads the model; for a Truncated schema, only where schema's keys
+// list its keyword (listedOnly). A value kept as the node it was written as is
+// its key's. Each keyword lands in its own slot (specrules.SlotOf) whatever the
+// rows say: a policy reads a 3.0 `nullable` in a 3.1 schema
 // (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
 // verdict. A listed key whose value is not read opens its slot and fills
 // nothing.
@@ -181,10 +181,10 @@ func fill(schema *Schema, m *oas3.Schema) {
 	}
 }
 
-// fillNode reads key, a key of a slot open in schema, into the field the statement
-// keeps as the node it was written as, which its row of fillKeywords sets: a
-// numeric bound, which the model holds as a float, and a keyword the model
-// holds no field for. A key of no such field fills nothing.
+// fillNode reads key, a key of a slot open in schema, into the field the
+// statement keeps as the node it was written as, which its row of fillKeywords
+// sets: a numeric bound, which the model holds as a float, and a keyword the
+// model holds no field for. A key of no such field fills nothing.
 func fillNode(schema *Schema, key Key) {
 	for _, fillKeyword := range fillKeywords {
 		if fillKeyword.set != nil && fillKeyword.name == key.Name {
@@ -330,8 +330,8 @@ func keywordRow(name string) (fillKeyword, bool) {
 	return fillKeyword{}, false
 }
 
-// dropOutranked takes out of the keys of schema, a Truncated schema whose model is
-// m, each key of a keyword fill reads whose value the parser read from
+// dropOutranked takes out of the keys of schema, a Truncated schema whose model
+// is m, each key of a keyword fill reads whose value the parser read from
 // another node: a source past nodeview.MergeDepthLimit writes the keyword too
 // and comes first, so the key lists the value that loses. A keyword the parser
 // holds no node for is kept only where schema writes it itself, as no merge
@@ -355,9 +355,9 @@ func dropOutranked(schema *Schema, m *oas3.Schema) {
 }
 
 // outranked reports whether the value the parser read for key's keyword is not
-// key's: key is no pair s writes itself, own, and the parser read the keyword from
-// another node, or holds no node to tell. A key fill does not read is never
-// outranked.
+// key's: key is no pair s writes itself, own, and the parser read the keyword
+// from another node, or holds no node to tell. A key fill does not read is
+// never outranked.
 func outranked(key Key, own map[string]*yaml.Node, m *oas3.Schema) bool {
 	fillKeyword, reads := keywordRow(key.Name)
 	if !reads || nodeview.Deref(own[key.Name]) == key.Node {
@@ -366,13 +366,13 @@ func outranked(key Key, own map[string]*yaml.Node, m *oas3.Schema) bool {
 	return fillKeyword.node == nil || nodeview.Deref(fillKeyword.node(m)) != key.Node
 }
 
-// listedOnly returns a copy of m holding no keyword schema's keys do not list: schema
-// is Truncated, so the model expands merges its keys stop short of, and a
-// schema is read from its keys or not at all, never half from each
-// (docs/parser-library.md#merge-keys). dropOutranked has left each keyword
-// the keys list only where the parser read it from that key. The model's
-// extensions and the keys it holds no field for stay, which the census of
-// unknown keys reports.
+// listedOnly returns a copy of m holding no keyword schema's keys do not list:
+// schema is Truncated, so the model expands merges its keys stop short of, and
+// a schema is read from its keys or not at all, never half from each
+// (docs/parser-library.md#merge-keys). dropOutranked has left each keyword the
+// keys list only where the parser read it from that key. The model's extensions
+// and the keys it holds no field for stay, which the census of unknown keys
+// reports.
 func listedOnly(m *oas3.Schema, schema *Schema) *oas3.Schema {
 	kept := *m
 	for _, fillKeyword := range fillKeywords {

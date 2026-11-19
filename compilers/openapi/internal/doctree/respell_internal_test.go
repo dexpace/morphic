@@ -305,8 +305,8 @@ func walk(node *yaml.Node, f func(*yaml.Node)) {
 	}
 }
 
-// restored parses a respelled text and restores its tree under respellingValue. The error is
-// the parser's, as text, when it refuses the text.
+// restored parses a respelled text and restores its tree under respellingValue.
+// The error is the parser's, as text, when it refuses the text.
 func restored(text []byte, respellingValue respelling) (*yaml.Node, string) {
 	doc, msg := tree(text)
 	if doc == nil {
@@ -415,8 +415,8 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 	})
 }
 
-// slicesOf lists the placeholders respellingValue holds, in a fixed order, leaving out what
-// it does not use.
+// slicesOf lists the placeholders respellingValue holds, in a fixed order,
+// leaving out what it does not use.
 func slicesOf(respellingValue respelling) []rune {
 	out := make([]rune, 0, 5)
 	for _, p := range []rune{respellingValue.breaks[0], respellingValue.breaks[1], respellingValue.breaks[2], respellingValue.slash, respellingValue.pair} {
@@ -427,7 +427,8 @@ func slicesOf(respellingValue respelling) []rune {
 	return out
 }
 
-// replacePlaceholder returns respellingValue with the placeholder from standing as to.
+// replacePlaceholder returns respellingValue with the placeholder from standing
+// as to.
 func replacePlaceholder(respellingValue respelling, from, to rune) respelling {
 	for i, p := range respellingValue.breaks {
 		if p == from {

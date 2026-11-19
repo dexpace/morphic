@@ -335,10 +335,10 @@ pointer for every node to place its findings; or the weighing runs past the node
 document and a document a reference reads keep the first total.
 
 That total is a second reading of what a compile walks, and two generated tests hold it to the
-walks: `reftable.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the pointer of every frame
-the binder's walks push, and `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut` what a whole
-compile allocates more as a key above a value grows, so a walk spelling a pointer at each node of
-a value counted by its root fails one of them. Each holds the documents its grammar writes and no
+walks: `reftable.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the pointer of every
+frame the binder's walks push, and `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut` what a
+whole compile allocates more as a key above a value grows, so a walk spelling a pointer at each node
+of a value counted by its root fails one of them. Each holds the documents its grammar writes and no
 others: neither reads a document naming a dialect or another document, nor one whose total is not
 taken (`reftable.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`), which the refusals
 above leave to the first total. The first counts frames, so a pointer a walk spells without pushing
@@ -370,7 +370,8 @@ second holds each minor and counts what is allocated, not what is held at once.
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
   `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `service.TestExpansion_ChargesEveryCopy`,
   `service.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
-  `service.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `service.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`,
+  `e2e.TestCompile_ALongRefChainCompiles`,
   `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
   `service.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `service.TestWeightOf_CountsASchemaAsOneNode`,
@@ -386,7 +387,8 @@ second holds each minor and counts what is allocated, not what is held at once.
   `e2e.TestCompile_AnOverlayDocumentIsHeldToTheAliasTextBudget`,
   `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`,
   `e2e.TestCompile_AnObjectReachedInsideAContainerAndAsTheContainerIsCheckedOnce`,
-  `load.TestResolve_AReachedObjectIsChargedToNoBudget`, `specrules.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
+  `load.TestResolve_AReachedObjectIsChargedToNoBudget`,
+  `specrules.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
   `specrules.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`,
   `e2e.TestCompile_ARawValueNestingLongKeysIsNotRefusedAsPointerAmplification`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
@@ -757,18 +759,21 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 
 - Codes: `openapi/validation`
 - Tests: `specrules.TestCheck_RulesGradeByLevel`,
-  `specrules.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `specrules.TestCheck_CountsBoundTheEntries`,
-  `specrules.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `specrules.TestCheck_ShapesFollowTheField`,
-  `specrules.TestCheck_NumbersFollowTheirShape`,
+  `specrules.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `specrules.TestCheck_CountsBoundTheEntries`,
+  `specrules.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`,
+  `specrules.TestCheck_ShapesFollowTheField`, `specrules.TestCheck_NumbersFollowTheirShape`,
   `specrules.TestCheck_PathTemplatesAnswerToPathParameters`,
   `specrules.TestCheck_AServerURLNamesOnlyItsVariables`,
   `specrules.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `specrules.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
   `specrules.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `specrules.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
-  `specrules.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `specrules.TestCheckFormat_AKeyIsAString`,
+  `specrules.TestCheck_KeywordsHoldWhatJSONSchemaRequires`,
+  `specrules.TestCheckFormat_AKeyIsAString`,
   `specrules.TestCheck_TheEmptyStringIsJudgedByItsFormat`,
-  `specrules.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
+  `specrules.TestTable_EveryRowCitesTheSpecification`,
+  `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
@@ -776,9 +781,11 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`,
-  `specrules.TestCheck_ASchemaIsHeldToItsDialectsRows`, `specrules.TestCheck_AFindingInADraftNamesItsDialect`,
-  `specrules.TestCheck_ARootReadsItsOwnRows`, `specrules.TestCheckPending_ReadsWhatACheckHandedBack`,
-  `load.TestNamesDialect_ReadsTheKeyAndTheField`, `load.TestJudgeSource_DeferringASchemaChangesNoFinding`,
+  `specrules.TestCheck_ASchemaIsHeldToItsDialectsRows`,
+  `specrules.TestCheck_AFindingInADraftNamesItsDialect`, `specrules.TestCheck_ARootReadsItsOwnRows`,
+  `specrules.TestCheckPending_ReadsWhatACheckHandedBack`,
+  `load.TestNamesDialect_ReadsTheKeyAndTheField`,
+  `load.TestJudgeSource_DeferringASchemaChangesNoFinding`,
   `e2e.TestOlderDrafts_ASchemaIsHeldToItsDialectsRows`,
   `specrules.TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten`,
   `specrules.TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid`,
@@ -792,7 +799,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
   `e2e.TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect`,
   `e2e.TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect`,
-  `specrules.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
+  `specrules.TestCheckFormat_PlacesEachKeyAtItsOwnLine`,
+  `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
   `e2e.TestCompile_AKeyWrittenTwiceInAnotherDocumentIsReported`,
@@ -802,7 +810,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
-  `specrules.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `specrules.TestLessPointer_OrdersTokenByToken`,
+  `specrules.TestCheck_AFindingNamesTheLeastPositionThatReadIt`,
+  `specrules.TestLessPointer_OrdersTokenByToken`,
   `specrules.TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced`,
   `e2e.TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
@@ -837,7 +846,8 @@ the field.
 - Tests: `specrules.TestCheck_RequiredFieldsFollowTheMinor`,
   `specrules.TestCheck_AtLeastOneSectionStandsInADocument`,
   `specrules.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
-  `specrules.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `specrules.TestCheck_AnHTTPSchemeIsAToken`
+  `specrules.TestCheck_NamesSentInAHeaderOrACookieAreTokens`,
+  `specrules.TestCheck_AnHTTPSchemeIsAToken`
 
 ### `later-version-construct`
 
@@ -914,14 +924,15 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
   `e2e.TestOlderDrafts_RefSiblingsAreWarnedOf`,
-  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
-  `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`, `e2e.TestSchemaRefSiblings_ApplyAsIn31`,
+  `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `specrules.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `specrules.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `specrules.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `specrules.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`,
-  `specrules.TestCheck_AKeywordALaterDialectAddsIsWarnedOf`, `specrules.TestCheck_ARefsSiblingsInADraftAreWarnedOf`,
+  `specrules.TestCheck_AKeywordALaterDialectAddsIsWarnedOf`,
+  `specrules.TestCheck_ARefsSiblingsInADraftAreWarnedOf`,
   `specrules.TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne`,
   `specrules.TestSchemaRules_LaterKeywordsAreTheOwnRowsADialectLacks`
 
@@ -1227,7 +1238,8 @@ the item as what else it writes.
   `e2e.TestCompile_AFetchedDocumentReadsAURLAFileDeclares`,
   `e2e.TestCompile_ATwoDocumentsDeclaringOneSelfAnswerNoReference`,
   `e2e.TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed`,
-  `reftable.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `reftable.TestBind_ASelfIsADocumentsBaseAndName`,
+  `reftable.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`,
+  `reftable.TestBind_ASelfIsADocumentsBaseAndName`,
   `reftable.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
   `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
   `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
@@ -1235,15 +1247,18 @@ the item as what else it writes.
   `e2e.TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing`,
   `e2e.TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames`,
   `e2e.TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile`,
-  `load.TestMapped_PutsAURLUnderTheLongestPrefix`, `load.TestLoad_AMappedURLNamingNoLocationIsRefusedUnread`,
+  `load.TestMapped_PutsAURLUnderTheLongestPrefix`,
+  `load.TestLoad_AMappedURLNamingNoLocationIsRefusedUnread`,
   `openapi.TestDecodeOptions_LocateMapsEachPrefixToItsLocation`,
   `openapi.TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix`,
   `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
   `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
   `componentlookup.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
-  `componentlookup.TestLocate_NormalizingTwiceChangesNothing`, `reftable.TestNormalURI_IsIdempotentOverGeneratedURLs`,
-  `reftable.TestNormalURI_SpellsEachEqualURLOneWay`, `reftable.TestNormalURI_KeepsWhatEachSchemeWrites`,
-  `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
+  `componentlookup.TestLocate_NormalizingTwiceChangesNothing`,
+  `reftable.TestNormalURI_IsIdempotentOverGeneratedURLs`,
+  `reftable.TestNormalURI_SpellsEachEqualURLOneWay`,
+  `reftable.TestNormalURI_KeepsWhatEachSchemeWrites`, `e2e.TestOlderDrafts_AnIDNamesAResource`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
   `reftable.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
   `reftable.TestFragmentName_DeclaresAnyNameDraft4Writes`,
@@ -1266,9 +1281,10 @@ the item as what else it writes.
   `e2e.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `e2e.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `e2e.TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost`,
-  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `componentlookup.TestLocate`, `componentlookup.TestFilePart`,
-  `componentlookup.TestFileOf`, `componentlookup.TestSameDocument`,
-  `componentlookup.TestPlaces_PlacesAFileWhereItsDirectoryLies`, `load.TestLoad_RejectsARelativeLocation`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `componentlookup.TestLocate`,
+  `componentlookup.TestFilePart`, `componentlookup.TestFileOf`, `componentlookup.TestSameDocument`,
+  `componentlookup.TestPlaces_PlacesAFileWhereItsDirectoryLies`,
+  `load.TestLoad_RejectsARelativeLocation`,
   `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
   `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`,
   `e2e.TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference`,
@@ -1291,15 +1307,18 @@ the item as what else it writes.
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `e2e.TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches`,
   `schema.TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf`,
-  `reftable.TestBind_ReadsEachPositionAsTheJSONItSpells`, `reftable.TestBind_ReadsARepeatedKeyAsItsLast`,
-  `reftable.TestBind_StopsAtItsBudget`, `reftable.TestBind_ThePassTheBudgetRunsOutInStands`,
+  `reftable.TestBind_ReadsEachPositionAsTheJSONItSpells`,
+  `reftable.TestBind_ReadsARepeatedKeyAsItsLast`, `reftable.TestBind_StopsAtItsBudget`,
+  `reftable.TestBind_ThePassTheBudgetRunsOutInStands`,
   `reftable.TestBind_CountsWorkLinearInTheDocument`,
-  `reftable.TestBind_CountsWorkLinearAcrossHeldDocuments`, `reftable.TestBind_ReadsEveryWebhookAsAPathItem`,
+  `reftable.TestBind_CountsWorkLinearAcrossHeldDocuments`,
+  `reftable.TestBind_ReadsEveryWebhookAsAPathItem`,
   `e2e.TestReferenceObjects_AnEndingSlashNamesAnEmptyMember`,
   `e2e.TestReferenceObjects_AnEndInTheSourceIsReadThereUnderSelf`,
   `e2e.TestReferenceObjects_AnEndInAnotherDocumentIsDeclaredThere`,
   `load.TestBindAll_BindsEveryRefInTheCorpus`, `reftable.TestBind_ReadsWhatAnotherDocumentDeclares`,
-  `reftable.TestBind_ReadsBelowAnIDOfAnotherDocument`, `reftable.TestBind_AnIDNamingItsDocumentReturnsToIt`,
+  `reftable.TestBind_ReadsBelowAnIDOfAnotherDocument`,
+  `reftable.TestBind_AnIDNamingItsDocumentReturnsToIt`,
   `reftable.TestBind_AnIdentifierIsNoLocationToFetch`,
   `reftable.TestBind_AHeldDocumentMayDeclareAnothersURI`,
   `reftable.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
@@ -1340,14 +1359,16 @@ the item as what else it writes.
   `e2e.TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut`,
   `e2e.TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField`,
   `e2e.TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut`,
-  `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
+  `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`,
+  `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
   `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
   `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
-  `e2e.TestGolden_EncodingNestedReferences`, `reftable.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
+  `e2e.TestGolden_EncodingNestedReferences`,
+  `reftable.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
   `e2e.TestCompile_AFieldNoModelHoldsReadsAsAnExtension`,
   `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
   `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`,
@@ -1598,13 +1619,13 @@ the word sequence [naming](../ir/naming.md) derives from it, at every position t
 `info.title`, a tag, an `operationId`, a parameter, response-header or property name, a component
 schema or security scheme key, a scheme a security requirement names, an enum member's value as
 text, a 3.2 server `name`, and under `grouping=path-prefix` a first path segment. A name with no
-word character (`***`, `>=`, or only variation selectors) keeps its `Source` and has no
-`Canonical`; an emitter names it by its characters ([naming](../emitters/refine/naming.md)). A name
-spelled as the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
+word character (`***`, `>=`, or only variation selectors) keeps its `Source` and has no `Canonical`;
+an emitter names it by its characters ([naming](../emitters/refine/naming.md)). A name spelled as
+the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
 `operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
 property's wire name stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists
-anonymously at its own pointer (`type/anonymous/components/schemas/`) with that hint. An entity the document
-gives no name — an inline schema, a union variant, a response
+anonymously at its own pointer (`type/anonymous/components/schemas/`) with that hint. An entity the
+document gives no name — an inline schema, a union variant, a response
 ([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
 `server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
 word grammar and composed from its position, each half neutralized first so an empty parent gives
@@ -1619,11 +1640,10 @@ names its root `cat_yaml`). A `components/mediaTypes` entry is named by its key,
 component schema's is, and a header of an Encoding Object that another nests through 3.2's
 `encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name
 is a function of the documents and the position alone, read where the position is written, so no
-lowering order changes it: a union variant, or a composition
-branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever document, and
-keeps its own name where that names nothing. An inline `allOf` branch is a conjunct of the schema
-holding it, so a node built there ([`allof-refinement`](#allof-refinement)) is named as that schema
-is. `Aliases` is never set.
+lowering order changes it: a union variant, or a composition branch holding a `$ref`, is named as
+the position the `$ref` lands on, in whichever document, and keeps its own name where that names
+nothing. An inline `allOf` branch is a conjunct of the schema holding it, so a node built there
+([`allof-refinement`](#allof-refinement)) is named as that schema is. `Aliases` is never set.
 
 A schema whose `title` holds a word character is named by the title's words instead of its
 position, wherever the grammar reads a schema: a union branch, `by_name` for
@@ -1737,9 +1757,9 @@ that primitive, and one that is only a `$ref` lowers to a `Scalar` alias whose `
 
 An inline schema whose lowering is a node — a model, an enum, a union, a list, a map, a tuple, or a
 scalar a format names ([`string-formats`](#string-formats)) — is hoisted into the registry under an
-anonymous `TypeID` derived from its own pointer (`type/anonymous/<pointer>`), with a `Hint` composed from
-its position or read from its title ([`naming`](#naming)), and the position holds a `TypeRef` to
-it. One whose lowering is a primitive, `{type: string}` with or without bounds beside it, hoists
+anonymous `TypeID` derived from its own pointer (`type/anonymous/<pointer>`), with a `Hint` composed
+from its position or read from its title ([`naming`](#naming)), and the position holds a `TypeRef`
+to it. One whose lowering is a primitive, `{type: string}` with or without bounds beside it, hoists
 nothing: the position names the shared primitive, and what it declares beside the type lands on the
 property or parameter that carries it ([`constraints`](#constraints)).
 
@@ -2031,11 +2051,11 @@ lowers as declared, to `Visibility{InvisibleInEveryLifecycle: true}`
 header, or for `allOf` at the redeclaration that empties the set (a branch repeating a field already
 invisible reports nothing more). It is not a conflicting redeclaration
 ([`allof-redeclared-property`](#allof-redeclared-property)), which keeps one declaration over
-another, nor a degraded construct: `InvisibleInEveryLifecycle` states the intersection exactly, and the warning says only
-that no request or response can carry the field. A flag set `false` states nothing. A pair written
-where no `Visibility` can land — an `items` schema, a parameter's schema — is kept verbatim and not
-reported ([`parameter-schema-keywords`](#parameter-schema-keywords)); a component's is reported at
-each property that references it.
+another, nor a degraded construct: `InvisibleInEveryLifecycle` states the intersection exactly, and
+the warning says only that no request or response can carry the field. A flag set `false` states
+nothing. A pair written where no `Visibility` can land — an `items` schema, a parameter's schema —
+is kept verbatim and not reported ([`parameter-schema-keywords`](#parameter-schema-keywords)); a
+component's is reported at each property that references it.
 
 - Cases: `readonly-writeonly`
 - Codes: `openapi/disjoint-visibility`
@@ -2250,24 +2270,24 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 
 ### `allof-refinement`
 
-An `allOf` is a composition where the kinds the position lowers to, null aside, are an object
-alone and no conjunct states a value set, which is elected first (below), or is a union standing
-alone (below), the keywords beside the `allOf` being a conjunct as much as a branch is, and where
-its marker
-is the kind-inference policy's where that reading is inferred
+An `allOf` is a composition where the kinds the position lowers to, null aside, are an object alone
+and no conjunct states a value set, which is elected first (below), or is a union standing alone
+(below), the keywords beside the `allOf` being a conjunct as much as a branch is, and where its
+marker is the kind-inference policy's where that reading is inferred
 ([`shape-applicator`](#shape-applicator)). Those kinds are what the conjuncts declare together, or,
-where nothing declares one, what their shape keywords claim, so `{allOf: [{$ref: E}], description:
-d}` over `E: {items: …}` is a use of the list the policy reads `E` as. A `Model` anywhere else
-asserts an object the source rules out: `{allOf: [{type: integer}, {type: integer, format: int32}]}`
-would reach a consumer as an object with no fields, where it means `int32`, and `{allOf: [{$ref:
-AnyT}], minLength: 3}` over `AnyT: {}` as one excluding the strings it admits. Any other `allOf` is
-a *refinement*: one use of the conjunct that decides it, its *principal*, with what the other
-conjuncts say read as said of that use. So `{allOf: [{$ref: T}, {type: string}]}` refines a `T`
-that may be a string or an object, as the two together admit no object, `{allOf: [{$ref: AnyT}],
-minLength: 3}` is a use of `AnyT` holding the bound, as `{$ref: AnyT, minLength: 3}` is, and
-`{allOf: [{$ref: Str}], properties: …}` is a use of `String`, the `properties` only a `Model` holds kept
-as below. Entries whose keywords speak of an object and an array, with no kind declared, admit both:
-`{allOf: [{properties: …}, {items: …}]}` is the top type keeping each entry.
+where nothing declares one, what their shape keywords claim, so
+`{allOf: [{$ref: E}], description: d}` over `E: {items: …}` is a use of the list the policy reads
+`E` as. A `Model` anywhere else asserts an object the source rules out:
+`{allOf: [{type: integer}, {type: integer, format: int32}]}` would reach a consumer as an object
+with no fields, where it means `int32`, and `{allOf: [{$ref: AnyT}], minLength: 3}` over `AnyT: {}`
+as one excluding the strings it admits. Any other `allOf` is a *refinement*: one use of the conjunct
+that decides it, its *principal*, with what the other conjuncts say read as said of that use. So
+`{allOf: [{$ref: T}, {type: string}]}` refines a `T` that may be a string or an object, as the two
+together admit no object, `{allOf: [{$ref: AnyT}], minLength: 3}` is a use of `AnyT` holding the
+bound, as `{$ref: AnyT, minLength: 3}` is, and `{allOf: [{$ref: Str}], properties: …}` is a use of
+`String`, the `properties` only a `Model` holds kept as below. Entries whose keywords speak of an
+object and an array, with no kind declared, admit both: `{allOf: [{properties: …}, {items: …}]}` is
+the top type keeping each entry.
 
 What the conjuncts admit is read from the source and the bindings, never the registry, so no
 lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
@@ -2414,61 +2434,60 @@ in the pointer of the node it lowers to.
 
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
-either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
-naming neither. Where nothing declares a kind and the kind-inference policy reads the position's
-kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct whose own
-keywords claim every one of them names them, as one writing that `type` would: `{allOf: [{items:
-{type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds, marked, holding the
-bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a use of its unmarked
-one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by the keywords beside
-the `allOf`. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
-principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
-as if no `allOf` were written. An inline principal lowers at the position's pointer, as the keywords
-beside the `allOf` would, so one node stands for the position whichever conjunct decides it: a
-value set, a `Union`, a `List`, a `Tuple` or a hoisted `Scalar`, its children and the reports on
-what it writes where they are written, so `{allOf: [{description: d}, {type: array, items: {type:
-string}}]}` is the `List` at the position, as its flat spelling is, and a node its `items` builds
-stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, and the
-nodes beneath them stand under the position's ([`type-arrays`](#type-arrays)). The node holds the
-bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
-written beside each other give it them, each where the node's builder reads it and one no part of
-the node reads kept on it under its keyword, a collection bound beside a `oneOf` as the flat
-spelling keeps it, and an object bound of a `type` list's object variant as
-[`type-arrays`](#type-arrays) says. The node reads the position's own keywords before the
-principal's, as the keywords beside an `allOf` stand before an entry's: of two `pattern`s written
-otherwise its field holds the position's, and the principal, disagreeing, is kept whole
-([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf` as the
-inline principal writes it is one writing, whichever reading reads or keeps it: read once, or kept
-once and reported once. What the principal's census, its bounds on a number carried as text or
+either order, since no one conjunct says `int32` and a schema built from two would stand at a
+pointer naming neither. Where nothing declares a kind and the kind-inference policy reads the
+position's kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct
+whose own keywords claim every one of them names them, as one writing that `type` would:
+`{allOf: [{items: {type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds,
+marked, holding the bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a
+use of its unmarked one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by
+the keywords beside the `allOf`. An `allOf` no conjunct names a kind in,
+`{allOf: [{description: d}]}`, has no principal and is the top type. Where the keywords beside the
+`allOf` win, the position lowers by them as if no `allOf` were written. An inline principal lowers
+at the position's pointer, as the keywords beside the `allOf` would, so one node stands for the
+position whichever conjunct decides it: a value set, a `Union`, a `List`, a `Tuple` or a hoisted
+`Scalar`, its children and the reports on what it writes where they are written, so
+`{allOf: [{description: d}, {type: array, items: {type: string}}]}` is the `List` at the position,
+as its flat spelling is, and a node its `items` builds stands at `…/allOf/1/items`. A type list's
+variants, which no pointer of the source names, and the nodes beneath them stand under the
+position's ([`type-arrays`](#type-arrays)). The node holds the bounds of the conjunction, the
+position's own and each other conjunct's, as the same keywords written beside each other give it
+them, each where the node's builder reads it and one no part of the node reads kept on it under its
+keyword, a collection bound beside a `oneOf` as the flat spelling keeps it, and an object bound of a
+`type` list's object variant as [`type-arrays`](#type-arrays) says. The node reads the position's
+own keywords before the principal's, as the keywords beside an `allOf` stand before an entry's: of
+two `pattern`s written otherwise its field holds the position's, and the principal, disagreeing, is
+kept whole ([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf`
+as the inline principal writes it is one writing, whichever reading reads or keeps it: read once, or
+kept once and reported once. What the principal's census, its bounds on a number carried as text or
 its build keeps is the principal's, kept at the entry, and the position's readers leave it, a
-`oneOf` or `anyOf` its union does not lower among it, with the build's reason and report;
-a content keyword the node holds no field for is the position's, whose reading keeps it first, the
-principal's finding it kept; and a keyword the position keeps through its declaration, a
-`default`, `readOnly`, `writeOnly`, a validation-only keyword, an extension or a key no dialect
-defines, is the position's, kept and reported there, and the entry's reading says nothing of it.
-Where the position keeps the principal whole, or a wrapper around it, that entry holds the one
-writing and the position keeps none of it, but an extension the promotion policy reads
-([unmodeled](../ir/unmodeled.md#keys)). So a content keyword written alike is read in the `Encoding`
-the principal's node holds, a
-type list's on its string variant, and one written otherwise is kept under its keyword, reported
-as held beside an `Encoding` holding its branch's. A `discriminator` written beside the `allOf`
-of a principal whose `Union` holds its own is kept under its keyword, its mapping resolved, and
-reported as kept beside the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a folded branch of the position, what it
-writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
-position has written its own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf`
-or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
-as the same union beside the `allOf` is, and so are the unions conjuncts beside a principal writing
-none write, judged together as two beside the `allOf` are: each kept as `degraded_lowering` where
-one of them declares shape, and as validation logic where none does. Where the node is a `Union`, a `discriminator` the
-conjunct writes is the node's, so the extensions and keys OpenAPI defines for no Discriminator
-Object are kept on it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one
-written at the position is ([`vendor-extensions`](#vendor-extensions)); any other node keeps the
-`discriminator` whole, as the same node at the position does. A `$ref` to the branch's own pointer
-names the branch alone, a node of its own typed by what it writes. A wrapper's `allOf` is the
-position's conjuncts, so
-`{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its
-flat spelling is, holding the bound once. A `$ref` principal lowers as any `$ref` branch does, what
-is written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
+`oneOf` or `anyOf` its union does not lower among it, with the build's reason and report; a content
+keyword the node holds no field for is the position's, whose reading keeps it first, the principal's
+finding it kept; and a keyword the position keeps through its declaration, a `default`, `readOnly`,
+`writeOnly`, a validation-only keyword, an extension or a key no dialect defines, is the position's,
+kept and reported there, and the entry's reading says nothing of it. Where the position keeps the
+principal whole, or a wrapper around it, that entry holds the one writing and the position keeps
+none of it, but an extension the promotion policy reads ([unmodeled](../ir/unmodeled.md#keys)). So a
+content keyword written alike is read in the `Encoding` the principal's node holds, a type list's on
+its string variant, and one written otherwise is kept under its keyword, reported as held beside an
+`Encoding` holding its branch's. A `discriminator` written beside the `allOf` of a principal whose
+`Union` holds its own is kept under its keyword, its mapping resolved, and reported as kept beside
+the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a folded
+branch of the position, what it writes that its node has no field for kept there at its own pointer,
+as any conjunct's is, once the position has written its own
+([`allof-inline-residue`](#allof-inline-residue)). A `oneOf` or `anyOf` a value set writes is among
+that, since the node holds no union, kept under its keyword as the same union beside the `allOf` is,
+and so are the unions conjuncts beside a principal writing none write, judged together as two beside
+the `allOf` are: each kept as `degraded_lowering` where one of them declares shape, and as
+validation logic where none does. Where the node is a `Union`, a `discriminator` the conjunct writes
+is the node's, so the extensions and keys OpenAPI defines for no Discriminator Object are kept on
+it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one written at the position is
+([`vendor-extensions`](#vendor-extensions)); any other node keeps the `discriminator` whole, as the
+same node at the position does. A `$ref` to the branch's own pointer names the branch alone, a node
+of its own typed by what it writes. A wrapper's `allOf` is the position's conjuncts, so
+`{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its flat
+spelling is, holding the bound once. A `$ref` principal lowers as any `$ref` branch does, what is
+written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
 inline one that reduces to a shared node reads as written beside the `allOf`.
 
 The value set a refinement lowers to, the `Enum` or `Literal` of a principal or of the keywords
@@ -3332,10 +3351,10 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
 
 The fold waits for every type to lower because the judgment reads the nodes the declarations name, a
 component declared after the schema composing it or a node a `$ref` into another document promises
-among them; it finishes the model before any other decision reads it (`compile.Types.QueueSettlementBeforeDeferredOnes`), so
-a form part's flags read the merged field. A fold judges every pair of declarations, so it judges a
-field's first 64 at most; each later one is kept verbatim, unjudged, under an
-`openapi/budget-exceeded` error at the first of them.
+among them; it finishes the model before any other decision reads it
+(`compile.Types.QueueSettlementBeforeDeferredOnes`), so a form part's flags read the merged field. A
+fold judges every pair of declarations, so it judges a field's first 64 at most; each later one is
+kept verbatim, unjudged, under an `openapi/budget-exceeded` error at the first of them.
 
 A member a model's composition declares more than once folds the same way, wherever the declarations
 are written, so a `$ref` entry and the schema it names written inline in its place fold alike, but
@@ -4606,13 +4625,13 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 A `discriminator` on a schema that lowers to a `Model` or a `Union` lowers to its `Discriminator`,
 and so does one standing with a union on a branch of a schema's `allOf`, written on that branch or
 beside the `allOf`, which the `Union` the union lowers to holds
-([`union-beside-structure`](#union-beside-structure)).
-On a `Model` whose own properties include the one `propertyName` names, the tag is that property's
-`PropertyID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
-in `Discriminator.PropertyName`. A `propertyName` that is the empty string, a legal member name, has
-no spelling there, since an empty `PropertyName` means none, so where no own property of a model
-carries it the node holds no `Discriminator`, and the census keeps the whole object verbatim and
-says why ([`shape-applicator`](#shape-applicator)): a union so written is untagged, and
+([`union-beside-structure`](#union-beside-structure)). On a `Model` whose own properties include the
+one `propertyName` names, the tag is that property's `PropertyID`, in `Discriminator.Property`;
+otherwise, and on every `Union`, it is the name as written, in `Discriminator.PropertyName`. A
+`propertyName` that is the empty string, a legal member name, has no spelling there, since an empty
+`PropertyName` means none, so where no own property of a model carries it the node holds no
+`Discriminator`, and the census keeps the whole object verbatim and says why
+([`shape-applicator`](#shape-applicator)): a union so written is untagged, and
 [`discriminator-inference`](#discriminator-inference) reads nothing for it. Each `mapping` entry
 lowers to its key and the type its value routes to, and 3.2's `defaultMapping` to
 `Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
@@ -4634,8 +4653,8 @@ of a variant an entry routes, though OpenAPI routes by it: a `Mapping` is what a
 instance picks the variant's tag from, and a map cannot mark one of two routes to a variant as read
 and never written, so the name written in would give the variant a second tag to write and nothing
 to say which. A hierarchy leaves out the name of a subtype a key tags in the same way, its
-`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload
-carrying such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
+`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload carrying
+such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
 `defaultMapping`. A variant the `defaultMapping` names and no entry routes is still routed by its
 name. With no `mapping`, and each variant whose branch names a component that component itself, the
 `Mapping` is nil and a union routes each variant by the name of its type, unless
@@ -4964,21 +4983,22 @@ lowered first.
 ### `additional-properties`
 
 `additionalProperties: false` lowers to `Model.Additional` closed, and `additionalProperties: true`
-or a schema to `Model.AdditionalProperties`, whose `Value` types every key no property names. An object
-whose one member fact is that catch-all lowers to a `MapT` instead
-([containers](../ir/containers.md)). `unevaluatedProperties: false` lowers to `Additional`
-closed after composition where no `additionalProperties` is written beside it. An
-`additionalProperties` of any value evaluates every property that `properties` and
-`patternProperties` leave (JSON Schema 2020-12 §10.3.2.3), which leaves `unevaluatedProperties`
-nothing to apply to (§11.3), so beside one the object's openness is `additionalProperties`' alone,
-closed for `false` and a catch-all for anything else, and the inert keyword is kept verbatim with it
-([`validation-only`](#validation-only)); `{type: object, additionalProperties: {…},
-unevaluatedProperties: false}` is a `MapT`. `minProperties` and `maxProperties` lower to the
-`Model`'s `Constraints`, which bound the property set's cardinality as against `Additional`'s
-openness, or to a `MapT`'s, which bound its entry count, and to the node alone: a property, a
-parameter or a header naming the node holds neither ([`constraints`](#constraints)). Written with no
-`type` beside a union whose branches each declare an object, either is a body the union distributes
-into ([`union-beside-structure`](#union-beside-structure)): each variant is a model over its branch
+or a schema to `Model.AdditionalProperties`, whose `Value` types every key no property names. An
+object whose one member fact is that catch-all lowers to a `MapT` instead
+([containers](../ir/containers.md)). `unevaluatedProperties: false` lowers to `Additional` closed
+after composition where no `additionalProperties` is written beside it. An `additionalProperties` of
+any value evaluates every property that `properties` and `patternProperties` leave (JSON Schema
+2020-12 §10.3.2.3), which leaves `unevaluatedProperties` nothing to apply to (§11.3), so beside one
+the object's openness is `additionalProperties`' alone, closed for `false` and a catch-all for
+anything else, and the inert keyword is kept verbatim with it
+([`validation-only`](#validation-only));
+`{type: object, additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`.
+`minProperties` and `maxProperties` lower to the `Model`'s `Constraints`, which bound the property
+set's cardinality as against `Additional`'s openness, or to a `MapT`'s, which bound its entry count,
+and to the node alone: a property, a parameter or a header naming the node holds neither
+([`constraints`](#constraints)). Written with no `type` beside a union whose branches each declare
+an object, either is a body the union distributes into
+([`union-beside-structure`](#union-beside-structure)): each variant is a model over its branch
 holding the closure or the catch-all, as beside `type: object`.
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
@@ -5084,8 +5104,8 @@ stays one when a discriminator moves off it. A `required` beside a `$ref` lands 
 
 ### `pattern-properties`
 
-Each `patternProperties` entry lowers to one `AdditionalProperties.Patterns` entry, in source order: its
-pattern as written, and its schema lowered as a property's would be. The object stays a `Model`,
+Each `patternProperties` entry lowers to one `AdditionalProperties.Patterns` entry, in source order:
+its pattern as written, and its schema lowered as a property's would be. The object stays a `Model`,
 whose catch-all beside the patterns is [`additional-properties`](#additional-properties)'.
 
 - Cases: `maps`
@@ -5131,21 +5151,21 @@ the entry is what closes the tuple. The same holds of a `List`'s `ElementType`.
 JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
 `additionalItems` beside it. In a schema read in one of them where it is written
 ([`dialect-keywords`](#dialect-keywords)), as a type list's array variant is though its node stands
-at a pointer of its own ([`type-arrays`](#type-arrays)), the list lowers to a `Tuple`'s `ElementTypes`, one per entry,
-each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
-beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. A written
-`additionalItems` leaves an `unevaluatedItems` beside the list inert, as that `items` does, and an
-absent one leaves it live. Each entry is named as
-a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
-is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
-such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
-at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
+at a pointer of its own ([`type-arrays`](#type-arrays)), the list lowers to a `Tuple`'s
+`ElementTypes`, one per entry, each a schema whose `$ref` is bound, and `additionalItems` to its
+`Rest` as 2020-12's `items` does beside `prefixItems`: `false` leaves none, and an absent one reads
+as `true`. A written `additionalItems` leaves an `unevaluatedItems` beside the list inert, as that
+`items` does, and an absent one leaves it live. Each entry is named as a `prefixItems` entry is, and
+the rest as an `items` schema is. Each is judged as its 2020-12 twin is
+([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells, such
+as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error at
+it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
 `prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
 [`null-schema`](#null-schema) reads it. A type list's array variant is the tuple the schema writes,
 which leaves nothing on the union. Any other position that lowers to no `Tuple`, such as one with no
 `type: array`, keeps the list and the `additionalItems` beside it as
-[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
-list, `additionalItems` is the rest of no tuple, kept verbatim with an info
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is
+no list, `additionalItems` is the rest of no tuple, kept verbatim with an info
 `openapi/unknown-schema-keyword`.
 
 Where such a draft's schema writes 2020-12's `prefixItems` beside its own tuple, the list is the
@@ -5169,9 +5189,10 @@ saying what a document of its version writes instead, and the lowering reads `it
   `e2e.TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
   `reftable.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
-  `specrules.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
-- Status: open: whether a `Rest` or an `ElementType` beside a live `unevaluatedItems: false` is typed
-  rather than left to the entry (#1883).
+  `specrules.TestCheck_AnItemsListFollowsTheSchemasRows`,
+  `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
+- Status: open: whether a `Rest` or an `ElementType` beside a live `unevaluatedItems: false` is
+  typed rather than left to the entry (#1883).
 
 ### `shape-applicator`
 
@@ -5991,7 +6012,8 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
   `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,
   `reftable.TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached`,
-  `reftable.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`, `reftable.TestBind_TheRecursiveReachGrowsLinearly`,
+  `reftable.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`,
+  `reftable.TestBind_TheRecursiveReachGrowsLinearly`,
   `e2e.TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands`,
   `e2e.TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept`,
   `e2e.TestCompile_ARecursiveRefAnotherDocumentsAnchoredResourceReachesIsKept`,
@@ -6003,11 +6025,14 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands`,
   `e2e.TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
-  `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
-  `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
+  `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`,
+  `schema.TestDynamicRef_ExpandsWithinOneResource`,
+  `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`,
+  `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
   `schema.TestRecursiveRef_ExpandsWhereItsTargetIsStatic`,
   `schema.TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt`,
-  `schema.TestRecursiveRef_LandsOnTheRootOfItsResource`, `schema.TestSameResource_SaysWhyTwoPositionsMayLieInTwo`,
+  `schema.TestRecursiveRef_LandsOnTheRootOfItsResource`,
+  `schema.TestSameResource_SaysWhyTwoPositionsMayLieInTwo`,
   `reftable.TestLandDynamic_LandsWhereTheRefItSpellsWould`,
   `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
@@ -6211,7 +6236,8 @@ error.
   `operation.TestPathRoute_SplitsAsTheRuleTableDoes`,
   `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
   `operation.TestRouteShape_LeavesOutEachExpressionsName`,
-  `specrules.TestCheck_PathTemplatesAnswerToPathParameters`, `specrules.TestFragmentAt_SplitsAsTheLoweringDoes`
+  `specrules.TestCheck_PathTemplatesAnswerToPathParameters`,
+  `specrules.TestFragmentAt_SplitsAsTheLoweringDoes`
 
 ### `path-item-operations`
 
@@ -6414,9 +6440,9 @@ group, named by the first non-empty segment of its path's URI template, the key 
 and any query ([`path-keys`](#path-keys)), so `/users`, `/users/{id}` and `/users?role=admin` share
 `users`, and `/?probe=1` files under the empty segment. The query is found as
 [`path-keys`](#path-keys) finds it, so a `?` inside a template expression begins none, and
-`/{a?b}/users` files under `{a?b}`; `URITemplate` keeps the query. A segment that is a
-template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
-root path, whose segments are all empty, under the empty one. The group's ID is `operation-group/path-prefix/`
+`/{a?b}/users` files under `{a?b}`; `URITemplate` keeps the query. A segment that is a template
+expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the root path,
+whose segments are all empty, under the empty one. The group's ID is `operation-group/path-prefix/`
 and the segment as one RFC 6901 token, the empty segment's `operation-group/path-prefix`
 ([identity](../ir/identity.md#operation-groups)); it is named by the segment, by a hint where the
 segment is empty, and has no docs, and group order is first-seen from the operations. A path names
@@ -6467,14 +6493,14 @@ groups to the remount was weighed and rejected: an ID is opaque to a consumer
 ([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
 
 So the aliases extension has two readers, which must name the same key: `GroupingExtension.Aliases`
-(`--compiler-option grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
-reads into an operation's `AlsoMount` ([embedded policy](../emitters/contract/embedded-policy.md)),
-for the mounts in them, which the mapping names as `Unmodeled` holds it, `openapi:x-forge-aliases`
-for the default. A mapping has no default key, so the two pair only where its configuration names
-the key this option reads. A mapping reading another key can name a group the IR does not hold, a
-warning `emitters/unmatched-key` that mounts nothing ([a key that matches
-nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a group made for a key no
-mapping reads is named by no mount.
+(`--compiler-option grouping-aliases`), for the groups an alias names, and the key an
+embedded-policy mapping reads into an operation's `AlsoMount` ([embedded
+policy](../emitters/contract/embedded-policy.md)), for the mounts in them, which the mapping names
+as `Unmodeled` holds it, `openapi:x-forge-aliases` for the default. A mapping has no default key, so
+the two pair only where its configuration names the key this option reads. A mapping reading another
+key can name a group the IR does not hold, a warning `emitters/unmatched-key` that mounts nothing
+([a key that matches nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a
+group made for a key no mapping reads is named by no mount.
 
 A group's ID is `operation-group/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
@@ -6777,7 +6803,8 @@ written.
 
 - Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
 - Codes: `openapi/validation`
-- Tests: `specrules.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
+- Tests: `specrules.TestCheck_ContentKeyIsAMediaType`,
+  `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
   `service.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
@@ -6939,33 +6966,33 @@ repeat a structure is no closed set, so nothing else draws one.
 
 ### `streaming-media`
 
-A Content whose media type the streaming policy names — `application/json-seq`,
-`application/jsonl`, `application/x-ndjson`, `text/event-stream` and the `+json-seq` structured
-suffix by default, matched on the normalized key ([`media-types`](#media-types)) at every minor —
-sets `Content.Stream`, its `Inferred` the marker `streaming-inference`, wherever it is written: a
-request body, a response, an error response, the default, a callback's or a webhook's. A Content
-declaring an `itemSchema` sets it with no marker ([`item-schema`](#item-schema)), and any other
-Content leaves it unset, so a response offering `application/json` beside `text/event-stream` marks
-the event stream alone. A request body or success response with a Content that streams lowers to
+A Content whose media type the streaming policy names — `application/json-seq`, `application/jsonl`,
+`application/x-ndjson`, `text/event-stream` and the `+json-seq` structured suffix by default,
+matched on the normalized key ([`media-types`](#media-types)) at every minor — sets
+`Content.Stream`, its `Inferred` the marker `streaming-inference`, wherever it is written: a request
+body, a response, an error response, the default, a callback's or a webhook's. A Content declaring
+an `itemSchema` sets it with no marker ([`item-schema`](#item-schema)), and any other Content leaves
+it unset, so a response offering `application/json` beside `text/event-stream` marks the event
+stream alone. A request body or success response with a Content that streams lowers to
 `Operation.RequestStream` and `ResponseStream` for the directions that have one, each with `Events`
-what one frame holds: the `ElementType` of a `Type` whose root, read through aliases, is a list, since a
-schema applies to the whole body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an array of its
-values, else the `Type` itself, a schema with no array to read being the frame, or `bytes` on a file
-body ([`file-bodies`](#file-bodies)), whose schema describes the file. `Content.Type` keeps the
-list. `Streaming` is the `client`, `server` or `bidi` summary of them, and the operation's
-`Provenance.Inferred` lists the markers of the Contents it reads, joined by `,` to any other marker,
-since below 3.2 a media type is a guess about framing and not a declaration. A 3.2 `itemSchema` is a
-declaration: it streams on any media type with `Events` the `Item` type and no marker, and wins over
-the media-type reading at its own Content. An element settles once the registry is whole, since a
-`$ref` can name a list nothing has built yet. Streaming Contents whose frames differ leave `Events`
-unset on a direction that still streams, every Content kept, reported as an info
-`openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents whose frames are
-one element elect it, a list of a type agreeing with that type. Error responses and the default set
-no `StreamDetail`, their Contents marked all the same: whether the default answers a success is the
-plan's to decide ([`response-conditions`](#response-conditions)). The policy is the Go option
-`Options.StreamingInference`: `Disabled` turns the media-type reading off, on the Contents and the
-operation alike, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the default
-list instead of extending it, an entry starting with `+` naming a structured suffix. The
+what one frame holds: the `ElementType` of a `Type` whose root, read through aliases, is a list,
+since a schema applies to the whole body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an
+array of its values, else the `Type` itself, a schema with no array to read being the frame, or
+`bytes` on a file body ([`file-bodies`](#file-bodies)), whose schema describes the file.
+`Content.Type` keeps the list. `Streaming` is the `client`, `server` or `bidi` summary of them, and
+the operation's `Provenance.Inferred` lists the markers of the Contents it reads, joined by `,` to
+any other marker, since below 3.2 a media type is a guess about framing and not a declaration. A 3.2
+`itemSchema` is a declaration: it streams on any media type with `Events` the `Item` type and no
+marker, and wins over the media-type reading at its own Content. An element settles once the
+registry is whole, since a `$ref` can name a list nothing has built yet. Streaming Contents whose
+frames differ leave `Events` unset on a direction that still streams, every Content kept, reported
+as an info `openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents whose
+frames are one element elect it, a list of a type agreeing with that type. Error responses and the
+default set no `StreamDetail`, their Contents marked all the same: whether the default answers a
+success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
+Go option `Options.StreamingInference`: `Disabled` turns the media-type reading off, on the Contents
+and the operation alike, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the
+default list instead of extending it, an entry starting with `+` naming a structured suffix. The
 `streaming-media` setting sets `MediaTypes`, its entries separated by commas, and refuses one that
 is neither a media type nor a suffix, and `streaming-inference=false` sets `Disabled`.
 
@@ -7081,11 +7108,11 @@ by the type holding the catch-all: the body's type where it is a map, and otherw
 flattening of the body's type reads that holds a catch-all, a union body's variants each read so, as
 `ir.CatchAllHolders` lists them and `pass.Validate` holds them. `Value` is the encoding of a part no
 pattern matches, `additionalProperties`' or `unevaluatedProperties`', and `Patterns` one per
-`patternProperties` entry, each read as a declared part with no encoding entry is: `RepeatsPerArrayItem` and
-`HasFilename` off the value's type, and its default content type below, `contentEncoding` read off
-every catch-all value schema the part walk meets. An encoding that says nothing is not written, and
-a holder whose parts say nothing gets no key. A body that is a map declares no part, so every form
-body stating a schema is settled, though the walk finds no part.
+`patternProperties` entry, each read as a declared part with no encoding entry is:
+`RepeatsPerArrayItem` and `HasFilename` off the value's type, and its default content type below,
+`contentEncoding` read off every catch-all value schema the part walk meets. An encoding that says
+nothing is not written, and a holder whose parts say nothing gets no key. A body that is a map
+declares no part, so every form body stating a schema is settled, though the walk finds no part.
 
 A `multipart/form-data` or `application/x-www-form-urlencoded` body stating a schema that is no
 file body, and whose type, read through its unions, stands for no model, no map, no object value and
@@ -7114,10 +7141,11 @@ default OpenAPI gives it in `ContentTypes`, unless its entry arranges its value.
 empty `contentType`, which load reports, takes none. A response's part takes its default too, at
 every minor, though before 3.2 OpenAPI applies `encoding` to request bodies alone: the default is
 what OpenAPI gives a part by its schema, which needs no Encoding Object to apply. The default is
-read at the document's minor off the types the part's declarations settled on, the ones `RepeatsPerArrayItem` and
-`HasFilename` are read off: each value an Encoding Object applies to, which is each item of an array
-part, the element of a list or tuple and a union's members in its place, takes the row its kind
-names, and the part takes the one every value takes, a null value passing over:
+read at the document's minor off the types the part's declarations settled on, the ones
+`RepeatsPerArrayItem` and `HasFilename` are read off: each value an Encoding Object applies to,
+which is each item of an array part, the element of a list or tuple and a union's members in its
+place, takes the row its kind names, and the part takes the one every value takes, a null value
+passing over:
 
 1. an object, a model or a map, takes `application/json`;
 2. a number, an integer, a boolean, and a string, a format's primitive among them, take
@@ -7143,31 +7171,31 @@ item of a multipart body's `itemSchema` is a part too, and an `itemEncoding` nam
 or none written, takes its item's default, a list item being an array inside the array; such a body
 gets an `ItemEncoding` where it writes none ([`item-schema`](#item-schema)).
 
-`RepeatsPerArrayItem` and `HasFilename` come from the part, read once every type has lowered, and `HasFilename` also
-from the media types its encoding entry names; no part of a url-encoded body is a file, since the
-body has no parts to carry a file name. Where the body's type has the property and its type is a
-list, a tuple, a primitive, or a scalar whose bases end in one of those or in no base, they are read
-off that type, the one the `allOf` merge settled on: `RepeatsPerArrayItem` where it ends in a list or tuple,
-`HasFilename` where it ends, in a multipart body, in `bytes` no encoding such as `format: byte`
-re-encodes, or in a list or tuple every element of which does, a tuple's rest included where
-elements may follow its prefix. A union is read off its variants, through the unions nested in them,
-each as such a type is and one of another kind as neither: `RepeatsPerArrayItem` where any is, since a part that
-may repeat travels as repeated parts, and, in a multipart body, `HasFilename` where every one is
-`bytes` no encoding re-encodes or a list or tuple of them. A property of any other kind, such as an
-enum, literal, model or map, or a union reaching more nested unions than a bound of its own, reads
-off its type as no file, as such a member of a union does, and its `RepeatsPerArrayItem` is read from every schema
-declaring it: where any is an array, or writes no `type` and a union with an array among its
-branches. In a multipart body a part is a file too where every schema declaring it reads so as a
-body's schema does ([`file-bodies`](#file-bodies)), an array through each of its elements, its
-`prefixItems` and the `items` after them, or a draft's list of `items` and the `additionalItems`
-after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an array branch of a union
-it writes, whose other branches are read as a body's union branches are: one declaring raw bytes;
-one leaving its media type to say, where its encoding entry's `contentType` names only
-`application/octet-stream` or media types the binary policy names ([`binary-media`](#binary-media)),
-`PartEncoding.Inferred` being `binary-inference` where it names one of the latter; and, from
-OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose default content type OpenAPI
-makes `application/octet-stream`, a union being read so only where each of its branches, an array's
-through its elements, writes no `type` or declares raw bytes, so that
+`RepeatsPerArrayItem` and `HasFilename` come from the part, read once every type has lowered, and
+`HasFilename` also from the media types its encoding entry names; no part of a url-encoded body is a
+file, since the body has no parts to carry a file name. Where the body's type has the property and
+its type is a list, a tuple, a primitive, or a scalar whose bases end in one of those or in no base,
+they are read off that type, the one the `allOf` merge settled on: `RepeatsPerArrayItem` where it
+ends in a list or tuple, `HasFilename` where it ends, in a multipart body, in `bytes` no encoding
+such as `format: byte` re-encodes, or in a list or tuple every element of which does, a tuple's rest
+included where elements may follow its prefix. A union is read off its variants, through the unions
+nested in them, each as such a type is and one of another kind as neither: `RepeatsPerArrayItem`
+where any is, since a part that may repeat travels as repeated parts, and, in a multipart body,
+`HasFilename` where every one is `bytes` no encoding re-encodes or a list or tuple of them. A
+property of any other kind, such as an enum, literal, model or map, or a union reaching more nested
+unions than a bound of its own, reads off its type as no file, as such a member of a union does, and
+its `RepeatsPerArrayItem` is read from every schema declaring it: where any is an array, or writes
+no `type` and a union with an array among its branches. In a multipart body a part is a file too
+where every schema declaring it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an
+array through each of its elements, its `prefixItems` and the `items` after them, or a draft's list
+of `items` and the `additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting
+none, as is an array branch of a union it writes, whose other branches are read as a body's union
+branches are: one declaring raw bytes; one leaving its media type to say, where its encoding entry's
+`contentType` names only `application/octet-stream` or media types the binary policy names
+([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-inference` where it names
+one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
+default content type OpenAPI makes `application/octet-stream`, a union being read so only where each
+of its branches, an array's through its elements, writes no `type` or declares raw bytes, so that
 `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with neither is `text/plain`,
 whatever its `contentMediaType`, which OpenAPI ignores where an encoding's default disagrees, and an
 array writing no `items`, or a draft's tuple no `additionalItems`, says nothing of its elements past
@@ -7187,7 +7215,8 @@ in any case.
 - Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`,
   `openapi/partless-form-body`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `specrules.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `specrules.TestEncodingRules_AnswerAsTheTableDoes`,
+  `specrules.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `specrules.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
@@ -7207,7 +7236,8 @@ in any case.
   `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
   `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
   `schema.TestListedTuple_ReadsADraftsEntriesAndRest`,
-  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`, `operation.TestKeepEntry_ReasonFollowsEffect`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`,
+  `operation.TestKeepEntry_ReasonFollowsEffect`,
   `operation.TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares`,
   `operation.TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError`,
   `operation.TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced`,
@@ -7485,23 +7515,23 @@ document's ([servers](../ir/servers.md#inbound-operations)).
 
 An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each runtime expression of
 each named callback, a `Callback` holding the callback's name and the expression as written and the
-`OperationID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
-mounted at its own pointer below the declaring operation's
+`OperationID`s of the operations its path item declares. Each of those lowers to an `Operation` of
+its own, mounted at its own pointer below the declaring operation's
 (`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), filed in the declaring
 operation's group whatever its own tags or grouping extension state ([`tag-groups`](#tag-groups)),
 its binding's `Inbound` a callback, with the expression as its `URITemplate`
 ([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security` and no
-`servers`, as a webhook does ([`webhooks`](#webhooks)). A callback's operation may declare
-callbacks in turn, which OpenAPI also gives as requests the API sends, and they lower the same way,
-listed on its binding and filed in the same group, the deeper operations after the one declaring
-them, down to an operation nested in four callbacks. Past that bound, which stops a callback naming
-itself through a `$ref` from lowering without end, the deepest operation's `callbacks` are kept
-verbatim on its HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as
-an `openapi/degraded-construct` warning at that `callbacks` map. Each level's `$ref`s are charged as
+`servers`, as a webhook does ([`webhooks`](#webhooks)). A callback's operation may declare callbacks
+in turn, which OpenAPI also gives as requests the API sends, and they lower the same way, listed on
+its binding and filed in the same group, the deeper operations after the one declaring them, down to
+an operation nested in four callbacks. Past that bound, which stops a callback naming itself through
+a `$ref` from lowering without end, the deepest operation's `callbacks` are kept verbatim on its
+HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as an
+`openapi/degraded-construct` warning at that `callbacks` map. Each level's `$ref`s are charged as
 any are ([`source-budgets`](#source-budgets)), so one naming its callback several times over, whose
-copies multiply at each level, is refused once they pass the budget. A key is a runtime expression, by
-the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own example
-does, or a constant URL, which embeds none; one that is none of them is reported as an
+copies multiply at each level, is refused once they pass the budget. A key is a runtime expression,
+by the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own
+example does, or a constant URL, which embeds none; one that is none of them is reported as an
 `openapi/validation` error, of the class `validation-invalid-format`, at the key
 ([`validation`](#validation)), and lowers as written.
 
@@ -7757,15 +7787,16 @@ its entry, and the table reports each.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
-  `openapi/unknown-key-budget`, `openapi/unknown-key-entry-already-claimed`, `openapi/unknown-key-unreachable`
+  `openapi/unknown-key-budget`, `openapi/unknown-key-entry-already-claimed`,
+  `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
-  `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
-  `e2e.TestUnknownKeys_UnreferencedComponents`, `e2e.TestUnknownKeys_ObjectsKeptWhole`,
-  `e2e.TestUnknownKeys_InsideAKeptSchema`, `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
+  `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`, `e2e.TestUnknownKeys_UnreferencedComponents`,
+  `e2e.TestUnknownKeys_ObjectsKeptWhole`, `e2e.TestUnknownKeys_InsideAKeptSchema`,
+  `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
   `e2e.TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten`,
   `e2e.TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported`,
-  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `specrules.TestCheck_UnknownKeysAreReportedAtEveryObject`,
-  `specrules.TestCheck_KeysBesideARef`,
+  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`,
+  `specrules.TestCheck_UnknownKeysAreReportedAtEveryObject`, `specrules.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
@@ -7813,16 +7844,16 @@ how operations are arranged rather than filling a fact a node holds.
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
    the fact or for the convention, which imports only `ir`, the compiler's `diag`, `ids` and
-   `promotion`, and `compileddoc`, the one reading of the finished document every such step shares, and
-   `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks that
-   built the document. The compiler's run reads them in one block, in one order: links
+   `promotion`, and `compileddoc`, the one reading of the finished document every such step shares,
+   and `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks
+   that built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
    promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
    root follows a reference, as which components the root keeps turns on what was reached. The
-   audits of what the policies read come last, once the document's own keys are merged in as
-   well. A reading a node needs while it lowers, as nullable inference's
-   ([`nullable`](#nullable)) and kind inference's ([`shape-applicator`](#shape-applicator)), or while
-   the registry settles, as discriminator inference's, is made there instead.
+   audits of what the policies read come last, once the document's own keys are merged in as well. A
+   reading a node needs while it lowers, as nullable inference's ([`nullable`](#nullable)) and kind
+   inference's ([`shape-applicator`](#shape-applicator)), or while the registry settles, as
+   discriminator inference's, is made there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`, `promotion.TestPromoter_WritesKnowsEveryTarget`,
@@ -8135,12 +8166,12 @@ A page walk an extension declares fills `Operation.Pagination`
 ([extension-promotion](#extension-promotion)), read once the document is whole, since its values are
 members of response bodies. Each field is a target of the policy: `pagination.cursor`,
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
-or `page`, `pagination.carriesPageSize` the page size, and `pagination.items`, `pagination.nextCursor`,
-`pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
-same names, and `pagination.hasMore` the flag a page states that another follows, which fills
-`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A
-source listing no values holds, on the operation, an expression naming the value: an
-OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
+or `page`, `pagination.carriesPageSize` the page size, and `pagination.items`,
+`pagination.nextCursor`, `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages`
+the page values of the same names, and `pagination.hasMore` the flag a page states that another
+follows, which fills `HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no
+default source reads. A source listing no values holds, on the operation, an expression naming the
+value: an OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 `$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
 and a dotted chain of names, the first of an input a parameter's where one parameter carries it and

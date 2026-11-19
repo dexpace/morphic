@@ -90,7 +90,8 @@ func TestLoad_KeepsFilesInNameOrder(t *testing.T) {
 	assert.Equal(t, []string{"a.go", "b.go", "c.go", "d.go"}, fileNames(loadedPackage))
 }
 
-// fileNames returns the base name of each file in loadedPackage.Syntax, in its order.
+// fileNames returns the base name of each file in loadedPackage.Syntax, in its
+// order.
 func fileNames(loadedPackage *decls.Package) []string {
 	out := make([]string, len(loadedPackage.Syntax))
 	for i, f := range loadedPackage.Syntax {

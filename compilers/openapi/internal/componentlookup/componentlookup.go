@@ -25,8 +25,8 @@ type Scope struct {
 	// Declares holds the names of the component schemas the document declares.
 	Declares Names
 	// Bindings answers where each reference lands, a schema's $ref or a
-	// Reference Object's, as the compiler resolved it (internal/reftable), and the
-	// models there; nil knows none, so no reference resolves.
+	// Reference Object's, as the compiler resolved it (internal/reftable), and
+	// the models there; nil knows none, so no reference resolves.
 	Bindings *typed.Bindings
 	// Foreign marks a scope over content another document holds, read where
 	// that document holds it (GitHub #762). A reference there is internal only

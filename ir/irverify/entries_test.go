@@ -13,8 +13,8 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// readEntries returns what entryReader reads of map m, key by key, ranging over it as a
-// check does.
+// readEntries returns what entryReader reads of map m, key by key, ranging over
+// it as a check does.
 func readEntries(entryReader *irverify.EntryReader, m reflect.Value) map[string]int64 {
 	read := map[string]int64{}
 	held := entryReader.HeldFor(m)

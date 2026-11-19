@@ -14,13 +14,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// DropContained removes from unmodeled each entry that another entry of unmodeled holds
-// whole: its provenance lies in the same source strictly beneath the other's,
-// and its value is the value found there inside the other's. An entry naming a
-// key promoter reads stays, unscoped or beneath any scope, since a promotion reads
-// the kept entries and one inside another's value reaches no field
-// (docs/ir/unmodeled.md#promotion). With whole set, only those entries are
-// asked whether they hold another.
+// DropContained removes from unmodeled each entry that another entry of
+// unmodeled holds whole: its provenance lies in the same source strictly
+// beneath the other's, and its value is the value found there inside the
+// other's. An entry naming a key promoter reads stays, unscoped or beneath any
+// scope, since a promotion reads the kept entries and one inside another's
+// value reaches no field (docs/ir/unmodeled.md#promotion). With whole set, only
+// those entries are asked whether they hold another.
 func DropContained(promoter Promoter, unmodeled *ir.Unmodeled, whole ...string) {
 	dropContained(promoter, unmodeled, holdsWhole, whole)
 }
@@ -54,7 +54,8 @@ type entryAt struct {
 	pointer jsontext.Pointer
 }
 
-// holdersAt lists the keys of holders that unmodeled holds by where each is written.
+// holdersAt lists the keys of holders that unmodeled holds by where each is
+// written.
 func holdersAt(unmodeled ir.Unmodeled, holders []string) map[entryAt][]string {
 	at := make(map[entryAt][]string, len(holders))
 	for _, h := range holders {
@@ -66,9 +67,9 @@ func holdersAt(unmodeled ir.Unmodeled, holders []string) map[entryAt][]string {
 	return at
 }
 
-// heldBy reports whether an entry of unmodeled other than key, written above inner in
-// the same source, holds it. at lists the holders by where they are written
-// (holdersAt); one unmodeled no longer holds is no holder.
+// heldBy reports whether an entry of unmodeled other than key, written above
+// inner in the same source, holds it. at lists the holders by where they are
+// written (holdersAt); one unmodeled no longer holds is no holder.
 func heldBy(unmodeled ir.Unmodeled, at map[entryAt][]string, key string, inner ir.UnmodeledEntry,
 	holds func(outer, inner ir.UnmodeledEntry) bool,
 ) bool {

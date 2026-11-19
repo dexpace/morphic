@@ -233,8 +233,8 @@ func (a admitted) formsWithin(b admitted) bool {
 	return true
 }
 
-// takes reports whether a admits the value node writes, for a default read across a
-// narrowing (Use.Default). One it cannot read is no value it takes.
+// takes reports whether a admits the value node writes, for a default read
+// across a narrowing (Use.Default). One it cannot read is no value it takes.
 func (a admitted) takes(node *yaml.Node) bool {
 	key, kind, ok := memberOf(node)
 	if !ok {
@@ -246,9 +246,9 @@ func (a admitted) takes(node *yaml.Node) bool {
 	return kind&a.kinds != 0
 }
 
-// memberOf returns the key node compares by, as an enum compares its own entries
-// (valueKey), so 1 and 1.0 are one value, with its kind, and false for a value
-// it cannot read.
+// memberOf returns the key node compares by, as an enum compares its own
+// entries (valueKey), so 1 and 1.0 are one value, with its kind, and false for
+// a value it cannot read.
 func memberOf(node *yaml.Node) (string, kindSet, bool) {
 	val, err := value.FromNode(node)
 	if err != nil {

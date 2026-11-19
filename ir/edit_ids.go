@@ -165,8 +165,8 @@ func compareDeclared(a, b declaredID) int {
 	return cmp.Compare(a.id, b.id)
 }
 
-// clause says how often the node an update ends with declares declaredIDValue, against how
-// often from, the node it is held to, does.
+// clause says how often the node an update ends with declares declaredIDValue,
+// against how often from, the node it is held to, does.
 func (n idCount) clause(declaredIDValue declaredID, from string) string {
 	if n.node == 0 {
 		return fmt.Sprintf("the %s %q, which %s does not", declaredIDValue.class, declaredIDValue.id, from)

@@ -64,9 +64,9 @@ func TestExample_ScenarioInput_Encoding(t *testing.T) {
 
 // TestExample_ScenarioInput_RoundTrips holds each distinction an input draws to
 // the codec: an absent input and an empty one, a nil Body and one holding null,
-// a nil parameter map and an empty one, and a key that names no valid ParameterID,
-// which the codec carries and irverify reports. It runs through an Example
-// alone and through a whole Document, each compared with cmp.Diff.
+// a nil parameter map and an empty one, and a key that names no valid
+// ParameterID, which the codec carries and irverify reports. It runs through an
+// Example alone and through a whole Document, each compared with cmp.Diff.
 func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}

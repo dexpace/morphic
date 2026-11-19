@@ -38,9 +38,9 @@ func (h *hierarchy) childrenOf(id ir.TypeID) []ir.TypeID {
 	return nil
 }
 
-// supertypes appends the supertypes of model to dst as ir.Supertypes returns them:
-// its Base, then each Implements entry, each read through its alias scalars,
-// skipping a reference that names no type.
+// supertypes appends the supertypes of model to dst as ir.Supertypes returns
+// them: its Base, then each Implements entry, each read through its alias
+// scalars, skipping a reference that names no type.
 func (h *hierarchy) supertypes(dst []ir.TypeID, model *ir.Model) []ir.TypeID {
 	if model.Base != nil {
 		dst = appendTarget(dst, h.aliases.target(model.Base.Target))
@@ -98,8 +98,8 @@ func mostSupertypes(types ir.TypeRegistry) int {
 	return most
 }
 
-// subtype answers [DocumentFacts.IsSubtype] from the intervals, with settled false where
-// they leave the pair open.
+// subtype answers [DocumentFacts.IsSubtype] from the intervals, with settled
+// false where they leave the pair open.
 func (h *hierarchy) subtype(target, base ir.TypeID) (sub, settled bool) {
 	t, named := h.vertex[target]
 	b, alsoNamed := h.vertex[base]

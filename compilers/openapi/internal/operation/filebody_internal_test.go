@@ -61,9 +61,9 @@ func unionSchemas(branches []string, uses int) string {
 	return b.String()
 }
 
-// readAs reads the component name of the document lowererValue holds as a body, or as a
-// part when part is set, through the branch reader of that reading, counting
-// each branch read in reads.
+// readAs reads the component name of the document lowererValue holds as a body,
+// or as a part when part is set, through the branch reader of that reading,
+// counting each branch read in reads.
 func readAs(t *testing.T, lowererValue *lowerer, name string, part bool, reads *int) fileReading {
 	t.Helper()
 	js, ok := lowererValue.ctx.Doc.Components.Schemas.Get(name)

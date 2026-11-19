@@ -81,13 +81,13 @@ func carriers(doc *ir.Document) map[string]carrier {
 	return held
 }
 
-// excused reports whether a finding on carrierValue is the kind inference's known cost:
-// the node carrierValue is checked against, past any alias of it (aliased), names
-// kind-inference in its Provenance.Inferred, which narrows a schema admitting
-// every kind to one, and the default is of another kind. A finding of what the
-// default holds, a bound or a member, is the node's own and is never excused,
-// nor is one on a node that carries no such mark or against a default of the
-// node's kind.
+// excused reports whether a finding on carrierValue is the kind inference's
+// known cost: the node carrierValue is checked against, past any alias of it
+// (aliased), names kind-inference in its Provenance.Inferred, which narrows a
+// schema admitting every kind to one, and the default is of another kind. A
+// finding of what the default holds, a bound or a member, is the node's own and
+// is never excused, nor is one on a node that carries no such mark or against a
+// default of the node's kind.
 func excused(doc *ir.Document, carrierValue carrier) bool {
 	td := aliased(doc, carrierValue.typ.Target)
 	var kind ir.ValueKind

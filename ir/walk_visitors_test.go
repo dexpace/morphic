@@ -99,8 +99,9 @@ func TestWalkValues_VisitorsShareOneTraversal(t *testing.T) {
 
 // TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere holds the walk
 // to reading a pointer from each holder for each visitor. Here one pointer is
-// held at document.A and at document.B; the first visitor prunes document.A, so it meets the
-// pointer at document.B alone, and the second, which prunes nothing, meets it at both.
+// held at document.A and at document.B; the first visitor prunes document.A, so
+// it meets the pointer at document.B alone, and the second, which prunes
+// nothing, meets it at both.
 func TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere(t *testing.T) {
 	t.Parallel()
 	shared := &ptrNode{}

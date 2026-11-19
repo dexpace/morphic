@@ -175,8 +175,9 @@ func TestBoundsBeyond_KeepsWhatTheOtherDoesNotStateAtThatValue(t *testing.T) {
 		boundsBeyond(&ir.Constraints{MaxLength: new(int64(9)), UniqueItems: true}, &ir.Constraints{MaxLength: new(int64(10))}))
 }
 
-// boundedNodeKinds builds a hoisted node of each kind that holds bounds, written
-// at the nth declaration, holding constraints and a detail a mint must carry over.
+// boundedNodeKinds builds a hoisted node of each kind that holds bounds,
+// written at the nth declaration, holding constraints and a detail a mint must
+// carry over.
 func boundedNodeKinds() map[string]func(n int, constraints *ir.Constraints) ir.TypeDef {
 	i32 := primRef(ir.PrimitiveInt32)
 	site := func(n int) ir.TypeCommon {

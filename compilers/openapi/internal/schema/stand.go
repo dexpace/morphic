@@ -30,7 +30,8 @@ type stand struct {
 
 // position returns the schema a union schema writes is elected at
 // (docs/compilers/openapi.md#competing-keywords): the position schema is the
-// principal of, whose branches declare shape against all it conjoins, else schema.
+// principal of, whose branches declare shape against all it conjoins, else
+// schema.
 func (st stand) position(schema *statement.Schema) *statement.Schema {
 	if st.of == nil {
 		return schema
@@ -46,10 +47,10 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	return st.at
 }
 
-// foldedBranches returns what the node of schema, written at written, reads beside schema: the
-// foldedBranches of its position (positionFoldedBranches), where it stands at another, that
-// position's own keywords and each folded branch of its allOf but schema, whose keywords the
-// node reads as its own.
+// foldedBranches returns what the node of schema, written at written, reads
+// beside schema: the foldedBranches of its position (positionFoldedBranches),
+// where it stands at another, that position's own keywords and each folded
+// branch of its allOf but schema, whose keywords the node reads as its own.
 func (st stand) foldedBranches(loweringContext lowering.Ctx, schema *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfBranch {
 	if st.of == nil {
 		return positionFoldedBranches(loweringContext, schema, written, ir.TypeRef{})
@@ -67,8 +68,8 @@ func (st stand) foldedBranches(loweringContext lowering.Ctx, schema *statement.S
 	return out
 }
 
-// takes returns the kinds whose value bounds the node of schema takes (boundKinds):
-// those its position admits.
+// takes returns the kinds whose value bounds the node of schema takes
+// (boundKinds): those its position admits.
 func (st stand) takes(loweringContext lowering.Ctx, schema *statement.Schema) kindSet {
 	if st.of == nil {
 		return boundKinds(loweringContext, schema)
@@ -76,10 +77,10 @@ func (st stand) takes(loweringContext lowering.Ctx, schema *statement.Schema) ki
 	return boundKinds(loweringContext, st.of)
 }
 
-// standsAtPosition reports whether refinementValue's principal is inline and built the node
-// the position written at pointer owns, having lowered to target: its census ran
-// on that node (keepsAtOutcome), and what that node holds is the principal's
-// (ownHomes).
+// standsAtPosition reports whether refinementValue's principal is inline and
+// built the node the position written at pointer owns, having lowered to
+// target: its census ran on that node (keepsAtOutcome), and what that node
+// holds is the principal's (ownHomes).
 func standsAtPosition(loweringContext lowering.Ctx, refinementValue refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
 	return refinementValue.principal != nil && refinementValue.principal.schema.Ref == nil && LoweredToOwnNode(loweringContext, pointer, target)
 }

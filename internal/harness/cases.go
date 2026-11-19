@@ -44,9 +44,9 @@ type Axis struct {
 // the core value of the same axis a finding at it is recorded under.
 type Value struct{ Name, Like string }
 
-// CaseDocument is what one case writes, and what the case oracles hold it to: the
-// neighbours two compare it with, each named by its value index per axis, and
-// its instances.
+// CaseDocument is what one case writes, and what the case oracles hold it to:
+// the neighbours two compare it with, each named by its value index per axis,
+// and its instances.
 type CaseDocument struct {
 	// Sources are the root first, and the rest what its references name.
 	Sources []compilers.Source
@@ -108,11 +108,11 @@ type Instance struct {
 	Name  string
 }
 
-// CaseCount returns how many cases cases' product holds, the product of its axes'
-// lengths. It refuses a product of no axis or of more than maxCases cases, an
-// axis with no value, two axes or two values of one axis of one name, a name
-// the record or a case name cannot hold, and a Like naming no core value of its
-// axis.
+// CaseCount returns how many cases cases' product holds, the product of its
+// axes' lengths. It refuses a product of no axis or of more than maxCases
+// cases, an axis with no value, two axes or two values of one axis of one name,
+// a name the record or a case name cannot hold, and a Like naming no core value
+// of its axis.
 func CaseCount(cases Cases) (int, error) {
 	_, n, err := product(cases)
 	return n, err

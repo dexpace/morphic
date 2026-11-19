@@ -208,8 +208,8 @@ func Bind(ctx context.Context, src *yaml.Node, cfg Config) *ReferenceTargetTable
 	}
 }
 
-// newBinder returns a pass over docsValue, knowing what ids holds and who asked for
-// what (asked), and nothing else.
+// newBinder returns a pass over docsValue, knowing what ids holds and who asked
+// for what (asked), and nothing else.
 func newBinder(cfg Config, docsValue *docs, workValue *work, ids *identifiers, asked *reads) *binder {
 	docsValue.reached, docsValue.fresh = map[DocID]bool{Source: true}, nil
 	clear(asked.held)
@@ -410,8 +410,8 @@ func landDynamic(b *binder) {
 	}
 }
 
-// mappingOrder orders mapping values by their discriminator's position in docsValue,
-// then by value.
+// mappingOrder orders mapping values by their discriminator's position in
+// docsValue, then by value.
 func mappingOrder(docsValue *docs) func(mappingKeyValue, otherMappingKey mappingKey) int {
 	return func(mappingKeyValue, otherMappingKey mappingKey) int {
 		if c := docsValue.compare(mappingKeyValue.at, otherMappingKey.at); c != 0 {
@@ -421,9 +421,9 @@ func mappingOrder(docsValue *docs) func(mappingKeyValue, otherMappingKey mapping
 	}
 }
 
-// table finishes referenceTargetTable: an entry for each position a chain passed that no walk
-// found, which only a budget cutting the walks leaves, the loops, the
-// landings, and the verdicts of the budget and of the merge bound.
+// table finishes referenceTargetTable: an entry for each position a chain
+// passed that no walk found, which only a budget cutting the walks leaves, the
+// loops, the landings, and the verdicts of the budget and of the merge bound.
 func (b *binder) table(referenceTargetTable *ReferenceTargetTable) *ReferenceTargetTable {
 	for documentPointer, chain := range b.chains {
 		if _, found := referenceTargetTable.entries[documentPointer]; !found {
@@ -522,10 +522,10 @@ func (b *binder) attribute(referenceTargetTable *ReferenceTargetTable) map[Docum
 	return reach
 }
 
-// ReferencedDocument is a document a table read: its name and its root node. Unreached
-// reports that only a pass that did not stand asked for it, so that nothing the
-// table holds is in it: a reference read it as a location before a later
-// document declared that URI. Dialects is each schema resource root in it
+// ReferencedDocument is a document a table read: its name and its root node.
+// Unreached reports that only a pass that did not stand asked for it, so that
+// nothing the table holds is in it: a reference read it as a location before a
+// later document declared that URI. Dialects is each schema resource root in it
 // that names its dialect, in pointer order.
 type ReferencedDocument struct {
 	Name string
@@ -537,12 +537,12 @@ type ReferencedDocument struct {
 	Unreached bool
 }
 
-// ReferenceTargetTable is every reference a source holds, a schema's $ref or a Reference
-// Object's, where each lands and where its chain ends, the loops among them,
-// and what the reading cost. It is built once, and no answer it gives changes
-// after: only its base lookups write, to remember the walks they make (bases),
-// so one is not safe for concurrent use. Each list it gives is sorted once, as
-// it is built, in the order docs.compare reads positions in.
+// ReferenceTargetTable is every reference a source holds, a schema's $ref or a
+// Reference Object's, where each lands and where its chain ends, the loops
+// among them, and what the reading cost. It is built once, and no answer it
+// gives changes after: only its base lookups write, to remember the walks they
+// make (bases), so one is not safe for concurrent use. Each list it gives is
+// sorted once, as it is built, in the order docs.compare reads positions in.
 type ReferenceTargetTable struct {
 	entries     map[DocumentPointer]ReferenceSite
 	references  map[objectKey]Reference
@@ -644,8 +644,8 @@ func (t *ReferenceTargetTable) DynamicAnchor(id DocID, name string) DynamicAncho
 }
 
 // dynamicAnchorsOf returns what each name's declarations in each document say
-// (ReferenceTargetTable.DynamicAnchor), each name's sorted once, and whether another
-// document's declaring resource reaches the first, as reached read it.
+// (ReferenceTargetTable.DynamicAnchor), each name's sorted once, and whether
+// another document's declaring resource reaches the first, as reached read it.
 func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) map[dynamicKey]DynamicAnchor {
 	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
 	for dynamicKey, sites := range ids.dynamic {
@@ -671,10 +671,10 @@ func (t *ReferenceTargetTable) RecursiveAnchor(root DocumentPointer) (declared, 
 }
 
 // recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
-// document say (ReferenceTargetTable.RecursiveAnchor): where they are, which of the resources
-// holding them another such resource reaches, and whether one lies where a
-// merge past the bound may hide the resource it is in, or a resource on the
-// way.
+// document say (ReferenceTargetTable.RecursiveAnchor): where they are, which of
+// the resources holding them another such resource reaches, and whether one
+// lies where a merge past the bound may hide the resource it is in, or a
+// resource on the way.
 type recursiveAnchors struct {
 	sites    map[DocumentPointer]bool
 	reached  map[DocumentPointer]bool
@@ -683,8 +683,8 @@ type recursiveAnchors struct {
 
 // recursiveAnchorsOf returns what the declarations ids holds say, by document,
 // the resource of each read from b once, and which resource another declaring
-// one reaches read over reachValue in one walk, so a $recursiveRef asks a lookup rather
-// than a read of every declaration.
+// one reaches read over reachValue in one walk, so a $recursiveRef asks a
+// lookup rather than a read of every declaration.
 func recursiveAnchorsOf(ids *identifiers, b *bases, reachValue reach) map[DocID]recursiveAnchors {
 	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
 	var origins []DocumentPointer
@@ -712,11 +712,11 @@ func recursiveAnchorsOf(ids *identifiers, b *bases, reachValue reach) map[DocID]
 	return out
 }
 
-// Resource returns the root of the schema resource the schema at documentPointer lies in,
-// its own identifier counted: the schema whose identifier starts it, or its
-// document's root where none on the way does. It is false where a schema on
-// the way may hide one past the merge bound. A nil table reads every position
-// as its document's.
+// Resource returns the root of the schema resource the schema at
+// documentPointer lies in, its own identifier counted: the schema whose
+// identifier starts it, or its document's root where none on the way does. It
+// is false where a schema on the way may hide one past the merge bound. A nil
+// table reads every position as its document's.
 func (t *ReferenceTargetTable) Resource(documentPointer DocumentPointer) (root DocumentPointer, known bool) {
 	if t == nil {
 		return DocumentPointer{Doc: documentPointer.Doc}, true
@@ -725,11 +725,11 @@ func (t *ReferenceTargetTable) Resource(documentPointer DocumentPointer) (root D
 	return res.root, known
 }
 
-// Base returns the URI a reference written in the schema at documentPointer resolves
-// against, its own identifier counted: its document's, or the resource's an
-// identifier at or above it names. Two schemas with one base read every
-// reference they write alike. It is false where a schema on the way may hide
-// one past the merge bound, and a nil table knows none.
+// Base returns the URI a reference written in the schema at documentPointer
+// resolves against, its own identifier counted: its document's, or the
+// resource's an identifier at or above it names. Two schemas with one base read
+// every reference they write alike. It is false where a schema on the way may
+// hide one past the merge bound, and a nil table knows none.
 func (t *ReferenceTargetTable) Base(documentPointer DocumentPointer) (string, bool) {
 	if t == nil {
 		return "", false

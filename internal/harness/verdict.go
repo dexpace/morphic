@@ -208,8 +208,8 @@ func (v Verdict) Found() bool { return v.Asked() && v.Outcome != OutcomeOK }
 // passed is oracle's verdict on a spec it asked and found nothing in.
 func passed(oracle Oracle) Verdict { return Verdict{Oracle: oracle, Outcome: OutcomeOK} }
 
-// found is oracle's verdict on a spec it found what detail describes in. A detail
-// is required: a finding nobody can read is no finding.
+// found is oracle's verdict on a spec it found what detail describes in. A
+// detail is required: a finding nobody can read is no finding.
 func found(oracle Oracle, detail string) Verdict {
 	outcome, ok := oracle.finds()
 	if !ok || detail == "" {
@@ -218,7 +218,8 @@ func found(oracle Oracle, detail string) Verdict {
 	return Verdict{Oracle: oracle, Outcome: outcome, Detail: detail}
 }
 
-// declined is oracle's verdict on a spec it asked nothing of, for the reason why.
+// declined is oracle's verdict on a spec it asked nothing of, for the reason
+// why.
 func declined(oracle Oracle, why Decline) Verdict {
 	if why == "" {
 		panic(fmt.Sprintf("harness: %q declined for no reason", oracle))
@@ -283,7 +284,8 @@ func summary(results []Result, oracles []Oracle) string {
 	return b.String()
 }
 
-// count adds verdict to tallyValue; a zero Verdict is an oracle the result has none from.
+// count adds verdict to tallyValue; a zero Verdict is an oracle the result has
+// none from.
 func count(tallyValue *tally, verdict Verdict) {
 	switch {
 	case verdict.Oracle == "":

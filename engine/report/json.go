@@ -20,12 +20,12 @@ type versioned struct {
 	Report  `json:",embed"`
 }
 
-// WriteJSON writes runReport to w as one JSON object, a newline after it: its schema
-// version, the verdict, the sources, every finding as rated with the
+// WriteJSON writes runReport to w as one JSON object, a newline after it: its
+// schema version, the verdict, the sources, every finding as rated with the
 // diagnostic as reported and the rule it met, the unused rules and the
-// warnings, each list present when empty. Its members come in a fixed order,
-// so one run's report is one string of bytes, and each string as JSON escapes
-// it, a C1 control or a bidirectional override raw (#1826).
+// warnings, each list present when empty. Its members come in a fixed order, so
+// one run's report is one string of bytes, and each string as JSON escapes it,
+// a C1 control or a bidirectional override raw (#1826).
 //
 // It refuses a nil w, and a report holding a string that is not UTF-8, which
 // JSON cannot carry, before writing anything.

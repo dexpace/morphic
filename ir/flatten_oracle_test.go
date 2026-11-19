@@ -45,9 +45,9 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 	}
 }
 
-// requireDeclarations holds flattening's members to one per wire name, each declaration
-// sharing it and held by its owner, and every declaration together to the set
-// ExposedProperties reaches.
+// requireDeclarations holds flattening's members to one per wire name, each
+// declaration sharing it and held by its owner, and every declaration together
+// to the set ExposedProperties reaches.
 func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, flattening ir.Flattening,
 	models map[ir.TypeID]*ir.Model, what string,
 ) {

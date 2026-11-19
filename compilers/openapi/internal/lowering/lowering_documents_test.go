@@ -66,9 +66,9 @@ func extDoc(t *testing.T, loweringContext lowering.Ctx) reftable.DocID {
 }
 
 // TestInDocument_PlacesWhatAnotherDocumentDeclares pins the context a lowering
-// of another document's content runs in: its references read in that
-// document's scope, each Provenance naming its BoundDocument.Sources entry, and its
-// IDs qualified by its label. The source's own number returns to the source's
+// of another document's content runs in: its references read in that document's
+// scope, each Provenance naming its BoundDocument.Sources entry, and its IDs
+// qualified by its label. The source's own number returns to the source's
 // coordinates, and a context given no document holding that one cannot place
 // it.
 func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
@@ -187,10 +187,10 @@ func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 }
 
 // TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded
-// document gets the source's rows: the load phase's own (load.LoadedOpenAPIDocument.Rows),
-// held by identity, so building the context builds no rule table, which alone
-// allocates more than the whole context does. It runs alone, since the
-// allocation counts are the process's.
+// document gets the source's rows: the load phase's own
+// (load.LoadedOpenAPIDocument.Rows), held by identity, so building the context
+// builds no rule table, which alone allocates more than the whole context does.
+// It runs alone, since the allocation counts are the process's.
 func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	loweringContext, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	if loweringContext.SchemaRules() != doc.Rows.Schema {

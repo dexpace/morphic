@@ -97,15 +97,16 @@ func FlattenSteps(types TypeRegistry, root TypeID) int {
 	return flattenerValue.steps
 }
 
-// TreeWork returns how many nodes editor has stepped through and elements of the
-// service tree's slices it has built, which is what its writes cost.
+// TreeWork returns how many nodes editor has stepped through and elements of
+// the service tree's slices it has built, which is what its writes cost.
 func TreeWork(editor *Editor) int { return editor.tree.work }
 
-// IDsScanned returns how many values editor's ID check has entered, which is what
-// its scans cost.
+// IDsScanned returns how many values editor's ID check has entered, which is
+// what its scans cost.
 func IDsScanned(editor *Editor) int { return editor.declared.entered }
 
-// IDListsSorted returns how many lists editor's ID check has sorted to compare them.
+// IDListsSorted returns how many lists editor's ID check has sorted to compare
+// them.
 func IDListsSorted(editor *Editor) int { return editor.declared.sorted }
 
 // StoredSteps returns how many steps l stores for the paths it holds, so ir's

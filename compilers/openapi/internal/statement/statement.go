@@ -33,13 +33,13 @@ type Statement struct {
 	Entries []AllOfConjunct
 }
 
-// AllOfConjunct is one conjunct of a statement: the schema object written there, its
-// pointer below the statement's schema, such as /allOf/0/allOf/1, empty for
-// the reference the statement's own object writes, whether it is a wrapper
-// whose own entries precede it, and whether it writes an allOf nested past
-// MaxFlattenDepth, which is not listed. An object writing a reference beside
-// other keys is two entries at one pointer: the reference alone, then the
-// rest, which writes none (Schema.WrittenBeside).
+// AllOfConjunct is one conjunct of a statement: the schema object written
+// there, its pointer below the statement's schema, such as /allOf/0/allOf/1,
+// empty for the reference the statement's own object writes, whether it is a
+// wrapper whose own entries precede it, and whether it writes an allOf nested
+// past MaxFlattenDepth, which is not listed. An object writing a reference
+// beside other keys is two entries at one pointer: the reference alone, then
+// the rest, which writes none (Schema.WrittenBeside).
 type AllOfConjunct struct {
 	*Schema
 	Rel     jsontext.Pointer
@@ -91,9 +91,10 @@ type Schema struct {
 	Logic  *Logic
 	Notes  *Notes
 
-	// m is the parser's value the schema was read from, index each key's
-	// place in Keys, built only past indexAbove keys, and of the statement
-	// MemoizingSchemaReader.Of built over the schema, nil until something reads it.
+	// m is the parser's value the schema was read from, index each key's place
+	// in Keys, built only past indexAbove keys, and of the statement
+	// MemoizingSchemaReader.Of built over the schema, nil until something reads
+	// it.
 	m     *model
 	index map[string]int
 	of    *Statement
@@ -140,10 +141,10 @@ func (s *Schema) find(name string) (place, compared int) {
 
 // Key is one key a schema object writes: its name, its value with its alias
 // followed, the slot the rows it is read with place it in and whether they
-// define it only later (specrules.SchemaRules.Slot), whether its value is null, and
-// whether the parser's model holds it. The census of unknown keywords reads
-// Schema.Unknown and not this, as a key merged in past
-// nodeview.MergeDepthLimit is no Key.
+// define it only later (specrules.SchemaRules.Slot), whether its value is null,
+// and whether the parser's model holds it. The census of unknown keywords reads
+// Schema.Unknown and not this, as a key merged in past nodeview.MergeDepthLimit
+// is no Key.
 type Key struct {
 	Name                    string
 	Node                    *yaml.Node
@@ -163,10 +164,10 @@ func (k Key) read() bool {
 	return !k.Null || k.Name == "const" || k.Name == "default" || k.Name == "example"
 }
 
-// ReadBeside reports whether a key named name, holding value, written beside
-// a reference under keyword, says something of the instance the schema
-// applies to, which makes the object the conjunction of the two (MemoizingSchemaReader.Of):
-// any key but keyword's own whose value is read
+// ReadBeside reports whether a key named name, holding value, written beside a
+// reference under keyword, says something of the instance the schema applies
+// to, which makes the object the conjunction of the two
+// (MemoizingSchemaReader.Of): any key but keyword's own whose value is read
 // (docs/compilers/openapi.md#null-keywords), and none that only names the
 // schema, holds schemas a reference reaches or comments, which the lowering
 // drops (docs/compilers/openapi.md#dialect-keywords).
@@ -174,8 +175,9 @@ func ReadBeside(name string, value *yaml.Node, keyword string) bool {
 	return name != keyword && !slices.Contains(keysThatConstrainNoInstance, name) && Key{Name: name, Null: isNull(value)}.read()
 }
 
-// keysThatConstrainNoInstance are the keys that say nothing of the instance their schema
-// applies to: a comment, an anchor, and the schemas a reference reaches.
+// keysThatConstrainNoInstance are the keys that say nothing of the instance
+// their schema applies to: a comment, an anchor, and the schemas a reference
+// reaches.
 var keysThatConstrainNoInstance = []string{"$comment", "$anchor", "$dynamicAnchor", "$recursiveAnchor", "$defs", "definitions"}
 
 // Extension is one x- key an object writes and its value, in the order the
@@ -185,9 +187,9 @@ type Extension struct {
 	Node *yaml.Node
 }
 
-// Subschema is a schema written under a keyword: the name of the property, pattern
-// or dependency it is written for, or its index in a list. MemoizingSchemaReader.Subschema reads
-// it.
+// Subschema is a schema written under a keyword: the name of the property,
+// pattern or dependency it is written for, or its index in a list.
+// MemoizingSchemaReader.Subschema reads it.
 type Subschema struct {
 	Name  string
 	Index int
@@ -205,12 +207,12 @@ type Reference struct {
 	Bound         bool
 }
 
-// SchemaValueForm is what a schema value states: Stated, the zero value, for a schema
-// object; Anything and Nothing for `true` and `false`; Unwritten for none, or
-// a value written as no schema (docs/compilers/openapi.md#null-schema); and
-// Unread for a mapping the parser read as a boolean
-// (docs/parser-library.md#failure-beneath-itself). Only a Stated schema has
-// keys.
+// SchemaValueForm is what a schema value states: Stated, the zero value, for a
+// schema object; Anything and Nothing for `true` and `false`; Unwritten for
+// none, or a value written as no schema
+// (docs/compilers/openapi.md#null-schema); and Unread for a mapping the parser
+// read as a boolean (docs/parser-library.md#failure-beneath-itself). Only a
+// Stated schema has keys.
 type SchemaValueForm uint8
 
 // The truths of a schema value.

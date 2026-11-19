@@ -14,13 +14,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerPrincipal lowers the branch refinementValue uses where schema, written at pointer, refines.
-// A $ref goes through Ref, as fillRefBranch's does, keeping the alias what is
-// written beside it always has, in a frame of its own. An inline branch lowers
-// by its own keywords, its node standing at pointer for the whole conjunction,
-// finished by fin, its children and the reports on what it writes where they are
-// written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
-// is still resolved: nothing else may lower what it names.
+// lowerPrincipal lowers the branch refinementValue uses where schema, written
+// at pointer, refines. A $ref goes through Ref, as fillRefBranch's does,
+// keeping the alias what is written beside it always has, in a frame of its
+// own. An inline branch lowers by its own keywords, its node standing at
+// pointer for the whole conjunction, finished by fin, its children and the
+// reports on what it writes where they are written
+// (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat is
+// still resolved: nothing else may lower what it names.
 func lowerPrincipal(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, refinementValue refinement,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -49,8 +50,8 @@ func lowerPrincipal(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 	return ref.Target, slices.Concat(missingArrayItemsConjoined(loweringContext, allOfBranch.schema.Schema, allOfBranch.pointer), diags, built, content)
 }
 
-// resolveBeaten resolves each $ref of refinementValue but its principal: nothing else may
-// lower what a $ref the principal beat names.
+// resolveBeaten resolves each $ref of refinementValue but its principal:
+// nothing else may lower what a $ref the principal beat names.
 func resolveBeaten(loweringContext lowering.Ctx, ts *compile.Types, refinementValue refinement) {
 	for _, allOfBranch := range refinementValue.comp.branches {
 		if allOfBranch.schema.Ref != nil && !refinementValue.principalIs(allOfBranch) {
@@ -124,10 +125,10 @@ func lowerUndecided(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 // primitiveKinds are the kinds a primitive holds.
 const primitiveKinds = kindString | kindNumber | kindBoolean
 
-// undecidedTypes returns the types schema, written at pointer, lowers by where its
-// allOf refines electing no entry: the kinds its conjuncts admit together, null
-// aside (lowersTo), and where they state value sets of the members those share
-// (sharedKinds), in one order whatever the order written. It returns none
+// undecidedTypes returns the types schema, written at pointer, lowers by where
+// its allOf refines electing no entry: the kinds its conjuncts admit together,
+// null aside (lowersTo), and where they state value sets of the members those
+// share (sharedKinds), in one order whatever the order written. It returns none
 // where those are none, as for sets sharing no member, or hold an object or an
 // array, whose shape no entry was elected to give, every kind among them, or
 // the kind-inference policy read them, as it reads only those: the position is

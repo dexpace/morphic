@@ -749,8 +749,8 @@ parameters:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/string-as-boolean`
 - Code:
-  - `specrules.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
-    string.
+  - `specrules.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports
+    such a string.
   - `statement.Exclusive` holds the arm the model read, which the node's tag does not give for such
     a string.
 
@@ -820,10 +820,10 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/failure-beneath-itself`
 - Code:
-  - `reftable/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
-    them one below another, once `Build` has built the landings.
-  - `statement.SchemaValueForm` holds one left past that bound as `Unread`, which the lowering reports and
-    lowers as the top type.
+  - `reftable/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends`
+    of them one below another, once `Build` has built the landings.
+  - `statement.SchemaValueForm` holds one left past that bound as `Unread`, which the lowering
+    reports and lowers as the top type.
 
 ### `null-type-is-empty`
 

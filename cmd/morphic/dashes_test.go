@@ -18,10 +18,10 @@ import (
 
 // TestRun_SingleDashLongFlagsAreRefused pins that a long flag typed with one
 // dash, as morphic's earlier flag package accepted, is refused with the
-// spelling to use. pflag would read "-compiler-option=a=1" on compile as "-o pt=a=1",
-// dropping the option and writing a file named "pt=a=1" with exit 0. Not run
-// in parallel: each row moves into an empty directory of its own, which a
-// misread must not write to.
+// spelling to use. pflag would read "-compiler-option=a=1" on compile as "-o
+// pt=a=1", dropping the option and writing a file named "pt=a=1" with exit 0.
+// Not run in parallel: each row moves into an empty directory of its own, which
+// a misread must not write to.
 func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
@@ -231,8 +231,8 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 }
 
 // TestRun_AJoinedValueIsReadOnce pins that looking at the arguments before
-// cobra parses them sets nothing: an --compiler-option value set twice is refused as a
-// repeated key, so a look that set it would fail this run.
+// cobra parses them sets nothing: an --compiler-option value set twice is
+// refused as a repeated key, so a look that set it would fail this run.
 func TestRun_AJoinedValueIsReadOnce(t *testing.T) {
 	t.Parallel()
 

@@ -234,14 +234,14 @@ so a configuration names its envelopes, and the default names none.
 
 ```go
 type Envelope struct {
-    Name     string      // recorded in each Inferred mark this envelope sets
-    Bases    []ir.TypeID // matches a body whose model is or composes one of these, at any distance
-    Members  []string    // matches a body whose model declares every one of these wire names
-    Value    []string    // the wire-name path to what the reader gets in the body's place;
-                         // nil = the body itself
-    Flag     []string    // the path to the member saying whether the call succeeded; nil = none
-    Succeeds []ir.Value  // the Flag values meaning it succeeded; set exactly when Flag is
-    Except   []ir.OperationID   // operations whose bodies this envelope never matches
+    Name     string           // recorded in each Inferred mark this envelope sets
+    Bases    []ir.TypeID      // matches a body whose model is or composes one of these, at any distance
+    Members  []string         // matches a body whose model declares every one of these wire names
+    Value    []string         // the wire-name path to what the reader gets in the body's place;
+                              // nil = the body itself
+    Flag     []string         // the path to the member saying whether the call succeeded; nil = none
+    Succeeds []ir.Value       // the Flag values meaning it succeeded; set exactly when Flag is
+    Except   []ir.OperationID // operations whose bodies this envelope never matches
 }
 ```
 

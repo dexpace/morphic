@@ -93,11 +93,11 @@ it as it relaxes any member, with no anchor since it has no `PropertyID`, and an
 where the model declaring it is rendered; another table holding it, a subtype's for an inherited
 member, links there. A model rendered as several tables anchors each member in the first of them, in
 `TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
-for each `PropertyID`. A member no table of its declaring model holds, as one of a base reached only in
-shapes that leave the member out while a subtype's table holds it, is anchored in the first table,
-in the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an anchor
-of its own for each shape it shows, a table coinciding shapes share carrying one for each of them,
-named through the page's ID-keyed resolution from its model and its shape, as identifiers are
+for each `PropertyID`. A member no table of its declaring model holds, as one of a base reached only
+in shapes that leave the member out while a subtype's table holds it, is anchored in the first
+table, in the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an
+anchor of its own for each shape it shows, a table coinciding shapes share carrying one for each of
+them, named through the page's ID-keyed resolution from its model and its shape, as identifiers are
 ([naming](refine/naming.md)), so it never takes a member's or another table's anchor, as a member
 named `create` beside a create table would; a shape's words are its key's, its lifecycles and its
 patch ([the declaration a shape takes](plan/types.md#the-declaration-a-shape-takes)). A switcher
@@ -489,12 +489,12 @@ member, operation and message:
   for, and always the body it sends, which 231 of the golden spec's operations, sending an optional
   body with no example on it, would otherwise lack. Its `Input` is a `ScenarioInput`, the shape a
   declared scenario's takes ([annotations](../ir/annotations.md#docs-deprecation-examples)): each
-  parameter's value under its `ParameterID`, and the body's in `Body`, which keying by name could not
-  keep apart, since a parameter and a body member may share a name, as they do in 9 of the golden
-  spec's operations. On an operation binding a parameter into its body, whole or by property, those
-  parameters state the body, so the scenario holds their values as it holds any parameter's, reads
-  no body set and leaves `Body` nil, as a declared one does. The document never paired those values,
-  so the scenario is `Inferred` and labelled generated whatever values it takes, and
+  parameter's value under its `ParameterID`, and the body's in `Body`, which keying by name could
+  not keep apart, since a parameter and a body member may share a name, as they do in 9 of the
+  golden spec's operations. On an operation binding a parameter into its body, whole or by property,
+  those parameters state the body, so the scenario holds their values as it holds any parameter's,
+  reads no body set and leaves `Body` nil, as a declared one does. The document never paired those
+  values, so the scenario is `Inferred` and labelled generated whatever values it takes, and
   `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation declares a scenario.
 - **A message's, by its ID.** A message's ID opens with a kind prefix of its own
   ([IDs](../ir/identity.md#what-irverify-holds)), so its set is keyed by it as any entity's is: its
@@ -609,8 +609,8 @@ the API rightly.
   with one and the last element holds none; its `Terminator` as one frame's data, where it is set;
   and then the body ends, the mock never holding a stream open. An `Initial` message is no frame
   ([streams](plan/streams.md)). The elements are the content's declared examples, read through
-  `ContentExamples`: each item of a list value is a frame where `Element` is the `ElementType` of the
-  content's list `Type`, a string value on a side with no `Element` is the body's text and is
+  `ContentExamples`: each item of a list value is a frame where `Element` is the `ElementType` of
+  the content's list `Type`, a string value on a side with no `Element` is the body's text and is
   written as it stands, since the schema describes the whole body (OpenAPI 3.2 §4.14.3), closed by a
   line feed under `json_lines` and a blank line under `sse` where it does not end with one, so a
   frame after it stays apart, and any other value `Element` admits is one frame. With none declared,

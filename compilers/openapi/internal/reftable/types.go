@@ -18,8 +18,8 @@ type DocID int
 // Source is the document being compiled.
 const Source DocID = 0
 
-// DocumentPointer is where a node is written: a document and the JSON pointer to the
-// node from that document's root.
+// DocumentPointer is where a node is written: a document and the JSON pointer
+// to the node from that document's root.
 type DocumentPointer struct {
 	Doc     DocID
 	Pointer jsontext.Pointer
@@ -36,9 +36,9 @@ func comparePositions(documentPointer, documentPointerValue DocumentPointer) int
 	return cmp.Compare(documentPointer.Pointer, documentPointerValue.Pointer)
 }
 
-// PositionOrder returns the order referenceTargetTable reads positions in: the source's first,
-// another document's by its name, then by pointer, so an order by it depends
-// on no order documents were read in.
+// PositionOrder returns the order referenceTargetTable reads positions in: the
+// source's first, another document's by its name, then by pointer, so an order
+// by it depends on no order documents were read in.
 func PositionOrder(referenceTargetTable *ReferenceTargetTable) func(documentPointer, documentPointerValue DocumentPointer) int {
 	name := func(id DocID) string { return referenceTargetTable.docs[id].Name }
 	return func(documentPointer, documentPointerValue DocumentPointer) int {
@@ -46,8 +46,8 @@ func PositionOrder(referenceTargetTable *ReferenceTargetTable) func(documentPoin
 	}
 }
 
-// compareNamed orders documentPointer and documentPointerValue as a table reads them, documents named by name
-// (PositionOrder, docs.compare).
+// compareNamed orders documentPointer and documentPointerValue as a table reads
+// them, documents named by name (PositionOrder, docs.compare).
 func compareNamed(documentPointer, documentPointerValue DocumentPointer, name func(DocID) string) int {
 	if c, ok := byName(documentPointer, documentPointerValue, name); ok {
 		return c
@@ -55,8 +55,9 @@ func compareNamed(documentPointer, documentPointerValue DocumentPointer, name fu
 	return comparePositions(documentPointer, documentPointerValue)
 }
 
-// byName orders documentPointer and documentPointerValue, positions in two documents neither of which is the
-// source, by the names name gives those documents.
+// byName orders documentPointer and documentPointerValue, positions in two
+// documents neither of which is the source, by the names name gives those
+// documents.
 func byName(documentPointer, documentPointerValue DocumentPointer, name func(DocID) string) (int, bool) {
 	if documentPointer.Doc == documentPointerValue.Doc || documentPointer.Doc == Source || documentPointerValue.Doc == Source {
 		return 0, false
@@ -184,9 +185,9 @@ const (
 	// document, whose chain does not resolve, or whose resolution needs the
 	// hop reading that pointer.
 	Unpassable
-	// PendingExternalDocumentRead is a reference to a document an absolute URI names, whose read waits
-	// until the pass's walks are done. The pass then reads it and answers it,
-	// unless the budget cuts it first.
+	// PendingExternalDocumentRead is a reference to a document an absolute URI
+	// names, whose read waits until the pass's walks are done. The pass then
+	// reads it and answers it, unless the budget cuts it first.
 	PendingExternalDocumentRead
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
@@ -223,8 +224,8 @@ type Chain struct {
 	Hops int
 	// Status is how the chain ended.
 	Status Status
-	// PositionLiesOnReferenceCycle reports, when Cyclic, whether the position itself lies on a loop
-	// rather than leading into one.
+	// PositionLiesOnReferenceCycle reports, when Cyclic, whether the position
+	// itself lies on a loop rather than leading into one.
 	PositionLiesOnReferenceCycle bool
 }
 

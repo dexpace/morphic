@@ -74,9 +74,10 @@ func sweep(ctx context.Context, paths []string) (*census.Census, error) {
 	return factCensus, nil
 }
 
-// count compiles the spec at path and adds its document to factCensus, or counts that
-// there was none. A run that fails at the default threshold still counts its
-// document, since the none threshold would hand that document to an emitter.
+// count compiles the spec at path and adds its document to factCensus, or
+// counts that there was none. A run that fails at the default threshold still
+// counts its document, since the none threshold would hand that document to an
+// emitter.
 func count(ctx context.Context, compileEngine *engine.Engine, factCensus *census.Census, path string) error {
 	res, err := compileEngine.Run(ctx, path, engine.RunOptions{})
 	if err != nil {

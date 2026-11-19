@@ -48,8 +48,8 @@ func (r *nameReader) headerScope(in, id string, headers []ir.Header, of func() s
 	}
 }
 
-// nameLabel quotes the first of naming's source, canonical and hint spellings that
-// is set, and the empty string where none is.
+// nameLabel quotes the first of naming's source, canonical and hint spellings
+// that is set, and the empty string where none is.
 func nameLabel(naming ir.Naming) string {
 	for _, s := range []string{naming.Source, naming.Canonical, naming.Hint} {
 		if s != "" {

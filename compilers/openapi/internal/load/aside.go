@@ -54,8 +54,8 @@ func (a *aside) spoil(node *yaml.Node) {
 	*node = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: node.Line, Column: node.Column}
 }
 
-// standIn has the mapping node read as a Reference Object whose $ref is an empty
-// sequence, as spoil leaves one, until restore.
+// standIn has the mapping node read as a Reference Object whose $ref is an
+// empty sequence, as spoil leaves one, until restore.
 func (a *aside) standIn(node *yaml.Node) {
 	a.keep(node, func() { a.standIn(node) })
 	node.Content = []*yaml.Node{

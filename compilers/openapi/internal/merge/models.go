@@ -64,8 +64,8 @@ type skeleton struct {
 	tag   int
 }
 
-// modelSkeleton returns model's skeleton, and false where its discriminator names
-// no property of model.
+// modelSkeleton returns model's skeleton, and false where its discriminator
+// names no property of model.
 func modelSkeleton(model *ir.Model) (skeleton, bool) {
 	sk := skeleton{model: *model, tag: -1}
 	take := func(typeRef ir.TypeRef) ir.TypeRef {
@@ -135,9 +135,9 @@ func sitelessUnmodeled(um ir.Unmodeled) ir.Unmodeled {
 	return siteless(ir.TypeCommon{Unmodeled: um}).Unmodeled
 }
 
-// membersKeepReference reports whether a property of model keeps a reference under
-// Unmodeled (keepsReference), which reads as the same text only against one
-// base.
+// membersKeepReference reports whether a property of model keeps a reference
+// under Unmodeled (keepsReference), which reads as the same text only against
+// one base.
 func membersKeepReference(model *ir.Model) bool {
 	return slices.ContainsFunc(model.Properties, func(property ir.Property) bool {
 		return keepsReference(&ir.Scalar{Unmodeled: property.Unmodeled})

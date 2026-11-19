@@ -50,17 +50,18 @@ second time, on a node, where every other spelling states it once.
 
 ## Maps
 
-**A map and nothing else is a `MapT`.** `Model.AdditionalProperties` and `MapT` both type a value under
-arbitrary keys, and what tells them apart is what else the source says about the members. A
+**A map and nothing else is a `MapT`.** `Model.AdditionalProperties` and `MapT` both type a value
+under arbitrary keys, and what tells them apart is what else the source says about the members. A
 catch-all beside any other member fact — a declared property, a pattern-scoped value, composition
 (`Base`, `Implements`, `Mixins`), a closure (`Additional`), a discriminator or a subtype's tag, or
-any other field only a `Model` has — is that model's `AdditionalProperties`. A catch-all with nothing
-beside it is a `MapT`, never a `Model` with no properties. TypeSpec's `Record<T>`, a protobuf map
-and an OpenAPI object writing only `additionalProperties` are one construct, and a document that
-held some of them as models would leave every emitter to recognize the map itself, the work a
-dictionary node exists to spare it (prior-art: Kiota has no map type, TCGC has one). Both spell a
-string key one way, as a nil `Key`. A key naming the `string` primitive states that type a second
-way, so `irverify` rejects it (`ir/map-key-string`), and a `Key` that is set names some other type.
+any other field only a `Model` has — is that model's `AdditionalProperties`. A catch-all with
+nothing beside it is a `MapT`, never a `Model` with no properties. TypeSpec's `Record<T>`, a
+protobuf map and an OpenAPI object writing only `additionalProperties` are one construct, and a
+document that held some of them as models would leave every emitter to recognize the map itself, the
+work a dictionary node exists to spare it (prior-art: Kiota has no map type, TCGC has one). Both
+spell a string key one way, as a nil `Key`. A key naming the `string` primitive states that type a
+second way, so `irverify` rejects it (`ir/map-key-string`), and a `Key` that is set names some other
+type.
 
 `ir.AsMap` states the rule field by field, and it is the only statement of it. A compiler builds the
 `Model` its source describes and converts it through `ir.AsMap`, so a lowering that comes to fill
@@ -76,15 +77,16 @@ without being a key type.
 
 ## Tuples
 
-A `Tuple` states three independent things, one field each. `ElementTypes` types the leading positions.
-`Rest` types every element past them, as `List.ElementType` types every element of a list; nil means no
-element may follow, so an open rest that constrains nothing targets the top type rather than being
-absent. `Constraints` bounds the whole instance, `ElementTypes` and `Rest` together, under the same rules
-as a `List`'s ([annotations](./annotations.md#what-a-reference-carries-down)).
+A `Tuple` states three independent things, one field each. `ElementTypes` types the leading
+positions. `Rest` types every element past them, as `List.ElementType` types every element of a
+list; nil means no element may follow, so an open rest that constrains nothing targets the top type
+rather than being absent. `Constraints` bounds the whole instance, `ElementTypes` and `Rest`
+together, under the same rules as a `List`'s
+([annotations](./annotations.md#what-a-reference-carries-down)).
 
-`ElementTypes` does not require its positions. JSON Schema's `prefixItems` requires none of them, and an
-array has no holes, so the required positions are always a prefix, and `Constraints.MinItems` is how
-long it is. A consumer reading a `Tuple` with no `MinItems` must therefore treat every position as
-optional, and a source whose tuples are exact — TypeSpec's and Erlang's — lowers each with
-`MinItems` equal to `len(ElementTypes)` and no `Rest`. No field is derived from another: a compiler neither
-trims `ElementTypes` to `MaxItems` nor restates a closed tuple as a `MaxItems`.
+`ElementTypes` does not require its positions. JSON Schema's `prefixItems` requires none of them,
+and an array has no holes, so the required positions are always a prefix, and `Constraints.MinItems`
+is how long it is. A consumer reading a `Tuple` with no `MinItems` must therefore treat every
+position as optional, and a source whose tuples are exact — TypeSpec's and Erlang's — lowers each
+with `MinItems` equal to `len(ElementTypes)` and no `Rest`. No field is derived from another: a
+compiler neither trims `ElementTypes` to `MaxItems` nor restates a closed tuple as a `MaxItems`.

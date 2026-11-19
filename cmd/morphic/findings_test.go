@@ -207,9 +207,9 @@ func TestRun_DiagFormatJSONCarriesTheCacheWarnings(t *testing.T) {
 	assert.Equal(t, []string{os.ErrPermission.Error()}, before.Warnings)
 }
 
-// TestRun_DiagFormatJSONRefusesTheTextOptions pins --min-severity and --diagnostics-per-code-limit as
-// misuses beside --diagnostics-format json, which writes every finding: accepted,
-// either would say a report was narrowed that was not.
+// TestRun_DiagFormatJSONRefusesTheTextOptions pins --min-severity and --diagnostics-per-code-limit
+// as misuses beside --diagnostics-format json, which writes every finding:
+// accepted, either would say a report was narrowed that was not.
 func TestRun_DiagFormatJSONRefusesTheTextOptions(t *testing.T) {
 	t.Parallel()
 	for _, option := range [][]string{{"--min-severity", "error"}, {"--diagnostics-per-code-limit", "1"}} {

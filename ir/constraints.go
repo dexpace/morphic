@@ -60,9 +60,11 @@ type Constraints struct {
 	MaxItems *int64 `json:"maxItems,omitzero"`
 	// UniqueItems requires distinct collection elements.
 	UniqueItems bool `json:"uniqueItems"`
-	// MinProperties is the minimum number of a model's properties or a map's entries.
+	// MinProperties is the minimum number of a model's properties or a map's
+	// entries.
 	MinProperties *int64 `json:"minProperties,omitzero"`
-	// MaxProperties is the maximum number of a model's properties or a map's entries.
+	// MaxProperties is the maximum number of a model's properties or a map's
+	// entries.
 	MaxProperties *int64 `json:"maxProperties,omitzero"`
 }
 

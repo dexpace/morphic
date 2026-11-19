@@ -242,8 +242,8 @@ func (e *evaluator) callValue(ctx context.Context, callValue *call, at Located) 
 	}
 }
 
-// length is the length of jsonValueValue: a string's characters, an array's elements or
-// an object's members, and Nothing for anything else.
+// length is the length of jsonValueValue: a string's characters, an array's
+// elements or an object's members, and Nothing for anything else.
 func (r *reader) length(ctx context.Context, jsonValueValue jsonValue) (jsonValue, error) {
 	switch {
 	case jsonValueValue.kind == valueNode && jsonValueValue.node.Kind == yaml.MappingNode:

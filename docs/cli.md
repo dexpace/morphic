@@ -75,14 +75,14 @@ one line all the same, at the place it sits: its message names the declaration i
 list of what else it concerns, each with its role, is in the [JSON report](#json-report) and the
 IR document ([provenance](ir/provenance.md#related-places)).
 
-Each finding is written at the severity it is rated at, which is the one its stage reported unless
-a [triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text
-format writes the first three of each code and severity, in the order they were reported, and
-counts the rest; `--diagnostics-per-code-limit 0` writes every one, and `--min-severity warning` or `--min-severity error` counts
-the findings below that severity instead of writing them. After the findings, each on a line
-indented so no reader of `<severity> <code>` lines takes it for a finding, come a line for each code
-and severity some findings of which were not written, a line for each triage rule that matched no
-finding, and, once anything was left unwritten, a tally:
+Each finding is written at the severity it is rated at, which is the one its stage reported unless a
+[triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text format
+writes the first three of each code and severity, in the order they were reported, and counts the
+rest; `--diagnostics-per-code-limit 0` writes every one, and `--min-severity warning` or
+`--min-severity error` counts the findings below that severity instead of writing them. After the
+findings, each on a line indented so no reader of `<severity> <code>` lines takes it for a finding,
+come a line for each code and severity some findings of which were not written, a line for each
+triage rule that matched no finding, and, once anything was left unwritten, a tally:
 
 ```
   1303 more info openapi/degraded-construct not shown
@@ -111,8 +111,8 @@ exactly, and a reason:
 ```
 
 - `severity` rates the code's findings at `error`, `warning` or `info`, which is what `--fail-on`
-  and `--min-severity` then read. A finding a stage reported at a severity the IR does not declare still
-  ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
+  and `--min-severity` then read. A finding a stage reported at a severity the IR does not declare
+  still ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
 - `accept: true` accepts the findings, which then fail the run at no `--fail-on`, `info` included,
   and are counted rather than written. A rule accepting findings names their place, so it accepts
   none its code reports elsewhere. It does accept every finding of its code at that place, one
@@ -122,8 +122,8 @@ exactly, and a reason:
 - `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
   compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
   located at that IR node, such as `service/openapi/0`. A rule names at most one place, and one
-  naming a place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
-  located by a line alone, can be ruled by its code only.
+  naming a place outranks one naming only the code. A finding in a document a `$ref` reads (#1804),
+  or located by a line alone, can be ruled by its code only.
 
 A rule names no pattern: a `*` in a code is refused, as is a rule both rating and accepting, an
 acceptance naming no place, two rules ruling the same findings, a pointer that is not RFC 6901, a
@@ -149,13 +149,13 @@ scope too.
 
 ## JSON report
 
-`--diagnostics-format json` writes one JSON object to stderr, then a newline, for a program to read; the
-run's exit status and stdout are what text gives. It is written for every run that reaches its
+`--diagnostics-format json` writes one JSON object to stderr, then a newline, for a program to read;
+the run's exit status and stdout are what text gives. It is written for every run that reaches its
 verdict, a spec that lowered to no document included, and nothing else is written to stderr then,
 not even a warning about the cache. A run that exits `2` before its verdict writes text instead, its
 warnings and then `morphic: ...`. One stopped after its report, or whose document is then refused,
-adds that line after the report, the report staying the first line, whatever status it exits with:
-a refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
+adds that line after the report, the report staying the first line, whatever status it exits with: a
+refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
 
 ```json
 {"version": 2, "failed": false,
@@ -231,8 +231,9 @@ background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 ## Compiler options
 
-`--compiler-option` names an option in the vocabulary of whichever compiler recognizes the spec. Morphic itself
-knows none of them, and the compiler refuses a name it does not know rather than ignoring it.
+`--compiler-option` names an option in the vocabulary of whichever compiler recognizes the spec.
+Morphic itself knows none of them, and the compiler refuses a name it does not know rather than
+ignoring it.
 
 ```bash
 morphic compile openapi.yaml --compiler-option grouping=path-prefix --compiler-option overlay=patch.yaml

@@ -33,11 +33,11 @@ func Beside[T, S any, R chainable[T, S]](serviceContext Ctx, ref R, usePtr jsont
 	return out, diags
 }
 
-// keepBeside keeps on out every key the mapping node, written at at in serviceContext's
-// document, writes beside its $ref, as the model reads the mapping, under
-// openapi:reference/<i>/: summary and description only where the use does not
-// fold them, as documentation with no home, each reported; any other as a key
-// OpenAPI gives no effect, which the rule table reports.
+// keepBeside keeps on out every key the mapping node, written at at in
+// serviceContext's document, writes beside its $ref, as the model reads the
+// mapping, under openapi:reference/<i>/: summary and description only where the
+// use does not fold them, as documentation with no home, each reported; any
+// other as a key OpenAPI gives no effect, which the rule table reports.
 func keepBeside(out *ir.Unmodeled, serviceContext Ctx, node *yaml.Node, at jsontext.Pointer, i int, folds bool) []ir.Diagnostic {
 	if !writesBeside(nodeview.Deref(node)) {
 		return nil

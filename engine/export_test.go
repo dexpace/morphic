@@ -41,8 +41,8 @@ var ErrDiagnosticsChanged = errDiagnosticsChanged
 // handed fails a verified run with.
 var ErrInputChanged = errInputChanged
 
-// OnVerify makes compileEngine call f each time a verified run is about to hold a document
-// to the IR's invariants, whatever irverify then says of it.
+// OnVerify makes compileEngine call f each time a verified run is about to hold
+// a document to the IR's invariants, whatever irverify then says of it.
 func OnVerify(compileEngine *Engine, f func()) {
 	inner := compileEngine.verifier
 	compileEngine.verifier = func(doc *ir.Document) []irverify.Violation {
@@ -58,9 +58,9 @@ type KeyInputs = keyInputs
 // DeriveKey exposes deriveKey.
 func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
 
-// FailLocate makes compileEngine unable to place a spec's Path, as where the working
-// directory cannot be named, which a test cannot rely on a system to refuse:
-// removing it leaves some still naming it.
+// FailLocate makes compileEngine unable to place a spec's Path, as where the
+// working directory cannot be named, which a test cannot rely on a system to
+// refuse: removing it leaves some still naming it.
 func FailLocate(compileEngine *Engine, err error) {
 	compileEngine.locate = func(string) (string, error) { return "", err }
 }
@@ -73,8 +73,8 @@ func NewRecorder(docs compilers.DocumentReader) *Recorder {
 	return newRecorder(docs)
 }
 
-// SettledLocations returns where recorder read, in the order an entry lists them, and
-// whether recorder could vouch for them.
+// SettledLocations returns where recorder read, in the order an entry lists
+// them, and whether recorder could vouch for them.
 func SettledLocations(recorder *Recorder) ([]string, bool) {
 	reads, sound := recorder.settled()
 	locations := make([]string, 0, len(reads))
@@ -84,7 +84,8 @@ func SettledLocations(recorder *Recorder) ([]string, bool) {
 	return locations, sound
 }
 
-// SettledRequests returns what recorder was asked, in the order an entry lists it.
+// SettledRequests returns what recorder was asked, in the order an entry lists
+// it.
 func SettledRequests(recorder *Recorder) []compilers.DocumentRequest {
 	reads, _ := recorder.settled()
 	requests := make([]compilers.DocumentRequest, 0, len(reads))
@@ -94,8 +95,8 @@ func SettledRequests(recorder *Recorder) []compilers.DocumentRequest {
 	return requests
 }
 
-// SettledDirectories returns each directory recorder placed and where, in the order
-// an entry lists them.
+// SettledDirectories returns each directory recorder placed and where, in the
+// order an entry lists them.
 func SettledDirectories(recorder *Recorder) [][2]string {
 	dirs := recorder.directories()
 	out := make([][2]string, 0, len(dirs))
@@ -121,8 +122,8 @@ func Verdict(failOn FailOn, doc *ir.Document, findings []triage.Finding) (bool, 
 	return threshold.verdict(doc, findings)
 }
 
-// ReadUnder makes compileEngine read every document but a run's spec through documentReader, under the
-// record a cached run keeps of its reads.
+// ReadUnder makes compileEngine read every document but a run's spec through
+// documentReader, under the record a cached run keeps of its reads.
 func ReadUnder(compileEngine *Engine, documentReader compilers.DocumentReader) {
 	compileEngine.under = documentReader
 }

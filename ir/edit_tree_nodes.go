@@ -161,8 +161,8 @@ func (n *treeNode) held() bool {
 	return true
 }
 
-// touch records that the edit wrote treeNodeValue: the list holding it, and each list on
-// the path to it, no longer shows what the edit holds.
+// touch records that the edit wrote treeNodeValue: the list holding it, and
+// each list on the path to it, no longer shows what the edit holds.
 func (t *serviceTree) touch(treeNodeValue *treeNode) {
 	for treeNode := treeNodeValue; treeNode != nil; treeNode = treeNode.parent { // no deeper than index reads, which MaxGroupDepth bounds
 		treeNode.in.stale = true
@@ -170,8 +170,8 @@ func (t *serviceTree) touch(treeNodeValue *treeNode) {
 	}
 }
 
-// remove records that the edit removed treeNodeValue, which the next build of the list
-// holding it drops.
+// remove records that the edit removed treeNodeValue, which the next build of
+// the list holding it drops.
 func (t *serviceTree) remove(treeNodeValue *treeNode) {
 	treeNodeValue.removed = true
 	t.touch(treeNodeValue)
@@ -184,8 +184,8 @@ func (t *serviceTree) settle(out *Document) {
 	}
 }
 
-// serviceOf returns treeNodeValue's service as the edit holds it, building what is stale in
-// it first.
+// serviceOf returns treeNodeValue's service as the edit holds it, building what
+// is stale in it first.
 func (t *serviceTree) serviceOf(treeNodeValue *treeNode) Service {
 	if treeNodeValue.groups.stale {
 		service := *treeNodeValue.service
@@ -195,8 +195,9 @@ func (t *serviceTree) serviceOf(treeNodeValue *treeNode) Service {
 	return *treeNodeValue.service
 }
 
-// groupOf returns treeNodeValue's group as the edit holds it, building what is stale in it
-// first. It recurses no deeper than index read, which MaxGroupDepth bounds.
+// groupOf returns treeNodeValue's group as the edit holds it, building what is
+// stale in it first. It recurses no deeper than index read, which MaxGroupDepth
+// bounds.
 func (t *serviceTree) groupOf(treeNodeValue *treeNode) OperationGroup {
 	if !treeNodeValue.groups.stale && !treeNodeValue.operations.stale {
 		return *treeNodeValue.group

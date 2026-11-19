@@ -15,8 +15,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// settingFlag collects the repeated `--compiler-option key=value` settings that configure
-// whichever compiler the spec turns out to need.
+// settingFlag collects the repeated `--compiler-option key=value` settings that
+// configure whichever compiler the spec turns out to need.
 //
 // It carries the pairs verbatim rather than parsing them, because the CLI does
 // not know which compiler will read them: the names, the accepted values and
@@ -123,10 +123,12 @@ func (f *failOnFlag) Set(raw string) error {
 	return nil
 }
 
-// formatFlag is --diagnostics-format's value: how the findings are written to stderr.
+// formatFlag is --diagnostics-format's value: how the findings are written to
+// stderr.
 type formatFlag string
 
-// The formats --diagnostics-format takes: text for a person, json for a program.
+// The formats --diagnostics-format takes: text for a person, json for a
+// program.
 const (
 	formatText formatFlag = "text"
 	formatJSON formatFlag = "json"
@@ -149,8 +151,9 @@ func (f *formatFlag) Set(raw string) error {
 	}
 }
 
-// minSeverityFlag is --min-severity's value: the least severity a finding is written one per
-// line at, the rest counted. It is parsed as it is set, as --fail-on is.
+// minSeverityFlag is --min-severity's value: the least severity a finding is
+// written one per line at, the rest counted. It is parsed as it is set, as --fail-on
+// is.
 type minSeverityFlag ir.Severity
 
 // String renders the severity as typed.
@@ -168,8 +171,9 @@ func (f *minSeverityFlag) Set(raw string) error {
 	return nil
 }
 
-// perCodeLimitFlag is --diagnostics-per-code-limit's value: how many findings of one code and
-// severity the text format writes one per line, 0 for every one.
+// perCodeLimitFlag is --diagnostics-per-code-limit's value: how many findings
+// of one code and severity the text format writes one per line, 0 for every
+// one.
 type perCodeLimitFlag int
 
 // String renders the count.

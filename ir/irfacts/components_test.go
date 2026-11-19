@@ -75,8 +75,8 @@ type partWalk struct {
 	steps     map[string]bool        // the keys of notFields the walk met
 }
 
-// walkParts fills a value of kind typeKind and reads the positions in it that name a
-// type, by roles and notFields.
+// walkParts fills a value of kind typeKind and reads the positions in it that
+// name a type, by roles and notFields.
 func walkParts(t *testing.T, typeKind ir.TypeKind, roles, notFields map[string]string) partWalk {
 	t.Helper()
 	td, ok := ir.NewTypeDef(typeKind)

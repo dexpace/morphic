@@ -26,8 +26,8 @@ type ruled struct {
 	Reason   string
 }
 
-// rated returns what ruleset made of each of diags, failing the test unless each
-// finding carries its diagnostic as it was reported.
+// rated returns what ruleset made of each of diags, failing the test unless
+// each finding carries its diagnostic as it was reported.
 func rated(t *testing.T, ruleset triage.Ruleset, diags []ir.Diagnostic) ([]ruled, []triage.Rule) {
 	t.Helper()
 	findings, unused := ruleset.Rate(diags)

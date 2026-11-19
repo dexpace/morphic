@@ -20,7 +20,8 @@ import (
 // keys and item defaults (partKeys.Settle, itemDefault.Settle) alone fill it.
 // It reads a type's alias chain and its kind, a union's variants and a list's
 // or tuple's elements, which no settlement rewrites: a fold, a completion,
-// rewrites a model's members before every deferred one (compile.Types.QueueSettlementBeforeDeferredOnes).
+// rewrites a model's members before every deferred one
+// (compile.Types.QueueSettlementBeforeDeferredOnes).
 type partUnions struct {
 	members  map[ir.TypeID]unionRead
 	flags    map[unionFlagsKey]unionFlags
@@ -104,7 +105,8 @@ func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules 
 	return types
 }
 
-// partUnionsOf returns the run's partUnions, which every copy of serviceContext shares.
+// partUnionsOf returns the run's partUnions, which every copy of serviceContext
+// shares.
 func partUnionsOf(serviceContext service.Ctx) *partUnions {
 	return lowering.Settled(serviceContext.Ctx, newPartUnions)
 }

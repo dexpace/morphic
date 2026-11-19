@@ -47,9 +47,9 @@ var inlinePrincipals = []inlinePrincipal{
 	{name: "map", keywords: "type: object, additionalProperties: {type: string}", other: "description: d", kind: ir.KindMap},
 }
 
-// principalSpellings writes the principal inlinePrincipalValue beside other in the four ways a
-// conjunction spells it, the first the keywords beside each other, each beside
-// an entry ref, a $ref to T, where one is given.
+// principalSpellings writes the principal inlinePrincipalValue beside other in
+// the four ways a conjunction spells it, the first the keywords beside each
+// other, each beside an entry ref, a $ref to T, where one is given.
 func principalSpellings(inlinePrincipalValue inlinePrincipal, ref string) map[string]string {
 	k, o := "{"+inlinePrincipalValue.keywords+"}", "{"+inlinePrincipalValue.other+"}"
 	refs := ""

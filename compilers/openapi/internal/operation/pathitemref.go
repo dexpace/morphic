@@ -120,8 +120,8 @@ type itemConstruct struct {
 	rel        jsontext.Pointer
 }
 
-// itemConstructs returns what layerValue declares, in the order its findings are
-// reported.
+// itemConstructs returns what layerValue declares, in the order its findings
+// are reported.
 func itemConstructs(layerValue layer) []itemConstruct {
 	var out []itemConstruct
 	add := func(kind, name, label string, rel jsontext.Pointer) {

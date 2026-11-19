@@ -24,10 +24,11 @@ type keptOnceCase struct {
 }
 
 // TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone pins a
-// keyword an entry kept whole for a closure writes alike with another entry: the
-// entry kept whole holds its own, and the other entry's is kept at its keyword,
-// not at the position, in every order of the three entries. A vendor extension
-// and a validation-only keyword fold; readOnly is kept as each folded branch's residue.
+// keyword an entry kept whole for a closure writes alike with another entry:
+// the entry kept whole holds its own, and the other entry's is kept at its
+// keyword, not at the position, in every order of the three entries. A vendor
+// extension and a validation-only keyword fold; readOnly is kept as each folded
+// branch's residue.
 func TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/Str'}"

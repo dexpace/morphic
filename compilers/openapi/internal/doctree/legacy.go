@@ -40,10 +40,10 @@ func (s *settler) legacy(found []Legacy, node *yaml.Node) []Legacy {
 	return found
 }
 
-// taggedInteger reports whether node is a scalar tagged !!int outright whose text
-// is an integer both of YAML 1.1's int and of the core schema, which may read it
-// as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2, which
-// value.NumericLiteral reads.
+// taggedInteger reports whether node is a scalar tagged !!int outright whose
+// text is an integer both of YAML 1.1's int and of the core schema, which may
+// read it as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2,
+// which value.NumericLiteral reads.
 func taggedInteger(node *yaml.Node) bool {
 	if node.Style&yaml.TaggedStyle == 0 || node.ShortTag() != "!!int" || !coreInt(node.Value) {
 		return false
@@ -87,7 +87,8 @@ func (r reading) kindOnly() reading {
 	return reading{kind: asNumber, integer: r.integer && r.kind == asNumber, exp: valueless}
 }
 
-// same reports whether r and readingValue are one JSON value, however each was read.
+// same reports whether r and readingValue are one JSON value, however each was
+// read.
 func (r reading) same(readingValue reading) bool {
 	r.integer, readingValue.integer = false, false
 	return r == readingValue
@@ -156,8 +157,8 @@ func (r reading) decimal() string {
 // read as its text.
 const maxSpelledExp = 1000
 
-// coreReading reads node, a plain scalar the core schema has tagged (resolve), as
-// YAML 1.2 does.
+// coreReading reads node, a plain scalar the core schema has tagged (resolve),
+// as YAML 1.2 does.
 func coreReading(node *yaml.Node) reading {
 	switch node.ShortTag() {
 	case "!!null":

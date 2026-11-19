@@ -40,9 +40,9 @@ func membersOf(loweringContext lowering.Ctx) *members {
 	})
 }
 
-// note records the model modelFieldsValue builds as one with members to settle, and queues
-// the settlement at the first model noted (settleMembers). The first fields to
-// note a model place what is minted and reported for it.
+// note records the model modelFieldsValue builds as one with members to settle,
+// and queues the settlement at the first model noted (settleMembers). The first
+// fields to note a model place what is minted and reported for it.
 func (rec *members) note(modelFieldsValue modelFields) {
 	if len(rec.byID) == 0 {
 		modelFieldsValue.ts.QueueSettlementBeforeDeferredOnes(settleMembers{c: modelFieldsValue.c})
@@ -54,9 +54,10 @@ func (rec *members) note(modelFieldsValue modelFields) {
 
 // settleMembers is the settlement folding, on each model the walk notes, each
 // member more than one declaration decides, its own or those its entries bring
-// (merge.ModelPropertyDeclarations.Settle; docs/compilers/openapi.md#allof-redeclared-property).
-// It is a completion (compile.Types.QueueSettlementBeforeDeferredOnes), so it reads every node the walks
-// built and every other settlement reads what it writes.
+// (merge.ModelPropertyDeclarations.Settle;
+// docs/compilers/openapi.md#allof-redeclared-property). It is a completion
+// (compile.Types.QueueSettlementBeforeDeferredOnes), so it reads every node the
+// walks built and every other settlement reads what it writes.
 type settleMembers struct {
 	c lowering.Ctx
 }
@@ -73,14 +74,14 @@ const maxMemberRounds = 8
 const maxMemberAliasHops = 64
 
 // maxMemberReads bounds the declarations the settlement reads of what the
-// models a model composes say (merge.RedeclaredWireNameTable), summed over the run
-// (styleguide bounded-everything rule). A table holds only the names more than
-// one model declares, so a hierarchy costs its depth again at each level only
-// where every level adds such a name, or composes a model redeclaring one it
-// holds, whose declaration may stand within the hierarchy (merge.Merger.Reads).
-// A read of a model not settled yet, as a cycle's are, counts the composition
-// its flattening walks too (chargeComposition). Past the bound each model left
-// settles its own declarations alone.
+// models a model composes say (merge.RedeclaredWireNameTable), summed over the
+// run (styleguide bounded-everything rule). A table holds only the names more
+// than one model declares, so a hierarchy costs its depth again at each level
+// only where every level adds such a name, or composes a model redeclaring one
+// it holds, whose declaration may stand within the hierarchy
+// (merge.Merger.Reads). A read of a model not settled yet, as a cycle's are,
+// counts the composition its flattening walks too (chargeComposition). Past the
+// bound each model left settles its own declarations alone.
 const maxMemberReads = 1 << 24
 
 // Settle settles each noted model, saying once a conflict every model composing
@@ -299,8 +300,9 @@ func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Re
 	return table
 }
 
-// declared is propertyDecl, a declaration a flattening takes, with where its type may be
-// written: where the model declaring it says, once settled, or at propertyDecl itself.
+// declared is propertyDecl, a declaration a flattening takes, with where its
+// type may be written: where the model declaring it says, once settled, or at
+// propertyDecl itself.
 func (rec *members) declared(propertyDecl ir.PropertyDecl) merge.Declared {
 	if settled, ok := rec.tables[propertyDecl.Owner][propertyDecl.Property.WireName]; ok && settled.Property.ID == propertyDecl.Property.ID {
 		return settled

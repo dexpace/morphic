@@ -22,8 +22,8 @@ type Kinds struct {
 	Nullable *bool
 }
 
-// JSONSchemaTypeName is a name `type` writes: one of the seven JSON Schema names, or any
-// other string it holds.
+// JSONSchemaTypeName is a name `type` writes: one of the seven JSON Schema
+// names, or any other string it holds.
 type JSONSchemaTypeName string
 
 // The kinds JSON Schema names.

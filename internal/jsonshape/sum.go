@@ -13,11 +13,11 @@ import (
 	"strings"
 )
 
-// variants reads the sealed sum typeValue declares: the type of the tag its Kind
-// method returns, and each variant with that tag. The encoder writes whichever
-// variant a value holds, so the variants are the interface's shape. Any
-// package can implement an interface that is not sealed, so only a sealed one
-// has variants to list.
+// variants reads the sealed sum typeValue declares: the type of the tag its
+// Kind method returns, and each variant with that tag. The encoder writes
+// whichever variant a value holds, so the variants are the interface's shape.
+// Any package can implement an interface that is not sealed, so only a sealed
+// one has variants to list.
 func (w *walker) variants(typeValue *Type, iface *types.Interface) error {
 	if !sealed(iface) {
 		return errors.New("an interface with no unexported method is open to any implementation, so it has no one shape")

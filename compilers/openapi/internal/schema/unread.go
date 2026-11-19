@@ -46,8 +46,8 @@ const (
 )
 
 // expandedShapeOf is what schema, written as a dynamic reference that expanded,
-// lowered to, naming the keyword it expanded through: a $dynamicRef wherever schema
-// writes one, as dynamicRefOf reads it, else its $recursiveRef.
+// lowered to, naming the keyword it expanded through: a $dynamicRef wherever
+// schema writes one, as dynamicRefOf reads it, else its $recursiveRef.
 func expandedShapeOf(schema *statement.Schema) string {
 	if hasKey(schema, "$dynamicRef") {
 		return expandedShape
@@ -75,11 +75,11 @@ func referenceOutcomeKeywords(loweringContext lowering.Ctx, schema *statement.Sc
 	return unreadByReference(loweringContext, schema, keySetOf(branchesSay(loweringContext, schema, schema)...)), collapsedShape
 }
 
-// keepingUnread lowers the position schema, written at pointer, through build, the
-// node build interns there finished by keepUnread before fin, the outer
-// frames' finisher. One lowering to a shared node keeps what it did not
-// read on an alias (keepUnreadShared). It returns the position's resulting ID
-// and the build's findings, the keeping's after them, as they always stood.
+// keepingUnread lowers the position schema, written at pointer, through build,
+// the node build interns there finished by keepUnread before fin, the outer
+// frames' finisher. One lowering to a shared node keeps what it did not read on
+// an alias (keepUnreadShared). It returns the position's resulting ID and the
+// build's findings, the keeping's after them, as they always stood.
 // docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
 // dropped half and an untyped applicator such as `items`. build returns, beside
 // the ID, what a lowering to a shared node read.
@@ -101,10 +101,10 @@ func keepingUnread(loweringContext lowering.Ctx, ts *compile.Types, schema *stat
 }
 
 // keepUnread keeps verbatim on td, the node the position owns, in hand, each
-// key of censusDomain schema, written at pointer, writes that the build of td did
-// not read, nor a reader beside it (readElsewhere), nor dispatchValue's election skipped or
-// said, and the families it skipped, then finishes td by fin, as keepAround
-// orders the two where the node stands for st's position.
+// key of censusDomain schema, written at pointer, writes that the build of td
+// did not read, nor a reader beside it (readElsewhere), nor dispatchValue's
+// election skipped or said, and the families it skipped, then finishes td by
+// fin, as keepAround orders the two where the node stands for st's position.
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
@@ -134,9 +134,9 @@ func keepUnread(loweringContext lowering.Ctx, ts *compile.Types, schema *stateme
 }
 
 // keepUnreadShared is keepUnread for a position that lowered to id, a shared
-// primitive, which read shared of schema: the alias hoisted over it where st says,
-// finished by the keeping and then fin, holds what neither read, the alias
-// reading the bounds the types the position admits take. It returns id
+// primitive, which read shared of schema: the alias hoisted over it where st
+// says, finished by the keeping and then fin, holds what neither read, the
+// alias reading the bounds the types the position admits take. It returns id
 // itself, fin unfinished, where nothing is kept.
 func keepUnreadShared(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, id ir.TypeID, dispatchValue dispatch,
 	shared keySet, fin finisher, st stand,
@@ -154,11 +154,11 @@ func keepUnreadShared(loweringContext lowering.Ctx, ts *compile.Types, schema *s
 	return owner, slices.Concat(aliasDiags, kept.diags, skipped.diags)
 }
 
-// keepUnhomedOn returns the finisher keeping unhomed, the keywords schema, written
-// at pointer, declares that no build read into the position's node, on that
-// node in hand, reporting what the position lowered to as shape and recording
-// into kept, then finishing it by fin, as keepAround orders the two where the
-// node stands for st's position.
+// keepUnhomedOn returns the finisher keeping unhomed, the keywords schema,
+// written at pointer, declares that no build read into the position's node, on
+// that node in hand, reporting what the position lowered to as shape and
+// recording into kept, then finishing it by fin, as keepAround orders the two
+// where the node stands for st's position.
 func keepUnhomedOn(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
 	st stand, kept *finished, fin finisher,
 ) finisher {
@@ -181,9 +181,10 @@ func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q"
 // positionShape is nodeShape for the node td, the position's declaration schema
 // lowered to. An Enum's ValueType is the home of its type and of any format the
 // table pairs, so an enum that left one verbatim says its members are why: its
-// kind alone would deny the home. So does a node that reads schema's discriminator
-// and holds none (taglessShape): a Model, or a Union schema's oneOf or anyOf builds,
-// as the Union an enum lowers to reads none, whatever its tag.
+// kind alone would deny the home. So does a node that reads schema's
+// discriminator and holds none (taglessShape): a Model, or a Union schema's
+// oneOf or anyOf builds, as the Union an enum lowers to reads none, whatever
+// its tag.
 func positionShape(td ir.TypeDef, schema *statement.Schema) string {
 	if enum, ok := td.(*ir.Enum); ok {
 		if !membersTyped(enum.Members, schema) {
@@ -225,9 +226,9 @@ func taglessShape(model *ir.Model, schema *statement.Schema, shape string) strin
 // lowers to, for that same diagnostic.
 const distributedShape = "a union of models conjoining its body with each branch"
 
-// keepUnreadAcross returns the keeping of the Union, in hand, that a
-// position's own schema schema builds the variants of: a type array's (lowerUnion)
-// and a distributed composition's (composedVariant). It keeps on the Union what
+// keepUnreadAcross returns the keeping of the Union, in hand, that a position's
+// own schema schema builds the variants of: a type array's (lowerUnion) and a
+// distributed composition's (composedVariant). It keeps on the Union what
 // schema writes that neither it nor a variant read, read being what they did,
 // nor its lowering accounted for, handled, recording into kept, then finishes
 // it by fin, as keepAround orders the two where the Union stands for st's
@@ -261,8 +262,8 @@ func isKind(td ir.TypeDef, typeKind ir.TypeKind) bool {
 	return !ir.IsNilTypeDef(td) && td.Kind() == typeKind
 }
 
-// recordUnhomedAt keeps each unhomed keyword verbatim in unmodeled and reports them once
-// (keepUnhomed), saying what the position lowered to, its shape.
+// recordUnhomedAt keeps each unhomed keyword verbatim in unmodeled and reports
+// them once (keepUnhomed), saying what the position lowered to, its shape.
 func recordUnhomedAt(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
 	kept, diags := keepUnhomed(loweringContext, ts, unmodeled, schema, unhomed, pointer)
 	if len(kept) == 0 {
@@ -274,9 +275,9 @@ func recordUnhomedAt(loweringContext lowering.Ctx, ts *compile.Types, unmodeled 
 }
 
 // keepUnhomed keeps each unhomed keyword schema, the schema at pointer, writes
-// verbatim in unmodeled as degraded_lowering, reports a collection count no field states
-// (keptCount) apart, as keepCounts reports a value count, and returns the rest
-// it kept, for its caller to report once.
+// verbatim in unmodeled as degraded_lowering, reports a collection count no
+// field states (keptCount) apart, as keepCounts reports a value count, and
+// returns the rest it kept, for its caller to report once.
 //
 // It returns the keywords it stored, never the ones it was handed, so no report
 // claims one that failed to convert (GitHub #144). A discriminator it is handed

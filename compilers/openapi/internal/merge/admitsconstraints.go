@@ -9,10 +9,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// admitsConstraints reports whether value meets every keyword of constraints that applies to
-// a value of its kind, judged exactly. A keyword with no judge, a pattern or a
-// decimal precision or scale, refuses every value it applies to, so a
-// constrained node admits nothing it cannot be shown to fit. A keyword for
+// admitsConstraints reports whether value meets every keyword of constraints
+// that applies to a value of its kind, judged exactly. A keyword with no judge,
+// a pattern or a decimal precision or scale, refuses every value it applies to,
+// so a constrained node admits nothing it cannot be shown to fit. A keyword for
 // another kind of value, maxLength on a number, constrains nothing.
 func admitsConstraints(constraints *ir.Constraints, value ir.Value, depth int) bool {
 	if constraints == nil {
@@ -39,9 +39,10 @@ func admitsConstraints(constraints *ir.Constraints, value ir.Value, depth int) b
 	}
 }
 
-// admitsNumber reports whether bigVal meets constraints's numeric keywords: each bound, and
-// multipleOf where isMultipleOf can say. A number or a bound that reads as no
-// number admits nothing. Precision and scale have no judge here.
+// admitsNumber reports whether bigVal meets constraints's numeric keywords:
+// each bound, and multipleOf where isMultipleOf can say. A number or a bound
+// that reads as no number admits nothing. Precision and scale have no judge
+// here.
 func admitsNumber(constraints *ir.Constraints, bigVal ir.BigVal) bool {
 	if constraints.Precision != nil || constraints.Scale != nil {
 		return false

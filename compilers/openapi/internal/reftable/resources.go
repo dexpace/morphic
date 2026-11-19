@@ -27,8 +27,8 @@ import (
 type resource struct {
 	root DocumentPointer
 	uri  string
-	// namedByDollarID reports whether an $id names it, so that its name is an identifier
-	// rather than a document's location.
+	// namedByDollarID reports whether an $id names it, so that its name is an
+	// identifier rather than a document's location.
 	namedByDollarID bool
 	// detached reports that an $id on the way to it from its document's own,
 	// or the document's $self, names an absolute URI or path, so a read
@@ -140,9 +140,10 @@ func (ix *identifiers) readsDialects(id DocID) bool {
 	return ix.named[id] || !ix.read[id]
 }
 
-// document adds resourceValue, doc's own resource, and returns its index. Another
-// document than the source declares the URI its $self names at its root, as
-// an $id declares one; the source is named by its $self directly (names).
+// document adds resourceValue, doc's own resource, and returns its index.
+// Another document than the source declares the URI its $self names at its
+// root, as an $id declares one; the source is named by its $self directly
+// (names).
 func (ix *identifiers) document(doc DocID, resourceValue resource) int32 {
 	i := int32(len(ix.resources))
 	ix.resources = append(ix.resources, resourceValue)
@@ -155,10 +156,10 @@ func (ix *identifiers) document(doc DocID, resourceValue resource) int32 {
 }
 
 // declare notes what the schema node, read at at in the resource indexed in and
-// with its parent in the dialect enclosing, declares, the dialect its
-// `$schema` names among it where node roots a resource (enterIn), and returns the
-// index of the resource its content is in, its own where it writes an
-// identifier naming another URI, and the dialect that content is read in.
+// with its parent in the dialect enclosing, declares, the dialect its `$schema`
+// names among it where node roots a resource (enterIn), and returns the index
+// of the resource its content is in, its own where it writes an identifier
+// naming another URI, and the dialect that content is read in.
 func (ix *identifiers) declare(resourcesValue resources, in int32, at DocumentPointer, node *yaml.Node, enclosing string) (int32, string) {
 	held := ix.resources[in]
 	entering := resourcesValue.enterIn(held, at, node, enclosing, func() bool { return heldAt(resourcesValue.docs, at) })
@@ -233,9 +234,9 @@ func sameOrigin(a, b string) bool {
 	return errU == nil && errV == nil && u.Host != "" && u.Scheme == v.Scheme && u.Host == v.Host
 }
 
-// recursiveAnchored reports whether the schema node writes `$recursiveAnchor` as
-// the boolean true, which marks its resource for a `$recursiveRef`; false, the
-// default, and any other value mark none.
+// recursiveAnchored reports whether the schema node writes `$recursiveAnchor`
+// as the boolean true, which marks its resource for a `$recursiveRef`; false,
+// the default, and any other value mark none.
 func recursiveAnchored(view *nodeview.View, node *yaml.Node) bool {
 	recursiveAnchorNode := nodeview.Deref(view.ChildByToken(nodeview.Deref(node), "$recursiveAnchor"))
 	return recursiveAnchorNode != nil && recursiveAnchorNode.Kind == yaml.ScalarNode && recursiveAnchorNode.Tag == "!!bool" && strings.EqualFold(recursiveAnchorNode.Value, "true")
@@ -244,11 +245,11 @@ func recursiveAnchored(view *nodeview.View, node *yaml.Node) bool {
 // commit makes the URIs the documents counted declare answer, and reports
 // whether that changes the declarations of a URI a pass asked for, so its
 // answer is not theirs: a document read since declares it, or one a pass no
-// longer reaches withdraws it (ReferencedDocument.Unreached). Where what is reached turns
-// on what is declared, no pass may agree with the one before it, so once a
-// change would return to declarations a pass read against, every document read
-// counts, as one read declares what it declares however it was reached, and
-// that only grows.
+// longer reaches withdraws it (ReferencedDocument.Unreached). Where what is
+// reached turns on what is declared, no pass may agree with the one before it,
+// so once a change would return to declarations a pass read against, every
+// document read counts, as one read declares what it declares however it was
+// reached, and that only grows.
 func (ix *identifiers) commit(counted map[DocID]bool) bool {
 	ix.counted = maps.Clone(counted)
 	uris := ix.answering()
@@ -398,10 +399,10 @@ func (ix *identifiers) lookupAnchor(root DocumentPointer, name string) (Document
 // and read as rule says, is in: a new one, named by its identifier, where it
 // writes one naming another URI than in's; the document's own where its
 // identifier names its document; else in. An identifier naming in's own URI
-// starts none, and so does one beside a `$ref` rule ignores (ignoresIdentifier).
-// rooted reports that node roots the resource returned, whose root the caller
-// sets. known is false where node writes no identifier and merges past the view's
-// bound, which may hide one.
+// starts none, and so does one beside a `$ref` rule ignores
+// (ignoresIdentifier). rooted reports that node roots the resource returned,
+// whose root the caller sets. known is false where node writes no identifier
+// and merges past the view's bound, which may hide one.
 func (r resources) enter(in resource, node *yaml.Node, rule DialectRule) (res resource, rooted, known bool) {
 	if r.ignoresIdentifier(in.root.Doc, node, rule) {
 		return in, false, true
@@ -593,8 +594,8 @@ func unreserved(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("-._~", c) >= 0
 }
 
-// idOf is the identifier node writes in document id under keyword, and whether it
-// writes a non-empty string one: a null one is none, as refOf reads a null
+// idOf is the identifier node writes in document id under keyword, and whether
+// it writes a non-empty string one: a null one is none, as refOf reads a null
 // $ref.
 func (r resources) idOf(id DocID, node *yaml.Node, keyword string) (string, bool) {
 	return scalarOf(r.docs.list[id].view.ChildByToken(nodeview.Deref(node), keyword))
@@ -641,13 +642,14 @@ func scalarOf(node *yaml.Node) (string, bool) {
 	return dereferenced.Value, true
 }
 
-// holding is the resource the position documentPointer, reached along path, is in: the one
-// each schema on path enters in turn (enter), from its document's own. With
-// schema, documentPointer is read as a schema whatever the grammar reads it as, as a $ref
-// site is, so its own $id counts. Where named, a schema of the documents names
-// its dialect, and each schema on path is read in the one the schema holding it
-// enters (enterIn); else every schema is read in its document's. known is false
-// where a schema on path may hide an identifier past the merge bound.
+// holding is the resource the position documentPointer, reached along path, is
+// in: the one each schema on path enters in turn (enter), from its document's
+// own. With schema, documentPointer is read as a schema whatever the grammar
+// reads it as, as a $ref site is, so its own $id counts. Where named, a schema
+// of the documents names its dialect, and each schema on path is read in the
+// one the schema holding it enters (enterIn); else every schema is read in its
+// document's. known is false where a schema on path may hide an identifier past
+// the merge bound.
 func (r resources) holding(documentPointer DocumentPointer, path []*yaml.Node, schema, named bool) (resource, bool) {
 	res, known := r.document(documentPointer.Doc), true
 	state, tokens := r.docs.identityState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens())

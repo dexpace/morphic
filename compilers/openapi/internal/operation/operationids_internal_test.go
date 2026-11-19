@@ -127,9 +127,10 @@ func TestDeclare_ReadsWhereADeclarationIsWritten(t *testing.T) {
 
 // TestByDeclaration_GroupsByNodeOrDeclarationPointer pins both ways claims
 // mount one declaration, and that grouping follows a chain of them: a shares a
-// node with b, and b a declaration pointer with operationIDClaimValue, so the three are one
-// declaration. The c-first order is the one that splits them when each claim
-// joins the first group it matches, and every order gives one answer.
+// node with b, and b a declaration pointer with operationIDClaimValue, so the
+// three are one declaration. The c-first order is the one that splits them when
+// each claim joins the first group it matches, and every order gives one
+// answer.
 func TestByDeclaration_GroupsByNodeOrDeclarationPointer(t *testing.T) {
 	t.Parallel()
 	shared, copied, other := &yaml.Node{}, &yaml.Node{}, &yaml.Node{}

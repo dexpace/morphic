@@ -20,8 +20,8 @@ var (
 )
 
 // identity is one declared ID together with the class it belongs to, which is
-// the pair that has to be unique: an OperationID and a TypeID spelling the same string
-// name two different nodes.
+// the pair that has to be unique: an OperationID and a TypeID spelling the same
+// string name two different nodes.
 type identity struct {
 	class reflect.Type
 	id    string
@@ -42,14 +42,14 @@ type fingerprint struct {
 //
 // ir.PropertyID is held to a fingerprint instead: a response declared once in
 // components is embedded by value at every use, each copy keeping the
-// declaration's PropertyID (GitHub #107). Different properties on one PropertyID are
-// the defect (#280). The fingerprint is source name, wire name and TypeRef
-// target; a wider one flags every reused component.
+// declaration's PropertyID (GitHub #107). Different properties on one
+// PropertyID are the defect (#280). The fingerprint is source name, wire name
+// and TypeRef target; a wider one flags every reused component.
 func checkDuplicateIDs(*ir.Document) walkCheck {
 	// The first property met on each PropertyID, and the later ones whose
-	// fingerprint differs from it, each named by its PropertyID and how many met on
-	// that PropertyID before it. The walk meets properties in the order the
-	// declarations list them, so the first met is the PropertyID's first
+	// fingerprint differs from it, each named by its PropertyID and how many
+	// met on that PropertyID before it. The walk meets properties in the order
+	// the declarations list them, so the first met is the PropertyID's first
 	// declaration, and the n-th met its n-th.
 	first := map[string]firstProperty{}
 	differs := map[occurrence]bool{}

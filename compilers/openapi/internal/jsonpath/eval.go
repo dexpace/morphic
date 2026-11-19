@@ -49,8 +49,8 @@ func (r *reader) spend(ctx context.Context, n int) error {
 	return nil
 }
 
-// emit appends located to the nodelist out, a step for the node returned, and one
-// more node the evaluation holds.
+// emit appends located to the nodelist out, a step for the node returned, and
+// one more node the evaluation holds.
 func (r *reader) emit(ctx context.Context, out []Located, located Located) ([]Located, error) {
 	if err := r.spend(ctx, 1); err != nil {
 		return nil, err
@@ -240,9 +240,9 @@ func (e *evaluator) byIndex(ctx context.Context, i int, in Located, out []Locate
 	return e.emit(ctx, out, Located{Path: in.Path.element(i), Node: node})
 }
 
-// bySlice selects the elements of an array sliceValue selects, as RFC 9535 section
-// 2.3.4.2.2 bounds them: each index from the lower bound to the upper by
-// step, or from the upper to the lower for a negative step. Each iteration
+// bySlice selects the elements of an array sliceValue selects, as RFC 9535
+// section 2.3.4.2.2 bounds them: each index from the lower bound to the upper
+// by step, or from the upper to the lower for a negative step. Each iteration
 // selects one element, so the loop is bounded by the array.
 func (e *evaluator) bySlice(ctx context.Context, sliceValue slice, in Located, out []Located) ([]Located, error) {
 	if in.Node.Kind != yaml.SequenceNode || sliceValue.step == 0 {

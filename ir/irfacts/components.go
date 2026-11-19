@@ -34,8 +34,8 @@ type components struct {
 	recursive map[ir.TypeID]bool        // types whose shape lies on a cycle
 }
 
-// newComponents condenses typeGraphValue. A shape lies on a cycle when its component has
-// another vertex, or it has an edge to itself.
+// newComponents condenses typeGraphValue. A shape lies on a cycle when its
+// component has another vertex, or it has an edge to itself.
 func newComponents(typeGraphValue *typeGraph) *components {
 	componentsValue := &components{of: make(map[ir.TypeID][]ir.TypeID, len(typeGraphValue.ids)), recursive: map[ir.TypeID]bool{}}
 	for _, vertices := range newTarjan(typeGraphValue.next).run() {

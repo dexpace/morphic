@@ -572,8 +572,8 @@ func runPets(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.
 	return eng.RunSources(t.Context(), []compilers.Source{{Path: "pets.yaml", Data: []byte(petSpec)}}, opts)
 }
 
-// firstType returns the type of document with the lowest ID, so a test breaks the same
-// one on every run.
+// firstType returns the type of document with the lowest ID, so a test breaks
+// the same one on every run.
 func firstType(document *ir.Document) ir.TypeDef {
 	return document.Types[slices.Sorted(maps.Keys(document.Types))[0]]
 }

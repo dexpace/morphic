@@ -43,9 +43,9 @@ func modelAddsNothing(model *Model) bool {
 		model.Discriminator == nil && model.DiscriminatorValue == "" && !model.InputOnly
 }
 
-// annotatesOnly reports whether typeCommon sets nothing beyond a decorator's identity
-// (ID, Name, Namespace, Anonymous, Provenance), the annotations a use site can
-// hold (Docs, Deprecation, Examples), Availability, which no emitter
+// annotatesOnly reports whether typeCommon sets nothing beyond a decorator's
+// identity (ID, Name, Namespace, Anonymous, Provenance), the annotations a use
+// site can hold (Docs, Deprecation, Examples), Availability, which no emitter
 // interprets, and Unmodeled, whose entries an SDK acts on by reason and never
 // by changing a type.
 func annotatesOnly(typeCommon *TypeCommon) bool {

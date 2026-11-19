@@ -55,8 +55,8 @@ func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, vis
 	ir.ForEachOperation(doc, func(op ir.Operation) { operationPositions(&positionValue, &op, keys, visit) })
 }
 
-// propertyPosition fills positionValue from pr, a property of owner, which stands in for
-// the property's own ID where that is empty.
+// propertyPosition fills positionValue from pr, a property of owner, which
+// stands in for the property's own ID where that is empty.
 func propertyPosition(positionValue *position, pr *ir.Property, owner string) *position {
 	node := string(pr.ID)
 	if node == "" {

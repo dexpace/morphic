@@ -928,13 +928,13 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	}
 }
 
-// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins
-// that a $ref naming a source read over the network names the source itself,
-// though the two spell its URL apart in ways RFC 3986 reads as one: a host in
-// upper case, an unreserved character percent-encoded, a dot segment. Nothing
-// is fetched, and the parameter is the source's own. Only the binder's own
-// comparison of the URLs (reftable.resources.names) matches these spellings: the
-// table of documents read, keyed by name, matches none of them.
+// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins that
+// a $ref naming a source read over the network names the source itself, though
+// the two spell its URL apart in ways RFC 3986 reads as one: a host in upper
+// case, an unreserved character percent-encoded, a dot segment. Nothing is
+// fetched, and the parameter is the source's own. Only the binder's own
+// comparison of the URLs (reftable.resources.names) matches these spellings:
+// the table of documents read, keyed by name, matches none of them.
 func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

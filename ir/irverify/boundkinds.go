@@ -48,7 +48,8 @@ func foreignBounds(td ir.TypeDef) (string, bool) {
 	}
 }
 
-// beyondProps reports whether constraints holds a bound other than the property counts.
+// beyondProps reports whether constraints holds a bound other than the property
+// counts.
 func beyondProps(constraints *ir.Constraints) bool {
 	if constraints == nil {
 		return false
@@ -58,8 +59,9 @@ func beyondProps(constraints *ir.Constraints) bool {
 	return rest != ir.Constraints{}
 }
 
-// beyondItems reports whether constraints holds a bound other than the item counts and
-// uniqueness. A false UniqueItems states nothing, as it is the field's zero.
+// beyondItems reports whether constraints holds a bound other than the item
+// counts and uniqueness. A false UniqueItems states nothing, as it is the
+// field's zero.
 func beyondItems(constraints *ir.Constraints) bool {
 	if constraints == nil {
 		return false

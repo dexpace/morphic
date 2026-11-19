@@ -21,9 +21,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ctx is everything the schema lowering may read: the document whose content
-// it reads (DocumentPlacement), the caller's policies, and the indexes derived from the
-// load once at entry. New builds one; the zero Ctx is invalid.
+// Ctx is everything the schema lowering may read: the document whose content it
+// reads (DocumentPlacement), the caller's policies, and the indexes derived
+// from the load once at entry. New builds one; the zero Ctx is invalid.
 //
 // It is a value: a function taking one takes a copy, and every lowering takes
 // it as a parameter (#177). Copies share what the load read, which no lowering
@@ -127,9 +127,9 @@ type Policy struct {
 }
 
 // BoundDocument is one document of the bindings' table the compile read, as a
-// lowering places and names what it reads there (DocumentPlacement): the name the bindings
-// read it by, which a reference in it is resolved against, where its positions
-// are recorded, and how the IDs of what it declares name it.
+// lowering places and names what it reads there (DocumentPlacement): the name
+// the bindings read it by, which a reference in it is resolved against, where
+// its positions are recorded, and how the IDs of what it declares name it.
 type BoundDocument struct {
 	Name  string
 	Place provenance.Doc
@@ -152,8 +152,8 @@ type Loaded struct {
 	Sources   []ir.SourceInfo
 }
 
-// New derives the context for in under policy, reading the source's own content:
-// in.Documents holds the source at reftable.Source.
+// New derives the context for in under policy, reading the source's own
+// content: in.Documents holds the source at reftable.Source.
 //
 // The schema-name index arrives built, not built on first use, so every reader
 // sees the same set whatever the source order: a $ref resolved mid-lowering
@@ -222,12 +222,12 @@ func (c Ctx) Statements() *statement.MemoizingSchemaReader {
 	return c.shared.statements
 }
 
-// ReadOncePerRun returns read's answer for key, read once and remembered for every
-// copy of loweringContext. read must turn only on the documents and their bindings, which no
-// lowering changes, and key on all else it turns on; a package's own key type
-// keeps its readings from another's. Each type of key and answer has a map of
-// its own, so neither is boxed to be found or kept, and a key read for two
-// types of answer is read once for each.
+// ReadOncePerRun returns read's answer for key, read once and remembered for
+// every copy of loweringContext. read must turn only on the documents and their
+// bindings, which no lowering changes, and key on all else it turns on; a
+// package's own key type keeps its readings from another's. Each type of key
+// and answer has a map of its own, so neither is boxed to be found or kept, and
+// a key read for two types of answer is read once for each.
 func ReadOncePerRun[K comparable, V any](loweringContext Ctx, key K, read func() V) V {
 	answers, ok := loweringContext.shared.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
@@ -248,15 +248,15 @@ func ReadOncePerRun[K comparable, V any](loweringContext Ctx, key K, read func()
 // kept under. It holds nothing, so it is boxed without allocating.
 type memo[K comparable, V any] struct{}
 
-// Settled returns the run's store of type S, which build makes on the first
-// ask of any copy of loweringContext, for what settlements (compile.Settlement) read of the
-// registry. Remembered may not keep such a reading, as it reads what the
-// settlements before it left: it is sound only while no settlement after it
-// rewrites what it read. The run takes every completion
-// (compile.Types.QueueSettlementBeforeDeferredOnes) before any deferred settlement, so a store only
-// deferred settlements fill is sound where only completions rewrite what it
-// reads. S's documentation names them, and each reports a store it finds
-// filled.
+// Settled returns the run's store of type S, which build makes on the first ask
+// of any copy of loweringContext, for what settlements (compile.Settlement)
+// read of the registry. Remembered may not keep such a reading, as it reads
+// what the settlements before it left: it is sound only while no settlement
+// after it rewrites what it read. The run takes every completion
+// (compile.Types.QueueSettlementBeforeDeferredOnes) before any deferred
+// settlement, so a store only deferred settlements fill is sound where only
+// completions rewrite what it reads. S's documentation names them, and each
+// reports a store it finds filled.
 func Settled[S any](loweringContext Ctx, build func() *S) *S {
 	if s, ok := loweringContext.shared.settled[store[S]{}].(*S); ok {
 		return s
@@ -275,10 +275,10 @@ type store[S any] struct{}
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
-// reads, where no root names a dialect (dialect.SchemaDialectRows.In). A reading only a
-// minor decides, such as a required `items` or the effect `nullable` has, asks
-// these rather than the version; a keyword's shape, which a schema's dialect
-// decides, asks Rules.
+// reads, where no root names a dialect (dialect.SchemaDialectRows.In). A
+// reading only a minor decides, such as a required `items` or the effect
+// `nullable` has, asks these rather than the version; a keyword's shape, which
+// a schema's dialect decides, asks Rules.
 func (c Ctx) SchemaRules() specrules.SchemaRules { return c.Rules().In(c.doc) }
 
 // Rules returns the rows each schema of the compile is read with, which the
@@ -302,22 +302,23 @@ func (c Ctx) RefScope() componentlookup.Scope {
 	return scope
 }
 
-// NameAt returns the hint the node built at pointer in loweringContext's document is named
-// by (naming.Namer.At): a function of the documents and the coordinate alone,
-// whichever lowering builds the node, read once for every copy of loweringContext.
+// NameAt returns the hint the node built at pointer in loweringContext's
+// document is named by (naming.Namer.At): a function of the documents and the
+// coordinate alone, whichever lowering builds the node, read once for every
+// copy of loweringContext.
 func NameAt(loweringContext Ctx, pointer jsontext.Pointer) string {
 	return loweringContext.shared.names.At(loweringContext.Position(pointer))
 }
 
-// NameTitle returns the name the title of the schema at pointer in loweringContext's
-// document gives the node built there (naming.Namer.Title), and false where it
-// gives none.
+// NameTitle returns the name the title of the schema at pointer in
+// loweringContext's document gives the node built there (naming.Namer.Title),
+// and false where it gives none.
 func NameTitle(loweringContext Ctx, pointer jsontext.Pointer) (string, bool) {
 	return loweringContext.shared.names.Title(loweringContext.Position(pointer))
 }
 
-// NameThrough returns the name the $ref written at pointer in loweringContext's document
-// suggests (naming.Namer.Through), and "" where it suggests none.
+// NameThrough returns the name the $ref written at pointer in loweringContext's
+// document suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(loweringContext Ctx, pointer jsontext.Pointer) string {
 	return loweringContext.shared.names.Through(loweringContext.Position(pointer))
 }
@@ -328,12 +329,13 @@ func NameOfDocument(loweringContext Ctx, doc reftable.DocID) string {
 	return loweringContext.shared.names.Document(doc)
 }
 
-// InDocument returns loweringContext for lowering what document id of the bindings' table
-// declares, at that document's own coordinates (DocumentPlacement): the source's, or
-// another's, whose references are read in its scope, whose positions are its
-// own, so each Provenance names it, and whose IDs it qualifies. It is the one
-// way to another document, or back to the source. It is false, loweringContext unchanged,
-// for a document the compile did not read beside the source.
+// InDocument returns loweringContext for lowering what document id of the
+// bindings' table declares, at that document's own coordinates
+// (DocumentPlacement): the source's, or another's, whose references are read in
+// its scope, whose positions are its own, so each Provenance names it, and
+// whose IDs it qualifies. It is the one way to another document, or back to the
+// source. It is false, loweringContext unchanged, for a document the compile
+// did not read beside the source.
 func InDocument(loweringContext Ctx, id reftable.DocID) (Ctx, bool) {
 	boundDocument, ok := loweringContext.shared.documents[id]
 	if !ok {

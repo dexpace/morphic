@@ -25,7 +25,8 @@ import (
 // readers keep after the frames outside (principalKept), nil for none.
 type finisher func(td ir.TypeDef, read keySet, held *principalKept)
 
-// then returns the finisher running f, then finisherValue, either of which may be nil.
+// then returns the finisher running f, then finisherValue, either of which may
+// be nil.
 func (f finisher) then(finisherValue finisher) finisher {
 	switch {
 	case f == nil:
@@ -65,10 +66,10 @@ func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.DocumentIDNamespace.ForPointer) and shared TypeCommon (commonFor) once, then
-// interns build's result under that ID, finished by fin. build receives the
-// built TypeCommon, so it never re-derives pointer, name or id, and returns
-// what it read of the schema it builds from.
+// TypeID (ids.DocumentIDNamespace.ForPointer) and shared TypeCommon (commonFor)
+// once, then interns build's result under that ID, finished by fin. build
+// receives the built TypeCommon, so it never re-derives pointer, name or id,
+// and returns what it read of the schema it builds from.
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
@@ -145,10 +146,10 @@ func internOwnNode(loweringContext lowering.Ctx, ts *compile.Types, js *statemen
 // internAlias interns a Scalar at pointer whose Base is target, so a component
 // (or a sibling-carrying schema) whose body lowered to a shared or referenced
 // target still owns a resolvable node at its own TypeID. It carries the value
-// constraints schema writes that the types the position admits take (boundKinds),
-// and the exclusive modifier no Constraints field holds, for the reason
-// hoistScalar records. fin finishes the alias where this builds it, which is
-// where st says.
+// constraints schema writes that the types the position admits take
+// (boundKinds), and the exclusive modifier no Constraints field holds, for the
+// reason hoistScalar records. fin finishes the alias where this builds it,
+// which is where st says.
 func internAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -161,10 +162,10 @@ func internAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statem
 	return internAliasHolding(loweringContext, ts, cons, kept, boundsRead(schema, st.takes(loweringContext, schema), nil), st.pointer(pointer), target, fin), diags
 }
 
-// internReferenceAlias is internAlias for the home of a declaration whose census
-// left it no node, which also holds the collection bounds schema writes. A position
-// that reached a shared node with one written had its alias hoisted by the
-// census first, so this reads none it also keeps.
+// internReferenceAlias is internAlias for the home of a declaration whose
+// census left it no node, which also holds the collection bounds schema writes.
+// A position that reached a shared node with one written had its alias hoisted
+// by the census first, so this reads none it also keeps.
 func internReferenceAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {

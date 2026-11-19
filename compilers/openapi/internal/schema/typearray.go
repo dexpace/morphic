@@ -57,10 +57,10 @@ func lowerUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return id, diags
 }
 
-// typeArray is what every variant of one type array reads beside its schema: the
-// types it lists, the folded branches of the position it is written at, and the mark an
-// object or array variant's build writes, where the kind-inference policy read
-// the types (lowerUntypedUnion).
+// typeArray is what every variant of one type array reads beside its schema:
+// the types it lists, the folded branches of the position it is written at, and
+// the mark an object or array variant's build writes, where the kind-inference
+// policy read the types (lowerUntypedUnion).
 type typeArray struct {
 	types          []statement.JSONSchemaTypeName
 	foldedBranches []annotation.FoldedAllOfBranch
@@ -71,14 +71,14 @@ type typeArray struct {
 }
 
 // lowerTypeVariant lowers the variant of schema's type array that st names, at
-// pointer, as lowerTyped lowers st alone, but for what applies to another listed
-// type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator, which no $ref or mapping can name it by: the union keeps it.
-// A variant reads, of schema and list's folded branches, the value bounds of the kinds of
-// st the position admits (boundKinds), an array one the collection bounds. A
-// scalar one holding them, the format or the content vocabulary is its own
-// Scalar, else the shared primitive, returning what it read; fin finishes one
-// built.
+// pointer, as lowerTyped lowers st alone, but for what applies to another
+// listed type (docs/compilers/openapi.md#type-arrays). An object variant holds
+// no discriminator, which no $ref or mapping can name it by: the union keeps
+// it. A variant reads, of schema and list's folded branches, the value bounds
+// of the kinds of st the position admits (boundKinds), an array one the
+// collection bounds. A scalar one holding them, the format or the content
+// vocabulary is its own Scalar, else the shared primitive, returning what it
+// read; fin finishes one built.
 func lowerTypeVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, st statement.JSONSchemaTypeName,
 	list typeArray, fin finisher,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
@@ -100,8 +100,8 @@ func lowerTypeVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int
 	}
 }
 
-// variantFormat returns the format schema writes, for its type array's variant of
-// type st among types: the format where it pairs with st, or with no listed
+// variantFormat returns the format schema writes, for its type array's variant
+// of type st among types: the format where it pairs with st, or with no listed
 // type, since nothing then says which type it describes, and a format validates
 // only the instances of the types it is defined for (JSON Schema Validation
 // 2020-12 §7.1); none where it pairs with another listed type.
@@ -125,10 +125,11 @@ func pairs(st statement.JSONSchemaTypeName, format string) bool {
 	return listed || encoded
 }
 
-// statesBounds reports whether schema or one of foldedBranches, read at pointer, writes a
-// value bound a reader of the kinds takes holds: one ConstraintsOf reads into a
-// field or keeps, as an empty pattern or a keyword written null is not. It reads
-// apart from the node, so what it reads is reported where hoistScalar reads it.
+// statesBounds reports whether schema or one of foldedBranches, read at
+// pointer, writes a value bound a reader of the kinds takes holds: one
+// ConstraintsOf reads into a field or keeps, as an empty pattern or a keyword
+// written null is not. It reads apart from the node, so what it reads is
+// reported where hoistScalar reads it.
 func statesBounds(loweringContext lowering.Ctx, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, takes kindSet) bool {
 	var kept ir.Unmodeled
 	cons, _ := ConstraintsOf(loweringContext, &kept, schema, foldedBranches, pointer, takes)

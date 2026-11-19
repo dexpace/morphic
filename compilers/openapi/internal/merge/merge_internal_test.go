@@ -56,8 +56,8 @@ func atRoot(walk FieldDeclarationContext) declarationSites {
 	return declarationSites{walk: walk, written: [2][]ir.Provenance{sitesAt(""), sitesAt("")}}
 }
 
-// judge is the type judgment over the registry stubbedValue reads, its declarations read
-// against one base.
+// judge is the type judgment over the registry stubbedValue reads, its
+// declarations read against one base.
 func judge(stubbedValue *stubbed) typeJudge {
 	return typeJudge{resolve: stubbedValue.resolve, sites: atRoot(stubbedValue.walk)}
 }
@@ -124,7 +124,8 @@ func (w *stubWalk) Interned(pointer jsontext.Pointer) bool {
 // Alike is FieldDeclarationContext.Alike.
 func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
 
-// Admits is FieldDeclarationContext.Admits: every kind, exactly, under /untyped.
+// Admits is FieldDeclarationContext.Admits: every kind, exactly, under
+// /untyped.
 func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact bool) {
 	return untypedAt(at), true
 }
@@ -149,9 +150,9 @@ func foldTwo(stubbedValue *stubbed, dst, src ir.Property, source DeclarationCons
 // firstSource is how foldTwo renders its first declaration.
 const firstSource = `{"declared":"first"}`
 
-// indexOver returns an index filling model, and settle, which folds what the index
-// queued through stubbedValue, recording what they report, as Finish takes the compiler's
-// completions once every lowering has returned.
+// indexOver returns an index filling model, and settle, which folds what the
+// index queued through stubbedValue, recording what they report, as Finish
+// takes the compiler's completions once every lowering has returned.
 func indexOver(model *ir.Model, stubbedValue *stubbed) (idx *ModelPropertyDeclarations, settle func()) {
 	idx = NewModelPropertyDeclarations(model)
 	return idx, func() {

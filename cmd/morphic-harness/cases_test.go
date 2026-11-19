@@ -160,9 +160,9 @@ func TestCheckCases_WhatTheRecordsLeave(t *testing.T) {
 	}
 }
 
-// TestCheckOne_CountsOneFormatAfterAnother pins -case-index over two formats: an index
-// past the first format's cases names one of the second's, and a format whose
-// cases cannot be counted is a usage error.
+// TestCheckOne_CountsOneFormatAfterAnother pins -case-index over two formats:
+// an index past the first format's cases names one of the second's, and a
+// format whose cases cannot be counted is a usage error.
 func TestCheckOne_CountsOneFormatAfterAnother(t *testing.T) {
 	t.Parallel()
 	fmts := []format{{cases{calm: true}, emptyRecord}, {cases{}, emptyRecord}}
@@ -212,9 +212,9 @@ func (c spelt) Write(at []int) (harness.CaseDocument, bool) {
 
 // TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection pins -cases
 // full over a case like a core one: its finding is explained by the line the
-// record holds at the core case, so the run exits 0, unless the finding
-// differs from the line's, when it is left to report and the run exits 1.
-// With -case-index, a finding is written and exits 1 though the record lists it.
+// record holds at the core case, so the run exits 0, unless the finding differs
+// from the line's, when it is left to report and the run exits 1. With -case-index,
+// a finding is written and exits 1 though the record lists it.
 func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.T) {
 	t.Parallel()
 	results, err := harness.CheckCases(context.Background(), spelt{}, harness.Core(spelt{}))
@@ -259,10 +259,10 @@ func (uncompiled) Write(at []int) (harness.CaseDocument, bool) {
 	return doc, true
 }
 
-// TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed holds a run to
-// a case its oracle declines for an error diagnostic: reported as a finding
-// is, exiting 1, by a run of the cases and by -case-index, and explained by a record
-// listing the decline, though -case-index exits 1 on it listed or not.
+// TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed holds a run to a
+// case its oracle declines for an error diagnostic: reported as a finding is,
+// exiting 1, by a run of the cases and by -case-index, and explained by a
+// record listing the decline, though -case-index exits 1 on it listed or not.
 func TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed(t *testing.T) {
 	t.Parallel()
 	code, stdout, stderr := runArgs(t, []format{{uncompiled{}, emptyRecord}}, "-cases", "full")

@@ -251,7 +251,8 @@ components:
 `
 }
 
-// onlyFlow returns the one flow of the oauth2 scheme `authScheme` that spec compiled to.
+// onlyFlow returns the one flow of the oauth2 scheme `authScheme` that spec
+// compiled to.
 func onlyFlow(t *testing.T, doc *ir.Document) ir.OAuthFlow {
 	t.Helper()
 	authScheme, ok := doc.Auth[ids.Auth("s")]

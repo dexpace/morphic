@@ -107,10 +107,11 @@ func (o *objects) readRef(id DocID, ref string) (objectHop, objectKey) {
 	return objectHop{hop: hop, target: reading.state, mapping: node != nil && node.Kind == yaml.MappingNode, refs: refs}, objectKey{}
 }
 
-// ofKind is objectHopValue read as a hop of a reference object of kind: objectHopValue itself where it
-// lands on a mapping the grammar reads as an object of kind, or raw YAML it
-// reads as one, and NotObject where it lands on anything else, such as an
-// object of another kind, a schema, a value, or no mapping.
+// ofKind is objectHopValue read as a hop of a reference object of kind:
+// objectHopValue itself where it lands on a mapping the grammar reads as an
+// object of kind, or raw YAML it reads as one, and NotObject where it lands on
+// anything else, such as an object of another kind, a schema, a value, or no
+// mapping.
 func ofKind(objectHopValue objectHop, kind RefKind) Hop {
 	if objectHopValue.hop.Status != Resolved || objectHopValue.mapping && (objectHopValue.target == kind.state() || objectHopValue.target == sRaw) {
 		return objectHopValue.hop
@@ -159,8 +160,8 @@ func (o *objects) settle(key objectKey) {
 	}
 }
 
-// refAt is the $ref the reference object at documentPointer writes, or the key a
-// requirement key at documentPointer is read by (finder.requirementKeys).
+// refAt is the $ref the reference object at documentPointer writes, or the key
+// a requirement key at documentPointer is read by (finder.requirementKeys).
 func (o *objects) refAt(documentPointer DocumentPointer) string {
 	if key, ok := o.b.docs.keyRefs[documentPointer]; ok {
 		return key
@@ -258,9 +259,9 @@ func (o *objects) closeLoop(members []DocumentPointer, kind RefKind) {
 	}
 }
 
-// reference is the entry of the reference object objectKeyValue, its chain settled first,
-// and reports that it waits for documents the pass has yet to read. One the
-// budget, or a cancel, left unsettled is OverBudget.
+// reference is the entry of the reference object objectKeyValue, its chain
+// settled first, and reports that it waits for documents the pass has yet to
+// read. One the budget, or a cancel, left unsettled is OverBudget.
 func (o *objects) reference(objectKeyValue objectKey) (Reference, bool) {
 	if _, done := o.chains[objectKeyValue]; !done && !o.b.wait.onObjects[objectKeyValue] {
 		o.settle(objectKeyValue)
@@ -279,7 +280,8 @@ func (o *objects) reference(objectKeyValue objectKey) (Reference, bool) {
 	return reference, false
 }
 
-// compareObjects orders reference objects by position in docsValue, then by kind.
+// compareObjects orders reference objects by position in docsValue, then by
+// kind.
 func compareObjects(docsValue *docs) func(objectKeyValue, otherObjectKey objectKey) int {
 	return func(objectKeyValue, otherObjectKey objectKey) int {
 		if c := docsValue.compare(objectKeyValue.at, otherObjectKey.at); c != 0 {

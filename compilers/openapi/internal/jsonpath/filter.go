@@ -152,8 +152,8 @@ func (q subquery) singular() bool {
 	return true
 }
 
-// nodesOf evaluates subqueryValue with at as the current node, returning a nodelist the
-// caller releases once it has read it.
+// nodesOf evaluates subqueryValue with at as the current node, returning a
+// nodelist the caller releases once it has read it.
 func (e *evaluator) nodesOf(ctx context.Context, subqueryValue subquery, at Located) ([]Located, error) {
 	from := at
 	if !subqueryValue.relative {
@@ -162,7 +162,8 @@ func (e *evaluator) nodesOf(ctx context.Context, subqueryValue subquery, at Loca
 	return e.run(ctx, subqueryValue.segments, from)
 }
 
-// valueOf evaluates operandValue, a comparable or a ValueType argument, to its value.
+// valueOf evaluates operandValue, a comparable or a ValueType argument, to its
+// value.
 func (e *evaluator) valueOf(ctx context.Context, operandValue operand, at Located) (jsonValue, error) {
 	switch operandValue.kind {
 	case opLiteral:

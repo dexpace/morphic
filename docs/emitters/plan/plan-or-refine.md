@@ -62,11 +62,12 @@ The procedure decided every existing field:
    stand, where a positional parameter added to a Go or Kotlin function breaks its callers, so the
    best default differs by language.
 5. **What the derived-fact index states** gets no field either. How a type is used, whether it is
-   recursive and which types share its strongly connected component are `irfacts.DocumentFacts` facts, read
-   through `EmitterInput.Facts`, and a plan copy would be their second home, which is why `Usage`,
-   copied into the plan before the index derived it, is gone. Which references of a component a
-   target must break fails the first test, since what breaks a cycle — a slice, a pointer, a class
-   reference — is the target's ([recursive references](../refine/models.md#recursive-references)).
+   recursive and which types share its strongly connected component are `irfacts.DocumentFacts`
+   facts, read through `EmitterInput.Facts`, and a plan copy would be their second home, which is
+   why `Usage`, copied into the plan before the index derived it, is gone. Which references of a
+   component a target must break fails the first test, since what breaks a cycle — a slice, a
+   pointer, a class reference — is the target's ([recursive
+   references](../refine/models.md#recursive-references)).
 
 What holds the line beyond review: `emitters/plan` imports only `ir` and `ir/irfacts`, so it cannot
 read a naming or runtime policy or a target ([package layout](../packages.md)); the plan is

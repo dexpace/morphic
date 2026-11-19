@@ -68,8 +68,8 @@ type conflict struct {
 	decided []ir.Related
 }
 
-// unnamed is diagnostic naming no member, beside its place or among what it concerns:
-// what every model composing the two declarations says alike.
+// unnamed is diagnostic naming no member, beside its place or among what it
+// concerns: what every model composing the two declarations says alike.
 func unnamed(diagnostic ir.Diagnostic) ir.Diagnostic {
 	diagnostic.Provenance.Node = ""
 	diagnostic.Related = slices.DeleteFunc(slices.Clone(diagnostic.Related), isDecided)

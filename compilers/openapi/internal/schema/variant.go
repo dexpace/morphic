@@ -16,22 +16,23 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// buildsVariants reports whether a Union schema lowers to holds variants schema builds
-// itself, each conjoining what schema writes: a type array's (lowerUnion) or a
-// distributed composition's (lowerDistributedUnion). A union of schema's oneOf or
-// anyOf alone (lowerOneOfAnyOf) holds the nodes its branches lowered to
-// instead. It reads what lowerSchemaBody dispatches on.
+// buildsVariants reports whether a Union schema lowers to holds variants schema
+// builds itself, each conjoining what schema writes: a type array's
+// (lowerUnion) or a distributed composition's (lowerDistributedUnion). A union
+// of schema's oneOf or anyOf alone (lowerOneOfAnyOf) holds the nodes its
+// branches lowered to instead. It reads what lowerSchemaBody dispatches on.
 func buildsVariants(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	return !declaresUnion(schema) || hasUnionSiblings(loweringContext, schema)
 }
 
-// lowerDistributedUnion emits the Union that is the schema's value, distributing
-// the sibling composition across the variants of unionAtValue: `S ∧ (X | Y)` becomes
-// `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
-// own properties (docs/ir/models.md#composition-beside-a-union) alongside its
-// branch, so the composition is carried on every variant rather than merged
-// into one or dropped. A union an allOf branch writes is the branch's to give,
-// not residue each variant keeps (allOfComposition.conjoins).
+// lowerDistributedUnion emits the Union that is the schema's value,
+// distributing the sibling composition across the variants of unionAtValue:
+// `S ∧ (X | Y)` becomes `(S ∧ X) | (S ∧ Y)`. Each variant is a Model
+// classifying S's Base/Mixins and own properties
+// (docs/ir/models.md#composition-beside-a-union) alongside its branch, so the
+// composition is carried on every variant rather than merged into one or
+// dropped. A union an allOf branch writes is the branch's to give, not residue
+// each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -65,14 +66,15 @@ func lowerDistributedUnion(loweringContext lowering.Ctx, ts *compile.Types, dept
 		"oneOf/anyOf %s; the composition is distributed across the union variants", where))
 }
 
-// lowerSubtypeUnion lowers schema, a subtype a discriminator on an ancestor routes to,
-// with the union unionAtValue it conjoins, beside its allOf or on a branch: schema stays the
-// Model its composition lowers to, a subtype of that ancestor, and names as its
-// last Mixin a Union minted for unionAtValue (mintUnion), as an allOf naming a component
-// holding unionAtValue composes it (docs/ir/models.md#a-union-a-composition-names). A
-// discriminator written beside unionAtValue is the Union's, so the Model neither lowers nor
-// keeps it, unless the Union cannot hold it (tagLocated). The Model's build
-// composes the union (composeMixin), so only a position's first lowering does.
+// lowerSubtypeUnion lowers schema, a subtype a discriminator on an ancestor
+// routes to, with the union unionAtValue it conjoins, beside its allOf or on a
+// branch: schema stays the Model its composition lowers to, a subtype of that
+// ancestor, and names as its last Mixin a Union minted for unionAtValue
+// (mintUnion), as an allOf naming a component holding unionAtValue composes it
+// (docs/ir/models.md#a-union-a-composition-names). A discriminator written
+// beside unionAtValue is the Union's, so the Model neither lowers nor keeps it,
+// unless the Union cannot hold it (tagLocated). The Model's build composes the
+// union (composeMixin), so only a position's first lowering does.
 func lowerSubtypeUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -83,8 +85,9 @@ func lowerSubtypeUnion(loweringContext lowering.Ctx, ts *compile.Types, depth in
 	}
 	id, diags := lowerElected(loweringContext, ts, depth, schema, pointer, dispatch, fin, stand{})
 	if dispatch.won != "allOf" {
-		// A discriminator routes to schema through the allOf naming its ancestor
-		// (subtypeDiscriminatorValue), so no other election composes it.
+		// A discriminator routes to schema through the allOf naming its
+		// ancestor (subtypeDiscriminatorValue), so no other election composes
+		// it.
 		diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: a routed subtype lowers through its allOf, so its union is composed into no model"))
 	}
@@ -96,11 +99,12 @@ func lowerSubtypeUnion(loweringContext lowering.Ctx, ts *compile.Types, depth in
 		"oneOf/anyOf %s a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model", where))
 }
 
-// mintUnion registers the Union unionAtValue, a routed subtype's union (lowerSubtypeUnion),
-// at the keyword its holder writes it under, in the composed namespace: no
-// schema stands there, and a variant's path ends in an index, a field's in a
-// name. Each variant is its branch's own lowering, as a union written alone
-// lowers it, so the node is what a component holding unionAtValue would be.
+// mintUnion registers the Union unionAtValue, a routed subtype's union
+// (lowerSubtypeUnion), at the keyword its holder writes it under, in the
+// composed namespace: no schema stands there, and a variant's path ends in an
+// index, a field's in a name. Each variant is its branch's own lowering, as a
+// union written alone lowers it, so the node is what a component holding
+// unionAtValue would be.
 func mintUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, unionAtValue unionAt) (ir.TypeID, []ir.Diagnostic) {
 	_, key, _ := unionAtValue.branches(loweringContext)
 	at := unionAtValue.at + ids.Ptr(key)
@@ -117,11 +121,11 @@ func mintUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, union
 	return id, slices.Concat(diags, unionDiags)
 }
 
-// composeMixin mints the union unionAtValue, where not nil, and appends it to the Mixins
-// of td, the node a routed subtype's build has just made, last, so the $ref
-// entries its source writes classify first. Any node but a Model has no Mixins
-// to compose it into, and the lowering that builds it elects one only for a
-// subtype that composes, so that is a compiler bug.
+// composeMixin mints the union unionAtValue, where not nil, and appends it to
+// the Mixins of td, the node a routed subtype's build has just made, last, so
+// the $ref entries its source writes classify first. Any node but a Model has
+// no Mixins to compose it into, and the lowering that builds it elects one only
+// for a subtype that composes, so that is a compiler bug.
 func composeMixin(loweringContext lowering.Ctx, ts *compile.Types, depth int, td ir.TypeDef, unionAtValue *unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
 	if unionAtValue == nil {
 		return nil
@@ -150,11 +154,11 @@ type composedBody struct {
 	union unionAt
 }
 
-// bodyKindInferred reports whether the kind-inference policy made schema, a body a
-// union distributes across, the model its variants compose
-// (docs/compilers/openapi.md#shape-applicator): schema names no type and composes
-// no allOf, and the union's branches admit a kind that is no object, or name
-// theirs by the policy's reading, as untypedKinds tells the two apart.
+// bodyKindInferred reports whether the kind-inference policy made schema, a
+// body a union distributes across, the model its variants compose
+// (docs/compilers/openapi.md#shape-applicator): schema names no type and
+// composes no allOf, and the union's branches admit a kind that is no object,
+// or name theirs by the policy's reading, as untypedKinds tells the two apart.
 func bodyKindInferred(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	if !loweringContext.KindInference.Honours() || len(effectiveTypes(schema)) > 0 || allOfComposes(loweringContext, schema) {
 		return false
@@ -300,11 +304,12 @@ func branchReferent(loweringContext lowering.Ctx, b *statement.Statement) (varia
 	return variant, true, true
 }
 
-// keepUncomposedBranch keeps the union branch b, which the variant model does not
-// compose (branchReferent), verbatim under model's Unmodeled (unionBranchKey), and
-// reports it, as keepUncomposedRefs keeps an allOf's $ref entries. b lowers
-// nowhere, so this is its one home; the target of a $ref it writes lowers
-// where the $ref lands, as every landing does (ReserveNodesAtReferenceTargets).
+// keepUncomposedBranch keeps the union branch b, which the variant model does
+// not compose (branchReferent), verbatim under model's Unmodeled
+// (unionBranchKey), and reports it, as keepUncomposedRefs keeps an allOf's $ref
+// entries. b lowers nowhere, so this is its one home; the target of a $ref it
+// writes lowers where the $ref lands, as every landing does
+// (ReserveNodesAtReferenceTargets).
 func keepUncomposedBranch(loweringContext lowering.Ctx, model *ir.Model, b *statement.Statement) []ir.Diagnostic {
 	at := model.Provenance.Pointer
 	kept, diags := annotation.PreserveNodeInto(&model.Unmodeled, unionBranchKey(at), b.Node,

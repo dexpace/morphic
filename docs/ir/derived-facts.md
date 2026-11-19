@@ -3,18 +3,18 @@
 Part of the [IR design](./README.md). What `ir/irfacts` derives from a document and never stores.
 
 What a document implies and does not state is derived by one per-document index,
-`irfacts.DocumentFacts` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
-goes stale after a transform. Each of its indexes is built whole the first time one of its facts
-needs it and never written again, so a `DocumentFacts` is safe for concurrent use; a caller that changes
-the document builds a new one. The package imports only `ir`, which keeps the definitions it
-indexes: `Supertypes`, `IsSubtype`, `ExposedProperties` and `AliasBase`.
+`irfacts.DocumentFacts` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and
+none goes stale after a transform. Each of its indexes is built whole the first time one of its
+facts needs it and never written again, so a `DocumentFacts` is safe for concurrent use; a caller
+that changes the document builds a new one. The package imports only `ir`, which keeps the
+definitions it indexes: `Supertypes`, `IsSubtype`, `ExposedProperties` and `AliasBase`.
 
 The two relations `ir` walks, subtypes and exposed properties, are walked rather than indexed while
-that is cheaper. A `DocumentFacts` answers a relation's first questions by `ir`'s own walk, limited in
-steps (`ir.IsSubtypeWithin`, `ir.ExposesWithin`), until its walks have taken as many steps as the
-registry holds types, and indexes the relation then, or once another fact has. A caller asking a
-few cheap questions, as `pass.Validate` does of the golden spec, pays only for the walks, and one
-asking many pays for one index.
+that is cheaper. A `DocumentFacts` answers a relation's first questions by `ir`'s own walk, limited
+in steps (`ir.IsSubtypeWithin`, `ir.ExposesWithin`), until its walks have taken as many steps as the
+registry holds types, and indexes the relation then, or once another fact has. A caller asking a few
+cheap questions, as `pass.Validate` does of the golden spec, pays only for the walks, and one asking
+many pays for one index.
 
 ## Subtypes
 
@@ -82,8 +82,8 @@ the field whatever it reads back. `Multipart` marks only a multipart body's own 
 its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
 a success nor a failure ([responses](./responses.md)), so its types are not marked `Error`. An
 operation past the bounds of `ir.ForEachOperation`, nested deeper than `ir.MaxGroupDepth` or past
-`ir.MaxWalkSteps` groups and operations, is not read, and `DocumentFacts.Partial` says so for the usage and
-correlation it reads; a type no root reaches has usage 0.
+`ir.MaxWalkSteps` groups and operations, is not read, and `DocumentFacts.Partial` says so for the
+usage and correlation it reads; a type no root reaches has usage 0.
 
 ## Recursion
 

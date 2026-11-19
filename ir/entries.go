@@ -124,8 +124,8 @@ func entryOf(k, val reflect.Value, form keyForm) mapEntry {
 	return mapEntryValue
 }
 
-// pop takes entryFrameValue's entries off the stack, which must hold no frame above entryFrameValue, and
-// frees its slots for the next map of its type.
+// pop takes entryFrameValue's entries off the stack, which must hold no frame
+// above entryFrameValue, and frees its slots for the next map of its type.
 func (s *entryStack) pop(entryFrameValue entryFrame) {
 	s.entries = s.entries[:entryFrameValue.base]
 	if entryFrameValue.store != nil {

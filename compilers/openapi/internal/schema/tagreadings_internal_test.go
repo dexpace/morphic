@@ -45,8 +45,8 @@ func unionOf(id ir.TypeID, exclusive bool, targets ...ir.TypeRef) *ir.Union {
 // to is a non-nullable reference to id.
 func to(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-// valueOf returns what a value typeRef names admits, as tagReadingsValue reads a member declared
-// by typeRef alone.
+// valueOf returns what a value typeRef names admits, as tagReadingsValue reads
+// a member declared by typeRef alone.
 func valueOf(tagReadingsValue *tagReadings, reg ir.TypeRegistry, typeRef ir.TypeRef) tagSet {
 	return tagReadingsValue.member(reg, ir.FlatProperty{Property: &ir.Property{Type: typeRef}})
 }

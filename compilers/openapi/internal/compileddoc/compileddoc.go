@@ -33,14 +33,14 @@ type ResponseKey struct {
 	Index int
 }
 
-// CompiledDocumentView is a finished document as the steps after the lowerings read it:
-// its links, promotions and inferences (docs/compilers/openapi.md#policies).
-// It lists the operations once, and indexes what those steps read again and
-// again, each at the first ask: a model's members by wire name, an
-// operation's parameters and a response's headers. An index is kept, so no
-// step may append a property, parameter, binding or header after one. New
-// runs before the document's root is lowered, so a step reading the root's
-// Unmodeled takes it as a parameter of its own.
+// CompiledDocumentView is a finished document as the steps after the lowerings
+// read it: its links, promotions and inferences
+// (docs/compilers/openapi.md#policies). It lists the operations once, and
+// indexes what those steps read again and again, each at the first ask: a
+// model's members by wire name, an operation's parameters and a response's
+// headers. An index is kept, so no step may append a property, parameter,
+// binding or header after one. New runs before the document's root is lowered,
+// so a step reading the root's Unmodeled takes it as a parameter of its own.
 type CompiledDocumentView struct {
 	// Types is the document's registry, which is whole.
 	Types ir.TypeRegistry

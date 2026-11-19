@@ -56,9 +56,10 @@ func (k outcomeKeeps) holdsAny() bool {
 		slices.ContainsFunc(k.entries, keptEntry.keeps)
 }
 
-// keepsAtOutcome returns what the position schema is written at keeps, having lowered
-// to target: a refinement's census and the branches it left, or the census of
-// any other outcome lowering to a reference (referenceOutcomeKeywords).
+// keepsAtOutcome returns what the position schema is written at keeps, having
+// lowered to target: a refinement's census and the branches it left, or the
+// census of any other outcome lowering to a reference
+// (referenceOutcomeKeywords).
 func keepsAtOutcome(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	refinement, refined := refinementOf(loweringContext, schema, pointer)
 	if !refined {
@@ -119,13 +120,14 @@ func keepsAtOutcome(loweringContext lowering.Ctx, schema *statement.Schema, targ
 	return otherOutcomeKeeps
 }
 
-// residueRead reports whether a key the entry allOfBranchValue of refinementValue writes is read where the
-// position lowered, leaving no residue: a wrapper's allOf, what folds where allOfBranchValue
-// speaks, what the principal says (said) but a union of a pair (pair,
-// writesUnionPair), and a key of censusDomain the principal standing at the
-// position, allOfBranchValue where censused says so, reads or keeps on its node (keepUnread).
-// A value set's union and content vocabulary are kept, as its node holds
-// neither; another principal's union is its node's, or the collapsed
+// residueRead reports whether a key the entry allOfBranchValue of
+// refinementValue writes is read where the position lowered, leaving no
+// residue: a wrapper's allOf, what folds where allOfBranchValue speaks, what
+// the principal says (said) but a union of a pair (pair, writesUnionPair), and
+// a key of censusDomain the principal standing at the position,
+// allOfBranchValue where censused says so, reads or keeps on its node
+// (keepUnread). A value set's union and content vocabulary are kept, as its
+// node holds neither; another principal's union is its node's, or the collapsed
 // reference's (collapsedPrincipal), and its content vocabulary its own
 // reading's (unplacedContent).
 func residueRead(loweringContext lowering.Ctx, admissionReaderValue *admissionReader, refinementValue refinement, typed setType, allOfBranchValue allOfBranch, speaks, censused, collapsed bool,
@@ -155,12 +157,12 @@ func residueRead(loweringContext lowering.Ctx, admissionReaderValue *admissionRe
 	}
 }
 
-// lowersFrom reports whether allOfBranchValue is an entry the position lowers from, principal
-// being its inline principal, nil or a $ref for none: that principal, or a
-// wrapper it is an entry of at any depth, out of whose allOf it is flattened.
-// Each is lowered, the principal as the node and a wrapper as the keywords
-// beside the principal's allOf, so what it keeps that another conjunct writes
-// otherwise is held against the node's keys and never keeps it whole
+// lowersFrom reports whether allOfBranchValue is an entry the position lowers
+// from, principal being its inline principal, nil or a $ref for none: that
+// principal, or a wrapper it is an entry of at any depth, out of whose allOf it
+// is flattened. Each is lowered, the principal as the node and a wrapper as the
+// keywords beside the principal's allOf, so what it keeps that another conjunct
+// writes otherwise is held against the node's keys and never keeps it whole
 // (wholePrincipal).
 func lowersFrom(principal *allOfBranch, allOfBranchValue allOfBranch) bool {
 	if principal == nil || principal.schema.Ref != nil {
@@ -182,9 +184,9 @@ func lessPattern(read func(string) bool, residue bool) func(string) bool {
 	return func(key string) bool { return key != "pattern" && read(key) }
 }
 
-// patternBeside reports whether schema writes a pattern beside its allOf otherwise
-// than bs, the inline principal whose node, holding what homes says, takes a
-// string's bounds: one field holds one pattern, the position's.
+// patternBeside reports whether schema writes a pattern beside its allOf
+// otherwise than bs, the inline principal whose node, holding what homes says,
+// takes a string's bounds: one field holds one pattern, the position's.
 func patternBeside(schema, bs *statement.Schema, homes boundHomes) bool {
 	if !hasKey(schema, "pattern") || !hasKey(bs, "pattern") || !taken(homes.value, "pattern") {
 		return false
@@ -192,11 +194,12 @@ func patternBeside(schema, bs *statement.Schema, homes boundHomes) bool {
 	return schema.TextKeywords().Pattern != bs.TextKeywords().Pattern
 }
 
-// writesUnionPair reports whether schema and the inline entries of comp, the allOf
-// it writes, write a oneOf and an anyOf between them: two unions competing
-// keywords elects between (docs/compilers/openapi.md#competing-keywords), of
-// which a refinement folds neither into its principal as said, as one schema
-// writing both keeps the one it passes over whatever the other says.
+// writesUnionPair reports whether schema and the inline entries of comp, the
+// allOf it writes, write a oneOf and an anyOf between them: two unions
+// competing keywords elects between
+// (docs/compilers/openapi.md#competing-keywords), of which a refinement folds
+// neither into its principal as said, as one schema writing both keeps the one
+// it passes over whatever the other says.
 func writesUnionPair(schema *statement.Schema, comp allOfComposition) bool {
 	oneOf, anyOf := false, false
 	note := func(statementSchema *statement.Schema) {
@@ -212,12 +215,13 @@ func writesUnionPair(schema *statement.Schema, comp allOfComposition) bool {
 	return oneOf && anyOf
 }
 
-// collapsedPrincipal reports whether refinementValue's principal is an inline union that
-// lowered as the nullable reference to its one non-null branch, the outcome
-// the same union written alone at a position has (referenceOutcomeKeywords):
-// the reference says the union, its target the branch and its Nullable the
-// null branches, of which one saying more is kept apart (nullBranchKeeps). A
-// union schema elects over the other of a pair does not collapse (pairedPrincipal).
+// collapsedPrincipal reports whether refinementValue's principal is an inline
+// union that lowered as the nullable reference to its one non-null branch, the
+// outcome the same union written alone at a position has
+// (referenceOutcomeKeywords): the reference says the union, its target the
+// branch and its Nullable the null branches, of which one saying more is kept
+// apart (nullBranchKeeps). A union schema elects over the other of a pair does
+// not collapse (pairedPrincipal).
 func collapsedPrincipal(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema) bool {
 	if refinementValue.principal == nil || refinementValue.principal.schema.Ref != nil || !declaresUnion(refinementValue.principal.schema.Schema) || electsOneOfPair(loweringContext, schema) {
 		return false
@@ -233,9 +237,9 @@ func unionKeyword(keyword string) bool { return keyword == "oneOf" || keyword ==
 // closure no use of a conjunct types, which reads the keywords beside it.
 func isAdditionalProperties(keyword string) bool { return keyword == "additionalProperties" }
 
-// principalTwin reports whether allOfBranchValue, a branch of refinementValue other than its principal, is
-// written as the principal is (sameText): one schema written twice,
-// whose first copy the election takes for both.
+// principalTwin reports whether allOfBranchValue, a branch of refinementValue
+// other than its principal, is written as the principal is (sameText): one
+// schema written twice, whose first copy the election takes for both.
 func principalTwin(admissionReaderValue *admissionReader, refinementValue refinement, allOfBranchValue allOfBranch) bool {
 	return refinementValue.principal != nil && !refinementValue.principalIs(allOfBranchValue) && sameText(admissionReaderValue.c, refinementValue.principal.schema, allOfBranchValue.schema)
 }
@@ -287,11 +291,11 @@ func refinedUnhomed(loweringContext lowering.Ctx, refinementValue refinement, sc
 	return slices.DeleteFunc(unread, func(key string) bool { return keyWrittenAlike(schema, bs, key) })
 }
 
-// keptUnion returns the union keywords schema writes beside an allOf that lowered to
-// its principal refinementValue, a keyword beside a refinement, that the position keeps: none
-// the principal says (unionHeld) but a union of a pair (writesUnionPair), as
-// validation logic those whose branches declare no shape, as the same union
-// beside any body is, and every other one degraded
+// keptUnion returns the union keywords schema writes beside an allOf that
+// lowered to its principal refinementValue, a keyword beside a refinement, that
+// the position keeps: none the principal says (unionHeld) but a union of a pair
+// (writesUnionPair), as validation logic those whose branches declare no shape,
+// as the same union beside any body is, and every other one degraded
 // (docs/compilers/openapi.md#allof-refinement).
 func keptUnion(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema) (degraded, validation []string) {
 	if !declaresUnion(schema) {
@@ -312,11 +316,11 @@ func keptUnion(loweringContext lowering.Ctx, refinementValue refinement, schema 
 	return degraded, validation
 }
 
-// said reports whether the principal of refinementValue already says what schema's keyword key
-// does: what it admits holds it, a union one of whose branches it restates
-// (unionHeld), or it is a format the value set it lowered to, typed, holds in
-// its ValueType, that format's primitive or a narrower one, or a redaction. A
-// type that ValueType holds, its values hold too.
+// said reports whether the principal of refinementValue already says what
+// schema's keyword key does: what it admits holds it, a union one of whose
+// branches it restates (unionHeld), or it is a format the value set it lowered
+// to, typed, holds in its ValueType, that format's primitive or a narrower one,
+// or a redaction. A type that ValueType holds, its values hold too.
 func said(admissionReaderValue *admissionReader, refinementValue refinement, typed setType, schema *statement.Schema, key string) bool {
 	if admissionReaderValue.holds(refinementValue.held, schema, key) || unionHeld(admissionReaderValue, refinementValue, schema, key) || key == "type" && nullIdiom(admissionReaderValue.c, schema) {
 		return true
@@ -324,12 +328,13 @@ func said(admissionReaderValue *admissionReader, refinementValue refinement, typ
 	return typed.ok && key == "format" && (annotation.DeclaresRedaction(schema) || valueTypeHoldsFormat(typed.prim, schema))
 }
 
-// unionHeld reports whether every value refinementValue holds satisfies schema's oneOf or anyOf,
-// the keyword key names: a branch says nothing refinementValue's principal does not
-// (admissionReader.restates), and for a oneOf one alone, sharing no kind with any
-// other, so that exactly one admits each of its values. A branch is compared
-// keyword by keyword, as what it admits leaves its bounds and annotations unread,
-// and one writing what no reading compares says more. A read cut short says no.
+// unionHeld reports whether every value refinementValue holds satisfies
+// schema's oneOf or anyOf, the keyword key names: a branch says nothing
+// refinementValue's principal does not (admissionReader.restates), and for a
+// oneOf one alone, sharing no kind with any other, so that exactly one admits
+// each of its values. A branch is compared keyword by keyword, as what it
+// admits leaves its bounds and annotations unread, and one writing what no
+// reading compares says more. A read cut short says no.
 func unionHeld(admissionReaderValue *admissionReader, refinementValue refinement, schema *statement.Schema, key string) bool {
 	var branches []statement.Subschema
 	switch key {
@@ -360,11 +365,11 @@ func unionHeld(admissionReaderValue *admissionReader, refinementValue refinement
 	return key == "anyOf" || (within == 1 && overlaps == 0)
 }
 
-// record keeps k on unmodeled and reports it, standing being the node the position
-// owns, nil where it owns none (refinedShape), and held what the readers of
-// an inline principal standing there keep after it, which it answers where it
-// keeps that principal whole (wholePrincipal). A branch the IR cannot hold is
-// reported by the keeper, and nothing here claims it was kept.
+// record keeps k on unmodeled and reports it, standing being the node the
+// position owns, nil where it owns none (refinedShape), and held what the
+// readers of an inline principal standing there keep after it, which it answers
+// where it keeps that principal whole (wholePrincipal). A branch the IR cannot
+// hold is reported by the keeper, and nothing here claims it was kept.
 func (k outcomeKeeps) record(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer,
 	standing ir.TypeDef, held *principalKept,
 ) []ir.Diagnostic {
@@ -427,14 +432,15 @@ func (k outcomeKeeps) lowered() []int {
 	return out
 }
 
-// wholePrincipal settles keptEntryValue, what the position schema keeps of an entry it lowers
-// from (lowersFrom), with held, what its principal's readers keep after the
-// position (principalKept). Kept whole, the entry holds the principal and what
-// they said: its report names that too, its reason reads it and what the build
-// kept, and held is told, so they keep none; inside says a wrapper around keptEntryValue is,
-// which holds keptEntryValue. An entry no JSON holds is not kept whole: what it keeps is
-// placed keyword by keyword, as keptEntry.apart is, under its own key where unmodeled
-// holds none, else the entry's.
+// wholePrincipal settles keptEntryValue, what the position schema keeps of an
+// entry it lowers from (lowersFrom), with held, what its principal's readers
+// keep after the position (principalKept). Kept whole, the entry holds the
+// principal and what they said: its report names that too, its reason reads it
+// and what the build kept, and held is told, so they keep none; inside says a
+// wrapper around keptEntryValue is, which holds keptEntryValue. An entry no
+// JSON holds is not kept whole: what it keeps is placed keyword by keyword, as
+// keptEntry.apart is, under its own key where unmodeled holds none, else the
+// entry's.
 func wholePrincipal(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, outcomeKeepsValue outcomeKeeps, keptEntryValue keptEntry,
 	held *principalKept, inside bool,
 ) (keptEntry, []ir.Diagnostic) {
@@ -486,10 +492,10 @@ func wholePrincipal(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *
 }
 
 // apartReason is the reason the keywords apart, kept under the entry's key of
-// keptEntryValue, the inline entry at index i of comp, share, else degraded_lowering: each
-// as it is kept on its own (keywordReason), and a value bound where the
-// position's node carries a number as text no_ir_home, as recordOwnKeywords
-// keeps one (keepTextBounds).
+// keptEntryValue, the inline entry at index i of comp, share, else
+// degraded_lowering: each as it is kept on its own (keywordReason), and a value
+// bound where the position's node carries a number as text no_ir_home, as
+// recordOwnKeywords keeps one (keepTextBounds).
 func apartReason(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int, keptEntryValue keptEntry, apart []string) ir.UnmodeledReason {
 	var shared ir.UnmodeledReason
 	for n, key := range apart {
@@ -517,10 +523,10 @@ func (k outcomeKeeps) besideTag(standing ir.TypeDef) (keywords, tagged []string)
 	return slices.DeleteFunc(slices.Clone(k.keywords), func(key string) bool { return key == "discriminator" }), []string{"discriminator"}
 }
 
-// keepTagBeside keeps on unmodeled the discriminator schema, written at pointer, writes
-// beside an allOf whose inline principal's Union holds its own, tagged naming
-// it or nothing: verbatim, its routes resolved, as keepUnhomed keeps one, with
-// a report saying whose discriminator the Union holds.
+// keepTagBeside keeps on unmodeled the discriminator schema, written at
+// pointer, writes beside an allOf whose inline principal's Union holds its own,
+// tagged naming it or nothing: verbatim, its routes resolved, as keepUnhomed
+// keeps one, with a report saying whose discriminator the Union holds.
 func keepTagBeside(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, tagged []string, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	kept, diags := keepUnhomed(loweringContext, ts, unmodeled, schema, tagged, pointer)
@@ -647,14 +653,14 @@ func keptWhy(comp allOfComposition, b keptBranch) string {
 	}
 }
 
-// keepConjuncts keeps on unmodeled the conjuncts schema, written at pointer, writes beside
-// its own keywords, which an election passed over: where they are references
-// alone, beside them or on its allOf's entries, each as a refinement keeps a
-// $ref it passes over (keepRefConjuncts), so `{allOf: [{$ref: T}], K}` keeps
-// what `{$ref: T, K}` does; else the $ref written beside them so, and the
+// keepConjuncts keeps on unmodeled the conjuncts schema, written at pointer,
+// writes beside its own keywords, which an election passed over: where they are
+// references alone, beside them or on its allOf's entries, each as a refinement
+// keeps a $ref it passes over (keepRefConjuncts), so `{allOf: [{$ref: T}], K}`
+// keeps what `{$ref: T, K}` does; else the $ref written beside them so, and the
 // allOf whole. It returns the keywords it kept, `$ref` and `allOf`, in that
-// order, and how a report names what unmodeled holds of each: an allOf of references
-// as its entries' $refs.
+// order, and how a report names what unmodeled holds of each: an allOf of
+// references as its entries' $refs.
 func keepConjuncts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer,
 ) (written, named []string, diags []ir.Diagnostic) {
 	if refs, ok := refConjuncts(loweringContext, schema, pointer); ok {
@@ -693,8 +699,8 @@ func keepConjuncts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema
 	return written, named, diags
 }
 
-// refConjuncts returns the conjuncts schema, written at pointer, writes beside its
-// own keywords, each a $ref, and false where one is not.
+// refConjuncts returns the conjuncts schema, written at pointer, writes beside
+// its own keywords, each a $ref, and false where one is not.
 func refConjuncts(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) ([]keptBranch, bool) {
 	branches := allOfBranches(loweringContext, schema, pointer).branches
 	refs := make([]keptBranch, 0, len(branches))

@@ -87,8 +87,9 @@ func tallyOf(profiles []*cover.Profile) tally {
 	return tallyValue
 }
 
-// verdict writes the gate's judgement of tallyValue and returns the exit code. A profile
-// recording no statements fails: it is what a run that measured nothing leaves.
+// verdict writes the gate's judgement of tallyValue and returns the exit code.
+// A profile recording no statements fails: it is what a run that measured
+// nothing leaves.
 func verdict(w io.Writer, tallyValue tally) int {
 	if tallyValue.total == 0 {
 		emitf(w, "COVERAGE FAIL: the profile records no statements\n")

@@ -50,13 +50,13 @@ func (w *walker) value(frameValue frame, fld Field, val *yaml.Node, depth int) {
 	w.entries(frameValue, fld, shape, node, ptr, depth)
 }
 
-// dialectShape judges a value of a Schema Object field that the schema
-// lowering reads otherwise than its shape says, read with frameValue's rows, and
-// reports whether it did: a numeric bound, read as the decimal it spells,
-// quoted or not (decimalBound), bar a null, read as left out, and a number
-// its range refuses, such as a multipleOf of 0; and an `items` written as a
-// list where the rows read no tuple, which a JSON Schema draft reads as one,
-// an error saying what the document's version writes instead.
+// dialectShape judges a value of a Schema Object field that the schema lowering
+// reads otherwise than its shape says, read with frameValue's rows, and reports
+// whether it did: a numeric bound, read as the decimal it spells, quoted or not
+// (decimalBound), bar a null, read as left out, and a number its range refuses,
+// such as a multipleOf of 0; and an `items` written as a list where the rows
+// read no tuple, which a JSON Schema draft reads as one, an error saying what
+// the document's version writes instead.
 func dialectShape(walkerValue *walker, frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) bool {
 	switch {
 	case fld.Decimal && !isNull(node) && !outsideRuleset(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
@@ -71,10 +71,10 @@ func dialectShape(walkerValue *walker, frameValue frame, fld Field, node *yaml.N
 	}
 }
 
-// decimalBound reports an exclusive bound written in the other form than frameValue's
-// rows give it, a boolean modifying the bound beside it or a number of its
-// own, and a bound, a boolean exclusive bound aside, no decimal spells, quoted
-// or not (value.NumericLiteral), each an error at the value.
+// decimalBound reports an exclusive bound written in the other form than
+// frameValue's rows give it, a boolean modifying the bound beside it or a
+// number of its own, and a bound, a boolean exclusive bound aside, no decimal
+// spells, quoted or not (value.NumericLiteral), each an error at the value.
 func decimalBound(walkerValue *walker, frameValue frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if fld.Name == "exclusiveMinimum" || fld.Name == "exclusiveMaximum" {
 		boolean := frameValue.rows.Takes(fld.Name, Boolean)
@@ -194,11 +194,11 @@ const (
 	noScopes
 )
 
-// nullRead says how a null written for the field is read at minor minor. The schema
-// lowering reads one for another object's schema as the empty schema, a value
-// of the wrong shape, and one for any keyword of a Schema Object as left out. A
-// null for an optional field is otherwise left out; for a required field it is
-// the value that is missing, reported by whichever package owns the rule.
+// nullRead says how a null written for the field is read at minor minor. The
+// schema lowering reads one for another object's schema as the empty schema, a
+// value of the wrong shape, and one for any keyword of a Schema Object as left
+// out. A null for an optional field is otherwise left out; for a required field
+// it is the value that is missing, reported by whichever package owns the rule.
 func (f frame) nullRead(fld Field, minor Minor) nullReading {
 	if fld.Shape == Nested && fld.Of == Schema && f.obj.Kind != Schema {
 		return wrongValue
@@ -222,11 +222,11 @@ func (f frame) nullRead(fld Field, minor Minor) nullReading {
 	return leftOut
 }
 
-// writes reports whether the object writes the field name at minor minor. A null
-// the field's own check reads as left out, or as a field missing (nullRead),
-// writes nothing, so no rule holds it against the object either; one the field
-// takes as its value, as only a field of any shape does, or as a value of the
-// wrong shape, is written.
+// writes reports whether the object writes the field name at minor minor. A
+// null the field's own check reads as left out, or as a field missing
+// (nullRead), writes nothing, so no rule holds it against the object either;
+// one the field takes as its value, as only a field of any shape does, or as a
+// value of the wrong shape, is written.
 func (f frame) writes(name string, minor Minor) bool {
 	node := nodeview.Deref(f.byKey[name])
 	switch {
@@ -239,8 +239,8 @@ func (f frame) writes(name string, minor Minor) bool {
 	return matches(fld.Shape, node) || f.nullRead(fld, minor) == wrongValue
 }
 
-// fieldAt returns the field named name f's object defines at minor minor, else a
-// later minor's, or for a Schema Object the dialect the compiler reads
+// fieldAt returns the field named name f's object defines at minor minor, else
+// a later minor's, or for a Schema Object the dialect the compiler reads
 // natively (SchemaRules.Later), else the zero Field (Object.fieldAt).
 func (f frame) fieldAt(name string, minor Minor) Field {
 	if fld := f.obj.fieldAt(name, minor); fld.Name != "" || f.rows.rows == nil {
@@ -341,8 +341,8 @@ func (w *walker) enumerated(frameValue frame, fld Field, text string, ptr jsonte
 		frameValue.obj.Name, fld.Name, admitted, frameValue.in(w.minor), citeFor(fld.Cites, w.minor).Section)
 }
 
-// admitted lists the values the field admits at minor minor, as the object's own
-// fields stand.
+// admitted lists the values the field admits at minor minor, as the object's
+// own fields stand.
 func (f frame) admitted(fld Field, minor Minor) string {
 	var names []string
 	for _, valueValue := range fld.Values {

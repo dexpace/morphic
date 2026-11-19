@@ -51,8 +51,9 @@ func sameBounds(a, b *ir.Constraints) bool {
 		!slices.ContainsFunc(constraintKeywords, func(kw constraintKeyword) bool { return !kw.same(a, b) })
 }
 
-// boundsBeyond returns what constraints says that own does not: constraints without each keyword own
-// states at the value constraints holds. It writes to neither.
+// boundsBeyond returns what constraints says that own does not: constraints
+// without each keyword own states at the value constraints holds. It writes to
+// neither.
 func boundsBeyond(constraints, own *ir.Constraints) *ir.Constraints {
 	beyond := *constraints
 	for _, kw := range constraintKeywords {
@@ -81,9 +82,9 @@ func boundsOf(td ir.TypeDef) *ir.Constraints {
 	}
 }
 
-// withBounds returns a copy of td holding constraints, and td itself where boundsOf reads
-// none of its kind. The copy shares the rest of td, which is read and never
-// written: an editor clones a node before changing it.
+// withBounds returns a copy of td holding constraints, and td itself where
+// boundsOf reads none of its kind. The copy shares the rest of td, which is
+// read and never written: an editor clones a node before changing it.
 func withBounds(td ir.TypeDef, constraints *ir.Constraints) ir.TypeDef {
 	switch n := td.(type) {
 	case *ir.Scalar:
@@ -147,14 +148,15 @@ func nodeBounds(typeJudgeValue typeJudge, ref ir.TypeRef) *ir.Constraints {
 	return boundsOf(td)
 }
 
-// allBounds returns the bounds property holds and those on its type's node together.
+// allBounds returns the bounds property holds and those on its type's node
+// together.
 func allBounds(typeJudgeValue typeJudge, property *ir.Property) *ir.Constraints {
 	var all ir.Constraints
 	return Constraints(Constraints(&all, property.Constraints), nodeBounds(typeJudgeValue, property.Type))
 }
 
-// sameTypeIgnoringBounds reports whether a and b are one type but for the bounds their nodes hold:
-// the judgment on the two with those bounds set aside.
+// sameTypeIgnoringBounds reports whether a and b are one type but for the
+// bounds their nodes hold: the judgment on the two with those bounds set aside.
 func sameTypeIgnoringBounds(typeJudgeValue typeJudge, a, b ir.TypeRef) bool {
 	at, aok := typeJudgeValue.resolve(a.Target)
 	bt, bok := typeJudgeValue.resolve(b.Target)

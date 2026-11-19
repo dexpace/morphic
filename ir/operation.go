@@ -200,12 +200,12 @@ type Content struct {
 	// alike; positional per-item encoding has no form here and stays in
 	// Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
-	// Encoding holds multipart/form per-property (part) wire config, keyed by the
-	// part property's PropertyID: of a part several declarations name, the one the
-	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
-	// body, each variant's declaring it, through nested unions, each entry as
-	// that variant declares the part, as of each shape a model narrowing a union
-	// takes. No key is empty.
+	// Encoding holds multipart/form per-property (part) wire config, keyed by
+	// the part property's PropertyID: of a part several declarations name, the
+	// one the flattening of Type takes (docs/ir/models.md#the-flattening), and
+	// of a union body, each variant's declaring it, through nested unions, each
+	// entry as that variant declares the part, as of each shape a model
+	// narrowing a union takes. No key is empty.
 	Encoding map[PropertyID]PartEncoding `json:"encoding,omitempty"`
 	// CatchAllEncoding is the part encoding of the parts a catch-all admits,
 	// keyed by the map or model holding the catch-all: the body's type, each
@@ -261,10 +261,11 @@ type PartEncoding struct {
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
 	Headers []Header `json:"headers,omitempty"`
-	// RepeatsPerArrayItem reports that the part repeats (array member → repeated parts).
+	// RepeatsPerArrayItem reports that the part repeats (array member →
+	// repeated parts).
 	RepeatsPerArrayItem bool `json:"repeatsPerArrayItem"`
-	// HasFilename reports that the part carries a filename (file part), which no
-	// part of a url-encoded body does.
+	// HasFilename reports that the part carries a filename (file part), which
+	// no part of a url-encoded body does.
 	HasFilename bool `json:"hasFilename"`
 	// AllowReserved writes the part's value as HTTPParamBinding.AllowReserved
 	// writes a parameter's: reserved characters and percent-encoded triples pass

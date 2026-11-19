@@ -142,8 +142,8 @@ func (d *docs) locate(uri, base string) (string, bool) {
 }
 
 // opening is the name the document uri names, written in the document named
-// base, is opened under in docsValue: located (docs.locate), then put where the caller
-// mapped it (Config.Map).
+// base, is opened under in docsValue: located (docs.locate), then put where the
+// caller mapped it (Config.Map).
 func opening(docsValue *docs, uri, base string) (string, bool) {
 	name, ok := docsValue.locate(uri, base)
 	if !ok || docsValue.cfg.Map == nil {
@@ -250,8 +250,9 @@ func (d *docs) unread(name string) bool {
 	return !opened && !failed && d.cfg.Open != nil
 }
 
-// path returns the nodes along documentPointer's pointer from its document's root, aliases
-// dereferenced, and whether it reaches documentPointer, charging a step a node.
+// path returns the nodes along documentPointer's pointer from its document's
+// root, aliases dereferenced, and whether it reaches documentPointer, charging
+// a step a node.
 func (d *docs) path(documentPointer DocumentPointer) ([]*yaml.Node, bool) {
 	doc := d.list[documentPointer.Doc]
 	path, complete := doc.view.DocumentPath(doc.root, documentPointer.Pointer)
@@ -259,7 +260,8 @@ func (d *docs) path(documentPointer DocumentPointer) ([]*yaml.Node, bool) {
 	return path, complete
 }
 
-// node returns the node at documentPointer, or nil where its document holds none.
+// node returns the node at documentPointer, or nil where its document holds
+// none.
 func (d *docs) node(documentPointer DocumentPointer) *yaml.Node {
 	path, ok := d.path(documentPointer)
 	if !ok {
@@ -299,8 +301,9 @@ func (d *docs) identityState(id DocID) state {
 	return sLoose
 }
 
-// stateAt is the state the OpenAPI grammar reads documentPointer at where documentPointer is: its own
-// document's, not that of a reference read through on the way.
+// stateAt is the state the OpenAPI grammar reads documentPointer at where
+// documentPointer is: its own document's, not that of a reference read through
+// on the way.
 func (d *docs) stateAt(documentPointer DocumentPointer) state {
 	return stateOf(d.rootState(documentPointer.Doc), slices.Collect(documentPointer.Pointer.Tokens()))
 }
@@ -345,8 +348,9 @@ func (d *docs) child(id DocID, node *yaml.Node, token string) *yaml.Node {
 	return nodeview.Deref(d.list[id].view.ChildByToken(node, token))
 }
 
-// absent is why no child of node in document id answers a token: node merges deeper
-// than its view expands, so the child may lie past the bound, or it holds none.
+// absent is why no child of node in document id answers a token: node merges
+// deeper than its view expands, so the child may lie past the bound, or it
+// holds none.
 func (d *docs) absent(id DocID, node *yaml.Node) Reason {
 	if !d.list[id].view.Expanded(node) {
 		return MergeBound

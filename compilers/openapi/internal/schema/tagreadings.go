@@ -30,7 +30,8 @@ type tagReadings struct {
 	read map[readKey]tagSet
 }
 
-// readingsOf returns the run's tagReadings, which every copy of loweringContext shares.
+// readingsOf returns the run's tagReadings, which every copy of loweringContext
+// shares.
 func readingsOf(loweringContext lowering.Ctx) *tagReadings {
 	return lowering.Settled(loweringContext, func() *tagReadings { return &tagReadings{read: map[readKey]tagSet{}} })
 }
@@ -54,8 +55,8 @@ func (r *tagReadings) object(reg ir.TypeRegistry, flat ir.Flattening, member ir.
 	return got
 }
 
-// member returns what every declaration of flatProperty admits, as an instance meets
-// them all: the one it takes and those it overrides.
+// member returns what every declaration of flatProperty admits, as an instance
+// meets them all: the one it takes and those it overrides.
 func (r *tagReadings) member(reg ir.TypeRegistry, flatProperty ir.FlatProperty) tagSet {
 	for _, readKey := range memberKeys(reg, flatProperty) {
 		r.fold(reg, readKey)
@@ -162,9 +163,10 @@ func sameSet(a, b tagSet) bool {
 	return a.closed == b.closed && a.null == b.null && slices.Equal(a.strings, b.strings)
 }
 
-// combine returns what the reading readFrameValue opened admits, once each reading it
-// names is read, or is in its component and read as far as readComponent
-// has. A value reading naming a union in cycle, its component, bounds nothing.
+// combine returns what the reading readFrameValue opened admits, once each
+// reading it names is read, or is in its component and read as far as
+// readComponent has. A value reading naming a union in cycle, its component,
+// bounds nothing.
 func (r *tagReadings) combine(reg ir.TypeRegistry, readFrameValue readFrame, cycle map[readKey]bool) tagSet {
 	if !readFrameValue.key.object {
 		union := unionNode(reg, readFrameValue.key.id)
@@ -206,10 +208,10 @@ func closedJoin(union *ir.Union, sets []tagSet) tagSet {
 	return join(sets)
 }
 
-// refOf returns what a value typeRef names admits, read through alias scalars, with
-// the null typeRef or an alias it is read through admits: what the value reading of
-// a union holds, which fold must have read, and leaf's for any other node,
-// read once a run, as many declarations name one Enum.
+// refOf returns what a value typeRef names admits, read through alias scalars,
+// with the null typeRef or an alias it is read through admits: what the value
+// reading of a union holds, which fold must have read, and leaf's for any other
+// node, read once a run, as many declarations name one Enum.
 func (r *tagReadings) refOf(reg ir.TypeRegistry, typeRef ir.TypeRef) tagSet {
 	id, null := throughAliases(reg, typeRef.Target)
 	readKeyValue := readKey{id: id}
@@ -222,7 +224,8 @@ func (r *tagReadings) refOf(reg ir.TypeRegistry, typeRef ir.TypeRef) tagSet {
 	return got
 }
 
-// memberOf returns what every declaration of flatProperty admits, each as refOf reads it.
+// memberOf returns what every declaration of flatProperty admits, each as refOf
+// reads it.
 func (r *tagReadings) memberOf(reg ir.TypeRegistry, flatProperty ir.FlatProperty) tagSet {
 	got := r.refOf(reg, flatProperty.Property.Type)
 	for _, propertyDecl := range flatProperty.Overridden {
@@ -272,8 +275,8 @@ func (w *componentWalk) leave() readFrame {
 	return done
 }
 
-// children returns the readings readKeyValue names, and a model's flattening for an
-// object reading of one: a union's variants that are unions, for a value
+// children returns the readings readKeyValue names, and a model's flattening
+// for an object reading of one: a union's variants that are unions, for a value
 // reading; and for an object reading, a model's member's declarations that are
 // unions and the closed unions it composes, or a union's variants that are
 // models or unions.
@@ -298,7 +301,8 @@ func children(reg ir.TypeRegistry, readKeyValue readKey) ([]readKey, ir.Flatteni
 	return append(kids, conjunctKeys(reg, flat, readKeyValue.name)...), flat
 }
 
-// memberKeys returns the value readings of the unions flatProperty's declarations name.
+// memberKeys returns the value readings of the unions flatProperty's
+// declarations name.
 func memberKeys(reg ir.TypeRegistry, flatProperty ir.FlatProperty) []readKey {
 	var keys []readKey
 	for _, typeRef := range append([]ir.TypeRef{flatProperty.Property.Type}, declTypes(flatProperty.Overridden)...) {

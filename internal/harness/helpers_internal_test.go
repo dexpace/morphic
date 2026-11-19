@@ -79,8 +79,9 @@ func replaceRegistered(t *testing.T, f func() []compilers.Compiler) {
 // compileFunc is a compile of one spec, as Check makes one.
 type compileFunc func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error)
 
-// swapCompile makes each compile of the rest of the test run compileFuncValue over its first
-// source, the spec, and returns the compile it replaced, for compileFuncValue to wrap.
+// swapCompile makes each compile of the rest of the test run compileFuncValue
+// over its first source, the spec, and returns the compile it replaced, for
+// compileFuncValue to wrap.
 func swapCompile(t *testing.T, compileFuncValue compileFunc) compileFunc {
 	t.Helper()
 	orig := compileSources

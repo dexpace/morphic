@@ -30,8 +30,8 @@ func newDynamicRefs() *dynamicRefs {
 	return &dynamicRefs{named: map[DocumentPointer]bool{}, spelled: map[DocumentPointer]bool{}, waiting: map[DocumentPointer]string{}}
 }
 
-// dynamicRefValue is the $dynamicRef the schema node of document id writes, read
-// as refOf reads a $ref, and whether it writes a string one.
+// dynamicRefValue is the $dynamicRef the schema node of document id writes,
+// read as refOf reads a $ref, and whether it writes a string one.
 func dynamicRefValue(docsValue *docs, id DocID, node *yaml.Node) (string, bool) {
 	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
 		return "", false
@@ -43,14 +43,15 @@ func dynamicRefValue(docsValue *docs, id DocID, node *yaml.Node) (string, bool) 
 	return dynamicRefNode.Value, true
 }
 
-// namesDynamic reports whether the $dynamicRef value, written at documentPointer and reached
-// along path, is dynamic: its fragment is a plain name and it resolves, as a
-// $ref, onto a $dynamicAnchor of that name. It is not shown to be the $ref it
-// spells where the resource it names declares the name more than once, one
-// of the declarations a $dynamicAnchor (duplicateDynamic), nor where a merge
-// past the bound or the budget may hide the anchor: the lowering keeps those
-// (docs/compilers/openapi.md#dynamic-ref). known is false, and nothing kept,
-// while its hop waits for a document not yet read.
+// namesDynamic reports whether the $dynamicRef value, written at
+// documentPointer and reached along path, is dynamic: its fragment is a plain
+// name and it resolves, as a $ref, onto a $dynamicAnchor of that name. It is
+// not shown to be the $ref it spells where the resource it names declares the
+// name more than once, one of the declarations a $dynamicAnchor
+// (duplicateDynamic), nor where a merge past the bound or the budget may hide
+// the anchor: the lowering keeps those (docs/compilers/openapi.md#dynamic-ref).
+// known is false, and nothing kept, while its hop waits for a document not yet
+// read.
 func namesDynamic(b *binder, documentPointer DocumentPointer, path []*yaml.Node, value string) (dynamic, known bool) {
 	if v, ok := b.dyn.named[documentPointer]; ok {
 		return v, true
@@ -78,10 +79,11 @@ func namesDynamic(b *binder, documentPointer DocumentPointer, path []*yaml.Node,
 }
 
 // duplicateDynamic reports whether one of the declarations of the plain name
-// name that the resource the $dynamicRef value, written at documentPointer and reached
-// along path, names holds two or more of is a $dynamicAnchor: the resource's
-// own, as resolve read them, and no other resource's of its document. A
-// resource it cannot name again, which resolve named, reads as dynamic.
+// name that the resource the $dynamicRef value, written at documentPointer and
+// reached along path, names holds two or more of is a $dynamicAnchor: the
+// resource's own, as resolve read them, and no other resource's of its
+// document. A resource it cannot name again, which resolve named, reads as
+// dynamic.
 func duplicateDynamic(b *binder, documentPointer DocumentPointer, path []*yaml.Node, value, name string) bool {
 	in, known := b.resources.holding(documentPointer, path, true, b.ids.readsDialects(documentPointer.Doc))
 	uri, _, _ := strings.Cut(value, "#")
@@ -142,8 +144,8 @@ func resettle(b *binder, site DocumentPointer) bool {
 	return named
 }
 
-// keywordAt is the keyword the reference whose hop the pass read at documentPointer is
-// written under.
+// keywordAt is the keyword the reference whose hop the pass read at
+// documentPointer is written under.
 func keywordAt(b *binder, documentPointer DocumentPointer) string {
 	if b.dyn.spelled[documentPointer] {
 		return "$dynamicRef"

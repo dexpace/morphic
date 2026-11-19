@@ -97,8 +97,8 @@ type View struct {
 // bound must not be allowed to hide.
 func (v *View) Exhausted() bool { return v.exhausted }
 
-// Expanded reports whether node's pairs are all its `<<` merges supply, read as a
-// pointer walk reads them: false for a mapping whose merges run past
+// Expanded reports whether node's pairs are all its `<<` merges supply, read as
+// a pointer walk reads them: false for a mapping whose merges run past
 // MergeDepthLimit, where a key it lacks may lie past the bound. A node that is
 // no mapping has nothing to expand.
 func (v *View) Expanded(node *yaml.Node) bool {
@@ -155,9 +155,9 @@ func (e expansion) asSource() []Pair {
 // the mapping writes itself, then its own, a key written twice at its last
 // copy.
 //
-// node is dereferenced, so an alias standing in for a whole mapping can be passed
-// directly; a non-mapping node (including nil) yields no pairs. The returned
-// slice is the view's own memo — callers must treat it as read-only.
+// node is dereferenced, so an alias standing in for a whole mapping can be
+// passed directly; a non-mapping node (including nil) yields no pairs. The
+// returned slice is the view's own memo — callers must treat it as read-only.
 func (v *View) MappingPairs(node *yaml.Node) []Pair {
 	return v.expand(Deref(node), 0).pairs
 }
@@ -376,13 +376,13 @@ func IsMergeKey(raw *yaml.Node) bool {
 }
 
 // KeyOf returns the key the parser gives the mapping pair whose raw key node is
-// raw, and whether the pair is one of the mapping's own: a `<<` merge key
-// names none, and nor does a key that is no scalar once its alias is followed,
-// which the parser reads as the empty string
-// (docs/parser-library.md#non-scalar-key). Such an entry is left out by every
-// reader, since "" would be one pointer for every such key of a mapping, and
-// specrules.CheckFormat reports it. The view and every reader of a mapping's raw
-// pairs ask KeyOf, so none can disagree about a pair's key.
+// raw, and whether the pair is one of the mapping's own: a `<<` merge key names
+// none, and nor does a key that is no scalar once its alias is followed, which
+// the parser reads as the empty string (docs/parser-library.md#non-scalar-key).
+// Such an entry is left out by every reader, since "" would be one pointer for
+// every such key of a mapping, and specrules.CheckFormat reports it. The view
+// and every reader of a mapping's raw pairs ask KeyOf, so none can disagree
+// about a pair's key.
 func KeyOf(raw *yaml.Node) (string, bool) {
 	if raw == nil || IsMergeKey(raw) {
 		return "", false
@@ -401,8 +401,8 @@ func KeyOf(raw *yaml.Node) (string, bool) {
 // RepeatedKeys returns the keys a mapping writes more than once, each once, in
 // the order their second copies appear. A key an explicit pair shares with a
 // `<<` merge is the merge's precedence rule at work, not a repeat, so merged
-// pairs are not counted. node is dereferenced; a node that is no mapping repeats
-// nothing.
+// pairs are not counted. node is dereferenced; a node that is no mapping
+// repeats nothing.
 func RepeatedKeys(node *yaml.Node) []string {
 	node = Deref(node)
 	if node == nil || node.Kind != yaml.MappingNode {
@@ -467,8 +467,8 @@ func NotMapping(src *yaml.Node) bool {
 	return node == nil || node.Kind != yaml.MappingNode
 }
 
-// MergesNothing reports whether a `<<` of the mapping node, or of a mapping a `<<`
-// merges in at any depth, names something that is no mapping, which merges
+// MergesNothing reports whether a `<<` of the mapping node, or of a mapping a
+// `<<` merges in at any depth, names something that is no mapping, which merges
 // nothing (docs/parser-library.md#merge-keys). node is dereferenced, and a node
 // that is no mapping writes no `<<`.
 //

@@ -456,8 +456,9 @@ func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
 	}
 }
 
-// Stability fills tier from the vendor extensions kept in unmodeled, by promoter's
-// sources of TargetStability, and marks prov with the heuristic when it does.
+// Stability fills tier from the vendor extensions kept in unmodeled, by
+// promoter's sources of TargetStability, and marks prov with the heuristic when
+// it does.
 func Stability(promoter Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
 	if tier == nil || prov == nil {
 		return nil
@@ -488,9 +489,9 @@ func GroupStability(promoter Promoter, unmodeled ir.Unmodeled, tier *ir.Stabilit
 	return diags
 }
 
-// UnformedTier reports each key promoter reads a tier from that the tag named tag
-// keeps in unmodeled, where the tag forms no operation group: the tier is read
-// through the group alone, so it fills no stability.
+// UnformedTier reports each key promoter reads a tier from that the tag named
+// tag keeps in unmodeled, where the tag forms no operation group: the tier is
+// read through the group alone, so it fills no stability.
 func UnformedTier(promoter Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, src := range promoter.Sources(TargetStability) {
@@ -503,12 +504,12 @@ func UnformedTier(promoter Promoter, tag string, unmodeled ir.Unmodeled) []ir.Di
 	return diags
 }
 
-// UnheldDeprecation reports each key promoter reads a deprecation or its members from
-// that the tag named tag keeps in unmodeled, where those keys state one: a tag
-// and the group it forms hold no deprecation, so it fills nothing. A source
-// listing values is reported where its value is one of them, as a tier the
-// same key states is the group's, and a key UnformedTier reports, where the
-// tag forms no group, is not reported again.
+// UnheldDeprecation reports each key promoter reads a deprecation or its
+// members from that the tag named tag keeps in unmodeled, where those keys
+// state one: a tag and the group it forms hold no deprecation, so it fills
+// nothing. A source listing values is reported where its value is one of them,
+// as a tier the same key states is the group's, and a key UnformedTier reports,
+// where the tag forms no group, is not reported again.
 func UnheldDeprecation(promoter Promoter, tag string, formed bool, unmodeled ir.Unmodeled) []ir.Diagnostic {
 	var dep *ir.Deprecation
 	var marked ir.Provenance
@@ -553,7 +554,8 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 
 // EnumOpenness clears *closed, an enum's or that of the union a mixed enum
 // lowers to, when the vendor extensions kept in unmodeled state the set open by
-// promoter's sources of TargetEnumOpen, and marks prov with the heuristic when they do.
+// promoter's sources of TargetEnumOpen, and marks prov with the heuristic when
+// they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -570,9 +572,9 @@ func EnumOpenness(promoter Promoter, unmodeled ir.Unmodeled, closed *bool, prov 
 }
 
 // UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
-// when the vendor extensions kept in unmodeled state the union open by promoter's
-// sources of TargetUnionOpen, and marks prov with the heuristic when they do,
-// as EnumOpenness opens an enum.
+// when the vendor extensions kept in unmodeled state the union open by
+// promoter's sources of TargetUnionOpen, and marks prov with the heuristic when
+// they do, as EnumOpenness opens an enum.
 func UnionOpenness(promoter Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil
@@ -580,8 +582,8 @@ func UnionOpenness(promoter Promoter, unmodeled ir.Unmodeled, closed *bool, prov
 	return openness(promoter, unmodeled, TargetUnionOpen, closed, prov)
 }
 
-// openness clears *closed and marks prov when a source promoter reads target from
-// states openness in unmodeled (extensionOpenness).
+// openness clears *closed and marks prov when a source promoter reads target
+// from states openness in unmodeled (extensionOpenness).
 func openness(promoter Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	open, _, diags := firstStated(unmodeled, promoter.Sources(target), reading[bool]{
 		target: target,

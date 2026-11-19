@@ -64,8 +64,8 @@ func checkPrefixHeaders(doc *ir.Document) walkCheck {
 	}
 }
 
-// appendPrefixHeaderViolations appends what is wrong with header, a header under a
-// prefix, at at.
+// appendPrefixHeaderViolations appends what is wrong with header, a header
+// under a prefix, at at.
 func appendPrefixHeaderViolations(vs []Violation, doc *ir.Document, header *ir.Header, at ir.WalkPath) []Violation {
 	if !reachesMap(doc.Types, header.Type) {
 		vs = append(vs, Violation{

@@ -39,21 +39,22 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi": 6,
 	},
 	"compilers/compile": {
-		// The settlement queue runs what a lowering deferred, once the registry is
-		// whole and in order (#898), as operation's form parts and item defaults
-		// and its stream elements are, and Types.ReserveNodeAtCoordinate's queue builds a node a
-		// reference names that no lowering built: designed seams. Types.Intern
-		// also calls the build schema hands it before it returns: an immediate
-		// callback.
+		// The settlement queue runs what a lowering deferred, once the registry
+		// is whole and in order (#898), as operation's form parts and item
+		// defaults and its stream elements are, and
+		// Types.ReserveNodeAtCoordinate's queue builds a node a reference names
+		// that no lowering built: designed seams. Types.Intern also calls the
+		// build schema hands it before it returns: an immediate callback.
 		"compilers/openapi/internal/operation": 3,
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/reftable": {
-		// reftable.Config's six functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy reftable may not import (Locate, Map, Refuse), and two readings
-		// of a document's rows, which load holds and reftable may not import, asked
-		// only of a document a reference opens, so no list made before binding
-		// holds them (Dialect, KeysByURI): designed seams, one kind.
+		// reftable.Config's six functions, which #1488 keeps under #1477's
+		// rule: I/O (Open), policy reftable may not import (Locate, Map,
+		// Refuse), and two readings of a document's rows, which load holds and
+		// reftable may not import, asked only of a document a reference opens,
+		// so no list made before binding holds them (Dialect, KeysByURI):
+		// designed seams, one kind.
 		"compilers/openapi/internal/load": 6,
 	},
 	"compilers/openapi/internal/load": {
@@ -71,10 +72,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    25,
 	},
 	"compilers/openapi/internal/merge": {
-		// What a fold asks the walk that declared the field, through merge.FieldDeclarationContext:
-		// Alike three times, Admits once, Mint once and Interned once.
-		// merge.DeclarationConstructRenderer, a lazy render of a declaration nobody may keep. And the
-		// predicate SelectBase calls before it returns, an immediate callback.
+		// What a fold asks the walk that declared the field, through
+		// merge.FieldDeclarationContext: Alike three times, Admits once, Mint
+		// once and Interned once. merge.DeclarationConstructRenderer, a lazy
+		// render of a declaration nobody may keep. And the predicate SelectBase
+		// calls before it returns, an immediate callback.
 		"compilers/openapi/internal/schema": 8,
 	},
 	"compilers/openapi/internal/nodeview": {
@@ -87,12 +89,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/sourcetreestats": 2,
 	},
 	"compilers/openapi/internal/specrules": {
-		// specrules.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
-		// which #1488 keeps under #1477's rule: the checker places its own
-		// findings, and the nodes their messages name, to drop the repeat an
-		// alias makes, a policy, and the others observe or steer the walk,
-		// RootRows answering the rows of each schema it enters and Later taking
-		// each it leaves unread: traversal callbacks.
+		// specrules.Options' Locate, Seen, Skip, Judged, Referenced, RootRows
+		// and Later, which #1488 keeps under #1477's rule: the checker places
+		// its own findings, and the nodes their messages name, to drop the
+		// repeat an alias makes, a policy, and the others observe or steer the
+		// walk, RootRows answering the rows of each schema it enters and Later
+		// taking each it leaves unread: traversal callbacks.
 		"compilers/openapi/internal/load": 29,
 	},
 	"compilers/openapi/internal/promotion": {
@@ -194,12 +196,12 @@ type reversedCall struct {
 	callee string
 }
 
-// reversedCalls returns each call programValue's call graph holds from one of its packages
-// into another that the caller's does not import, directly or through others,
-// keyed by the two packages' names in programValue.own. A call is a call site and a
-// function it reaches, counted once however many instances of a generic
-// function hold either. Calls made by callRunner, protocol calls and the bodies
-// of range-over-func loops are left out.
+// reversedCalls returns each call programValue's call graph holds from one of
+// its packages into another that the caller's does not import, directly or
+// through others, keyed by the two packages' names in programValue.own. A call
+// is a call site and a function it reaches, counted once however many instances
+// of a generic function hold either. Calls made by callRunner, protocol calls
+// and the bodies of range-over-func loops are left out.
 func reversedCalls(programValue program) (map[string]map[string][]reversedCall, error) {
 	graph := callGraph(programValue)
 	imports := importsOf(programValue.own)
@@ -270,14 +272,15 @@ func sortCalls(calls map[string]map[string][]reversedCall) {
 	}
 }
 
-// callGraph returns the call graph of what programValue's packages can run: variable type
-// analysis over the functions rapid type analysis reaches from each function
-// they declare and each package's initializer, seeded with the graph rapid type
-// analysis builds. ssautil.AllFunctions is no basis: it answers differently from
-// call to call on one program, and a wrapper it leaves out takes its calls with
-// it. Neither a generic function, which rapid type analysis cannot start from,
-// nor one of a package testSupport names, which may serve tests alone, is a
-// root: each is reached from its callers, if it has any.
+// callGraph returns the call graph of what programValue's packages can run:
+// variable type analysis over the functions rapid type analysis reaches from
+// each function they declare and each package's initializer, seeded with the
+// graph rapid type analysis builds. ssautil.AllFunctions is no basis: it
+// answers differently from call to call on one program, and a wrapper it leaves
+// out takes its calls with it. Neither a generic function, which rapid type
+// analysis cannot start from, nor one of a package testSupport names, which may
+// serve tests alone, is a root: each is reached from its callers, if it has
+// any.
 func callGraph(programValue program) *callgraph.Graph {
 	roots := make([]*ssa.Function, 0, len(programValue.funcs)+len(programValue.own))
 	for _, sourceFunc := range programValue.funcs {

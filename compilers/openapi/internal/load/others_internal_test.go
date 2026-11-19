@@ -48,8 +48,8 @@ func loadReferencing(t *testing.T, ref string) (*LoadedOpenAPIDocument, []string
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
 // reference reads is found again by the name the binder spells it with, which
-// for a URL is the one spelling it is located by (componentlookup.Locate), escaping
-// what the URL's syntax requires. A name no read answered, or one no
+// for a URL is the one spelling it is located by (componentlookup.Locate),
+// escaping what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
 // A space is no URI reference, which validation reports, and the document is
 // read all the same.
@@ -153,9 +153,9 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 }
 
 // TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource pins the path
-// LoadedOpenAPIDocument.Sources records for another document: beside the path the caller
-// handed, as relative as it is, where its label is relative, though the
-// references were read against the source's absolute Location, a label
+// LoadedOpenAPIDocument.Sources records for another document: beside the path
+// the caller handed, as relative as it is, where its label is relative, though
+// the references were read against the source's absolute Location, a label
 // climbing out of the handed directory keeping its dot segments, which a link
 // to that directory gives another meaning than cleaning them away would; else
 // as read.

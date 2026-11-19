@@ -74,8 +74,8 @@ type namedSite struct {
 	base ir.TypeID
 }
 
-// namedSites returns S and the property property of a namedSpec document, property read off
-// the node it owns where it owns one.
+// namedSites returns S and the property property of a namedSpec document,
+// property read off the node it owns where it owns one.
 func namedSites(t *testing.T, doc *ir.Document) []namedSite {
 	t.Helper()
 	typeDef := typeByName(doc, "S")

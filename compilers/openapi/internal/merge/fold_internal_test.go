@@ -522,10 +522,11 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 }
 
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
-// declarations write alike, writing a reference, is one only where FieldDeclarationContext.Alike
-// says they read it against one base: elsewhere the same text may name another
-// schema, so the earlier one is reported and kept as one given differently is.
-// An entry writing no reference is one under any base.
+// declarations write alike, writing a reference, is one only where
+// FieldDeclarationContext.Alike says they read it against one base: elsewhere
+// the same text may name another schema, so the earlier one is reported and
+// kept as one given differently is. An entry writing no reference is one under
+// any base.
 func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

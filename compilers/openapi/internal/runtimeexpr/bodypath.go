@@ -11,14 +11,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// BodyPath returns the members tokens walk to from the root of every content
-// of payload, the body of side, and none for the body whole. Each content must walk
-// to the same members, since an expression reads one value whichever media
+// BodyPath returns the members tokens walk to from the root of every content of
+// payload, the body of side, and none for the body whole. Each content must
+// walk to the same members, since an expression reads one value whichever media
 // type arrives. A member is one declaration, so contents reaching the same one
 // first walk the same chain from there, and only the first step tells them
 // apart: each other content is asked for that member alone
-// (compileddoc.CompiledDocumentView.Member). It returns why, and false, where payload holds no body or
-// the tokens name no such members.
+// (compileddoc.CompiledDocumentView.Member). It returns why, and false, where
+// payload holds no body or the tokens name no such members.
 func BodyPath(compiledDocumentView *compileddoc.CompiledDocumentView, payload *ir.Payload, tokens []string, side string) (segments []ir.PropertyID, why string, ok bool) {
 	if payload == nil || len(payload.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false

@@ -113,8 +113,8 @@ func ExactCount(schema *statement.Schema, keyword string, count *int64) *int64 {
 	return &v
 }
 
-// CountIsExact reports whether the integer keyword schema writes states a count,
-// the parser's model holding one, count (ExactCount).
+// CountIsExact reports whether the integer keyword schema writes states a
+// count, the parser's model holding one, count (ExactCount).
 func CountIsExact(schema *statement.Schema, keyword string, count *int64) bool {
 	return ExactCount(schema, keyword, count) != nil
 }
@@ -198,8 +198,8 @@ func applyExclusive(constraints *ir.Constraints, schema *statement.Schema, side 
 	return nil
 }
 
-// exclusiveForm returns the arm schema's exclusive bound on side was read as, none
-// for a nil schema.
+// exclusiveForm returns the arm schema's exclusive bound on side was read as,
+// none for a nil schema.
 func exclusiveForm(schema *statement.Schema, side boundSide) statement.Exclusive {
 	if schema == nil || schema.Number == nil {
 		return statement.NoExclusive
@@ -246,8 +246,9 @@ func boundProps(side boundSide) (inclProp, exclProp string) {
 	return "maximum", "exclusiveMaximum"
 }
 
-// inclusiveBound addresses the Min or Max slot of constraints, so that a caller reading
-// one side can both read and clear it without repeating the side branch.
+// inclusiveBound addresses the Min or Max slot of constraints, so that a caller
+// reading one side can both read and clear it without repeating the side
+// branch.
 func inclusiveBound(constraints *ir.Constraints, side boundSide) **ir.BigVal {
 	if side == minBound {
 		return &constraints.Min
@@ -281,10 +282,10 @@ func setExclusiveBound(constraints *ir.Constraints, side boundSide, bigVal *ir.B
 	constraints.ExclusiveMax = bigVal
 }
 
-// emptyConstraints reports whether constraints carries no scalar constraint set by
-// Constraints (collection bounds are not read here). Every scalar field that
-// Constraints populates must appear in this check; a
-// missing field silently leaks a non-nil *Constraints when it should be nil.
+// emptyConstraints reports whether constraints carries no scalar constraint set
+// by Constraints (collection bounds are not read here). Every scalar field that
+// Constraints populates must appear in this check; a missing field silently
+// leaks a non-nil *Constraints when it should be nil.
 func emptyConstraints(constraints *ir.Constraints) bool {
 	return constraints.Min == nil && constraints.Max == nil && constraints.ExclusiveMin == nil && constraints.ExclusiveMax == nil &&
 		constraints.MultipleOf == nil && constraints.Precision == nil && constraints.Scale == nil &&

@@ -39,8 +39,9 @@ type judgment struct {
 	diags   []ir.Diagnostic
 	seen    map[objectKey]bool
 	// refused and accepted are what the check refused as the wrong type, and
-	// accepted where another place may read it too (specrules.Options.Judged), and
-	// referenced each mapping it read as a Reference Object, which settle reads.
+	// accepted where another place may read it too (specrules.Options.Judged),
+	// and referenced each mapping it read as a Reference Object, which settle
+	// reads.
 	refused, accepted map[*yaml.Node]bool
 	referenced        []*yaml.Node
 	pending           []specrules.Pending
@@ -75,14 +76,14 @@ func declaredDialect(root *yaml.Node) string {
 	return ""
 }
 
-// judgeSource holds the source to the table of the version it declares. root
-// is the tree as the source writes it, an applied overlay's patch included, and
+// judgeSource holds the source to the table of the version it declares. root is
+// the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at its node, naming where it was read when an alias
-// or a merge key mounts that node there. within bounds what the
-// check reads (see nodesAdmitted). A document that may name a dialect
-// (namesDialect) has its Schema Objects handed back unread, since the dialect
-// each is read in is known only once the bindings are read (judgeSchemas).
-// It runs before readyForModel clears the anchors specrules.Options.Judged reads.
+// or a merge key mounts that node there. within bounds what the check reads
+// (see nodesAdmitted). A document that may name a dialect (namesDialect) has
+// its Schema Objects handed back unread, since the dialect each is read in is
+// known only once the bindings are read (judgeSchemas). It runs before
+// readyForModel clears the anchors specrules.Options.Judged reads.
 func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
 	judgmentValue := judgment{checker: specrules.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root),
 		refused: map[*yaml.Node]bool{}, accepted: map[*yaml.Node]bool{}}
@@ -141,9 +142,9 @@ func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
 	return walk.Stopped || walk.Cut
 }
 
-// judgeSchemas returns judgmentValue with the findings about the Schema Objects the
-// source's check handed back unread (judgeSource), each read with the rows of
-// the dialect it is read in, which the bindings, once read, give (Dialects):
+// judgeSchemas returns judgmentValue with the findings about the Schema Objects
+// the source's check handed back unread (judgeSource), each read with the rows
+// of the dialect it is read in, which the bindings, once read, give (Dialects):
 // those of a dialect root it is or is held by, else the source's. What it
 // refuses and accepts is recorded for settle as the first check's is. Its one
 // caller asks it only where some Schema Object waits (loading.bindRefs).
@@ -159,10 +160,10 @@ func judgeSchemas(ctx context.Context, judgmentValue judgment, schemaDialectRows
 	return judgmentValue
 }
 
-// formatOptions returns opts for specrules.CheckFormat, which reads each node of a
-// tree once: bounded by the size of a tree the load phase holds rather than
-// by the work budget a check of its objects spends, so a tree the node budget
-// admitted is read whole.
+// formatOptions returns opts for specrules.CheckFormat, which reads each node
+// of a tree once: bounded by the size of a tree the load phase holds rather
+// than by the work budget a check of its objects spends, so a tree the node
+// budget admitted is read whole.
 func formatOptions(opts specrules.Options) specrules.Options {
 	opts.Budget, opts.Seen = budget.AtMost(maxTreeNodes), nil
 	return opts
@@ -210,7 +211,8 @@ func reachedLocator(tree provenance.Tree, node *yaml.Node) specrules.Locator {
 	})
 }
 
-// holds reports whether diagnostic is placed in a document, rather than marked foreign.
+// holds reports whether diagnostic is placed in a document, rather than marked
+// foreign.
 func holds(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Source != foreign }
 
 // placeAt puts a finding about an object a reference reaches where it is
@@ -229,8 +231,8 @@ func placeAt(diagnostic ir.Diagnostic, site ir.Provenance, place string) ir.Diag
 
 // identity is what tells a finding from another about the same node however
 // many references reach it: the finding as placed in its document, whichever
-// position read it (specrules.AsPlaced), or, for one marked foreign, the finding with
-// the place it names, whichever reference it is placed at.
+// position read it (specrules.AsPlaced), or, for one marked foreign, the
+// finding with the place it names, whichever reference it is placed at.
 func identity(diagnostic ir.Diagnostic, place string) ir.Diagnostic {
 	diagnostic = specrules.AsPlaced(diagnostic)
 	if !holds(diagnostic) {
