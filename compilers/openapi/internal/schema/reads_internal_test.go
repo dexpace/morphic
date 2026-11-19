@@ -11,8 +11,9 @@ import (
 )
 
 // TestKeySet_HoldsTheReadDomainAlone pins that a key set holds each key of
-// readDomain apart and no other: a key a reader outside the keeping of unread keywords reads,
-// such as a description, has no bit, so no build can say it read it.
+// readDomain apart and no other: a key a reader outside the keeping of unread
+// keywords reads, such as a description, has no bit, so no build can say it
+// read it.
 func TestKeySet_HoldsTheReadDomainAlone(t *testing.T) {
 	t.Parallel()
 	all := keySetOf(readDomain...)

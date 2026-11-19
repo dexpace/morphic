@@ -404,8 +404,9 @@ components:
 }
 
 // TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
-// entries yields one encoding entry rather than depending on which allOf entry was walked
-// last. The encoding entry describes one part on the wire either way.
+// entries yields one encoding entry rather than depending on which allOf entry
+// was walked last. The encoding entry describes one part on the wire either
+// way.
 func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /upload:

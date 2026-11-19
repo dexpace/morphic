@@ -787,9 +787,9 @@ func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
 
 // TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept pins a type written
 // beside a union whose branches admit none of it: the body lowers to a shared
-// primitive and keeping its unread keywords hoists an alias over it, which holds no bound, since
-// the position admits no kind, and keeps the bound with a report, as the union
-// beside it is kept.
+// primitive and keeping its unread keywords hoists an alias over it, which
+// holds no bound, since the position admits no kind, and keeps the bound with a
+// report, as the union beside it is kept.
 func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	t.Parallel()
 	schema := "{type: string, oneOf: [" + refTo("Arr") + ", " + refTo("Obj") + "], minLength: 1}"
@@ -865,11 +865,11 @@ func TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions(t *testing.T) {
 }
 
 // TestConstraints_ATypeListReadsWhatThePositionAdmits pins a bound written
-// beside a type list an allOf narrows: the Union's variants and the keeping of unread
-// keywords beside them both read the kinds the position admits, so a bound only an
-// excluded variant would take is held by none and kept once, whether it is
-// written on an entry or beside the allOf, while the variant the position
-// admits holds its own.
+// beside a type list an allOf narrows: the Union's variants and the keeping of
+// unread keywords beside them both read the kinds the position admits, so a
+// bound only an excluded variant would take is held by none and kept once,
+// whether it is written on an entry or beside the allOf, while the variant the
+// position admits holds its own.
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, schema, key, value, reportAt string }{

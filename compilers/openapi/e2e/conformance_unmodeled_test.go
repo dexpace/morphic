@@ -111,11 +111,11 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assertPickedLoweringKeywords(t, doc, diags)
 }
 
-// assertRefSiteKeywords pins the keeping of unread keywords at a $ref site, where it did not run at
-// all (GitHub #283). $ref is an ordinary 2020-12 keyword, so the keywords beside
-// it are a conjunct of the position, lowered as they are beside an allOf of the
-// $ref: each typed on the node the position lowers to, or kept on it once, with
-// an info where something is kept.
+// assertRefSiteKeywords pins the keeping of unread keywords at a $ref site,
+// where it did not run at all (GitHub #283). $ref is an ordinary 2020-12
+// keyword, so the keywords beside it are a conjunct of the position, lowered as
+// they are beside an allOf of the $ref: each typed on the node the position
+// lowers to, or kept on it once, with an info where something is kept.
 func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	format, ok := doc.Types[componentID("RefFormat")].(*ir.Scalar)
@@ -211,9 +211,10 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 }
 
 // assertPickedLoweringKeywords pins the keywords the *winning* family's
-// lowering never reads (GitHub #268). The keeping of unread keywords asks the node that was built,
-// which is why the two allOf cases differ: a composed Model asserts `object`
-// already and loses nothing, and asserts nothing about `string` at all.
+// lowering never reads (GitHub #268). The keeping of unread keywords asks the
+// node that was built, which is why the two allOf cases differ: a composed
+// Model asserts `object` already and loses nothing, and asserts nothing about
+// `string` at all.
 func assertPickedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	scalarType, ok := doc.Types[componentID("AllOfWithScalarType")].(*ir.Model)
@@ -609,7 +610,8 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 // with the integer declaration first, in the middle and last. Declared after
 // the integer, the default is refused as it arrives; declared before it, it is
 // adopted from a non-first entry and refused when the integer arrives. Either
-// way the Unmodeled entry is keyed at the allOf entry that wrote the default, with one info.
+// way the Unmodeled entry is keyed at the allOf entry that wrote the default,
+// with one info.
 func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, tc := range []struct{ model, entry string }{
@@ -1676,9 +1678,10 @@ func assertKept(t *testing.T, got ir.Unmodeled, want []keptEntry) {
 	}
 }
 
-// assertKeywordsAtEveryOutcome pins that the keeping of unread keywords runs at each outcome of a
-// schema, keeping what the outcome has no field for and reporting what it
-// lowered to, and that what the outcome consumes is neither kept nor reported.
+// assertKeywordsAtEveryOutcome pins that the keeping of unread keywords runs at
+// each outcome of a schema, keeping what the outcome has no field for and
+// reporting what it lowered to, and that what the outcome consumes is neither
+// kept nor reported.
 func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	kept := []struct {
 		name  string

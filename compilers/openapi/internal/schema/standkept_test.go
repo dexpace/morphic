@@ -337,10 +337,10 @@ func TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes(t *testing.T) {
 }
 
 // TestPrincipalKept_EachKeywordHasOneKeeper pins three readers of one inline
-// principal at once, its keeping of unread keywords, its content reader and what the entry keeps
-// as residue, each holding a keyword the position writes otherwise: one object
-// under the entry's key holds all three, each keyword is named by one report,
-// its reader's, and no reader keeps another's.
+// principal at once, its keeping of unread keywords, its content reader and
+// what the entry keeps as residue, each holding a keyword the position writes
+// otherwise: one object under the entry's key holds all three, each keyword is
+// named by one report, its reader's, and no reader keeps another's.
 func TestPrincipalKept_EachKeywordHasOneKeeper(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(

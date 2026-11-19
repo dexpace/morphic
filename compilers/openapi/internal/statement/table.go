@@ -128,11 +128,12 @@ func index(s *Schema) {
 // flatten lists the inline allOf entries of st's schema as the lowering
 // flattens them: in source order, depth first, an entry writing a reference
 // beside other keywords (conjoins) listed as that reference and then those
-// keywords (besideRefOf), an entry that writes an allOf and no reference, whatever else
-// it writes, replaced by its entries and then listed itself as a Wrapper, while at
-// most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
-// explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
-// schema object and never an entry's statement, so it adds no recursion.
+// keywords (besideRefOf), an entry that writes an allOf and no reference,
+// whatever else it writes, replaced by its entries and then listed itself as a
+// Wrapper, while at most MaxFlattenDepth lists hold it, and listed Capped past
+// that. It walks an explicit stack of at most MaxFlattenDepth+1 lists, reading
+// each entry's schema object and never an entry's statement, so it adds no
+// recursion.
 func (t *Table) flatten(st *Statement) {
 	type frame struct {
 		list  []Sub

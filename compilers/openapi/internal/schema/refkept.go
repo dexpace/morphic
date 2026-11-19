@@ -56,9 +56,10 @@ func (k outcomeKeeps) holdsAny() bool {
 		slices.ContainsFunc(k.entries, keptEntry.keeps)
 }
 
-// keepsAtOutcome returns what the position s is written at keeps, having lowered
-// to target: what a refinement keeps unread and the entries it left, or what
-// any other outcome lowering to a reference keeps unread (referenceOutcomeKeywords).
+// keepsAtOutcome returns what the position s is written at keeps, having
+// lowered to target: what a refinement keeps unread and the entries it left, or
+// what any other outcome lowering to a reference keeps unread
+// (referenceOutcomeKeywords).
 func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
@@ -94,10 +95,10 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	pair := writesUnionPair(s, r.comp)
 	residues := make([][]string, len(r.comp.entries))
 	for i, e := range r.comp.entries {
-		// A $ref principal keeps what is written beside it on its alias. An entry
-		// written as the principal is says nothing it does not. An inline
-		// principal standing at the position had its unread keywords kept on the node,
-		// which keeps the rest as any conjunct's.
+		// A $ref principal keeps what is written beside it on its alias. An
+		// entry written as the principal is says nothing it does not. An inline
+		// principal standing at the position had its unread keywords kept on
+		// the node, which keeps the rest as any conjunct's.
 		if r.principalIs(e) && e.schema.Ref != nil || principalTwin(&w, r, e) {
 			continue
 		}

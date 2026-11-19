@@ -122,7 +122,8 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 // the winning lowering never reads (GitHub #268). lower() elects one keyword
 // family per position, and what the elected form has no field for must be kept:
 // a Model has no type token, a Literal no Constraints and no type or format its
-// value does not fit. Only the built node shows it, which the keeping of unread keywords asks.
+// value does not fit. Only the built node shows it, which the keeping of unread
+// keywords asks.
 //
 // The kept set is asserted whole, so keeping too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a
@@ -157,8 +158,8 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
 			ir.KindTuple, nil},
 		// A Scalar rather than the shared Primitive the type alone would reach:
-		// the entry needs a node this pointer owns, so keeping the unread keywords hoists the alias
-		// that carries it.
+		// the entry needs a node this pointer owns, so keeping the unread
+		// keywords hoists the alias that carries it.
 		{"unique items on a string", "{type: string, uniqueItems: true}",
 			ir.KindScalar, []string{"openapi:uniqueItems"}},
 		// The control: a node that does carry them keeps nothing.
@@ -186,10 +187,10 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 }
 
 // TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept is the other half of the
-// keeping of unread value constraints: a bound is kept only where the node has no field it
-// reached, never where it did. The two rows are the two node kinds that read
-// annotation.Constraints, so a keeping asking the kind rather than the field
-// would double-record both.
+// keeping of unread value constraints: a bound is kept only where the node has
+// no field it reached, never where it did. The two rows are the two node kinds
+// that read annotation.Constraints, so a keeping asking the kind rather than
+// the field would double-record both.
 func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, unhomed string }{
@@ -210,10 +211,11 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 }
 
 // TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead pins
-// the reason the keeping of unread keywords asks what filled a Constraints field rather than which
-// kinds have one. An ir.List has the field, but lowerArray fills it from
-// collectionConstraints — collection bounds only — so a string bound written on
-// an array reaches nothing however full the field looks.
+// the reason the keeping of unread keywords asks what filled a Constraints
+// field rather than which kinds have one. An ir.List has the field, but
+// lowerArray fills it from collectionConstraints — collection bounds only — so
+// a string bound written on an array reaches nothing however full the field
+// looks.
 func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, unreadKeywordSpec(
@@ -310,10 +312,11 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
 }
 
-// TestHeldDiscriminator_IsNotKeptTwice pins the control of the keeping of unread keywords: a union or a
-// model that routes by its discriminator holds it, so nothing is kept verbatim
-// and nothing is reported. A model needs no type to hold one: properties alone
-// make it. A discriminator alone types nothing, so it makes none
+// TestHeldDiscriminator_IsNotKeptTwice pins the control of the keeping of
+// unread keywords: a union or a model that routes by its discriminator holds
+// it, so nothing is kept verbatim and nothing is reported. A model needs no
+// type to hold one: properties alone make it. A discriminator alone types
+// nothing, so it makes none
 // (TestHomelessDiscriminator_IsKeptBesideEveryOtherNode).
 func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	t.Parallel()

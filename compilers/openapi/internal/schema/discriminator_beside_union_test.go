@@ -460,8 +460,8 @@ func assertStayed(t *testing.T, doc *ir.Document) {
 const mapPet = "    Pet:\n      type: object\n      additionalProperties: {type: string}\n" +
 	"      discriminator: {propertyName: kind}\n" + petBranches
 
-// unreadReports returns the messages of the reports of unread keywords made at pointer,
-// each naming the keywords that position kept for want of a home.
+// unreadReports returns the messages of the reports of unread keywords made at
+// pointer, each naming the keywords that position kept for want of a home.
 func unreadReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
 	var out []string
 	for _, d := range diags {
