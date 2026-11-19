@@ -504,12 +504,12 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].Filename, "filename")
 			assert.Equal(t, tc.multi, got[0].Multi, "multi")
 		})

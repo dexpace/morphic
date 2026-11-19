@@ -501,7 +501,7 @@ func TestAllOf_AnEntryNamingNothingIsNamedForItsSchema(t *testing.T) {
 	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
 		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
-		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
+		require.True(t, ok, "the narrowed entry is hoisted at its pointer")
 		assert.Equal(t, "m", narrowed.Common().Name.Hint)
 	}
 }

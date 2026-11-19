@@ -428,7 +428,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			held:  &ir.Constraints{MinItems: new(int64(1))}, quiet: true,
 		},
 		{
-			name: "row 24: a branch of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
+			name: "row 24: an entry of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
 			kept: []keptAt{{key: "maxItems", entry: "allOf/1", value: "2"}},
 		},
 		{
@@ -436,7 +436,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			held: &ir.Constraints{MinItems: new(int64(1))}, quiet: true,
 		},
 		{
-			name:   "row 26: a branch of an array",
+			name:   "row 26: an entry of an array",
 			schema: "{allOf: [" + refTo("Arr") + ", {items: {type: string}, minLength: 1, maxItems: 4}]}",
 			held:   &ir.Constraints{MaxItems: new(int64(4))},
 			kept:   []keptAt{{key: "minLength", entry: "allOf/1", value: "1"}},
@@ -456,7 +456,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][]string{{refTo("Arr"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Arr")}} {
 		at := []int{1, 0}[i]
-		t.Run(fmt.Sprintf("row 27: the bound is branch %d", at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 27: the bound is entry %d", at), func(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", base: componentID("Arr"),
@@ -473,7 +473,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		{"{minimum: 3}", refTo("Str"), "{minLength: 2}"},
 	} {
 		at := slices.Index(order, "{minimum: 3}")
-		t.Run(fmt.Sprintf("row 28: order %d puts the minimum at branch %d", n, at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 28: order %d puts the minimum at entry %d", n, at), func(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", held: &ir.Constraints{MinLength: new(int64(2))},
@@ -483,7 +483,7 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	}
 	for i, order := range [][]string{{refTo("Obj"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Obj")}} {
 		at := []int{1, 0}[i]
-		t.Run(fmt.Sprintf("row 29: the bound is branch %d", at), func(t *testing.T) {
+		t.Run(fmt.Sprintf("row 29: the bound is entry %d", at), func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, namedSpec("3.1.0", "{allOf: ["+strings.Join(order, ", ")+"]}", "", false))
 			openapitest.RequireNoErrorDiags(t, diags)

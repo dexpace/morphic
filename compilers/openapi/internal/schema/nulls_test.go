@@ -371,7 +371,7 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 // TestNullableInference_AnEntryWidensTheAllOfHoldingIt pins `nullable: true` on an
 // inline entry writing no properties: under the policy it says what the keyword
 // beside the allOf says, with one report at the keyword, whichever spelling of the
-// branch admits it, and the declared reading stays conjoined.
+// entry admits it, and the declared reading stays conjoined.
 func TestNullableInference_AnEntryWidensTheAllOfHoldingIt(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p/allOf/1/nullable"

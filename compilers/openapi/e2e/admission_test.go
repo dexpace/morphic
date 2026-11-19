@@ -427,7 +427,7 @@ func TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema(t *testing.T)
 			code: diag.DegradedConstruct, pointer: "/components/schemas/E1", contains: []string{disjoint, "integer", "string"},
 		}})
 		assert.Equal(t, 1, infosAt(diags, diag.DegradedConstruct, "/components/schemas/E1/allOf/1", ""),
-			"the branch writing the type is an info")
+			"the entry writing the type is an info")
 	})
 	t.Run("entries-swapped", func(t *testing.T) {
 		t.Parallel()
@@ -562,11 +562,11 @@ func redeclaredAsStructure(declaration string, swapped bool) string {
 // redeclaredNode is the ID of the node the declaration of f other than
 // integer would own in the component name (redeclaredAsStructure).
 func redeclaredNode(name string, swapped bool) ir.TypeID {
-	branch := "1"
+	entry := "1"
 	if swapped {
-		branch = "0"
+		entry = "0"
 	}
-	return ir.TypeID("t/anon/components/schemas/" + name + "/allOf/" + branch + "/properties/f")
+	return ir.TypeID("t/anon/components/schemas/" + name + "/allOf/" + entry + "/properties/f")
 }
 
 // requireStructure requires the declaration of f other than integer in the

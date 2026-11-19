@@ -46,7 +46,7 @@ func TestAllOf_OverlappingInlineEntriesReconcile(t *testing.T) {
 	for _, p := range m.Properties {
 		byWire[p.WireName]++
 	}
-	assert.Equal(t, 1, byWire["id"], "id declared in both branches reconciles to one property")
+	assert.Equal(t, 1, byWire["id"], "id declared in both entries reconciles to one property")
 	assert.Equal(t, 1, byWire["name"])
 	assert.Equal(t, 1, byWire["url"])
 	require.Len(t, m.Properties, 3, "no duplicate properties across overlapping inline entries")
@@ -57,7 +57,7 @@ func TestAllOf_OverlappingInlineEntriesReconcile(t *testing.T) {
 			id = p
 		}
 	}
-	assert.True(t, id.Required, "required in the second branch => required on the merged model (allOf intersection)")
+	assert.True(t, id.Required, "required in the second entry => required on the merged model (allOf intersection)")
 	assert.Equal(t, "the identifier", id.Docs.Description,
 		"the richer (documented) declaration defines the reconciled shape")
 }
@@ -92,15 +92,15 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	require.Len(t, m.Properties, 1, "token reconciles to a single property")
 
 	tok := m.Properties[0]
-	assert.True(t, tok.Required, "required in the richer branch => required on the merged property")
-	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer branch")
-	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever branch carries it")
-	require.NotNil(t, tok.Default, "default adopted from the richer branch")
-	require.NotNil(t, tok.Constraints, "constraints adopted from the richer branch")
-	require.NotNil(t, tok.Constraints.MinLength, "minLength adopted from the richer branch")
-	require.NotNil(t, tok.Deprecation, "deprecation adopted from the richer branch")
-	require.NotNil(t, tok.XML, "xml hints adopted from the richer branch")
-	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
+	assert.True(t, tok.Required, "required in the richer entry => required on the merged property")
+	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer entry")
+	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever entry carries it")
+	require.NotNil(t, tok.Default, "default adopted from the richer entry")
+	require.NotNil(t, tok.Constraints, "constraints adopted from the richer entry")
+	require.NotNil(t, tok.Constraints.MinLength, "minLength adopted from the richer entry")
+	require.NotNil(t, tok.Deprecation, "deprecation adopted from the richer entry")
+	require.NotNil(t, tok.XML, "xml hints adopted from the richer entry")
+	require.Len(t, tok.Examples, 1, "examples adopted from the richer entry")
 }
 
 // TestAllOf_RedeclarationOrsSecret pins that a redaction one entry writes
@@ -127,9 +127,9 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 			require.True(t, ok, "Tokenish should be a model")
 			require.Len(t, m.Properties, 1, "token reconciles to a single property")
 			tok := m.Properties[0]
-			assert.True(t, tok.Secret, "either branch's redaction makes the merged field secret")
-			assert.Equal(t, ir.TypeID("t/prim/string"), tok.Type.Target, "both branches share the target")
-			require.NotNil(t, tok.Constraints, "the other branch's bound is folded, not dropped")
+			assert.True(t, tok.Secret, "either entry's redaction makes the merged field secret")
+			assert.Equal(t, ir.TypeID("t/prim/string"), tok.Type.Target, "both entries share the target")
+			require.NotNil(t, tok.Constraints, "the other entry's bound is folded, not dropped")
 			assert.Equal(t, new(int64(3)), tok.Constraints.MinLength)
 			assert.Equal(t, "the token", tok.Docs.Description)
 			assert.Empty(t, tok.Unmodeled, "no declaration was kept as a loser")
@@ -226,8 +226,8 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	d := conflicts[0]
 	assert.Equal(t, ir.SeverityWarning, d.Severity, "a usable-but-suspicious model is a warning")
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
-	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
-	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first entry site")
+	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second entry site")
 
 	// A diagnostic is not part of the document, so the losing declaration is
 	// also kept where a consumer reading the IR will reach it (GitHub #424).
@@ -237,7 +237,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
 	assert.JSONEq(t, `{"type":"string"}`, string(lost.Value),
-		"and it is the declaration the first branch wrote, not the one that won")
+		"and it is the declaration the first entry wrote, not the one that won")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/0/properties/id"), lost.Provenance.Pointer)
 }
 
@@ -425,7 +425,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 	m, ok := doc.Types[componentID("Compatish")].(*ir.Model)
 	require.True(t, ok, "Compatish should be a model")
 	require.Len(t, m.Properties, 1, "id reconciles to one property")
-	assert.True(t, m.Properties[0].Required, "required from the second branch is OR-ed in")
+	assert.True(t, m.Properties[0].Required, "required from the second entry is OR-ed in")
 
 	assert.Empty(t, conflictDiags(diags),
 		"a compatible redeclaration is not a conflict")
@@ -450,7 +450,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Mixish")].(*ir.Model)
 	require.True(t, ok, "Mixish should be a model")
-	require.Len(t, m.Properties, 2, "id (branch + sibling) reconciles to one; name stays its own")
+	require.Len(t, m.Properties, 2, "id (entry + sibling) reconciles to one; name stays its own")
 
 	var id ir.Property
 	for _, p := range m.Properties {
@@ -460,7 +460,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	}
 	assert.True(t, id.Required, "required alongside allOf => required on the reconciled property")
 	assert.Equal(t, "the identifier", id.Docs.Description,
-		"detail from the branch declaration survives reconciliation with the sibling property")
+		"detail from the entry declaration survives reconciliation with the sibling property")
 }
 
 // TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat is
@@ -655,8 +655,8 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			conflicts := conflictDiags(diags)
 			require.Len(t, conflicts, 1, "%s is diagnosed exactly once", tc.name)
 			assert.Contains(t, conflicts[0].Message, `"v"`, "the diagnostic names the field")
-			assert.Contains(t, conflicts[0].Message, "allOf/0", "names the first branch site")
-			assert.Contains(t, conflicts[0].Message, "allOf/1", "names the second branch site")
+			assert.Contains(t, conflicts[0].Message, "allOf/0", "names the first entry site")
+			assert.Contains(t, conflicts[0].Message, "allOf/1", "names the second entry site")
 			assert.Contains(t, conflicts[0].Message, tc.wantDetail,
 				"%s: the diagnostic names what actually differs", tc.name)
 		})
@@ -684,8 +684,8 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			assertMerged: func(t *testing.T, c *ir.Constraints) {
 				t.Helper()
 				require.NotNil(t, c)
-				require.NotNil(t, c.MaxLength, "the first branch's maxLength is kept")
-				require.NotNil(t, c.MinLength, "the second branch's minLength is adopted, not dropped")
+				require.NotNil(t, c.MaxLength, "the first entry's maxLength is kept")
+				require.NotNil(t, c.MinLength, "the second entry's minLength is adopted, not dropped")
 				assert.Equal(t, int64(10), *c.MaxLength)
 				assert.Equal(t, int64(2), *c.MinLength)
 			},
@@ -697,9 +697,9 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			assertMerged: func(t *testing.T, c *ir.Constraints) {
 				t.Helper()
 				require.NotNil(t, c)
-				require.NotNil(t, c.MaxLength, "the first branch's maxLength is kept")
+				require.NotNil(t, c.MaxLength, "the first entry's maxLength is kept")
 				assert.Equal(t, int64(10), *c.MaxLength)
-				assert.Equal(t, "^a", c.Pattern, "the second branch's pattern is adopted, not dropped")
+				assert.Equal(t, "^a", c.Pattern, "the second entry's pattern is adopted, not dropped")
 			},
 		},
 		{
@@ -712,9 +712,9 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			assertMerged: func(t *testing.T, c *ir.Constraints) {
 				t.Helper()
 				require.NotNil(t, c)
-				require.NotNil(t, c.Min, "the first branch's minimum stays")
+				require.NotNil(t, c.Min, "the first entry's minimum stays")
 				assert.Equal(t, "1", c.Min.String())
-				require.NotNil(t, c.ExclusiveMin, "the second branch's exclusiveMinimum is adopted beside it")
+				require.NotNil(t, c.ExclusiveMin, "the second entry's exclusiveMinimum is adopted beside it")
 				assert.Equal(t, "5", c.ExclusiveMin.String())
 			},
 		},
@@ -862,8 +862,8 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1)
-	assert.Contains(t, conflicts[0].Message, "t/prim/string", "names the first branch's type")
-	assert.Contains(t, conflicts[0].Message, "t/prim/integer", "names the second branch's type")
+	assert.Contains(t, conflicts[0].Message, "t/prim/string", "names the first entry's type")
+	assert.Contains(t, conflicts[0].Message, "t/prim/integer", "names the second entry's type")
 }
 
 func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
@@ -892,7 +892,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	assert.NotContains(t, d.Message, "allOf entries",
 		"the redeclaration site is a co-declared property, not an allOf entry")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/allOf/0/properties/id"), d.Provenance.Pointer,
-		"the diagnostic sits at the branch the co-declared property overrides")
+		"the diagnostic sits at the entry the co-declared property overrides")
 	assert.Contains(t, d.Message, "/components/schemas/Along/properties/id", "and names the property kept")
 }
 

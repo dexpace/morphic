@@ -253,11 +253,11 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	entry := unmodeledEntry(t, never.Unmodeled, "openapi:allOf/0")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `false`, string(entry.Value),
-		"the branch is kept, so `false` stays distinguishable from additionalProperties: false")
+		"the entry is kept, so `false` stays distinguishable from additionalProperties: false")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/false-schema", "/components/schemas/Never/allOf/0"))
 	_, ok = propByWire(never, "id")
-	assert.True(t, ok, "the other branch still contributes; closing is not emptying")
+	assert.True(t, ok, "the other entry still contributes; closing is not emptying")
 
 	always, ok := doc.Types[componentID("Always")].(*ir.Model)
 	require.True(t, ok)
@@ -312,13 +312,13 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"unevaluatedProperties":false,
 		"description":"A narrowed base.","maxProperties":3}`,
-		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
+		string(entry.Value), "the whole allOf entry is kept, not only the unmerged keyword")
 	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")
 	require.NotNil(t, narrowed.Constraints)
 	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Narrowed/allOf/1"),
-		"a branch that only narrows the model is info")
+		"an entry that only narrows the model is info")
 
 	contradicted, ok := doc.Types[componentID("Contradicted")].(*ir.Model)
 	require.True(t, ok)
@@ -326,15 +326,15 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
-		"a branch excluding object contradicts the composed model and is a warning")
+		"an entry excluding object contradicts the composed model and is a warning")
 
 	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
 	require.True(t, ok)
 	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
 	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
-		"a branch read against another base folds nothing")
+		"an entry read against another base folds nothing")
 	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
-		"the outer branch, read against the position's base, folds its not")
+		"the outer entry, read against the position's base, folds its not")
 	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
@@ -517,16 +517,16 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: a narrowing draws no diagnostic", model)
 			types[i] = p.Type
 		}
-		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on branch order", pair.name)
+		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on entry order", pair.name)
 	}
 
 	for _, model := range []string{"NullableBroadFirst", "NullableNarrowFirst"} {
 		t.Run(model, func(t *testing.T) {
 			p := narrowedProp(t, doc, model)
 			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrower target wins", model)
-			assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+			assert.False(t, p.Type.Nullable, "null is admitted only where both entries admit it")
 			require.NotNil(t, p.Constraints)
-			require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
+			require.NotNil(t, p.Constraints.Min, "the broad entry's minimum is adopted")
 			assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
 			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
 			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
@@ -599,7 +599,7 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 		require.True(t, ok, "%s: the unknown format stays a scalar", model)
 		require.NotNil(t, scalar.Base, "%s: the scalar extends its bare kind", model)
 		assert.Equal(t, ir.TypeID("t/prim/string"), scalar.Base.Target, "%s: over string, in either order", model)
-		assert.False(t, p.Type.Nullable, "%s: null is admitted by neither branch", model)
+		assert.False(t, p.Type.Nullable, "%s: null is admitted by neither entry", model)
 		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
 		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
 	}
@@ -651,9 +651,9 @@ func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrow type wins", model)
 		assert.Nil(t, p.Default, "%s: the refused default does not land", model)
 		assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
-		assert.Len(t, p.Unmodeled, 1, "%s: only the broad branch is kept", model)
+		assert.Len(t, p.Unmodeled, 1, "%s: only the broad entry is kept", model)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", ptr),
-			"%s: one info at the broad branch", model)
+			"%s: one info at the broad entry", model)
 		assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr), "%s: no warning", model)
 	}
 }

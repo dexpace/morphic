@@ -45,14 +45,14 @@ func TestFieldSpan_NamesEachSetOfDeclarations(t *testing.T) {
 		schema jsontext.Pointer
 		field  jsontext.Pointer
 	}{
-		{"two branches", []jsontext.Pointer{a, b}, "/s", b},
-		{"a branch and the schema's own", []jsontext.Pointer{a, "/s/properties/p"}, "/s", "/s/properties/p"},
-		{"two branches of a wrapper", []jsontext.Pointer{in, on}, "/s/allOf/0", on},
-		{"that wrapper, then a later branch", []jsontext.Pointer{in, on, b}, "/s", b},
-		{"a branch, then a wrapper", []jsontext.Pointer{a, x, y}, "/s", x},
+		{"two entries", []jsontext.Pointer{a, b}, "/s", b},
+		{"an entry and the schema's own", []jsontext.Pointer{a, "/s/properties/p"}, "/s", "/s/properties/p"},
+		{"two entries of a wrapper", []jsontext.Pointer{in, on}, "/s/allOf/0", on},
+		{"that wrapper, then a later entry", []jsontext.Pointer{in, on, b}, "/s", b},
+		{"an entry, then a wrapper", []jsontext.Pointer{a, x, y}, "/s", x},
 		{"that wrapper alone", []jsontext.Pointer{x, y}, "/s/allOf/1", y},
 		{"two wrappers", []jsontext.Pointer{in, on, x, y}, "/s", x},
-		{"a wrapper's own beside its branch", []jsontext.Pointer{in, "/s/allOf/0/properties/p"}, "/s/allOf/0", "/s/allOf/0/properties/p"},
+		{"a wrapper's own beside its entry", []jsontext.Pointer{in, "/s/allOf/0/properties/p"}, "/s/allOf/0", "/s/allOf/0/properties/p"},
 		{"an index prefixing another", []jsontext.Pointer{"/s/allOf/1/properties/p", "/s/allOf/10/properties/p"}, "/s", "/s/allOf/10/properties/p"},
 		{
 			"a schema under a property named allOf",

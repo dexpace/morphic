@@ -27,7 +27,7 @@ func TestRefinementOf_AnUnrefinedSchemaHoldsNothing(t *testing.T) {
 	for _, name := range []string{"T", "U"} {
 		r, refined := refinementOf(l.Ctx, StatedIn(l, componentSchema(t, l, name)), jsontext.Pointer("/components/schemas/"+name))
 		assert.False(t, refined, name)
-		assert.Empty(t, r.comp.entries, "%s: no branch list is built", name)
+		assert.Empty(t, r.comp.entries, "%s: no entry list is built", name)
 		assert.Nil(t, r.principal, name)
 	}
 }

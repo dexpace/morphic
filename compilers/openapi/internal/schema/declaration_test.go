@@ -821,7 +821,7 @@ func TestClosureTyped_ReadsAlikeInEitherEntryOrder(t *testing.T) {
 	for name, tc := range map[string]struct{ other, beside string }{
 		"a composition":        {"{type: object, properties: {k: {type: string}}}", closes},
 		"a false entry":        {"false", closes},
-		"a branch's own false": {"{type: object, properties: {k: {type: string}}" + closes + "}", ""},
+		"an entry's own false": {"{type: object, properties: {k: {type: string}}" + closes + "}", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -840,7 +840,7 @@ func TestClosureTyped_ReadsAlikeInEitherEntryOrder(t *testing.T) {
 				swappedKeys[i] = strings.NewReplacer("allOf/0", "allOf/1", "allOf/1", "allOf/0").Replace(key)
 			}
 			slices.Sort(swappedKeys)
-			assert.Equal(t, keys, swappedKeys, "the same entries, a branch's under its own index")
+			assert.Equal(t, keys, swappedKeys, "the same Unmodeled entries, an allOf entry's under its own index")
 		})
 	}
 }

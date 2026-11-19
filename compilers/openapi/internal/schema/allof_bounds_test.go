@@ -172,7 +172,7 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 				built = append(built, node)
 			}
 			assert.Empty(t, cmp.Diff(built[0], built[1], cmpopts.IgnoreFields(ir.TypeCommon{}, "Name")),
-				"the node does not depend on branch order")
+				"the node does not depend on entry order")
 		})
 	}
 

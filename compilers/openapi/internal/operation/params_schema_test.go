@@ -722,7 +722,7 @@ components:
 	assert.Equal(t, "A string", param.Docs.Summary)
 	require.NotNil(t, param.Constraints)
 	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
-	assert.True(t, param.Secret, "a branch's format: password redacts the parameter")
+	assert.True(t, param.Secret, "an entry's format: password redacts the parameter")
 	assert.NotContains(t, param.Unmodeled, "openapi:schema/format", "which then needs no verbatim copy")
 	for _, key := range []string{"openapi:schema/readOnly", "openapi:schema/xml"} {
 		entry, kept := param.Unmodeled[key]

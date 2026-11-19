@@ -93,7 +93,7 @@ func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
 	r, refined = refinementOf(l.Ctx, StatedIn(l, s), "/elsewhere")
 	require.True(t, refined, "another pointer reads the same answer")
 	require.NotNil(t, r.principal)
-	assert.Equal(t, jsontext.Pointer("/elsewhere/allOf/0"), r.principal.pointer, "its branches stand at the pointer asked")
+	assert.Equal(t, jsontext.Pointer("/elsewhere/allOf/0"), r.principal.pointer, "its entries stand at the pointer asked")
 	assert.Same(t, r.principal, r.ref, "the principal is the $ref read through")
 	assert.True(t, decisionOf(l.Ctx, StatedIn(l, s)).refines, "a reader with no pointer reads it too")
 }
@@ -133,7 +133,7 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
-// TestNullableVoices_ReadsASchemaOnce pins that the branches widening a schema
+// TestNullableVoices_ReadsASchemaOnce pins that the entries widening a schema
 // are read once a run, as its voicing is, since every use of the schema asks:
 // its allOf goes after the first read, so only a remembered answer stays.
 func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
@@ -188,7 +188,7 @@ func TestLendingEntries_LendsEachEntryOnce(t *testing.T) {
         - {description: d}
 `))
 	got := lendingEntries(l.Ctx, StatedIn(l, componentSchema(t, l, "T")))
-	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
+	require.Len(t, got, 1, "only the entry first writing readOnly lends what T does not")
 	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
 	b := statement.ParsedAt(got[0].schema).GetSchema()
 	require.NotNil(t, b.ReadOnly)
@@ -199,7 +199,7 @@ func TestLendingEntries_LendsEachEntryOnce(t *testing.T) {
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
 	got = lendingEntries(split.Ctx, StatedIn(split, componentSchema(t, split, "T")))
-	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
+	require.Len(t, got, 1, "an entry kept for disagreeing lends nothing, nor marks what it writes as lent")
 	assert.Empty(t, statement.ParsedAt(got[0].schema).GetSchema().GetTitle())
 	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
 }
@@ -215,7 +215,7 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
 	first := lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents
-	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
+	require.Len(t, first, 4, "T, the entry that folds, the $ref and what it names")
 
 	st := l.Ctx.Statements().Of(js)
 	st.AllOf, st.Entries = nil, nil
@@ -264,7 +264,7 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 		}
 		return least
 	}
-	assert.Less(t, cost(256), 2*cost(64), "four times the branches, not four times the value")
+	assert.Less(t, cost(256), 2*cost(64), "four times the entries, not four times the value")
 }
 
 // TestRead_AVoiceCostsItsOwnEntries pins what a site's voices cost: each adds its
