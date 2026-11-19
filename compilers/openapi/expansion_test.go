@@ -314,7 +314,7 @@ func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 // TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder pins what a
 // refusal reports: nothing the lowering found. Either parameter fits the budget
 // alone, so the one lowered first is copied and the other crosses; reporting
-// what the copy found would report the keyword the schema census keeps, a
+// what the copy found would report the keyword the schema keeps unread, a
 // finding of the lowering alone, in one order alone.
 func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) {
 	t.Parallel()

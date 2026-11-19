@@ -98,7 +98,7 @@ func TestStand_ContentVocabularyItsNodeCannotHoldIsKept(t *testing.T) {
 
 // TestStand_ContentBesideTheAllOfIsKeptBesideThePrincipalsEncoding pins a
 // content keyword the position writes beside an allOf whose inline principal
-// builds a Scalar holding an Encoding of its own: the Encoding is the branch's,
+// builds a Scalar holding an Encoding of its own: the Encoding is the entry's,
 // so the keyword is kept beside it where it is written, never dropped, where
 // the keywords beside an allOf electing no entry build the Encoding holding it
 // (docs/compilers/openapi.md#content-vocabulary).
@@ -116,7 +116,7 @@ func TestStand_ContentBesideTheAllOfIsKeptBesideThePrincipalsEncoding(t *testing
 	sc, ok := typeByName(doc, "Beside").(*ir.Scalar)
 	require.True(t, ok, "Beside is the scalar, not %T", typeByName(doc, "Beside"))
 	require.NotNil(t, sc.Encoding)
-	assert.Equal(t, "base64", sc.Encoding.Name, "the branch's Encoding stands")
+	assert.Equal(t, "base64", sc.Encoding.Name, "the entry's Encoding stands")
 	assert.Empty(t, sc.Encoding.MediaType, "and holds nothing the position writes")
 	kept, held := sc.Unmodeled["openapi:contentMediaType"]
 	require.True(t, held, "the position's keyword is kept")

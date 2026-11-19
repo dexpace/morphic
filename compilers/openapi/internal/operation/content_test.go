@@ -299,7 +299,7 @@ components:
 // TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
 // allOf changes what a body is no more than a $ref does: a refinement is a use of
 // the schema it names, in either spelling, of the narrower of two it names, or
-// the value set of the branch an enum beside it narrows to, standing at the
+// the value set of the entry an enum beside it narrows to, standing at the
 // position, and one over no binary schema is a plain body.
 func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	t.Parallel()
@@ -311,7 +311,7 @@ func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 		want ir.TypeID
 	}{
 		"beside":     {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
-		"a branch":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
+		"an entry":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
 		"bare":       {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "type/openapi/components/schemas/Blob"},
 		"a chain":    {"{$ref: '#/components/schemas/Wrapped'}", "type/openapi/components/schemas/Wrapped"},
 		"inline":     {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},

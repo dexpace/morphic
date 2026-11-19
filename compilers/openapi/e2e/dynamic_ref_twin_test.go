@@ -23,7 +23,7 @@ import (
 // beside it, a restating branch, disjoint conjuncts, a property merged through
 // an alias and a composition, a name its resource declares twice, another
 // declaring it a $dynamicAnchor, a missing target, one an alias misses, a
-// loop, a titled allOf branch, another document (twinOther).
+// loop, a titled allOf entry, another document (twinOther).
 const twinSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:

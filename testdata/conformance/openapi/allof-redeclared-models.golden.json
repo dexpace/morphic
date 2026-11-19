@@ -3694,7 +3694,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "a9d2ef465ae9ce52e0d34a19b2cbf3fe4b51b216faa3292a6949323d21937938"
+      "hash": "381d19aacd5087e3b5a8eaa726e6520194caa92ca0a29ffedb5c1c1578c099ca"
     }
   ]
 }

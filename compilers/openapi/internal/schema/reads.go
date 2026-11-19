@@ -12,7 +12,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// keySet is a set of keys of censusDomain, those whose home depends on what a
+// keySet is a set of keys of readDomain, those whose home depends on what a
 // position lowered to: a build says which of them it read of the schema it was
 // built from, typing it, deciding its shape by it, or finding it says nothing
 // the node does not, and the finishing of its node keeps the rest.
@@ -24,13 +24,13 @@ var nodeKeywords = []string{
 	"maxItems", "minItems", "patternProperties", "prefixItems", "properties", "required", "type", "uniqueItems",
 }
 
-// censusDomain lists the keys a keySet holds, each at its bit: nodeKeywords,
+// readDomain lists the keys a keySet holds, each at its bit: nodeKeywords,
 // then the value bounds (valueConstraintKeywords).
-var censusDomain = slices.Concat(nodeKeywords, valueConstraintKeywords)
+var readDomain = slices.Concat(nodeKeywords, valueConstraintKeywords)
 
-// keyBit returns the bit of name, and none for a key outside censusDomain.
+// keyBit returns the bit of name, and none for a key outside readDomain.
 func keyBit(name string) keySet {
-	i := slices.Index(censusDomain, name)
+	i := slices.Index(readDomain, name)
 	if i < 0 {
 		return 0
 	}
@@ -116,12 +116,12 @@ func collectionReads(schema *statement.Schema) keySet {
 	return out
 }
 
-// readElsewhere returns the keys of censusDomain schema writes that a reader
-// outside the build of the node it lowers to reads: a redaction format, the
-// annotation readers'; an additionalItems beside an items that is no list, the
-// rest of nothing, the unknown keywords' keeper's (PreserveUnknownKeywords);
-// and a type naming null alone, which the nulls reader reads as
-// TypeRef.Nullable (docs/compilers/openapi.md#null-alone).
+// readElsewhere returns the keys of readDomain s writes that a reader outside
+// the build of the node it lowers to reads: a redaction format, the annotation
+// readers'; an additionalItems beside an items that is no list, the rest of
+// nothing, the unknown keywords' keeper's (PreserveUnknownKeywords); and a type
+// naming null alone, which the nulls reader reads as TypeRef.Nullable
+// (docs/compilers/openapi.md#null-alone).
 func readElsewhere(schema *statement.Schema) keySet {
 	var out keySet
 	if annotation.DeclaresRedaction(schema) {

@@ -22,31 +22,31 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ConstraintsOf returns the value constraints schema and its foldedBranches
+// ConstraintsOf returns the value constraints schema and its foldedEntries
 // write that apply to a value of the kinds takes, the position's types', and of
 // each writer's (writerTakes), or nil where they write none, for the node or
 // carrier at pointer to hold (docs/compilers/openapi.md#constraints). A bound
-// several write meets (merge.Constraints): a folded branch speaks only where
+// several write meets (merge.Constraints): a folded entry speaks only where
 // its bounds meet every other writer's
 // (docs/compilers/openapi.md#allof-inline-residue). Of two patterns the first
 // writer's stands: schema's, but the position's own keywords'
-// (annotation.FoldedAllOfBranch.Beside) before an inline principal's
+// (annotation.FoldedAllOfEntry.Beside) before an inline principal's
 // (patternBeside).
 //
 // unmodeled is the Unmodeled of that node or carrier, keeping a 3.0 exclusive
 // modifier with no bound beside it (GitHub #286).
-func ConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
+func ConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
 	cons, diags := constraintsAt(loweringContext, unmodeled, schema, pointer, boundsFor(takes))
-	for _, foldedAllOfBranch := range foldedBranches {
-		foldedConstraints, foldedConstraintDiags := constraintsAt(loweringContext, unmodeled, foldedAllOfBranch.Node, foldedAllOfBranch.At, boundsFor(writerTakes(takes, foldedAllOfBranch.Node)))
+	for _, foldedAllOfEntry := range foldedEntries {
+		foldedConstraints, foldedConstraintDiags := constraintsAt(loweringContext, unmodeled, foldedAllOfEntry.Node, foldedAllOfEntry.At, boundsFor(writerTakes(takes, foldedAllOfEntry.Node)))
 		diags = append(diags, foldedConstraintDiags...)
-		if foldedAllOfBranch.Beside {
+		if foldedAllOfEntry.Beside {
 			cons = merge.Constraints(foldedConstraints, cons)
 			continue
 		}
 		cons = merge.Constraints(cons, foldedConstraints)
 	}
-	writers := append([]annotation.FoldedAllOfBranch{{Node: schema, At: pointer}}, foldedBranches...)
+	writers := append([]annotation.FoldedAllOfEntry{{Node: schema, At: pointer}}, foldedEntries...)
 	return cons, append(diags, keepCounts(loweringContext, unmodeled, writers, takes)...)
 }
 
@@ -127,14 +127,14 @@ func constraintsAt(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema
 var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "minProperties"}
 
 // keepCounts keeps verbatim in unmodeled each value count that writers, a
-// position's schema and its folded branches, write and no field states
+// position's schema and its folded entries, write and no field states
 // (keptCount), of those a reader of the kinds takes reads of each
 // (writerTakes): of several writing one keyword, the one binding the rest
 // (bindingCount), so the entry is the same whatever their order. Each writer's
 // kept counts are reported once, where it was written
 // (docs/compilers/openapi.md#constraints). A count no such reader reads is the
 // node's finishing to keep (keepUnread).
-func keepCounts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, writers []annotation.FoldedAllOfBranch, takes kindSet) []ir.Diagnostic {
+func keepCounts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, writers []annotation.FoldedAllOfEntry, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
 		binding[k] = bindingCount(writers, keyword, takes)
@@ -171,7 +171,7 @@ func countsKept(loweringContext lowering.Ctx, kept []string, pointer jsontext.Po
 // writer's: the smallest maximum or the largest minimum, compared as the
 // integers they are (compareCounts), the first of one value written twice. It
 // returns -1 where no writer writes one.
-func bindingCount(writers []annotation.FoldedAllOfBranch, keyword string, takes kindSet) int {
+func bindingCount(writers []annotation.FoldedAllOfEntry, keyword string, takes kindSet) int {
 	best, sign := -1, 1
 	if strings.HasPrefix(keyword, "max") {
 		sign = -1
@@ -320,49 +320,49 @@ func stampConstraintDiags(loweringContext lowering.Ctx, diags []ir.Diagnostic, p
 }
 
 // CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type
-// typeRef. A position owning its node leaves every bound to it, held or kept
-// there, one home per declaration
+// t. A position owning its node leaves every bound to it, held or kept there,
+// one home per declaration
 // (docs/ir/annotations.md#one-structural-home-per-declaration), so its carrier
 // holds none. One owning none holds those a reference does
-// (referenceConstraintsOf), since the census hoists an alias to keep any other.
-// PreserveRefSiteKeywords draws the same line.
-func CarrierConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, typeRef ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// (referenceConstraintsOf), since the keeping of unread keywords hoists an
+// alias to keep any other. PreserveRefSiteKeywords draws the same line.
+func CarrierConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, typeRef ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(loweringContext, pointer, typeRef) {
-		return referenceConstraintsOf(loweringContext, unmodeled, schema, foldedBranches, typeRef, pointer)
+		return referenceConstraintsOf(loweringContext, unmodeled, schema, foldedEntries, typeRef, pointer)
 	}
 	return nil, nil
 }
 
-// referenceConstraintsOf is ConstraintsOf for a position that lowered to
-// target, a reference, a $ref site, a collapsed union, an expanded $dynamicRef
-// or a refinement: no node of its own holds the collection bounds it wrote, so
-// they join its value bounds on the alias or carrier it owns
-// (docs/compilers/openapi.md#constraints), with those its foldedBranches write
-// where the position holds them (homesAt). Every bound is read by the types the
-// position admits, those of the schemas it names among them (boundKinds), so a
-// collection bound is held only where they admit an array, and the census keeps
-// one they do not (unreadByReference).
-func referenceConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// referenceConstraintsOf is ConstraintsOf for a position that lowered to target,
+// a reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
+// refinement: no node of its own holds the collection bounds it wrote, so they
+// join its value bounds on the alias or carrier it owns
+// (docs/compilers/openapi.md#constraints), with those its voices write where
+// the position holds them (homesAt). Every bound is read by the types the
+// position admits, those of the schemas it names among them (boundKinds),
+// so a collection bound is held only where they admit an array, and one they
+// do not is kept unread (unreadByReference).
+func referenceConstraintsOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(schema) {
 		return nil, nil
 	}
 	takes := boundKinds(loweringContext, schema)
-	cons, diags := ConstraintsOf(loweringContext, unmodeled, schema, foldedBranches, pointer, takes)
+	cons, diags := ConstraintsOf(loweringContext, unmodeled, schema, foldedEntries, pointer, takes)
 	if takes&kindArray == 0 {
 		return cons, diags
 	}
 	cons = merge.Constraints(cons, heldCollectionBounds(schema))
-	if len(foldedBranches) > 0 && homesAt(loweringContext, schema, target, pointer).collection {
-		cons = collectionBoundsMetWithFoldedBranches(cons, foldedBranches)
+	if len(foldedEntries) > 0 && homesAt(loweringContext, schema, target, pointer).collection {
+		cons = collectionBoundsMetWithFoldedEntries(cons, foldedEntries)
 	}
 	return cons, diags
 }
 
-// collectionBoundsMetWithFoldedBranches is cons met with the collection bounds
-// foldedBranches write, which agree where they speak (foldingAllOfBranches).
-func collectionBoundsMetWithFoldedBranches(cons *ir.Constraints, foldedBranches []annotation.FoldedAllOfBranch) *ir.Constraints {
-	for _, foldedAllOfBranch := range foldedBranches {
-		cons = merge.Constraints(cons, heldCollectionBounds(foldedAllOfBranch.Node))
+// collectionBoundsMetWithFoldedEntries is cons met with the collection bounds
+// foldedEntries write, which agree where they speak (foldingAllOfEntries).
+func collectionBoundsMetWithFoldedEntries(cons *ir.Constraints, foldedEntries []annotation.FoldedAllOfEntry) *ir.Constraints {
+	for _, foldedAllOfEntry := range foldedEntries {
+		cons = merge.Constraints(cons, heldCollectionBounds(foldedAllOfEntry.Node))
 	}
 	return cons
 }
@@ -385,10 +385,11 @@ func heldCollectionBounds(schema *statement.Schema) *ir.Constraints {
 }
 
 // referenceHolds reports whether referenceConstraintsOf fills the collection
-// bound keyword from schema, which is the census's whole test at a reference,
-// so a bound ir.Constraints cannot state stays verbatim: a count the parser
-// misread (annotation.CountIsExact), and a false uniqueItems, which a plain
-// bool cannot tell from unset and which would stop an alias being a decorator.
+// bound keyword from s, which is the whole test of what a reference keeps
+// unread, so a bound ir.Constraints cannot state stays verbatim: a count the
+// parser misread (annotation.CountIsExact), and a false uniqueItems, which a
+// plain bool cannot tell from unset and which would stop an alias being a
+// decorator.
 func referenceHolds(schema *statement.Schema, keyword string) bool {
 	array := schema.ArrayKeywords()
 	switch keyword {

@@ -26,7 +26,7 @@ paths:
             encoding:
               file: {contentType: image/png}
       responses: {"204": {description: ok}}
-  # A union written as an allOf branch, which the composition is distributed
+  # A union written as an allOf entry, which the composition is distributed
   # across.
   /composed:
     post:

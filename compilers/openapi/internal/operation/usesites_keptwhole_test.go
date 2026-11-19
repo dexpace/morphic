@@ -13,10 +13,10 @@ import (
 )
 
 // TestPromotion_ReadsAKeyInABranchKeptWhole holds a promotion to the keys an
-// allOf branch writes where its carrier keeps the branch whole, for a closure
+// allOf entry writes where its carrier keeps the entry whole, for a closure
 // no use of its string types: a parameter, a
-// content parameter, a header and a property, the $ref first and the branch
-// first, are each redacted and deprecated, and keep the branch beside each key
+// content parameter, a header and a property, the $ref first and the entry
+// first, are each redacted and deprecated, and keep the entry beside each key
 // a promotion reads from it, and a key no promotion reads only inside it. A cursor and a next cursor marked the same way page their
 // operation.
 func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
@@ -30,8 +30,8 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	body := tree(t, doc.Types[ir.TypeID("type/anonymous/paths/~1facts/get/responses/200/content/application~1json/schema")])
 	properties := valueAtPath(body, "properties")
 	for _, c := range []struct {
-		name, scope, branch string
-		carrier             any
+		name, scope, entry string
+		carrier            any
 	}{
 		{"ref_first", "schema/", "allOf/1", namedItem(t, params, "ref_first")},
 		{"branch_first", "schema/", "allOf/0", namedItem(t, params, "branch_first")},
@@ -52,7 +52,7 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 		}
 		slices.Sort(kept)
 		want := []string{
-			"openapi:" + c.scope + c.branch, "openapi:" + c.scope + "x-deprecated-reason",
+			"openapi:" + c.scope + c.entry, "openapi:" + c.scope + "x-deprecated-reason",
 			"openapi:" + c.scope + "x-sensitive", "openapi:" + c.scope + "x-stability",
 		}
 		assert.Equal(t, want, kept, c.name)

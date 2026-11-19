@@ -355,7 +355,7 @@ func TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt(t *testing.T)
 // not declare requires the member it declares, its name leaving Requires; a
 // model declaring the member itself keeps that declaration's identity; and one
 // whose declaration another model holds too, through a $ref to the allOf
-// branch writing it, takes one in the composed namespace, which a
+// entry writing it, takes one in the composed namespace, which a
 // discriminator naming that declaration follows. A discriminator naming a
 // member only entries declare names it by its ID once the model declares it,
 // as for a member the model writes (docs/compilers/openapi.md#discriminator).

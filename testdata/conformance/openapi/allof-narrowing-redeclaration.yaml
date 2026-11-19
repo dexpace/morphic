@@ -3,17 +3,17 @@ info: {title: AllOfNarrowingRedeclaration, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # One branch narrows a bare primitive the other leaves broader: a format over
+    # One entry narrows a bare primitive the other leaves broader: a format over
     # its bare type, an integer width over a wider one, or any type over the top
     # type. The intersection is the narrower kind, so the merge loses nothing: no
-    # warning, and the same type whichever branch comes first. Only a value the
-    # broader branch wrote and the narrower kind refuses is kept under
+    # warning, and the same type whichever entry comes first. Only a value the
+    # broader entry wrote and the narrower kind refuses is kept under
     # Unmodeled, at the declaration that wrote it (see the InadmissibleDefault
     # and RefusedLateDefault models). Each pair is declared in both orders, and
-    # each three-branch chain in all three positions of its narrowest member.
+    # each three-entry chain in all three positions of its narrowest member.
     # The orders are separate inputs to one rule: the harness's order oracle
     # keeps sequence order (reverseMappings reverses mappings only), so this
-    # fixture is the corpus's only guard on branch order.
+    # fixture is the corpus's only guard on entry order.
     NumberIntegerBroadFirst:
       allOf:
         - type: object
@@ -127,7 +127,7 @@ components:
           properties:
             p: {type: string}
     # A nullable broad declaration beside a non-null narrow one: null is admitted
-    # only where both branches admit it, and the broad branch's minimum is
+    # only where both entries admit it, and the broad entry's minimum is
     # adopted onto the merged field.
     NullableBroadFirst:
       allOf:
@@ -145,9 +145,9 @@ components:
         - type: object
           properties:
             p: {type: [number, "null"], minimum: 0}
-    # The broad branch's default is a value the narrow kind refuses: a fractional
+    # The broad entry's default is a value the narrow kind refuses: a fractional
     # number is no integer. It is not adopted onto the merged field; the broad
-    # branch is kept whole at its own pointer, with one info, in either order.
+    # entry is kept whole at its own pointer, with one info, in either order.
     InadmissibleDefaultBroadFirst:
       allOf:
         - type: object
@@ -164,7 +164,7 @@ components:
         - type: object
           properties:
             p: {type: number, default: 1.5}
-    # A three-branch chain, number > integer > int32, with the narrowest first,
+    # A three-entry chain, number > integer > int32, with the narrowest first,
     # in the middle and last: the narrowest is the field's type at every position.
     ChainNarrowestFirst:
       allOf:
@@ -254,7 +254,7 @@ components:
     # A broad declaration's default meets the integer that wins, with the
     # integer declaration first, in the middle and last. The integer is the
     # field's type in every position, so the default is refused and the entry
-    # kept at the branch that wrote it, wherever that branch sits.
+    # kept at the entry that wrote it, wherever that entry sits.
     RefusedLateDefaultFirst:
       allOf:
         - type: object
@@ -288,7 +288,7 @@ components:
         - type: object
           properties:
             p: {type: integer}
-    # A $ref into the broad branch makes a model carrying that declaration alone,
+    # A $ref into the broad entry makes a model carrying that declaration alone,
     # so the narrowed field is another property.
     NarrowedPastARef:
       allOf:

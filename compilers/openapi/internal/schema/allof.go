@@ -21,17 +21,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerAllOf hoists an allOf schema as a Model, classifying each branch per
+// lowerAllOf hoists an allOf schema as a Model, classifying each entry per
 // docs/compilers/openapi.md#allof-classification, which also says which
-// branches are flattened first. Inline branches contribute their properties,
-// with provenance into their source branch.
+// entries are flattened first. Inline entries contribute their properties,
+// with provenance into their source entry.
 //
-// Value constraints written beside the allOf (minProperties, ...), or on a
-// branch that folds, are read as lowerModel reads a plain object's, on the same
-// field, not Unmodeled (GitHub #407). A composition that leaves only a
-// catch-all is a map, as a plain object's is (objectNode). Where discriminated
-// is false, a union the model composes, mixin where not nil, took schema's
-// discriminator (lowerSubtypeUnion). fin finishes the node.
+// Value constraints written beside the allOf (minProperties, ...), or on an entry
+// that folds, are read as lowerModel reads a plain object's, on the same field,
+// not Unmodeled (GitHub #407). A composition that leaves only a
+// catch-all is a map, as a plain object's is (objectNode). Where discriminated is
+// false, a union the model composes, mixin where not nil, took s's discriminator
+// (lowerSubtypeUnion). fin finishes the node.
 func lowerAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, discriminated bool, mixin *unionAt,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -57,16 +57,16 @@ func composeModel(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 		// kind-inference policy's reading of their shape keywords.
 		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
 	}
-	cons, diags := ConstraintsOf(loweringContext, &common.Unmodeled, schema, positionFoldedBranches(loweringContext, schema, pointer, ir.TypeRef{}), pointer, comp.bounds)
+	cons, diags := ConstraintsOf(loweringContext, &common.Unmodeled, schema, positionFoldedEntries(loweringContext, schema, pointer, ir.TypeRef{}), pointer, comp.bounds)
 	model := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, diagDisjointConjuncts(loweringContext, comp, composedShape)...)
 	fields := newModelFields(loweringContext, ts, model)
-	base, hasBase := selectAllOfBase(loweringContext, comp.branches, common.ID)
+	base, hasBase := selectAllOfBase(loweringContext, comp.entries, common.ID)
 	diags = append(diags, fillAllOf(loweringContext, ts, depth, model, fields, comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(loweringContext, ts, depth, fields, schema, pointer)...)
 	requireMembers(model, compositionRequired(schema.ObjectKeywords().Required, comp))
 	diags = append(diags, fillComposedAdditional(loweringContext, ts, depth, model, schema, comp)...)
-	diags = append(diags, applyFalseBranches(loweringContext, model, comp)...)
+	diags = append(diags, applyFalseEntries(loweringContext, model, comp)...)
 	if discriminated {
 		discriminator, discDiags := lowerDiscriminator(loweringContext, ts, schema.Discriminator(), pointer, model, nil)
 		diags = append(diags, discDiags...)
@@ -74,7 +74,7 @@ func composeModel(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 	}
 	var first *statement.Schema // the base's hierarchy tags the model first
 	if hasBase {
-		first = refBranchTarget(loweringContext, comp.branches[base].schema)
+		first = refBranchTarget(loweringContext, comp.entries[base].schema)
 	}
 	tag, tagDiags := subtypeDiscriminatorValue(loweringContext, schema, common.ID, pointer, first)
 	model.DiscriminatorValue = tag.value
@@ -83,106 +83,110 @@ func composeModel(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 	return objectNode(model), modelReads(schema, model, comp.bounds), diags
 }
 
-// compositionCensusHandled names the census keywords an allOf composition
-// reads itself, so neither the census of a $ref branch nor that of the composed
-// position reports them again: lowerAllOf lands every required list on the
-// composed model (requireMembers).
-var compositionCensusHandled = keyBit("required")
+// compositionReads names the readDomain keywords an allOf composition reads
+// itself, so neither the keeping of a $ref entry's unread keywords nor that of
+// the composed position reports them again: lowerAllOf lands every required
+// list on the composed model (requireMembers).
+var compositionReads = keyBit("required")
 
-// allOfBranch is one inline-or-ref branch of an allOf composition after nested
+// allOfEntry is one inline-or-ref entry of an allOf composition after nested
 // wrappers are flattened into the list (GitHub #599).
-type allOfBranch struct {
+type allOfEntry struct {
 	schema *statement.Statement
-	// pointer is where the branch was written, never rewritten to a flat index:
-	// property IDs, provenance, diagnostics, the branch's Unmodeled key
-	// (branchKey) and its name (lowering.NameAt) all derive from it.
+	// pointer is where the entry was written, never rewritten to a flat index:
+	// property IDs, provenance, diagnostics, the entry's Unmodeled key
+	// (entryKey) and its name (lowering.NameAt) all derive from it.
 	pointer jsontext.Pointer
 	// wrapper marks a flattened wrapper, which contributes its properties and
 	// required list, and is kept verbatim only for what else it writes.
 	wrapper bool
-	// capped marks an inline branch whose allOf was not flattened because it sits
+	// capped marks an inline entry whose allOf was not flattened because it sits
 	// past statement.MaxFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
+	// split marks the reference of an entry writing one beside other keys,
+	// which the statement lists apart from them (statement.Entry.Split).
+	split bool
 }
 
 // allOfComposition is the flattened allOf of the schema written at pointer: its
-// branches, each with the pointer it was written at. A reader that takes it
+// entries, each with the pointer it was written at. A reader that takes it
 // cannot reach the unflattened list.
 type allOfComposition struct {
-	pointer  jsontext.Pointer
-	branches []allOfBranch
+	pointer jsontext.Pointer
+	entries []allOfEntry
 	// disjoint names what each conjunct states where the schema draws the
 	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
 	// is nil otherwise (readAllOf).
 	disjoint []string
-	// branchFoldsIntoPosition marks each branch that folds at the position
-	// (foldingAllOfBranches), and rebased each whose folding keywords write a
-	// relative $ref it reads against another base, so it does not. They are nil
-	// where the allOf is not what the position lowers (allOfDecides).
-	branchFoldsIntoPosition []bool
-	rebased                 []bool
-	// conjoins is the pointer of the branch whose union the position lowers,
-	// distributing it across its variants (branchUnion), whose merge consumes it,
-	// and empty where no branch's is.
+	// speaks marks each entry that folds at the position (foldingAllOfEntries), and
+	// rebased each whose folding keywords write a relative $ref it reads against
+	// another base, so it does not. They are nil where the allOf is not what the
+	// position lowers (allOfDecides).
+	entryFoldsIntoPosition []bool
+	rebased                []bool
+	// conjoins is the pointer of the entry whose union the position lowers,
+	// distributing it across its variants (entryUnion), whose merge consumes it,
+	// and empty where no entry's is.
 	conjoins jsontext.Pointer
-	// bounds is the kinds whose value bounds the Model composing the branches
+	// bounds is the kinds whose value bounds the Model composing the entries
 	// reads, those of the types the position admits (boundKinds) that it takes
-	// (modelTakes), so a branch's bound folds where they take it.
+	// (modelTakes), so an entry's bound folds where they take it.
 	bounds kindSet
 	// closer names the schema object whose additionalProperties and
-	// patternProperties the Model composing the branches types (closerOf).
+	// patternProperties the Model composing the entries types (closerOf).
 	closer closure
-	// kept is what each inline branch keeps verbatim beside the Model
+	// kept is what each inline entry keeps verbatim beside the Model
 	// composing them, by index (entryKeeps).
 	kept []keptEntry
 }
 
-// foldsIntoPositionAt reports whether the branch at index i folds at the
-// position.
-func (a allOfComposition) foldsIntoPositionAt(i int) bool {
-	return a.branchFoldsIntoPosition != nil && a.branchFoldsIntoPosition[i]
+// entrySpeaks reports whether the entry at index i folds at the position.
+func (a allOfComposition) entrySpeaks(i int) bool {
+	return a.entryFoldsIntoPosition != nil && a.entryFoldsIntoPosition[i]
 }
 
-// allOfBranches returns the branches of schema's allOf as its statement
-// flattens them (statement.Statement.Entries), each with the pointer it was
-// written at, under the schema written at pointer. allOf is associative, so the
-// list classifies exactly as its flat spelling would.
-func allOfBranches(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
+// allOfEntries returns the entries of s's allOf as its statement flattens
+// them (statement.Statement.Entries), each with the pointer it was written at,
+// under the schema written at pointer. allOf is associative, so the list
+// classifies exactly as its flat spelling would.
+func allOfEntries(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	entries := loweringContext.Statements().Read(schema).Entries
-	out := make([]allOfBranch, 0, len(entries))
+	out := make([]allOfEntry, 0, len(entries))
 	for _, allOfConjunct := range entries {
-		out = append(out, allOfBranch{schema: loweringContext.Statements().Read(allOfConjunct.Schema), pointer: pointer + allOfConjunct.Rel, wrapper: allOfConjunct.Wrapper, capped: allOfConjunct.Capped})
+		out = append(out, allOfEntry{
+			schema: loweringContext.Statements().Read(allOfConjunct.Schema), pointer: pointer + allOfConjunct.Rel, wrapper: allOfConjunct.Wrapper, capped: allOfConjunct.Capped, split: allOfConjunct.Split,
+		})
 	}
-	return allOfComposition{pointer: pointer, branches: out}
+	return allOfComposition{pointer: pointer, entries: out}
 }
 
-// readAllOf is allOfBranches of the schema written at pointer, with what its
-// conjuncts jointly admit read and, where the allOf is what the position
-// lowers, which branches fold there (allOfBranchFoldingOf) and which writes the
-// union the position lowers (branchUnion), for a lowering that composes it.
-// That gate is positionFoldedBranches', so a branch gives up a keyword only
-// where a reader of the position takes it up; both composers pass it, and the
-// report of an allOf the election passed over does not.
+// readAllOf is allOfEntries of the schema written at pointer, with what its
+// conjuncts jointly admit read and, where the allOf is what the position lowers,
+// which entries fold there (allOfEntryFoldingOf) and which writes the union the position
+// lowers (entryUnion), for a lowering that composes it. That gate is
+// positionFoldedEntries', so an entry gives up a keyword only where a reader of the
+// position takes it up; both composers pass it, and the report of an allOf the
+// election passed over does not.
 func readAllOf(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) allOfComposition {
-	comp := allOfBranches(loweringContext, schema, pointer)
+	comp := allOfEntries(loweringContext, schema, pointer)
 	comp.disjoint = disjointNames(loweringContext, schema, comp)
 	comp.bounds = modelTakes(boundKinds(loweringContext, schema))
 	comp.closer = closerOf(loweringContext, schema, comp)
 	if allOfDecides(loweringContext, schema) {
-		allOfBranchFolding := allOfBranchFoldingOf(loweringContext, schema)
-		comp.branchFoldsIntoPosition, comp.rebased = allOfBranchFolding.branchFoldsIntoPosition, allOfBranchFolding.rebased
+		allOfEntryFolding := allOfEntryFoldingOf(loweringContext, schema)
+		comp.entryFoldsIntoPosition, comp.rebased = allOfEntryFolding.entryFoldsIntoPosition, allOfEntryFolding.rebased
 	}
-	if unionAt, _, ok := branchUnion(loweringContext, schema, pointer); ok {
+	if unionAt, _, ok := entryUnion(loweringContext, schema, pointer); ok {
 		comp.conjoins = unionAt.at
 	}
 	comp.kept = entryKeeps(loweringContext, schema, comp, func(i int) []string { return compositionResidue(loweringContext, comp, i) },
-		allOfBranchFolding{branchFoldsIntoPosition: comp.branchFoldsIntoPosition, rebased: comp.rebased}, catchAllKeyword, nil)
+		allOfEntryFolding{entryFoldsIntoPosition: comp.entryFoldsIntoPosition, rebased: comp.rebased}, catchAllKeyword, nil)
 	return comp
 }
 
-// allOfRefBranches yields the statements of the $ref branches of schema's allOf
+// allOfRefEntries yields the statements of the $ref entries of s's allOf
 // after flattening: the view an ancestor walk needs, which reads no pointer.
-func allOfRefBranches(loweringContext lowering.Ctx, schema *statement.Schema) iter.Seq[*statement.Statement] {
+func allOfRefEntries(loweringContext lowering.Ctx, schema *statement.Schema) iter.Seq[*statement.Statement] {
 	return func(yield func(*statement.Statement) bool) {
 		for _, allOfConjunct := range loweringContext.Statements().Read(schema).Entries {
 			if allOfConjunct.Ref != nil && !yield(loweringContext.Statements().Read(allOfConjunct.Schema)) {
@@ -192,43 +196,43 @@ func allOfRefBranches(loweringContext lowering.Ctx, schema *statement.Schema) it
 	}
 }
 
-// FlatBranch is one branch of the allOf FlattenedAllOf reads.
-type FlatBranch struct {
-	// Schema is the branch as written, or the wrapper a run of its own entries
+// FlatEntry is one entry of the allOf FlattenedAllOf reads.
+type FlatEntry struct {
+	// Schema is the entry as written, or the wrapper a run of its own entries
 	// ended with.
 	Schema *statement.Statement
-	// Ref marks a branch that names its schema by $ref, which the reader follows
+	// Ref marks an entry that names its schema by $ref, which the reader follows
 	// itself and bounds on its own.
 	Ref bool
-	// Capped marks an inline branch whose own allOf sits past
+	// Capped marks an inline entry whose own allOf sits past
 	// statement.MaxFlattenDepth and was not flattened, so the reader has not reached
 	// what it declares.
 	Capped bool
 }
 
-// FlattenedAllOf returns schema's allOf as the lowering reads it, so a reader
-// outside this package takes the same flattening and the same cap, in the same
-// order (docs/compilers/openapi.md#allof-classification). It reads the entries
-// allOfBranches does.
-func FlattenedAllOf(loweringContext lowering.Ctx, schema *statement.Schema) []FlatBranch {
+// FlattenedAllOf returns s's allOf as the lowering reads it, so a reader outside
+// this package takes the same flattening and the same cap, in the same order
+// (docs/compilers/openapi.md#allof-classification). It reads the entries
+// allOfEntries does.
+func FlattenedAllOf(loweringContext lowering.Ctx, schema *statement.Schema) []FlatEntry {
 	entries := loweringContext.Statements().Read(schema).Entries
-	out := make([]FlatBranch, 0, len(entries))
+	out := make([]FlatEntry, 0, len(entries))
 	for _, allOfConjunct := range entries {
-		out = append(out, FlatBranch{Schema: loweringContext.Statements().Read(allOfConjunct.Schema), Ref: allOfConjunct.Ref != nil, Capped: allOfConjunct.Capped})
+		out = append(out, FlatEntry{Schema: loweringContext.Statements().Read(allOfConjunct.Schema), Ref: allOfConjunct.Ref != nil, Capped: allOfConjunct.Capped})
 	}
 	return out
 }
 
-// branchKey is the Unmodeled key an allOf branch at bptr is kept under: "openapi:"
+// entryKey is the Unmodeled key an allOf entry at bptr is kept under: "openapi:"
 // and its path from the composed schema. The path's tokens are `allOf` and
 // decimal indices, so trimming the prefix is exact.
-func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
-	return "openapi:" + a.branchPath(bptr)
+func (a allOfComposition) entryKey(bptr jsontext.Pointer) string {
+	return "openapi:" + a.entryPath(bptr)
 }
 
-// branchPath is the path of the allOf branch at bptr from the composed schema,
+// entryPath is the path of the allOf entry at bptr from the composed schema,
 // "$ref" for the reference the composed schema writes beside its keywords.
-func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+func (a allOfComposition) entryPath(bptr jsontext.Pointer) string {
 	if bptr == a.pointer {
 		return "$ref"
 	}
@@ -239,58 +243,57 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 // or, where the schema writes a $ref beside its keywords, the conjunct that
 // reference is, or no allOf at all, "this schema", which writes none to name.
 func (a allOfComposition) subject() string {
-	if len(a.branches) == 0 || a.branches[0].pointer == a.pointer {
+	if len(a.entries) == 0 || a.entries[0].pointer == a.pointer {
 		return "this schema"
 	}
 	return "this allOf"
 }
 
 // compositionRequired collects every required-property name declared across an
-// allOf composition, in source order: each branch's required list (a flattened
-// wrapper's included), then own, the list the composed schema writes itself. A
-// branch is read from its local schema, never its resolved $ref target — that
+// allOf composition, in source order: each entry's required list (a flattened
+// wrapper's included), then own, the list the composed schema writes itself. An
+// entry is read from its local schema, never its resolved $ref target — that
 // required list belongs to the target's own model (issue #29).
 func compositionRequired(own []string, comp allOfComposition) []string {
 	var out []string
-	for _, allOfBranch := range comp.branches {
-		// A boolean branch writes no object keyword, so ObjectKeywords reads none.
-		out = append(out, allOfBranch.schema.ObjectKeywords().Required...)
+	for _, entry := range comp.entries {
+		// A boolean entry writes no object keyword, so ObjectKeywords reads none.
+		out = append(out, entry.schema.ObjectKeywords().Required...)
 	}
 	return append(out, own...)
 }
 
-// fillAllOf classifies and lowers the branches of comp into model (GitHub #599).
+// fillAllOf classifies and lowers the entries of comp into m (GitHub #599).
 //
-// An inline branch merges in place: its `properties` and `required`
+// An inline entry merges in place: its `properties` and `required`
 // (requireMembers) merge, its catch-all keywords where it closes the model
-// (closerOf), what it writes for the position folds there
-// (foldingAllOfBranches), and the rest stays verbatim beside the model
-// (preserveUnmergedBranch, GitHub
+// (closerOf), what it writes for the position folds there (foldingAllOfEntries), and
+// the rest stays verbatim beside the model (preserveUnmergedEntry, GitHub
 // #123).
 //
-// A $ref branch is the reference alone, composing what it names
-// (fillRefBranch). The keywords written beside its $ref are an inline branch
+// A $ref entry is the reference alone, composing what it names
+// (fillRefEntry). The keywords written beside its $ref are an inline entry
 // of their own at its pointer, merged as above, a oneOf or anyOf among them
-// lowering as on any branch (docs/ir/models.md#composition-entries).
+// lowering as on any entry (docs/ir/models.md#composition-entries).
 func fillAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, model *ir.Model, fields modelFields, comp allOfComposition,
 	base int, hasBase bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var failed []int
-	var uncomposed []keptBranch
-	for i, allOfBranch := range comp.branches {
+	var uncomposed []wholeRefEntry
+	for i, entry := range comp.entries {
 		switch {
-		case allOfBranch.schema.Ref == nil:
-			diags = append(diags, fillModelProperties(loweringContext, ts, depth, fields, allOfBranch.schema.Schema, allOfBranch.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(loweringContext, ts, model, comp, i)...)
-		case composesRef(loweringContext, allOfBranch):
-			refDiags, resolved := fillRefBranch(loweringContext, ts, fields, allOfBranch, hasBase && i == base)
+		case entry.schema.Ref == nil:
+			diags = append(diags, fillModelProperties(loweringContext, ts, depth, fields, entry.schema.Schema, entry.pointer)...)
+			diags = append(diags, preserveUnmergedEntry(loweringContext, ts, model, comp, i)...)
+		case composesRef(loweringContext, entry):
+			refDiags, resolved := fillRefEntry(loweringContext, ts, fields, entry, hasBase && i == base)
 			diags = append(diags, refDiags...)
 			if !resolved {
 				failed = append(failed, i)
 			}
 		default:
-			uncomposed = append(uncomposed, keptBranch{entry: allOfBranch})
+			uncomposed = append(uncomposed, wholeRefEntry{entry: entry})
 		}
 	}
 	apart, failedDiags := keepFailedRefs(loweringContext, ts, model, comp, failed)
@@ -298,21 +301,21 @@ func fillAllOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, model
 	return append(diags, keepUncomposedRefs(loweringContext, ts, model, comp.pointer, apart, uncomposed)...)
 }
 
-// composesRef reports whether the $ref entry allOfBranchValue is a Base or a
+// composesRef reports whether the $ref entry allOfEntryValue is a Base or a
 // Mixin of the composition: the schema it lands on lowers to an object alone,
 // null aside (lowersTo), or to the union of a type list holding an object,
 // whose object variant it composes (objectVariant), or its read is cut short,
 // which leaves the composition as it is with no read. A model composes only
 // models (docs/compilers/openapi.md#allof-classification).
-func composesRef(loweringContext lowering.Ctx, allOfBranchValue allOfBranch) bool {
-	target, _ := declaredOf(loweringContext, allOfBranchValue.schema)
+func composesRef(loweringContext lowering.Ctx, allOfEntryValue allOfEntry) bool {
+	target, _ := declaredOf(loweringContext, allOfEntryValue.schema)
 	if target == nil || admissionOf(loweringContext, target).cut {
 		return true
 	}
 	if kinds, _ := lowersTo(loweringContext, target); kinds == kindObject {
 		return true
 	}
-	_, unpacked := objectVariant(loweringContext, allOfBranchValue.schema)
+	_, unpacked := objectVariant(loweringContext, allOfEntryValue.schema)
 	return unpacked
 }
 
@@ -328,8 +331,11 @@ func objectVariant(loweringContext lowering.Ctx, ref *statement.Statement) (ir.T
 		return "", false
 	}
 	in, placed := lowering.InDocument(loweringContext, at.Doc)
-	i := slices.Index(effectiveTypes(target.Schema), statement.KindObject)
-	if !placed || i < 0 || !lowersTypeArray(in, target.Schema, at.Pointer) {
+	if !placed || !lowersTypeArray(in, target.Schema, at.Pointer) {
+		return "", false
+	}
+	i := slices.Index(typingOf(in, target.Schema).types, statement.KindObject)
+	if i < 0 {
 		return "", false
 	}
 	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
@@ -342,7 +348,7 @@ func objectVariant(loweringContext lowering.Ctx, ref *statement.Statement) (ir.T
 // kept, resolving its target so the document holds what it names; a failed
 // one is reported where it is written.
 func keepUncomposedRefs(loweringContext lowering.Ctx, ts *compile.Types, model *ir.Model, pointer jsontext.Pointer,
-	apart, uncomposed []keptBranch,
+	apart, uncomposed []wholeRefEntry,
 ) []ir.Diagnostic {
 	for _, b := range uncomposed {
 		resolveSchemaRef(loweringContext, ts, b.entry.schema)
@@ -358,31 +364,31 @@ func keepUncomposedRefs(loweringContext lowering.Ctx, ts *compile.Types, model *
 	return diags
 }
 
-// fillRefBranch lowers one $ref allOf branch and adds it to the model fields
+// fillRefEntry lowers one $ref allOf entry and adds it to the model fields
 // builds as its Base, when isBase, or as a Mixin, recording the entry
 // (modelFields.compose): what it names, or the object variant of the type
 // list it names (objectVariant). A $ref it cannot resolve adds nothing and
 // reports false, which keepFailedRefs answers; it is reported unless it lies on a
 // loop of $refs, which load reports once (onLoop).
-func fillRefBranch(loweringContext lowering.Ctx, ts *compile.Types, fields modelFields, allOfBranchValue allOfBranch, isBase bool) ([]ir.Diagnostic, bool) {
+func fillRefEntry(loweringContext lowering.Ctx, ts *compile.Types, fields modelFields, allOfEntryValue allOfEntry, isBase bool) ([]ir.Diagnostic, bool) {
 	var diags []ir.Diagnostic
-	b := allOfBranchValue.schema
+	b := allOfEntryValue.schema
 	id, ok := resolveSchemaRef(loweringContext, ts, b)
 	if !ok {
 		if !onLoop(b) {
 			keyword, ref := refSpelling(b)
-			diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.UnresolvedRef, allOfBranchValue.pointer,
+			diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.UnresolvedRef, allOfEntryValue.pointer,
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(loweringContext, b)))
 		}
 		return diags, false
 	}
-	if variant, unpacked := objectVariant(loweringContext, allOfBranchValue.schema); unpacked {
+	if variant, unpacked := objectVariant(loweringContext, allOfEntryValue.schema); unpacked {
 		id = variant
 	}
-	unhomed := unreadByReference(loweringContext, b.Schema, compositionCensusHandled)
+	unhomed := unreadByReference(loweringContext, b.Schema, compositionReads)
 	var kept finished
-	keep := keepUnhomedOn(loweringContext, ts, b.Schema, unhomed, refSiteShape, allOfBranchValue.pointer, stand{}, &kept, nil)
-	ref, homeDiags := homeDeclaration(loweringContext, ts, b.Schema, ir.TypeRef{Target: id}, allOfBranchValue.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
+	keep := keepUnreadOn(loweringContext, ts, b.Schema, unhomed, refSiteShape, allOfEntryValue.pointer, stand{}, &kept, nil)
+	ref, homeDiags := homeDeclaration(loweringContext, ts, b.Schema, ir.TypeRef{Target: id}, allOfEntryValue.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, kept.diags...)
 	if isBase {
@@ -390,34 +396,34 @@ func fillRefBranch(loweringContext lowering.Ctx, ts *compile.Types, fields model
 	} else {
 		fields.m.Mixins = append(fields.m.Mixins, ref)
 	}
-	fields.compose(ref.Target, allOfBranchValue.pointer)
+	fields.compose(ref.Target, allOfEntryValue.pointer)
 	return diags, true
 }
 
-// applyFalseBranches closes model for each boolean `false` allOf branch and
-// keeps the branch verbatim under Unmodeled. It runs after
-// fillComposedAdditional, whose result it overrides, the catch-all included
+// applyFalseEntries closes m for each boolean `false` allOf entry and keeps
+// the entry verbatim under Unmodeled. It runs after fillComposedAdditional,
+// whose result it overrides, the catch-all included
 // (docs/compilers/openapi.md#allof-false-branch).
 //
-// A `false` branch admits nothing, so model must not stay open; the rule
+// A `false` entry admits nothing, so m must not stay open; the rule
 // docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
-// the same way. model keeps the other branches' contributions, because emptying
-// it would trade one silent loss for another. The verbatim branch tells this
-// from a plain `additionalProperties: false`; a diagnostic does not, being no
-// part of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(loweringContext lowering.Ctx, model *ir.Model, comp allOfComposition) []ir.Diagnostic {
+// the same way. m keeps the other entries' contributions, because emptying it
+// would trade one silent loss for another. The verbatim entry tells this from
+// a plain `additionalProperties: false`; a diagnostic does not, being no part
+// of the document. A `true` entry constrains nothing and is skipped.
+func applyFalseEntries(loweringContext lowering.Ctx, model *ir.Model, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, allOfBranch := range comp.branches {
-		if !allOfBranch.schema.Truth.ReadsFalse() {
+	for _, entry := range comp.entries {
+		if !entry.schema.Truth.ReadsFalse() {
 			continue // `true`, a null and any schema with a body close nothing.
 		}
 		model.Additional = ir.AdditionalClosed
-		annotation.PreserveInto(&model.Unmodeled, comp.branchKey(allOfBranch.pointer),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, loweringContext.Place().At(allOfBranch.pointer))
+		annotation.PreserveInto(&model.Unmodeled, comp.entryKey(entry.pointer),
+			ir.RawValue("false"), ir.ReasonDegradedLowering, loweringContext.Place().At(entry.pointer))
 
-		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.FalseSchema, allOfBranch.pointer,
-			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
-				"composed model closed and the branch kept verbatim under Unmodeled"))
+		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.FalseSchema, entry.pointer,
+			"boolean false allOf entry matches nothing, so the composition matches nothing; "+
+				"composed model closed and the entry kept verbatim under Unmodeled"))
 	}
 
 	closer := comp.closer
@@ -430,114 +436,114 @@ func applyFalseBranches(loweringContext lowering.Ctx, model *ir.Model, comp allO
 	return diags
 }
 
-// preserveUnmergedBranch keeps what the inline allOf branch at index i of comp
+// preserveUnmergedEntry keeps what the inline allOf entry at index i of comp
 // writes that the merge consumes nowhere beside the composed model, as comp.kept
-// says: each keyword under its own key and reason, or the branch whole under a
-// key comp gives it, so sibling branches never overwrite one another
+// says: each keyword under its own key and reason, or the entry whole under a
+// key comp gives it, so sibling entries never overwrite one another
 // (docs/compilers/openapi.md#allof-inline-residue).
-func preserveUnmergedBranch(loweringContext lowering.Ctx, ts *compile.Types, model *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
+func preserveUnmergedEntry(loweringContext lowering.Ctx, ts *compile.Types, model *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
 	keptEntryValue := comp.kept[i]
 	disjoint := len(comp.disjoint) > 0
-	warn := branchExcludesObject(keptEntryValue.entry.schema.Schema) && !disjoint
+	warn := entryExcludesObject(keptEntryValue.entry.schema.Schema) && !disjoint
 	return recordKeptEntry(loweringContext, ts, &model.Unmodeled, comp, keptEntryValue, nodeShape(ir.KindModel), warn, func(otherKeptEntry keptEntry) ir.Diagnostic {
-		return diagUnmergedBranch(loweringContext, otherKeptEntry, disjoint)
+		return diagUnmergedEntry(loweringContext, otherKeptEntry, disjoint)
 	})
 }
 
-// compositionResidue returns what the inline allOf branch at index i of comp
+// compositionResidue returns what the inline allOf entry at index i of comp
 // writes that the in-place merge reads nowhere: not its properties and
 // required, nor what folds where comp says it speaks, nor the union the
-// position lowers, nor the catch-all of the branch closing the model. A
-// flattened branch's allOf is consumed: allOfBranches replaced it by its own
-// entries. A boolean branch has no keywords to leave a residue
-// (applyFalseBranches), and a $ref branch homes its siblings on an alias over
-// its target (fillRefBranch), unless it names nothing (failedRefResidue).
+// position lowers, nor the catch-all of the entry closing the model. A
+// flattened entry's allOf is consumed: allOfEntries replaced it by its own
+// entries. A boolean entry has no keywords to leave a residue
+// (applyFalseEntries), and a $ref entry homes its siblings on an alias over
+// its target (fillRefEntry), unless it names nothing (failedRefResidue).
 func compositionResidue(loweringContext lowering.Ctx, comp allOfComposition, i int) []string {
-	allOfBranch := comp.branches[i]
-	if allOfBranch.schema.Truth != statement.Stated {
+	entry := comp.entries[i]
+	if entry.schema.Truth != statement.Stated {
 		return nil
 	}
-	if allOfBranch.schema.Ref != nil {
-		return failedRefResidue(loweringContext, allOfBranch)
+	if entry.schema.Ref != nil {
+		return failedRefResidue(loweringContext, entry)
 	}
-	speaks := comp.foldsIntoPositionAt(i)
-	conjoined := comp.conjoins != "" && allOfBranch.pointer == comp.conjoins
-	closes := comp.closer.entryAt(allOfBranch.pointer)
-	return unmergedBranchKeys(allOfBranch.schema.Schema, func(keyword string) bool {
-		return mergeConsumes(allOfBranch.schema.Schema, keyword, allOfBranch.wrapper) || (speaks && folds(loweringContext, allOfBranch.schema.Schema, keyword, boundHomes{value: comp.bounds})) ||
+	speaks := comp.entrySpeaks(i)
+	conjoined := comp.conjoins != "" && entry.pointer == comp.conjoins
+	closes := comp.closer.entryAt(entry.pointer)
+	return unmergedEntryKeys(entry.schema.Schema, func(keyword string) bool {
+		return mergeConsumes(entry.schema.Schema, keyword, entry.wrapper) || (speaks && folds(loweringContext, entry.schema.Schema, keyword, boundHomes{value: comp.bounds})) ||
 			(conjoined && conjoinedKeyword(keyword)) || (closes && catchAllKeyword(keyword))
 	})
 }
 
-// diagUnmergedBranch builds the diagnostic announcing the branch keptEntryValue
-// keeps whole, naming the keywords so two branches of the same schema are told
-// apart. The caller records it.
+// diagUnmergedEntry builds the diagnostic announcing the entry k keeps whole,
+// naming the keywords so two entries of the same schema are told apart. The
+// caller records it.
 //
-// A branch declaring a type that cannot be an object is a warning rather than
-// info: the composed ir.Model asserts the value *is* an object, which the branch
+// An entry declaring a type that cannot be an object is a warning rather than
+// info: the composed ir.Model asserts the value *is* an object, which the entry
 // contradicts. Any other residue only narrows a model the IR describes correctly,
 // the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
 // disjoint says the schema reports its conjuncts share no value, so this
 // reports residue alone.
-func diagUnmergedBranch(loweringContext lowering.Ctx, keptEntryValue keptEntry, disjoint bool) ir.Diagnostic {
-	allOfBranch, residue := keptEntryValue.entry, keptEntryValue.residue
-	if branchExcludesObject(allOfBranch.schema.Schema) && !disjoint {
-		branchNames := namesOf(allOfBranch)
-		message := branchNames.lead + " declares a type that is not an object, which the composed model asserts it is; " + branchNames.kept + " (" +
-			strings.Join(keptKeywords(residue, allOfBranch), ", ") + ") is kept verbatim under Unmodeled"
-		if allOfBranch.capped {
+func diagUnmergedEntry(loweringContext lowering.Ctx, keptEntryValue keptEntry, disjoint bool) ir.Diagnostic {
+	entry, residue := keptEntryValue.entry, keptEntryValue.residue
+	if entryExcludesObject(entry.schema.Schema) && !disjoint {
+		names := namesOf(entry)
+		message := names.lead + " declares a type that is not an object, which the composed model asserts it is; " + names.kept + " (" +
+			strings.Join(keptKeywords(residue, entry), ", ") + ") is kept verbatim under Unmodeled"
+		if entry.capped {
 			message += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) + ", was not flattened"
 		}
-		return loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, allOfBranch.pointer, "%s", message)
+		return loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, entry.pointer, "%s", message)
 	}
-	if why := wholeWhy(keptEntryValue); why != "" && !allOfBranch.capped {
-		return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(keptEntryValue), allOfBranch.pointer, "%s", why)
+	if why := wholeWhy(keptEntryValue); why != "" && !entry.capped {
+		return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(keptEntryValue), entry.pointer, "%s", why)
 	}
-	return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(keptEntryValue), allOfBranch.pointer, "%s", unmergedWhy(residue, allOfBranch))
+	return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(keptEntryValue), entry.pointer, "%s", unmergedWhy(residue, entry))
 }
 
-// keptKeywords is residue as a diagnostic names it: a capped branch is kept for
+// keptKeywords is residue as a diagnostic names it: a capped entry is kept for
 // its depth, so its allOf is not listed as a keyword the merge declines.
-func keptKeywords(residue []string, allOfBranchValue allOfBranch) []string {
-	if !allOfBranchValue.capped {
+func keptKeywords(residue []string, allOfEntryValue allOfEntry) []string {
+	if !allOfEntryValue.capped {
 		return residue
 	}
 	return slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
 }
 
-// unmergedWhy words why a branch with residue is kept: what merges and folds is
-// gone from residue, which is the rest. A flattened branch's nested allOf composes
+// unmergedWhy words why an entry with residue is kept: what merges and folds is
+// gone from residue, which is the rest. A flattened entry's nested allOf composes
 // too. A capped one is kept for its depth, not for allOf being a keyword the merge
 // declines, so allOf is left out of the keywords it lists.
-func unmergedWhy(residue []string, allOfBranchValue allOfBranch) string {
+func unmergedWhy(residue []string, allOfEntryValue allOfEntry) string {
 	const keptTail = " is kept verbatim under Unmodeled"
-	branchNames := namesOf(allOfBranchValue)
+	names := namesOf(allOfEntryValue)
 	switch {
-	case allOfBranchValue.wrapper:
-		return branchNames.lead + " is merged in place, its nested allOf composes, and nothing reads the rest of it; " + branchNames.kept + " (" +
+	case allOfEntryValue.wrapper:
+		return names.lead + " is merged in place, its nested allOf composes, and nothing reads the rest of it; " + names.kept + " (" +
 			strings.Join(residue, ", ") + ")" + keptTail
-	case allOfBranchValue.capped:
-		rest := keptKeywords(residue, allOfBranchValue)
-		why := branchNames.lead + " is nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) +
-			", so its own allOf was not flattened, and " + branchNames.kept
+	case allOfEntryValue.capped:
+		rest := keptKeywords(residue, allOfEntryValue)
+		why := names.lead + " is nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) +
+			", so its own allOf was not flattened, and " + names.kept
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"
 		}
 		return why + keptTail
 	default:
-		return branchNames.lead + " is merged in place, and nothing reads the rest of it; " + branchNames.kept + " (" +
+		return names.lead + " is merged in place, and nothing reads the rest of it; " + names.kept + " (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	}
 }
 
-// unmergedBranchKeys returns the keywords the branch declares that consumes does
+// unmergedEntryKeys returns the keywords the entry declares that consumes does
 // not claim, in the order the parser's model holds them.
 //
-// The keys are the branch's own (statement.Schema.Keys) rather than a list of
+// The keys are the entry's own (statement.Schema.Keys) rather than a list of
 // keywords worth preserving, which is what keeps this from rotting: a keyword a
 // later dialect adds counts as unconsumed the moment a source writes it, with
 // nobody to remember it here.
-func unmergedBranchKeys(bs *statement.Schema, consumes func(key string) bool) []string {
+func unmergedEntryKeys(bs *statement.Schema, consumes func(key string) bool) []string {
 	out := make([]string, 0, len(bs.Keys))
 	for _, key := range bs.Keys {
 		if consumes(key.Name) || annotation.WritesKeywordLeftOut(bs, key.Name) {
@@ -548,15 +554,15 @@ func unmergedBranchKeys(bs *statement.Schema, consumes func(key string) bool) []
 	return out
 }
 
-// mergeConsumes reports whether fillAllOf's in-place merge reads branch keyword
+// mergeConsumes reports whether fillAllOf's in-place merge reads entry keyword
 // key. It is the complete statement of what the merge keeps; everything else the
-// branch wrote is residue. `allOf` is consumed exactly when flattened
+// entry wrote is residue. `allOf` is consumed exactly when flattened
 // (docs/compilers/openapi.md#allof-classification); otherwise it is residue like
 // the rest.
 func mergeConsumes(bs *statement.Schema, key string, flattened bool) bool {
 	switch key {
 	case "allOf":
-		return flattened // allOfBranches replaced the branch by its own entries
+		return flattened // allOfEntries replaced the entry by its own entries
 	case "properties":
 		return true // fillModelProperties merges these onto m
 	case "required":
@@ -568,15 +574,15 @@ func mergeConsumes(bs *statement.Schema, key string, flattened bool) bool {
 	}
 }
 
-// conjoinedKeyword reports whether keyword is one a branch whose union the
+// conjoinedKeyword reports whether keyword is one an entry whose union the
 // position lowers gives up to that union: its oneOf or anyOf, and the
 // discriminator it writes, which is the union's where the position lowers it
-// (findBranchUnion).
+// (findEntryUnion).
 func conjoinedKeyword(keyword string) bool {
 	return keyword == "oneOf" || keyword == "anyOf" || keyword == "discriminator"
 }
 
-// declaresObjectOnly reports whether the branch's declared type is exactly
+// declaresObjectOnly reports whether the entry's declared type is exactly
 // `object`, which the composed ir.Model already restates so the merge loses
 // nothing by reading it. A set — `[object, "null"]` included — says more than
 // that, and the more is what the merge would drop.
@@ -585,13 +591,13 @@ func declaresObjectOnly(bs *statement.Schema) bool {
 	return len(types) == 1 && types[0] == statement.KindObject
 }
 
-// branchExcludesObject reports whether the branch declares a type set with no
+// entryExcludesObject reports whether the entry declares a type set with no
 // `object` in it. An undeclared type set excludes nothing.
-func branchExcludesObject(bs *statement.Schema) bool {
+func entryExcludesObject(bs *statement.Schema) bool {
 	return writesType(bs) && !slices.Contains(bs.Types(), statement.KindObject)
 }
 
-// selectAllOfBase returns the index into branches, the conjuncts of the
+// selectAllOfBase returns the index into entries, the conjuncts of the
 // composition whose node is id, of the one that becomes Model.Base, and false
 // when none qualifies (multiple non-hierarchy refs stay Mixins): of the $refs
 // the composition takes (composesRef), the one, or of several, of those whose
@@ -599,10 +605,10 @@ func branchExcludesObject(bs *statement.Schema) bool {
 // (inHierarchy), one whose hierarchy's mapping routes id before one whose does
 // not, then the one whose reference text is the least, so no order written
 // decides.
-func selectAllOfBase(loweringContext lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int, bool) {
-	refIdxs := make([]int, 0, len(branches))
-	for i, allOfBranch := range branches {
-		if allOfBranch.schema.Ref != nil && composesRef(loweringContext, allOfBranch) {
+func selectAllOfBase(loweringContext lowering.Ctx, entries []allOfEntry, id ir.TypeID) (int, bool) {
+	refIdxs := make([]int, 0, len(entries))
+	for i, entry := range entries {
+		if entry.schema.Ref != nil && composesRef(loweringContext, entry) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
@@ -613,17 +619,17 @@ func selectAllOfBase(loweringContext lowering.Ctx, branches []allOfBranch, id ir
 	// hierarchy a walk of the whole graph each.
 	routes := make(map[int]bool, len(refIdxs))
 	for _, i := range refIdxs {
-		target := refBranchTarget(loweringContext, branches[i].schema)
+		target := refBranchTarget(loweringContext, entries[i].schema)
 		routes[i] = len(refIdxs) > 1 && stated(target) && inHierarchy(loweringContext, target) && routesTo(loweringContext, target, id)
 	}
 	slices.SortStableFunc(refIdxs, func(i, j int) int {
-		_, a := refSpelling(branches[i].schema)
-		_, b := refSpelling(branches[j].schema)
+		_, a := refSpelling(entries[i].schema)
+		_, b := refSpelling(entries[j].schema)
 		return cmp.Or(compareTrueFirst(routes[i], routes[j]), strings.Compare(a, b),
-			strings.Compare(string(branches[i].pointer), string(branches[j].pointer)))
+			strings.Compare(string(entries[i].pointer), string(entries[j].pointer)))
 	})
 	return merge.SelectBase(refIdxs, func(i int) bool {
-		target := refBranchTarget(loweringContext, branches[i].schema)
+		target := refBranchTarget(loweringContext, entries[i].schema)
 		return stated(target) && inHierarchy(loweringContext, target)
 	})
 }

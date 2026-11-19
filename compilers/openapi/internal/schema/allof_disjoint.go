@@ -101,16 +101,16 @@ func apartNames(schema *statement.Schema, comp allOfComposition, conjuncts []con
 	return names
 }
 
-// conjunctName is how a disjoint report names cj, a conjunct of comp, the allOf
-// schema writes, as conjunctAtoms names one: the keywords beside the allOf by
-// the value set or the type they write, a branch by its path, a $ref written
+// conjunctName is how a disjoint report names cj, a conjunct of comp, the
+// allOf s writes, as conjunctAtoms names one: the keywords beside the allOf by
+// the value set or the type they write, an entry by its path, a $ref written
 // beside other keys by its own.
 func conjunctName(schema *statement.Schema, comp allOfComposition, cj conjunct) string {
 	switch {
-	case cj.branch != nil && splitRef(comp, cj.at):
-		return comp.branchPath(cj.branch.pointer) + "/$ref"
-	case cj.branch != nil:
-		return comp.branchPath(cj.branch.pointer)
+	case cj.entry != nil && cj.entry.split:
+		return comp.entryPath(cj.entry.pointer) + "/$ref"
+	case cj.entry != nil:
+		return comp.entryPath(cj.entry.pointer)
 	case schema.Const() != nil:
 		return "const"
 	case enumWritten(schema):
@@ -207,16 +207,16 @@ func disjointAtoms(loweringContext lowering.Ctx, schema *statement.Schema, atoms
 	return names
 }
 
-// conjunctAtoms returns the conjuncts of comp, in order: the `type` schema
-// writes beside it, the value set it writes there (valueSetAtom), each union
-// schema writes beside it that shares no kind with the rest (unionAside) or
-// declares no shape, else the one it passes over (passedOver), and each
-// flattened branch: a wrapper by its own `type`, an entry nested past
-// statement.MaxFlattenDepth as cut, an inline entry writing two unions as the
-// one it elects and the other, and a $ref entry writing keywords that narrow
-// what it admits as the reference and the keywords beside it.
+// conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
+// beside it, the value set it writes there (valueSetAtom), each union s writes
+// beside it that shares no kind with the rest (unionAside) or declares no
+// shape, else the one it passes over (passedOver), and each flattened entry:
+// a wrapper by its own `type`, an entry nested past statement.MaxFlattenDepth
+// as cut, an inline entry writing two unions as the one it elects and the
+// other, and a $ref entry writing keywords that narrow what it admits as the
+// reference and the keywords beside it.
 func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) []conjunctAtom {
-	out := make([]conjunctAtom, 0, 4+len(comp.branches))
+	out := make([]conjunctAtom, 0, 4+len(comp.entries))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(schema), words: schema})
 	if set, ok := valueSetAtom(loweringContext, schema); ok {
 		out = append(out, set)
@@ -228,23 +228,23 @@ func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp 
 	} else if passed, key := passedOver(loweringContext, schema, schema); passed != nil {
 		out = append(out, unionAtoms(loweringContext, key, passed)...)
 	}
-	for i, allOfBranch := range comp.branches {
-		name := comp.branchPath(allOfBranch.pointer)
-		admission := admissionOf(loweringContext, allOfBranch.schema)
-		ref, _ := declaredOf(loweringContext, allOfBranch.schema)
-		passed, key := passedOver(loweringContext, schema, allOfBranch.schema.Schema)
+	for _, entry := range comp.entries {
+		name := comp.entryPath(entry.pointer)
+		admission := admissionOf(loweringContext, entry.schema)
+		ref, _ := declaredOf(loweringContext, entry.schema)
+		passed, key := passedOver(loweringContext, schema, entry.schema.Schema)
 		switch {
-		case allOfBranch.wrapper:
-			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(allOfBranch.schema.Schema), words: allOfBranch.schema.Schema})
-		case splitRef(comp, i):
-			out = append(out, conjunctAtom{name: name + "/$ref", admits: admission.admits, st: allOfBranch.schema, cut: admission.cut, written: ref})
-		case passed != nil && allOfBranch.schema.Ref == nil:
-			out = append(out, electedAtom(loweringContext, schema, allOfBranch, name, ref))
+		case entry.wrapper:
+			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(entry.schema.Schema), words: entry.schema.Schema})
+		case entry.split:
+			out = append(out, conjunctAtom{name: name + "/$ref", admits: admission.admits, st: entry.schema, cut: admission.cut, written: ref})
+		case passed != nil && entry.schema.Ref == nil:
+			out = append(out, electedAtom(loweringContext, schema, entry, name, ref))
 			out = append(out, unionAtoms(loweringContext, name+"/"+key, passed)...)
 		default:
-			a := conjunctAtom{name: name, admits: admission.admits, st: allOfBranch.schema, cut: admission.cut || allOfBranch.capped, written: ref}
-			if allOfBranch.schema.Truth.ReadsFalse() {
-				a.written = allOfBranch.schema
+			a := conjunctAtom{name: name, admits: admission.admits, st: entry.schema, cut: admission.cut || entry.capped, written: ref}
+			if entry.schema.Truth.ReadsFalse() {
+				a.written = entry.schema
 			}
 			out = append(out, a)
 		}
@@ -252,23 +252,23 @@ func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp 
 	return out
 }
 
-// refinedAtoms returns the conjuncts of refinementValue's composition as
-// conjunctAtoms reads them, but for an inline principal lowering to a value set
-// whose keywords leave it no kind, which is read as the same keywords beside
-// the allOf are: its `type`, its set and each union it writes, a set holding no
-// value its own type admits saying so where it is written (valueSetAtom), as
-// the election of competing keywords lowers it there (setElected).
+// refinedAtoms returns the conjuncts of r's composition as conjunctAtoms reads
+// them, but for an inline principal lowering to a value set whose keywords
+// leave it no kind, which is read as the same keywords beside the allOf are:
+// its `type`, its set and each union it writes, a set holding no value its own
+// type admits saying so where it is written (valueSetAtom), as the dispatch of
+// competing keywords lowers it there (setElected).
 func refinedAtoms(loweringContext lowering.Ctx, schema *statement.Schema, refinementValue refinement) []conjunctAtom {
 	atoms := conjunctAtoms(loweringContext, schema, refinementValue.comp)
-	allOfBranch, ok := valueSetPrincipal(refinementValue)
+	entry, ok := valueSetPrincipal(refinementValue)
 	if !ok {
 		return atoms
 	}
-	at := slices.IndexFunc(atoms, func(a conjunctAtom) bool { return a.st == allOfBranch.schema })
+	at := slices.IndexFunc(atoms, func(a conjunctAtom) bool { return a.st == entry.schema })
 	if at < 0 || atoms[at].admits != 0 {
 		return atoms
 	}
-	name, bs := atoms[at].name, allOfBranch.schema.Schema
+	name, bs := atoms[at].name, entry.schema.Schema
 	own := []conjunctAtom{{name: name + "/type", admits: declaredInstanceTypes(bs), words: bs}}
 	if set, written := valueSetAtom(loweringContext, bs); written {
 		set.name = name + "/" + set.name
@@ -298,14 +298,6 @@ func valueSetAtom(loweringContext lowering.Ctx, schema *statement.Schema) (conju
 	}
 	unread := memberSetOf(loweringContext, valueSetOf{schema, name}, members).unread
 	return conjunctAtom{name: name, admits: valueKinds(loweringContext, schema), words: schema, written: loweringContext.Statements().Read(schema), cut: unread}, true
-}
-
-// splitRef reports whether the branch at i of comp is the reference an entry
-// writes beside other keys, the next branch, at its pointer, being the rest of
-// that entry (statement.AllOfConjunct).
-func splitRef(comp allOfComposition, i int) bool {
-	return i+1 < len(comp.branches) && comp.branches[i+1].pointer == comp.branches[i].pointer &&
-		comp.branches[i].pointer != comp.pointer
 }
 
 // toldWhereWritten reports whether st, written apart from the allOf naming it
@@ -347,21 +339,21 @@ func toldWhereWritten(loweringContext lowering.Ctx, st *statement.Statement) boo
 func conjunctsShareNothing(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 	at, _ := siteOf(schema)
 	joint := anyInstance
-	for _, a := range conjunctAtoms(loweringContext, schema, allOfBranches(loweringContext, schema, at.Pointer)) {
+	for _, a := range conjunctAtoms(loweringContext, schema, allOfEntries(loweringContext, schema, at.Pointer)) {
 		joint &= a.admits
 	}
 	return joint == 0
 }
 
-// electedAtom is the inline entry allOfBranchValue of schema's allOf, named
+// electedAtom is the inline entry allOfEntryValue of schema's allOf, named
 // name, writing two unions, as a conjunct beside the one it passes over: its
 // own keywords and the union it elects.
-func electedAtom(loweringContext lowering.Ctx, schema *statement.Schema, allOfBranchValue allOfBranch, name string, ref *statement.Statement) conjunctAtom {
+func electedAtom(loweringContext lowering.Ctx, schema *statement.Schema, allOfEntryValue allOfEntry, name string, ref *statement.Statement) conjunctAtom {
 	admissionReader := newAdmissionReader(loweringContext)
-	elected, _, _ := unionBranches(loweringContext, schema, allOfBranchValue.schema.Schema)
-	read := admissionReader.written(allOfBranchValue.schema.Schema, admissionReader.nullable).and(admissionReader.union(elected))
-	return conjunctAtom{name: name, admits: read.kinds &^ kindNull, null: read.kinds&kindNull != 0, st: allOfBranchValue.schema,
-		cut: admissionReader.incomplete() || allOfBranchValue.capped, written: ref}
+	elected, _, _ := unionBranches(loweringContext, schema, allOfEntryValue.schema.Schema)
+	read := admissionReader.written(allOfEntryValue.schema.Schema, admissionReader.nullable).and(admissionReader.union(elected))
+	return conjunctAtom{name: name, admits: read.kinds &^ kindNull, null: read.kinds&kindNull != 0, st: allOfEntryValue.schema,
+		cut: admissionReader.incomplete() || allOfEntryValue.capped, written: ref}
 }
 
 // unionAtoms returns the union keyword names, written beside an allOf with
@@ -514,7 +506,7 @@ type pairReading struct {
 // pairReadingOf reads the pair pairApart describes, once a run.
 func pairReadingOf(loweringContext lowering.Ctx, schema *statement.Schema) pairReading {
 	return lowering.ReadOncePerRun(loweringContext, pairApartOf{schema}, func() pairReading {
-		comp := allOfBranches(loweringContext, schema, "")
+		comp := allOfEntries(loweringContext, schema, "")
 		if !writesUnionPair(schema, comp) {
 			return pairReading{}
 		}
@@ -522,9 +514,9 @@ func pairReadingOf(loweringContext lowering.Ctx, schema *statement.Schema) pairR
 		admissionReader.nullable = definesNullableAt(loweringContext, loweringContext.Statements().Read(schema))
 		pairReadsValue := pairReads{joint: admitted{kinds: kindAny}}
 		pairReadsValue.read(&admissionReader, "", schema)
-		for _, allOfBranch := range comp.branches {
-			if allOfBranch.schema.Ref == nil && declaresUnion(allOfBranch.schema.Schema) {
-				pairReadsValue.read(&admissionReader, comp.branchPath(allOfBranch.pointer), allOfBranch.schema.Schema)
+		for _, entry := range comp.entries {
+			if entry.schema.Ref == nil && declaresUnion(entry.schema.Schema) {
+				pairReadsValue.read(&admissionReader, comp.entryPath(entry.pointer), entry.schema.Schema)
 			}
 		}
 		if admissionReader.incomplete() {

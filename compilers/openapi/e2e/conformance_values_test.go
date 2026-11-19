@@ -155,8 +155,8 @@ func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 }
 
 // assertRefCollectionBounds holds each position to the one home a collection
-// bound written for one use of a shared list has, and the one bound the census
-// leaves verbatim to the one report the whole document draws.
+// bound written for one use of a shared list has, and the one bound kept
+// unread, verbatim, to the one report the whole document draws.
 func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)

@@ -1225,7 +1225,7 @@
     {
       "severity": "info",
       "code": "openapi/false-schema",
-      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "message": "boolean false allOf entry matches nothing, so the composition matches nothing; composed model closed and the entry kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/ClosedByABranch/allOf/0"
@@ -1281,7 +1281,7 @@
     {
       "format": "openapi@3.1",
       "path": "unevaluated-at-every-outcome.yaml",
-      "hash": "a7ced50437b8da5c41ae8dc5b746d498644966c2a63b70bb4f19e7b8fd1080f6"
+      "hash": "9672532323afaa93ad1d7d11a32f00c382bd45ee1d935384ba247f618ce1038f"
     }
   ]
 }

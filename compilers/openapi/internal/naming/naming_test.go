@@ -106,9 +106,9 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 		{"a component literally named items", "/components/schemas/items", "items"},
 		{"a oneOf branch holding no $ref is named variant_N", "/components/schemas/Foo/oneOf/0", "variant_0"},
 		{"an anyOf branch", "/components/schemas/Foo/anyOf/12", "variant_12"},
-		{"an allOf branch is named as the schema holding it", "/components/schemas/Foo/allOf/1", "Foo"},
-		{"items beneath an allOf branch", "/components/schemas/Foo/allOf/1/items", compile.SubHint("Foo", "item")},
-		{"a nested allOf branch", "/components/schemas/Foo/allOf/1/allOf/0", "Foo"},
+		{"an allOf entry is named as the schema holding it", "/components/schemas/Foo/allOf/1", "Foo"},
+		{"items beneath an allOf entry", "/components/schemas/Foo/allOf/1/items", compile.SubHint("Foo", "item")},
+		{"a nested allOf entry", "/components/schemas/Foo/allOf/1/allOf/0", "Foo"},
 		{"items beneath a branch is named off the branch",
 			"/components/schemas/Foo/oneOf/0/items", compile.SubHint("variant_0", "item")},
 		{"a branch reached through a property named oneOf",
@@ -595,10 +595,10 @@ components:
 `
 
 // TestAt_NamesASchemaByItsTitle pins that a schema writing a title with a word
-// in it, itself or in the inline branches of its allOf, is named by the
+// in it, itself or in the inline entries of its allOf, is named by the
 // title's words wherever the grammar reads a schema, an owner's or a branch's
 // included, the positions beneath composing from it, and that one a key names,
-// an allOf branch and a title with no word keep the name they have without it.
+// an allOf entry and a title with no word keep the name they have without it.
 // A title is read as the parser reads a string.
 func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 	t.Parallel()
@@ -639,18 +639,18 @@ var titleRows = func() []struct{ name, pointer, want string } {
 		{"a sentence, by its every word", keyed + "/properties/sentence", "a_list_of_the_things"},
 		{"a keyword the lowering does not walk", keyed + "/properties/negated/not", "negation"},
 		{"an enum literal is a value, whose title names nothing", keyed + "/properties/valued/enum/0", "valued_0"},
-		{"the title an allOf branch writes", keyed + "/properties/conjunct", "premium"},
-		{"two titles allOf branches write", keyed + "/properties/conjuncts", "conjuncts"},
-		{"one title allOf branches agree on", keyed + "/properties/agreeing", "one"},
+		{"the title an allOf entry writes", keyed + "/properties/conjunct", "premium"},
+		{"two titles allOf entries write", keyed + "/properties/conjuncts", "conjuncts"},
+		{"one title allOf entries agree on", keyed + "/properties/agreeing", "one"},
 		{"a schema's own title before its branches'", keyed + "/properties/overruled", "own"},
 		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "beside_a_ref"},
 		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "beside_a_dynamic_ref"},
-		{"a title an allOf branch nests", keyed + "/properties/nested", "deep"},
+		{"a title an allOf entry nests", keyed + "/properties/nested", "deep"},
 		{"a title under an allOf written as a mapping", keyed + "/properties/mapped", "mapped"},
 		{"a title a branch's allOf writes is its siblings' too", "/components/schemas/Conjoined/anyOf/0", "variant_0"},
 		{"a $defs entry keeps its key", keyed + "/$defs/Local", "Local"},
 		{"a definitions entry a $ref reads keeps its key", keyed + "/definitions/Old", "Old"},
-		{"an allOf branch is named as the schema holding it", keyed + "/allOf/0", "Keyed"},
+		{"an allOf entry is named as the schema holding it", keyed + "/allOf/0", "Keyed"},
 		{"a branch", "/components/schemas/Lookup/oneOf/0", "by_name"},
 		{"beneath a branch, a key names a property", "/components/schemas/Lookup/oneOf/0/properties/tags", "tags"},
 		{"beneath a branch, off the title", "/components/schemas/Lookup/oneOf/1/items", "points_item"},

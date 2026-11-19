@@ -18,7 +18,7 @@ import (
 //
 // The first three cases cannot catch a plain append, since concatenating an
 // empty Only is a no-op. The five below them do: appending duplicates when both
-// branches agree, unions where allOf intersects, and cannot spell the empty
+// entries agree, unions where allOf intersects, and cannot spell the empty
 // set.
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
@@ -31,13 +31,13 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 		want     ir.Visibility
 	}{
 		{
-			name: "neither branch restricts visibility",
+			name: "neither entry restricts visibility",
 			dst:  unrestricted, src: unrestricted,
 			want: unrestricted,
 		},
 		{
-			// The issue's own reproduction: a first branch that leaves the
-			// field unrestricted must not shadow a later branch's readOnly.
+			// The issue's own reproduction: a first entry that leaves the
+			// field unrestricted must not shadow a later entry's readOnly.
 			name: "only the redeclaration restricts visibility",
 			dst:  unrestricted, src: readOnlyVisibility,
 			want: readOnlyVisibility,
@@ -48,14 +48,14 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			want: readOnlyVisibility,
 		},
 		{
-			name: "both branches agree on the same restriction",
+			name: "both entries agree on the same restriction",
 			dst:  readOnlyVisibility, src: readOnlyVisibility,
 			want: readOnlyVisibility,
 		},
 		{
 			// readOnly admits {read, delete, query}; writeOnly admits
 			// {create, update} — disjoint sets whose intersection is empty,
-			// meaning the field can satisfy no lifecycle both branches
+			// meaning the field can satisfy no lifecycle both entries
 			// admit. None is the IR's existing shape for "visible in no
 			// lifecycle" (TypeSpec @invisible), so the empty intersection is
 			// recorded exactly rather than read as unrestricted.
@@ -93,21 +93,21 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			assert.Equal(t, tc.want, mergeVisibility(tc.dst, tc.src),
 				"mergeVisibility(dst, src) for %q", tc.name)
 			assert.Equal(t, tc.want, mergeVisibility(tc.src, tc.dst),
-				"mergeVisibility(src, dst) must agree — allOf branch order is not semantic, for %q", tc.name)
+				"mergeVisibility(src, dst) must agree — allOf entry order is not semantic, for %q", tc.name)
 		})
 	}
 }
 
-// TestMergeVisibility_ReorderedBranchesAgree pins the one way two branches can
+// TestMergeVisibility_ReorderedEntriesAgree pins the one way two entries can
 // disagree that the table above cannot express: they admit lifecycles that
 // overlap, but list them in different orders. Every case in the table names its
 // operands in one order, so a merge that read the surviving order off dst alone
 // would satisfy all of them and still answer two different slices here.
 //
 // The exact order the merge settles on is not pinned — a set has no preferred
-// spelling — only that both branch orders reach the same one, which is what
+// spelling — only that both entry orders reach the same one, which is what
 // keeps the composition's spelling out of the IR.
-func TestMergeVisibility_ReorderedBranchesAgree(t *testing.T) {
+func TestMergeVisibility_ReorderedEntriesAgree(t *testing.T) {
 	t.Parallel()
 	first := readOnlyVisibility
 	second := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleQuery, ir.LifecycleRead}}
@@ -115,7 +115,7 @@ func TestMergeVisibility_ReorderedBranchesAgree(t *testing.T) {
 	forward := mergeVisibility(first, second)
 	reversed := mergeVisibility(second, first)
 
-	assert.Equal(t, forward, reversed, "allOf branch order must not reach the merged Only")
+	assert.Equal(t, forward, reversed, "allOf entry order must not reach the merged Only")
 	assert.ElementsMatch(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleQuery}, forward.Only,
 		"the merge is still the intersection, whichever order it is spelled in")
 	assert.False(t, forward.InvisibleInEveryLifecycle, "a non-empty intersection is a restriction, not invisibility")

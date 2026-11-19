@@ -336,7 +336,7 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), keyedPartVal
 // type holds of part's name, the schemas of part declaring it, in source
 // order: the one written where it is (declaredProperty), and every one written
 // where none of decls is, which a declaration the merge folded into one of
-// them, an allOf branch's, is. So one variant's declaration is read apart
+// them, an allOf entry's, is. So one variant's declaration is read apart
 // from another's, and each schema is placed once.
 func declarationSchemas(serviceContext service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable] {
 	out := make(map[ir.PropertyID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
@@ -416,7 +416,7 @@ type partWalk struct {
 	// each additionalProperties, unevaluatedProperties and patternProperties
 	// entry admitting a member, in walk order.
 	catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
-	// capped marks an inline branch nested past statement.MaxFlattenDepth
+	// capped marks an inline entry nested past statement.MaxFlattenDepth
 	// whose own allOf entries no path entered.
 	capped bool
 	// hopsSpent marks a $ref target or union branch past maxPartRefHops that
@@ -442,7 +442,7 @@ type partVisits struct {
 	c       lowering.Ctx
 	entered map[*oas3.Schema]int
 	cut     map[*oas3.Schema]bool
-	// capped holds the allOf entries of an inline branch past the flattening
+	// capped holds the allOf entries of an inline entry past the flattening
 	// depth, which the walk did not follow.
 	capped map[*oas3.Schema]bool
 	open   *bool
@@ -450,7 +450,7 @@ type partVisits struct {
 	catchAllValues *[]*oas3.JSONSchema[oas3.Referenceable]
 }
 
-// markCapped records the allOf entries of b, an inline branch past the
+// markCapped records the allOf entries of b, an inline entry past the
 // flattening depth, as targets the walk did not follow.
 func (v partVisits) markCapped(b *oas3.Schema) {
 	for _, c := range b.GetAllOf() {
@@ -489,14 +489,14 @@ func walkBodyParts(loweringContext lowering.Ctx, js *oas3.JSONSchema[oas3.Refere
 }
 
 // bodyParts returns the parts a form body declares: the properties written on
-// the schema, then each allOf branch's, then each oneOf and anyOf branch's, of
-// the schema or an inline allOf branch. A name declared more than once is one
+// the schema, then each allOf entry's, then each oneOf and anyOf branch's, of
+// the schema or an inline allOf entry. A name declared more than once is one
 // part, at its first declaration's place, with every declaration kept
-// (dedupeParts). The allOf branches are the lowering's own
+// (dedupeParts). The allOf entries are the lowering's own
 // (schema.FlattenedAllOf); a $ref branch and a union branch are followed here,
-// up to maxPartRefHops. partVisitsValue records the fewest hops each target was
-// entered at, so one met again by no shorter path yields no parts, and the
-// bounds that cut the walk.
+// up to maxPartRefHops. v records the fewest hops each target was entered at,
+// so one met again by no shorter path yields no parts, and the bounds that cut
+// the walk.
 func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, partVisitsValue partVisits) partWalk {
 	s := schemaOf(partVisitsValue.c.Bindings(), js)
 	if s == nil || hops > maxPartRefHops {

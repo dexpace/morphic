@@ -492,13 +492,13 @@ func TestCollectionBound_BesideAReferenceReachesTheCarrier(t *testing.T) {
 // TestCollectionBound_ARefinementReachesWhatThePositionOwns pins an allOf
 // refining a $ref, which lowers to a reference as a $ref site does: a bound
 // beside the allOf reaches the alias or the carrier, and so does one on its
-// branch, as a value bound there does (GitHub #1312).
+// entry, as a value bound there does (GitHub #1312).
 func TestCollectionBound_ARefinementReachesWhatThePositionOwns(t *testing.T) {
 	t.Parallel()
 	const refined = "{allOf: [{$ref: '#/components/schemas/Tags'}], minItems: 1, maxItems: 3, uniqueItems: true}"
-	const onBranch = "{allOf: [{$ref: '#/components/schemas/Tags'}, {minItems: 1, maxItems: 3, uniqueItems: true}]}"
-	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+"    S: "+refined+"\n    B: "+onBranch+"\n"+
-		"    Holder:\n      type: object\n      properties:\n        f: "+refined+"\n        onBranch: "+onBranch+"\n"))
+	const onEntry = "{allOf: [{$ref: '#/components/schemas/Tags'}, {minItems: 1, maxItems: 3, uniqueItems: true}]}"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+"    S: "+refined+"\n    B: "+onEntry+"\n"+
+		"    Holder:\n      type: object\n      properties:\n        f: "+refined+"\n        onBranch: "+onEntry+"\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
 
@@ -515,14 +515,14 @@ func TestCollectionBound_ARefinementReachesWhatThePositionOwns(t *testing.T) {
 	}
 }
 
-// TestCollectionBound_OnABranchLandsAsItsFlatSpelling holds a bound on an
-// inline branch to the same bound written with what decides the position: a
+// TestCollectionBound_OnAnEntryLandsAsItsFlatSpelling holds a bound on an
+// inline entry to the same bound written with what decides the position: a
 // type beside the allOf, an inline principal, a tuple or a type list. Each lands
 // where that one does, on the node or the carrier, and nothing is kept.
-func TestCollectionBound_OnABranchLandsAsItsFlatSpelling(t *testing.T) {
+func TestCollectionBound_OnAnEntryLandsAsItsFlatSpelling(t *testing.T) {
 	t.Parallel()
 	const items = "items: {type: string}"
-	for name, tc := range map[string]struct{ flat, branch string }{
+	for name, tc := range map[string]struct{ flat, entry string }{
 		"a type beside": {"{type: array, " + items + ", maxItems: 2}", "{type: array, " + items + ", allOf: [{maxItems: 2}]}"},
 		"an inline principal": {"{allOf: [{type: array, " + items + "}], maxItems: 2}",
 			"{allOf: [{type: array, " + items + "}, {maxItems: 2}]}"},
@@ -534,12 +534,12 @@ func TestCollectionBound_OnABranchLandsAsItsFlatSpelling(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-				"    Holder:\n      type: object\n      properties:\n        flat: "+tc.flat+"\n        branch: "+tc.branch+"\n"))
+				"    Holder:\n      type: object\n      properties:\n        flat: "+tc.flat+"\n        branch: "+tc.entry+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, withCode(diags, diag.DegradedConstruct))
 			want := &ir.Constraints{MaxItems: new(int64(2))}
-			flat, branch := statedBounds(t, doc, "flat"), statedBounds(t, doc, "branch")
-			assert.Equal(t, flat, branch)
+			flat, entry := statedBounds(t, doc, "flat"), statedBounds(t, doc, "branch")
+			assert.Equal(t, flat, entry)
 			assert.Contains(t, []*ir.Constraints{flat.carrier, flat.node}, want)
 			assert.Empty(t, propertyOf(t, doc, "Holder", "branch").Unmodeled)
 			assert.Empty(t, doc.Types[propertyOf(t, doc, "Holder", "branch").Type.Target].Common().Unmodeled)
@@ -574,10 +574,10 @@ func statedBounds(t *testing.T, doc *ir.Document, wire string) bounds {
 	return out
 }
 
-// TestCollectionBound_OnABranchMeetsInEveryOrder pins that the conjuncts writing
+// TestCollectionBound_OnAnEntryMeetsInEveryOrder pins that the conjuncts writing
 // one collection bound agree by meeting, as value bounds do: the tightest count
 // lands, and a uniqueItems any of them writes holds.
-func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
+func TestCollectionBound_OnAnEntryMeetsInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Tags'}"
 	a, b := "{minItems: 1, maxItems: 5}", "{minItems: 3, maxItems: 4, uniqueItems: true}"
@@ -596,17 +596,17 @@ func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
 	}
 }
 
-// TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch pins the bounds a
-// branch keeps under their own keys, reported at the branch: one ir.Constraints
+// TestCollectionBound_OnAnEntryWithNoFieldStaysWithItsEntry pins the bounds an
+// entry keeps under their own keys, reported at the entry: one ir.Constraints
 // cannot state, and one where the position has no collection to bound, as it
 // is kept beside the type, so the carrier holds none of it.
-func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
+func TestCollectionBound_OnAnEntryWithNoFieldStaysWithItsEntry(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Tags'}"
-	const noHome = " written on this inline branch"
+	const noHome = " written on this inline entry"
 	for name, tc := range map[string]struct {
-		written, branch, key, report string
-		held                         *ir.Constraints
+		written, entry, key, report string
+		held                        *ir.Constraints
 	}{
 		"uniqueItems false": {"{allOf: [" + ref + ", {minItems: 1, uniqueItems: false}]}", "allOf/1", "uniqueItems",
 			"no home for uniqueItems" + noHome, &ir.Constraints{MinItems: new(int64(1))}},
@@ -629,7 +629,7 @@ func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 				kept = model.Unmodeled
 			}
 			assert.Equal(t, []string{"openapi:" + tc.key}, unmodeledKeys(kept))
-			at := "/components/schemas/Holder/properties/f/" + tc.branch
+			at := "/components/schemas/Holder/properties/f/" + tc.entry
 			assert.Equal(t, jsontext.Pointer(at+"/"+tc.key), kept["openapi:"+tc.key].Provenance.Pointer)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), tc.report)
 		})
@@ -637,9 +637,10 @@ func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 }
 
 // TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns pins
-// the third position that lowers to a reference. Its census asks what the reader
-// filled, as a $ref site's does, so a bound the reader cannot state is kept
-// verbatim and reported rather than read as a false 0 or a stated false.
+// the third position that lowers to a reference. What it keeps unread turns on
+// what the reader filled, as a $ref site's does, so a bound the reader cannot
+// state is kept verbatim and reported rather than read as a false 0 or a stated
+// false.
 func TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(`    Node:
@@ -827,11 +828,11 @@ func TestCollectionBound_ASpellingOfYAMLReachesConstraints(t *testing.T) {
 	}
 }
 
-// TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState pins the census
-// to what the reader filled, at an alias and at a carrier alike. The parser's
-// model reads a count past int64 as another number, so calling it homed would
-// write a false bound over the verbatim one, and a false uniqueItems has no
-// spelling a plain bool can tell from unset.
+// TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState pins the
+// keeping of unread keywords to what the reader filled, at an alias and at a
+// carrier alike. The parser's model reads a count past int64 as another number,
+// so calling it homed would write a false bound over the verbatim one, and a
+// false uniqueItems has no spelling a plain bool can tell from unset.
 func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -869,8 +870,8 @@ func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T)
 }
 
 // TestCollectionBound_DecidesWhetherAnAliasDecorates pins ir.Decorated to the
-// line the census draws: a bound the alias holds says something of the value,
-// and a false uniqueItems, kept verbatim, says nothing.
+// line the keeping of unread keywords draws: a bound the alias holds says
+// something of the value, and a false uniqueItems, kept verbatim, says nothing.
 func TestCollectionBound_DecidesWhetherAnAliasDecorates(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1063,8 +1064,8 @@ func TestConstraints_ACountPastTheDecimalRangeIsRefused(t *testing.T) {
 // that is no non-negative integer, which the parser's model reads as another
 // number, as none, or as the negative number it is: it reaches no Constraints
 // field, and the load phase's report is its one, at a node, a carrier and a
-// reference alike, a model and a map among the nodes, whose census would
-// otherwise find the bound unread.
+// reference alike, a model and a map among the nodes, whose keeping of unread
+// keywords would otherwise find the bound unread.
 func TestConstraints_ACountTheLoadPhaseRefusesReachesNoField(t *testing.T) {
 	t.Parallel()
 	for _, literal := range []string{"2.5", `"3"`, "-1"} {
@@ -1131,13 +1132,14 @@ func TestConstraints_ACountAVariantKeepsIsKeptOnce(t *testing.T) {
 	assert.Len(t, diags, 3, "%+v", diags)
 }
 
-// TestConstraints_AModifierBoundingNothingIsReportedOnce pins the census to what
-// the reader of a node's bounds kept: a 3.0 exclusive modifier with no bound
-// beside it, on a node whose Constraints it leaves empty, is kept and warned of
-// by that reader, and not kept again and reported as having no home. A schema
-// that is an object by its properties takes no numeric bound and reads none:
-// the census keeps it, with its info and no warning, as it keeps one beside any
-// type that takes none (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
+// TestConstraints_AModifierBoundingNothingIsReportedOnce pins the keeping of
+// unread keywords to what the reader of a node's bounds kept: a 3.0 exclusive
+// modifier with no bound beside it, on a node whose Constraints it leaves
+// empty, is kept and warned of by that reader, and not kept again and reported
+// as having no home. A schema that is an object by its properties takes no
+// numeric bound and reads none: it is kept unread, with its info and no
+// warning, as it keeps one beside any type that takes none
+// (TestConstraints_AModifierATypeCannotTakeIsKeptUnread).
 func TestConstraints_AModifierBoundingNothingIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",

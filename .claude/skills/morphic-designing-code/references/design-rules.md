@@ -79,7 +79,7 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `name-what-it-holds`
 
 - **Rule.** A name is long, literal and plain: the specification's term where it has one
-  (`foldingAllOfBranches`, not `voicesAmong`), the kind of thing it declares (`Measurements`, not
+  (`foldingAllOfEntries`, not `voicesAmong`), the kind of thing it declares (`Measurements`, not
   an `Index` that indexes nothing), a question for a bool (`HasFilename`), and its type's noun for a
   parameter (`schema`, not `s`). One letter names only a loop counter, a receiver, a comparison
   pair or a standard-library convention (`t *testing.T`). A figurative word, an abbreviation or a

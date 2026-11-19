@@ -18,20 +18,19 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// homeDeclaration gives what schema writes at this position a home and returns
-// the reference the position resolves to — an alias over target where the
-// keywords need a node of their own, target itself where the position declares
-// none.
+// homeDeclaration gives what s writes at this position a home and returns the
+// reference the position resolves to — an alias over target where the keywords
+// need a node of their own, target itself where the position declares none.
 //
 // It is the one statement of that step, so its two callers, a $ref site
-// (refSiteRef) and an allOf branch's $ref (fillRefBranch), keep a declaration
+// (refSiteRef) and an allOf entry's $ref (fillRefEntry), keep a declaration
 // the same way; a position skipping it would drop what was written at it
 // without a word (GitHub #116, #143). The alias's build writes the
 // declaration (declarationOn), then fin.
 func homeDeclaration(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
 	unhomed bool, fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	if !homesDeclaration(loweringContext, schema, target, pointer, home, unhomed || declaresScoped(loweringContext, declarationFoldedBranches(loweringContext, schema, target, pointer))) {
+	if !homesDeclaration(loweringContext, schema, target, pointer, home, unhomed || declaresScoped(loweringContext, declarationFoldedEntries(loweringContext, schema, target, pointer))) {
 		return target, nil
 	}
 	var decl finished
@@ -41,17 +40,17 @@ func homeDeclaration(loweringContext lowering.Ctx, ts *compile.Types, schema *st
 	return ref, append(diags, decl.diags...)
 }
 
-// declarationFoldedBranches returns the folded branches of the position schema,
+// declarationFoldedEntries returns the folded entries of the position schema,
 // written at pointer and lowered to target, each marked where its entry is kept
 // whole.
-func declarationFoldedBranches(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []annotation.FoldedAllOfBranch {
-	return markKeptWhole(loweringContext, schema, pointer, target, positionFoldedBranches(loweringContext, schema, pointer, target))
+func declarationFoldedEntries(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []annotation.FoldedAllOfEntry {
+	return markKeptWhole(loweringContext, schema, pointer, target, positionFoldedEntries(loweringContext, schema, pointer, target))
 }
 
 // declarationOn writes the declaration schema, written at pointer and lowered
 // to target, on td, in hand, the node standing there: its annotations
 // (attachDeclaredAnnotations), and where that node is its home, what binds a
-// use, its folded branches' first (recordFoldedBranchResidue, recordResidue). A
+// use, its folded entries' first (recordFoldedEntryResidue, recordResidue). A
 // carrier keeps the latter itself.
 func declarationOn(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
 	td ir.TypeDef,
@@ -64,7 +63,7 @@ func declarationOn(loweringContext lowering.Ctx, ts *compile.Types, schema *stat
 	if home != annotation.HomeOwnNode {
 		return diags
 	}
-	diags = append(diags, recordFoldedBranchResidue(loweringContext, td, schema, declarationFoldedBranches(loweringContext, schema, target, pointer))...)
+	diags = append(diags, recordFoldedEntryResidue(loweringContext, td, schema, declarationFoldedEntries(loweringContext, schema, target, pointer))...)
 	leaves := leftToWhole(loweringContext, schema, target, pointer)
 	return append(diags, recordResidue(loweringContext, td.Common(), schema, pointer, func(keyword string) bool { return slices.Contains(leaves, keyword) })...)
 }
@@ -103,13 +102,13 @@ func leftToWhole(loweringContext lowering.Ctx, schema *statement.Schema, target 
 	return nil
 }
 
-// homesDeclaration reports whether the declaration schema, written at pointer
-// and lowered to ref, takes a node of its own (hoistDeclarationHome): its
-// lowering left it none and it wrote something only a node can hold
+// homesDeclaration reports whether the declaration s, written at pointer and
+// lowered to ref, takes a node of its own (hoistDeclarationHome): its lowering
+// left it none and it wrote something only a node can hold
 // (declaresPositionScoped; GitHub #116), since a shared node must never carry
 // one declaration's annotations. One owning its node keeps it, checked after
 // that gate so a position declaring nothing resolves to its target. unhomed is
-// the census verdict of a position lowered to a reference
+// the verdict on what a position lowered to a reference keeps unread
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
 // cannot judge.
 func homesDeclaration(loweringContext lowering.Ctx, schema *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) bool {
@@ -236,11 +235,11 @@ func stated(schema *statement.Schema) bool {
 	return schema != nil && schema.Truth == statement.Stated
 }
 
-// closureTyped reports whether td, the node schema lowered to, holds schema's
+// closureTyped reports whether td, the node s lowered to, holds s's
 // `unevaluatedProperties: false` as a model's openness, so no entry keeps it:
 // the keyword is live (annotation.ClosesAfterComposition), and td is a Model
-// closed after composition, or a Union whose variants schema builds itself
-// (buildsVariants), one of them such a Model. A `false` allOf branch that
+// closed after composition, or a Union whose variants s builds itself
+// (buildsVariants), one of them such a Model. A `false` allOf entry that
 // closed the model outright leaves it holding the keyword no longer.
 func closureTyped(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, td ir.TypeDef) bool {
 	if !annotation.ClosesAfterComposition(schema) {
@@ -272,7 +271,7 @@ func variantNodes(ts *compile.Types, union *ir.Union) []ir.TypeDef {
 // the principal's node stands at schema's position, written at pointer and
 // lowered to target (standsAtPosition): that node holds the discriminator as
 // one written at the position, so it keeps the object's keys as the position's
-// own (annotation.DiscriminatorKeys), which no folded branch's read keeps.
+// own (annotation.DiscriminatorKeys), which no folded entry's read keeps.
 func principalDiscriminatorKeys(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.Unmodeled, []ir.Diagnostic) {
 	refinement, refines := refinementOf(loweringContext, schema, pointer)
@@ -326,7 +325,7 @@ func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, 
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	// A discriminator the census kept whole holds the extensions just read out
+	// A discriminator kept whole as unread holds the extensions just read out
 	// of it, which the node keeps no second time (GitHub #849).
 	promotion.DropContained(loweringContext.Promoter(), &common.Unmodeled, "openapi:discriminator")
 	dropFoldedIntoWhole(loweringContext, &common.Unmodeled)

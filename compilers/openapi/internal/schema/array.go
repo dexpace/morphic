@@ -23,15 +23,15 @@ import (
 // lowerArray hoists an array schema, written at pointer, at at, as a Tuple when
 // its `items` is a list its dialect reads as one (listedTuple), or when
 // prefixItems is present, else a List over its item schema, each with the
-// collection bounds it declares met with those foldedBranches write, fin
+// collection bounds it declares met with those foldedEntries write, fin
 // finishing it once built.
 func lowerArray(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer, at jsontext.Pointer,
-	foldedBranches []annotation.FoldedAllOfBranch, fin finisher,
+	foldedEntries []annotation.FoldedAllOfEntry, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	read := keyBit("items") | typeReadAs(schema, statement.KindArray) | collectionReads(schema)
 	id := internNode(loweringContext, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		cons := collectionBoundsMetWithFoldedBranches(ownCollectionConstraints(schema), foldedBranches)
+		cons := collectionBoundsMetWithFoldedEntries(ownCollectionConstraints(schema), foldedEntries)
 		if n, tuple := listedTuple(loweringContext, schema); tuple {
 			typeDef, tupleDiags := buildListedTuple(loweringContext, ts, depth, schema, common, pointer, n, cons)
 			diags = append(diags, tupleDiags...)
@@ -203,12 +203,12 @@ func buildTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return tuple, diags
 }
 
-// ownCollectionConstraints reads the collection bounds schema itself writes,
-// which bound the whole instance whether it lowers to a List or a Tuple, and
-// nil where it states none. Only the integer and boolean bounds are read here,
-// as the statement holds the model's, each count where the model holds the
-// number its literal states (annotation.ExactCount); the census keeps one it
-// does not (keptCount).
+// ownCollectionConstraints reads the collection bounds s itself writes, which
+// bound the whole instance whether it lowers to a List or a Tuple, and nil
+// where it states none. Only the integer and boolean bounds are read here, as
+// the statement holds the model's, each count where the model holds the
+// number its literal states (annotation.ExactCount); one it does not
+// is kept unread (keptCount).
 func ownCollectionConstraints(schema *statement.Schema) *ir.Constraints {
 	array := schema.ArrayKeywords()
 	minItems, maxItems := annotation.ExactCount(schema, "minItems", array.MinItems), annotation.ExactCount(schema, "maxItems", array.MaxItems)

@@ -181,7 +181,7 @@ func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 	g := operationTree(t, doc, "g")
 	id := namedItem(t, valueAtPath(g, "params"), "schema_id")
 	assert.Equal(t, []string{"openapi:schema/format", "openapi:schema/readOnly"}, sortedKeys(keptValues(valueAtPath(id, "unmodeled"))),
-		"each keyword the branch keeps is kept once, under its own key")
+		"each keyword the entry keeps is kept once, under its own key")
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1",
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly",

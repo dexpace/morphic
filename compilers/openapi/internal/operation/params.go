@@ -155,7 +155,7 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 	def, diags := use.Default(serviceContext.Ctx, serviceContext.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(serviceContext.Ctx, written, serviceContext.Statements().Of(js).Schema, use.FoldedAllOfBranches, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(serviceContext.Ctx, written, serviceContext.Statements().Of(js).Schema, use.FoldedAllOfEntries, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
 	diags = append(diags, fillParamSchemaAnnotations(serviceContext, param, written, serviceContext.Statements().Of(js).Schema, use, pointer)...)
@@ -175,7 +175,7 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 // win where both are set. Docs, deprecation and redaction read what use falls
 // back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
 // visibility keywords stay with the position, which they describe, and its
-// folded branches. What has no field of the parameter goes to written.
+// folded entries. What has no field of the parameter goes to written.
 func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
 	statementSchema *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
@@ -187,8 +187,8 @@ func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter,
 	// them after the guard would drop them for exactly the parameters whose
 	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
-	for _, foldedAllOfBranch := range schema.FoldedBranchesInOverwriteOrder(use.FoldedAllOfBranches) {
-		diags = append(diags, preserveParamVisibility(serviceContext, written, foldedAllOfBranch.Node, foldedAllOfBranch.At)...)
+	for _, foldedAllOfEntry := range schema.FoldedEntriesInOverwriteOrder(use.FoldedAllOfEntries) {
+		diags = append(diags, preserveParamVisibility(serviceContext, written, foldedAllOfEntry.Node, foldedAllOfEntry.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(serviceContext, written, statementSchema, pointer)...)
 	if schema.LoweredToOwnNode(serviceContext.Ctx, pointer, param.Type) {
@@ -207,8 +207,8 @@ func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter,
 	if len(a.Examples) > 0 {
 		param.Examples = a.Examples
 	}
-	for _, foldedAllOfBranch := range slices.Backward(use.FoldedAllOfBranches) {
-		diags = append(diags, preserveParamXML(serviceContext, written, foldedAllOfBranch.Node, foldedAllOfBranch.At)...)
+	for _, foldedAllOfEntry := range slices.Backward(use.FoldedAllOfEntries) {
+		diags = append(diags, preserveParamXML(serviceContext, written, foldedAllOfEntry.Node, foldedAllOfEntry.At)...)
 	}
 	diags = append(diags, preserveParamXML(serviceContext, written, statementSchema, pointer)...)
 	*written = annotation.MergeUnmodeled(*written, a.Unmodeled)

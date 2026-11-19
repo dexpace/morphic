@@ -89,8 +89,8 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
-An entry another entry of its carrier holds whole, lying in the same source beneath it with the value
-found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` branch
+An `Unmodeled` entry another entry of its carrier holds whole, lying in the same source beneath it with the value
+found there, is kept once, inside the `Unmodeled` entry holding it: a `readOnly` read out of an `allOf` entry
 kept whole is `openapi:schema/readOnly` on one parameter and only inside `openapi:schema/allOf/1` on
 another. A key the promotion policy reads is the exception, kept beside what holds it, since a
 promotion reads the kept entries ([promotion](#promotion)).
@@ -125,8 +125,8 @@ document's contract, and who chose it decides what holds it still:
   renames `x-rate-limit`, and its entry's reason is `vendor_extension` for as long as it is kept.
   So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
   is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
-- **An array index in a key is the source's position.** A key passing through an array, as a
-  branch's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
+- **An array index in a key is the source's position.** A key passing through an array, as an
+  entry's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
   construct's entry, as an ID through an index does ([across
   revisions](./identity.md#across-revisions)).
 - **A chain position is the source's too.** The `<i>` of `openapi:reference/<i>/` counts from the
@@ -159,6 +159,11 @@ rendered name, so a renamed key at an unmoved version is caught only in review (
 | `degraded_lowering` | No faithful target for the shape as written — the IR has no combinator for it, or no target type system holds it — so it was lowered to a documented weaker shape with the original kept beside it ([boundaries](./boundaries.md#degraded-constructs)). |
 | `no_ir_home` | Expressible in target languages, and no boundary the IR draws on purpose: the position simply has no field for it yet. A gap expected to close — each of these is a promotion candidate. |
 | `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape, or a construct its own format gives no meaning or effect. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
+
+A home is where the IR holds a thing, one idea at two sizes: a keyword's home is the field that
+holds it, and a declaration's is its carrier or its node
+([one structural home per declaration](./annotations.md#one-structural-home-per-declaration);
+[`allof-refinement`](../compilers/openapi.md#allof-refinement)).
 
 `no_ir_home` and `out_of_scope` are the pair worth keeping straight, because they read alike and
 mean opposite things: the first is an admission (a field the IR should probably grow), the second

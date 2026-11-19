@@ -134,7 +134,7 @@ var keptOnceKeys = []string{"x-a", "not", "readOnly"}
 // member an entry writes to one record: inside its entry where that is kept
 // whole, else at its keyword where no other entry kept apart writes it, else
 // at the position, but readOnly, a residue keyword, at the nearest writer's
-// (recordFoldedBranchResidue).
+// (recordFoldedEntryResidue).
 func TestEntryKeptOnce_EveryKeywordOfAGridIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	var schemas strings.Builder

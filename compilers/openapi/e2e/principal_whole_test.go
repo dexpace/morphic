@@ -85,7 +85,7 @@ func TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce(t *testing.T) {
 					}
 				}
 				require.Len(t, said, 1, "the principal's minimum is reported once: %v", said)
-				assert.NotContains(t, said[0], "declared beside it", "by the whole entry's report, not the census's")
+				assert.NotContains(t, said[0], "declared beside it", "by the whole entry's report, not the report of what is kept unread")
 				_, listed, ok := strings.Cut(said[0], "(")
 				assert.True(t, ok && strings.Contains(strings.SplitN(listed, ")", 2)[0], "minimum"),
 					"the whole entry's report names it among what it holds: %s", said[0])

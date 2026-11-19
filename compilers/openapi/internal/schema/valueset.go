@@ -77,15 +77,15 @@ func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveK
 // to a value set, an enum, a const or a type of null alone, whose node stands
 // at the position, and false where refinementValue's principal is none, a $ref,
 // or another schema.
-func valueSetPrincipal(refinementValue refinement) (allOfBranch, bool) {
-	allOfBranchValue := refinementValue.principal
-	if allOfBranchValue == nil || allOfBranchValue.schema.Ref != nil {
-		return allOfBranch{}, false
+func valueSetPrincipal(refinementValue refinement) (allOfEntry, bool) {
+	allOfEntryValue := refinementValue.principal
+	if allOfEntryValue == nil || allOfEntryValue.schema.Ref != nil {
+		return allOfEntry{}, false
 	}
-	if won := principalDispatch(*allOfBranchValue).won; won == "const" || won == "enum" || won == "" && nullAlone(allOfBranchValue.schema.Schema) {
-		return *allOfBranchValue, true
+	if won := principalDispatch(*allOfEntryValue).won; won == "const" || won == "enum" || won == "" && nullAlone(allOfEntryValue.schema.Schema) {
+		return *allOfEntryValue, true
 	}
-	return allOfBranch{}, false
+	return allOfEntry{}, false
 }
 
 // nullAlone reports whether schema writes a type naming null alone, which
@@ -99,47 +99,47 @@ func nullAlone(schema *statement.Schema) bool {
 // principal's, else the one written beside the allOf, an enum or a const either
 // way (setElected).
 func electedSet(refinementValue refinement, schema *statement.Schema) string {
-	if allOfBranch, ok := valueSetPrincipal(refinementValue); ok {
-		return principalDispatch(allOfBranch).won
+	if entry, ok := valueSetPrincipal(refinementValue); ok {
+		return principalDispatch(entry).won
 	}
 	return dispatchOf(schema).besideAllOf().won
 }
 
-// principalDispatch is the election of the inline principal allOfBranchValue's
-// own keywords: a flattened wrapper's allOf is no rival of its value set, its
-// entries being conjuncts of the position (allOfBranches).
-func principalDispatch(allOfBranchValue allOfBranch) dispatch {
-	dispatchValue := dispatchOf(allOfBranchValue.schema.Schema)
-	if allOfBranchValue.wrapper {
+// principalDispatch is the dispatch of the inline principal e's own keywords:
+// a flattened wrapper's allOf is no rival of its value set, its entries being
+// conjuncts of the position (allOfEntries).
+func principalDispatch(allOfEntryValue allOfEntry) dispatch {
+	dispatchValue := dispatchOf(allOfEntryValue.schema.Schema)
+	if allOfEntryValue.wrapper {
 		return dispatchValue.besideAllOf()
 	}
 	return dispatchValue
 }
 
-// lowerPrincipalValueSet lowers the value set allOfBranchValue, r's inline
+// lowerPrincipalValueSet lowers the value set allOfEntryValue, r's inline
 // principal, writes at pointer, the position schema is written at, so one node
 // stands for the position whichever conjunct decides it
-// (docs/compilers/openapi.md#allof-refinement). What allOfBranchValue writes
+// (docs/compilers/openapi.md#allof-refinement). What allOfEntryValue writes
 // beside its set that the node has no field for is kept on it, each keyword at
 // its own pointer, as on any node a schema lowers to, before fin finishes it.
-func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, allOfBranchValue allOfBranch, pointer jsontext.Pointer,
+func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, allOfEntryValue allOfEntry, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
-	bs := allOfBranchValue.schema.Schema
-	dispatch := principalDispatch(allOfBranchValue)
+	bs := allOfEntryValue.schema.Schema
+	dispatch := principalDispatch(allOfEntryValue)
 	var kept, own finished
 	st := stand{of: schema, at: pointer}
 	// The position's own keywords type the value set as a conjunct does, and
-	// its census keeps what they leave before the principal's keeps its own.
+	// it keeps unread what they leave before the principal keeps its own.
 	outside := own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return keepUnread(loweringContext, ts, schema, pointer, td, dispatchOf(schema).besideAllOf(), valueSetReads(schema, td), stand{}, nil, nil)
 	}).then(fin)
 	var heldBack []ir.Diagnostic
 	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
-		heldBack = keepBuiltAround(loweringContext, st, td, read, held, bs, allOfBranchValue.pointer, outside)
+		heldBack = keepBuiltAround(loweringContext, st, td, read, held, bs, allOfEntryValue.pointer, outside)
 	})
-	site := valueSetSite{set: bs, written: allOfBranchValue.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
-		kept.diags = keepUnread(loweringContext, ts, bs, allOfBranchValue.pointer, td, dispatch, read, st, held, position)
+	site := valueSetSite{set: bs, written: allOfEntryValue.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
+		kept.diags = keepUnread(loweringContext, ts, bs, allOfEntryValue.pointer, td, dispatch, read, st, held, position)
 	}}
 	var id ir.TypeID
 	var built []ir.Diagnostic
@@ -151,8 +151,9 @@ func lowerPrincipalValueSet(loweringContext lowering.Ctx, ts *compile.Types, sch
 	default:
 		id = lowerNullAlone(loweringContext, ts, site)
 	}
-	// The value set is the position's node, which its build censuses.
-	return id, slices.Concat(built, missingArrayItems(loweringContext, bs, allOfBranchValue.pointer), kept.diags, own.diags, heldBack)
+	// The value set is the position's node, on which its build keeps what it
+	// did not read.
+	return id, slices.Concat(built, missingArrayItems(loweringContext, bs, allOfEntryValue.pointer), kept.diags, own.diags, heldBack)
 }
 
 // setType is the ValueType of the Enum or Literal a refinement's value set
@@ -170,9 +171,9 @@ type setType struct {
 func refinedValueType(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, pointer jsontext.Pointer) setType {
 	site := standingValueSet(schema, pointer, stand{})
 	dispatch := dispatchOf(schema).besideAllOf()
-	if allOfBranch, ok := valueSetPrincipal(refinementValue); ok {
-		site = valueSetSite{set: allOfBranch.schema.Schema, written: allOfBranch.pointer, at: stand{of: schema, at: pointer}}
-		dispatch = principalDispatch(allOfBranch)
+	if entry, ok := valueSetPrincipal(refinementValue); ok {
+		site = valueSetSite{set: entry.schema.Schema, written: entry.pointer, at: stand{of: schema, at: pointer}}
+		dispatch = principalDispatch(entry)
 	} else if refinementValue.principal != nil {
 		return setType{}
 	}
@@ -237,12 +238,12 @@ func valueTypeHoldsFormat(primitive ir.PrimitiveKind, schema *statement.Schema) 
 	return ok && narrowsOrIs(primitive, paired)
 }
 
-// conjunctPrimitive returns, of own and the primitive each conjunct of
-// refinementValue selects (declaredPrimitive), the one narrowing every other,
-// and own where none does: two formats neither of which narrows the other say
-// no one primitive. The conjuncts are schema, each inline branch, and what
-// decides what a $ref branch lands on (conjunctSchemas). own is "" for a value
-// no primitive types, which none fits, so it stands.
+// conjunctPrimitive returns, of own and the primitive each conjunct of r selects
+// (declaredPrimitive), the one narrowing every other, and own where none does: two
+// formats neither of which narrows the other say no one primitive. The conjuncts
+// are s, each inline entry, and what decides what a $ref entry lands on
+// (conjunctSchemas). own is "" for a value no primitive types, which none fits,
+// so it stands.
 func conjunctPrimitive(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	primitives := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {
@@ -258,16 +259,15 @@ func conjunctPrimitive(loweringContext lowering.Ctx, refinementValue refinement,
 	return own
 }
 
-// conjunctSchemas returns the schemas whose keywords refinementValue's
-// conjuncts write: schema, the keywords beside the allOf, then each branch, a
-// $ref's being what decides what it lands on, read past a chain of $refs and
-// refinements (DecidingSchema).
+// conjunctSchemas returns the schemas whose keywords r's conjuncts write: s, the
+// keywords beside the allOf, then each entry, a $ref's being what decides what
+// it lands on, read past a chain of $refs and refinements (DecidingSchema).
 func conjunctSchemas(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema) []*statement.Schema {
 	out := []*statement.Schema{schema}
-	for _, allOfBranch := range refinementValue.comp.branches {
-		bs := allOfBranch.schema.Schema
-		if allOfBranch.schema.Ref != nil {
-			bs = DecidingSchema(loweringContext, refBranchTarget(loweringContext, allOfBranch.schema))
+	for _, entry := range refinementValue.comp.entries {
+		bs := entry.schema.Schema
+		if entry.schema.Ref != nil {
+			bs = DecidingSchema(loweringContext, refBranchTarget(loweringContext, entry.schema))
 		}
 		if stated(bs) {
 			out = append(out, bs)

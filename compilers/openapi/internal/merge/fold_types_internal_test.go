@@ -47,10 +47,10 @@ func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 }
 
 // TestFold_NullabilityIntersectsWhenTargetsAgree pins the case
-// the judgment settles before it reads Nullable: one branch admits null and
+// the judgment settles before it reads Nullable: one entry admits null and
 // the other does not, so the intersection forbids it. Neither reconciled nor
-// preserved before, and the answer flipped with branch order — the same source
-// compiled to nullable: true or false depending on which branch was written
+// preserved before, and the answer flipped with entry order — the same source
+// compiled to nullable: true or false depending on which entry was written
 // first. foldNullVerdicts already states the conjunction rule for the
 // single-schema case; this is the same rule across a redeclaration.
 func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
@@ -76,7 +76,7 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 
 			dst = foldTwo(stubbed, dst, src, unread(t))
 
-			assert.Equal(t, tc.want, dst.Type.Nullable, "the merged field admits null only where both branches do")
+			assert.Equal(t, tc.want, dst.Type.Nullable, "the merged field admits null only where both entries do")
 			assert.Empty(t, *recorded, "an intersection the IR can express is not a conflict")
 		})
 	}

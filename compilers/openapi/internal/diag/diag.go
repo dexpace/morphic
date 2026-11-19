@@ -268,7 +268,7 @@ const (
 	// source needs telling that the indirection was collapsed at compile time
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
-	// ConflictingRedecl reports that inline allOf branches redeclare one field
+	// ConflictingRedecl reports that inline allOf entries redeclare one field
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
@@ -283,7 +283,7 @@ const (
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
 	// all. Both spellings raise it under this one code: one schema writing both
-	// flags, and inline allOf branches whose intersection is empty. It is
+	// flags, and inline allOf entries whose intersection is empty. It is
 	// neither of its neighbours: ConflictingRedecl keeps an arbitrary
 	// source-order winner, and DegradedConstruct lowers to a weaker shape,
 	// whereas Visibility{None: true} is the exact answer and a shape the
@@ -565,7 +565,7 @@ const (
 	// InferredNullable reports a null the nullable-inference policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
 	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
-	// that excludes null, or on an allOf branch another conjunct contradicts, at
+	// that excludes null, or on an allOf entry another conjunct contradicts, at
 	// the keyword; or keywords beside a $ref that admit null over a target that
 	// does not, at the schema writing them. Each is reported once, and each
 	// reference whose null rests on it is marked Inferred

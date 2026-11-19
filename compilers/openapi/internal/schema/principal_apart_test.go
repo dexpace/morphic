@@ -65,7 +65,7 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 // TestStand_ADiscriminatorKeptUnderThePrincipalsEntryResolvesItsMapping pins a
 // principal's discriminator kept under its entry's key, apart from the
 // position's or held whole: its mapping value naming no schema is reported, as
-// the census reports one it keeps.
+// the keeping of unread keywords reports one it keeps.
 func TestStand_ADiscriminatorKeptUnderThePrincipalsEntryResolvesItsMapping(t *testing.T) {
 	t.Parallel()
 	for name, schema := range map[string]string{

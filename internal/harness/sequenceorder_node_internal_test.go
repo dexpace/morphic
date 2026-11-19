@@ -286,9 +286,9 @@ func TestUntied_LeavesOutWhatATieDecided(t *testing.T) {
 	assert.Equal(t, []string{"another node", "beside a site"}, keys)
 }
 
-// fixtureMinted: both branches declare r as an object of their own, each with a
+// fixtureMinted: both entries declare r as an object of their own, each with a
 // member of its own beside two whose names share a neutral form, so the fold
-// mints a model composing both at the branch written later, and pass.Validate
+// mints a model composing both at the entry written later, and pass.Validate
 // reports the collision on each.
 var fixtureMinted = schemas("AB: {allOf: [{type: object, properties: {r: {type: object, " +
 	"properties: {'+1': {type: integer}, '-1': {type: integer}, alpha: {type: string}}}}}, " +
@@ -297,7 +297,7 @@ var fixtureMinted = schemas("AB: {allOf: [{type: object, properties: {r: {type: 
 
 // TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds
 // pins how a report naming a node is compared: a node a fold mints at the
-// branch written later carries that branch's index in either order, so a
+// entry written later carries that entry's index in either order, so a
 // report on it pairs with its counterpart by what each node holds, as the
 // document's forms tell such IDs apart, and one moved to a node holding
 // something else does not.
@@ -309,7 +309,7 @@ func TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds(t
 	})
 	t.Run("a report moved to another node is found", func(t *testing.T) {
 		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-			// Each compile names the node in its own coordinates: alpha's branch
+			// Each compile names the node in its own coordinates: alpha's entry
 			// is first as written, beta's first reversed.
 			const node = "type/anonymous/components/schemas/AB/allOf/0/properties/r"
 			return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/node", "", node)), nil

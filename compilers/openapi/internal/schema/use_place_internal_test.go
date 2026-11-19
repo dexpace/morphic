@@ -22,7 +22,7 @@ import (
 
 // TestUseDefault_PlacesEachSchemaOfTheChain pins where defaultAt places the
 // default each schema of a use's chain writes: the site's own at the carrier, a
-// folded branch's at the folded branch, a referent's where the bindings place
+// folded entry's at the folded entry, a referent's where the bindings place
 // it, and one they place nowhere at the carrier, which reads it.
 func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	t.Parallel()
@@ -31,9 +31,9 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
 	unknown := placeOf(loweringContext, Standalone(ref))
 	assert.False(t, unknown.known, "a schema the bindings do not know is placed nowhere")
-	assert.False(t, unknown.beneath("/allOf/0").known, "nor is a branch beneath it")
+	assert.False(t, unknown.beneath("/allOf/0").known, "nor is an entry beneath it")
 
-	use := Use{FoldedAllOfBranches: []annotation.FoldedAllOfBranch{{At: "/v"}}}
+	use := Use{FoldedAllOfEntries: []annotation.FoldedAllOfEntry{{At: "/v"}}}
 	use.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), referentPlace{doc: loweringContext.Place(), pointer: "/r", known: true})
 	use.appendFallbackReferent(StandaloneSchema(&oas3.Schema{}), unknown)
 	const carrier = jsontext.Pointer("/p")

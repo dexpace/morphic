@@ -38,10 +38,10 @@ func TestAllOf_SoleRefBecomesBase(t *testing.T) {
 	require.NotNil(t, dog.Base, "sole $ref becomes Base")
 	assert.Equal(t, componentID("Animal"), dog.Base.Target)
 	assert.Empty(t, dog.Mixins, "no extra refs, no mixins")
-	require.Len(t, dog.Properties, 1, "only the inline branch's own property")
+	require.Len(t, dog.Properties, 1, "only the inline entry's own property")
 	assert.Equal(t, "bark", dog.Properties[0].Name.Source)
 	assert.Contains(t, dog.Properties[0].Provenance.Pointer, "/allOf/1",
-		"merged property provenance points into its allOf branch")
+		"merged property provenance points into its allOf entry")
 }
 
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
@@ -227,24 +227,24 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 	}
 }
 
-// TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering pins the other side
-// of fillRefBranch's gate: a $ref off any loop that resolves to nothing, whether
-// it names an absent component or the whole document, is reported at the branch
+// TestAllOf_ARefEntryNamingNothingIsReportedByTheLowering pins the other side
+// of fillRefEntry's gate: a $ref off any loop that resolves to nothing, whether
+// it names an absent component or the whole document, is reported at the entry
 // and adds neither the Base nor a Mixin, including beside a $ref that resolves,
 // where it would be a Mixin. Alone, saying nothing else, it is the reference,
 // the alias over the top type the bare $ref is. Load reports these $refs at
 // that pointer too, so a full compile drops the lowering's report
 // (withoutRereported), and only the lowering's own list can show it gone here.
-func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
+func TestAllOf_ARefEntryNamingNothingIsReportedByTheLowering(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, branches string
-		mixins         []ir.TypeRef
-		reference      bool
+		name, entries string
+		mixins        []ir.TypeRef
+		reference     bool
 	}{
 		{"a component that is absent", `        - $ref: '#/components/schemas/Ghost'
 `, nil, true},
-		{"the whole document beside an inline branch", `        - {$ref: '#'}
+		{"the whole document beside an inline entry", `        - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
 `, nil, false},
 		{"a component that is absent beside one that resolves", `        - $ref: '#/components/schemas/Ghost'
@@ -254,7 +254,7 @@ func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    A: {type: object, properties: {a: {type: string}}}\n    Y:\n      allOf:\n"+tc.branches))
+			doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    A: {type: object, properties: {a: {type: string}}}\n    Y:\n      allOf:\n"+tc.entries))
 			require.Len(t, diags, 1, "got %+v", diags)
 			assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -268,8 +268,8 @@ func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 			}
 			model, ok := typeByName(doc, "Y").(*ir.Model)
 			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
-			assert.Nil(t, model.Base, "the branch naming nothing is not the base")
-			assert.Equal(t, tc.mixins, model.Mixins, "the branch naming nothing is not a mixin")
+			assert.Nil(t, model.Base, "the entry naming nothing is not the base")
+			assert.Equal(t, tc.mixins, model.Mixins, "the entry naming nothing is not a mixin")
 		})
 	}
 }
@@ -294,9 +294,9 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 	_ = diags
 }
 
-// TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth pins that a branch whose
+// TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth pins that an entry whose
 // empty allOf was not flattened lists allOf among the kept keywords on the
-// warning arm too: only a capped branch leaves it out. The source breaks the
+// warning arm too: only a capped entry leaves it out. The source breaks the
 // schema's minItems, an error the load reports and parseFull tolerates.
 func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 	t.Parallel()
@@ -307,15 +307,15 @@ func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 `))
 	message := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
-	assert.Contains(t, message, "the branch (type, allOf) is kept verbatim")
+	assert.Contains(t, message, "the entry (type, allOf) is kept verbatim")
 }
 
-// TestAllOf_FalseBranchClosesTheCatchAllItForbids pins that a `false` allOf
-// branch leaves a catch-all only its patterns, since the closure it writes
+// TestAllOf_FalseEntryClosesTheCatchAllItForbids pins that a `false` allOf
+// entry leaves a catch-all only its patterns, since the closure it writes
 // forbids every key they leave (docs/ir/models.md#catch-alls), and keeps a
 // written additionalProperties verbatim instead, at the composed model and at
 // each variant a union beside the allOf distributes over.
-func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
+func TestAllOf_FalseEntryClosesTheCatchAllItForbids(t *testing.T) {
 	t.Parallel()
 	const pq = `    P: {type: object, properties: {p: {type: string}}}
     Q: {type: object, properties: {q: {type: string}}}
@@ -332,9 +332,9 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			const branches = "      allOf: [false, {type: object, required: [a]}]\n"
-			spec := openapitest.ComponentSpec(pq + "    M:\n" + branches + tc.beside +
-				"    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n" + branches + tc.beside)
+			const entries = "      allOf: [false, {type: object, required: [a]}]\n"
+			spec := openapitest.ComponentSpec(pq + "    M:\n" + entries + tc.beside +
+				"    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n" + entries + tc.beside)
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
@@ -387,10 +387,10 @@ func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 		string(model.Unmodeled["openapi:unevaluated"].Value))
 }
 
-// TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf
+// TestAllOf_FalseEntryBesideUnionClosesEveryVariant pins that a `false` allOf
 // branch, flat or inside a wrapper, closes every variant of a schema that also
 // declares a oneOf, and is kept and reported once for the document.
-func TestAllOf_FalseBranchBesideUnionClosesEveryVariant(t *testing.T) {
+func TestAllOf_FalseEntryBesideUnionClosesEveryVariant(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, allOf, key, pointer string
@@ -436,11 +436,11 @@ func TestAllOf_FalseBranchBesideUnionClosesEveryVariant(t *testing.T) {
 	}
 }
 
-// TestAllOf_FalseBranchClosesTheComposition pins what a `false` allOf branch
+// TestAllOf_FalseEntryClosesTheComposition pins what a `false` allOf entry
 // does to the composed node. `false` admits nothing, so the composition admits
-// nothing: the model closes and the branch is kept verbatim beside it, which is
+// nothing: the model closes and the entry is kept verbatim beside it, which is
 // the same answer a bare `false` schema gets in its own right.
-func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
+func TestAllOf_FalseEntryClosesTheComposition(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Never:
       allOf:
@@ -452,16 +452,16 @@ func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 
 	model, ok := typeByName(doc, "Never").(*ir.Model)
 	require.True(t, ok, "the composition still lowers to a model")
-	assert.Equal(t, ir.AdditionalClosed, model.Additional, "a branch matching nothing closes the composition")
-	require.Len(t, model.Unmodeled, 1, "the branch is kept verbatim")
+	assert.Equal(t, ir.AdditionalClosed, model.Additional, "an entry matching nothing closes the composition")
+	require.Len(t, model.Unmodeled, 1, "the entry is kept verbatim")
 	assert.Equal(t, ir.RawValue("false"), model.Unmodeled["openapi:allOf/0"].Value,
-		"keyed by the branch index, so sibling branches cannot overwrite one another")
+		"keyed by the entry index, so sibling entries cannot overwrite one another")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
 }
 
 // nestedOrders compiles first and last in both declaration orders and requires
 // each to validate, report no error, and the two to agree on their types and on
-// what they report. Flattening reads a nested branch's $refs, so a decision
+// what they report. Flattening reads a nested entry's $refs, so a decision
 // taken off the registry while M lowers would see only the targets declared
 // before it.
 func nestedOrders(t *testing.T, first, last string) []*ir.Document {
@@ -484,3 +484,24 @@ func nestedOrders(t *testing.T, first, last string) []*ir.Document {
 const nestedAB = `    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
 `
+
+// TestAllOf_AnEntryNamingATypeListOfNoObjectComposesNone pins an allOf entry
+// whose $ref names a type list holding no object: no variant of the list is a
+// model to compose, so the model takes no base and keeps the $ref, as it does
+// for a target of one type that is no object.
+func TestAllOf_AnEntryNamingATypeListOfNoObjectComposesNone(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    SI: {type: [string, integer]}
+    S:
+      allOf:
+        - $ref: '#/components/schemas/SI'
+        - {type: object, properties: {a: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types[componentID("S")])
+	assert.Nil(t, model.Base)
+	assert.Empty(t, model.Mixins)
+	assert.Contains(t, model.Unmodeled, "openapi:$ref")
+}

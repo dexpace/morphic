@@ -41,7 +41,7 @@ func EffectiveDeprecated(chain []*statement.Schema) bool {
 //
 // Both in force is contradictory but legal: JSON Schema forbids neither. Read
 // as sets they leave nothing, which Visibility{None: true} states, as
-// merge.mergeVisibility answers for the pair spread over two allOf branches
+// merge.mergeVisibility answers for the pair spread over two allOf entries
 // (GitHub #276).
 func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 	readOnly := anyFlag(chain, func(notes *statement.Notes) *bool { return notes.ReadOnly })
@@ -163,10 +163,10 @@ const (
 // references another type and may carry annotations of its own.
 type Kind int
 
-// SchemaPositionAnnotationSources is what a schema position declares: Node is
-// the schema written there, Folded branches the inline allOf branches read as
-// written beside it, and Referents, honoured only for a reference site, what a
-// use site's annotations fall back to, nearest first.
+// SchemaPositionAnnotationSources is what a schema position declares: Node is the schema written there,
+// Voices the inline allOf entries read as written beside it, and Referents,
+// honoured only for a reference site, what a use site's annotations fall back
+// to, nearest first.
 //
 // A Site At builds carries none of either: a declaration's annotations bind the
 // position they are written at (attachDeclaredAnnotations), and a component
@@ -176,9 +176,9 @@ type Kind int
 type SchemaPositionAnnotationSources struct {
 	Kind Kind
 	Node *statement.Schema
-	// FoldedAllOfBranches are the branches read as written at Node
+	// Voices are the entries read as written at Node
 	// (docs/compilers/openapi.md#allof-inline-residue).
-	FoldedAllOfBranches []FoldedAllOfBranch
+	FoldedAllOfEntries []FoldedAllOfEntry
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
 	// schema; refTypeRef is what diagnoses that, not this.
 	Referents []*statement.Schema
@@ -188,7 +188,7 @@ type SchemaPositionAnnotationSources struct {
 	// false` as its openness, so no entry keeps it. The zero value keeps it.
 	Closure bool
 	// Leaves names the keywords Node writes that Read keeps no entry of: an
-	// inline allOf branch the position keeps whole writes them alike, and that
+	// inline allOf entry the position keeps whole writes them alike, and that
 	// entry holds the one writing (docs/compilers/openapi.md#allof-refinement).
 	Leaves []string
 }
@@ -208,32 +208,33 @@ type Dialect struct {
 	ListedTuple       bool
 }
 
-// FoldedAllOfBranch is an inline allOf branch and where it is written, so what
-// it declares is read, and reported, at its own pointer, in its own dialect.
-type FoldedAllOfBranch struct {
+// FoldedAllOfEntry is an inline allOf entry and where it is written, so what it declares
+// is read, and reported, at its own pointer, in its own dialect.
+type FoldedAllOfEntry struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
 	// Dependencies says the dialect Node is written in defines `dependencies`
-	// (Dialect.Dependencies), which a branch naming its own may, whatever the
+	// (Dialect.Dependencies), which an entry naming its own may, whatever the
 	// position's.
 	Dependencies bool
-	// KeptWhole says the position keeps the branch whole, an entry holding what
-	// it writes, so it writes no entry Read keeps beside it but one no other
-	// folded branch writes (docs/compilers/openapi.md#allof-inline-residue).
+	// KeptWhole says the position keeps the entry whole, an Unmodeled entry
+	// holding what it writes, so it writes no Unmodeled entry Read keeps beside
+	// it but one no other voice writes
+	// (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
 	// Beside says Node is the position's own schema, read beside the inline
-	// allOf branch its node is built from: what it writes stands before that
-	// branch's, as the keywords beside an allOf do before an entry's.
+	// allOf entry its node is built from: what it writes stands before that
+	// entry's, as the keywords beside an allOf do before an entry's.
 	Beside bool
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its
-// folded branches, then the referents a reference site falls back to.
+// folded entries, then the referents a reference site falls back to.
 func (st SchemaPositionAnnotationSources) Chain() []*statement.Schema {
-	chain := make([]*statement.Schema, 0, 1+len(st.FoldedAllOfBranches)+len(st.Referents))
+	chain := make([]*statement.Schema, 0, 1+len(st.FoldedAllOfEntries)+len(st.Referents))
 	chain = append(chain, st.Node)
-	for _, foldedAllOfBranch := range st.FoldedAllOfBranches {
-		chain = append(chain, foldedAllOfBranch.Node)
+	for _, foldedAllOfEntry := range st.FoldedAllOfEntries {
+		chain = append(chain, foldedAllOfEntry.Node)
 	}
 	if st.Kind == Declaration {
 		return chain // a declaration has no target to fall back to
@@ -303,12 +304,12 @@ func DeclaresRedaction(schema *statement.Schema) bool {
 }
 
 // Read reads every site-local annotation at st: what its schema writes at
-// pointer, then what each foldedBranch writes at its own. A foldedBranch agrees
-// with what spoke before it wherever both write a keyword
-// (schema.foldingAllOfBranches), so an entry is kept once: the site's own,
-// else, where several folded branches kept apart write it, at pointer, no one
-// writer's (underlay). A folded branch's unevaluated keywords fold nowhere
-// (schema.foldEntry): its branch, kept whole, is their one record.
+// pointer, then what each voice writes at its own. A voice agrees with what
+// spoke before it wherever both write a keyword (schema.foldingAllOfEntries), so an
+// entry is kept once: the site's own, else, where several voices kept apart
+// write it, at pointer, no one writer's (underlay). A voice's unevaluated
+// keywords fold nowhere (schema.foldEntry): its entry, kept whole, is their
+// one record.
 //
 // This is the one place the site-versus-referent choice is made, so no
 // position attaching annotations makes it apart.
@@ -321,28 +322,28 @@ func Read(st SchemaPositionAnnotationSources, pointer jsontext.Pointer, doc prov
 		}
 	}
 	var underlayValue underlay
-	if len(st.FoldedAllOfBranches) > 0 {
+	if len(st.FoldedAllOfEntries) > 0 {
 		underlayValue.own = make(map[string]bool, len(out.Unmodeled))
 		for key := range out.Unmodeled {
 			underlayValue.own[key] = true
 		}
 	}
-	for _, foldedAllOfBranch := range st.FoldedAllOfBranches {
-		foldedBranch, foldedBranchDiags := readLocal(foldedAllOfBranch.Node, foldedAllOfBranch.At, doc, false, Dialect{Dependencies: foldedAllOfBranch.Dependencies}, false)
-		for key := range foldedBranch.Unmodeled {
+	for _, foldedAllOfEntry := range st.FoldedAllOfEntries {
+		foldedEntry, foldedEntryDiags := readLocal(foldedAllOfEntry.Node, foldedAllOfEntry.At, doc, false, Dialect{Dependencies: foldedAllOfEntry.Dependencies}, false)
+		for key := range foldedEntry.Unmodeled {
 			if underlayValue.own[key] {
 				// The site keeps the one writing, and its report says so.
-				foldedBranchDiags = lessNote(foldedBranchDiags, doc.At(foldedAllOfBranch.At), key)
+				foldedEntryDiags = lessNote(foldedEntryDiags, doc.At(foldedAllOfEntry.At), key)
 			}
 		}
-		diags = append(diags, foldedBranchDiags...)
+		diags = append(diags, foldedEntryDiags...)
 		if out.XML == nil {
-			out.XML = foldedBranch.XML
+			out.XML = foldedEntry.XML
 		}
 		if len(out.Examples) == 0 {
-			out.Examples = foldedBranch.Examples
+			out.Examples = foldedEntry.Examples
 		}
-		out.Unmodeled = underlayValue.add(out.Unmodeled, foldedBranch.Unmodeled, foldedAllOfBranch.KeptWhole, doc.At(pointer))
+		out.Unmodeled = underlayValue.add(out.Unmodeled, foldedEntry.Unmodeled, foldedAllOfEntry.KeptWhole, doc.At(pointer))
 	}
 	chain := st.Chain()
 	FillCarrierDocs(&out.Docs, chain)
@@ -392,7 +393,7 @@ func lessNote(diags []ir.Diagnostic, at ir.Provenance, key string) []ir.Diagnost
 
 // readLocal reads what schema, written at pointer, says of the position alone:
 // the annotations no use inherits. own says schema is the schema written at the
-// position, rather than a folded branch, whose dialect keywords, discriminator
+// position, rather than a folded entry, whose dialect keywords, discriminator
 // and unevaluated keywords no fold reads and whose residue keeps them, dialect
 // is what its dialect spells otherwise
 // (SchemaPositionAnnotationSources.Dialect), and closure is

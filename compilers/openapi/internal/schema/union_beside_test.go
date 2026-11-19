@@ -257,16 +257,16 @@ func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
 	}
 }
 
-// TestAllOf_AUnionBranchDistributesAsBesideTheAllOf pins a oneOf or anyOf
-// written as an inline allOf branch, which distributes as the same union beside
+// TestAllOf_AUnionEntryDistributesAsBesideTheAllOf pins a oneOf or anyOf
+// written as an inline allOf entry, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, another folds onto the union, a null branch
+// nodes, the entry keeps nothing, another folds onto the union, a null branch
 // is no variant, and an unexpanded $dynamicRef stays beside it. Of a oneOf and
 // an anyOf declaring shape, the oneOf distributes in either order. One
 // declaring none, the anyOf, one beside the schema's union, one past the flattening
-// depth and one beside a $ref stay with their branch; an enum beside decides.
-func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
+// depth and one beside a $ref stay with their entry; an enum beside decides.
+func TestAllOf_AUnionEntryDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
@@ -356,7 +356,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	}
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Branch"),
-		"written on an allOf branch")
+		"written on an allOf entry")
 
 	nullBranch := variantModels(t, doc, "NullBranch")
 	require.Len(t, nullBranch, 1, "the null branch is no variant")
@@ -416,15 +416,15 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		assert.Empty(t, model.Unmodeled, "a branch folding whole is kept on no variant")
 	}
 	dynamic, ok := typeByName(doc, "DynamicRef").(*ir.Union)
-	require.True(t, ok, "beside a $dynamicRef it keeps unexpanded, the branch union distributes as beside the allOf")
+	require.True(t, ok, "beside a $dynamicRef it keeps unexpanded, the entry union distributes as beside the allOf")
 	assert.Contains(t, dynamic.Unmodeled, "openapi:$dynamicRef")
 	for _, model := range variantModels(t, doc, "BesideToo") {
 		assert.Contains(t, model.Unmodeled, "openapi:oneOf", "beside its own union, a branch's is kept under its keyword")
 	}
 }
 
-// TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside pins a union on an allOf
-// branch standing with a discriminator, on its branch or beside the allOf
+// TestAllOf_ADiscriminatedEntryUnionDistributesAsBeside pins a union on an allOf
+// entry standing with a discriminator, on its entry or beside the allOf
 // (docs/compilers/openapi.md#union-beside-structure): it distributes as the
 // same union beside the body does, the discriminator routing the composed
 // variants, a mapping's entries and the routes implied by name alike, its
@@ -432,7 +432,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 // that the union does not list carries no tag. Two discriminators, or one
 // routing to branches composing the schema, keep the union whole with its
 // branch, the model holding the schema's own (GitHub #1698).
-func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
+func TestAllOf_ADiscriminatedEntryUnionDistributesAsBeside(t *testing.T) {
 	t.Parallel()
 	const cardBank = "oneOf: [{$ref: '#/components/schemas/Card'}, {$ref: '#/components/schemas/Bank'}]"
 	const method = "discriminator: {propertyName: method}"
@@ -489,13 +489,13 @@ func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
 	}
 }
 
-// TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes pins a
-// union on an allOf branch whose schema's discriminator routes to a branch
+// TestAllOf_AHierarchyBaseEntryUnionHoldsItsDiscriminatorToItsRoutes pins a
+// union on an allOf entry whose schema's discriminator routes to a branch
 // composing the schema (docs/compilers/openapi.md#union-beside-structure): the
 // union is kept under its keyword, and the discriminator on the model only where
 // every type it routes to is a subtype, as beside the union, else kept verbatim
 // and reported, so the document validates in either declaration order.
-func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *testing.T) {
+func TestAllOf_AHierarchyBaseEntryUnionHoldsItsDiscriminatorToItsRoutes(t *testing.T) {
 	t.Parallel()
 	for _, doc := range discriminatedOrders(t, "3.1.0", `    Mixed:
       discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
@@ -524,10 +524,10 @@ func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *test
 	}
 }
 
-// TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch pins where a
-// mapping entry of a discriminator written on an allOf branch that names no
-// schema is reported: at the entry, under the branch writing it.
-func TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch(t *testing.T) {
+// TestAllOf_ADiscriminatedEntryUnionReportsItsMappingAtTheEntry pins where a
+// mapping entry of a discriminator written on an allOf entry that names no
+// schema is reported: at the mapping entry, under the allOf entry writing it.
+func TestAllOf_ADiscriminatedEntryUnionReportsItsMappingAtTheEntry(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Payment:
       allOf:
@@ -540,12 +540,12 @@ func TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch(t *testing.
 	assert.Len(t, diagsAtPointer(diags, diag.UnresolvedRef, "/components/schemas/Payment/allOf/1/discriminator/mapping/gone"), 1, "%+v", diags)
 }
 
-// TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds pins where the extensions
-// and undefined keys of a discriminator an allOf branch writes beside its union
+// TestAllOf_AnEntryDiscriminatorKeepsWhatNoFieldHolds pins where the extensions
+// and undefined keys of a discriminator an allOf entry writes beside its union
 // go: a branch has no node, so they ride on the Union holding the discriminator,
 // the position's own scoped by their path from it, a routed subtype's minted
 // Union's by the keyword, each reported as such a key is anywhere.
-func TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds(t *testing.T) {
+func TestAllOf_AnEntryDiscriminatorKeepsWhatNoFieldHolds(t *testing.T) {
 	t.Parallel()
 	const cardBank = "oneOf: [{$ref: '#/components/schemas/Card'}, {$ref: '#/components/schemas/Bank'}]"
 	const disc = "discriminator: {propertyName: method, x-note: kept, extra: 1}"
@@ -595,7 +595,7 @@ func routedBases(t *testing.T, doc *ir.Document, name string) map[string]ir.Type
 }
 
 // TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin pins a union beside or on an
-// allOf branch of a schema a discriminated ancestor routes to, by a mapping key
+// allOf entry of a schema a discriminated ancestor routes to, by a mapping key
 // or its name (docs/compilers/openapi.md#union-beside-structure). Distributed,
 // the schema would be a union, no subtype of the ancestor, so it stays a tagged
 // model under it, naming as its last Mixin a Union minted for the union, the
@@ -748,14 +748,14 @@ func wireNames(properties []ir.Property) []string {
 	return out
 }
 
-// TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside pins a union on an
-// allOf branch of a schema below a discriminated base, which is routed or not at
+// TestUnion_AnEntryUnionNoRouteNamesDistributesAsBeside pins a union on an
+// allOf entry of a schema below a discriminated base, which is routed or not at
 // its position (docs/compilers/openapi.md#union-beside-structure): where no
 // route names it, it distributes as the same union beside the allOf does, in
 // either declaration order, and where a mapping key or the name of its
 // component routes to it, it stays a tagged model composing the union as a
 // mixin (GitHub #1695).
-func TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside(t *testing.T) {
+func TestUnion_AnEntryUnionNoRouteNamesDistributesAsBeside(t *testing.T) {
 	t.Parallel()
 	const sizes = "oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]"
 	for _, doc := range discriminatedOrders(t, "3.1.0", `    Pet:

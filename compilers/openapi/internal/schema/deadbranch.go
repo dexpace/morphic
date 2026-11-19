@@ -58,12 +58,13 @@ func deadBranches(loweringContext lowering.Ctx, body, holder *statement.Schema) 
 func restAdmitsObjects(loweringContext lowering.Ctx, body, holder *statement.Schema) bool {
 	at, _ := siteOf(body)
 	joint := anyInstance
-	for _, a := range conjunctAtoms(loweringContext, body, allOfBranches(loweringContext, body, at.Pointer)) {
+	for _, a := range conjunctAtoms(loweringContext, body, allOfEntries(loweringContext, body, at.Pointer)) {
 		switch {
 		case a.cut:
 			return false
 		case a.st != nil && a.st.Schema == holder:
-			joint &= declaredInstanceTypes(holder) & valueKinds(loweringContext, holder)
+			firm, _ := ownKinds(loweringContext, holder)
+			joint &= firm
 		default:
 			joint &= a.admits
 		}
@@ -172,7 +173,7 @@ func diagDeadBranches(loweringContext lowering.Ctx, body *statement.Schema, unio
 	}
 	deadReportValue := deadReport{listed: strings.Join(names, ", "), dead: len(found), nulls: unionAtValue.nulls}
 	deadReportValue.branches, deadReportValue.key, _ = unionAtValue.branches(loweringContext)
-	if unionAtValue.branch {
+	if unionAtValue.entry {
 		deadReportValue.on = pathFrom(pointer, unionAtValue.at)
 	}
 	if hasLiveBranch(loweringContext, unionAtValue, dead) {
@@ -276,7 +277,7 @@ func (r deadReport) none(loweringContext lowering.Ctx, body, holder *statement.S
 // null branch of unionAtValue takes a null the rest admits, which the two then
 // share.
 func diagDeadEntryUnion(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
-	if len(disjointNames(loweringContext, schema, allOfBranches(loweringContext, schema, pointer))) > 0 {
+	if len(disjointNames(loweringContext, schema, allOfEntries(loweringContext, schema, pointer))) > 0 {
 		return nil
 	}
 	return diagDeadBranches(loweringContext, schema, unionAtValue, deadBranches(loweringContext, schema, unionAtValue.holder), pointer, false)
@@ -339,12 +340,11 @@ func deadRoutesOf(loweringContext lowering.Ctx, unionAtValue unionAt) []deadRout
 	return out
 }
 
-// keepDeadRoutes keeps on union, the Union of unionAtValue, each route its
-// discriminator writes to a dead branch of unionAtValue, which union's
-// Discriminator leaves out: verbatim, keyed by its path from union's position
-// as the discriminator's extensions are (discriminatorScope),
-// `openapi:discriminator/mapping/<tag>` beside the union. Where union holds no
-// discriminator the census keeps it whole.
+// keepDeadRoutes keeps on n, the Union of u, each route its discriminator
+// writes to a dead branch of u, which n's Discriminator leaves out: verbatim,
+// keyed by its path from n's position as the discriminator's extensions are
+// (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
+// union. Where n holds no discriminator it is kept whole, unread.
 func keepDeadRoutes(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
 	if union.Discriminator == nil {
 		return nil
@@ -433,7 +433,7 @@ func keepsDeadUnion(loweringContext lowering.Ctx, schema *statement.Schema) bool
 // at at, is kept under: `openapi:<keyword>/<index>`, the last two tokens of at,
 // its provenance saying where it is written, beside the body or on an allOf
 // entry, as an entry's own keywords are kept. A position distributes one union
-// (findBranchUnion), so no two branches it keeps share a key.
+// (findEntryUnion), so no two branches it keeps share a key.
 func unionBranchKey(at jsontext.Pointer) string {
 	index := strings.LastIndexByte(string(at), '/')
 	keyword := strings.LastIndexByte(string(at[:index]), '/')

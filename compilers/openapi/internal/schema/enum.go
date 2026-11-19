@@ -101,13 +101,13 @@ func readEnum(nodes []*yaml.Node) []enumEntry {
 // isNull reports whether e converts to the null value.
 func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.ValueNull }
 
-// enumEntries returns the entries of schema's enum that a member or a variant
-// holds: each but a null, which is the reference's (lowerEnum). Two kinds of
-// entry admit no instance, since JSON Schema conjoins enum with the keywords
-// beside it, and each is reported at itself as a warning: a null where those
-// keywords exclude null, which nothing then holds, and a value no type schema
-// declares admits, a type of null included, which is kept as written beside the
-// type the census keeps verbatim.
+// enumEntries returns the entries of s's enum that a member or a variant holds:
+// each but a null, which is the reference's (lowerEnum). Two kinds of entry
+// admit no instance, since JSON Schema conjoins enum with the keywords beside
+// it, and each is reported at itself as a warning: a null where those keywords
+// exclude null, which nothing then holds, and a value no type s declares
+// admits, a type of null included, which is kept as written beside the type
+// kept verbatim as unread.
 func enumEntries(loweringContext lowering.Ctx, schema *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(loweringContext, schema)
 	types := schema.Types()
@@ -303,8 +303,8 @@ func enumAsUnion(loweringContext lowering.Ctx, ts *compile.Types, site valueSetS
 // lowerConst hoists the const site's schema writes as a Literal of its value
 // (hoistLiteral), but a null, which is no Literal's (nullConst), and reports,
 // at the const, a value no type that schema declares admits, as enumEntries reports an enum member. The Literal
-// holds the value as written, and the census keeps a type it does not fit
-// verbatim.
+// holds the value as written, and a type it does not fit is kept
+// verbatim as unread.
 func lowerConst(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
 	constant := site.set.Const()
 	val, err := value.FromNode(constant)

@@ -675,7 +675,7 @@
     {
       "severity": "info",
       "code": "openapi/false-schema",
-      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "message": "boolean false allOf entry matches nothing, so the composition matches nothing; composed model closed and the entry kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Closed/allOf/0/allOf/0"
@@ -684,7 +684,7 @@
     {
       "severity": "info",
       "code": "openapi/false-schema",
-      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "message": "boolean false allOf entry matches nothing, so the composition matches nothing; composed model closed and the entry kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/U/allOf/0/allOf/2/allOf/0"
@@ -704,7 +704,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "ec5b776fab20eeda87ee49e745fa8c332c8189c99985df3d746963d9072c8a1e"
+      "hash": "0a8e7c35fcf7ebfe717d0b6cf66edbb9eb888f48b6059aad4ce7f26c4d3d9945"
     }
   ]
 }

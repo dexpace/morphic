@@ -27,7 +27,7 @@ func TestKeptEntryKeyword_AValueKeywordThatLosesTheElectionIsKeptUnderItsOwnKey(
 	}})
 }
 
-func TestKeptEntryKeyword_AClosureTheEntryCannotTypeKeepsTheBranchWhole(t *testing.T) {
+func TestKeptEntryKeyword_AClosureTheEntryCannotTypeKeepsTheEntryWhole(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{
 		{

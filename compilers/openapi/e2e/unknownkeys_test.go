@@ -297,7 +297,7 @@ components:
 
 // TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported holds the census of
 // a schema's xml, discriminator and externalDocs objects, and of the
-// discriminator an allOf branch writes for its union, distributed over a body
+// discriminator an allOf entry writes for its union, distributed over a body
 // or standing alone at the position, to every key their models name no field
 // for, as
 // annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable
@@ -342,7 +342,7 @@ components:
 
 // TestUnknownKeys_ExtensionMergedPastTheBoundIsKept holds the extensions a
 // schema, its xml, discriminator and externalDocs objects, and the
-// discriminator an allOf branch writes for its union, distributed over a body
+// discriminator an allOf entry writes for its union, distributed over a body
 // or standing alone at the position, merge in through `<<` from past
 // nodeview.MergeDepthLimit to what the parser's model holds: each is kept on
 // the node holding the object, as one written in place is, though the compiler

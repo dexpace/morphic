@@ -42,10 +42,10 @@ func keptOfShape(t *testing.T, src string) (lowering.Ctx, *statement.Schema, all
 		if name != "X" {
 			continue
 		}
-		comp := allOfBranches(lowerer.Ctx, st.Schema, "/components/schemas/X")
-		kepts := make([][]string, len(comp.branches))
-		for i, allOfBranch := range comp.branches {
-			kepts[i] = keptOf(lowerer.Ctx, keptEntry{entry: allOfBranch, residue: compositionResidue(lowerer.Ctx, comp, i)})
+		comp := allOfEntries(lowerer.Ctx, st.Schema, "/components/schemas/X")
+		kepts := make([][]string, len(comp.entries))
+		for i, entry := range comp.entries {
+			kepts[i] = keptOf(lowerer.Ctx, keptEntry{entry: entry, residue: compositionResidue(lowerer.Ctx, comp, i)})
 		}
 		return lowerer.Ctx, st.Schema, comp, kepts
 	}
@@ -108,12 +108,12 @@ func writtenApartOf(loweringContext lowering.Ctx, schema *statement.Schema, comp
 		}
 		raws = append(raws, raw)
 	}
-	for i, allOfBranch := range comp.branches {
-		if (allOfBranch.schema.Ref != nil && !failedRef(loweringContext, allOfBranch)) || !stated(allOfBranch.schema.Schema) || !hasKey(allOfBranch.schema.Schema, key) ||
+	for i, entry := range comp.entries {
+		if (entry.schema.Ref != nil && !failedRef(loweringContext, entry)) || !stated(entry.schema.Schema) || !hasKey(entry.schema.Schema, key) ||
 			(kepts != nil && !slices.Contains(kepts[i], key)) {
 			continue
 		}
-		raw, err := annotation.RawFromNode(keyNode(allOfBranch.schema.Schema, key))
+		raw, err := annotation.RawFromNode(keyNode(entry.schema.Schema, key))
 		if err != nil {
 			return true
 		}
@@ -152,7 +152,7 @@ func TestWrittenApartKeys_AnswersWhatTheirWritersWrite(t *testing.T) {
 				for i, kept := range kepts {
 					for _, key := range kept {
 						wantWriters[key] = writtenApartOf(loweringContext, schema, comp, key, nil)
-						if failedRef(loweringContext, comp.branches[i]) {
+						if failedRef(loweringContext, comp.entries[i]) {
 							wantKeepers[key] = writtenApartOf(loweringContext, schema, comp, key, kepts)
 						}
 					}

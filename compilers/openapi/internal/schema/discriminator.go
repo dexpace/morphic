@@ -47,11 +47,11 @@ func lowerDiscriminator(loweringContext lowering.Ctx, ts *compile.Types, discrim
 	return disc, append(diags, defaultDiags...)
 }
 
-// tagLocated reports whether the IR can locate the tag discriminator names, on
-// model where a model declares it: by any name but the empty one, which
-// PropertyName empty cannot spell, and by that one only as the PropertyID of a
-// property model declares itself (docs/compilers/openapi.md#discriminator). One
-// it cannot locate is no node's, and the census keeps it verbatim.
+// tagLocated reports whether the IR can locate the tag d names, on m where a
+// model declares it: by any name but the empty one, which PropertyName empty
+// cannot spell, and by that one only as the PropertyID of a property m declares
+// itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
+// node's, and it is kept verbatim, unread.
 func tagLocated(discriminator *statement.Discriminator, model *ir.Model) bool {
 	if discriminator.PropertyName != "" {
 		return true
@@ -173,18 +173,18 @@ func routesByName(loweringContext lowering.Ctx, a, schema *statement.Schema) boo
 }
 
 // standingUnion returns the schema writing the union the discriminator a
-// declares stands with: a where it writes one, else the branch of a's allOf
-// whose union a lowers (findBranchUnion), which writes no discriminator of its
+// declares stands with: a where it writes one, else the entry of a's allOf
+// whose union a lowers (findEntryUnion), which writes no discriminator of its
 // own beside a's, and nil for none, a hierarchy's base.
 func standingUnion(loweringContext lowering.Ctx, a *statement.Schema) *statement.Schema {
 	if declaresUnion(a) {
 		return a
 	}
-	at := branchUnionIndexOf(loweringContext, a)
+	at := entryUnionIndexOf(loweringContext, a)
 	if !at.ok {
 		return nil
 	}
-	return allOfBranches(loweringContext, a, "").branches[at.index].schema.Schema
+	return allOfEntries(loweringContext, a, "").entries[at.index].schema.Schema
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
@@ -193,14 +193,13 @@ func standingUnion(loweringContext lowering.Ctx, a *statement.Schema) *statement
 // beyond any hierarchy a source document plausibly declares.
 const maxDiscriminatorAncestorDepth = 256
 
-// discriminatedAncestors returns schema's composition ancestors declaring a
-// discriminator, nearest first: the resolved targets of schema's own $ref
-// branches in source order, then theirs, level by level. Nearest means fewest
-// hops, which decides between two ancestors whose mappings name the same
-// subtype.
+// discriminatedAncestors returns s's composition ancestors declaring a
+// discriminator, nearest first: the resolved targets of s's own $ref entries
+// in source order, then theirs, level by level. Nearest means fewest hops,
+// which decides between two ancestors whose mappings name the same subtype.
 //
 // The visited set bounds the work; the depth cap bounds only the levels. A
-// schema reached by several branches would be walked once per path, so the
+// schema reached by several entries would be walked once per path, so the
 // frontier multiplies by the fan-out each level (2^level for a chain of
 // diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
 // TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
@@ -243,15 +242,14 @@ type composedByOf struct {
 	schema, holder *statement.Schema
 }
 
-// composedByBranch reports whether a branch of unionAtValue, a union of
-// schema's, the combinator unionBranches elects, composes schema through allOf
-// at any depth, so that schema's discriminator routes to a subtype of schema:
-// schema is then the base of a hierarchy, which a union of its subtypes would
-// no longer be (docs/compilers/openapi.md#union-beside-structure). Such a
-// branch finds schema's discriminator among its ancestors'
-// (discriminatedAncestors). Where schema writes one, it is the one standing
-// with unionAtValue (findBranchUnion). Every reader of the position asks, so it
-// is read once a run.
+// composedByBranch reports whether a branch of u, a union of s's, the combinator
+// unionBranches elects, composes s through allOf at any depth, so that s's
+// discriminator routes to a subtype of s: s is then the base of a hierarchy,
+// which a union of its subtypes would no longer be
+// (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
+// discriminator among its ancestors' (discriminatedAncestors). Where s writes
+// one, it is the one standing with u (findEntryUnion). Every reader of the
+// position asks, so it is read once a run.
 func composedByBranch(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt) bool {
 	discriminator := schema.Discriminator()
 	if discriminator == nil {
@@ -271,14 +269,13 @@ func composedByBranch(loweringContext lowering.Ctx, schema *statement.Schema, un
 	})
 }
 
-// unvisitedRefTargets returns the schemas schema's $ref composition branches
-// resolve to, in source order, skipping those already seen and marking those it
-// returns. Marking as it enqueues rather than when the walk reaches them is
-// what keeps a schema two branches both name from being queued, and walked,
-// twice.
+// unvisitedRefTargets returns the schemas s's $ref composition entries resolve
+// to, in source order, skipping those already seen and marking those it returns.
+// Marking as it enqueues rather than when the walk reaches them is what keeps a
+// schema two entries both name from being queued, and walked, twice.
 func unvisitedRefTargets(loweringContext lowering.Ctx, schema *statement.Schema, visited map[*statement.Schema]bool) []*statement.Schema {
 	var out []*statement.Schema
-	for b := range allOfRefBranches(loweringContext, schema) {
+	for b := range allOfRefEntries(loweringContext, schema) {
 		target := refBranchTarget(loweringContext, b)
 		if !stated(target) || visited[target] {
 			continue
@@ -290,11 +287,11 @@ func unvisitedRefTargets(loweringContext lowering.Ctx, schema *statement.Schema,
 }
 
 // discriminatorBesideUnion returns the finisher queueing a settlement for the
-// discriminator schema writes, which the model in hand holds beside the union
-// holder writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion,
-// or with its allOf branch. A body that lowered to anything else holds none:
-// the census kept its discriminator where it kept the rest, a multi-typed
-// body's on its union (lowerTypeVariant).
+// discriminator s writes, which the model in hand holds beside the union holder
+// writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion, or with
+// its allOf entry. A body that lowered to anything else holds none: its
+// discriminator was kept unread where the rest was, a multi-typed body's on its
+// union (lowerTypeVariant).
 func discriminatorBesideUnion(loweringContext lowering.Ctx, ts *compile.Types, schema, holder *statement.Schema, pointer jsontext.Pointer) finisher {
 	return func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		if isKind(td, ir.KindModel) {

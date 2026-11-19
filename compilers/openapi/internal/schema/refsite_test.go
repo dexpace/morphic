@@ -85,13 +85,13 @@ func TestUnresolvedRef_InAnotherDocumentsContentIsReportedOnceWhereItIsWritten(t
 		name, schema, at, ref string
 		why                   func(dir string) string // nil when the $ref resolves
 	}{
-		{"an allOf branch it declares", allOfOf("#/components/schemas/Thing"), allOf, "", nil},
+		{"an allOf entry it declares", allOfOf("#/components/schemas/Thing"), allOf, "", nil},
 		{"a union branch it declares", oneOfOf("#/components/schemas/Thing"), oneOf, "", nil},
-		{"an allOf branch it lacks", allOfOf("#/components/schemas/Gone"), allOf, "#/components/schemas/Gone",
+		{"an allOf entry it lacks", allOfOf("#/components/schemas/Gone"), allOf, "#/components/schemas/Gone",
 			func(string) string { return gone }},
 		{"a union branch it lacks", oneOfOf("#/components/schemas/Gone"), oneOf, "#/components/schemas/Gone",
 			func(string) string { return gone }},
-		{"an allOf branch naming a third document", allOfOf("./third.yaml#/Thing"), allOf, "./third.yaml#/Thing", unread},
+		{"an allOf entry naming a third document", allOfOf("./third.yaml#/Thing"), allOf, "./third.yaml#/Thing", unread},
 		{"a union branch naming a third document", oneOfOf("./third.yaml#/Thing"), oneOf, "./third.yaml#/Thing", unread},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -741,13 +741,14 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 }
 
 // TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched is the control the
-// census has to leave alone. A bound and a description written at the identical
-// position always did reach a field — the alias's Constraints and the property's
-// own — so neither may acquire an Unmodeled entry or a diagnostic now.
+// keeping of unread keywords has to leave alone. A bound and a description
+// written at the identical position always did reach a field — the alias's
+// Constraints and the property's own — so neither may acquire an Unmodeled
+// entry or a diagnostic now.
 func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 	t.Parallel()
 	site := "{$ref: '#/components/schemas/BaseStr', minLength: 3, description: kept}"
-	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
+	doc, diags := schema.LowerSpec(t, unreadKeywordSpec(
 		"    Alias: "+site+"\n"+
 			"    Holder: {type: object, properties: {p: "+site+"}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -791,7 +792,7 @@ func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) 
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
+			doc, diags := schema.LowerSpec(t, unreadKeywordSpec(
 				"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', "+tc.sibling+"}]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := typeByName(doc, "S").(*ir.Model)

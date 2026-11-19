@@ -172,7 +172,7 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 				built = append(built, node)
 			}
 			assert.Empty(t, cmp.Diff(built[0], built[1], cmpopts.IgnoreFields(ir.TypeCommon{}, "Name")),
-				"the node does not depend on branch order")
+				"the node does not depend on entry order")
 		})
 	}
 
@@ -213,7 +213,7 @@ func TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder(t *testing.
 // TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself pins what a field keeps of a
 // declaration folded into it (docs/compilers/openapi.md#allof-redeclared-property):
 // its values and nothing naming where they came from. A keyword on the second
-// branch compiles to the field it does on the first, and the field's provenance
+// entry compiles to the field it does on the first, and the field's provenance
 // names the first either way.
 func TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself(t *testing.T) {
 	t.Parallel()
@@ -230,7 +230,7 @@ func TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself(t *testing.T) {
 
 // TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder pins GitHub #1050 under
 // allOf, in both orders: a count past int64 on a redeclared field, or on an
-// inline branch, states no bound, so the field and the schema take the counts
+// inline entry, states no bound, so the field and the schema take the counts
 // the other conjunct states, and it is kept verbatim with one info where it is
 // written.
 func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
@@ -245,8 +245,8 @@ func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
 			diags[0].Provenance.Pointer, "%v", order)
 	}
 
-	const branch, other = "{type: string, maxLength: 99999999999999999999}", "{type: string, minLength: 2}"
-	for i, order := range [][2]string{{branch, other}, {other, branch}} {
+	const entry, other = "{type: string, maxLength: 99999999999999999999}", "{type: string, minLength: 2}"
+	for i, order := range [][2]string{{entry, other}, {other, entry}} {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T: {allOf: ["+order[0]+", "+order[1]+"]}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
 		scalar, ok := doc.Types[componentID("T")].(*ir.Scalar)
@@ -259,7 +259,7 @@ func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
 }
 
 // TestAllOf_TheBindingCountIsKeptInEveryOrder pins counts no field states that
-// several writers of one position give, on its branches or beside its allOf:
+// several writers of one position give, on its entries or beside its allOf:
 // the one binding the rest is kept, the smallest maximum and the largest
 // minimum compared exactly, with one info where it was written, in every order.
 // want is the kept entry's JSON.
@@ -276,15 +276,15 @@ func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 			"99999999999999999999"},
 	} {
 		for _, order := range permutations(len(tc.counts)) {
-			branches := make([]string, len(order))
+			entries := make([]string, len(order))
 			for k, i := range order {
-				branches[k] = "{" + tc.keyword + ": " + tc.counts[i] + "}"
+				entries[k] = "{" + tc.keyword + ": " + tc.counts[i] + "}"
 			}
 			for _, beside := range []bool{false, true} {
-				spec := "    T: {type: " + tc.typ + ", allOf: [" + strings.Join(branches, ", ") + "]}\n"
+				spec := "    T: {type: " + tc.typ + ", allOf: [" + strings.Join(entries, ", ") + "]}\n"
 				if beside {
-					spec = "    T: {type: " + tc.typ + ", " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
-						strings.Join(branches[1:], ", ") + "]}\n"
+					spec = "    T: {type: " + tc.typ + ", " + entries[0][1:len(entries[0])-1] + ", allOf: [" +
+						strings.Join(entries[1:], ", ") + "]}\n"
 				}
 				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
 				openapitest.RequireNoErrorDiags(t, diags)
@@ -298,7 +298,7 @@ func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 }
 
 // TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder pins two
-// maxima past what a BigVal holds, on branches or beside the allOf: the binding
+// maxima past what a BigVal holds, on entries or beside the allOf: the binding
 // one is refused as any number past that range kept verbatim is
 // (docs/compilers/openapi.md#verbatim-preservation), with one error where it is
 // written and no entry, in every order.
@@ -306,17 +306,17 @@ func TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder(t *testin
 	t.Parallel()
 	counts := []string{"2e1000000000000000000", "1e1000000000000000000"}
 	for _, order := range permutations(len(counts)) {
-		branches := make([]string, len(order))
+		entries := make([]string, len(order))
 		for k, i := range order {
-			branches[k] = "{maxLength: " + counts[i] + "}"
+			entries[k] = "{maxLength: " + counts[i] + "}"
 		}
 		binding := slices.Index(order, 1)
 		for _, beside := range []bool{false, true} {
-			spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+			spec := "    T: {type: string, allOf: [" + strings.Join(entries, ", ") + "]}\n"
 			at := fmt.Sprintf("/components/schemas/T/allOf/%d", binding)
 			if beside {
-				spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
-					strings.Join(branches[1:], ", ") + "]}\n"
+				spec = "    T: {type: string, " + entries[0][1:len(entries[0])-1] + ", allOf: [" +
+					strings.Join(entries[1:], ", ") + "]}\n"
 				at = "/components/schemas/T"
 				if binding > 0 {
 					at = fmt.Sprintf("/components/schemas/T/allOf/%d", binding-1)
@@ -347,12 +347,12 @@ func permutations(n int) [][]int {
 	return out
 }
 
-// TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt pins a value bound on an
-// inline branch of a composition whose schema declares a type the bound does
+// TestAllOf_AnEntryBoundTheTypeCannotTakeStaysWithIt pins a value bound on an
+// inline entry of a composition whose schema declares a type the bound does
 // not apply to: the composed Model reads none of it, so the bound is kept under
-// its own key, reported at its branch, as the same bound beside the allOf is
+// its own key, reported at its entry, as the same bound beside the allOf is
 // kept, and one the type takes folds onto the Model.
-func TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
+func TestAllOf_AnEntryBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    M: {type: object, properties: {a: {type: string}}, allOf: [{minLength: 1}, {minProperties: 1}]}\n"))

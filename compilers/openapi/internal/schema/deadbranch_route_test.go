@@ -91,6 +91,6 @@ func TestDiscriminator_ARouteToADeadBranchRoutesNowhere(t *testing.T) {
 	unlocated, ok := doc.Types[componentID("Unlocated")].(*ir.Union)
 	require.True(t, ok)
 	assert.Nil(t, unlocated.Discriminator, "an empty propertyName is no tag the Union can hold")
-	assert.Contains(t, unlocated.Unmodeled, "openapi:discriminator", "the census keeps it whole")
+	assert.Contains(t, unlocated.Unmodeled, "openapi:discriminator", "it is kept whole, unread")
 	assert.NotContains(t, unlocated.Unmodeled, "openapi:discriminator/mapping/s", "and its routes with it")
 }

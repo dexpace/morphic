@@ -1598,7 +1598,7 @@
     {
       "severity": "info",
       "code": "openapi/composition-lowering",
-      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "message": "oneOf/anyOf written on an allOf entry conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema"
@@ -1609,7 +1609,7 @@
     {
       "format": "openapi@3.1",
       "path": "encoding-union-branches.yaml",
-      "hash": "1efd1a3f9d2dc080af77d40dd243d219b01164eab2f15284ce418b730e0ff6ae"
+      "hash": "dc9817d09c1810cd77f7a2ccd4e2cec5d305772172cd3dfcc80e59849ef83080"
     }
   ]
 }

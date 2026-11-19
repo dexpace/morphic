@@ -69,11 +69,14 @@ func nest(n int, leaf string) string {
 }
 
 // listing renders each entry of st as its pointer and whether it is a wrapper
-// or capped.
+// or capped, and marks the reference of a split entry.
 func listing(st *statement.Statement) []string {
 	out := make([]string, len(st.Entries))
 	for i, allOfConjunct := range st.Entries {
 		out[i] = fmt.Sprintf("%s wrapper=%v capped=%v", allOfConjunct.Rel, allOfConjunct.Wrapper, allOfConjunct.Capped)
+		if allOfConjunct.Split {
+			out[i] += " split"
+		}
 	}
 	return out
 }
@@ -111,7 +114,7 @@ func TestFlatten_ListsWhatWalkAllOfLists(t *testing.T) {
 
 	mixed := table.At(component(loweringContext, "Mixed"))
 	assert.Equal(t, []string{
-		"/allOf/0 wrapper=false capped=false",
+		"/allOf/0 wrapper=false capped=false split",
 		"/allOf/0/allOf/0 wrapper=false capped=false",
 		"/allOf/0 wrapper=true capped=false",
 		"/allOf/1 wrapper=false capped=false",

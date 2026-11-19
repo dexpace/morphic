@@ -242,9 +242,9 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
-// among them where dialect defines it. own says schema is the schema written at
-// the position rather than a folded branch, whose unevaluated keywords stay
-// with its branch (schema.foldEntry), and closure is unevaluatedKept's.
+// among them where dialect defines it. own says s is the schema written at the
+// position rather than a voice, whose unevaluated keywords stay with its entry
+// (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
 func validationOnlyAt(schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {

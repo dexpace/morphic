@@ -66,10 +66,10 @@ func lowerOneOfAnyOf(loweringContext lowering.Ctx, ts *compile.Types, depth int,
 					// The report names an entry's union by the entry it is written on,
 					// and a dead branch by the null the rest keeps out, not by a body.
 					reported := unionAt
-					reported.branch, reported.nulls = st.of != nil, true
+					reported.entry, reported.nulls = st.of != nil, true
 					diags = append(diags, keepDeadBranches(loweringContext, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
-				cons, consDiags := ConstraintsOf(loweringContext, &def.Unmodeled, schema, st.foldedBranches(loweringContext, schema, pointer), pointer, st.takes(loweringContext, schema))
+				cons, consDiags := ConstraintsOf(loweringContext, &def.Unmodeled, schema, st.foldedEntries(loweringContext, schema, pointer), pointer, st.takes(loweringContext, schema))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
 				read := nodeBoundsRead(schema, st.takes(loweringContext, schema), def.Constraints, def.Unmodeled)
@@ -172,11 +172,11 @@ func electsOneOfPair(loweringContext lowering.Ctx, schema *statement.Schema) boo
 	if !decision.refines || decision.principalAt < 0 {
 		return false
 	}
-	schemaStatement := branchStatement(loweringContext, schema, decision.principalAt)
+	schemaStatement := entryStatement(loweringContext, schema, decision.principalAt)
 	if schemaStatement.Ref != nil || !declaresUnion(schemaStatement.Schema) || writesBothUnions(schemaStatement.Schema) {
 		return false
 	}
-	return writesUnionPair(schema, allOfBranches(loweringContext, schema, ""))
+	return writesUnionPair(schema, allOfEntries(loweringContext, schema, ""))
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
@@ -197,7 +197,7 @@ func allNullUnion(loweringContext lowering.Ctx, position, schema *statement.Sche
 // lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches admits
 // null alone (allNullUnion). One such branch or several admit what a schema of
 // null alone at this position admits, so the position lowers as one does
-// (lowerNullAlone), and the census a body's lowering runs keeps what the node
+// (lowerNullAlone), and a body's lowering keeps unread what the node
 // cannot hold. The combinator that produced it, and the other one too when both
 // are declared, carries no shape the node's fields could hold, so it is kept
 // verbatim under Unmodeled instead of dropped
@@ -444,22 +444,21 @@ func buildUnion(loweringContext lowering.Ctx, ts *compile.Types, unionAtValue un
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
-	diags = append(diags, keepBranchDiscriminatorKeys(loweringContext, node, unionAtValue)...)
+	diags = append(diags, keepEntryDiscriminatorKeys(loweringContext, node, unionAtValue)...)
 	diags = append(diags, keepDeadRoutes(loweringContext, node, unionAtValue)...)
 	diags = append(diags, spellImplicitRoutes(loweringContext, unionAtValue, node, common.Provenance.Pointer)...)
 	deferUnionTags(loweringContext, ts, unionAtValue, node, common.Provenance.Pointer)
 	return node, diags
 }
 
-// keepBranchDiscriminatorKeys keeps on union, the Union of unionAtValue, what
-// the discriminator unionAtValue's allOf branch writes says that reaches no
-// field: its extensions and the keys OpenAPI defines for no Discriminator
-// Object. A schema's own are read onto its position's node (annotation.Read),
-// and a branch has no node, so they ride on the node holding the discriminator,
-// scoped by their path from it where they lie beneath it
-// (annotation.SchemaExtensions).
-func keepBranchDiscriminatorKeys(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
-	if !unionAtValue.branch || unionAtValue.disc == nil || unionAtValue.discAt != unionAtValue.at {
+// keepEntryDiscriminatorKeys keeps on n, the Union of u, what the discriminator
+// u's allOf entry writes says that reaches no field: its extensions and the
+// keys OpenAPI defines for no Discriminator Object. A schema's own are read onto
+// its position's node (annotation.Read), and an entry has no node, so they ride
+// on the node holding the discriminator, scoped by their path from it where they
+// lie beneath it (annotation.SchemaExtensions).
+func keepEntryDiscriminatorKeys(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
+	if !unionAtValue.entry || unionAtValue.disc == nil || unionAtValue.discAt != unionAtValue.at {
 		return nil
 	}
 	owner, scope := discriminatorScope(unionAtValue, union.Provenance.Pointer)
@@ -484,7 +483,7 @@ func discriminatorScope(unionAtValue unionAt, pointer jsontext.Pointer) (jsontex
 // unionAt is a union a position lowers: the oneOf or anyOf, whichever
 // unionBranches elects, that holder writes at the pointer at, and the
 // discriminator standing with it, written by the schema at discAt. holder is the
-// schema written at the position, or an inline branch of its allOf, which JSON
+// schema written at the position, or an inline entry of its allOf, which JSON
 // Schema conjoins with the rest of the composition as it would one written
 // beside it (docs/compilers/openapi.md#union-beside-structure).
 type unionAt struct {
@@ -495,11 +494,11 @@ type unionAt struct {
 	// over conjoins with.
 	schema *statement.Schema
 	// disc is the discriminator the union is routed by, nil for none: one written
-	// beside it, else one beside the allOf holding its branch (branchUnion).
+	// beside it, else one beside the allOf holding its entry (entryUnion).
 	disc   *statement.Discriminator
 	discAt jsontext.Pointer
-	// branch marks a holder that is an allOf branch, no schema at a position.
-	branch bool
+	// entry marks a holder that is an allOf entry, no schema at a position.
+	entry bool
 	// nulls marks a union whose dead branches admit nothing but a null the
 	// rest of the position keeps out (pairDeadNulls), beside any body.
 	nulls bool
@@ -529,37 +528,37 @@ func besideUnion(schema *statement.Schema, pointer jsontext.Pointer) unionAt {
 	return unionAt{holder: schema, at: pointer, schema: schema, disc: schema.Discriminator(), discAt: pointer}
 }
 
-// branchUnionOf keys what branchUnion read of one schema.
-type branchUnionOf struct {
+// entryUnionOf keys what entryUnion read of one schema.
+type entryUnionOf struct {
 	schema *statement.Schema
 }
 
-// branchUnionIndex is where in a schema's flattened allOf the branch whose
+// entryUnionIndex is where in a schema's flattened allOf the entry whose
 // union it conjoins is, where one is.
-type branchUnionIndex struct {
+type entryUnionIndex struct {
 	index int
 	ok    bool
 }
 
-// branchUnion returns the union an inline branch of schema's allOf writes that
-// schema, written at pointer, conjoins with the rest of its composition, as it
-// would the same union written beside the allOf
+// entryUnion returns the union an inline entry of s's allOf writes that s,
+// written at pointer, conjoins with the rest of its composition, as it would
+// the same union written beside the allOf
 // (docs/compilers/openapi.md#union-beside-structure), with the discriminator
-// written on the branch, else beside the allOf, and how the position lowers it:
+// written on the entry, else beside the allOf, and how the position lowers it:
 // unionSharesNoKind where the unions its entries write share no kind with the
 // rest (unionApart), else as classifyConjoined says. ok is false where the
-// union stays with its branch, as for the base of a hierarchy the discriminator
-// routes.
-func branchUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
-	at := branchUnionIndexOf(loweringContext, schema)
+// union stays with its entry, as for the base of a hierarchy the
+// discriminator routes.
+func entryUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
+	at := entryUnionIndexOf(loweringContext, schema)
 	if !at.ok {
 		return unionAt{}, 0, false
 	}
-	comp := allOfBranches(loweringContext, schema, pointer)
-	allOfBranch := comp.branches[at.index]
-	unionAtValue := unionAt{holder: allOfBranch.schema.Schema, at: allOfBranch.pointer, schema: schema, disc: schema.Discriminator(), discAt: pointer, branch: true}
+	comp := allOfEntries(loweringContext, schema, pointer)
+	entry := comp.entries[at.index]
+	unionAtValue := unionAt{holder: entry.schema.Schema, at: entry.pointer, schema: schema, disc: schema.Discriminator(), discAt: pointer, entry: true}
 	if discriminator := unionAtValue.holder.Discriminator(); discriminator != nil {
-		unionAtValue.disc, unionAtValue.discAt = discriminator, allOfBranch.pointer
+		unionAtValue.disc, unionAtValue.discAt = discriminator, entry.pointer
 	}
 	if unionApart(loweringContext, schema, comp, at.index) {
 		return unionAtValue, unionSharesNoKind, false
@@ -568,55 +567,55 @@ func branchUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer
 	return unionAtValue, how, how == unionDistributed || how == unionRoutedSubtype
 }
 
-// branchUnionIndexOf returns findBranchUnion's reading of schema, read once a
-// run, as every reader of a position schema is written at, and of a hierarchy
-// schema is the base of, asks.
-func branchUnionIndexOf(loweringContext lowering.Ctx, schema *statement.Schema) branchUnionIndex {
-	return lowering.ReadOncePerRun(loweringContext, branchUnionOf{schema}, func() branchUnionIndex { return findBranchUnion(loweringContext, schema) })
+// entryUnionIndexOf returns findEntryUnion's reading of s, read once a run, as
+// every reader of a position s is written at, and of a hierarchy s is the base
+// of, asks.
+func entryUnionIndexOf(loweringContext lowering.Ctx, schema *statement.Schema) entryUnionIndex {
+	return lowering.ReadOncePerRun(loweringContext, entryUnionOf{schema}, func() entryUnionIndex { return findEntryUnion(loweringContext, schema) })
 }
 
-// findBranchUnion is branchUnion's reading of schema alone: where schema lowers
-// its allOf, composing, not refining, the branch whose union declares shape
-// against schema without any entry's union, within the flattening depth, each
-// $ref branch naming a referent. Of several, the one writing a oneOf, each
-// other kept on every variant; two writing a oneOf, or several anyOfs, leave
-// none, in any order. One declaring no shape stays residue. A discriminator on
-// both schema and the branch leaves none: nothing says which routes it. A $ref
-// site or a union beside the allOf lowers first.
-func findBranchUnion(loweringContext lowering.Ctx, schema *statement.Schema) branchUnionIndex {
+// findEntryUnion is entryUnion's reading of s alone: where s lowers its
+// allOf, composing, not refining, the entry whose union declares shape
+// against s without any entry's union, within the flattening depth, each $ref
+// branch naming a referent. Of several, the one writing a oneOf, each other
+// kept on every variant; two writing a oneOf, or several anyOfs, leave none,
+// in any order. One declaring no shape stays residue. A discriminator on both
+// s and the entry leaves none: nothing says which routes it. A $ref site or a
+// union beside the allOf lowers first.
+func findEntryUnion(loweringContext lowering.Ctx, schema *statement.Schema) entryUnionIndex {
 	if declaresUnion(schema) || dispatchOf(schema).won != "allOf" {
-		return branchUnionIndex{}
+		return entryUnionIndex{}
 	}
-	branches := allOfBranches(loweringContext, schema, "").branches
+	entries := allOfEntries(loweringContext, schema, "").entries
 	var shaped, oneOfs []int
-	for i, allOfBranch := range branches {
-		choice := allOfBranch.schema.ChoiceKeywords()
+	for i, entry := range entries {
+		choice := entry.schema.ChoiceKeywords()
 		// Judged against the rest of the conjunction, the entry's own unions
 		// apart, as a union beside the allOf and the election within an entry are.
-		if allOfBranch.schema.Ref != nil || !declaresUnion(allOfBranch.schema.Schema) ||
-			!setsDeclareShape(loweringContext, schema, allOfBranch.schema.Schema, choice.OneOf, choice.AnyOf) {
+		if entry.schema.Ref != nil || !declaresUnion(entry.schema.Schema) ||
+			!setsDeclareShape(loweringContext, schema, entry.schema.Schema, choice.OneOf, choice.AnyOf) {
 			continue
 		}
 		shaped = append(shaped, i)
-		if _, key, _ := unionBranches(loweringContext, schema, allOfBranch.schema.Schema); key == "oneOf" {
+		if _, key, _ := unionBranches(loweringContext, schema, entry.schema.Schema); key == "oneOf" {
 			oneOfs = append(oneOfs, i)
 		}
 	}
 	if len(shaped) > 1 {
 		shaped = oneOfs
 	}
-	if len(shaped) != 1 || branches[shaped[0]].capped {
-		return branchUnionIndex{}
+	if len(shaped) != 1 || entries[shaped[0]].capped {
+		return entryUnionIndex{}
 	}
 	index := shaped[0]
-	if branches[index].schema.Discriminator() != nil && schema.Discriminator() != nil ||
-		!branchesNameReferents(loweringContext, schema, branches[index].schema.Schema) {
-		return branchUnionIndex{}
+	if entries[index].schema.Discriminator() != nil && schema.Discriminator() != nil ||
+		!branchesNameReferents(loweringContext, schema, entries[index].schema.Schema) {
+		return entryUnionIndex{}
 	}
 	if decisionOf(loweringContext, schema).refines {
-		return branchUnionIndex{}
+		return entryUnionIndex{}
 	}
-	return branchUnionIndex{index: index, ok: true}
+	return entryUnionIndex{index: index, ok: true}
 }
 
 // variantHint is the hint the union variant for the branch b written at vptr
@@ -641,19 +640,19 @@ func variantHint(loweringContext lowering.Ctx, b *statement.Statement, vptr json
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
-	branches := allOfBranches(loweringContext, b.Schema, vptr).branches
-	base, ok := selectAllOfBase(loweringContext, branches, "")
-	if !ok || !variantNamesTarget(b.Schema, branches) {
+	entries := allOfEntries(loweringContext, b.Schema, vptr).entries
+	base, ok := selectAllOfBase(loweringContext, entries, "")
+	if !ok || !variantNamesTarget(b.Schema, entries) {
 		return own
 	}
-	return cmp.Or(lowering.NameThrough(loweringContext, branches[base].pointer), own)
+	return cmp.Or(lowering.NameThrough(loweringContext, entries[base].pointer), own)
 }
 
-// variantNamesTarget reports whether schema, a branch composing the base of
-// branches, its flattened conjuncts, is a use of that one target: it and no
+// variantNamesTarget reports whether s, a branch composing the base of
+// entries, its flattened conjuncts, is a use of that one target: it and no
 // conjunct writes a member, a catch-all, a discriminator or a union, and no
 // $ref but the base's is written (docs/compilers/openapi.md#union).
-func variantNamesTarget(schema *statement.Schema, branches []allOfBranch) bool {
+func variantNamesTarget(schema *statement.Schema, entries []allOfEntry) bool {
 	refs := 0
 	declares := func(statementSchema *statement.Schema) bool {
 		object := statementSchema.ObjectKeywords()
@@ -663,12 +662,12 @@ func variantNamesTarget(schema *statement.Schema, branches []allOfBranch) bool {
 	if declares(schema) {
 		return false
 	}
-	for _, allOfBranch := range branches {
-		if allOfBranch.schema.Ref != nil {
+	for _, entry := range entries {
+		if entry.schema.Ref != nil {
 			refs++
 			continue
 		}
-		if stated(allOfBranch.schema.Schema) && declares(allOfBranch.schema.Schema) {
+		if stated(entry.schema.Schema) && declares(entry.schema.Schema) {
 			return false
 		}
 	}

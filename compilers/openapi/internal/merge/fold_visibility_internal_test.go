@@ -15,7 +15,7 @@ import (
 
 // TestFold_VisibilityAdoptedFromRedeclaration pins the issue's
 // own reproduction at the reconcile layer (GitHub #34): a property left
-// unrestricted by its first declaration must adopt a later branch's readOnly
+// unrestricted by its first declaration must adopt a later entry's readOnly
 // rather than silently keep the first, empty Visibility.
 func TestFold_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 	t.Parallel()
@@ -51,7 +51,7 @@ func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 
 // TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced pins the half
 // of the report guard the disjoint case above cannot reach. The warning is about
-// the transition — two restricted branches whose intersection empties — not
+// the transition — two restricted entries whose intersection empties — not
 // about the state of being invisible, so a side that was already None merges
 // quietly. Drop that half of the condition and every later redeclaration of an
 // invisible field re-announces a fact the document has already been told, which

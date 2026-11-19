@@ -108,7 +108,7 @@ func stepOf(enclosing chain, rest []string) step {
 		// enumeration holds is lowered to.
 		return step{hint: enclosing.then(child), tokens: 2}
 	case keyword == "allOf" && isDecimalIndex(child):
-		// An allOf branch is a conjunct of the schema holding it, so a node built
+		// An allOf entry is a conjunct of the schema holding it, so a node built
 		// there is that schema's, and named as it is.
 		return step{hint: enclosing, tokens: 2, branch: true, keyed: true}
 	case compositionKeywords[keyword] && isDecimalIndex(child):

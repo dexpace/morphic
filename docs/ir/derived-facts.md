@@ -100,7 +100,7 @@ and `Correlated(key)` answers the reverse: a key built from what the document na
 never from a file's location or an array position, save a tuple element's, which is its identity
 on the wire, so it survives the edits that move an ID
 ([across revisions](./identity.md#across-revisions)). An entity keeps its key through a reordered
-array, a schema moved within its file or to another file, and an `allOf` branch inserted before
+array, a schema moved within its file or to another file, and an `allOf` entry inserted before
 the one declaring a property; an operation keeps its own through a renamed path variable and a
 renamed `operationId`. A rename of the name the key is built from moves the key too, and nothing
 derived carries an entity whose pointer and name both change ([open

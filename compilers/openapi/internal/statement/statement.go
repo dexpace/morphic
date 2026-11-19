@@ -33,18 +33,23 @@ type Statement struct {
 	Entries []AllOfConjunct
 }
 
-// AllOfConjunct is one conjunct of a statement: the schema object written
-// there, its pointer below the statement's schema, such as /allOf/0/allOf/1,
-// empty for the reference the statement's own object writes, whether it is a
-// wrapper whose own entries precede it, and whether it writes an allOf nested
-// past MaxFlattenDepth, which is not listed. An object writing a reference
-// beside other keys is two entries at one pointer: the reference alone, then
-// the rest, which writes none (Schema.WrittenBeside).
+// AllOfConjunct is one conjunct of a statement: the schema object written there, its
+// pointer below the statement's schema, such as /allOf/0/allOf/1, empty for
+// the reference the statement's own object writes, whether it is a wrapper
+// whose own entries precede it, and whether it writes an allOf nested past
+// MaxFlattenDepth, which is not listed. An object writing a reference beside
+// other keys is two entries at one pointer: the reference alone, then the
+// keywords beside it, which write none (Schema.WrittenBeside).
 type AllOfConjunct struct {
 	*Schema
 	Rel     jsontext.Pointer
 	Wrapper bool
 	Capped  bool
+	// Split marks the reference of an allOf entry writing one beside other
+	// keys: the first of the two entries that object is listed as. The
+	// keywords beside it follow, after their own allOf's entries where they
+	// write one, so the two need not be adjacent.
+	Split bool
 }
 
 // Schema is one schema object as read: where (zero for a value the bindings
@@ -66,17 +71,17 @@ type Schema struct {
 	// Unknown is.
 	Extensions []Extension
 	Ref        *Reference
-	// BesideRef is, for the rest of an object a position writes, a reference
-	// beside other keys, that reference as a schema object writing it alone,
-	// which the statement lists as its first entry; nil for a whole object
-	// and for the rest of an allOf entry.
+	// BesideRef is, for the keywords an object a position writes holds beside
+	// a reference, that reference as a schema object writing it alone, which
+	// the statement lists as its first entry; nil for a whole object and for
+	// the keywords beside an allOf entry's reference.
 	BesideRef *Schema
-	// WrittenBeside is, for the rest of an allOf entry writing a reference
-	// beside other keys, that reference, which the composition lists as the
-	// entry before the rest. No reader of conjuncts reads it: one of how the
-	// keys are spelt does, as a draft ignoring the keys beside a $ref does
+	// WrittenBeside is, for the keywords an allOf entry writes beside a
+	// reference, that reference, which the composition lists as the entry
+	// before them. No reader of conjuncts reads it: one of how the keys are
+	// spelt does, as a draft ignoring the keys beside a $ref does
 	// (docs/compilers/openapi.md#dialect-keywords), and so does a report naming
-	// the rest as written beside a $ref rather than as an inline entry.
+	// them as written beside a $ref rather than as an inline entry.
 	WrittenBeside *Schema
 	AllOf         []Subschema
 

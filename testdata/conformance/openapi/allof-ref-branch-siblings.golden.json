@@ -451,7 +451,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (type: object, allOf/0: object, allOf/0/allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0/$ref: object, allOf/0/allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch"
@@ -460,7 +460,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf/0"
@@ -471,7 +471,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-ref-branch-siblings.yaml",
-      "hash": "ad6aa766317d420ba0bd8c68909128e09d3d73fcf6b29bbac8f7fcbb0746df08"
+      "hash": "84e2ad38b5355bec49470220222dfe11771a15bb2e3b99995564fe0279798f0e"
     }
   ]
 }

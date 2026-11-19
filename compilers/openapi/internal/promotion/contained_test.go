@@ -78,7 +78,7 @@ func TestDropContained_KeepsAKeyAPromotionReads(t *testing.T) {
 	t.Parallel()
 	reads := promotion.New(mapping(promotion.TargetRedaction, promotion.ExtensionSource{Key: "x-sensitive"},
 		promotion.ExtensionSource{Key: "x-a/b"}))
-	branch := held(0, "/s/allOf/1", `{"format":"uuid","x-sensitive":true,"x-a/b":1,"x-notx-sensitive":2}`)
+	wholeEntry := held(0, "/s/allOf/1", `{"format":"uuid","x-sensitive":true,"x-a/b":1,"x-notx-sensitive":2}`)
 	inner := map[string]ir.UnmodeledEntry{
 		"openapi:x-sensitive":             held(0, "/s/allOf/1/x-sensitive", `true`),
 		"openapi:schema/x-sensitive":      held(0, "/s/allOf/1/x-sensitive", `true`),
@@ -89,12 +89,12 @@ func TestDropContained_KeepsAKeyAPromotionReads(t *testing.T) {
 		"openapi:x-sensitive": true, "openapi:schema/x-sensitive": true, "openapi:schema/x-a/b": true,
 	}
 	for key, entry := range inner {
-		unmodeled := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
+		unmodeled := ir.Unmodeled{"openapi:schema/allOf/1": wholeEntry, key: entry}
 		promotion.DropContained(reads, &unmodeled)
 		_, kept := unmodeled[key]
 		assert.Equal(t, stays[key], kept, key)
 
-		off := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
+		off := ir.Unmodeled{"openapi:schema/allOf/1": wholeEntry, key: entry}
 		promotion.DropContained(noPromotions(), &off)
 		assert.Equal(t, []string{"openapi:schema/allOf/1"}, keysOf(off), "%s, no key read", key)
 	}

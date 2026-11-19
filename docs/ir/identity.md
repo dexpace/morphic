@@ -61,13 +61,13 @@ in opposite ways:
   position in it, so an entry inserted before it moves the next revision's entity onto the old
   index: `type/anonymous/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in
   one revision and the `color` parameter's in the next, once `color` is listed first. The same holds
-  for every other array a pointer passes through: `allOf`, `anyOf` and `oneOf` branches,
-  `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer comparing
-  by ID then attaches one entity's state to another, a wrong match rather than a missing one, and
-  nothing about either ID shows it. The golden spec's own history holds a case ([correlation
-  keys](./derived-facts.md#correlation-keys)). On the golden spec 10,122 of 41,697 types, 13,466 of
-  32,291 enum members, 5,871 of 49,434 properties and all 8 servers have an ID that passes through
-  an array index (spec @319dc756, morphic @b206dc99):
+  for every other array a pointer passes through: `allOf` entries, `anyOf` and `oneOf` branches,
+  `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer
+  comparing by ID then attaches one entity's state to another, a wrong match rather than a missing
+  one, and nothing about either ID shows it. The golden spec's own history holds a case
+  ([correlation keys](./derived-facts.md#correlation-keys)). On the golden spec 10,122 of 41,697
+  types, 13,466 of 32,291 enum members, 5,871 of 49,434 properties and all 8 servers have an ID
+  that passes through an array index (spec @319dc756, morphic @b206dc99):
 
   ```bash
   morphic compile openapi.json | jq -c '[.. | objects | .id? | strings | select(contains("/"))]

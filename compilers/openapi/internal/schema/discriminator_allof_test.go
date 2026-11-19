@@ -446,7 +446,7 @@ func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
 	assert.NotEmpty(t, base.Discriminator.Property)
 }
 
-func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
+func TestAllOf_BoolRefEntryHasNoDiscriminator(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    BoolComp: false
     Sub:

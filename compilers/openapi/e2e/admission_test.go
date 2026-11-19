@@ -417,7 +417,7 @@ func TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases(t *testing.T) {
 
 // TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema holds that an
 // allOf of an enum of integers and a string type is reported once, at the
-// schema, where the contradiction completes, and that the branch writing the
+// schema, where the contradiction completes, and that the entry writing the
 // type is an info and no warning of its own.
 func TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema(t *testing.T) {
 	t.Parallel()
@@ -427,7 +427,7 @@ func TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema(t *testing.T)
 			code: diag.DegradedConstruct, pointer: "/components/schemas/E1", contains: []string{disjoint, "integer", "string"},
 		}})
 		assert.Equal(t, 1, infosAt(diags, diag.DegradedConstruct, "/components/schemas/E1/allOf/1", ""),
-			"the branch writing the type is an info")
+			"the entry writing the type is an info")
 	})
 	t.Run("entries-swapped", func(t *testing.T) {
 		t.Parallel()
@@ -493,9 +493,9 @@ func redeclaredField(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, id, 
 }
 
 // TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict holds
-// that a field declared integer in one allOf branch and in the other as a
+// that a field declared integer in one allOf entry and in the other as a
 // structure over a schema stating no type, which admits every integer, keeps
-// integer with nothing reported, in both branch orders, while a structure
+// integer with nothing reported, in both entry orders, while a structure
 // refusing only strings through a not stays reported as before.
 func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *testing.T) {
 	t.Parallel()
@@ -524,9 +524,9 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 }
 
 // TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind holds
-// that a field declared integer in one allOf branch and in the other as an
+// that a field declared integer in one allOf entry and in the other as an
 // allOf naming a union of an object and an integer, with properties beside it,
-// keeps integer with nothing reported, in both branch orders: that declaration
+// keeps integer with nothing reported, in both entry orders: that declaration
 // is no structure but a use of the union (docs/compilers/openapi.md#allof-refinement),
 // and integer is within one of its variants.
 func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *testing.T) {
@@ -549,7 +549,7 @@ func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *tes
 	}
 }
 
-// redeclaredAsStructure is an allOf declaring f integer in one branch and as
+// redeclaredAsStructure is an allOf declaring f integer in one entry and as
 // declaration in the other, the integer first unless swapped.
 func redeclaredAsStructure(declaration string, swapped bool) string {
 	a, b := "{properties: {f: {type: integer}}}", "{properties: {f: "+declaration+"}}"
@@ -562,11 +562,11 @@ func redeclaredAsStructure(declaration string, swapped bool) string {
 // redeclaredNode is the ID of the node the declaration of f other than
 // integer would own in the component name (redeclaredAsStructure).
 func redeclaredNode(name string, swapped bool) ir.TypeID {
-	branch := "1"
+	entry := "1"
 	if swapped {
-		branch = "0"
+		entry = "0"
 	}
-	return ir.TypeID("type/anonymous/components/schemas/" + name + "/allOf/" + branch + "/properties/f")
+	return ir.TypeID("type/anonymous/components/schemas/" + name + "/allOf/" + entry + "/properties/f")
 }
 
 // requireStructure requires the declaration of f other than integer in the

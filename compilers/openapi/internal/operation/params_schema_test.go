@@ -550,7 +550,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 }
 
 // TestParams_RefSiteKeywordsAreKeptOnTheParameter covers the third
-// annotation.HomeCarrier position of the $ref-sibling census (GitHub #283).
+// annotation.HomeCarrier position keeping a $ref's unread siblings (GitHub #283).
 //
 // A parameter whose schema is a $ref resolves straight to the target, so the
 // keywords written beside that $ref have no node of their own and no field on
@@ -693,11 +693,11 @@ components:
 		"the other mount keeps the declaration's own description")
 }
 
-// TestParameter_ABranchSpeaksAsItsSchemaDoes pins a parameter's schema refining a
-// $ref: what its branches write lands as what the schema writes does, a redaction
+// TestParameter_AnEntrySpeaksAsItsSchemaDoes pins a parameter's schema refining a
+// $ref: what its entries write lands as what the schema writes does, a redaction
 // on Secret, and what ir.Parameter has no field for is kept verbatim at the
 // keyword that wrote it.
-func TestParameter_ABranchSpeaksAsItsSchemaDoes(t *testing.T) {
+func TestParameter_AnEntrySpeaksAsItsSchemaDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
     get:
@@ -722,7 +722,7 @@ components:
 	assert.Equal(t, "A string", param.Docs.Summary)
 	require.NotNil(t, param.Constraints)
 	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
-	assert.True(t, param.Secret, "a branch's format: password redacts the parameter")
+	assert.True(t, param.Secret, "an entry's format: password redacts the parameter")
 	assert.NotContains(t, param.Unmodeled, "openapi:schema/format", "which then needs no verbatim copy")
 	for _, key := range []string{"openapi:schema/readOnly", "openapi:schema/xml"} {
 		entry, kept := param.Unmodeled[key]
@@ -734,7 +734,7 @@ components:
 }
 
 // TestParameter_APrincipalOwningANodeKeepsItsVisibility pins readOnly and writeOnly
-// on the branch a refinement lowers from: a node holds neither, so the parameter
+// on the entry a refinement lowers from: a node holds neither, so the parameter
 // keeps them as it does written on its schema, at the keyword that wrote them.
 func TestParameter_APrincipalOwningANodeKeepsItsVisibility(t *testing.T) {
 	t.Parallel()
@@ -767,7 +767,7 @@ components:
 
 // TestParameter_AnEntrySeveralWriteIsTheNearest pins what a parameter keeps of one
 // keyword written twice, as a node's residue does: the schema written at the
-// position over its branches, and the first branch over a later one.
+// position over its entries, and the first entry over a later one.
 func TestParameter_AnEntrySeveralWriteIsTheNearest(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:

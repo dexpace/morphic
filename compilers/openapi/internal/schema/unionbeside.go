@@ -43,7 +43,7 @@ func hasUnionSiblings(loweringContext lowering.Ctx, schema *statement.Schema) bo
 	}
 	// A oneOf and an anyOf sharing no value lower as the body beside them
 	// where it is no Model (unionPairApart), whatever their branches say.
-	return !unionBranchesDeclareShape(loweringContext, schema) || pairSharesNoValue(loweringContext, schema) && !composesAsModel(loweringContext, schema)
+	return !unionBranchesDeclareShape(loweringContext, schema) || pairSharesNoValue(loweringContext, schema) && !ownDispatch(loweringContext, schema).buildsModel(loweringContext, schema)
 }
 
 // restatableKeywords are the keywords beside a union that its branches can say
@@ -184,7 +184,7 @@ func classifyUnionSiblings(loweringContext lowering.Ctx, schema *statement.Schem
 	if unionAside(loweringContext, schema) {
 		return unionSharesNoKind
 	}
-	if !composesAsModel(loweringContext, schema) {
+	if !ownDispatch(loweringContext, schema).buildsModel(loweringContext, schema) {
 		if pairSharesNoValue(loweringContext, schema) {
 			return unionPairApart
 		}
@@ -199,13 +199,12 @@ func classifyUnionSiblings(loweringContext lowering.Ctx, schema *statement.Schem
 	return classifyConjoined(loweringContext, schema, besideUnion(schema, pointer), pointer)
 }
 
-// classifyConjoined is how schema, written at pointer, lowers the union
-// unionAtValue it conjoins with a composing body, beside it or on a branch of
-// its allOf, once unionAtValue's own shape allows distribution: kept whole
-// where the discriminator standing with unionAtValue routes to branches
-// composing schema (composedByBranch), composed as a mixin where one on an
-// ancestor routes to schema (routedSubtype, lowerSubtypeUnion), kept whole
-// where no branch lives beside schema (deadBranches); else distributed, the
+// classifyConjoined is how s, written at pointer, lowers the union u it
+// conjoins with a composing body, beside it or on an entry of its allOf, once
+// u's own shape allows distribution: kept whole where the discriminator standing
+// with u routes to branches composing s (composedByBranch), composed as a mixin
+// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion), kept
+// whole where no branch lives beside s (deadBranches); else distributed, the
 // discriminator routing the composed variants (indexBranches).
 func classifyConjoined(loweringContext lowering.Ctx, schema *statement.Schema, unionAtValue unionAt, pointer jsontext.Pointer) unionLowering {
 	if passedApart(loweringContext, schema, unionAtValue) {
@@ -287,13 +286,13 @@ func readPassed(loweringContext lowering.Ctx, schema *statement.Schema, unionAtV
 		passedReadValue.passed = append(passedReadValue.passed, admissionReader.union(set))
 	}
 	passedReadValue.rest = admissionReader.written(schema, admissionReader.nullable)
-	for _, allOfBranch := range allOfBranches(loweringContext, schema, "").branches {
-		bs := allOfBranch.schema.Schema
+	for _, entry := range allOfEntries(loweringContext, schema, "").entries {
+		bs := entry.schema.Schema
 		switch {
 		case !stated(bs):
-		case allOfBranch.schema.Ref != nil:
-			passedReadValue.rest = passedReadValue.rest.and(admissionReader.of(allOfBranch.schema))
-		case bs == unionAtValue.holder || unionAtValue.branch && declaresUnion(bs):
+		case entry.schema.Ref != nil:
+			passedReadValue.rest = passedReadValue.rest.and(admissionReader.of(entry.schema))
+		case bs == unionAtValue.holder || unionAtValue.entry && declaresUnion(bs):
 			passedReadValue.rest = passedReadValue.rest.and(admissionReader.written(bs, admissionReader.nullable))
 			if bs != unionAtValue.holder {
 				passedReadValue.passed = append(passedReadValue.passed, unionsIn(&admissionReader, bs))
@@ -321,30 +320,6 @@ func pairSharesNoValue(loweringContext lowering.Ctx, schema *statement.Schema) b
 func routedSubtype(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) bool {
 	tag, _ := subtypeDiscriminatorValue(loweringContext, schema, loweringContext.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
-}
-
-// composesAsModel reports whether the structural siblings lower to a Model,
-// which is the only node with composition fields for a union to distribute
-// across. It mirrors lower's dispatch: const and enum win over everything, then
-// an allOf that composes, then a declared object type, then object keywords
-// with no type where the kinds the position lowers to are an object alone
-// (untypedKinds): what the union's branches declare, else what the
-// kind-inference policy reads off the keywords. So a bare property set,
-// `required`, closure or catch-all beside branches each declaring an object
-// composes, as beside `type: object`.
-func composesAsModel(loweringContext lowering.Ctx, schema *statement.Schema) bool {
-	if schema.Const() != nil || enumWritten(schema) {
-		return false
-	}
-	if allOfComposes(loweringContext, schema) {
-		return true
-	}
-	types := effectiveTypes(schema)
-	if len(types) > 0 {
-		return len(types) == 1 && types[0] == statement.KindObject
-	}
-	kinds, _ := untypedKinds(loweringContext, schema)
-	return kinds == kindObject
 }
 
 // branchesNameReferents reports whether every union branch can be conjoined with
@@ -392,7 +367,7 @@ func lowerCoDeclaredUnion(loweringContext lowering.Ctx, ts *compile.Types, depth
 			return id, diags
 		case pairSharesNoValue(loweringContext, schema):
 			return id, append(diags, diagUnionsShareNothing(loweringContext, schema, pointer, "its body alone")...)
-		case writesBothUnions(schema) || !composesAsModel(loweringContext, schema):
+		case writesBothUnions(schema) || !ownDispatch(loweringContext, schema).buildsModel(loweringContext, schema):
 			// Two sharing only a null the body keeps out share no value with it,
 			// and a union sharing no kind with a body that is no Model none.
 			return id, append(diags, diagUnionApartFromBody(loweringContext, schema, pointer)...)

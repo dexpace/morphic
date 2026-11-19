@@ -27,23 +27,23 @@ func TestRefinementOf_AnUnrefinedSchemaHoldsNothing(t *testing.T) {
 	for _, name := range []string{"T", "U"} {
 		refinement, refined := refinementOf(lowerer.Ctx, StatedIn(lowerer, componentSchema(t, lowerer, name)), jsontext.Pointer("/components/schemas/"+name))
 		assert.False(t, refined, name)
-		assert.Empty(t, refinement.comp.branches, "%s: no branch list is built", name)
+		assert.Empty(t, refinement.comp.entries, "%s: no entry list is built", name)
 		assert.Nil(t, refinement.principal, name)
 	}
 }
 
-// TestBranchStatement_ReadsTheBranchAtAnIndex pins the statement a reader of the
+// TestEntryStatement_ReadsTheEntryAtAnIndex pins the statement a reader of the
 // decision with no pointer takes for an index, and none for -1.
-func TestBranchStatement_ReadsTheBranchAtAnIndex(t *testing.T) {
+func TestEntryStatement_ReadsTheEntryAtAnIndex(t *testing.T) {
 	t.Parallel()
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
     T: {allOf: [{description: d}, {$ref: '#/components/schemas/Port'}]}
 `))
 	schema := StatedIn(lowerer, componentSchema(t, lowerer, "T"))
-	assert.Nil(t, branchStatement(lowerer.Ctx, schema, -1))
-	got := branchStatement(lowerer.Ctx, schema, 1)
+	assert.Nil(t, entryStatement(lowerer.Ctx, schema, -1))
+	got := entryStatement(lowerer.Ctx, schema, 1)
 	require.NotNil(t, got)
-	assert.Same(t, allOfBranches(lowerer.Ctx, schema, "").branches[1].schema, got)
+	assert.Same(t, allOfEntries(lowerer.Ctx, schema, "").entries[1].schema, got)
 	assert.NotNil(t, got.Ref, "the entry at 1 is the $ref")
 }
 

@@ -15,8 +15,8 @@ import (
 // sides say (constraintKeyword.meet), so a keyword only one side sets is adopted
 // and a bound both set takes the tighter value.
 //
-// The four numeric bounds are separate keywords, so each meets on its own: a
-// branch declaring only exclusiveMinimum contributes it beside a minimum from
+// The four numeric bounds are separate keywords, so each meets on its own: an
+// entry declaring only exclusiveMinimum contributes it beside a minimum from
 // elsewhere, and both apply. UniqueItems has no absent state, but under
 // intersection a true from either side always holds.
 func Constraints(dst, src *ir.Constraints) *ir.Constraints {

@@ -24,13 +24,13 @@ func TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing(t *testing
 	decl, ok := lowerer.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
 	schema := lowerer.Ctx.Statements().Of(decl).Schema
-	comp := allOfBranches(lowerer.Ctx, schema, "/components/schemas/S")
-	require.Len(t, comp.branches, 1)
-	allOfBranch := comp.branches[0]
+	comp := allOfEntries(lowerer.Ctx, schema, "/components/schemas/S")
+	require.Len(t, comp.entries, 1)
+	entry := comp.entries[0]
 	held := &principalKept{apart: []string{"type"}, apartReason: ir.ReasonNoIRHome}
 	var unmodeled ir.Unmodeled
 
-	diags := keepApart(lowerer.Ctx, lowerer.Types, comp, held, &unmodeled, allOfBranch.schema.Schema, allOfBranch.pointer, []string{"minimum"}, ir.ReasonDegradedLowering)
+	diags := keepApart(lowerer.Ctx, lowerer.Types, comp, held, &unmodeled, entry.schema.Schema, entry.pointer, []string{"minimum"}, ir.ReasonDegradedLowering)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
@@ -48,12 +48,12 @@ func TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken(t *testing
 	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string}]}\n"))
 	decl, ok := lowerer.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	comp := allOfBranches(lowerer.Ctx, lowerer.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
-	allOfBranch := comp.branches[0]
+	comp := allOfEntries(lowerer.Ctx, lowerer.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
+	entry := comp.entries[0]
 	unmodeled := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`1`), Reason: ir.ReasonNoIRHome}}
 	built := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`2`), Reason: ir.ReasonNoIRHome}}
 
-	diags := keepBuilt(lowerer.Ctx, comp, &principalKept{}, &unmodeled, allOfBranch.schema.Schema, allOfBranch.pointer, built)
+	diags := keepBuilt(lowerer.Ctx, comp, &principalKept{}, &unmodeled, entry.schema.Schema, entry.pointer, built)
 
 	assertInternalInvariant(t, diags)
 	assert.Equal(t, `1`, string(unmodeled["openapi:oneOf/0"].Value), "what the position wrote stands")

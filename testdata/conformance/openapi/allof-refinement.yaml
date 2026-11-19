@@ -68,7 +68,7 @@ components:
             - {type: integer, format: int32}
         # A use reads through a component refining another.
         scan: {$ref: '#/components/schemas/ScanID'}
-        # A collection bound on a branch binds the use, as one beside the allOf
+        # A collection bound on an entry binds the use, as one beside the allOf
         # does, and the counts meet.
         tags:
           allOf:
@@ -89,7 +89,7 @@ components:
       oneOf:
         - allOf: [{$ref: '#/components/schemas/Identifier'}]
         - allOf: [{$ref: '#/components/schemas/Port'}, {description: A port}]
-    # Every branch a kind: the narrowest of them, in either order.
+    # Every entry a kind: the narrowest of them, in either order.
     Prim:
       allOf:
         - {type: integer}
@@ -98,16 +98,16 @@ components:
       allOf:
         - {type: integer, format: int32}
         - {type: integer}
-    # A type beside the allOf is what the position is, and a branch says more.
+    # A type beside the allOf is what the position is, and an entry says more.
     Bounded:
       type: string
       allOf: [{maxLength: 3}]
-    # A branch's collection bound lands on the list the type beside it makes.
+    # An entry's collection bound lands on the list the type beside it makes.
     BoundedList:
       type: array
       items: {type: string}
       allOf: [{maxItems: 2}]
-    # What a branch says reads as written beside the enum the position is.
+    # What an entry says reads as written beside the enum the position is.
     Level:
       type: string
       enum: [low, high]
@@ -142,14 +142,14 @@ components:
     Tags: {type: array, items: {type: string}}
     Mode: {type: string, enum: [get, set], description: What to do}
     Blob: {type: string, format: binary}
-    # A union on a branch is a conjunct admitting what its branches do, so this
-    # is the string the second branch says, and the anyOf adds nothing to it.
+    # A union on an entry is a conjunct admitting what its branches do, so this
+    # is the string the second entry says, and the anyOf adds nothing to it.
     Needle:
       allOf:
         - anyOf: [{type: string}, {type: number}, {type: boolean}]
         - {type: string, maxLength: 1000}
-    # A union written beside the allOf is one of its conjuncts as one on a
-    # branch is, so this is the string Needle is.
+    # A union written beside the allOf is one of its conjuncts as one on an
+    # entry is, so this is the string Needle is.
     NeedleBeside:
       allOf: [{type: string, maxLength: 1000}]
       anyOf: [{type: string}, {type: number}, {type: boolean}]

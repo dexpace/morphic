@@ -78,7 +78,7 @@ func assertKept(t *testing.T, cases []keptCase) []ir.Diagnostic {
 func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 	t.Parallel()
 	diags := assertKept(t, []keptCase{
-		{name: "TextAndCensus", schema: "{allOf: [{type: string, format: int64, minimum: 1, required: [a]}], minimum: 2, required: [b]}",
+		{name: "TextAndUnread", schema: "{allOf: [{type: string, format: int64, minimum: 1, required: [a]}], minimum: 2, required: [b]}",
 			kept: map[string]string{
 				"openapi:allOf/0":  `{"minimum":1,"required":["a"]} [degraded_lowering]`,
 				"openapi:minimum":  "2 [no_ir_home]",
@@ -86,7 +86,7 @@ func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 			}, atEntry: 2, atSelf: 1},
 		{name: "TextAlone", schema: "{allOf: [{type: string, format: int64, minimum: 1}], minimum: 2}",
 			kept: map[string]string{"openapi:allOf/0": `{"minimum":1} [no_ir_home]`, "openapi:minimum": "2 [no_ir_home]"}, atEntry: 1},
-		{name: "ContentAndCensus", schema: "{allOf: [{type: integer, contentEncoding: a, required: [a]}], contentEncoding: b, required: [b]}",
+		{name: "ContentAndUnread", schema: "{allOf: [{type: integer, contentEncoding: a, required: [a]}], contentEncoding: b, required: [b]}",
 			kept: map[string]string{
 				"openapi:allOf/0":         `{"contentEncoding":"a","required":["a"]} [degraded_lowering]`,
 				"openapi:contentEncoding": `"b" [no_ir_home]`,
@@ -99,7 +99,7 @@ func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 				"openapi:minimum":  "2 [degraded_lowering]",
 			}, atEntry: 2, atSelf: 1},
 	})
-	entry := reportsAt(diags, "/components/schemas/TextAndCensus/allOf/0")
+	entry := reportsAt(diags, "/components/schemas/TextAndUnread/allOf/0")
 	require.Len(t, entry, 2)
 	assert.Contains(t, entry[0]+entry[1], "write minimum otherwise")
 	assert.Contains(t, entry[0]+entry[1], "write required otherwise")
@@ -107,13 +107,13 @@ func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 
 // TestPrincipalKept_AKeywordAlikeIsKeptOnce pins a keyword an inline principal
 // and its position keep with one value: one entry and one report, the
-// principal's for a keyword of the census, one writing of it, and the
+// principal's for a keyword of readDomain, one writing of it, and the
 // position's for another reader's; a number spelt another way is another
 // value, kept apart.
 func TestPrincipalKept_AKeywordAlikeIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	assertKept(t, []keptCase{
-		{name: "Census", schema: "{allOf: [{type: string, minimum: 2}], minimum: 2}",
+		{name: "Unread", schema: "{allOf: [{type: string, minimum: 2}], minimum: 2}",
 			kept: map[string]string{"openapi:minimum": "2 [degraded_lowering]"}, atEntry: 1},
 		{name: "Content", schema: "{allOf: [{oneOf: [{type: string}, {type: integer}], contentEncoding: a}], contentEncoding: a}",
 			kept: map[string]string{"openapi:contentEncoding": `"a" [no_ir_home]`}},
@@ -125,11 +125,11 @@ func TestPrincipalKept_AKeywordAlikeIsKeptOnce(t *testing.T) {
 	})
 }
 
-// TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey pins a keyword
-// outside the census an inline principal and its position keep otherwise, a
+// TestPrincipalKept_AKeyOutsideTheReadDomainIsKeptUnderTheEntryKey pins a keyword
+// outside readDomain an inline principal and its position keep otherwise, a
 // key no dialect defines: the principal is lowered, so it is not kept whole
 // for it, as another entry is.
-func TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey(t *testing.T) {
+func TestPrincipalKept_AKeyOutsideTheReadDomainIsKeptUnderTheEntryKey(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Principal: {allOf: [{type: string, foo: 1}], foo: 2}\n"+
@@ -145,7 +145,7 @@ func TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey(t *testing.T) {
 }
 
 // TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce pins a
-// discriminator the principal's census keeps after the position read the keys
+// discriminator the principal keeps unread after the position read the keys
 // inside it: the entry kept whole holds them, and the node none beside it.
 func TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce(t *testing.T) {
 	t.Parallel()
@@ -164,11 +164,11 @@ func TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce(t *testing.T) {
 func TestPrincipalKept_AValueThatCannotRenderIsRefusedAsWrittenFlat(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    Census: {allOf: [{type: string, minimum: "+unpreservableValue+"}], minimum: 2}\n"+
+		"    Unread: {allOf: [{type: string, minimum: "+unpreservableValue+"}], minimum: 2}\n"+
 			"    Content: {allOf: [{type: integer, contentSchema: {const: "+unpreservableValue+"}}], contentSchema: {const: 1}}\n"))
-	assert.Equal(t, map[string]string{"openapi:minimum": "2 [degraded_lowering]"}, keptOn(t, doc, "Census"))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, "/components/schemas/Census/allOf/0/minimum"))
-	assert.Empty(t, reportsAt(diags, "/components/schemas/Census/allOf/0"))
+	assert.Equal(t, map[string]string{"openapi:minimum": "2 [degraded_lowering]"}, keptOn(t, doc, "Unread"))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, "/components/schemas/Unread/allOf/0/minimum"))
+	assert.Empty(t, reportsAt(diags, "/components/schemas/Unread/allOf/0"))
 	assert.Equal(t, map[string]string{"openapi:contentSchema": `{"const":1} [no_ir_home]`}, keptOn(t, doc, "Content"))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, "/components/schemas/Content/allOf/0/contentSchema"))
 }
@@ -272,7 +272,7 @@ func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
 	assert.Equal(t, map[string]string{"openapi:contentMediaType": `"text/html" [no_ir_home]`}, keptOn(t, doc, "Media"))
 	media := reportsAt(diags, "/components/schemas/Media/contentMediaType")
 	require.Len(t, media, 1)
-	assert.Contains(t, media[0], "holds what its inline allOf branch writes")
+	assert.Contains(t, media[0], "holds what its inline allOf entry writes")
 	assert.NotContains(t, media[0], "no Encoding field")
 }
 
@@ -337,10 +337,10 @@ func TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes(t *testing.T) {
 }
 
 // TestPrincipalKept_EachKeywordHasOneKeeper pins three readers of one inline
-// principal at once, its census, its content reader and what the entry keeps
-// as residue, each holding a keyword the position writes otherwise: one object
-// under the entry's key holds all three, each keyword is named by one report,
-// its reader's, and no reader keeps another's.
+// principal at once, its keeping of unread keywords, its content reader and
+// what the entry keeps as residue, each holding a keyword the position writes
+// otherwise: one object under the entry's key holds all three, each keyword is
+// named by one report, its reader's, and no reader keeps another's.
 func TestPrincipalKept_EachKeywordHasOneKeeper(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -395,7 +395,7 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 		if diagnostic.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(diagnostic.Message, "kept verbatim") {
 			continue
 		}
-		switch before, _, apart := strings.Cut(diagnostic.Message, " otherwise than this inline branch"); {
+		switch before, _, apart := strings.Cut(diagnostic.Message, " otherwise than this inline entry"); {
 		case apart:
 			_, list, _ := strings.Cut(before, " write ")
 			for keyword := range strings.SplitSeq(list, ", ") {
@@ -426,9 +426,9 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 		name, schema, failure string
 		kept                  []string
 	}{
-		{"CensusApart", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], minimum: 2, maxItems: 2}", diag.UnpreservableConstruct,
+		{"UnreadApart", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], minimum: 2, maxItems: 2}", diag.UnpreservableConstruct,
 			[]string{"allOf:maxItems", "maxItems", "minimum"}},
-		{"CensusPlain", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], maxItems: 2}", diag.UnpreservableConstruct,
+		{"UnreadPlain", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], maxItems: 2}", diag.UnpreservableConstruct,
 			[]string{"allOf:maxItems", "maxItems"}},
 		{"TextApart", "{allOf: [{type: string, format: int64, minimum: " + bad + ", required: [a]}], minimum: 2, required: [b]}",
 			diag.UnpreservableConstruct, []string{"allOf:required", "minimum", "required"}},
@@ -481,13 +481,13 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 	assert.Equal(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
 	said := reportsAt(diags, "/components/schemas/Tag")
 	require.Len(t, said, 1)
-	assert.Contains(t, said[0], "holds the discriminator its inline allOf branch writes")
+	assert.Contains(t, said[0], "holds the discriminator its inline allOf entry writes")
 	assert.NotContains(t, said[0], "no home")
 
 	said = reportsAt(diags, "/components/schemas/Two")
 	require.Len(t, said, 2)
 	assert.Contains(t, said[0], "which has no home for maxItems declared beside it")
-	assert.Contains(t, said[1], "holds the discriminator its inline allOf branch writes")
+	assert.Contains(t, said[1], "holds the discriminator its inline allOf entry writes")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Two/discriminator/mapping/x"),
 		"the kept discriminator's mapping is resolved")
 	said = reportsAt(diags, "/components/schemas/None")
@@ -529,7 +529,7 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 		at := "/components/schemas/" + tc.name
 		said := strings.Join(slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/"+tc.keyword)), "\n")
 		assert.Equal(t, 1, strings.Count(said, tc.flat), "%s: the build's report, as written flat, once: %s", tc.name, said)
-		assert.NotContains(t, said, "otherwise than this inline branch", "%s: and no second report of it", tc.name)
+		assert.NotContains(t, said, "otherwise than this inline entry", "%s: and no second report of it", tc.name)
 		assert.Len(t, reportsAt(diags, at), 1, "%s: the position's once", tc.name)
 	}
 	assert.Equal(t, map[string]string{"openapi:format": `"byte" [no_ir_home]`}, keptOn(t, doc, "Alike"))
@@ -548,12 +548,12 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }
 
-// TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions pins what the
+// TestPrincipalKept_AFoldedEntriesBuildKeepStaysThePositions pins what the
 // build of a principal's node keeps of the position's own keywords, read beside
 // the principal: a 3.0 exclusive modifier with no bound beside it. It is the
 // position's, held back with nothing of the principal's, and one the principal
 // writes alike is kept once.
-func TestPrincipalKept_AFoldedBranchesBuildKeepStaysThePositions(t *testing.T) {
+func TestPrincipalKept_AFoldedEntriesBuildKeepStaysThePositions(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 		"    Beside: {allOf: [{type: number, format: fixed}], exclusiveMinimum: true}\n"+
@@ -648,7 +648,7 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	}
 	whole := reportsAt(diags, "/components/schemas/Whole/allOf/0")
 	require.Len(t, whole, 1)
-	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
+	assert.Contains(t, whole[0], "the entry (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
 	for _, diagnostic := range diags {
 		assert.False(t, strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
@@ -713,7 +713,7 @@ func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 }
 
 // TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
-// inline principal and its position write alike that no census reads: a key no
+// inline principal and its position write alike outside readDomain: a key no
 // dialect defines, a default, readOnly, a validation-only keyword, an
 // extension. It is one writing: kept once and reported once, by the position
 // where the principal is lowered, and inside the principal's entry, named by

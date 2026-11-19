@@ -411,7 +411,7 @@ func TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt(t *testing
 }
 
 // TestNamedPointerBytes_NamesTheEntriesOfAListAndTheReferenceOfAnObject holds
-// the nodes of a list, an `allOf` branch and a parameter list item among
+// the nodes of a list, an `allOf` entry and a parameter list item among
 // them, to the pointers they are named by: the total grows by what a list adds, a
 // parameter that is a reference object among them.
 func TestNamedPointerBytes_NamesTheEntriesOfAListAndTheReferenceOfAnObject(t *testing.T) {

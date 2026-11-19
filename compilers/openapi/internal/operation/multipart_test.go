@@ -404,8 +404,9 @@ components:
 }
 
 // TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
-// branches yields one entry rather than depending on which branch was walked
-// last. The encoding entry describes one part on the wire either way.
+// entries yields one encoding entry rather than depending on which allOf entry
+// was walked last. The encoding entry describes one part on the wire either
+// way.
 func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /upload:
@@ -480,7 +481,7 @@ components:
 }
 
 // TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
-// to the type the allOf merge settled on, not to whichever branch declared the
+// to the type the allOf merge settled on, not to whichever entry declared the
 // name first. The merge keeps the narrower declaration in either order, so a
 // flag read from the first declaration differs between the two orders.
 func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
@@ -504,12 +505,12 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
 			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
@@ -518,7 +519,7 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 
 // TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration holds a
 // part whose merged type the type walk cannot answer for to the flags every
-// declaration of its name gives, in either branch order, and a redeclared part
+// declaration of its name gives, in either entry order, and a redeclared part
 // that is not the first to its own entry.
 func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *testing.T) {
 	t.Parallel()
@@ -535,12 +536,12 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
 			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
@@ -552,7 +553,7 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 }
 
 // TestPartEncoding_AMergedUnionReadsThroughItsVariants holds a part whose
-// merged type is a union to the flags its variants give, in either branch
+// merged type is a union to the flags its variants give, in either entry
 // order: it repeats where a variant is a list, and is files where every value
 // it admits is a file.
 func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
@@ -573,12 +574,12 @@ func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
 			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
@@ -798,7 +799,7 @@ components:
 // TestPartEncodings_CappedEntryReachedByAnotherPath nests an entry under more
 // inline allOf wrappers than the lowering flattens, and reaches what it names a
 // second time by another path: an object, by a JSON Pointer $ref to it, and a
-// $ref entry of the branch the cap stops at, by the same $ref written at the
+// $ref entry of the entry the cap stops at, by the same $ref written at the
 // top, whose target the cap's record must follow as the walk does. Whichever
 // the body names first, both parts are keyed, so no cap is reported.
 func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
@@ -850,7 +851,7 @@ components:
 				assert.Contains(t, got, id, "the %s part is keyed at the object both paths reach", part)
 			}
 			assert.NotContains(t, diagMessages(diags), "form body composition is nested past",
-				"a path enters what the capped branch's entry names, so no cap is reported")
+				"a path enters what the capped entry's entry names, so no cap is reported")
 		})
 	}
 }
@@ -1062,7 +1063,7 @@ func nestedPartSpec(n int, residue bool, shape, media string, parts, encoding []
 }
 
 // How nestedPartSpec places the wrappers: inline at the body, behind an allOf
-// $ref branch, or beside a part the body declares itself.
+// $ref entry, or beside a part the body declares itself.
 const (
 	shapeInline     = ""
 	shapeViaRef     = "ref"
@@ -1516,7 +1517,7 @@ components:
 // anyOf branch declares to a Content.Encoding key naming the variant declaring
 // it, with its entry's fields and its own flags, and no record or finding for
 // the entry, in each spelling: a union body, an anyOf, a $ref to one and a
-// $ref branch, a union on an allOf branch or beside properties, and a union
+// $ref branch, a union on an allOf entry or beside properties, and a union
 // nested in a branch. A name two branches declare is keyed under each, its
 // flags and default content type read off that declaration alone, whatever
 // the other's kind.

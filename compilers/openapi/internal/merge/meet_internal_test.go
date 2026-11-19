@@ -260,7 +260,7 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 }
 
 // TestFold_EnumsListingSharedValuesApartKeepTheWinner pins two enums listing
-// the values they share in different orders, in either branch order: an enum of
+// the values they share in different orders, in either entry order: an enum of
 // both would take one declaration's order, so the two overlap, and the field
 // keeps the later, reports the other and mints nothing, whether each holds a
 // value the other lacks or one holds only the other's values beside less

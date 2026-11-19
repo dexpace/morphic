@@ -21,15 +21,15 @@ import (
 )
 
 // TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder pins that the broader
-// branch of a narrowing, whichever comes first, never lands a default the
+// entry of a narrowing, whichever comes first, never lands a default the
 // narrower kind refuses on the merged field: it is kept verbatim at its own
-// branch with one info, so the two orders give the same field and the same
+// entry with one info, so the two orders give the same field and the same
 // diagnostics.
 func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const broad = "            p: {type: number, default: 1.5}\n"
 	const narrow = "            p: {type: integer}\n"
-	branch := "        - type: object\n          properties:\n"
+	entry := "        - type: object\n          properties:\n"
 	for _, tc := range []struct{ name, first, second, broadPtr string }{
 		{"broad first", broad, narrow, "/components/schemas/Ranged/allOf/0/properties/p"},
 		{"narrow first", narrow, broad, "/components/schemas/Ranged/allOf/1/properties/p"},
@@ -37,7 +37,7 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
-				branch+tc.first+branch+tc.second))
+				entry+tc.first+entry+tc.second))
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[componentID("Ranged")].(*ir.Model)
 			require.True(t, ok, "Ranged should be a model")
@@ -51,7 +51,7 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 			assert.Equal(t, jsontext.Pointer(tc.broadPtr), diags[0].Provenance.Pointer)
 			entry, ok := property.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
-			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", property.Unmodeled)
+			require.True(t, ok, "the broad entry is kept at its own pointer; got %v", property.Unmodeled)
 			assert.JSONEq(t, `{"type":"number","default":1.5}`, string(entry.Value))
 			assert.Len(t, property.Unmodeled, 1)
 		})
@@ -66,7 +66,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 	t.Parallel()
 	const withNull = "            p: {$ref: '#/components/schemas/Y', default: null}\n"
 	const plain = "            p: {$ref: '#/components/schemas/Y'}\n"
-	branch := "        - type: object\n          properties:\n"
+	entry := "        - type: object\n          properties:\n"
 	for _, tc := range []struct{ name, first, second string }{
 		{"null first", withNull, plain},
 		{"null second", plain, withNull},
@@ -74,7 +74,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
-				branch+tc.first+branch+tc.second))
+				entry+tc.first+entry+tc.second))
 			assert.Empty(t, diags, "nothing is refused")
 			model, ok := doc.Types[componentID("Held")].(*ir.Model)
 			require.True(t, ok, "Held should be a model")
@@ -89,7 +89,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 
 // TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration with a
 // side that is not a bare primitive settles on its narrower side whichever
-// branch is written first, with no conflict or degradation reported and
+// entry is written first, with no conflict or degradation reported and
 // nothing kept.
 func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 	t.Parallel()
@@ -128,13 +128,13 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 			assert.Empty(t, cmp.Diff(types[0], types[1],
 				cmpopts.IgnoreFields(ir.TypeCommon{}, "ID", "Name", "Provenance"),
 				cmpopts.IgnoreFields(ir.EnumMember{}, "ID")),
-				"the winner does not depend on branch order")
+				"the winner does not depend on entry order")
 		})
 	}
 }
 
 // TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
-// hoists a Scalar over the bare kind narrows it whichever branch is first, and
+// hoists a Scalar over the bare kind narrows it whichever entry is first, and
 // the format's own details land on the field or its scalar rather than being
 // parked, the bound on the scalar alone (GitHub #1988).
 func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
@@ -186,7 +186,7 @@ func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.
 // TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder pins that the
 // broader declaration's default is judged against a winner that is not a bare
 // primitive: one the enum does not admit is not adopted, and the declaration
-// that wrote it is kept at its own pointer, whichever branch it is.
+// that wrote it is kept at its own pointer, whichever entry it is.
 func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 	t.Parallel()
 	enum, broad := "{type: integer, enum: [1, 2]}", "{type: integer, default: 5}"
@@ -218,7 +218,7 @@ func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 // winning node holds the broader declaration's default to its constraints as
 // well as its kind: a string past a component's maxLength, or a list past its
 // maxItems, is not adopted, and the declaration that wrote it is kept at its
-// own pointer, whichever branch it is and wherever the component is declared.
+// own pointer, whichever entry it is and wherever the component is declared.
 func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
 	t.Parallel()
 	named := "{$ref: '#/components/schemas/C'}"
@@ -261,7 +261,7 @@ func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
 // TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit pins that two lists of
 // one element, which are two targets, settle on a non-nullable list, so a null
 // default the nullable declaration wrote is not adopted and the declaration is
-// kept at its own pointer, whichever branch it is.
+// kept at its own pointer, whichever entry it is.
 func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 	t.Parallel()
 	nullable := `{type: [array, "null"], items: {type: integer}, default: null}`
@@ -399,11 +399,11 @@ func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
 	decls := []string{"{}", enum, "{$ref: '#/components/schemas/Color'}"}
 	for _, colorLast := range []bool{false, true} {
 		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-			var branches strings.Builder
+			var entries strings.Builder
 			for _, i := range order {
-				branches.WriteString("        - type: object\n          properties: {v: " + decls[i] + "}\n")
+				entries.WriteString("        - type: object\n          properties: {v: " + decls[i] + "}\n")
 			}
-			color, composed := "    Color: "+enum+"\n", "    T:\n      allOf:\n"+branches.String()
+			color, composed := "    Color: "+enum+"\n", "    T:\n      allOf:\n"+entries.String()
 			schemas := color + composed
 			if colorLast {
 				schemas = composed + color
@@ -440,24 +440,23 @@ func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
 	}
 }
 
-// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field property
-// redeclared as a $ref to its branch's sibling field vx and as an inline copy
-// of vx, in either order. vx's pointer begins with property's but is not under
-// it, so vx was declared apart and wins in both orders with nothing reported or
-// kept.
+// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field v redeclared as
+// a $ref to its entry's sibling field vx and as an inline copy of vx, in either
+// order. vx's pointer begins with v's but is not under it, so vx was declared
+// apart and wins in both orders with nothing reported or kept.
 func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 	t.Parallel()
 	const enum = "{type: string, enum: [a, b]}"
 	for i := range 2 {
 		vx := fmt.Sprintf("/components/schemas/T/allOf/%d/properties/vx", i)
-		branches := [2]string{
+		entries := [2]string{
 			"        - type: object\n          properties: {vx: " + enum + ", v: {$ref: '#" + vx + "'}}\n",
 			"        - type: object\n          properties: {v: " + enum + "}\n",
 		}
 		if i == 1 {
-			branches[0], branches[1] = branches[1], branches[0]
+			entries[0], entries[1] = entries[1], entries[0]
 		}
-		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+entries[0]+entries[1]))
 		model, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
 		var property *ir.Property
@@ -478,14 +477,14 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 // a full-time default is adopted and a const that is one narrows the field,
 // while a value with no offset, another string format and an enum of no time
 // are refused with a warning, and a node holding detail of its own meets the
-// const in a literal holding it too. Each case is compiled in both branch
+// const in a literal holding it too. Each case is compiled in both entry
 // orders.
 func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 	t.Parallel()
 	const timed = "{type: string, format: time}"
 	for _, tc := range []struct {
 		name, a, b string
-		kind       ir.TypeKind // the field's type, or "" where the overlap keeps branch order
+		kind       ir.TypeKind // the field's type, or "" where the overlap keeps entry order
 		def        string      // the field's default, or "" for none
 		code       string      // the one diagnostic, or "" for none
 	}{
@@ -585,7 +584,7 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 // TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree compiles a field whose two
 // declarations give an extension differently, alike in another, one promoting
 // a deprecation from an extension, and one default spelled two ways. In either
-// branch order the field keeps the later value of the extension and reports
+// entry order the field keeps the later value of the extension and reports
 // the other, names the heuristic behind its deprecation, and takes the default
 // as the one value it is.
 func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
@@ -647,7 +646,7 @@ func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
 
 // TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder pins that a redeclaration
 // narrowing a bare primitive (GitHub #598, #446) loses nothing: the narrower
-// target wins in both branch orders, with no diagnostic and no kept entry, and
+// target wins in both entry orders, with no diagnostic and no Unmodeled entry, and
 // the two orders merge to the same type.
 func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 	t.Parallel()
@@ -681,13 +680,13 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 				}
 				merged[i] = property.Type
 			}
-			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on entry order")
 		})
 	}
 }
 
 // nonBareSpec declares T with one property v written as schemaA in the first
-// branch and schemaB in the second, after the components in extra.
+// entry and schemaB in the second, after the components in extra.
 func nonBareSpec(extra, schemaA, schemaB string) string {
 	return openapitest.ComponentSpec(extra +
 		"    T:\n" +
@@ -698,7 +697,7 @@ func nonBareSpec(extra, schemaA, schemaB string) string {
 		"          properties: {v: " + schemaB + "}\n")
 }
 
-// TestAllOf_EnumsAndListsNarrowToWhatTheyShare pins GitHub #1042 in both branch
+// TestAllOf_EnumsAndListsNarrowToWhatTheyShare pins GitHub #1042 in both entry
 // orders: an enum within another is the field's type, and a list whose element
 // is narrower than a described list's is a list of the narrower element holding
 // the description, minted for the field. A minItems or an x- extension on the
@@ -818,7 +817,7 @@ func TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies(t *testing
 }
 
 // TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues pins GitHub #1654
-// in both branch orders: an enum of integer within an enum of number is the
+// in both entry orders: an enum of integer within an enum of number is the
 // field's type, and two each holding a value the other lacks meet in an enum of
 // what they share, of the narrower value type, with nothing reported or kept.
 func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
@@ -848,7 +847,7 @@ func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
 	}
 }
 
-// TestAllOf_AnAliasMeetsAsTheNodeItStandsFor pins GitHub #1672 in both branch
+// TestAllOf_AnAliasMeetsAsTheNodeItStandsFor pins GitHub #1672 in both entry
 // orders: a component wrapping an enum or a list in an allOf, one only a $ref,
 // and one beside a description, each meet the enum or the list beside them as the
 // node they stand for, in a node holding what the alias adds, with nothing
@@ -896,7 +895,7 @@ func TestAllOf_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 	}
 }
 
-// TestAllOf_AnAliasIsJudgedByWhatItAdds pins, in both branch orders, what an
+// TestAllOf_AnAliasIsJudgedByWhatItAdds pins, in both entry orders, what an
 // alias adds to the node it stands for: docs read field by field down its
 // chain; a bound on an open enum, which no node of its kind holds, judged as
 // written; one alias of the top type within the other; and null alone, so the

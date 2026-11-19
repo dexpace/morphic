@@ -111,12 +111,11 @@ func unionBranchesDeclareShape(loweringContext lowering.Ctx, schema *statement.S
 }
 
 // setsDeclareShape is unionBranchesDeclareShape for the branches of sets,
-// written by holder, schema or an allOf branch of it, judged against schema as
-// the body, read without holder's unions; a nil holder reads the conjunction
-// whole. The body's own reading settles first each branch restating what schema
-// itself writes (ownRestatements), and only the rest are judged against the
-// whole reading, which they would restate under too, as more declarations admit
-// less.
+// written by holder, s or an allOf entry of it, judged against s as the body,
+// read without holder's unions; a nil holder reads the conjunction whole. The
+// body's own reading settles first each branch restating what s itself writes
+// (ownRestatements), and only the rest are judged against the whole reading,
+// which they would restate under too, as more declarations admit less.
 func setsDeclareShape(loweringContext lowering.Ctx, schema, holder *statement.Schema, sets ...[]statement.Subschema) bool {
 	branches := statementsOf(loweringContext, slices.Concat(sets...))
 	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return referenceOf(loweringContext, b) != nil }) {
@@ -352,8 +351,7 @@ func conjunctWithout(admissionReaderValue *admissionReader, b *statement.Stateme
 		return writtenLowered(admissionReaderValue, holder, admissionReaderValue.nullable)
 	case holder != nil && b.BesideRef != nil && holder.WrittenBeside == b.BesideRef:
 		// An entry writing its union beside a $ref is listed as that reference
-		// and the rest of its keywords
-		// (statement.MemoizingSchemaReader.restOf), the holder.
+		// and the keywords beside it (statement.Table.besideRefOf), the holder.
 		return lowered(admissionReaderValue, admissionReaderValue.c.Statements().Read(b.BesideRef)).and(writtenLowered(admissionReaderValue, holder, admissionReaderValue.nullable))
 	}
 	if holder == nil || !slices.ContainsFunc(b.Entries, func(allOfConjunct statement.AllOfConjunct) bool { return allOfConjunct.Schema == holder }) {

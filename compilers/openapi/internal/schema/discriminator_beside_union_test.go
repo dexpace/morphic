@@ -75,8 +75,8 @@ func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	t.Parallel()
 	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+subDog) {
 		assertMovedToMap(t, typeByName(doc, "Pet"))
-		assert.Empty(t, censusReports(doc.Diagnostics, "/components/schemas/Pet"),
-			"the map holds all the census asked about, and the move keeps the discriminator itself")
+		assert.Empty(t, unreadReports(doc.Diagnostics, "/components/schemas/Pet"),
+			"the map holds all that would otherwise be kept unread, and the move keeps the discriminator itself")
 	}
 }
 
@@ -96,7 +96,7 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 		assertMovedToMap(t, doc.Types["type/anonymous"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
 			"not a subtype", "one move, reported once")
-		assert.Empty(t, censusReports(doc.Diagnostics, at), "the map homes all the census asked about")
+		assert.Empty(t, unreadReports(doc.Diagnostics, at), "the map homes all that would otherwise be kept unread")
 	}
 }
 
@@ -126,7 +126,7 @@ func TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel(t *testing.T) 
 				assert.Nil(t, model.Discriminator, "the discriminator moved")
 				assert.Equal(t, []string{"a"}, model.Requires)
 				assert.NotContains(t, model.Unmodeled, "openapi:required")
-				assert.Empty(t, censusReports(doc.Diagnostics, pointer))
+				assert.Empty(t, unreadReports(doc.Diagnostics, pointer))
 			}
 		})
 	}
@@ -460,9 +460,9 @@ func assertStayed(t *testing.T, doc *ir.Document) {
 const mapPet = "    Pet:\n      type: object\n      additionalProperties: {type: string}\n" +
 	"      discriminator: {propertyName: kind}\n" + petBranches
 
-// censusReports returns the messages of the census reports made at pointer,
-// each naming the keywords that position kept for want of a home.
-func censusReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
+// unreadReports returns the messages of the reports of unread keywords made at
+// pointer, each naming the keywords that position kept for want of a home.
+func unreadReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
 	var out []string
 	for _, diagnostic := range diags {
 		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == pointer &&

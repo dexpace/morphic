@@ -29,9 +29,9 @@ import (
 const maxFallbackReferenceHops = 64
 
 // Use is what speaks for one position beside the schema written there: the
-// branches of its allOf read as written beside it, then what it falls back to.
+// entries of its allOf read as written beside it, then what it falls back to.
 type Use struct {
-	FoldedAllOfBranches []annotation.FoldedAllOfBranch
+	FoldedAllOfEntries []annotation.FoldedAllOfEntry
 	// Referents is what the position falls back to, nearest first
 	// (docs/compilers/openapi.md#ref-use-site).
 	Referents []*statement.Schema
@@ -57,7 +57,7 @@ type Use struct {
 // position. A position that lost its $ref still reads it, so a Site here is a
 // reference site whatever schema writes.
 func (u Use) Site(schema *statement.Schema) annotation.SchemaPositionAnnotationSources {
-	return annotation.SchemaPositionAnnotationSources{Kind: annotation.Reference, Node: schema, FoldedAllOfBranches: u.FoldedAllOfBranches, Referents: u.Referents}
+	return annotation.SchemaPositionAnnotationSources{Kind: annotation.Reference, Node: schema, FoldedAllOfEntries: u.FoldedAllOfEntries, Referents: u.Referents}
 }
 
 // SiteAt is Site for schema written at pointer, saying what the dialect schema
@@ -114,17 +114,17 @@ func (u Use) Default(loweringContext lowering.Ctx, schema *statement.Schema, poi
 }
 
 // defaultAt places the default the schema at index i of u.Site's chain writes,
-// for the carrier at pointer: the site's own, a folded branch's, or a
+// for the carrier at pointer: the site's own, a folded entry's, or a
 // referent's where it is written, in whichever document. A referent the
 // bindings place nowhere is reported at the carrier, which reads it.
 func (u Use) defaultAt(loweringContext lowering.Ctx, i int, pointer jsontext.Pointer) ir.Provenance {
 	switch v := i - 1; {
 	case i == 0:
 		return loweringContext.Place().At(pointer.AppendToken("default"))
-	case v < len(u.FoldedAllOfBranches):
-		return loweringContext.Place().At(u.FoldedAllOfBranches[v].At.AppendToken("default"))
+	case v < len(u.FoldedAllOfEntries):
+		return loweringContext.Place().At(u.FoldedAllOfEntries[v].At.AppendToken("default"))
 	}
-	r := i - 1 - len(u.FoldedAllOfBranches)
+	r := i - 1 - len(u.FoldedAllOfEntries)
 	if r >= len(u.places) || !u.places[r].known {
 		return loweringContext.Place().At(pointer)
 	}
@@ -224,7 +224,7 @@ func readThroughAllOfReferenceOf(loweringContext lowering.Ctx, schema *statement
 // nothing. It reads the source and its bindings alone, since a chain asks it of
 // every link.
 func throughRef(loweringContext lowering.Ctx, schema *statement.Schema) *statement.Statement {
-	refs := slices.Collect(allOfRefBranches(loweringContext, schema))
+	refs := slices.Collect(allOfRefEntries(loweringContext, schema))
 	if slices.Contains(dispatchOf(schema).skipped, "allOf") {
 		if len(refs) != 1 {
 			return nil
@@ -232,7 +232,7 @@ func throughRef(loweringContext lowering.Ctx, schema *statement.Schema) *stateme
 		return refs[0]
 	}
 	if decision := decisionOf(loweringContext, schema); decision.refines {
-		return branchStatement(loweringContext, schema, decision.refAt)
+		return entryStatement(loweringContext, schema, decision.refAt)
 	}
 	if len(refs) != 1 || !allOfMayRefine(schema) || declaresUnion(schema) || !decoratesOnly(loweringContext, schema) {
 		return nil
@@ -245,12 +245,12 @@ func throughRef(loweringContext lowering.Ctx, schema *statement.Schema) *stateme
 // (shapeKinds), and no entry the composition reads apart, a `false` or one
 // nested past the flattening depth.
 func decoratesOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
-	comp := allOfBranches(loweringContext, schema, "")
-	if shapeKinds(schema)&kindObject != 0 || !refinableBranches(comp) {
+	comp := allOfEntries(loweringContext, schema, "")
+	if shapeKinds(schema)&kindObject != 0 || !refinableEntries(comp) {
 		return false
 	}
-	return !slices.ContainsFunc(comp.branches, func(allOfBranchValue allOfBranch) bool {
-		return allOfBranchValue.schema.Ref == nil && shapeKinds(allOfBranchValue.schema.Schema)&kindObject != 0
+	return !slices.ContainsFunc(comp.entries, func(allOfEntryValue allOfEntry) bool {
+		return allOfEntryValue.schema.Ref == nil && shapeKinds(allOfEntryValue.schema.Schema)&kindObject != 0
 	})
 }
 
@@ -265,17 +265,17 @@ func (p readThroughAllOfReference) referenceReferentsNearestFirst(loweringContex
 }
 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
-// typeRef (readUse), its folded branches marked where the outcome keeps their
-// branch whole (markKeptWhole).
+// t (readUse), its voices marked where the outcome keeps their entry whole
+// (markKeptWhole).
 func UseOf(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer) Use {
 	use := readUse(loweringContext, js, typeRef, pointer)
-	use.FoldedAllOfBranches = markKeptWhole(loweringContext, js.Schema, pointer, typeRef, use.FoldedAllOfBranches)
+	use.FoldedAllOfEntries = markKeptWhole(loweringContext, js.Schema, pointer, typeRef, use.FoldedAllOfEntries)
 	return use
 }
 
 // readUse reads what speaks for a carrier holding js at pointer, which lowered
 // to typeRef: what a $ref names, or what readThroughAllOfReferenceOf reads on
-// through, an inline principal speaking as a folded branch, as its node stands
+// through, an inline principal speaking as a folded entry, as its node stands
 // at the position. A composition throughRef reads no $ref through lends
 // nothing: its Model holds what it composes as Base and Mixins.
 func readUse(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer) Use {
@@ -284,7 +284,7 @@ func readUse(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.T
 		use.nullable = typeRef.Nullable
 		return use
 	}
-	useValue := Use{FoldedAllOfBranches: positionFoldedBranches(loweringContext, js.Schema, pointer, typeRef), nullable: typeRef.Nullable}
+	useValue := Use{FoldedAllOfEntries: positionFoldedEntries(loweringContext, js.Schema, pointer, typeRef), nullable: typeRef.Nullable}
 	readThroughAllOfReference, ok := readThroughAllOfReferenceOf(loweringContext, js.Schema, pointer)
 	if !ok {
 		return useValue
@@ -306,7 +306,7 @@ func readUse(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.T
 // whether a keyword or a key along it deprecates the node, which the node's own
 // member keys then annotate (promotion.Referent.Homes).
 func nodeUse(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
-	use := Use{FoldedAllOfBranches: markKeptWhole(loweringContext, schema, pointer, target, positionFoldedBranches(loweringContext, schema, pointer, target))}
+	use := Use{FoldedAllOfEntries: markKeptWhole(loweringContext, schema, pointer, target, positionFoldedEntries(loweringContext, schema, pointer, target))}
 	readThroughAllOfReference, ok := readThroughAllOfReferenceOf(loweringContext, schema, pointer)
 	switch {
 	case !ok:
@@ -325,13 +325,13 @@ type fallbackReadKey struct {
 	schema *statement.Schema
 }
 
-// fallbackAnnotationsOf reads what js, the schema a $ref lands on, lends a use
-// of it, nearest first: each hop of the chain of $refs from js that writes more
-// than its $ref, the schema the chain ends on, the branches of its allOf that
-// fold (fallbackAllOfBranches), and past a refinement, a decorator or a
-// narrowing enum whatever its own $ref lends in turn. Only that end is read for
-// what it admits, so the narrowing starts past its branches. Every $ref landing
-// on js asks, so it is read once a run.
+// fallbackAnnotationsOf reads what js, the schema a $ref lands on, lends a use of it, nearest
+// first: each hop of the chain of $refs from js that writes more than its $ref,
+// the schema the chain ends on, the entries of its allOf that fold
+// (lendingEntries), and past a refinement, a decorator or a narrowing enum
+// whatever its own $ref lends in turn. Only that end is read for what it admits,
+// so the narrowing starts past its entries. Every $ref landing on js asks, so it
+// is read once a run.
 func fallbackAnnotationsOf(loweringContext lowering.Ctx, js *statement.Statement) Use {
 	return lowering.ReadOncePerRun(loweringContext, fallbackReadKey{js.Schema}, func() Use { return readLent(loweringContext, js) })
 }
@@ -359,12 +359,11 @@ func readLent(loweringContext lowering.Ctx, js *statement.Statement) Use {
 	return use
 }
 
-// appendFallbackChainRun appends to u.Referents each alias of the run of $refs
-// js starts that writes more than its $ref, then the schema the run ends on and
-// its lending branches, and returns that schema. It is false, the run lending
-// nothing past what it appended, where the run ends on no schema, as a chain
-// that loops or fails does. The table's count of the chain's hops bounds the
-// run.
+// appendFallbackChainRun appends to u.Referents each alias of the run of $refs js starts that
+// writes more than its $ref, then the schema the run ends on and its lending
+// entries, and returns that schema. It is false, the run lending nothing past
+// what it appended, where the run ends on no schema, as a chain that loops or
+// fails does. The table's count of the chain's hops bounds the run.
 func (u *Use) appendFallbackChainRun(loweringContext lowering.Ctx, js *statement.Statement) (*statement.Schema, bool) {
 	var referenceSite reftable.ReferenceSite
 	if js.Ref != nil && js.Ref.Bound {
@@ -380,12 +379,12 @@ func (u *Use) appendFallbackChainRun(loweringContext lowering.Ctx, js *statement
 		at := placeOf(loweringContext, js)
 		if js.Ref == nil {
 			u.appendFallbackReferent(js.Schema, at)
-			u.appendFallbackBranches(loweringContext, js.Schema, at)
+			u.lendEntries(loweringContext, js.Schema, at)
 			return js.Schema, true
 		}
 		if writesMoreThanRef(js.Schema) {
 			u.appendFallbackReferent(js.Schema, at)
-			u.appendFallbackBranches(loweringContext, js.Schema, at)
+			u.lendEntries(loweringContext, js.Schema, at)
 		}
 		js = declared(loweringContext, js)
 	}
@@ -416,10 +415,10 @@ func (u *Use) appendFallbackReferents(from Use) {
 	u.places = append(u.places, from.places...)
 }
 
-// appendFallbackBranches appends the lending branches of schema, written at,
-// each placed beneath it.
-func (u *Use) appendFallbackBranches(loweringContext lowering.Ctx, schema *statement.Schema, at referentPlace) {
-	for _, b := range fallbackAllOfBranches(loweringContext, schema) {
+// lendEntries appends the lending entries of s, written at, each placed
+// beneath it.
+func (u *Use) lendEntries(loweringContext lowering.Ctx, schema *statement.Schema, at referentPlace) {
+	for _, b := range lendingEntries(loweringContext, schema) {
 		u.appendFallbackReferent(b.schema.Schema, at.beneath(b.pointer))
 	}
 }
@@ -454,17 +453,16 @@ func (p referentPlace) beneath(below jsontext.Pointer) referentPlace {
 	return p
 }
 
-// DecidingSchema returns the schema deciding what schema lowers to, schema
-// itself or, past a refinement, its principal's, for a reader of the shape
-// alone. A principal owning a node, a $ref or a narrower inline branch, is what
-// the position is.
+// DecidingSchema returns the schema deciding what s lowers to, s itself or, past
+// a refinement, its principal's, for a reader of the shape alone. A principal
+// owning a node, a $ref or a narrower inline entry, is what the position is.
 func DecidingSchema(loweringContext lowering.Ctx, schema *statement.Schema) *statement.Schema {
 	for range maxFallbackReferenceHops {
 		decision := decisionOf(loweringContext, schema)
 		if !decision.refines || decision.principalAt < 0 {
 			break
 		}
-		principal := branchStatement(loweringContext, schema, decision.principalAt)
+		principal := entryStatement(loweringContext, schema, decision.principalAt)
 		schema = principal.Schema
 		if principal.Ref != nil {
 			schema = refBranchTarget(loweringContext, principal)

@@ -25,8 +25,8 @@ components:
     Bare:
       allOf:
         - $ref: '#/components/schemas/Base'
-    # A branch's own $ref conjoins with oneOf/anyOf or a nested allOf exactly
-    # as a component's or a carrier's does, but fillAllOf's branch census
+    # An entry's own $ref conjoins with oneOf/anyOf or a nested allOf exactly
+    # as a component's or a carrier's does, but fillAllOf's keeping of an entry's unread keywords
     # (unhomedKeywords) never named any of the three: these composed straight
     # to Base with the sibling read by nothing — no alias, no Unmodeled, no
     # diagnostic (GitHub #406).

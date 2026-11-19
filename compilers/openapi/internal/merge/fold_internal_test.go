@@ -18,7 +18,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// redeclared is the property v of the allOf branch at, typed target.
+// redeclared is the property v of the allOf entry at, typed target.
 func redeclared(target ir.TypeID, at string) ir.Property {
 	return ir.Property{WireName: "v", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/v"))}
 }

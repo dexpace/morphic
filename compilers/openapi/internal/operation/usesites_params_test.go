@@ -143,7 +143,7 @@ func TestParameter_XMLKeptOnce(t *testing.T) {
 	}, entries(t, valueAtPath(q, "unmodeled"))))
 }
 
-// TestParameter_BranchKeptOnce holds the keywords an allOf branch of a
+// TestParameter_BranchKeptOnce holds the keywords an allOf entry of a
 // parameter's schema keeps to one entry each, beneath the schema's scope: the
 // format no use of its string holds, and the readOnly the parameter has no
 // field for, each reported where the keyword's keeper reports it.

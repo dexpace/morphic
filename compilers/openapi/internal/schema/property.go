@@ -31,7 +31,7 @@ func FillPropertyDetail(loweringContext lowering.Ctx, ts *compile.Types, propert
 	def, diags := use.Default(loweringContext, js.Schema, pointer)
 	property.Default = def
 	diags = append(diags, fillPropertyVisibility(loweringContext, property, use.Site(js.Schema).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(loweringContext, property, js.Schema, use.FoldedAllOfBranches, pointer)...)
+	diags = append(diags, fillPropertyConstraints(loweringContext, property, js.Schema, use.FoldedAllOfEntries, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(loweringContext, property, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(loweringContext, ts, &property.Unmodeled, js, property.Type, pointer)...)
 }
@@ -61,13 +61,13 @@ func fillPropertyVisibility(loweringContext lowering.Ctx, property *ir.Property,
 // carrier at this position: a property's schema is read through CarriedRef, so
 // it hoists no node of its own to hold either.
 //
-// It reads ref and its foldedBranches and never the $ref target, which is why
+// It reads ref and its foldedEntries and never the $ref target, which is why
 // no referent reaches it: bounds conjoin rather than override, so a referent's
 // bound merged here under use-site precedence would publish the wider of the
 // two as the whole truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(loweringContext lowering.Ctx, property *ir.Property, ref *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := CarrierConstraintsOf(loweringContext, &property.Unmodeled, ref, foldedBranches, property.Type, pointer)
+func fillPropertyConstraints(loweringContext lowering.Ctx, property *ir.Property, ref *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(loweringContext, &property.Unmodeled, ref, foldedEntries, property.Type, pointer)
 	property.Constraints = cons
 	return diags
 }

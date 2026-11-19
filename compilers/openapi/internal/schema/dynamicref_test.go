@@ -864,8 +864,8 @@ func TestDynamicRef_AListAnotherReadingKeepsIsNoReference(t *testing.T) {
 
 // TestDiscriminator_AListAnotherReadingKeepsResolvesNothing holds a schema's
 // `discriminator` that is a list an alias shares with another schema's
-// `required`, which accepts it, so it stays as written and the census keeps
-// it: the model holds no discriminator there, so no mapping is resolved, and
+// `required`, which accepts it, so it stays as written and is kept
+// unread: the model holds no discriminator there, so no mapping is resolved, and
 // the one finding is the table's.
 func TestDiscriminator_AListAnotherReadingKeepsResolvesNothing(t *testing.T) {
 	t.Parallel()

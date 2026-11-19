@@ -34,7 +34,7 @@ func scalarTypeID(loweringContext lowering.Ctx, ts *compile.Types, depth int, sc
 		// The type and the format beside it selected the shared primitive.
 		return ts.PrimitiveID(shape.base), scalarTypeRead(schema) | shape.read, nil
 	}
-	id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, typeKinds(kind), st.foldedBranches(loweringContext, schema, pointer), pointer, fin, st)
+	id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, typeKinds(kind), st.foldedEntries(loweringContext, schema, pointer), pointer, fin, st)
 	return id, 0, diags
 }
 
@@ -140,7 +140,7 @@ func baseForType(st statement.JSONSchemaTypeName) ir.PrimitiveKind {
 // position wrote a node of its own: the encoding scalarEncoding builds from the
 // shape's format name and the wire type it names, if any.
 //
-// The node carries the value constraints schema and foldedBranches, the
+// The node carries the value constraints schema and foldedEntries, the
 // position's, write that apply to the kinds takes, because owning a node is
 // what stops hoistDeclarationHome hoisting the alias that would otherwise carry
 // them: that fallback resolves to whatever node the pointer already owns. A
@@ -149,7 +149,7 @@ func baseForType(st statement.JSONSchemaTypeName) ir.PrimitiveKind {
 //
 // fin finishes the Scalar once built.
 func hoistScalar(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, shape scalarShape, takes kindSet,
-	foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, fin finisher, st stand,
+	foldedEntries []annotation.FoldedAllOfEntry, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	var text []string
@@ -173,13 +173,13 @@ func hoistScalar(loweringContext lowering.Ctx, ts *compile.Types, depth int, sch
 			enc = nil
 		}
 		sc := &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
-		cons, consDiags := ConstraintsOf(loweringContext, &sc.Unmodeled, schema, foldedBranches, pointer, takes)
+		cons, consDiags := ConstraintsOf(loweringContext, &sc.Unmodeled, schema, foldedEntries, pointer, takes)
 		if carriesNumberAsText(sc) {
 			cons = nil
 			switch {
 			case st.held:
 				// A variant of a principal held whole keeps none, nor reads them:
-				// its union's census holds them for the whole entry.
+				// its union keeps them unread for the whole entry.
 			case st.of != nil:
 				text = declaredConstraints(schema)
 			default:
@@ -334,7 +334,7 @@ func unplacedContentKeys(loweringContext lowering.Ctx, schema *statement.Schema,
 	why = noEncodingField
 	bs := principalEncoding(loweringContext, schema, td, pointer)
 	if bs != nil {
-		why = encodingOfBranch
+		why = encodingOfEntry
 	}
 	for _, keyword := range contentKeywords {
 		if hasKey(schema, keyword) && (bs == nil || !keyWrittenAlike(schema, bs, keyword)) {
@@ -356,10 +356,10 @@ func keepContentKeywords(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, 
 
 // Why a content keyword reaches no ir.Encoding, for the report
 // keepContentKeyword draws: the node has no such field, or its field holds what
-// the inline allOf branch the position lowered from writes.
+// the inline allOf entry the position lowered from writes.
 const (
-	noEncodingField  = "this position lowered to a shape with no Encoding field"
-	encodingOfBranch = "the Encoding this position lowered to holds what its inline allOf branch writes"
+	noEncodingField = "this position lowered to a shape with no Encoding field"
+	encodingOfEntry = "the Encoding this position lowered to holds what its inline allOf entry writes"
 )
 
 // principalEncoding returns the inline principal of the allOf schema writes at
@@ -372,8 +372,8 @@ func principalEncoding(loweringContext lowering.Ctx, schema *statement.Schema, t
 	if !refined || refinement.principal == nil || refinement.principal.schema.Ref != nil {
 		return nil
 	}
-	if allOfBranch := refinement.principal; holdsContent(loweringContext, allOfBranch.schema.Schema, td, allOfBranch.pointer) {
-		return allOfBranch.schema.Schema
+	if entry := refinement.principal; holdsContent(loweringContext, entry.schema.Schema, td, entry.pointer) {
+		return entry.schema.Schema
 	}
 	return nil
 }
@@ -402,8 +402,8 @@ func holdsContent(loweringContext lowering.Ctx, schema *statement.Schema, td ir.
 	}
 	switch n := td.(type) {
 	case *ir.Scalar:
-		// An inline principal's node reads the Encoding of its branch alone, so
-		// it holds none that schema writes beside its allOf.
+		// An inline principal's node reads the Encoding of its entry alone, so
+		// it holds none that s writes beside its allOf.
 		refinement, refined := refinementOf(loweringContext, schema, pointer)
 		return n.Encoding != nil && (!refined || refinement.principal == nil)
 	case *ir.Union:

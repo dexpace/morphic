@@ -136,8 +136,8 @@ func structureCases() []readCase {
 			"properties: {p: " + namesT + "}}, properties: {r: {$ref: '#/components/schemas/A/not/properties/p'}}}\n"},
 		{name: "beside a schema under not a property names", schemas: "    A: {type: object, not: {type: object, " +
 			"properties: {p: {type: object}, q: " + namesT + "}}, properties: {r: {$ref: '#/components/schemas/A/not/properties/p'}}}\n"},
-		{name: "a property of an inline allOf branch", schemas: "    A: {allOf: [{type: object, properties: {p: " + namesT + "}}]}\n"},
-		{name: "an inline allOf branch a $ref names",
+		{name: "a property of an inline allOf entry", schemas: "    A: {allOf: [{type: object, properties: {p: " + namesT + "}}]}\n"},
+		{name: "an inline allOf entry a $ref names",
 			schemas: "    A: {allOf: [" + namesT + "]}\n    B: {$ref: '#/components/schemas/A/allOf/0'}\n"},
 		{name: "items beside prefixItems", schemas: "    A: {type: array, prefixItems: [{type: string}], items: " + namesT + "}\n"},
 		{name: "anyOf beside oneOf", schemas: "    A: {oneOf: [{type: string}, {type: integer}], anyOf: [" + namesT + ", {type: string}]}\n"},

@@ -113,7 +113,7 @@ func keepAround(loweringContext lowering.Ctx, ts *compile.Types, st stand, td ir
 	}
 	held = held.saying(keepingValue)
 	fin.run(td, read, held)
-	return keepStanding(loweringContext, ts, allOfBranches(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, keepingValue)
+	return keepStanding(loweringContext, ts, allOfEntries(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, keepingValue)
 }
 
 // keepStanding keeps keepingValue, what one reader keeps of schema, the inline
@@ -178,11 +178,11 @@ func heldAgainst(unmodeled ir.Unmodeled, comp allOfComposition, schema *statemen
 // them holds alike is that wrapper's writing, the outermost standing.
 func aroundOf(unmodeled ir.Unmodeled, comp allOfComposition, pointer jsontext.Pointer) []map[string]ir.RawValue {
 	var out []map[string]ir.RawValue
-	for _, b := range comp.branches {
+	for _, b := range comp.entries {
 		if !b.wrapper || !strings.HasPrefix(string(pointer), string(b.pointer)+"/") {
 			continue
 		}
-		if entry, kept := unmodeled[comp.branchKey(b.pointer)]; kept {
+		if entry, kept := unmodeled[comp.entryKey(b.pointer)]; kept {
 			out = append(out, keptMembers(entry.Value))
 		}
 	}
@@ -254,9 +254,9 @@ func keepApart(loweringContext lowering.Ctx, ts *compile.Types, comp allOfCompos
 	// A carrier keeps the key beneath its own scope, so the report names the
 	// entry's path, which every such key ends in.
 	diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"the keywords beside %s write %s otherwise than this inline branch, and one entry under a keyword holds "+
-			"one value; the branch's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
-		comp.subject(), strings.Join(apart, ", "), comp.branchPath(pointer)))
+		"the keywords beside %s write %s otherwise than this inline entry, and one Unmodeled entry under a keyword holds "+
+			"one value; the entry's are kept verbatim under Unmodeled under the key naming it, %s, the rest of it lowered",
+		comp.subject(), strings.Join(apart, ", "), comp.entryPath(pointer)))
 	return append(diags, routesKept(loweringContext, ts, schema, apart, pointer)...)
 }
 
@@ -277,7 +277,7 @@ func holdApart(loweringContext lowering.Ctx, comp allOfComposition, held *princi
 			members.Content = append(members.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Name}, key.Node)
 		}
 	}
-	kept, diags := annotation.PreserveNodeInto(unmodeled, comp.branchKey(pointer), members, shared, loweringContext.Place().At(pointer))
+	kept, diags := annotation.PreserveNodeInto(unmodeled, comp.entryKey(pointer), members, shared, loweringContext.Place().At(pointer))
 	if kept {
 		held.apart, held.apartReason = all, shared
 	}
@@ -301,7 +301,7 @@ func keepBuiltAround(loweringContext lowering.Ctx, st stand, td ir.TypeDef, read
 		held.built = sharedOf(cmp.Or(held.built, entry.Reason), entry.Reason)
 	}
 	fin.run(td, read, held)
-	return keepBuilt(loweringContext, allOfBranches(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, built)
+	return keepBuilt(loweringContext, allOfEntries(loweringContext, st.of, st.at), held, unmodeled, schema, pointer, built)
 }
 
 // takeBuilt removes from unmodeled, and returns, the entries written at pointer
@@ -345,7 +345,7 @@ func keepBuilt(loweringContext lowering.Ctx, comp allOfComposition, held *princi
 			annotation.PreserveInto(unmodeled, key, entry.Value, entry.Reason, entry.Provenance)
 		case !hasKey(schema, keyword):
 			diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-				"internal: %s, kept by the build of this allOf branch, is held with another value", key))
+				"internal: %s, kept by the build of this allOf entry, is held with another value", key))
 		default:
 			_, heldDiags := holdApart(loweringContext, comp, held, unmodeled, schema, pointer, []string{keyword}, entry.Reason)
 			diags = append(diags, heldDiags...)
@@ -371,11 +371,10 @@ func keyWrittenAlike(a, b *statement.Schema, key string) bool {
 	return errA == nil && errB == nil && bytes.Equal(x, y)
 }
 
-// routesKept resolves the mapping of the discriminator schema, written at
-// pointer, writes where kept, keywords kept another way than keepUnhomed keeps
-// them, holds it: a discriminator kept verbatim resolves its routes wherever it
-// is kept, as keepUnhomed resolves the one it keeps
-// (resolveDiscriminatorRoutes).
+// routesKept resolves the mapping of the discriminator s, written at pointer,
+// writes where kept, keywords kept another way than keepUnreadKeys keeps them,
+// holds it: a discriminator kept verbatim resolves its routes wherever it is
+// kept, as keepUnreadKeys resolves the one it keeps (resolveDiscriminatorRoutes).
 func routesKept(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, kept []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !slices.Contains(kept, "discriminator") {
 		return nil

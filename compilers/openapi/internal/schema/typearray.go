@@ -32,7 +32,7 @@ func lowerUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	types := list.types
 	at := st.pointer(pointer)
 	id := internNode(loweringContext, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		list.foldedBranches = st.foldedBranches(loweringContext, schema, pointer)
+		list.foldedEntries = st.foldedEntries(loweringContext, schema, pointer)
 		list.held = st.heldWhole(loweringContext, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet, _ *principalKept) { read |= variant })
@@ -57,14 +57,14 @@ func lowerUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, sche
 	return id, diags
 }
 
-// typeArray is what every variant of one type array reads beside its schema:
-// the types it lists, the folded branches of the position it is written at, and
-// the mark an object or array variant's build writes, where the kind-inference
-// policy read the types (lowerUntypedUnion).
+// typeArray is what every variant of one type array reads beside its schema: the
+// types it lists, the voices of the position it is written at, and the mark an
+// object or array variant's build writes, where the kind-inference policy read
+// the types (lowerTypeList).
 type typeArray struct {
-	types          []statement.JSONSchemaTypeName
-	foldedBranches []annotation.FoldedAllOfBranch
-	mark           finisher
+	types         []statement.JSONSchemaTypeName
+	foldedEntries []annotation.FoldedAllOfEntry
+	mark          finisher
 	// held says the position keeps the principal writing the list whole, so a
 	// variant keeps none of its bounds verbatim (stand.held).
 	held bool
@@ -74,7 +74,7 @@ type typeArray struct {
 // pointer, as lowerTyped lowers st alone, but for what applies to another
 // listed type (docs/compilers/openapi.md#type-arrays). An object variant holds
 // no discriminator, which no $ref or mapping can name it by: the union keeps
-// it. A variant reads, of schema and list's folded branches, the value bounds
+// it. A variant reads, of schema and list's folded entries, the value bounds
 // of the kinds of st the position admits (boundKinds), an array one the
 // collection bounds. A scalar one holding them, the format or the content
 // vocabulary is its own Scalar, else the shared primitive, returning what it
@@ -88,14 +88,14 @@ func lowerTypeVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int
 		id, diags := lowerModel(loweringContext, ts, depth, schema, pointer, false /* discriminated */, takes, list.mark.then(fin))
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(loweringContext, ts, depth, schema, pointer, pointer, list.foldedBranches, list.mark.then(fin))
+		id, diags := lowerArray(loweringContext, ts, depth, schema, pointer, pointer, list.foldedEntries, list.mark.then(fin))
 		return id, 0, diags
 	default:
 		shape := scalarShapeOf(schema, st, variantFormat(schema, st, list.types))
-		if shape.shared && !statesBounds(loweringContext, schema, list.foldedBranches, pointer, takes) {
+		if shape.shared && !statesBounds(loweringContext, schema, list.foldedEntries, pointer, takes) {
 			return ts.PrimitiveID(shape.base), shape.read, nil
 		}
-		id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, takes, list.foldedBranches, pointer, fin, stand{held: list.held})
+		id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, takes, list.foldedEntries, pointer, fin, stand{held: list.held})
 		return id, 0, diags
 	}
 }
@@ -125,14 +125,14 @@ func pairs(st statement.JSONSchemaTypeName, format string) bool {
 	return listed || encoded
 }
 
-// statesBounds reports whether schema or one of foldedBranches, read at
+// statesBounds reports whether schema or one of foldedEntries, read at
 // pointer, writes a value bound a reader of the kinds takes holds: one
 // ConstraintsOf reads into a field or keeps, as an empty pattern or a keyword
 // written null is not. It reads apart from the node, so what it reads is
 // reported where hoistScalar reads it.
-func statesBounds(loweringContext lowering.Ctx, schema *statement.Schema, foldedBranches []annotation.FoldedAllOfBranch, pointer jsontext.Pointer, takes kindSet) bool {
+func statesBounds(loweringContext lowering.Ctx, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, pointer jsontext.Pointer, takes kindSet) bool {
 	var kept ir.Unmodeled
-	cons, _ := ConstraintsOf(loweringContext, &kept, schema, foldedBranches, pointer, takes)
+	cons, _ := ConstraintsOf(loweringContext, &kept, schema, foldedEntries, pointer, takes)
 	return cons != nil || len(kept) > 0
 }
 

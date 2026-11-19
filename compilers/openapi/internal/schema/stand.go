@@ -47,22 +47,22 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	return st.at
 }
 
-// foldedBranches returns what the node of schema, written at written, reads
-// beside schema: the foldedBranches of its position (positionFoldedBranches),
+// foldedEntries returns what the node of schema, written at written, reads
+// beside schema: the foldedEntries of its position (positionFoldedEntries),
 // where it stands at another, that position's own keywords and each folded
 // branch of its allOf but schema, whose keywords the node reads as its own.
-func (st stand) foldedBranches(loweringContext lowering.Ctx, schema *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfBranch {
+func (st stand) foldedEntries(loweringContext lowering.Ctx, schema *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfEntry {
 	if st.of == nil {
-		return positionFoldedBranches(loweringContext, schema, written, ir.TypeRef{})
+		return positionFoldedEntries(loweringContext, schema, written, ir.TypeRef{})
 	}
-	foldedBranches := positionFoldedBranches(loweringContext, st.of, st.at, ir.TypeRef{})
-	out := make([]annotation.FoldedAllOfBranch, 0, len(foldedBranches)+1)
-	beside := foldedBranchAt(loweringContext, st.of, st.at)
+	foldedEntries := positionFoldedEntries(loweringContext, st.of, st.at, ir.TypeRef{})
+	out := make([]annotation.FoldedAllOfEntry, 0, len(foldedEntries)+1)
+	beside := foldedEntryAt(loweringContext, st.of, st.at)
 	beside.Beside = true
 	out = append(out, beside)
-	for _, foldedAllOfBranch := range foldedBranches {
-		if foldedAllOfBranch.Node != schema || foldedAllOfBranch.At != written {
-			out = append(out, foldedAllOfBranch)
+	for _, foldedAllOfEntry := range foldedEntries {
+		if foldedAllOfEntry.Node != schema || foldedAllOfEntry.At != written {
+			out = append(out, foldedAllOfEntry)
 		}
 	}
 	return out
@@ -77,10 +77,10 @@ func (st stand) takes(loweringContext lowering.Ctx, schema *statement.Schema) ki
 	return boundKinds(loweringContext, st.of)
 }
 
-// standsAtPosition reports whether refinementValue's principal is inline and
-// built the node the position written at pointer owns, having lowered to
-// target: its census ran on that node (keepsAtOutcome), and what that node
-// holds is the principal's (ownHomes).
+// standsAtPosition reports whether r's principal is inline and built the node
+// the position written at pointer owns, having lowered to target: its unread
+// keywords were kept on that node (keepsAtOutcome), and what that node holds is
+// the principal's (ownHomes).
 func standsAtPosition(loweringContext lowering.Ctx, refinementValue refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
 	return refinementValue.principal != nil && refinementValue.principal.schema.Ref == nil && LoweredToOwnNode(loweringContext, pointer, target)
 }

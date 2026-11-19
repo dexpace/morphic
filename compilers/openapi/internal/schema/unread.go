@@ -17,12 +17,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// unreadKeys returns the keys of censusDomain schema writes that read does not
-// hold, in censusDomain order: what the node a position lowered to keeps
+// unreadKeys returns the keys of readDomain s writes that read does not
+// hold, in readDomain order: what the node a position lowered to keeps
 // verbatim, as no build read it into a field and no election accounted for it.
 func unreadKeys(schema *statement.Schema, read keySet) []string {
 	var out []string
-	for _, k := range censusDomain {
+	for _, k := range readDomain {
 		if hasKey(schema, k) && !read.has(k) {
 			out = append(out, k)
 		}
@@ -39,7 +39,7 @@ func unreadByReference(loweringContext lowering.Ctx, schema *statement.Schema, h
 }
 
 // What a position lowering to a reference lowered to, for the diagnostic
-// recordUnhomedAt reports.
+// recordUnread reports.
 const (
 	collapsedShape = "a nullable reference to its one non-null branch"
 	expandedShape  = "a reference to the type its $dynamicRef expands to"
@@ -101,10 +101,10 @@ func keepingUnread(loweringContext lowering.Ctx, ts *compile.Types, schema *stat
 }
 
 // keepUnread keeps verbatim on td, the node the position owns, in hand, each
-// key of censusDomain schema, written at pointer, writes that the build of td
-// did not read, nor a reader beside it (readElsewhere), nor dispatchValue's
-// election skipped or said, and the families it skipped, then finishes td by
-// fin, as keepAround orders the two where the node stands for st's position.
+// key of readDomain s, written at pointer, writes that the build of td did
+// not read, nor a reader beside it (readElsewhere), nor d's election skipped or
+// said, and the families it skipped, then finishes td by fin, as keepAround
+// orders the two where the node stands for st's position.
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
@@ -116,7 +116,7 @@ func keepUnread(loweringContext lowering.Ctx, ts *compile.Types, schema *stateme
 		// The schema's own node, the path every node takes: keep, then finish.
 		var diags []ir.Diagnostic
 		if len(unread) > 0 {
-			diags = recordUnhomedAt(loweringContext, ts, &td.Common().Unmodeled, schema, unread, positionShape(td, schema), pointer)
+			diags = recordUnread(loweringContext, ts, &td.Common().Unmodeled, schema, unread, positionShape(td, schema), pointer)
 		}
 		diags = append(diags, recordSkippedFamilies(loweringContext, td, schema, dispatchValue, pointer)...)
 		fin.run(td, read, held)
@@ -128,7 +128,7 @@ func keepUnread(loweringContext lowering.Ctx, ts *compile.Types, schema *stateme
 	}).then(fin)
 	shape := positionShape(td, schema)
 	keepingValue := keeping{keys: unread, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(unmodeled *ir.Unmodeled, keys []string) []ir.Diagnostic {
-		return recordUnhomedAt(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
+		return recordUnread(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
 	}}
 	return append(keepAround(loweringContext, ts, st, td, read, held, schema, pointer, keepingValue, fin), skipped.diags...)
 }
@@ -149,21 +149,21 @@ func keepUnreadShared(loweringContext lowering.Ctx, ts *compile.Types, schema *s
 	fin = skipped.on(func(alias ir.TypeDef) []ir.Diagnostic {
 		return recordSkippedFamilies(loweringContext, alias, schema, dispatchValue, pointer)
 	}).then(fin)
-	keep := keepUnhomedOn(loweringContext, ts, schema, unread, nodeShape(ir.KindPrimitive), pointer, st, &kept, fin)
+	keep := keepUnreadOn(loweringContext, ts, schema, unread, nodeShape(ir.KindPrimitive), pointer, st, &kept, fin)
 	owner, aliasDiags := internAlias(loweringContext, ts, schema, pointer, ir.TypeRef{Target: id}, keep, st)
 	return owner, slices.Concat(aliasDiags, kept.diags, skipped.diags)
 }
 
-// keepUnhomedOn returns the finisher keeping unhomed, the keywords schema,
-// written at pointer, declares that no build read into the position's node, on
-// that node in hand, reporting what the position lowered to as shape and
-// recording into kept, then finishing it by fin, as keepAround orders the two
-// where the node stands for st's position.
-func keepUnhomedOn(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
+// keepUnreadOn returns the finisher keeping unhomed, the keywords s, written
+// at pointer, declares that no build read into the position's node, on that
+// node in hand, reporting what the position lowered to as shape and recording
+// into kept, then finishing it by fin, as keepAround orders the two where the
+// node stands for st's position.
+func keepUnreadOn(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
 	st stand, kept *finished, fin finisher,
 ) finisher {
 	keepingValue := keeping{keys: unhomed, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(unmodeled *ir.Unmodeled, keys []string) []ir.Diagnostic {
-		return recordUnhomedAt(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
+		return recordUnread(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
 	}}
 	return func(td ir.TypeDef, read keySet, held *principalKept) {
 		kept.ran = true
@@ -172,7 +172,7 @@ func keepUnhomedOn(loweringContext lowering.Ctx, ts *compile.Types, schema *stat
 }
 
 // refSiteShape describes what a $ref position's own declaration lowers to, for
-// the diagnostic recordUnhomedAt reports.
+// the diagnostic recordUnread reports.
 const refSiteShape = "an alias over its $ref target"
 
 // nodeShape describes a node of kind k, for that same diagnostic.
@@ -251,7 +251,7 @@ func keepUnreadAcross(loweringContext lowering.Ctx, ts *compile.Types, schema *s
 			read |= keyBit("discriminator")
 		}
 		keepingValue := keeping{keys: unreadKeys(schema, read), reason: ir.ReasonDegradedLowering, shape: shape, keep: func(unmodeled *ir.Unmodeled, keys []string) []ir.Diagnostic {
-			return recordUnhomedAt(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
+			return recordUnread(loweringContext, ts, unmodeled, schema, keys, shape, pointer)
 		}}
 		kept.diags = append(kept.diags, keepAround(loweringContext, ts, st, td, built, held, schema, pointer, keepingValue, fin)...)
 	}
@@ -262,10 +262,10 @@ func isKind(td ir.TypeDef, typeKind ir.TypeKind) bool {
 	return !ir.IsNilTypeDef(td) && td.Kind() == typeKind
 }
 
-// recordUnhomedAt keeps each unhomed keyword verbatim in unmodeled and reports
-// them once (keepUnhomed), saying what the position lowered to, its shape.
-func recordUnhomedAt(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
-	kept, diags := keepUnhomed(loweringContext, ts, unmodeled, schema, unhomed, pointer)
+// recordUnread keeps each unhomed keyword verbatim in p and reports them once
+// (keepUnreadKeys), saying what the position lowered to, its shape.
+func recordUnread(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := keepUnreadKeys(loweringContext, ts, unmodeled, schema, unhomed, pointer)
 	if len(kept) == 0 {
 		return diags
 	}
@@ -274,16 +274,16 @@ func recordUnhomedAt(loweringContext lowering.Ctx, ts *compile.Types, unmodeled 
 		shape, strings.Join(kept, ", ")))
 }
 
-// keepUnhomed keeps each unhomed keyword schema, the schema at pointer, writes
-// verbatim in unmodeled as degraded_lowering, reports a collection count no
-// field states (keptCount) apart, as keepCounts reports a value count, and
-// returns the rest it kept, for its caller to report once.
+// keepUnreadKeys keeps each unhomed keyword s, the schema at pointer, writes
+// verbatim in p as degraded_lowering, reports a collection count no field states
+// (keptCount) apart, as keepCounts reports a value count, and returns the rest
+// it kept, for its caller to report once.
 //
 // It returns the keywords it stored, never the ones it was handed, so no report
 // claims one that failed to convert (GitHub #144). A discriminator it is handed
 // is no node's, so its mapping values are resolved here, as references
 // (resolveDiscriminatorRoutes): every keeping of one comes through here.
-func keepUnhomed(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+func keepUnreadKeys(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	if slices.Contains(unhomed, "discriminator") {
 		diags = resolveDiscriminatorRoutes(loweringContext, ts, schema, pointer)

@@ -17,7 +17,7 @@ import (
 
 // finisher writes on a node, in hand, what the frames lowering its position
 // keep there beyond its build: its declaration's facts, the keywords it has no
-// field for, the families an election passed over, the branches kept beside
+// field for, the families a dispatch passed over, the branches kept beside
 // it, the kind-inference mark, a discriminator settled beside a union.
 // internNode runs it once, on the node it builds, before the registry stores
 // it, so no write looks its node up, and a visit finding the node built writes
@@ -119,15 +119,15 @@ func internOwnNode(loweringContext lowering.Ctx, ts *compile.Types, js *statemen
 		_, diags := internAlias(loweringContext, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
-	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
+	comp := allOfComposition{pointer: pointer, entries: []allOfEntry{{schema: js, pointer: pointer}}}
 	if js.Ref == nil {
 		comp = readAllOf(loweringContext, js.Schema, pointer)
 	}
-	if !slices.ContainsFunc(comp.branches, func(allOfBranchValue allOfBranch) bool {
-		if allOfBranchValue.schema.Ref == nil {
+	if !slices.ContainsFunc(comp.entries, func(allOfEntryValue allOfEntry) bool {
+		if allOfEntryValue.schema.Ref == nil {
 			return false
 		}
-		_, resolved := resolveSchemaRef(loweringContext, ts, allOfBranchValue.schema)
+		_, resolved := resolveSchemaRef(loweringContext, ts, allOfEntryValue.schema)
 		return resolved
 	}) {
 		// The reference lowered to the top type, already reported.
@@ -154,23 +154,24 @@ func internAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statem
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	foldedBranches := positionFoldedBranches(loweringContext, schema, pointer, target)
+	foldedEntries := positionFoldedEntries(loweringContext, schema, pointer, target)
 	if st.of != nil {
-		foldedBranches = st.foldedBranches(loweringContext, schema, pointer)
+		foldedEntries = st.foldedEntries(loweringContext, schema, pointer)
 	}
-	cons, diags := ConstraintsOf(loweringContext, &kept, schema, foldedBranches, pointer, st.takes(loweringContext, schema))
+	cons, diags := ConstraintsOf(loweringContext, &kept, schema, foldedEntries, pointer, st.takes(loweringContext, schema))
 	return internAliasHolding(loweringContext, ts, cons, kept, boundsRead(schema, st.takes(loweringContext, schema), nil), st.pointer(pointer), target, fin), diags
 }
 
 // internReferenceAlias is internAlias for the home of a declaration whose
-// census left it no node, which also holds the collection bounds schema writes.
-// A position that reached a shared node with one written had its alias hoisted
-// by the census first, so this reads none it also keeps.
+// unread keywords left it no node, which also holds the collection bounds s
+// writes. A position that reached a shared node with one written had its alias
+// hoisted by the keeping of unread keywords first, so this reads none it also
+// keeps.
 func internReferenceAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(loweringContext, &kept, schema, positionFoldedBranches(loweringContext, schema, pointer, target), target, pointer)
+	cons, diags := referenceConstraintsOf(loweringContext, &kept, schema, positionFoldedEntries(loweringContext, schema, pointer, target), target, pointer)
 	return internAliasHolding(loweringContext, ts, cons, kept, referenceReads(loweringContext, schema), pointer, target, fin), diags
 }
 

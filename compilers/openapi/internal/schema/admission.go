@@ -208,7 +208,11 @@ func dynamicExpansionOf(loweringContext lowering.Ctx, st *statement.Statement) (
 	return dynamicTarget(in, st.Schema, at.Pointer)
 }
 
-// writtenAsEntry reports whether pointer names an entry of an allOf.
+// writtenAsEntry reports whether pointer names an entry of an allOf. The
+// statement reads an entry whose reference names nothing off its pointer too,
+// by a parse of its own that takes a signed index where this one takes none
+// (statement.Table's failedEntry). Neither knows how the schema is reached; a
+// statement saying so replaces both (GitHub #2058).
 func writtenAsEntry(pointer jsontext.Pointer) bool {
 	_, err := strconv.ParseUint(pointer.LastToken(), 10, 64)
 	return err == nil && pointer.Parent().LastToken() == "allOf"
@@ -364,8 +368,8 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
 	own := admissionReader{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	admissionValue := &admission{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
-	admissionValue.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
-	admissionValue.firm, admissionValue.claims = admissionValue.admits, claimedKinds(w.c, st.Schema)
+	admissionValue.firm, admissionValue.claims = ownKinds(w.c, st.Schema)
+	admissionValue.admits = admissionValue.firm
 	admissionValue.partial = narrowedWithin(w.c.Statements(), st.Schema)
 	admissionValue.members = min(own.members.Spent(), maxAdmissionMembers+1)
 	if !admissionValue.within() {
@@ -374,6 +378,16 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
 	admissionValue.cut = own.members.Exhausted()
 	admissionValue.loose = declaresDynamicRef(st.Schema) && st.Ref == nil || looseIn(st.Schema)
 	return admissionValue
+}
+
+// ownKinds returns the kinds the keywords schema writes itself leave: firm, those
+// its type declares met with those its value sets hold (valueKinds), and
+// claims, those the kind-inference policy reads off its shape keywords
+// (claimedKinds). The walk (readOwn), restKinds, which reads a schema with its
+// union left out, and restAdmitsObjects take them from here; toldWhereWritten
+// still meets a schema's type with its value sets in a switch arm of its own.
+func ownKinds(loweringContext lowering.Ctx, schema *statement.Schema) (firm, claims kindSet) {
+	return declaredInstanceTypes(schema) & valueKinds(loweringContext, schema), claimedKinds(loweringContext, schema)
 }
 
 // join is what any of a union's settled branches admits, declares and lowers

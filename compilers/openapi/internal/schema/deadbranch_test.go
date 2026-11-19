@@ -43,6 +43,25 @@ func TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced(t *testing.T) {
 	assert.Contains(t, reports[0].Message, "oneOf/1: string")
 }
 
+// TestOneOf_ADeadBranchIsReadAgainstItsEntrysOwnType pins the rest a branch of
+// a union written on an allOf entry is read against: the entry's own type stays
+// in it, its union left out (restAdmitsObjects), so beside `type: object` on
+// that entry a branch admitting no object is dead, and the warning says so.
+func TestOneOf_ADeadBranchIsReadAgainstItsEntrysOwnType(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
+    S: {allOf: [{type: object, oneOf: [{type: string}, {$ref: '#/components/schemas/A'}]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	union, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok, "%T", typeByName(doc, "S"))
+	assert.Len(t, union.Variants, 1, "the string branch is no variant")
+	reports := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S")
+	require.Len(t, reports, 1, "%+v", diags)
+	assert.Contains(t, reports[0].Message, "(allOf/0/oneOf/0: string)")
+}
+
 // TestOneOf_ADeadBranchIsReadForTheNullTheBodyAdmits pins a branch admitting
 // no object beside a body that may admit null: it lives where it admits null
 // too, and is dead where it does not. Beside a body writing `nullable: true`

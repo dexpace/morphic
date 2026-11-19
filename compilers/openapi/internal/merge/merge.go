@@ -69,17 +69,17 @@ func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
 	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
 }
 
-// MergeProperty appends property to the model, or records it as one more
-// declaration of the field that already carries its wire name: overlapping
-// allOf branches (and properties co-declared alongside allOf) redeclare one
-// logical field under allOf's intersection semantics
+// MergeProperty appends p to the model, or records it as one more declaration
+// of the field that already carries its wire name: overlapping allOf entries
+// (and properties co-declared alongside allOf) redeclare one logical field
+// under allOf's intersection semantics
 // (docs/compilers/openapi.md#allof-redeclared-property). Callers must set
-// property.WireName (fillModelProperties always does); it keys idx directly.
+// p.WireName (fillModelProperties always does); it keys idx directly.
 //
-// property.Provenance alone locates the declaration, so no second copy can
-// disagree. secretBy names the heuristics that set property.Secret, empty where
-// a keyword declared it (folding.foldUse). It reports whether property is the
-// model's first redeclaration, from which the model has members to settle.
+// p.Provenance alone locates the declaration, so no second copy can disagree.
+// secretBy names the heuristics that set p.Secret, empty where a keyword
+// declared it (folding.foldUse). It reports whether p is the model's first
+// redeclaration, from which the model has members to settle.
 func (idx *ModelPropertyDeclarations) MergeProperty(property ir.Property, source DeclarationConstructRenderer, secretBy ir.Inferred) (firstRedeclaration bool) {
 	declarationValue := declaration{property: property, source: source, secretBy: secretBy, order: idx.next()}
 	fieldValue, ok := idx.byWire[property.WireName]

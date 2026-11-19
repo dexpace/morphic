@@ -42,20 +42,20 @@ func closerOf(loweringContext lowering.Ctx, schema *statement.Schema, comp allOf
 	var entry, declarer closure
 	entries, declarers := 0, 0
 	distributes := unionDeclares(loweringContext, schema)
-	for _, allOfBranch := range comp.branches {
-		if allOfBranch.schema.Truth != statement.Stated {
+	for _, schemaEntry := range comp.entries {
+		if schemaEntry.schema.Truth != statement.Stated {
 			continue
 		}
-		at := closure{schema: allOfBranch.schema.Schema, at: allOfBranch.pointer}
-		if allOfBranch.schema.Ref == nil && writesCatchAll(allOfBranch.schema.Schema) {
+		at := closure{schema: schemaEntry.schema.Schema, at: schemaEntry.pointer}
+		if schemaEntry.schema.Ref == nil && writesCatchAll(schemaEntry.schema.Schema) {
 			entries++
 			entry = at
 		}
-		if declaresMembers(allOfBranch.schema.Schema) {
+		if declaresMembers(schemaEntry.schema.Schema) {
 			declarers++
 			declarer = at
 		}
-		distributes = distributes || unionDeclares(loweringContext, allOfBranch.schema.Schema)
+		distributes = distributes || unionDeclares(loweringContext, schemaEntry.schema.Schema)
 	}
 
 	switch {
