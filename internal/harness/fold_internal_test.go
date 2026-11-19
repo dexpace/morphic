@@ -63,7 +63,7 @@ func TestFolded_AScalarAndAModelDecoratorAreOneUse(t *testing.T) {
 	model := listOf(&ir.Model{TypeCommon: annotated(decID, "d"), Base: base})
 
 	assert.Empty(t, cmp.Diff(foldedText(t, scalar), foldedText(t, model)))
-	assert.NotContains(t, foldedText(t, model), `"kind": "model",`+"\n      \"id\": \"t/x/Use/dec\"",
+	assert.NotContains(t, foldedText(t, model), `"kind": "model",`+"\n      \"id\": \""+string(decID)+"\"",
 		"the decorator is left out of Types")
 	assert.Contains(t, foldedText(t, model), `"use": {`, "the use writes what the decorator held")
 
