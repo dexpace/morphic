@@ -4386,6 +4386,8 @@ judged as one whose branches declare shape.
   `openapi/validation-only-keyword`
 - Tests: `e2e.TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut`,
   `schema.TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut`,
+  `schema.TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem`,
+  `schema.TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut`,
   `schema.TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten`,
   `schema.TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten`,
   `schema.TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten`,
