@@ -1125,6 +1125,51 @@ it sees. Changes made together in one bump are listed together under it.
     body's `Model` as `degraded_lowering`, and beside a body admitting null it is kept as
     `degraded_lowering` on entries too, where two entries kept it as `validation_only`.
 
+  - **A `oneOf` and an `anyOf` on `allOf` entries beside a body**
+    ([`competing-keywords`](../compilers/openapi.md#competing-keywords),
+    [`allof-refinement`](../compilers/openapi.md#allof-refinement)).
+    On one entry, on two in either order, or one `allOf` deeper, the two lower as they do beside the
+    `allOf`. Which declares shape is judged against the position, so `{allOf: [{type: [string,
+    'null']}, {oneOf: [{type: string}], anyOf: [{type: object, properties: {x}}, {type: string}]}]}`
+    is the `Union` of the object branch and string keeping the `oneOf` as `validation_only`, where
+    it was a nullable use of the entry keeping nothing. Between two union entries of an `allOf` that
+    refines, that preference elects whatever the kinds of the other entries: beside a string entry,
+    `oneOf: [{type: object, properties: {x}}, {$ref: S}]` on one entry and `anyOf: [{$ref: S}]` on
+    another are the `Union` of both `oneOf` branches keeping the `anyOf`, where the position was a
+    use of the `anyOf`'s entry keeping the `oneOf`. A union elected on a second entry collapses no
+    more than beside the `allOf`: with `oneOf: [{required: [a]}]` on one entry and `anyOf: [{type:
+    'null'}, {$ref: S}]` on another, `S` a string, the position is a `Union` of `S` keeping the
+    `oneOf`, where it was a `Scalar` keeping both. Each of null alone beside a body admitting null,
+    they are null alone keeping both as `degraded_lowering`, where a nullable use of the entry kept
+    nothing; sharing null alone beside such a body, they are a use of the body keeping both, with no
+    warning, where the `oneOf` was distributed.
+
+  - **The null of a `oneOf` and an `anyOf`**
+    ([`nullable`](../compilers/openapi.md#nullable),
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
+    The two admit null only where each may, as conjuncts do: a reference to `{$ref: T, oneOf:
+    [{type: object, properties: {x}}], anyOf: [{type: object}, {type: 'null'}]}` over an object `T`
+    is not nullable and draws no `openapi/inferred-nullable`, and one to `{oneOf: [{type: string},
+    {type: 'null'}], anyOf: [{type: string}]}` is not nullable, where each was. A variant of a
+    distributed union keeps its null only where the rest of the position does not keep null out:
+    `{allOf: [{type: string}], anyOf: [{type: string, enum: [b]}, {type: [string, 'null']}]}` is a
+    `Union` whose variants are not nullable, where the second was a nullable string.
+
+  - **A union sharing no value with a body that is no `Model`**
+    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts)).
+    A union none of whose branches shares a kind with a scalar or array body lowers as the body
+    keeping the union, with the warning that the conjuncts share no value, in every spelling:
+    `{type: string, oneOf: [{type: object, properties: {x}}]}` draws the warning, where it drew
+    none, and `{allOf: [{type: string}, {oneOf: [{type: object, properties: {x}}]}]}` is the string
+    keeping the `oneOf`, where it was a `Union` of one composed `Model`. A `oneOf` and an `anyOf`
+    sharing no value, by their kinds or by their `enum` members, lower so too: `{type: string,
+    oneOf: [{type: string, enum: [a]}], anyOf: [{type: string, enum: [b]}]}` is the string keeping
+    both, warned, where it was the `Enum` of `a` keeping the `anyOf` with no warning; `{type:
+    string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}` draws the warning, where it drew
+    none; and on `allOf` entries such a pair is the string keeping both as `validation_only`, where
+    it was a `Model` keeping both and the body's `type`. The warning names an entry electing a union
+    of null alone by what it admits, `allOf/1: null`, and its other union apart.
+
   - **Keywords beside an inline principal**
     ([`allof-refinement`](../compilers/openapi.md#allof-refinement),
     [`dialect-keywords`](../compilers/openapi.md#dialect-keywords)).
