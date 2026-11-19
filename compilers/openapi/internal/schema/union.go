@@ -63,9 +63,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 					})
 				diags = append(diags, unionDiags...)
 				if u.dead != nil {
-					// The report names an entry's union by the entry it is written on.
+					// The report names an entry's union by the entry it is written on,
+					// and a dead branch by the null the rest keeps out, not by a body.
 					reported := u
-					reported.branch = st.of != nil
+					reported.branch, reported.nulls = st.of != nil, true
 					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.foldedBranches(c, s, pointer), pointer, st.takes(c, s))
@@ -92,19 +93,23 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 // null alone is, where position elects one union of a oneOf and an anyOf and
 // what it writes beside that union, the one passed over among it, keeps null
 // out (restForbidsNull): no instance is one of both. It is nil where none is,
-// or s elects no union of a pair (docs/compilers/openapi.md#union-beside-structure).
+// where no variant would live, the pair then sharing no value, which its own
+// warning says, or where s elects no union of a pair
+// (docs/compilers/openapi.md#union-beside-structure).
 func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bool {
 	if !writesBothUnions(s) && !pairedPrincipal(c, st) {
 		return nil
 	}
 	branches, _, _ := unionBranches(c, position, s)
 	var dead []bool
+	live := false
 	for i, b := range branches {
 		bs := c.Statements().Subschema(b)
 		if nullBranch(c, bs) {
 			continue
 		}
 		if kinds, inferred := lowersTo(c, bs); kinds&^kindNull != 0 || inferred {
+			live = true
 			continue
 		}
 		if dead == nil {
@@ -114,6 +119,9 @@ func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bo
 			dead = make([]bool, len(branches))
 		}
 		dead[i] = true
+	}
+	if !live {
+		return nil
 	}
 	return dead
 }
@@ -487,6 +495,9 @@ type unionAt struct {
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
+	// nulls marks a union whose dead branches admit nothing but a null the
+	// rest of the position keeps out (pairDeadNulls), beside any body.
+	nulls bool
 	// distributed marks a union a body is distributed across, each of whose
 	// variants keeps the combinator it does not elect (buildComposedVariant).
 	distributed bool

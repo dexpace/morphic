@@ -301,6 +301,9 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	for _, cj := range conjuncts[1:] {
 		joint = joint.and(cj.read)
 	}
+	if composesNullPair(c, s, conjuncts, joint, aside) {
+		return decision{}
+	}
 	kinds, inferred := lowersTo(c, c.Statements().Read(s))
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
@@ -331,9 +334,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case principal == nil:
 		principal = pairedWith(c, s, conjuncts, w.chooseConjunctToLowerFrom(conjuncts, electable))
 	}
-	if body := nullPairBody(c, s, conjuncts, joint); body != nil {
-		principal = body
-	}
+	principal = nullPairBody(c, s, conjuncts, joint, principal)
 	r := refinement{votes: votes, joint: joint, held: pairHeld(c, s, conjuncts, principal), contradicts: contradicts}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
@@ -431,17 +432,27 @@ func pairedWith(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, elect
 // share that null: the first entry writing no union that says what the
 // position is, so the position is a use of that body keeping both, as a $ref
 // body is elected by its vote (docs/compilers/openapi.md#allof-refinement).
-// It is nil where none is.
-func nullPairBody(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, joint admitted) *conjunct {
+// It is elected, the conjunct elected without it, where none is.
+func nullPairBody(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, joint admitted, elected *conjunct) *conjunct {
 	if !joint.reachable() || !pairNullAlone(c, s) {
-		return nil
+		return elected
 	}
 	for i := range conjuncts {
 		if cj := &conjuncts[i]; cj.branch != nil && cj.says && !declaresUnion(cj.schema) {
 			return cj
 		}
 	}
-	return nil
+	return elected
+}
+
+// composesNullPair reports whether the body nullPairBody finds for a position
+// not setting its unions aside admits objects alone, null aside: the allOf
+// then composes it keeping both, its Model standing at the position as the
+// schema writing all three flat does
+// (docs/compilers/openapi.md#union-beside-structure).
+func composesNullPair(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, joint admitted, aside bool) bool {
+	body := nullPairBody(c, s, conjuncts, joint, nil)
+	return !aside && body != nil && body.read.kinds&^kindNull == kindObject
 }
 
 // pairEntries returns the two inline entries writing a union, one a oneOf

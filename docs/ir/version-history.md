@@ -1115,9 +1115,18 @@ it sees. Changes made together in one bump are listed together under it.
     that null, and the body by all it writes but the union, one whose read passes 256 schemas as one
     that may, so such a branch beside a body admitting null is a variant, where it was dead: beside
     `{type: [object, 'null'], properties: {u: …}}`, a branch `{$ref: TT}` over `TT: {anyOf: [{$ref:
-    Str}, {$ref: Null}]}` lives. A `oneOf` and an `anyOf` sharing null alone beside an object body
-    admitting null are a use of the body keeping both, with no warning, on two entries as elsewhere,
-    where two entries distributed the `oneOf`.
+    Str}, {$ref: Null}]}` lives. A `oneOf` and an `anyOf` each admitting more than null and sharing
+    null alone with a body admitting null are that body keeping both, with no warning, in every
+    spelling. Beside `{type: [object, 'null'], properties: {a: …}}`, `oneOf: [{type: object,
+    properties: {x: …}}, {type: 'null'}]` and `anyOf: [{type: string}, {type: 'null'}]` are the
+    body's `Model` at the position keeping both as `degraded_lowering`, a reference to it nullable,
+    where, written so and on two entries, the `oneOf` was distributed into a one-variant `Union`,
+    beside an `allOf` of the body it was such a `Union` keeping the `anyOf` and the body's
+    `properties`, and on one entry a `Scalar` keeping the `properties`. Beside `[string, 'null']`
+    and beside a `$ref` to such an object they are the body's `Scalar` keeping both, where on two
+    entries they were a one-variant `Union`, warned beside the string, and beside an `allOf` of the
+    string the `oneOf` was distributed keeping the `anyOf` as `validation_only` and on one entry a
+    `Scalar` kept neither.
   - **Schemas no instance satisfies**
     ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts),
     [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)) draw one
@@ -1129,37 +1138,50 @@ it sees. Changes made together in one bump are listed together under it.
     scalar, a `type` list of scalars, an array) is the body keeping the union, warned: `{type:
     string, oneOf: [{type: object, properties: {x}}]}` draws the warning, where it drew none, and
     the same two on `allOf` entries are the string keeping the `oneOf`, where they were a `Union` of
-    one composed `Model`. So is a `oneOf` and an `anyOf` sharing no value beside such a body, by
-    their kinds, by their `enum` members or by sharing only a null the body keeps out: `{type:
-    string, oneOf: [{type: string, enum: [a]}], anyOf: [{type: string, enum: [b]}]}` is the string
-    keeping both, where it was the `Enum` of `a` keeping the `anyOf` with no warning; `{type:
-    string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}` and the same with `anyOf: [{type:
-    'null'}]` draw the warning, where they drew none; and beside an `allOf` of the string or on its
-    entries, each is the string keeping both, the two pairs holding a null as `validation_only`,
-    where it was an empty `Model` keeping both and the body's `type`, the `enum` pair the top type
-    keeping them on entries and the `Enum` of `a` beside the `allOf`. The warning names an entry
-    electing a union of null alone by what it admits, `allOf/1: null`, and its other union apart.
-    With nothing beside them, such a pair draws the warning on the one schema writing both too,
-    where that drew an info alone. Over a `Model`, a union of null alone beside a rest admitting no
-    null shares no kind with it: `{allOf: [T], oneOf: [{$ref: Null}]}`, `Null` being `{type:
-    'null'}`, over an object `T` is the `Model` of `T` keeping the `oneOf`, with one warning naming
-    it, where it was a one-variant `Union` of a composed `Model` and the warning named the schema's
-    `type: null`, and two unions whose branches share null alone are that `Model` keeping both with
-    one warning. Where the union a pair passes over shares no kind with the body so, a union of null
-    alone among them, the pair lowers, beside the body, beside its `allOf` or on its entries, to the
-    body's `Model` keeping both, as `degraded_lowering` where one of them declares shape against the
-    body and as validation logic where neither does, where two entries, and such a pair beside the
-    body, distributed the elected union; beside a body admitting null, the other is still
-    distributed, the union of null alone kept on each variant, now with the warning. Two unions each
-    of null alone beside a `type` list admitting null are null alone keeping both as
-    `degraded_lowering`,
-    where a nullable alias of the entry's member-less `Enum` kept the `oneOf` and dropped the
-    `anyOf`. The union a pair passes over is a conjunct of the rest wherever it is written, read for
-    a dead branch and by the conjuncts' warning, which names it `allOf/<n>/<keyword>` on the entry
-    writing both: over a body `{type: [object, 'null'], properties: {a: …}}`, an `anyOf` of an
-    object declaring shape and a `$ref` to null beside `oneOf: [{type: object}]` is the `Union` of
-    the object branch keeping the null branch under `openapi:anyOf/1` with the dead-branch warning,
-    where the `oneOf` was distributed, its one variant keeping the `anyOf`, with no warning.
+    one composed `Model`. One declaring no shape is kept as `validation_only`, warned: `{type:
+    string, oneOf: [{type: 'null'}]}` draws the warning, where it drew none. So is a `oneOf` and an
+    `anyOf` sharing no value beside such a body, by their kinds, by their `enum` members or by
+    sharing only a null the body keeps out: `{type: string, oneOf: [{type: string, enum: [a]}],
+    anyOf: [{type: string, enum: [b]}]}` is the string keeping both, where it was the `Enum` of `a`
+    keeping the `anyOf` with no warning; `{type: string, oneOf: [{type: 'null'}], anyOf: [{type:
+    string}]}` and the same with `anyOf: [{type: 'null'}]` draw the warning, where they drew none;
+    and beside an `allOf` of the string or on its entries, each is the string keeping both, the two
+    pairs holding a null as `validation_only`, where it was an empty `Model` keeping both and the
+    body's `type`, the `enum` pair the top type keeping them on entries and the `Enum` of `a` beside
+    the `allOf`. The warning names an entry electing a union of null alone by what it admits,
+    `allOf/1: null`, and its other union apart. With nothing beside them, such a pair draws the
+    warning on the one schema writing both too, where that drew an info alone. Over a `Model`, a
+    union of null alone beside a rest admitting no null shares no kind with it: `{allOf: [T], oneOf:
+    [{$ref: Null}]}`, `Null` being `{type: 'null'}`, over an object `T` is the `Model` of `T`
+    keeping the `oneOf`, with one warning naming it, where it was a one-variant `Union` of a
+    composed `Model` and the warning named the schema's `type: null`, and two unions whose branches
+    share null alone are that `Model` keeping both with one warning. A `oneOf` of null alone,
+    `{const: null}` or `{enum: [null]}`, beside an `anyOf` admitting no null over such a `$ref`
+    draws that warning beside the `$ref` and beside an `allOf` of it, as on its entries, where it
+    drew none, and on two entries is the `Model` of the `$ref` keeping both, where it was a
+    two-variant `Union`. Where the union a pair passes over shares no kind with the body so, a union
+    of null alone among them, the pair lowers, beside the body, beside its `allOf` or on its
+    entries, to the body's `Model` keeping both, as `degraded_lowering` where one of them declares
+    shape against the body and as validation logic where neither does, where two entries, and such a
+    pair beside the body, distributed the elected union; beside a body admitting null, where the
+    union passed over leaves it null alone and no branch of the elected one admits null, the pair
+    lowers so too, with the warning: beside `{type: [object, 'null'], properties: {a: …}}`, `oneOf:
+    [{type: object, properties: {x: …}}]` and `anyOf: [{type: 'null'}]` are the body's `Model`
+    keeping both, where written so, beside an `allOf` of the body and on two entries the `oneOf` was
+    distributed with no warning, and on one entry it was that `Model` with no warning; so are
+    `oneOf: [{oneOf: [{type: string}, {type: integer}]}]` and `anyOf: [{type: string}, {type:
+    'null'}]`, where beside an `allOf` of the body and on one entry they drew no warning and on two
+    entries the `oneOf` was distributed. Two unions each of null alone beside a `type` list
+    admitting null are null alone keeping both as `degraded_lowering`, where a nullable alias of the
+    entry's member-less `Enum` kept the `oneOf` and dropped the `anyOf`. The union a pair passes
+    over is a conjunct of the rest wherever it is written, read for a dead branch and by the
+    conjuncts' warning, which names it `allOf/<n>/<keyword>` on the entry writing both: over a body
+    `{type: [object, 'null']}`, with `properties: {a: …}` or none, an `anyOf` of an object declaring
+    shape and a `$ref` to null beside `oneOf: [{type: object}]` is the `Union` of the object branch
+    keeping the null branch under `openapi:anyOf/1` with the dead-branch warning, in every spelling,
+    where, written so and beside an `allOf` of the body, the `oneOf` was distributed into a
+    one-variant `Union` keeping the `anyOf`, on one entry it was a `Model` keeping both and the
+    body's `type`, and on two entries a two-variant `Union`, each with no warning.
   - **What a node keeps beside an inline principal**
     ([`allof-refinement`](../compilers/openapi.md#allof-refinement),
     [`dialect-keywords`](../compilers/openapi.md#dialect-keywords), [keys](./unmodeled.md#keys)):

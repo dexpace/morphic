@@ -4068,10 +4068,15 @@ findings alone, on one entry or two alike. Wherever it is written, the union pas
 conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts), whether or not the elected one
 distributes: a variant admitting null alone, as a `$ref` to `{type: 'null'}`, is dead where that
-rest keeps null out, kept and warned as below; one sharing no kind with the rest read
+rest keeps null out, kept and warned as below, unless every variant would be, the two then sharing
+no value, which that rule's one warning says, and the `Union` keeping them; one sharing no kind with the rest read
 without either union, a union of null alone beside a rest admitting no null among them, leaves no
 instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
-naming its own keywords and that union. A union none of whose branches shares a kind with a body
+naming its own keywords and that union. One leaving that rest null alone does the same where no
+branch of the elected union admits null; where one does, the position admits that null and nothing
+else, so it lowers as the body keeping both as `degraded_lowering`, with no warning, and an `allOf`
+of an inline object admitting null composes it, its `Model` standing at the position as the schema
+writing all three flat does. A union none of whose branches shares a kind with a body
 that is no `Model` (a scalar, a `type` list of scalars, an array) admits nothing with it, so the
 position lowers as that body keeping the union as `degraded_lowering`, with that rule's one warning,
 beside the body's keywords, beside an `allOf` of it and on an entry alike. Such a
@@ -4233,7 +4238,9 @@ reach these shapes:
    ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
    the rest, so the schema draws that rule's warning, a null the rest admits and no branch does
    being no value they share; where a null branch takes it, the schema draws the warning naming
-   the dead branches instead, which says that no instance but null satisfies it. A dead branch beside a live one on an entry is named as admitting
+   the dead branches instead, which says that no instance but null satisfies it. An elected
+   union of null alone has no branch to mark dead, so where it and the union passed over share no
+   value, the schema draws the warning of shape 4 naming the two instead. A dead branch beside a live one on an entry is named as admitting
    no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
    holds.
 
@@ -4379,6 +4386,11 @@ judged as one whose branches declare shape.
   `openapi/validation-only-keyword`
 - Tests: `e2e.TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut`,
   `schema.TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut`,
+  `schema.TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem`,
+  `schema.TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut`,
+  `schema.TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten`,
+  `schema.TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten`,
+  `schema.TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten`,
   `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
   `e2e.TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore`,
   `e2e.TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf`,
@@ -4564,7 +4576,8 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 
 - Status: partly built: whether a pair beside a scalar body lowers to the elected `Union` or to the
   body's `Scalar` keeping both is #2108's, as for one union: beside the body's own keywords it is the
-  `Scalar`, where the `allOf` spellings give a `Union`.
+  `Scalar`, where the `allOf` spellings give a `Union`. A pair written one union beside the body's
+  keywords and the other on an `allOf` entry is #2110's.
 - Cases: `codeclared-keywords`, `codeclared-schema-content`, `allof-value-set-beside-entry`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,

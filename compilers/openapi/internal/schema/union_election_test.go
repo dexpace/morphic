@@ -444,6 +444,62 @@ func TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dead"))
 }
 
+// TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut holds that the
+// warning for a branch of a pair admitting nothing but a null the rest keeps
+// out says so, beside a body of strings or none, where no body admits objects.
+func TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut(t *testing.T) {
+	t.Parallel()
+	const pair = "oneOf: [{type: string}], anyOf: [{type: string, minLength: 1}, {$ref: '#/components/schemas/Null'}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Null: {type: 'null'}
+    Flat: {oneOf: [{$ref: '#/components/schemas/Null'}, {type: string}], anyOf: [{type: string, minLength: 1}]}
+    Body: {type: [string, 'null'], `+pair+`}
+    Beside: {allOf: [{type: [string, 'null']}], `+pair+`}
+`))
+	for name, want := range map[string]string{
+		"Flat":   "1 of the 2 branches of this oneOf admits nothing but null, which the rest of this schema keeps out (oneOf/0",
+		"Body":   "1 of the 2 branches of this anyOf admits nothing but null, which the rest of this schema keeps out (anyOf/1",
+		"Beside": "1 of the 2 branches of this anyOf admits nothing but null, which the rest of this schema keeps out (anyOf/1",
+	} {
+		var messages []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				messages = append(messages, d.Message)
+			}
+		}
+		require.Len(t, messages, 1, name)
+		assert.Contains(t, messages[0], want, name)
+	}
+}
+
+// TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem holds that
+// where every variant of the union a position elects admits null alone and
+// the other union keeps null out, none is read as dead: the two share no
+// value, which their one warning says, and the Union keeps its variants, as
+// one with none would hold no value, in every spelling.
+func TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem(t *testing.T) {
+	t.Parallel()
+	const null, other = "{$ref: '#/components/schemas/Null'}", "anyOf: [{$ref: '#/components/schemas/P'}, {type: string}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Null: {type: 'null'}
+    P: {type: object, properties: {x: {type: string}}}
+    Flat: {oneOf: [`+null+`], `+other+`}
+    WithNull: {oneOf: [{type: 'null'}, `+null+`], `+other+`}
+    One: {allOf: [{oneOf: [`+null+`], `+other+`}]}
+    Two: {allOf: [{oneOf: [`+null+`]}, {`+other+`}]}
+`))
+	warned := map[string]int{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+		}
+	}
+	for _, name := range []string{"Flat", "WithNull", "One", "Two"} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, union.Variants, 1, name)
+		assert.Equal(t, 1, warned[name], name)
+	}
+}
+
 // TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce holds
 // that an allOf entry writing a type and a oneOf sharing no kind, standing for
 // the position alone or beside an annotation, draws the one warning that the
@@ -580,4 +636,88 @@ func TestUnion_TwoUnionsApartAreNamedTheOneOfFirst(t *testing.T) {
 		require.Len(t, warned, 1, name)
 		assert.Contains(t, warned[0], names, name)
 	}
+}
+
+// TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten pins a oneOf of
+// const null and an anyOf admitting no null, beside a $ref to an object,
+// beside an allOf of it, on one entry and on two: each draws the one warning
+// that the conjuncts share no value.
+func TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten(t *testing.T) {
+	t.Parallel()
+	const one = "oneOf: [{const: null}]"
+	const anyOf = "anyOf: [{type: integer}, {type: object, properties: {p: {type: string}}, required: [p]}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Flat: {$ref: '#/components/schemas/T', `+one+`, `+anyOf+`}
+    Beside: {allOf: [{$ref: '#/components/schemas/T'}], `+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{$ref: '#/components/schemas/T'}, {`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{$ref: '#/components/schemas/T'}, {`+one+`}, {`+anyOf+`}]}
+`))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+}
+
+// nullableBodySpellings writes a oneOf and an anyOf beside an object admitting
+// null flat, beside an allOf of it, on one entry and on two.
+func nullableBodySpellings(oneOf, anyOf string) string {
+	const body = "type: [object, 'null'], properties: {a: {type: string}}"
+	return `    Flat: {` + body + `, ` + oneOf + `, ` + anyOf + `}
+    Beside: {allOf: [{` + body + `}], ` + oneOf + `, ` + anyOf + `}
+    OneEntry: {allOf: [{` + body + `}, {` + oneOf + `, ` + anyOf + `}]}
+    TwoEntries: {allOf: [{` + body + `}, {` + oneOf + `}, {` + anyOf + `}]}
+`
+}
+
+// keepsBothOnItsModel asserts that each spelling nullableBodySpellings writes
+// is the body's Model keeping both unions, and returns its warnings by name.
+func keepsBothOnItsModel(t *testing.T, oneOf, anyOf string) map[string][]string {
+	t.Helper()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(nullableBodySpellings(oneOf, anyOf)))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		model, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s is the body's Model", name)
+		assert.Contains(t, model.Unmodeled, "openapi:oneOf", name)
+		assert.Contains(t, model.Unmodeled, "openapi:anyOf", name)
+	}
+	return warned
+}
+
+// TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten
+// pins an anyOf of a string or null, which leaves an object admitting null
+// null alone, passed over for a oneOf of a union admitting no null: the
+// position is the body keeping both, with one warning in each spelling.
+func TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten(t *testing.T) {
+	t.Parallel()
+	warned := keepsBothOnItsModel(t, "oneOf: [{oneOf: [{type: string}, {type: integer}]}]",
+		"anyOf: [{type: string}, {type: 'null'}]")
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+}
+
+// TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten
+// pins a oneOf of an object or null and an anyOf of a string or null beside
+// an object admitting null, all three sharing null alone: the position is the
+// body's Model keeping both, with no warning, in each spelling.
+func TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten(t *testing.T) {
+	t.Parallel()
+	warned := keepsBothOnItsModel(t, "oneOf: [{type: object, properties: {x: {type: string}}}, {type: 'null'}]",
+		"anyOf: [{type: string}, {type: 'null'}]")
+	assert.Empty(t, warned)
 }

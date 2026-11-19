@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -225,7 +226,8 @@ func infosOf(v pairView) []string {
 }
 
 // facets names the facets of two views that differ, the warnings and errors
-// apart from the infos.
+// apart from the infos, a view with no finding left in either alike with one
+// whose findings are infos alone.
 func facets(a, b pairView) []string {
 	var out []string
 	for _, f := range []struct {
@@ -233,8 +235,8 @@ func facets(a, b pairView) []string {
 		same bool
 	}{
 		{"kind", a.Kind == b.Kind}, {"variants", cmp.Equal(a.Variants, b.Variants)},
-		{"kept", cmp.Equal(a.Kept, b.Kept)}, {"infos", cmp.Equal(infosOf(a), infosOf(b))},
-		{"warnings", cmp.Equal(slices.DeleteFunc(slices.Clone(a.Findings), isInfo), slices.DeleteFunc(slices.Clone(b.Findings), isInfo))},
+		{"kept", cmp.Equal(a.Kept, b.Kept)}, {"infos", slices.Equal(infosOf(a), infosOf(b))},
+		{"warnings", slices.Equal(slices.DeleteFunc(slices.Clone(a.Findings), isInfo), slices.DeleteFunc(slices.Clone(b.Findings), isInfo))},
 	} {
 		if !f.same {
 			out = append(out, f.name)
@@ -244,22 +246,27 @@ func facets(a, b pairView) []string {
 }
 
 // pairExcused are the bodies beside which a union written alone lowers apart
-// in its own spellings, each naming that mechanism. A pair beside one of them
-// is excused where its split is one of its unions' (singleExplains); each body
-// must still excuse one, so a fix elsewhere names it stale.
+// in its own spellings, each naming that mechanism and the open issue holding
+// it (pairIssues). A pair beside one of them is excused where its split is
+// one of its unions' (singleExplains); each body must still excuse one, so a
+// fix elsewhere names it stale.
 var pairExcused = map[string]string{
-	"object or null": "a union beside a type list with properties lowers apart beside the list's keywords",
+	"object or null": "#2111, #2112: a union of null alone beside a type list holding an object is its Model, an " +
+		"Enum of null beside an allOf of the list (#2111), and the list on an allOf entry is kept where beside the " +
+		"union it is read (#2112)",
 	"string or null": "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 	"string":         "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 }
+
+// pairIssues matches the reason of an excuse or an open group: the open issues
+// holding the mechanism, each a question #2011 leaves to another, then why.
+var pairIssues = regexp.MustCompile(`^#(2108|2109|2111|2112)(, #(2108|2109|2111|2112))*: `)
 
 // pairOpen are the groups, by body and pair, whose spellings split where
 // neither union alone does, each by a mechanism an open issue holds for one
 // union too: a pair beside a scalar body, whose node #2108 decides, and a
 // pair's null beside a $ref, which the nullable-inference policy widens
-// beside the $ref alone (#2109). Each cites its issue and must still split. A
-// row citing #2011 is a split that issue's decisions settle and this test
-// does not yet see settled: while one stands, #2011 does not close.
+// beside the $ref alone (#2109). Each cites its issue and must still split.
 var pairOpen = map[[2]string]string{
 	{"ref to an object", "null through a ref and inline"}: "#2109: the flat spelling's $ref is widened to admit null, the others' not",
 	{"string", "refs on both"}:                            "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
@@ -269,10 +276,6 @@ var pairOpen = map[[2]string]string{
 	{"string", "a branch that is a union"}:                "#2108: the flat spelling is the body's Scalar, the others a Union of the union",
 	{"string or null", "a branch that is a union"}: "#2108: the flat spelling is the body's Scalar, the others a Union " +
 		"of the union",
-	{"object or null", "sharing null alone"}: "#2011: the flat spelling distributes the oneOf, the others are a use of " +
-		"the body, both unions admitting null alone with it",
-	{"object or null", "a branch that is a union"}: "#2011: the flat spelling distributes the oneOf over a branch no " +
-		"object or null satisfies, the others are a use of the body",
 }
 
 // singleSpellings are the spellings a union written alone has.
@@ -355,11 +358,17 @@ func sameFacets(view func(int, string) pairView, i int, keyword string) bool {
 // entries, the branches, the keywords and the components: the same kind of
 // node, the same variants, each as what it is, the same keys kept with the
 // same reasons and the same findings, wherever each stands (GitHub #2011).
+// A spelling writing one union flat and the other on an entry is #2110's.
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for group, why := range pairOpen {
-		if !strings.HasPrefix(why, "#2108: ") && !strings.HasPrefix(why, "#2109: ") && !strings.HasPrefix(why, "#2011: ") {
-			t.Errorf("%v is open for no question #2108, #2109 or #2011 holds: %s", group, why)
+		if !pairIssues.MatchString(why) {
+			t.Errorf("%v is open for no question an open issue holds: %s", group, why)
+		}
+	}
+	for body, why := range pairExcused {
+		if !pairIssues.MatchString(why) {
+			t.Errorf("%s is excused by no mechanism an open issue holds: %s", body, why)
 		}
 	}
 	for _, body := range pairBodies {
