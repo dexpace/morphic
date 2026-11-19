@@ -300,7 +300,7 @@ const unpreservableValue = ".nan"
 // Base}]` beside an enum is the narrowing idiom rather than a malformed
 // document, so what vanished was the entire relationship to Base.
 //
-// Each case names the family the dispatch elects and the one it passes over, so
+// Each case names the family the dispatch picks and the one it passes over, so
 // a reordered dispatch fails here rather than quietly changing which half of a
 // schema the IR describes.
 func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
@@ -335,7 +335,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 
 			td := typeByName(doc, "S")
 			require.NotNil(t, td)
-			assert.Equal(t, tc.lowered, td.Kind(), "the elected family still lowers")
+			assert.Equal(t, tc.lowered, td.Kind(), "the picked family still lowers")
 			entry, ok := td.Common().Unmodeled[tc.key]
 			require.True(t, ok, "%s is kept verbatim; got %v", tc.key, td.Common().Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)

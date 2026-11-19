@@ -108,7 +108,7 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:oneOf").Value))
 
 	assertRefSiteKeywords(t, doc, diags)
-	assertElectedLoweringKeywords(t, doc, diags)
+	assertPickedLoweringKeywords(t, doc, diags)
 }
 
 // assertRefSiteKeywords pins the keeping of unread keywords at a $ref site, where it did not run at
@@ -210,11 +210,11 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 			"/components/schemas/Carrier/properties/p"), "share no value")
 }
 
-// assertElectedLoweringKeywords pins the keywords the *winning* family's
+// assertPickedLoweringKeywords pins the keywords the *winning* family's
 // lowering never reads (GitHub #268). The keeping of unread keywords asks the node that was built,
 // which is why the two allOf cases differ: a composed Model asserts `object`
 // already and loses nothing, and asserts nothing about `string` at all.
-func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+func assertPickedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	scalarType, ok := doc.Types[componentID("AllOfWithScalarType")].(*ir.Model)
 	require.True(t, ok)
@@ -1333,9 +1333,9 @@ func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir
 // assertCoDeclaredKeywords pins the keywords a schema writes that compete for
 // one position (GitHub #35).
 //
-// The dispatch elects one of them and the rest were dropped outright — a whole
+// The dispatch picks one of them and the rest were dropped outright — a whole
 // relationship to a Base, or half a union, gone with no Unmodeled entry and no
-// diagnostic at all. Every case here asserts the same three things: the elected
+// diagnostic at all. Every case here asserts the same three things: the picked
 // keyword still lowers, the ones passed over are kept verbatim under
 // ReasonDegradedLowering, and the position says so.
 func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
