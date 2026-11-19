@@ -738,7 +738,17 @@ func pairKeepsNullOut(n *nulls, s *statement.Schema) bool {
 			return false
 		}
 	}
-	return len(pair.OneOf) > 0 && len(pair.AnyOf) > 0 && pairForbidsNull(n, pair)
+	if len(pair.OneOf) == 0 || len(pair.AnyOf) == 0 {
+		return false
+	}
+	// Each union's null is its branches', as one schema writing both reads it
+	// (pairMayAdmitNull), so a branch that is a union keeps null out where its
+	// own branches do; the read stays on n's budget.
+	variants := n.variants
+	n.variants = true
+	forbids := pairForbidsNull(n, pair)
+	n.variants = variants
+	return forbids
 }
 
 // widenByBranch is the lenient reading of a `nullable: true` that folds: written

@@ -461,3 +461,24 @@ func TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce(t *test
 	}
 	assert.Equal(t, map[string]int{"Alone": 1, "Annotated": 1}, warned)
 }
+
+// TestUnion_APairOnTwoEntriesReadsAUnionBranchsNull pins the reference to a
+// oneOf and an anyOf on two allOf entries whose oneOf's one branch is a union,
+// inline or behind a $ref, admitting no null: not nullable, as on one schema,
+// each union's null being its branches'.
+func TestUnion_APairOnTwoEntriesReadsAUnionBranchsNull(t *testing.T) {
+	t.Parallel()
+	const anyOf = "{anyOf: [{type: 'null'}, {type: integer}]}"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    U: {oneOf: [{type: string}, {type: integer}]}
+    Flat: {oneOf: [{$ref: '#/components/schemas/U'}], anyOf: [{type: 'null'}, {type: integer}]}
+    Ref: {allOf: [{oneOf: [{$ref: '#/components/schemas/U'}]}, `+anyOf+`]}
+    Inline: {allOf: [`+anyOf+`, {oneOf: [{oneOf: [{type: string}, {type: integer}]}]}]}
+    C: {type: object, properties: {f: {$ref: '#/components/schemas/Flat'}, r: {$ref: '#/components/schemas/Ref'}, i: {$ref: '#/components/schemas/Inline'}}}
+`))
+	model, ok := typeByName(doc, "C").(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, model.Properties, 3)
+	for _, p := range model.Properties {
+		assert.False(t, p.Type.Nullable, p.Name.Source)
+	}
+}
