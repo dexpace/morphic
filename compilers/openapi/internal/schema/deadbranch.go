@@ -63,7 +63,8 @@ func restAdmitsObjects(c lowering.Ctx, body, holder *statement.Schema) bool {
 		case a.cut:
 			return false
 		case a.st != nil && a.st.Schema == holder:
-			joint &= declaredInstanceTypes(holder) & valueKinds(c, holder)
+			firm, _ := ownKinds(c, holder)
+			joint &= firm
 		default:
 			joint &= a.admits
 		}

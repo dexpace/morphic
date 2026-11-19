@@ -381,8 +381,9 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
 // ownKinds returns the kinds the keywords s writes itself leave: firm, those
 // its type declares met with those its value sets hold (valueKinds), and
 // claims, those the kind-inference policy reads off its shape keywords
-// (claimedKinds). The walk (readOwn) and restKinds, which reads a schema with
-// its union left out, both take them from here.
+// (claimedKinds). The walk (readOwn), restKinds, which reads a schema with its
+// union left out, and restAdmitsObjects take them from here; toldWhereWritten
+// still meets a schema's type with its value sets in a switch arm of its own.
 func ownKinds(c lowering.Ctx, s *statement.Schema) (firm, claims kindSet) {
 	return declaredInstanceTypes(s) & valueKinds(c, s), claimedKinds(c, s)
 }
