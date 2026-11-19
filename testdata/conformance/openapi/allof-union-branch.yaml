@@ -52,8 +52,8 @@ components:
             - type: object
               required: [managed_app_id]
               properties: {managed_app_id: {type: string}}
-    # Of two union branches, one only narrows the body: it stays with its
-    # branch on each variant, and the other distributes.
+    # Of two union entries, one only narrows the body: it stays with its
+    # entry on each variant, and the other distributes.
     AppRequest:
       type: object
       allOf:

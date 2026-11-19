@@ -757,7 +757,7 @@ func wholeWhy(k keptEntry) string {
 	case wholeDisagreed:
 		return disagreedWhy(k.residue, n)
 	case wholeApart:
-		return "another conjunct of this allOf writes a keyword " + n.this + " keeps otherwise, and one entry " +
+		return "another conjunct of this allOf writes a keyword " + n.this + " keeps otherwise, and one Unmodeled entry " +
 			"under that keyword holds one value; " + n.kept + " (" + strings.Join(k.residue, ", ") +
 			") is kept verbatim under Unmodeled"
 	default:

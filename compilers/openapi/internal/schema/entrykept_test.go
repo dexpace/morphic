@@ -57,7 +57,7 @@ func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testin
 		{"{$ref: '#/components/schemas/T', allOf: [{$ref: '#/components/schemas/U'}], unevaluatedProperties: false}",
 			diag.ValidationOnlyKeyword, "conjunct beside this allOf entry's $ref is merged in place, its nested allOf composes"},
 		{"{$ref: '#/components/schemas/T', minLength: 2}, {minLength: 3}", diag.DegradedConstruct,
-			"writes a keyword the conjunct beside this $ref keeps otherwise, and one entry under that keyword holds one " +
+			"writes a keyword the conjunct beside this $ref keeps otherwise, and one Unmodeled entry under that keyword holds one " +
 				"value; the conjunct (minLength) is kept"},
 		{"{$ref: '#/components/schemas/T', title: a}, {title: b}", diag.DegradedConstruct,
 			"disagree on a keyword the conjunct beside this $ref writes, so nothing it writes folds; the conjunct (title) is kept"},

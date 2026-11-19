@@ -1396,7 +1396,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/0"
@@ -1405,7 +1405,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/1"

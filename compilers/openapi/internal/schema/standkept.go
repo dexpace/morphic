@@ -250,7 +250,7 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 	// A carrier keeps the key beneath its own scope, so the report names the
 	// entry's path, which every such key ends in.
 	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"the keywords beside %s write %s otherwise than this inline entry, and one entry under a keyword holds "+
+		"the keywords beside %s write %s otherwise than this inline entry, and one Unmodeled entry under a keyword holds "+
 			"one value; the entry's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
 		comp.subject(), strings.Join(apart, ", "), comp.entryPath(pointer)))
 	return append(diags, routesKept(c, ts, s, apart, pointer)...)

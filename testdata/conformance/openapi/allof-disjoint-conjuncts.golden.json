@@ -429,7 +429,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-disjoint-conjuncts.yaml",
-      "hash": "7ec8d90610f6d3f04be81cc657ffb1380148ab4ebaa6eabb05ae291aa7964d23"
+      "hash": "3f427829d58c4759ac8938e5eaddf24edf00e8a9d7855e9d5783c30de789978b"
     }
   ]
 }

@@ -20,8 +20,8 @@ components:
     # the ordinary case of a $ref living *inside* an allOf entry (that is
     # allof-ref-branch-siblings.yaml, fixed by GitHub #143) — here the $ref and
     # the allOf sit beside each other at the schema's own level, and the
-    # census that runs at a $ref site (unhomedKeywords) never named allOf
-    # either: a body position elects it through dispatchOf/familyOrder, a
+    # keeping of unread keywords at a $ref site (unhomedKeywords) never named allOf
+    # either: a body position picks it through dispatchOf/familyOrder, a
     # mechanism a $ref site never reaches at all.
     I: {$ref: '#/components/schemas/Base', allOf: [{type: string}]}
     # The same gap at a carrier position: a property's $ref resolves straight

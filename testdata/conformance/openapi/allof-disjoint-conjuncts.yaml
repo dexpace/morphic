@@ -13,7 +13,7 @@ components:
       properties:
         a: {type: string}
     # A `type` beside the allOf against a $ref conjunct: an object that is an
-    # array. Neither the entry census nor the census beside the allOf reads it.
+    # array. Neither what the entry keeps unread nor what is kept unread beside the allOf reads it.
     OwnType:
       allOf:
         - {$ref: '#/components/schemas/List'}

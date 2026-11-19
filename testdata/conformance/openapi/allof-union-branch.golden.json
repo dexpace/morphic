@@ -2159,7 +2159,7 @@
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
-      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/0"
@@ -2168,7 +2168,7 @@
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
-      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline entry keeps otherwise, and one Unmodeled entry under that keyword holds one value; the entry (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/1"
@@ -2224,7 +2224,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-union-branch.yaml",
-      "hash": "e1c10e9a2ce5cd00cf13144b0b08e292869fe8b0c0735702c92d2630f1b3e557"
+      "hash": "4ba906ba6a6ea4fb91e4b0ad0f754c4e90b0ed4e45d010623031496b1ebab60d"
     }
   ]
 }
