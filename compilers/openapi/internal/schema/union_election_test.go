@@ -231,15 +231,18 @@ func TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords(t *testing.T) 
 }
 
 // TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn holds that a
-// oneOf and an anyOf sharing no value, neither declaring shape against the
-// body written beside them, draw the one warning that the conjuncts share no
-// value there, as beside an allOf of the body, and that two sharing a null the
-// body keeps out are not named apart.
+// oneOf and an anyOf, neither declaring shape against the body written beside
+// them, draw the one warning that the conjuncts share no value there, as
+// beside an allOf of the body: two sharing no value with each other, and two
+// sharing null alone beside a body keeping null out, a null being shared only
+// where every conjunct admits it.
 func TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn(t *testing.T) {
 	t.Parallel()
 	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Flat: {type: string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}
     Beside: {allOf: [{type: string}], oneOf: [{type: 'null'}], anyOf: [{type: string}]}
     Shared: {type: string, oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}
+    SharedBeside: {allOf: [{type: string}], oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}
+    Lists: {type: string, oneOf: [{type: [string, 'null']}, {type: [string, 'null']}], anyOf: [{type: 'null'}]}
 `))
 	warned := map[string][]string{}
 	for _, d := range diags {
@@ -248,11 +251,10 @@ func TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn(t *testing.T)
 			warned[name] = append(warned[name], d.Message)
 		}
 	}
-	for _, name := range []string{"Flat", "Beside"} {
+	for _, name := range []string{"Flat", "Beside", "Shared", "SharedBeside", "Lists"} {
 		require.Len(t, warned[name], 1, name)
 		assert.Contains(t, warned[name][0], "share no value", name)
 	}
-	assert.Empty(t, warned["Shared"])
 }
 
 // TestUnion_AnEntryElectingAUnionOfNullAloneIsNamedByItsNull holds that the

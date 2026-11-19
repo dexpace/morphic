@@ -156,10 +156,8 @@ func viewOfPair(doc *ir.Document, diags []ir.Diagnostic, name string) pairView {
 // is excused where its split is one of its unions' (singleExplains); each body
 // must still excuse one, so a fix elsewhere names it stale.
 var pairExcused = map[string]string{
-	"object":         "a union sharing no kind with the body warns beside an allOf of it, not beside its keywords",
 	"object or null": "a union beside a type list with properties lowers apart beside the list's keywords",
 	"string or null": "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
-	"array":          "#2108: a union beside an array body is the body's node beside its keywords, a Union beside an allOf",
 	"string":         "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 }
 

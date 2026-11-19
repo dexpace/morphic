@@ -4511,7 +4511,8 @@ elected union collapses no more than it does beside the `allOf`, a body beside t
 elected `anyOf: [{type: 'null'}, {$ref: S}]` stays a `Union` of `S` behind a nullable reference,
 not a nullable reference to `S`. Where the two share no value, a null only where both admit it,
 the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
-once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it.
+once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it; so
+do two sharing only a null that the body beside them keeps out, which leaves them no value with it.
 Whether they share a value is read once for the position, as the election reads its conjuncts,
 value sets included, so `oneOf: [{type: string, enum: [a]}]` and `anyOf: [{type: string, enum: [b]}]`
 share none, and each is named by what it admits, `oneOf: 1 value`; beside a body that is no
