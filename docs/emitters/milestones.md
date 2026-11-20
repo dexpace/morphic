@@ -8,8 +8,8 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    and that the IR retains what a refiner needs (architecture.md §6 M3). Three targets at once make
    the plan's neutrality a test from the first model: a plan field only one of them can use fails
    the [plan-or-refine test](plan/plan-or-refine.md) at M3a, not when a later language lands. The
-   [build check](verification.md#the-output-builds) lands here too, so every golden builds from the
-   first one.
+   [build check](verification.md#the-output-builds) lands with the first golden, here or on [the
+   TypeScript track](#the-typescript-track), so every golden builds from the first one.
 2. **M3b — the hard axes.** Unions (all four wire shapes), discriminators, visibility projections,
    the four optionality states, containers, external types, values, on each first target. Each is a
    refine step tied to a specific un-lowered IR fact — the acceptance test cashed.
@@ -24,14 +24,43 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    checks](verification.md#the-manifest-says-what-the-output-holds). It needs the [correlation
    key](../ir/derived-facts.md#correlation-keys), which shipped names, regions, files written once
    and unmatched keys all match on.
-6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first
-   targets' statically typed languages: a new target is a new target AST + printer + refine pipeline
-   reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan
-   first pays back at M3, where three targets read it.
+6. **M5 — a further language family (such as Python).** Proves the plan holds beyond the languages
+   that read it while it was built: a new target is a new target AST + printer + refine pipeline
+   reusing the shared plan and step contract, forcing **no** IR or plan change. TypeScript is not
+   that family, since it reads the plan from [a track of its own](#the-typescript-track). The
+   shared plan first pays back at M3, where three targets read it.
 
 Beyond the milestones, a command-line client is a documented extension point rather than a
 scheduled target: a registry entry over `Doc + Plan`, as docs and mocks are, whose inputs and flag
 rules [docs and mocks](docs-and-mock.md#a-command-line-target) sets out. No milestone depends on it.
+
+## The TypeScript track
+
+A TypeScript target is built on a track of its own, beside M3a to M3c, and waits for neither Go nor
+Kotlin. It shares the emitter contract, the registry and the plan with them. Its documents under
+`targets/` come first ([how the documents divide](README.md#how-the-documents-divide)), and it then
+follows the first targets' order: M3a's models, enums and one service client end to end, every
+golden passing the [build check](verification.md#the-output-builds), then M3b's axes and M3c's
+operations and runtime. [What M3 lowers](#what-m3-lowers) scopes it as it scopes them.
+
+A target's cost is its own: a target AST, a printer, a refine pipeline and a toolchain in the gate.
+M3a pays it for Go and for Kotlin together. This track pays it for one language, so a generated SDK
+that builds, and the engine and the command line running an emitter end to end, do not wait for
+three targets.
+
+The track changes who may read the plan first, and so what tests the plan's neutrality. M3a's
+three targets test it in code from the first model. A target reading a plan field before they do
+is one reader, so until Go or Kotlin reads the field, the [plan-or-refine
+test](plan/plan-or-refine.md) is held on paper, by [the rule it states for a lone
+reader](plan/plan-or-refine.md#one-target-reading-the-plan). M5's claim is not asked of this track:
+the plan is still being built while TypeScript reads it.
+
+Two other orders were weighed:
+
+- **TypeScript at M5, after the first targets.** The plan keeps three readers from its first model,
+  and a TypeScript SDK waits behind M3 and M4.
+- **TypeScript in place of the first targets.** The plan would have one reader and no second one
+  scheduled, so nothing in code would test the line the plan-or-refine test draws.
 
 ## What M3 lowers
 

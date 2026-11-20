@@ -216,6 +216,9 @@ Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from
 
 The Kotlin targets read the same plan and lower the same facts as Go.
 
+A TypeScript target is built beside them, reading the same plan, on [a track of its
+own](milestones.md#the-typescript-track).
+
 ## Deliberate exclusions
 
 - **A separate neutral code model.** Rejected in favor of per-language target ASTs. A shared
