@@ -15,6 +15,10 @@ rather than restating them.
   type-check this module, reporting `typecheck` errors rather than findings, so install that
   version with the toolchain you build with:
   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(make print-lint-version)`.
+  The gate also builds planted TypeScript files with Node.js at `make print-node-version` and
+  TypeScript at `make print-typescript-version`
+  (`npm install --global typescript@$(make print-typescript-version)`). CI requires both; on a
+  machine without them `make gate` says the files were not built and runs the rest.
 - **The gate.** `make gate` runs every check CI runs, in the order CI runs them, and
   `go test ./...` passing is not evidence it passes. [Run the checks](#run-the-checks) says what it
   holds and how to run one part of it while iterating: one package
@@ -121,8 +125,10 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The race detector and every schema case are outside it: a nightly job runs `make race`,
-then `make cases`, on `main`. The `Makefile` holds the step list, and each target
+by side. One step differs by a variable: CI runs `make ts-planted` with the TypeScript toolchain
+required, where a machine without it skips that step and says so. The race detector and every
+schema case are outside it: a nightly job runs `make race`, then `make cases`, on `main`. The
+`Makefile` holds the step list, and each target
 (`make coverage`, `make race`, `make cases`, `make fuzz`, `make bench` and the rest) runs on its
 own while iterating. Coverage is gated at exactly 100% of statements, counted
 from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
@@ -488,7 +494,8 @@ each on its own, and the workflow's actions together. It proposes direct modules
 indirect one moves only when a direct module requires it. Every proposal waits a week after its
 release. A security update opens when an advisory names a module in `go.mod`, direct or indirect,
 and does not wait. Nothing proposes a Go or golangci-lint release: the `Makefile` comment above
-`GO_VERSION` says what moves with them, by hand.
+`GO_VERSION` says what moves with them, by hand. Nothing proposes a Node.js or TypeScript release
+either: `NODE_VERSION` and `TYPESCRIPT_VERSION` move in the `Makefile`, by hand.
 
 1. **Re-read [`docs/parser-library.md`](docs/parser-library.md)** when the update is to the parser
    library, following its steps to bump the library, and push the result onto Dependabot's branch.

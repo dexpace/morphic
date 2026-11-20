@@ -65,6 +65,22 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
+# The Node.js and TypeScript releases the gate builds TypeScript with. The
+# workflow reads each back, from `make print-node-version` and
+# `make print-typescript-version`, and installs it, so each pin has one
+# definition and no copy. Nothing proposes a release of either: they move here,
+# by hand, and the plants scripts/ts-planted.sh builds say whether the new
+# compiler still refuses what the old one did.
+NODE_VERSION ?= 26.13.1
+TYPESCRIPT_VERSION ?= 7.0.2
+
+# Whether ts-planted needs the TypeScript toolchain. CI passes `required`, so
+# there a toolchain that is absent or at another release fails. Here an absent
+# one is reported and skipped, and another release reported and run, as a local
+# golangci-lint of another version is: a machine without Node.js still runs the
+# rest of the gate, and the run says what it left out.
+TS_TOOLCHAIN ?= optional
+
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what
 # `make fuzz FUZZTIME=5m` is for.
@@ -78,10 +94,11 @@ FUZZTIME ?= 5s
 # `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	cases fuzz bench bench-smoke print-lint-version print-go-version
+.PHONY: gate fmt vet lint lint-planted check-lint-version ts-planted build \
+	coverage race cases fuzz bench bench-smoke print-lint-version \
+	print-go-version print-node-version print-typescript-version
 
-gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted ts-planted build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -119,6 +136,14 @@ check-lint-version:
 		echo "warning: local golangci-lint is $${have:-absent}, CI pins $$want" >&2; \
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
+
+# The TypeScript compiler the gate builds generated TypeScript with, held to the
+# files planted for it: a tsc that reports nothing leaves a tree as clean as one
+# that works. scripts/ts-planted.sh says how, and what it does without one. It
+# builds no generated code: none exists yet, and the build check over a
+# TypeScript target's goldens lands with the first of them (#2141).
+ts-planted:
+	./scripts/ts-planted.sh "$(NODE_VERSION)" "$(TYPESCRIPT_VERSION)" "$(TS_TOOLCHAIN)"
 
 build:
 	$(GO) build ./...
@@ -192,3 +217,9 @@ print-lint-version:
 
 print-go-version:
 	@echo $(GO_VERSION)
+
+print-node-version:
+	@echo $(NODE_VERSION)
+
+print-typescript-version:
+	@echo $(TYPESCRIPT_VERSION)
