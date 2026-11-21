@@ -32,13 +32,13 @@ func TestPointerAmplification_RefusesPastTheAllowanceAndNotAtIt(t *testing.T) {
 	_, refused := pointerAmplificationWithin(whole, idx, idx.PointerBytes())
 	assert.False(t, refused, "a document at its allowance is admitted")
 
-	d, refused := pointerAmplificationWithin(whole, idx, idx.PointerBytes()-1)
+	diagnostic, refused := pointerAmplificationWithin(whole, idx, idx.PointerBytes()-1)
 	require.True(t, refused)
-	assert.Equal(t, diag.PointerAmplification, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, whole, d.Provenance, "a finding about the whole document")
+	assert.Equal(t, diag.PointerAmplification, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Equal(t, whole, diagnostic.Provenance, "a finding about the whole document")
 	assert.Equal(t, fmt.Sprintf("the JSON pointers naming the document's nodes total %d bytes, "+
-		"past the %d-byte allowance for the %d bytes it writes", pointers, pointers-1, written), d.Message)
+		"past the %d-byte allowance for the %d bytes it writes", pointers, pointers-1, written), diagnostic.Message)
 }
 
 // TestPointerAmplification_ReadsTheRatioAndItsFloor pins the allowance PointerAmplification reads: a

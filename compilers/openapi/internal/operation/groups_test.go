@@ -18,18 +18,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// opsByGroup indexes each group's operation IDs, sorted, by the group's ID. It
-// is the whole observable shape of a grouping that does not depend on the order
-// groups were met in.
-func opsByGroup(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID][]ir.OpID {
+// operationsByGroup indexes each group's operation IDs, sorted, by the group's
+// ID. It is the whole observable shape of a grouping that does not depend on
+// the order groups were met in.
+func operationsByGroup(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID][]ir.OperationID {
 	t.Helper()
-	out := make(map[ir.GroupID][]ir.OpID, len(groups))
-	for _, g := range groups {
-		require.NotContains(t, out, g.ID, "two groups share the ID %q", g.ID)
-		for _, op := range g.Operations {
-			out[g.ID] = append(out[g.ID], op.ID)
+	out := make(map[ir.GroupID][]ir.OperationID, len(groups))
+	for _, operationGroup := range groups {
+		require.NotContains(t, out, operationGroup.ID, "two groups share the ID %q", operationGroup.ID)
+		for _, operation := range operationGroup.Operations {
+			out[operationGroup.ID] = append(out[operationGroup.ID], operation.ID)
 		}
-		slices.Sort(out[g.ID])
+		slices.Sort(out[operationGroup.ID])
 	}
 	return out
 }
@@ -55,8 +55,8 @@ paths:
 	declared, fallback := svc.Groups[0], svc.Groups[1]
 	assert.Equal(t, "default", declared.Name.Source, "the declared tag is named by what the source wrote")
 	assert.Equal(t, "default", fallback.Name.Hint, "the fallback group is named by a minted hint")
-	assert.Equal(t, ir.GroupID("g/tags/default"), declared.ID)
-	assert.Equal(t, ir.GroupID("g/default"), fallback.ID)
+	assert.Equal(t, ir.GroupID("operation-group/tags/default"), declared.ID)
+	assert.Equal(t, ir.GroupID("operation-group/default"), fallback.ID)
 }
 
 // TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment pins the second rule.
@@ -80,13 +80,13 @@ webhooks:
 	svc, diags := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	want := map[ir.GroupID][]ir.OpID{
-		"g/path-prefix/users":    {"op/openapi/paths/~1users/get", "op/openapi/paths/~1users~1{id}/get"},
-		"g/path-prefix/webhooks": {"op/openapi/paths/~1webhooks~1register/post"},
-		"g/path-prefix":          {"op/openapi/paths/~1/get"},
-		"g/webhooks":             {"op/openapi/webhooks/onEvent/post"},
+	want := map[ir.GroupID][]ir.OperationID{
+		"operation-group/path-prefix/users":    {"operation/openapi/paths/~1users/get", "operation/openapi/paths/~1users~1{id}/get"},
+		"operation-group/path-prefix/webhooks": {"operation/openapi/paths/~1webhooks~1register/post"},
+		"operation-group/path-prefix":          {"operation/openapi/paths/~1/get"},
+		"operation-group/webhooks":             {"operation/openapi/webhooks/onEvent/post"},
 	}
-	assert.Empty(t, cmp.Diff(want, opsByGroup(t, svc.Groups)), "group ID to operations (-want +got)")
+	assert.Empty(t, cmp.Diff(want, operationsByGroup(t, svc.Groups)), "group ID to operations (-want +got)")
 }
 
 // TestGrouping_RepeatedTagDeclarationIsOneGroup pins that a group is identified
@@ -105,7 +105,7 @@ paths:
 	_, svc, _ := compileService(t, spec)
 
 	require.Len(t, svc.Groups, 1)
-	assert.Equal(t, ir.GroupID("g/tags/pets"), svc.Groups[0].ID)
+	assert.Equal(t, ir.GroupID("operation-group/tags/pets"), svc.Groups[0].ID)
 }
 
 // TestGrouping_IDsDoNotDependOnDeclarationOrder compiles one document twice,
@@ -130,7 +130,7 @@ func TestGrouping_IDsDoNotDependOnDeclarationOrder(t *testing.T) {
 	_, second, _ := compileService(t, reverse)
 
 	require.Len(t, first.Groups, 3)
-	assert.Empty(t, cmp.Diff(opsByGroup(t, first.Groups), opsByGroup(t, second.Groups)),
+	assert.Empty(t, cmp.Diff(operationsByGroup(t, first.Groups), operationsByGroup(t, second.Groups)),
 		"group ID to operations, forward order against reverse (-forward +reverse)")
 }
 
@@ -154,14 +154,14 @@ paths:
 	doc, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 2)
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	users, ok := byName["users"]
 	require.True(t, ok)
 	assert.Equal(t, "User ops", users.Docs.Description)
 	require.Len(t, users.Operations, 1)
-	op := users.Operations[0]
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1users/get"), op.ID)
-	assert.Equal(t, []string{"users", "admin"}, op.Tags)
+	operation := users.Operations[0]
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1users/get"), operation.ID)
+	assert.Equal(t, []string{"users", "admin"}, operation.Tags)
 	def, ok := byName[""]
 	require.True(t, ok, "untagged op lands in the default group")
 	assert.Equal(t, "default", def.Name.Hint)
@@ -189,15 +189,15 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 `)
 	svc, diags := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
 	assert.True(t, hasOrders)
 	require.Len(t, byName["orders"].Operations, 2, "the callback operation is placed beside its parent")
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
-			assert.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred, "op %s must be marked inferred", op.ID)
+	for _, operationGroup := range svc.Groups {
+		for _, operation := range operationGroup.Operations {
+			assert.Equal(t, ir.Inferred("group-path-prefix"), operation.Provenance.Inferred, "op %s must be marked inferred", operation.ID)
 		}
 	}
 }
@@ -214,9 +214,9 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 
 // groupBySource returns the top-level group whose name source is name.
 func groupBySource(groups []ir.OperationGroup, name string) (ir.OperationGroup, bool) {
-	for _, g := range groups {
-		if g.Name.Source == name {
-			return g, true
+	for _, operationGroup := range groups {
+		if operationGroup.Name.Source == name {
+			return operationGroup, true
 		}
 	}
 	return ir.OperationGroup{}, false
@@ -427,12 +427,12 @@ paths:
 		"openapi/validation/validation-circular-reference at /tags/1/parent",
 	}, errorFindings(diags), "the table reports the cycle; the lowering only has to terminate")
 	require.Len(t, svc.Groups, 2, "the cycle's members stay top-level")
-	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(operationGroup ir.OperationGroup) string { return operationGroup.Name.Source })
 	assert.Empty(t, byName["b"].Groups)
 	require.Len(t, byName["a"].Groups, 1, "c nests under a, which is on the cycle but top-level")
 	assert.Equal(t, "c", byName["a"].Groups[0].Name.Source)
-	for _, g := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
-		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
+	for _, operationGroup := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
+		require.Len(t, operationGroup.Operations, 1, "no operation is lost to the cycle")
 	}
 }
 
@@ -552,9 +552,9 @@ tags:
 // groupPlacement is where a group sits in a service's tree: the group it nests
 // in, the name its source spells, and its operations' IDs in order.
 type groupPlacement struct {
-	parent ir.GroupID
-	name   string
-	ops    []ir.OpID
+	parent     ir.GroupID
+	name       string
+	operations []ir.OperationID
 }
 
 // placements flattens a group tree into each group's placement, by ID, walking
@@ -567,18 +567,18 @@ func placements(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID]groupPl
 	}
 	out := map[ir.GroupID]groupPlacement{}
 	stack := make([]pending, 0, len(groups))
-	for _, g := range slices.Backward(groups) {
-		stack = append(stack, pending{group: g})
+	for _, operationGroup := range slices.Backward(groups) {
+		stack = append(stack, pending{group: operationGroup})
 	}
 	for len(stack) > 0 {
 		next := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		require.NotContains(t, out, next.group.ID, "two groups share the ID %q", next.group.ID)
-		p := groupPlacement{parent: next.parent, name: next.group.Name.Source}
-		for _, op := range next.group.Operations {
-			p.ops = append(p.ops, op.ID)
+		groupPlacementValue := groupPlacement{parent: next.parent, name: next.group.Name.Source}
+		for _, operation := range next.group.Operations {
+			groupPlacementValue.operations = append(groupPlacementValue.operations, operation.ID)
 		}
-		out[next.group.ID] = p
+		out[next.group.ID] = groupPlacementValue
 		for _, child := range slices.Backward(next.group.Groups) {
 			stack = append(stack, pending{parent: next.group.ID, group: child})
 		}
@@ -640,42 +640,42 @@ func TestGrouping_ByExtensionNestsAGroupPerSegment(t *testing.T) {
 	svc, diags := serviceByExtension(t, extensionGroupingSpec, groupedByExtension)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	op := func(path, method string) ir.OpID {
-		return ir.OpID("op/openapi/paths/" + strings.ReplaceAll(path, "/", "~1") + "/" + method)
+	operationIDAt := func(path, method string) ir.OperationID {
+		return ir.OperationID("operation/openapi/paths/" + strings.ReplaceAll(path, "/", "~1") + "/" + method)
 	}
-	callback := ir.OpID(string(op("/orders", "get")) + "/callbacks/done/{$request.query.cb}/post")
+	callback := ir.OperationID(string(operationIDAt("/orders", "get")) + "/callbacks/done/{$request.query.cb}/post")
 	want := map[ir.GroupID]groupPlacement{
-		"g/extension/accounts": {name: "accounts", ops: []ir.OpID{op("/accounts", "get")}},
-		"g/extension/accounts/members": {
-			parent: "g/extension/accounts", name: "members", ops: []ir.OpID{op("/accounts/{id}/members", "get")},
+		"operation-group/extension/accounts": {name: "accounts", operations: []ir.OperationID{operationIDAt("/accounts", "get")}},
+		"operation-group/extension/accounts/members": {
+			parent: "operation-group/extension/accounts", name: "members", operations: []ir.OperationID{operationIDAt("/accounts/{id}/members", "get")},
 		},
-		"g/extension/zones":          {name: "zones"},
-		"g/extension/zones/settings": {parent: "g/extension/zones", name: "settings", ops: []ir.OpID{op("/zones", "get")}},
-		"g/tags/misc":                {name: "misc", ops: []ir.OpID{op("/misc", "get"), op("/blank", "get"), op("/bad", "get")}},
-		"g/default":                  {ops: []ir.OpID{op("/nan", "get")}},
-		"g/extension/orders":         {name: "orders", ops: []ir.OpID{op("/orders", "get"), callback}},
-		"g/webhooks":                 {ops: []ir.OpID{"op/openapi/webhooks/onEvent/post"}},
+		"operation-group/extension/zones":          {name: "zones"},
+		"operation-group/extension/zones/settings": {parent: "operation-group/extension/zones", name: "settings", operations: []ir.OperationID{operationIDAt("/zones", "get")}},
+		"operation-group/tags/misc":                {name: "misc", operations: []ir.OperationID{operationIDAt("/misc", "get"), operationIDAt("/blank", "get"), operationIDAt("/bad", "get")}},
+		"operation-group/default":                  {operations: []ir.OperationID{operationIDAt("/nan", "get")}},
+		"operation-group/extension/orders":         {name: "orders", operations: []ir.OperationID{operationIDAt("/orders", "get"), callback}},
+		"operation-group/webhooks":                 {operations: []ir.OperationID{"operation/openapi/webhooks/onEvent/post"}},
 	}
 	got := placements(t, svc.Groups)
 	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
 
 	ext := ir.Inferred("group-extension")
-	marked := map[ir.OpID]ir.Inferred{}
-	for _, g := range svc.Groups {
-		for _, o := range g.Operations {
-			marked[o.ID] = o.Provenance.Inferred
+	marked := map[ir.OperationID]ir.Inferred{}
+	for _, operationGroup := range svc.Groups {
+		for _, operation := range operationGroup.Operations {
+			marked[operation.ID] = operation.Provenance.Inferred
 		}
-		for _, sub := range g.Groups {
-			for _, o := range sub.Operations {
-				marked[o.ID] = o.Provenance.Inferred
+		for _, sub := range operationGroup.Groups {
+			for _, operation := range sub.Operations {
+				marked[operation.ID] = operation.Provenance.Inferred
 			}
 		}
 	}
-	assert.Equal(t, map[ir.OpID]ir.Inferred{
-		op("/accounts", "get"): ext, op("/accounts/{id}/members", "get"): ext, op("/zones", "get"): ext,
-		op("/orders", "get"): ext, callback: ext,
-		op("/misc", "get"): "", op("/blank", "get"): "", op("/bad", "get"): "", op("/nan", "get"): "",
-		"op/openapi/webhooks/onEvent/post": "",
+	assert.Equal(t, map[ir.OperationID]ir.Inferred{
+		operationIDAt("/accounts", "get"): ext, operationIDAt("/accounts/{id}/members", "get"): ext, operationIDAt("/zones", "get"): ext,
+		operationIDAt("/orders", "get"): ext, callback: ext,
+		operationIDAt("/misc", "get"): "", operationIDAt("/blank", "get"): "", operationIDAt("/bad", "get"): "", operationIDAt("/nan", "get"): "",
+		"operation/openapi/webhooks/onEvent/post": "",
 	}, marked, "the extension's reading is marked where it filed an operation, and only there")
 }
 
@@ -689,9 +689,9 @@ func TestGrouping_ByExtensionReportsAValueStatingNoPath(t *testing.T) {
 	require.NotEmpty(t, svc.Groups)
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			found = append(found, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			found = append(found, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{
@@ -720,21 +720,21 @@ func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
 
 	require.Len(t, svc.Groups, 3)
 	users, dns, legacy := svc.Groups[0], svc.Groups[1], svc.Groups[2]
-	assert.Equal(t, ir.GroupID("g/path-prefix/users"), users.ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix/users"), users.ID)
 	require.Len(t, users.Operations, 1)
 	assert.Equal(t, ir.Inferred("group-path-prefix"), users.Operations[0].Provenance.Inferred)
-	assert.Equal(t, ir.GroupID("g/extension/dns"), dns.ID)
+	assert.Equal(t, ir.GroupID("operation-group/extension/dns"), dns.ID)
 	require.Len(t, dns.Groups, 1)
 	require.Len(t, dns.Groups[0].Operations, 1)
 	assert.Equal(t, ir.Inferred("group-extension"), dns.Groups[0].Operations[0].Provenance.Inferred)
-	assert.Equal(t, ir.GroupID("g/path-prefix/legacy"), legacy.ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix/legacy"), legacy.ID)
 	require.Len(t, legacy.Operations, 1)
 	assert.Equal(t, ir.Inferred("group-path-prefix"), legacy.Operations[0].Provenance.Inferred)
 
 	var reported []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			reported = append(reported, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			reported = append(reported, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"info at /paths/~1legacy/get/x-group"}, reported)
@@ -758,13 +758,13 @@ func TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	want := map[ir.GroupID]groupPlacement{
-		"g/extension/zones": {name: "zones"},
-		"g/extension/zones/settings": {
-			parent: "g/extension/zones", name: "settings", ops: []ir.OpID{"op/openapi/paths/~1zones/get"},
+		"operation-group/extension/zones": {name: "zones"},
+		"operation-group/extension/zones/settings": {
+			parent: "operation-group/extension/zones", name: "settings", operations: []ir.OperationID{"operation/openapi/paths/~1zones/get"},
 		},
-		"g/extension/dns":         {name: "dns"},
-		"g/extension/dns/records": {parent: "g/extension/dns", name: "records"},
-		"g/extension/users":       {name: "users", ops: []ir.OpID{"op/openapi/paths/~1users/get"}},
+		"operation-group/extension/dns":         {name: "dns"},
+		"operation-group/extension/dns/records": {parent: "operation-group/extension/dns", name: "records"},
+		"operation-group/extension/users":       {name: "users", operations: []ir.OperationID{"operation/openapi/paths/~1users/get"}},
 	}
 	got := placements(t, svc.Groups)
 	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
@@ -817,30 +817,30 @@ func TestGrouping_ByExtensionMintsAGroupForEachAlias(t *testing.T) {
 	svc, diags := serviceByExtension(t, aliasedSpec, aliasedExtension)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	issues := ir.OpID("op/openapi/paths/~1issues/get")
+	issues := ir.OperationID("operation/openapi/paths/~1issues/get")
 	want := map[ir.GroupID]groupPlacement{
-		"g/extension/workers": {name: "workers"},
-		"g/extension/workers/issues": {parent: "g/extension/workers", name: "issues", ops: []ir.OpID{
+		"operation-group/extension/workers": {name: "workers"},
+		"operation-group/extension/workers/issues": {parent: "operation-group/extension/workers", name: "issues", operations: []ir.OperationID{
 			issues, issues + "/callbacks/done/{$request.query.cb}/post",
 		}},
-		"g/extension/o11y":         {name: "o11y"},
-		"g/extension/o11y/issues":  {parent: "g/extension/o11y", name: "issues"},
-		"g/tags/misc":              {name: "misc", ops: []ir.OpID{"op/openapi/paths/~1queries/get", "op/openapi/paths/~1bad/get"}},
-		"g/extension/o11y/queries": {parent: "g/extension/o11y", name: "queries"},
-		"g/webhooks":               {ops: []ir.OpID{"op/openapi/webhooks/onEvent/post"}},
+		"operation-group/extension/o11y":         {name: "o11y"},
+		"operation-group/extension/o11y/issues":  {parent: "operation-group/extension/o11y", name: "issues"},
+		"operation-group/tags/misc":              {name: "misc", operations: []ir.OperationID{"operation/openapi/paths/~1queries/get", "operation/openapi/paths/~1bad/get"}},
+		"operation-group/extension/o11y/queries": {parent: "operation-group/extension/o11y", name: "queries"},
+		"operation-group/webhooks":               {operations: []ir.OperationID{"operation/openapi/webhooks/onEvent/post"}},
 	}
 	got := placements(t, svc.Groups)
 	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			found = append(found, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			found = append(found, string(diagnostic.Severity)+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"info at /paths/~1bad/get/x-aliases"}, found)
 	listQueries := svc.Groups[2].Operations[0]
-	require.Equal(t, ir.OpID("op/openapi/paths/~1queries/get"), listQueries.ID)
+	require.Equal(t, ir.OperationID("operation/openapi/paths/~1queries/get"), listQueries.ID)
 	assert.Empty(t, listQueries.Provenance.Inferred, "an alias moves no filing, so the fallback's marker stands")
 	assert.JSONEq(t, `[{"x-group":"o11y.queries"}]`, string(listQueries.Unmodeled["openapi:x-aliases"].Value),
 		"the aliases stay kept whole")
@@ -869,9 +869,9 @@ func TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder(t *testing
 	got := tree(aliasing + filed)
 	assert.Empty(t, cmp.Diff(tree(filed+aliasing), got, cmp.AllowUnexported(groupPlacement{})),
 		"the groups must not depend on declaration order")
-	assert.Equal(t, groupPlacement{parent: "g/extension/o11y", name: "issues", ops: []ir.OpID{"op/openapi/paths/~1filed/get"}},
-		got["g/extension/o11y/issues"])
-	assert.Equal(t, groupPlacement{parent: "g/extension/b", name: "c"}, got["g/extension/b/c"])
+	assert.Equal(t, groupPlacement{parent: "operation-group/extension/o11y", name: "issues", operations: []ir.OperationID{"operation/openapi/paths/~1filed/get"}},
+		got["operation-group/extension/o11y/issues"])
+	assert.Equal(t, groupPlacement{parent: "operation-group/extension/b", name: "c"}, got["operation-group/extension/b/c"])
 }
 
 // TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared pins the
@@ -898,14 +898,14 @@ components:
 	svc, diags := serviceByExtension(t, spec, groupedByExtension)
 
 	got := placements(t, svc.Groups)
-	assert.Equal(t, []ir.OpID{"op/openapi/paths/~1a/get", "op/openapi/paths/~1b/get"},
-		got["g/extension/shared/items"].ops, "both mounts in the group their declaration names")
-	assert.Equal(t, []ir.OpID{"op/openapi/paths/~1c/get", "op/openapi/paths/~1d/get"}, got["g/default"].ops)
+	assert.Equal(t, []ir.OperationID{"operation/openapi/paths/~1a/get", "operation/openapi/paths/~1b/get"},
+		got["operation-group/extension/shared/items"].operations, "both mounts in the group their declaration names")
+	assert.Equal(t, []ir.OperationID{"operation/openapi/paths/~1c/get", "operation/openapi/paths/~1d/get"}, got["operation-group/default"].operations)
 
 	var findings []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			findings = append(findings, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			findings = append(findings, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/components/pathItems/Bad/get/x-group"}, findings)
@@ -962,14 +962,14 @@ paths:
               x-group: hooks
               responses: {"200": {description: ok}}
 `
-	const parent, child = "op/openapi/paths/~1a/post", "op/openapi/paths/~1a/post/callbacks/onEvent/{$request.body#~1url}/post"
+	const parent, child = "operation/openapi/paths/~1a/post", "operation/openapi/paths/~1a/post/callbacks/onEvent/{$request.body#~1url}/post"
 	for strategy, group := range map[service.GroupingStrategy]ir.GroupID{
-		service.GroupByTags: "g/tags/pets", service.GroupByPathPrefix: "g/path-prefix/a",
-		service.GroupByExtension: "g/tags/pets",
+		service.GroupByTags: "operation-group/tags/pets", service.GroupByPathPrefix: "operation-group/path-prefix/a",
+		service.GroupByExtension: "operation-group/tags/pets",
 	} {
 		svc, diags := serviceUnderStrategy(t, spec, strategy)
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Equal(t, map[ir.GroupID][]ir.OpID{group: {parent, child}}, opsByGroup(t, svc.Groups), "%s", strategy)
+		assert.Equal(t, map[ir.GroupID][]ir.OperationID{group: {parent, child}}, operationsByGroup(t, svc.Groups), "%s", strategy)
 		assert.Equal(t, []string{"hooks"}, svc.Groups[0].Operations[1].Tags, "%s keeps the callback's tags", strategy)
 	}
 }

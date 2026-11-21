@@ -19,9 +19,9 @@ func Clone[M ~map[K]V, K comparable, V any](m M) M { return m }
 
 // Tree builds and writes the service tree and a channel registry, which the
 // framework owns, so it draws nothing.
-func Tree(doc *ir.Document, op ir.Operation, id ir.ChannelID) {
+func Tree(doc *ir.Document, operation ir.Operation, id ir.ChannelID) {
 	doc.Services = append(doc.Services, ir.Service{Groups: []ir.OperationGroup{{}}})
-	doc.Services[0].Groups[0].Operations = []ir.Operation{op}
+	doc.Services[0].Groups[0].Operations = []ir.Operation{operation}
 	doc.Channels = map[ir.ChannelID]ir.Channel{id: {}}
 }
 

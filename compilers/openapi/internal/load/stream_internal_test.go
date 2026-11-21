@@ -24,9 +24,9 @@ import (
 // streamDiags returns the dropped-document diagnostics among diags.
 func streamDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.StreamDocumentsDropped {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.StreamDocumentsDropped {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -323,9 +323,9 @@ func TestLoad_ReusesTheParseDetectionLeftBehind(t *testing.T) {
 
 // titleOf returns the scalar node holding info.title in a parsed document, for
 // a test that needs to plant a difference the bytes do not carry.
-func titleOf(t *testing.T, p *Parsed) *yaml.Node {
+func titleOf(t *testing.T, parsed *Parsed) *yaml.Node {
 	t.Helper()
-	root := p.Root().Content[0]
+	root := parsed.Root().Content[0]
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		if root.Content[i].Value != "info" {
 			continue

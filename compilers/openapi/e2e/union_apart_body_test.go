@@ -48,9 +48,9 @@ func TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody(t *te
 							assert.Equal(t, b.kind, td.Kind(), "the position is the body's node")
 							assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:" + keyword: ir.ReasonDegradedLowering}, keptOn(td))
 							var warned []string
-							for _, d := range diags {
-								if d.Severity == ir.SeverityWarning {
-									warned = append(warned, d.Message)
+							for _, diagnostic := range diags {
+								if diagnostic.Severity == ir.SeverityWarning {
+									warned = append(warned, diagnostic.Message)
 								}
 							}
 							require.Len(t, warned, 1)
@@ -105,8 +105,8 @@ func TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf(t *
 					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:type": ir.ReasonDegradedLowering,
 				}, keptOn(scalar), name)
 				var warned int
-				for _, d := range diags {
-					if d.Severity == ir.SeverityWarning && string(d.Provenance.Pointer) == "/components/schemas/"+name {
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityWarning && string(diagnostic.Provenance.Pointer) == "/components/schemas/"+name {
 						warned++
 					}
 				}
@@ -143,9 +143,9 @@ func TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut(t *testin
 					require.Len(t, union.Variants, 1, "the null branch is no variant")
 					assert.Contains(t, union.Unmodeled, "openapi:anyOf/1", "the null branch is kept")
 					var warned []string
-					for _, d := range diags {
-						if d.Severity == ir.SeverityWarning {
-							warned = append(warned, d.Message)
+					for _, diagnostic := range diags {
+						if diagnostic.Severity == ir.SeverityWarning {
+							warned = append(warned, diagnostic.Message)
 						}
 					}
 					require.Len(t, warned, 1)

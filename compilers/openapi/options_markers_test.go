@@ -34,8 +34,8 @@ func TestSwitchOptions_EveryNameIsAMarker(t *testing.T) {
 		markers[h] = true
 	}
 
-	var o openapi.Options
-	for name := range openapi.SwitchOptions(&o) {
+	var options openapi.Options
+	for name := range openapi.SwitchOptions(&options) {
 		if name == "title-names" {
 			continue
 		}

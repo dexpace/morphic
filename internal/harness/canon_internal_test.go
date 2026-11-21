@@ -22,19 +22,19 @@ var abOrder = permutation{
 	moved:   sequences{"/components/schemas/AB/allOf": 2},
 }
 
-// declaring is a model of the name holding one member, p, of the target type.
-// Its IDs and pointers are the ones the compiler gives a schema declared under
-// components.schemas, the member's provenance included, so a shape line that
-// kept it would tell two declarations apart.
-func declaring(name string, p ir.TypeID) *ir.Model {
+// declaring is a model of the name holding one member, typeID, of the target
+// type. Its IDs and pointers are the ones the compiler gives a schema declared
+// under components.schemas, the member's provenance included, so a shape line
+// that kept it would tell two declarations apart.
+func declaring(name string, typeID ir.TypeID) *ir.Model {
 	return &ir.Model{
-		ID:   ir.TypeID("t/openapi/components/schemas/" + name),
+		ID:   ir.TypeID("type/openapi/components/schemas/" + name),
 		Name: ir.Naming{Source: name, Canonical: strings.ToLower(name)},
 		Properties: []ir.Property{{
-			ID:       ir.PropID("p/openapi/components/schemas/" + name + "/properties/p"),
+			ID:       ir.PropertyID("property/openapi/components/schemas/" + name + "/properties/p"),
 			Name:     ir.Naming{Source: "p", Canonical: "p"},
 			WireName: "p",
-			Type:     ir.TypeRef{Target: p},
+			Type:     ir.TypeRef{Target: typeID},
 			Provenance: ir.Provenance{
 				Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p"),
 			},
@@ -45,7 +45,7 @@ func declaring(name string, p ir.TypeID) *ir.Model {
 // composing is the model AB composing A and B in the order given.
 func composing(first, second ir.TypeID) *ir.Model {
 	return &ir.Model{
-		ID:     "t/openapi/components/schemas/AB",
+		ID:     "type/openapi/components/schemas/AB",
 		Name:   ir.Naming{Source: "AB", Canonical: "ab"},
 		Mixins: []ir.TypeRef{{Target: first}, {Target: second}},
 	}
@@ -55,15 +55,15 @@ func composing(first, second ir.TypeID) *ir.Model {
 // as given, and AB composing them in the order given.
 func composedOf(bType, first, second ir.TypeID) *ir.Document {
 	return &ir.Document{Types: ir.TypeRegistry{
-		"t/openapi/components/schemas/A":  declaring("A", "t/prim/string"),
-		"t/openapi/components/schemas/B":  declaring("B", bType),
-		"t/openapi/components/schemas/AB": composing(first, second),
+		"type/openapi/components/schemas/A":  declaring("A", "type/primitive/string"),
+		"type/openapi/components/schemas/B":  declaring("B", bType),
+		"type/openapi/components/schemas/AB": composing(first, second),
 	}}
 }
 
 const (
-	typeA ir.TypeID = "t/openapi/components/schemas/A"
-	typeB ir.TypeID = "t/openapi/components/schemas/B"
+	typeA ir.TypeID = "type/openapi/components/schemas/A"
+	typeB ir.TypeID = "type/openapi/components/schemas/B"
 )
 
 // TestDiffSequenceInvariants_ComparesTheFlattenedShape pins what a consumer
@@ -75,8 +75,8 @@ func TestDiffSequenceInvariants_ComparesTheFlattenedShape(t *testing.T) {
 
 	t.Run("a member taking the other declaration", func(t *testing.T) {
 		t.Parallel()
-		asWritten := composedOf("t/prim/integer", typeA, typeB)
-		reversed := composedOf("t/prim/integer", typeB, typeA)
+		asWritten := composedOf("type/primitive/integer", typeA, typeB)
+		reversed := composedOf("type/primitive/integer", typeB, typeA)
 
 		detail, ok, why := diffSequenceInvariants(asWritten, nil, reversed, nil, abOrder)
 
@@ -91,8 +91,8 @@ func TestDiffSequenceInvariants_ComparesTheFlattenedShape(t *testing.T) {
 		t.Parallel()
 		// The two declarations differ in their IDs and provenance, which a
 		// shape line does not keep.
-		asWritten := composedOf("t/prim/string", typeA, typeB)
-		reversed := composedOf("t/prim/string", typeB, typeA)
+		asWritten := composedOf("type/primitive/string", typeA, typeB)
+		reversed := composedOf("type/primitive/string", typeB, typeA)
 
 		detail, ok, why := diffSequenceInvariants(asWritten, nil, reversed, nil, abOrder)
 
@@ -108,13 +108,13 @@ func TestDiffSequenceInvariants_ComparesTheFlattenedShape(t *testing.T) {
 // returning.
 func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 	t.Parallel()
-	const self ir.TypeID = "t/anon/components/schemas/AB/allOf/0"
+	const self ir.TypeID = "type/anonymous/components/schemas/AB/allOf/0"
 	cyclic := func() *ir.Document {
-		m := declaring("AB", self)
-		m.ID = self
-		m.Properties[0].ID = "p/anon/components/schemas/AB/allOf/0/properties/p"
-		m.Properties[0].Provenance.Pointer = "/components/schemas/AB/allOf/0/properties/p"
-		return &ir.Document{Types: ir.TypeRegistry{self: m}}
+		model := declaring("AB", self)
+		model.ID = self
+		model.Properties[0].ID = "property/anonymous/components/schemas/AB/allOf/0/properties/p"
+		model.Properties[0].Provenance.Pointer = "/components/schemas/AB/allOf/0/properties/p"
+		return &ir.Document{Types: ir.TypeRegistry{self: model}}
 	}
 
 	detail, ok, why := diffSequenceInvariants(cyclic(), nil, cyclic(), nil, abOrder)
@@ -130,7 +130,7 @@ func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 // node of it is met first.
 func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
 	t.Parallel()
-	const a, n = "t/anon/components/schemas/AB/allOf/0", "t/anon/components/schemas/AB/allOf/1"
+	const a, n = "type/anonymous/components/schemas/AB/allOf/0", "type/anonymous/components/schemas/AB/allOf/1"
 	owner := func(id string, names ...any) []map[string]any {
 		return []map[string]any{{"id": id, "names": names}}
 	}
@@ -146,11 +146,11 @@ func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := rewriter{seqs: abOrder.written, owners: tc.owners, digests: map[string]string{}, visiting: map[string]bool{}}
+			rewriterValue := rewriter{seqs: abOrder.written, owners: tc.owners, digests: map[string]string{}, visiting: map[string]bool{}}
 
-			r.text(tc.start, 0)
+			rewriterValue.text(tc.start, 0)
 
-			assert.ErrorIs(t, r.err, tc.want)
+			assert.ErrorIs(t, rewriterValue.err, tc.want)
 		})
 	}
 }
@@ -163,7 +163,7 @@ func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
 // runs alone.
 func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
 	t.Parallel()
-	const prefix, shared = "t/anon/components/schemas/AB/allOf/0/", "t/anon/components/schemas/AB/allOf/0/shared"
+	const prefix, shared = "type/anonymous/components/schemas/AB/allOf/0/", "type/anonymous/components/schemas/AB/allOf/0/shared"
 	link := func(i int) string { return prefix + strconv.Itoa(i) }
 	n := maxCanonicalDepth / 2
 	chain := make([]any, 0, n+1)
@@ -178,10 +178,10 @@ func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
 	tree := map[string]any{"chain": chain, "owners": owners}
 
 	for range 20 {
-		r := rewriter{seqs: abOrder.written, owners: map[string][]map[string]any{}, digests: map[string]string{}, visiting: map[string]bool{}}
-		r.index(tree, 0)
-		r.text(shared, 0)
-		assert.ErrorIs(t, r.err, errTooDeep, "the head comes first in name order")
+		rewriterValue := rewriter{seqs: abOrder.written, owners: map[string][]map[string]any{}, digests: map[string]string{}, visiting: map[string]bool{}}
+		rewriterValue.index(tree, 0)
+		rewriterValue.text(shared, 0)
+		assert.ErrorIs(t, rewriterValue.err, errTooDeep, "the head comes first in name order")
 	}
 }
 
@@ -194,17 +194,17 @@ func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
 func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
 	t.Parallel()
 	unencodable := func() *ir.Document {
-		doc := composedOf("t/prim/string", typeA, typeB)
+		doc := composedOf("type/primitive/string", typeA, typeB)
 		doc.Types[typeA].(*ir.Model).Docs.Description = "\xff"
 		return doc
 	}
 	deep := func() *ir.Document {
-		doc := composedOf("t/prim/string", typeA, typeB)
+		doc := composedOf("type/primitive/string", typeA, typeB)
 		value := strings.Repeat("[", maxCanonicalDepth+1) + strings.Repeat("]", maxCanonicalDepth+1)
 		doc.Types[typeA].(*ir.Model).Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(value)}}
 		return doc
 	}
-	plain := func() *ir.Document { return composedOf("t/prim/string", typeA, typeB) }
+	plain := func() *ir.Document { return composedOf("type/primitive/string", typeA, typeB) }
 	for _, tc := range []struct {
 		name          string
 		first, second *ir.Document
@@ -269,19 +269,19 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	// tied reports at one index in either order, which the reversal moves, so
 	// the site is a tie, and changes what a model says there.
 	tied := func(doc *ir.Document, i int) []ir.Diagnostic {
-		m := declaring("C", "t/prim/string")
-		m.Provenance = ir.Provenance{Pointer: ab + "/0/properties/p"}
-		m.Docs.Description = strconv.Itoa(i)
-		doc.Types[m.ID] = m
+		model := declaring("C", "type/primitive/string")
+		model.Provenance = ir.Provenance{Pointer: ab + "/0/properties/p"}
+		model.Docs.Description = strconv.Itoa(i)
+		doc.Types[model.ID] = model
 		return []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "x/tie",
 			Provenance: ir.Provenance{Pointer: ab + "/1/properties/p"}}}
 	}
 	model := func(seq string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, i int) []ir.Diagnostic {
-			m := declaring("C", "t/prim/string")
-			m.ID = ir.TypeID("t/openapi" + seq + "/" + strconv.Itoa(i))
-			m.Provenance = ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}
-			doc.Types[m.ID] = m
+			model := declaring("C", "type/primitive/string")
+			model.ID = ir.TypeID("type/openapi" + seq + "/" + strconv.Itoa(i))
+			model.Provenance = ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}
+			doc.Types[model.ID] = model
 			return nil
 		}
 	}
@@ -308,7 +308,7 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			first, second := composedOf("t/prim/string", typeA, typeB), composedOf("t/prim/string", typeA, typeB)
+			first, second := composedOf("type/primitive/string", typeA, typeB), composedOf("type/primitive/string", typeA, typeB)
 			firstDiags, secondDiags := tc.edit(first, 0), tc.edit(second, 1)
 
 			detail, ok, why := diffSequenceInvariants(first, firstDiags, second, secondDiags, abOrder)

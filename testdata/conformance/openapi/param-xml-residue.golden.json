@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ParamXMLResidue",
         "canonical": "param_xml_residue"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1docs/get",
+              "id": "operation/openapi/paths/~1docs/get",
               "name": {
                 "source": "findDocs",
                 "canonical": "find_docs"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1docs/get/parameters/tag/query",
+                  "id": "parameter/openapi/paths/~1docs/get/parameters/tag/query",
                   "name": {
                     "source": "tag",
                     "canonical": "tag"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -97,13 +97,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1docs/get/parameters/body/query",
+                  "id": "parameter/openapi/paths/~1docs/get/parameters/body/query",
                   "name": {
                     "source": "body",
                     "canonical": "body"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -154,7 +154,7 @@
                     "uriTemplate": "/docs",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1docs/get/parameters/tag/query",
+                        "param": "parameter/openapi/paths/~1docs/get/parameters/tag/query",
                         "location": "query",
                         "wireName": "tag",
                         "style": "form",
@@ -162,7 +162,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1docs/get/parameters/body/query",
+                        "param": "parameter/openapi/paths/~1docs/get/parameters/body/query",
                         "location": "query",
                         "wireName": "body",
                         "allowReserved": false,
@@ -192,9 +192,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -202,7 +202,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

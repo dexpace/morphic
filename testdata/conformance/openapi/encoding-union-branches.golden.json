@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EncodingUnionBranches",
         "canonical": "encoding_union_branches"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1one-of/post",
+              "id": "operation/openapi/paths/~1one-of/post",
               "name": {
                 "source": "oneOf",
                 "canonical": "one_of"
@@ -70,24 +70,24 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file": {
+                      "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file": {
                         "contentTypes": [
                           "image/png"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url": {
+                      "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -134,7 +134,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1any-of/post",
+              "id": "operation/openapi/paths/~1any-of/post",
               "name": {
                 "source": "anyOf",
                 "canonical": "any_of"
@@ -145,32 +145,32 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/openapi/components/schemas/Either",
+                      "target": "type/openapi/components/schemas/Either",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/components/schemas/Either/anyOf/0/properties/file": {
+                      "property/openapi/components/schemas/Either/anyOf/0/properties/file": {
                         "contentTypes": [
                           "image/png"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/components/schemas/Either/anyOf/1/oneOf/0/properties/url": {
+                      "property/openapi/components/schemas/Either/anyOf/1/oneOf/0/properties/url": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/components/schemas/Either/anyOf/1/oneOf/1/properties/id": {
+                      "property/openapi/components/schemas/Either/anyOf/1/oneOf/1/properties/id": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -217,7 +217,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1composed/post",
+              "id": "operation/openapi/paths/~1composed/post",
               "name": {
                 "source": "composed",
                 "canonical": "composed"
@@ -228,32 +228,32 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/components/schemas/Common/properties/name": {
+                      "property/openapi/components/schemas/Common/properties/name": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl": {
+                      "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile": {
+                      "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile": {
                         "contentTypes": [
                           "application/x-bittorrent"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       }
                     }
@@ -300,7 +300,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1multi-typed/post",
+              "id": "operation/openapi/paths/~1multi-typed/post",
               "name": {
                 "source": "multiTyped",
                 "canonical": "multi_typed"
@@ -311,17 +311,17 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file": {
+                      "property/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file": {
                         "inferred": "binary-inference",
                         "contentTypes": [
                           "image/png"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       }
                     }
@@ -368,7 +368,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1shared/post",
+              "id": "operation/openapi/paths/~1shared/post",
               "name": {
                 "source": "shared",
                 "canonical": "shared"
@@ -379,24 +379,24 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/doc": {
+                      "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/doc": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {
+                      "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": true,
-                        "filename": true,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": true,
                         "allowReserved": false
                       }
                     }
@@ -443,7 +443,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1narrowed/post",
+              "id": "operation/openapi/paths/~1narrowed/post",
               "name": {
                 "source": "narrowed",
                 "canonical": "narrowed"
@@ -454,32 +454,32 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/components/schemas/UploadFile/properties/file": {
+                      "property/openapi/components/schemas/UploadFile/properties/file": {
                         "contentTypes": [
                           "image/png"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/components/schemas/UploadLink/properties/link": {
+                      "property/openapi/components/schemas/UploadLink/properties/link": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note": {
+                      "property/openapi/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -537,9 +537,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Either/anyOf/0": {
+    "type/anonymous/components/schemas/Either/anyOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Either/anyOf/0",
+      "id": "type/anonymous/components/schemas/Either/anyOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -552,21 +552,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Either/anyOf/0/properties/file",
+          "id": "property/openapi/components/schemas/Either/anyOf/0/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -583,9 +583,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Either/anyOf/1": {
+    "type/anonymous/components/schemas/Either/anyOf/1": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Either/anyOf/1",
+      "id": "type/anonymous/components/schemas/Either/anyOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -602,7 +602,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Either/anyOf/1/oneOf/0",
+            "target": "type/anonymous/components/schemas/Either/anyOf/1/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -612,7 +612,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Either/anyOf/1/oneOf/1",
+            "target": "type/anonymous/components/schemas/Either/anyOf/1/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -623,9 +623,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Either/anyOf/1/oneOf/0": {
+    "type/anonymous/components/schemas/Either/anyOf/1/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Either/anyOf/1/oneOf/0",
+      "id": "type/anonymous/components/schemas/Either/anyOf/1/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -638,21 +638,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Either/anyOf/1/oneOf/0/properties/url",
+          "id": "property/openapi/components/schemas/Either/anyOf/1/oneOf/0/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -669,9 +669,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Either/anyOf/1/oneOf/1": {
+    "type/anonymous/components/schemas/Either/anyOf/1/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Either/anyOf/1/oneOf/1",
+      "id": "type/anonymous/components/schemas/Either/anyOf/1/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -684,21 +684,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Either/anyOf/1/oneOf/1/properties/id",
+          "id": "property/openapi/components/schemas/Either/anyOf/1/oneOf/1/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -715,9 +715,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "union",
-      "id": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "composed_request"
       },
@@ -734,7 +734,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
+            "target": "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -744,7 +744,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
+            "target": "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -755,9 +755,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
+      "id": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -771,21 +771,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl",
+          "id": "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl",
           "name": {
             "source": "targetUrl",
             "canonical": "target_url"
           },
           "wireName": "targetUrl",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -802,9 +802,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
+      "id": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -818,21 +818,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile",
+          "id": "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile",
           "name": {
             "source": "torrentfile",
             "canonical": "torrentfile"
           },
           "wireName": "torrentfile",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -849,9 +849,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "union",
-      "id": "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "multi_typed_request"
       },
@@ -868,7 +868,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -878,7 +878,7 @@
             "hint": "object"
           },
           "type": {
-            "target": "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1",
+            "target": "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1",
             "nullable": false
           },
           "docs": {}
@@ -889,9 +889,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1": {
+    "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1": {
       "kind": "model",
-      "id": "t/anon/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1",
+      "id": "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1",
       "name": {
         "hint": "multi_typed_request"
       },
@@ -904,21 +904,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file",
+          "id": "property/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -935,9 +935,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "narrowed_request"
       },
@@ -950,21 +950,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note",
+          "id": "property/openapi/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note",
           "name": {
             "source": "note",
             "canonical": "note"
           },
           "wireName": "note",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -978,16 +978,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Upload",
+        "target": "type/openapi/components/schemas/Upload",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "union",
-      "id": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "one_of_request"
       },
@@ -1004,7 +1004,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
+            "target": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1014,7 +1014,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
+            "target": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1025,9 +1025,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
+      "id": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -1040,21 +1040,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file",
+          "id": "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1071,9 +1071,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
+      "id": "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -1086,21 +1086,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url",
+          "id": "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url",
           "name": {
             "source": "url",
             "canonical": "url"
           },
           "wireName": "url",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1117,9 +1117,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "union",
-      "id": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "shared_request"
       },
@@ -1136,7 +1136,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
+            "target": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1146,7 +1146,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
+            "target": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1157,9 +1157,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
+      "id": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -1172,21 +1172,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/doc",
+          "id": "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/doc",
           "name": {
             "source": "doc",
             "canonical": "doc"
           },
           "wireName": "doc",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1203,9 +1203,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
+      "id": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -1218,21 +1218,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
+          "id": "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
           "name": {
             "source": "doc",
             "canonical": "doc"
           },
           "wireName": "doc",
           "type": {
-            "target": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
+            "target": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1249,9 +1249,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {
       "kind": "list",
-      "id": "t/anon/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
+      "id": "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc",
       "name": {
         "hint": "doc"
       },
@@ -1262,14 +1262,14 @@
         "source": 0,
         "pointer": "/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc"
       },
-      "elem": {
-        "target": "t/prim/bytes",
+      "elementType": {
+        "target": "type/primitive/bytes",
         "nullable": false
       }
     },
-    "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
+    "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
+      "id": "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
       "name": {
         "hint": "composed_request_variant_0"
       },
@@ -1281,12 +1281,12 @@
         "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Common",
+        "target": "type/openapi/components/schemas/Common",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
+          "target": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
           "nullable": false
         }
       ],
@@ -1294,9 +1294,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
+    "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
+      "id": "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
       "name": {
         "hint": "composed_request_variant_1"
       },
@@ -1308,12 +1308,12 @@
         "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Common",
+        "target": "type/openapi/components/schemas/Common",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/anon/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
+          "target": "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
           "nullable": false
         }
       ],
@@ -1321,9 +1321,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Common": {
+    "type/openapi/components/schemas/Common": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Common",
+      "id": "type/openapi/components/schemas/Common",
       "name": {
         "source": "Common",
         "canonical": "common"
@@ -1337,21 +1337,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Common/properties/name",
+          "id": "property/openapi/components/schemas/Common/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1368,9 +1368,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Either": {
+    "type/openapi/components/schemas/Either": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Either",
+      "id": "type/openapi/components/schemas/Either",
       "name": {
         "source": "Either",
         "canonical": "either"
@@ -1388,7 +1388,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Either/anyOf/0",
+            "target": "type/anonymous/components/schemas/Either/anyOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1398,7 +1398,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Either/anyOf/1",
+            "target": "type/anonymous/components/schemas/Either/anyOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1409,9 +1409,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Upload": {
+    "type/openapi/components/schemas/Upload": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Upload",
+      "id": "type/openapi/components/schemas/Upload",
       "name": {
         "source": "Upload",
         "canonical": "upload"
@@ -1429,7 +1429,7 @@
             "hint": "upload_file"
           },
           "type": {
-            "target": "t/openapi/components/schemas/UploadFile",
+            "target": "type/openapi/components/schemas/UploadFile",
             "nullable": false
           },
           "docs": {}
@@ -1439,7 +1439,7 @@
             "hint": "upload_link"
           },
           "type": {
-            "target": "t/openapi/components/schemas/UploadLink",
+            "target": "type/openapi/components/schemas/UploadLink",
             "nullable": false
           },
           "docs": {}
@@ -1450,9 +1450,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/UploadFile": {
+    "type/openapi/components/schemas/UploadFile": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/UploadFile",
+      "id": "type/openapi/components/schemas/UploadFile",
       "name": {
         "source": "UploadFile",
         "canonical": "upload_file"
@@ -1466,21 +1466,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/UploadFile/properties/file",
+          "id": "property/openapi/components/schemas/UploadFile/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1497,9 +1497,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/UploadLink": {
+    "type/openapi/components/schemas/UploadLink": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/UploadLink",
+      "id": "type/openapi/components/schemas/UploadLink",
       "name": {
         "source": "UploadLink",
         "canonical": "upload_link"
@@ -1513,21 +1513,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/UploadLink/properties/link",
+          "id": "property/openapi/components/schemas/UploadLink/properties/link",
           "name": {
             "source": "link",
             "canonical": "link"
           },
           "wireName": "link",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1544,9 +1544,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1554,11 +1554,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1566,11 +1566,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1578,7 +1578,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

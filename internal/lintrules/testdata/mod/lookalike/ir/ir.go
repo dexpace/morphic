@@ -5,8 +5,8 @@ package ir
 // TypeRegistry has the registry's name and nothing else of it.
 type TypeRegistry map[string]int
 
-// OpID has the IR's OpID name.
-type OpID string
+// OperationID has the IR's OperationID name.
+type OperationID string
 
 // CanonicalWords has the grammar's name and none of it.
 func CanonicalWords(name string) string { return name }

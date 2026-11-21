@@ -126,14 +126,14 @@ func TestCompile_ABranchIsDeadWhereItOrItsBodyAdmitsNoNull(t *testing.T) {
 func requireDeadAsTheNullsSay(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, keyword string, dead, bodyNull bool) {
 	t.Helper()
 	for name, at := range map[string]string{"P": keyword + "/0", "Pr": keyword + "/1"} {
-		u, ok := typeByName(doc, name).(*ir.Union)
+		union, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, "%s: %T", name, typeByName(doc, name))
-		assert.Equal(t, dead, u.Unmodeled["openapi:"+at].Value != nil, "%s: the branch over T is dead", name)
+		assert.Equal(t, dead, union.Unmodeled["openapi:"+at].Value != nil, "%s: the branch over T is dead", name)
 		var warning []string
-		for _, d := range diags {
-			if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
-				string(d.Provenance.Pointer) == "/components/schemas/"+name {
-				warning = append(warning, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning &&
+				string(diagnostic.Provenance.Pointer) == "/components/schemas/"+name {
+				warning = append(warning, diagnostic.Message)
 			}
 		}
 		if !dead {
@@ -177,9 +177,9 @@ func TestCompile_ABodyWhoseNullTheWalkCannotFinishMayAdmitIt(t *testing.T) {
 			}
 			schemas = append(schemas, fmt.Sprintf("B%d: %s", tc.depth-1, end))
 			doc, diags := compileAnnotationSpec(t, "deep", admissionSpec("3.1.0", "", schemas...))
-			u, ok := typeByName(doc, "P").(*ir.Union)
+			union, ok := typeByName(doc, "P").(*ir.Union)
 			require.True(t, ok, "%T", typeByName(doc, "P"))
-			assert.Equal(t, tc.dead, u.Unmodeled["openapi:anyOf/0"].Value != nil, "depth %d: the branch over T is dead", tc.depth)
+			assert.Equal(t, tc.dead, union.Unmodeled["openapi:anyOf/0"].Value != nil, "depth %d: the branch over T is dead", tc.depth)
 			assert.Equal(t, tc.dead, countFindings(diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/P") == 1)
 		})
 	}
@@ -189,23 +189,23 @@ func TestCompile_ABodyWhoseNullTheWalkCannotFinishMayAdmitIt(t *testing.T) {
 // reference H.t holds is nullable, or a variant of T's union is, or names a
 // union one of whose variants is.
 func refOrVariantAdmitsNull(doc *ir.Document) bool {
-	h, ok := typeByName(doc, "H").(*ir.Model)
-	if !ok || len(h.Properties) != 1 {
+	model, ok := typeByName(doc, "H").(*ir.Model)
+	if !ok || len(model.Properties) != 1 {
 		return false
 	}
-	ref := h.Properties[0].Type
+	ref := model.Properties[0].Type
 	return ref.Nullable || variantAdmitsNull(doc, ref.Target, 4)
 }
 
 // variantAdmitsNull reports whether a variant of the union id names admits
 // null, nested no deeper than depth.
 func variantAdmitsNull(doc *ir.Document, id ir.TypeID, depth int) bool {
-	u, ok := doc.Types[id].(*ir.Union)
+	union, ok := doc.Types[id].(*ir.Union)
 	if !ok || depth == 0 {
 		return false
 	}
-	for _, v := range u.Variants {
-		if v.Type.Nullable || variantAdmitsNull(doc, v.Type.Target, depth-1) {
+	for _, variant := range union.Variants {
+		if variant.Type.Nullable || variantAdmitsNull(doc, variant.Type.Target, depth-1) {
 			return true
 		}
 	}

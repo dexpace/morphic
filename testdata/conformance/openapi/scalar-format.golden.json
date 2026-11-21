@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "ScalarFormat",
         "canonical": "scalar_format"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Holder/properties/color": {
+    "type/anonymous/components/schemas/Holder/properties/color": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/color",
+      "id": "type/anonymous/components/schemas/Holder/properties/color",
       "name": {
         "hint": "color"
       },
@@ -73,7 +73,7 @@
         "pointer": "/components/schemas/Holder/properties/color"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -84,9 +84,9 @@
         "name": "hex-color"
       }
     },
-    "t/anon/components/schemas/Holder/properties/id": {
+    "type/anonymous/components/schemas/Holder/properties/id": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/id",
+      "id": "type/anonymous/components/schemas/Holder/properties/id",
       "name": {
         "hint": "id"
       },
@@ -98,20 +98,20 @@
         "pointer": "/components/schemas/Holder/properties/id"
       },
       "base": {
-        "target": "t/prim/int64",
+        "target": "type/primitive/int64",
         "nullable": false
       },
       "encoding": {
         "name": "string",
         "wireType": {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/issuedAt": {
+    "type/anonymous/components/schemas/Holder/properties/issuedAt": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/issuedAt",
+      "id": "type/anonymous/components/schemas/Holder/properties/issuedAt",
       "name": {
         "hint": "issued_at"
       },
@@ -123,20 +123,20 @@
         "pointer": "/components/schemas/Holder/properties/issuedAt"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "encoding": {
         "name": "unixTimestamp",
         "wireType": {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/modified": {
+    "type/anonymous/components/schemas/Holder/properties/modified": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/modified",
+      "id": "type/anonymous/components/schemas/Holder/properties/modified",
       "name": {
         "hint": "modified"
       },
@@ -148,7 +148,7 @@
         "pointer": "/components/schemas/Holder/properties/modified"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "constraints": {
@@ -159,9 +159,9 @@
         "name": "http-date"
       }
     },
-    "t/anon/components/schemas/Holder/properties/opens": {
+    "type/anonymous/components/schemas/Holder/properties/opens": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/opens",
+      "id": "type/anonymous/components/schemas/Holder/properties/opens",
       "name": {
         "hint": "opens"
       },
@@ -173,16 +173,16 @@
         "pointer": "/components/schemas/Holder/properties/opens"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "encoding": {
         "name": "time"
       }
     },
-    "t/anon/components/schemas/Holder/properties/price": {
+    "type/anonymous/components/schemas/Holder/properties/price": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/price",
+      "id": "type/anonymous/components/schemas/Holder/properties/price",
       "name": {
         "hint": "price"
       },
@@ -194,20 +194,20 @@
         "pointer": "/components/schemas/Holder/properties/price"
       },
       "base": {
-        "target": "t/prim/decimal",
+        "target": "type/primitive/decimal",
         "nullable": false
       },
       "encoding": {
         "name": "string",
         "wireType": {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/resetAt": {
+    "type/anonymous/components/schemas/Holder/properties/resetAt": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/resetAt",
+      "id": "type/anonymous/components/schemas/Holder/properties/resetAt",
       "name": {
         "hint": "reset_at"
       },
@@ -219,7 +219,7 @@
         "pointer": "/components/schemas/Holder/properties/resetAt"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "constraints": {
@@ -229,14 +229,14 @@
       "encoding": {
         "name": "unixTimestamp",
         "wireType": {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/seenAt": {
+    "type/anonymous/components/schemas/Holder/properties/seenAt": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/seenAt",
+      "id": "type/anonymous/components/schemas/Holder/properties/seenAt",
       "name": {
         "hint": "seen_at"
       },
@@ -248,20 +248,20 @@
         "pointer": "/components/schemas/Holder/properties/seenAt"
       },
       "base": {
-        "target": "t/prim/datetime_offset",
+        "target": "type/primitive/datetime_offset",
         "nullable": false
       },
       "encoding": {
         "name": "unixTimestamp",
         "wireType": {
-          "target": "t/prim/number",
+          "target": "type/primitive/number",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/thumbprint": {
+    "type/anonymous/components/schemas/Holder/properties/thumbprint": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/thumbprint",
+      "id": "type/anonymous/components/schemas/Holder/properties/thumbprint",
       "name": {
         "hint": "thumbprint"
       },
@@ -273,20 +273,20 @@
         "pointer": "/components/schemas/Holder/properties/thumbprint"
       },
       "base": {
-        "target": "t/prim/bytes",
+        "target": "type/primitive/bytes",
         "nullable": false
       },
       "encoding": {
         "name": "base64url",
         "wireType": {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       }
     },
-    "t/anon/components/schemas/Holder/properties/whole": {
+    "type/anonymous/components/schemas/Holder/properties/whole": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/whole",
+      "id": "type/anonymous/components/schemas/Holder/properties/whole",
       "name": {
         "hint": "whole"
       },
@@ -298,16 +298,16 @@
         "pointer": "/components/schemas/Holder/properties/whole"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       },
       "encoding": {
         "name": "double"
       }
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -321,21 +321,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/color",
+          "id": "property/openapi/components/schemas/Holder/properties/color",
           "name": {
             "source": "color",
             "canonical": "color"
           },
           "wireName": "color",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/color",
+            "target": "type/anonymous/components/schemas/Holder/properties/color",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -348,21 +348,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/token",
+          "id": "property/openapi/components/schemas/Holder/properties/token",
           "name": {
             "source": "token",
             "canonical": "token"
           },
           "wireName": "token",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -375,21 +375,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/small",
+          "id": "property/openapi/components/schemas/Holder/properties/small",
           "name": {
             "source": "small",
             "canonical": "small"
           },
           "wireName": "small",
           "type": {
-            "target": "t/prim/int8",
+            "target": "type/primitive/int8",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -402,21 +402,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/count",
+          "id": "property/openapi/components/schemas/Holder/properties/count",
           "name": {
             "source": "count",
             "canonical": "count"
           },
           "wireName": "count",
           "type": {
-            "target": "t/prim/uint32",
+            "target": "type/primitive/uint32",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -429,21 +429,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/i16",
+          "id": "property/openapi/components/schemas/Holder/properties/i16",
           "name": {
             "source": "i16",
             "canonical": "i_16"
           },
           "wireName": "i16",
           "type": {
-            "target": "t/prim/int16",
+            "target": "type/primitive/int16",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -456,21 +456,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/i32",
+          "id": "property/openapi/components/schemas/Holder/properties/i32",
           "name": {
             "source": "i32",
             "canonical": "i_32"
           },
           "wireName": "i32",
           "type": {
-            "target": "t/prim/int32",
+            "target": "type/primitive/int32",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -483,21 +483,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/i64",
+          "id": "property/openapi/components/schemas/Holder/properties/i64",
           "name": {
             "source": "i64",
             "canonical": "i_64"
           },
           "wireName": "i64",
           "type": {
-            "target": "t/prim/int64",
+            "target": "type/primitive/int64",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -510,21 +510,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/u8",
+          "id": "property/openapi/components/schemas/Holder/properties/u8",
           "name": {
             "source": "u8",
             "canonical": "u_8"
           },
           "wireName": "u8",
           "type": {
-            "target": "t/prim/uint8",
+            "target": "type/primitive/uint8",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -537,21 +537,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/u16",
+          "id": "property/openapi/components/schemas/Holder/properties/u16",
           "name": {
             "source": "u16",
             "canonical": "u_16"
           },
           "wireName": "u16",
           "type": {
-            "target": "t/prim/uint16",
+            "target": "type/primitive/uint16",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -564,21 +564,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/u64",
+          "id": "property/openapi/components/schemas/Holder/properties/u64",
           "name": {
             "source": "u64",
             "canonical": "u_64"
           },
           "wireName": "u64",
           "type": {
-            "target": "t/prim/uint64",
+            "target": "type/primitive/uint64",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -591,21 +591,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/f32",
+          "id": "property/openapi/components/schemas/Holder/properties/f32",
           "name": {
             "source": "f32",
             "canonical": "f_32"
           },
           "wireName": "f32",
           "type": {
-            "target": "t/prim/float32",
+            "target": "type/primitive/float32",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -618,21 +618,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/f64",
+          "id": "property/openapi/components/schemas/Holder/properties/f64",
           "name": {
             "source": "f64",
             "canonical": "f_64"
           },
           "wireName": "f64",
           "type": {
-            "target": "t/prim/float64",
+            "target": "type/primitive/float64",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -645,21 +645,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/amount",
+          "id": "property/openapi/components/schemas/Holder/properties/amount",
           "name": {
             "source": "amount",
             "canonical": "amount"
           },
           "wireName": "amount",
           "type": {
-            "target": "t/prim/decimal",
+            "target": "type/primitive/decimal",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -672,21 +672,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/big",
+          "id": "property/openapi/components/schemas/Holder/properties/big",
           "name": {
             "source": "big",
             "canonical": "big"
           },
           "wireName": "big",
           "type": {
-            "target": "t/prim/decimal128",
+            "target": "type/primitive/decimal128",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -699,21 +699,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/at",
+          "id": "property/openapi/components/schemas/Holder/properties/at",
           "name": {
             "source": "at",
             "canonical": "at"
           },
           "wireName": "at",
           "type": {
-            "target": "t/prim/datetime_offset",
+            "target": "type/primitive/datetime_offset",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -726,21 +726,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/starts",
+          "id": "property/openapi/components/schemas/Holder/properties/starts",
           "name": {
             "source": "starts",
             "canonical": "starts"
           },
           "wireName": "starts",
           "type": {
-            "target": "t/prim/datetime",
+            "target": "type/primitive/datetime",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -753,21 +753,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/closes",
+          "id": "property/openapi/components/schemas/Holder/properties/closes",
           "name": {
             "source": "closes",
             "canonical": "closes"
           },
           "wireName": "closes",
           "type": {
-            "target": "t/prim/time",
+            "target": "type/primitive/time",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -780,21 +780,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/ttl",
+          "id": "property/openapi/components/schemas/Holder/properties/ttl",
           "name": {
             "source": "ttl",
             "canonical": "ttl"
           },
           "wireName": "ttl",
           "type": {
-            "target": "t/prim/duration",
+            "target": "type/primitive/duration",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -807,21 +807,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/opens",
+          "id": "property/openapi/components/schemas/Holder/properties/opens",
           "name": {
             "source": "opens",
             "canonical": "opens"
           },
           "wireName": "opens",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/opens",
+            "target": "type/anonymous/components/schemas/Holder/properties/opens",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -834,21 +834,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/whole",
+          "id": "property/openapi/components/schemas/Holder/properties/whole",
           "name": {
             "source": "whole",
             "canonical": "whole"
           },
           "wireName": "whole",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/whole",
+            "target": "type/anonymous/components/schemas/Holder/properties/whole",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -861,21 +861,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/id",
+          "id": "property/openapi/components/schemas/Holder/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/id",
+            "target": "type/anonymous/components/schemas/Holder/properties/id",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -888,21 +888,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/price",
+          "id": "property/openapi/components/schemas/Holder/properties/price",
           "name": {
             "source": "price",
             "canonical": "price"
           },
           "wireName": "price",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/price",
+            "target": "type/anonymous/components/schemas/Holder/properties/price",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -915,21 +915,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/thumbprint",
+          "id": "property/openapi/components/schemas/Holder/properties/thumbprint",
           "name": {
             "source": "thumbprint",
             "canonical": "thumbprint"
           },
           "wireName": "thumbprint",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/thumbprint",
+            "target": "type/anonymous/components/schemas/Holder/properties/thumbprint",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -942,21 +942,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/modified",
+          "id": "property/openapi/components/schemas/Holder/properties/modified",
           "name": {
             "source": "modified",
             "canonical": "modified"
           },
           "wireName": "modified",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/modified",
+            "target": "type/anonymous/components/schemas/Holder/properties/modified",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -969,21 +969,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/resetAt",
+          "id": "property/openapi/components/schemas/Holder/properties/resetAt",
           "name": {
             "source": "resetAt",
             "canonical": "reset_at"
           },
           "wireName": "resetAt",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/resetAt",
+            "target": "type/anonymous/components/schemas/Holder/properties/resetAt",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -996,21 +996,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/seenAt",
+          "id": "property/openapi/components/schemas/Holder/properties/seenAt",
           "name": {
             "source": "seenAt",
             "canonical": "seen_at"
           },
           "wireName": "seenAt",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/seenAt",
+            "target": "type/anonymous/components/schemas/Holder/properties/seenAt",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1023,21 +1023,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/issuedAt",
+          "id": "property/openapi/components/schemas/Holder/properties/issuedAt",
           "name": {
             "source": "issuedAt",
             "canonical": "issued_at"
           },
           "wireName": "issuedAt",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/issuedAt",
+            "target": "type/anonymous/components/schemas/Holder/properties/issuedAt",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1054,9 +1054,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1064,11 +1064,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/datetime": {
+    "type/primitive/datetime": {
       "kind": "primitive",
-      "id": "t/prim/datetime",
+      "id": "type/primitive/datetime",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1076,11 +1076,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "datetime"
+      "primitiveKind": "datetime"
     },
-    "t/prim/datetime_offset": {
+    "type/primitive/datetime_offset": {
       "kind": "primitive",
-      "id": "t/prim/datetime_offset",
+      "id": "type/primitive/datetime_offset",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1088,11 +1088,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "datetime_offset"
+      "primitiveKind": "datetime_offset"
     },
-    "t/prim/decimal": {
+    "type/primitive/decimal": {
       "kind": "primitive",
-      "id": "t/prim/decimal",
+      "id": "type/primitive/decimal",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1100,11 +1100,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "decimal"
+      "primitiveKind": "decimal"
     },
-    "t/prim/decimal128": {
+    "type/primitive/decimal128": {
       "kind": "primitive",
-      "id": "t/prim/decimal128",
+      "id": "type/primitive/decimal128",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1112,11 +1112,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "decimal128"
+      "primitiveKind": "decimal128"
     },
-    "t/prim/duration": {
+    "type/primitive/duration": {
       "kind": "primitive",
-      "id": "t/prim/duration",
+      "id": "type/primitive/duration",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1124,11 +1124,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "duration"
+      "primitiveKind": "duration"
     },
-    "t/prim/float32": {
+    "type/primitive/float32": {
       "kind": "primitive",
-      "id": "t/prim/float32",
+      "id": "type/primitive/float32",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1136,11 +1136,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "float32"
+      "primitiveKind": "float32"
     },
-    "t/prim/float64": {
+    "type/primitive/float64": {
       "kind": "primitive",
-      "id": "t/prim/float64",
+      "id": "type/primitive/float64",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1148,11 +1148,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "float64"
+      "primitiveKind": "float64"
     },
-    "t/prim/int16": {
+    "type/primitive/int16": {
       "kind": "primitive",
-      "id": "t/prim/int16",
+      "id": "type/primitive/int16",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1160,11 +1160,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int16"
+      "primitiveKind": "int16"
     },
-    "t/prim/int32": {
+    "type/primitive/int32": {
       "kind": "primitive",
-      "id": "t/prim/int32",
+      "id": "type/primitive/int32",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1172,11 +1172,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int32"
+      "primitiveKind": "int32"
     },
-    "t/prim/int64": {
+    "type/primitive/int64": {
       "kind": "primitive",
-      "id": "t/prim/int64",
+      "id": "type/primitive/int64",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1184,11 +1184,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int64"
+      "primitiveKind": "int64"
     },
-    "t/prim/int8": {
+    "type/primitive/int8": {
       "kind": "primitive",
-      "id": "t/prim/int8",
+      "id": "type/primitive/int8",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1196,11 +1196,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int8"
+      "primitiveKind": "int8"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1208,11 +1208,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1220,11 +1220,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1232,11 +1232,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     },
-    "t/prim/time": {
+    "type/primitive/time": {
       "kind": "primitive",
-      "id": "t/prim/time",
+      "id": "type/primitive/time",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1244,11 +1244,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "time"
+      "primitiveKind": "time"
     },
-    "t/prim/uint16": {
+    "type/primitive/uint16": {
       "kind": "primitive",
-      "id": "t/prim/uint16",
+      "id": "type/primitive/uint16",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1256,11 +1256,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uint16"
+      "primitiveKind": "uint16"
     },
-    "t/prim/uint32": {
+    "type/primitive/uint32": {
       "kind": "primitive",
-      "id": "t/prim/uint32",
+      "id": "type/primitive/uint32",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1268,11 +1268,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uint32"
+      "primitiveKind": "uint32"
     },
-    "t/prim/uint64": {
+    "type/primitive/uint64": {
       "kind": "primitive",
-      "id": "t/prim/uint64",
+      "id": "type/primitive/uint64",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1280,11 +1280,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uint64"
+      "primitiveKind": "uint64"
     },
-    "t/prim/uint8": {
+    "type/primitive/uint8": {
       "kind": "primitive",
-      "id": "t/prim/uint8",
+      "id": "type/primitive/uint8",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1292,7 +1292,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uint8"
+      "primitiveKind": "uint8"
     }
   },
   "servers": {

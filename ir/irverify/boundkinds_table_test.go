@@ -19,8 +19,8 @@ import (
 // message "a", and a true flag.
 func oneBound(t *testing.T, name string) *ir.Constraints {
 	t.Helper()
-	c := &ir.Constraints{}
-	f := reflect.ValueOf(c).Elem().FieldByName(name)
+	constraints := &ir.Constraints{}
+	f := reflect.ValueOf(constraints).Elem().FieldByName(name)
 	require.True(t, f.IsValid(), "ir.Constraints declares no field %s", name)
 	switch f.Interface().(type) {
 	case *int64:
@@ -34,7 +34,7 @@ func oneBound(t *testing.T, name string) *ir.Constraints {
 	default:
 		require.Failf(t, "a field of a type this test sets no value of", "%s is a %s", name, f.Type())
 	}
-	return c
+	return constraints
 }
 
 // TestVerify_EachBoundIsHeldToTheKindsThatTakeIt crosses every field of
@@ -46,8 +46,8 @@ func oneBound(t *testing.T, name string) *ir.Constraints {
 // a row here says a kind takes it.
 func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 	t.Parallel()
-	leafRef := ir.TypeRef{Target: "t/x/Leaf"}
-	props := []string{"MinProps", "MaxProps"}
+	leafRef := ir.TypeRef{Target: "type/x/Leaf"}
+	properties := []string{"MinProperties", "MaxProperties"}
 	items := []string{"MinItems", "MaxItems", "UniqueItems"}
 	kinds := []struct {
 		name    string
@@ -55,17 +55,21 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 		takes   []string
 		unasked bool
 	}{
-		{name: "model", node: func(c *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: c} }, takes: props},
-		{name: "map", node: func(c *ir.Constraints) ir.TypeDef { return &ir.MapT{Value: leafRef, Constraints: c} }, takes: props},
-		{name: "list", node: func(c *ir.Constraints) ir.TypeDef { return &ir.List{Elem: leafRef, Constraints: c} }, takes: items},
-		{name: "tuple", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Tuple{Elems: []ir.TypeRef{leafRef}, Constraints: c}
+		{name: "model", node: func(constraints *ir.Constraints) ir.TypeDef { return &ir.Model{Constraints: constraints} }, takes: properties},
+		{name: "map", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.MapT{Value: leafRef, Constraints: constraints}
+		}, takes: properties},
+		{name: "list", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.List{ElementType: leafRef, Constraints: constraints}
 		}, takes: items},
-		{name: "scalar", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Scalar{Base: &leafRef, Constraints: c}
+		{name: "tuple", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Tuple{ElementTypes: []ir.TypeRef{leafRef}, Constraints: constraints}
+		}, takes: items},
+		{name: "scalar", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Scalar{Base: &leafRef, Constraints: constraints}
 		}, unasked: true},
-		{name: "union", node: func(c *ir.Constraints) ir.TypeDef {
-			return &ir.Union{Variants: []ir.Variant{{Type: leafRef}}, Constraints: c}
+		{name: "union", node: func(constraints *ir.Constraints) ir.TypeDef {
+			return &ir.Union{Variants: []ir.Variant{{Type: leafRef}}, Constraints: constraints}
 		}, unasked: true},
 	}
 	fields := reflect.TypeFor[ir.Constraints]()
@@ -79,14 +83,14 @@ func TestVerify_EachBoundIsHeldToTheKindsThatTakeIt(t *testing.T) {
 			t.Run(kind.name+"/"+field, func(t *testing.T) {
 				t.Parallel()
 				td := kind.node(oneBound(t, field))
-				td.Common().ID = "t/x/N"
+				td.Common().ID = "type/x/N"
 				got := boundViolations(stamped(closedDoc(td)))
 				if kind.unasked || slices.Contains(kind.takes, field) {
 					assert.Empty(t, got)
 					return
 				}
 				require.Len(t, got, 1)
-				assert.Equal(t, "types[t/x/N].Constraints", got[0].Path)
+				assert.Equal(t, "types[type/x/N].Constraints", got[0].Path)
 				assert.Contains(t, got[0].Message, kind.name)
 			})
 		}

@@ -16,9 +16,9 @@ import (
 func TestValidate_DuplicateWireName(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	m := doc.Types["t/m"].(*ir.Model)
-	m.Properties = append(m.Properties, ir.Property{
-		ID: "p/m/b", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"},
+	model := doc.Types["type/m"].(*ir.Model)
+	model.Properties = append(model.Properties, ir.Property{
+		ID: "property/m/b", WireName: "a", Type: ir.TypeRef{Target: "type/primitive/string"},
 	})
 	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
@@ -31,14 +31,14 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/blank"] = &ir.Model{
-		ID: "t/blank",
+	doc.Types["type/blank"] = &ir.Model{
+		ID: "type/blank",
 		Properties: []ir.Property{
 			// No WireName, no Source name -> effective name "" -> skipped.
-			{ID: "p/a", Type: ir.TypeRef{Target: "t/prim/string"}},
-			{ID: "p/b", Type: ir.TypeRef{Target: "t/prim/string"}},
+			{ID: "property/a", Type: ir.TypeRef{Target: "type/primitive/string"}},
+			{ID: "property/b", Type: ir.TypeRef{Target: "type/primitive/string"}},
 			// No WireName but a Source name -> the effective name is Source.
-			{ID: "p/c", Name: ir.Naming{Source: "named"}, Type: ir.TypeRef{Target: "t/prim/string"}},
+			{ID: "property/c", Name: ir.Naming{Source: "named"}, Type: ir.TypeRef{Target: "type/primitive/string"}},
 		},
 	}
 	// Two blank-named properties must NOT collide (both skipped), and the
@@ -50,16 +50,16 @@ func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 // answering to aliases besides.
 func aliasProperty(source string, aliases ...string) ir.Property {
 	return ir.Property{
-		ID:   ir.PropID("p/m/" + source),
+		ID:   ir.PropertyID("property/m/" + source),
 		Name: ir.Naming{Source: source, Canonical: source, Aliases: aliases},
-		Type: ir.TypeRef{Target: "t/prim/string"},
+		Type: ir.TypeRef{Target: "type/primitive/string"},
 	}
 }
 
-// aliasDoc returns validDoc with model t/m holding props.
-func aliasDoc(props ...ir.Property) *ir.Document {
+// aliasDoc returns validDoc with model t/m holding properties.
+func aliasDoc(properties ...ir.Property) *ir.Document {
 	doc := validDoc()
-	doc.Types["t/m"].(*ir.Model).Properties = props
+	doc.Types["type/m"].(*ir.Model).Properties = properties
 	return doc
 }
 
@@ -68,9 +68,9 @@ func aliasDoc(props ...ir.Property) *ir.Document {
 func ambiguousAliasDiags(t *testing.T, doc *ir.Document) []ir.Diagnostic {
 	t.Helper()
 	var out []ir.Diagnostic
-	for _, d := range validated(t, doc) {
-		if d.Code == "pass/ambiguous-alias" {
-			out = append(out, d)
+	for _, diagnostic := range validated(t, doc) {
+		if diagnostic.Code == "pass/ambiguous-alias" {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -83,51 +83,51 @@ func ambiguousAliasDiags(t *testing.T, doc *ir.Document) []ir.Diagnostic {
 // alias it is, naming the sibling.
 func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 	t.Parallel()
-	wired := ir.Property{ID: "p/m/w", WireName: "id", Type: ir.TypeRef{Target: "t/prim/string"}}
+	wired := ir.Property{ID: "property/m/w", WireName: "id", Type: ir.TypeRef{Target: "type/primitive/string"}}
 	for _, tc := range []struct {
-		name    string
-		props   []ir.Property
-		node    string
-		message string
+		name       string
+		properties []ir.Property
+		node       string
+		message    string
 	}{
 		{
-			name:    "sibling's name declared after the alias",
-			props:   []ir.Property{aliasProperty("b", "a"), aliasProperty("a")},
-			node:    "t/m/properties/0",
-			message: `alias "a" of property "p/m/b" is a name property "p/m/a" also answers to`,
+			name:       "sibling's name declared after the alias",
+			properties: []ir.Property{aliasProperty("b", "a"), aliasProperty("a")},
+			node:       "type/m/properties/0",
+			message:    `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's name declared before the alias",
-			props:   []ir.Property{aliasProperty("a"), aliasProperty("b", "a")},
-			node:    "t/m/properties/1",
-			message: `alias "a" of property "p/m/b" is a name property "p/m/a" also answers to`,
+			name:       "sibling's name declared before the alias",
+			properties: []ir.Property{aliasProperty("a"), aliasProperty("b", "a")},
+			node:       "type/m/properties/1",
+			message:    `alias "a" of property "property/m/b" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's explicit wire name",
-			props:   []ir.Property{wired, aliasProperty("b", "id")},
-			node:    "t/m/properties/1",
-			message: `alias "id" of property "p/m/b" is a name property "p/m/w" also answers to`,
+			name:       "sibling's explicit wire name",
+			properties: []ir.Property{wired, aliasProperty("b", "id")},
+			node:       "type/m/properties/1",
+			message:    `alias "id" of property "property/m/b" is a name property "property/m/w" also answers to`,
 		},
 		{
 			name: "sibling sharing the property's own wire name",
-			props: []ir.Property{aliasProperty("a"), {
-				ID:   "p/m/a2",
+			properties: []ir.Property{aliasProperty("a"), {
+				ID:   "property/m/a2",
 				Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"a"}},
-				Type: ir.TypeRef{Target: "t/prim/string"},
+				Type: ir.TypeRef{Target: "type/primitive/string"},
 			}},
-			node:    "t/m/properties/1",
-			message: `alias "a" of property "p/m/a2" is a name property "p/m/a" also answers to`,
+			node:    "type/m/properties/1",
+			message: `alias "a" of property "property/m/a2" is a name property "property/m/a" also answers to`,
 		},
 		{
-			name:    "sibling's alias",
-			props:   []ir.Property{aliasProperty("b", "x"), aliasProperty("c", "x")},
-			node:    "t/m/properties/1",
-			message: `alias "x" of property "p/m/c" is a name property "p/m/b" also answers to`,
+			name:       "sibling's alias",
+			properties: []ir.Property{aliasProperty("b", "x"), aliasProperty("c", "x")},
+			node:       "type/m/properties/1",
+			message:    `alias "x" of property "property/m/c" is a name property "property/m/b" also answers to`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ambiguousAliasDiags(t, aliasDoc(tc.props...))
+			got := ambiguousAliasDiags(t, aliasDoc(tc.properties...))
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.SeverityError, got[0].Severity)
 			assert.Equal(t, tc.node, got[0].Provenance.Node)
@@ -145,12 +145,12 @@ func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 func TestValidate_UnambiguousAliasIsClean(t *testing.T) {
 	t.Parallel()
 	twoModels := aliasDoc(aliasProperty("b", "x"))
-	twoModels.Types["t/n"] = &ir.Model{ID: "t/n", Properties: []ir.Property{
-		{ID: "p/n/c", Name: ir.Naming{Source: "c", Canonical: "c", Aliases: []string{"x"}},
-			Type: ir.TypeRef{Target: "t/prim/string"}},
+	twoModels.Types["type/n"] = &ir.Model{ID: "type/n", Properties: []ir.Property{
+		{ID: "property/n/c", Name: ir.Naming{Source: "c", Canonical: "c", Aliases: []string{"x"}},
+			Type: ir.TypeRef{Target: "type/primitive/string"}},
 	}}
 	claimedBefore := aliasDoc(aliasProperty("b", "x"), aliasProperty("c"))
-	claimedBefore.Types["t/a"] = &ir.Model{ID: "t/a", Properties: []ir.Property{aliasProperty("a"), aliasProperty("x")}}
+	claimedBefore.Types["type/a"] = &ir.Model{ID: "type/a", Properties: []ir.Property{aliasProperty("a"), aliasProperty("x")}}
 	for name, doc := range map[string]*ir.Document{
 		"distinct aliases":                 aliasDoc(aliasProperty("a", "x"), aliasProperty("b", "y")),
 		"its own name":                     aliasDoc(aliasProperty("a", "a")),

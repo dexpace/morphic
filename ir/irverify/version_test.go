@@ -25,7 +25,7 @@ func TestVerify_AbsentIRVersionIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/ir-version-absent", got[0].Code)
-	assert.Equal(t, "doc.IRVersion", got[0].Path)
+	assert.Equal(t, "document.IRVersion", got[0].Path)
 }
 
 // TestVerify_IncompatibleIRVersionIsAViolation asserts a stamp this build does
@@ -55,7 +55,7 @@ func TestVerify_IncompatibleIRVersionIsAViolation(t *testing.T) {
 			got := verifyDeclared(doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/ir-version-incompatible", got[0].Code)
-			assert.Equal(t, "doc.IRVersion", got[0].Path)
+			assert.Equal(t, "document.IRVersion", got[0].Path)
 			assert.Contains(t, got[0].Message, tc.version)
 		})
 	}

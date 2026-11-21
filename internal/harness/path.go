@@ -33,11 +33,11 @@ func CheckPath(ctx context.Context, path string) ([]Result, error) {
 
 	results := make([]Result, 0, len(specs))
 	for _, spec := range specs {
-		r, err := checkFile(ctx, spec)
+		result, err := checkFile(ctx, spec)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, r)
+		results = append(results, result)
 	}
 	return results, nil
 }
@@ -151,8 +151,8 @@ func newRegistry() (*compilers.Registry, error) {
 	}
 
 	reg := compilers.NewRegistry()
-	for i, c := range cs {
-		if err := reg.Register(c); err != nil {
+	for i, compiler := range cs {
+		if err := reg.Register(compiler); err != nil {
 			return nil, fmt.Errorf("harness: register compiler %d: %w", i, err)
 		}
 	}

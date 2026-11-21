@@ -24,7 +24,7 @@ import (
 var classifyRows = []struct {
 	name, src string
 	kind      value.ScalarKind
-	num       ir.BigVal
+	number    ir.BigVal
 	text      string
 	refused   bool
 }{
@@ -34,16 +34,16 @@ var classifyRows = []struct {
 	{name: "null tag over text", src: "!!null abc", refused: true},
 	{name: "plain true", src: "true", kind: value.ScalarBool, text: "true"},
 	{name: "bool tag over text", src: "!!bool maybe", refused: true},
-	{name: "plain int", src: "42", kind: value.ScalarNumber, num: "42", text: "42"},
-	{name: "leading-zero int", src: "0644", kind: value.ScalarNumber, num: "644", text: "0644"},
-	{name: "hex int", src: "0x1f", kind: value.ScalarNumber, num: "31", text: "0x1f"},
-	{name: "separated int", src: "1_000", kind: value.ScalarNumber, num: "1000", text: "1_000"},
-	{name: "plain float", src: "1.5", kind: value.ScalarNumber, num: "1.5", text: "1.5"},
-	{name: "float past float64", src: "1.8e308", kind: value.ScalarNumber, num: "1.8e308", text: "1.8e308"},
-	{name: "negative past float64", src: "-1.8e308", kind: value.ScalarNumber, num: "-1.8e308", text: "-1.8e308"},
-	{name: "exponent past float64", src: "1e400", kind: value.ScalarNumber, num: "1e400", text: "1e400"},
+	{name: "plain int", src: "42", kind: value.ScalarNumber, number: "42", text: "42"},
+	{name: "leading-zero int", src: "0644", kind: value.ScalarNumber, number: "644", text: "0644"},
+	{name: "hex int", src: "0x1f", kind: value.ScalarNumber, number: "31", text: "0x1f"},
+	{name: "separated int", src: "1_000", kind: value.ScalarNumber, number: "1000", text: "1_000"},
+	{name: "plain float", src: "1.5", kind: value.ScalarNumber, number: "1.5", text: "1.5"},
+	{name: "float past float64", src: "1.8e308", kind: value.ScalarNumber, number: "1.8e308", text: "1.8e308"},
+	{name: "negative past float64", src: "-1.8e308", kind: value.ScalarNumber, number: "-1.8e308", text: "-1.8e308"},
+	{name: "exponent past float64", src: "1e400", kind: value.ScalarNumber, number: "1e400", text: "1e400"},
 	{name: "exponent at the bound", src: "1e999999999999999999", kind: value.ScalarNumber,
-		num: "1e999999999999999999", text: "1e999999999999999999"},
+		number: "1e999999999999999999", text: "1e999999999999999999"},
 	{name: "exponent past the bound", src: "1e1000000000000000000", refused: true},
 	{name: "negative exponent past the bound", src: "-1e-1000000000000000000", refused: true},
 	{name: "float tag past the bound", src: "!!float 1e1000000000000000000", refused: true},
@@ -80,7 +80,7 @@ func TestClassify_ReadsEachSpellingOnce(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, row.kind, got.Kind)
-			assert.Equal(t, row.num, got.Num)
+			assert.Equal(t, row.number, got.Number)
 			assert.Equal(t, row.text, got.Text)
 		})
 	}
@@ -126,7 +126,7 @@ func TestClassify_ResolvesAnUntaggedNodeByItsText(t *testing.T) {
 	got, err := value.Classify(&yaml.Node{Kind: yaml.ScalarNode, Value: "7"})
 	require.NoError(t, err)
 	assert.Equal(t, value.ScalarNumber, got.Kind)
-	assert.Equal(t, ir.BigVal("7"), got.Num)
+	assert.Equal(t, ir.BigVal("7"), got.Number)
 }
 
 // TestNumericLiteral_YAMLBases pins the rule that a numeric scalar is captured
@@ -271,10 +271,10 @@ func TestScalar_JSONKindReadsWhatJSONHasNoKindForAsItsText(t *testing.T) {
 	} {
 		var doc yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(text), &doc), text)
-		s, err := value.Classify(doc.Content[0])
+		scalar, err := value.Classify(doc.Content[0])
 		require.NoError(t, err, text)
 
-		assert.Equal(t, want, s.JSONKind(), text)
-		assert.Equal(t, strings.TrimSpace(text[strings.LastIndexByte(text, ' ')+1:]), s.Text, text)
+		assert.Equal(t, want, scalar.JSONKind(), text)
+		assert.Equal(t, strings.TrimSpace(text[strings.LastIndexByte(text, ' ')+1:]), scalar.Text, text)
 	}
 }

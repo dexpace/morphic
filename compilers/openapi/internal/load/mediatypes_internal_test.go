@@ -18,11 +18,11 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // mediaTypeSpec declares components/mediaTypes entries of every shape the
@@ -77,25 +77,25 @@ func faulting(context.Context, *yaml.Node) (*refscope.ReferencedMediaType, error
 // ending on it is handed.
 func TestModelMediaTypes_ModelsEachDeclaredEntry(t *testing.T) {
 	t.Parallel()
-	m, faults := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
+	mediaTypes, faults := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
 	require.Empty(t, faults)
-	pointers := make([]jsontext.Pointer, 0, len(m.declared))
-	for _, d := range m.declared {
-		pointers = append(pointers, d.pointer)
+	pointers := make([]jsontext.Pointer, 0, len(mediaTypes.declared))
+	for _, declaredMediaType := range mediaTypes.declared {
+		pointers = append(pointers, declaredMediaType.pointer)
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/mediaTypes/Merged", "/components/mediaTypes/Pet",
 		"/components/mediaTypes/Alias"}, pointers, "a merged entry first, as the parser reads a mapping")
-	assert.False(t, m.declared[1].model.IsReference())
-	assert.True(t, m.declared[2].model.IsReference())
-	assert.Len(t, m.canonical, 2, "the alias is no declaration a chain ends on")
+	assert.False(t, mediaTypes.declared[1].model.IsReference())
+	assert.True(t, mediaTypes.declared[2].model.IsReference())
+	assert.Len(t, mediaTypes.canonical, 2, "the alias is no declaration a chain ends on")
 }
 
 // TestMediaTypesFrom_AParserFaultIsReported pins a declared entry the parser
 // faults building: reported where it is written, and not modelled.
 func TestMediaTypesFrom_AParserFaultIsReported(t *testing.T) {
 	t.Parallel()
-	m, faults := mediaTypesFrom(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{}, faulting)
-	assert.Empty(t, m.declared)
+	mediaTypes, faults := mediaTypesFrom(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{}, faulting)
+	assert.Empty(t, mediaTypes.declared)
 	require.Len(t, faults, 3, "Pet, Alias and Merged; the scalar and the null $ref are the table's")
 	assert.Equal(t, diag.Validation, faults[0].Code)
 	assert.Contains(t, faults[0].Message, "planted fault")
@@ -107,18 +107,18 @@ func TestMediaTypesFrom_AParserFaultIsReported(t *testing.T) {
 func TestMediaTypes_UseAnswersByTheMappingWritten(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
-	for range walkSource(t.Context(), doc, Siblings{}, m) {
+	mediaTypes, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
+	for range walkSource(t.Context(), doc, Siblings{}, mediaTypes) {
 		continue
 	}
-	_, isUse := m.Use(contentOf(t, doc, "/a", "text/plain"))
+	_, isUse := mediaTypes.Use(contentOf(t, doc, "/a", "text/plain"))
 	assert.False(t, isUse)
-	a, isUse := m.Use(contentOf(t, doc, "/a", "application/json"))
+	a, isUse := mediaTypes.Use(contentOf(t, doc, "/a", "application/json"))
 	require.True(t, isUse)
 	require.NotNil(t, a)
-	b, _ := m.Use(contentOf(t, doc, "/b", "application/json"))
+	b, _ := mediaTypes.Use(contentOf(t, doc, "/b", "application/json"))
 	assert.Same(t, a, b, "an alias mounts one mapping, modelled once")
-	none, isUse := m.Use(contentOf(t, doc, "/a", "text/csv"))
+	none, isUse := mediaTypes.Use(contentOf(t, doc, "/a", "text/csv"))
 	assert.True(t, isUse)
 	assert.Nil(t, none)
 	unmet, isUse := MediaTypes{}.Use(contentOf(t, doc, "/a", "application/json"))
@@ -133,9 +133,9 @@ func TestMediaTypes_UseAnswersByTheMappingWritten(t *testing.T) {
 func TestWalkSource_YieldsEachMediaTypesModel(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
+	mediaTypes, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
 	var models []string
-	for item := range walkSource(t.Context(), doc, Siblings{}, m) {
+	for item := range walkSource(t.Context(), doc, Siblings{}, mediaTypes) {
 		_ = item.Match(soa.Matcher{Any: func(model any) error {
 			if r, ok := model.(*refscope.ReferencedMediaType); ok {
 				kind := "inline"
@@ -164,27 +164,27 @@ func TestWalkSource_YieldsEachMediaTypesModel(t *testing.T) {
 func TestWalkSource_StopsWhereItsConsumerStops(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
+	mediaTypes, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
 	total := 0
-	for range walkSource(t.Context(), doc, Siblings{}, m) {
+	for range walkSource(t.Context(), doc, Siblings{}, mediaTypes) {
 		total++
 	}
 	for n := 1; n < total; n++ {
 		seen := 0
-		for range walkSource(t.Context(), doc, Siblings{}, m) {
+		for range walkSource(t.Context(), doc, Siblings{}, mediaTypes) {
 			if seen++; seen == n {
 				break
 			}
 		}
 		assert.Equal(t, n, seen)
 	}
-	for range mediaTypeWalk(t.Context(), m.declared[1].model) {
+	for range mediaTypeWalk(t.Context(), mediaTypes.declared[1].model) {
 		break
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	assert.Empty(t, walkSites(mediaTypeWalk(ctx, m.declared[1].model)), "a cancelled walk yields nothing")
-	assert.Len(t, walkSites(mediaTypeWalk(t.Context(), m.declared[2].model)), 1, "a reference is walked alone")
+	assert.Empty(t, walkSites(mediaTypeWalk(ctx, mediaTypes.declared[1].model)), "a cancelled walk yields nothing")
+	assert.Len(t, walkSites(mediaTypeWalk(t.Context(), mediaTypes.declared[2].model)), 1, "a reference is walked alone")
 }
 
 // TestMediaTypes_MetSkipsWhatHoldsNoMapping pins met on a media type with no
@@ -192,12 +192,12 @@ func TestWalkSource_StopsWhereItsConsumerStops(t *testing.T) {
 // model, and neither is held as canonical.
 func TestMediaTypes_MetSkipsWhatHoldsNoMapping(t *testing.T) {
 	t.Parallel()
-	m, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
-	before := len(m.canonical)
-	assert.Nil(t, m.met(t.Context(), nil))
-	assert.Nil(t, m.met(t.Context(), &soa.MediaType{}))
-	assert.Len(t, m.canonical, before)
-	_, isUse := m.Use(&soa.MediaType{})
+	mediaTypes, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
+	before := len(mediaTypes.canonical)
+	assert.Nil(t, mediaTypes.met(t.Context(), nil))
+	assert.Nil(t, mediaTypes.met(t.Context(), &soa.MediaType{}))
+	assert.Len(t, mediaTypes.canonical, before)
+	_, isUse := mediaTypes.Use(&soa.MediaType{})
 	assert.False(t, isUse, "a media type with no mapping writes no $ref")
 }
 
@@ -207,8 +207,8 @@ func TestModelMediaTypes_StopsOnceCancelled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	m, faults := modelMediaTypes(ctx, modelOf(t, mediaTypeSpec), provenance.Tree{})
-	assert.Empty(t, m.declared)
+	mediaTypes, faults := modelMediaTypes(ctx, modelOf(t, mediaTypeSpec), provenance.Tree{})
+	assert.Empty(t, mediaTypes.declared)
 	assert.Empty(t, faults)
 }
 
@@ -259,10 +259,10 @@ paths:
             application/json: {$ref: '#/components/mediaTypes/Y'}
 `)
 	media, _ := mediaTypesFrom(t.Context(), doc, provenance.Tree{}, faulting)
-	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(reftable.Bind(t.Context(), doc.GetRootNode(), reftable.Config{Self: "spec.yaml"}))
 	faults := mediaFaults{}
 
-	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), bind.Position{}, faults)
+	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), reftable.DocumentPointer{}, faults)
 
 	diags := faults.diags(places{}, bd.Bindings().Table())
 	require.Len(t, diags, 2, "%+v", diags)

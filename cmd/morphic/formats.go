@@ -23,8 +23,8 @@ func servedFormats() string {
 	}
 	formats := eng.Formats()
 	names := make([]string, 0, len(formats))
-	for _, f := range formats {
-		names = append(names, f.String())
+	for _, sourceFormat := range formats {
+		names = append(names, sourceFormat.String())
 	}
 	return "This build compiles " + strings.Join(names, ", ") + "."
 }

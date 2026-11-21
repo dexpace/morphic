@@ -22,26 +22,26 @@ type CoreInteger struct {
 // schema reads as no integer. It is the one reading of that grammar: the
 // reader's tag, the number readers and the rule table's check take it here.
 func ParseCoreInteger(text string) (CoreInteger, bool) {
-	c := CoreInteger{Digits: text, Base: 10}
+	coreInteger := CoreInteger{Digits: text, Base: 10}
 	switch {
 	case strings.HasPrefix(text, "0o"):
-		c.Digits, c.Base = text[2:], 8
+		coreInteger.Digits, coreInteger.Base = text[2:], 8
 	case strings.HasPrefix(text, "0x"):
-		c.Digits, c.Base = text[2:], 16
+		coreInteger.Digits, coreInteger.Base = text[2:], 16
 	case strings.HasPrefix(text, "-"):
-		c.Digits, c.Negative = text[1:], true
+		coreInteger.Digits, coreInteger.Negative = text[1:], true
 	case strings.HasPrefix(text, "+"):
-		c.Digits = text[1:]
+		coreInteger.Digits = text[1:]
 	}
-	if c.Digits == "" {
+	if coreInteger.Digits == "" {
 		return CoreInteger{}, false
 	}
-	for _, b := range []byte(c.Digits) {
-		if !isDigit(b, c.Base) {
+	for _, b := range []byte(coreInteger.Digits) {
+		if !isDigit(b, coreInteger.Base) {
 			return CoreInteger{}, false
 		}
 	}
-	return c, true
+	return coreInteger, true
 }
 
 // Sign returns -1, 0 or +1 as the integer c is negative, zero or positive.

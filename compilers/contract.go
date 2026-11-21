@@ -164,8 +164,8 @@ func checkDecline(diags []ir.Diagnostic) error {
 // checkIndexes reports the first diagnostic of diags that is not in a table of n
 // sources (ir.FirstOutsideTable).
 func checkIndexes(diags []ir.Diagnostic, n int) error {
-	if d, outside := ir.FirstOutsideTable(diags, n); outside {
-		return contractf("diagnostic %s indexes source %d of %d", d.Code, d.Provenance.Source, n)
+	if diagnostic, outside := ir.FirstOutsideTable(diags, n); outside {
+		return contractf("diagnostic %s indexes source %d of %d", diagnostic.Code, diagnostic.Provenance.Source, n)
 	}
 	return nil
 }

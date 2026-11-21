@@ -29,8 +29,8 @@ const (
 
 // kindOfType returns the kinds a `type` member admits, and none for a spelling
 // no schema defines.
-func kindOfType(t statement.Kind) kindSet {
-	switch t {
+func kindOfType(jsonSchemaTypeName statement.JSONSchemaTypeName) kindSet {
+	switch jsonSchemaTypeName {
 	case statement.KindString:
 		return kindString
 	case statement.KindInteger:
@@ -50,9 +50,9 @@ func kindOfType(t statement.Kind) kindSet {
 	}
 }
 
-// kindOfValue returns the JSON kind of v.
-func kindOfValue(v ir.Value) kindSet {
-	switch v.Kind {
+// kindOfValue returns the JSON kind of value.
+func kindOfValue(value ir.Value) kindSet {
+	switch value.Kind {
 	case ir.ValueString, ir.ValueSymbol, ir.ValueBytes:
 		return kindString
 	case ir.ValueBool:
@@ -64,8 +64,8 @@ func kindOfValue(v ir.Value) kindSet {
 	case ir.ValueObject:
 		return kindObject
 	case ir.ValueNumber:
-		return kindOfNumber(string(v.Num))
-	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		return kindOfNumber(string(value.Number))
+	case ir.ValueRefKind, ir.ValueConstructor, ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		// A reference, a constructor and a non-finite number are no JSON
 		// instance's value.
 		return 0
@@ -77,11 +77,11 @@ func kindOfValue(v ir.Value) kindSet {
 // kindOfNumber returns the kind of a decimal literal. One with an exponent may
 // be integral or not, and telling them apart costs what the exponent says, so it
 // answers for both.
-func kindOfNumber(num string) kindSet {
-	if strings.ContainsAny(num, "eE") {
+func kindOfNumber(number string) kindSet {
+	if strings.ContainsAny(number, "eE") {
 		return kindNumber
 	}
-	if _, fraction, _ := strings.Cut(num, "."); strings.Trim(fraction, "0") != "" {
+	if _, fraction, _ := strings.Cut(number, "."); strings.Trim(fraction, "0") != "" {
 		return kindFraction
 	}
 	return kindInteger
@@ -109,27 +109,27 @@ var kindWords = []struct {
 	{kindBoolean, string(statement.KindBoolean)},
 }
 
-// instanceWords spells t, a set of instance types, for a diagnostic.
-func instanceWords(t kindSet) string {
-	if t == 0 {
+// instanceWords spells kindSetValue, a set of instance types, for a diagnostic.
+func instanceWords(kindSetValue kindSet) string {
+	if kindSetValue == 0 {
 		return string(statement.KindNull)
 	}
 	out := make([]string, 0, len(kindWords))
 	for _, w := range kindWords {
-		if t&w.kinds == w.kinds {
+		if kindSetValue&w.kinds == w.kinds {
 			out = append(out, w.word)
-			t &^= w.kinds
+			kindSetValue &^= w.kinds
 		}
 	}
 	return strings.Join(out, " or ")
 }
 
-// declaredInstanceTypes is the set s's own `type` keyword states. A schema
+// declaredInstanceTypes is the set schema's own `type` keyword states. A schema
 // writing none excludes nothing, whatever else it writes: `properties` alone
 // constrains objects and admits a string. A word no dialect defines says
 // nothing either: load reports it, so it is no conjunct's to contradict another.
-func declaredInstanceTypes(s *statement.Schema) kindSet {
-	declared := s.Types()
+func declaredInstanceTypes(schema *statement.Schema) kindSet {
+	declared := schema.Types()
 	if len(declared) == 0 {
 		return anyInstance
 	}
@@ -147,7 +147,7 @@ func declaredInstanceTypes(s *statement.Schema) kindSet {
 // typeKinds returns the kinds st, one type a type array lists, admits, and every
 // kind but null for a spelling no dialect defines, as declaredInstanceTypes
 // reads one.
-func typeKinds(st statement.Kind) kindSet {
+func typeKinds(st statement.JSONSchemaTypeName) kindSet {
 	if kinds := kindOfType(st) &^ kindNull; kinds != 0 {
 		return kinds
 	}

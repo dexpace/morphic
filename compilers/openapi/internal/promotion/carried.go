@@ -12,15 +12,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Carried returns own with, for each key p reads that own does not hold
+// Carried returns own with, for each key promoter reads that own does not hold
 // unscoped, the entry of the first of scopes holding it beneath, keyed
 // unscoped. It returns own itself where no scope adds a key. It reads a valued
 // fact, which the nearest statement settles, the carrier's own first
 // (docs/compilers/openapi.md#extension-promotion).
-func Carried(p Promoter, own ir.Unmodeled, scopes ...string) ir.Unmodeled {
+func Carried(promoter Promoter, own ir.Unmodeled, scopes ...string) ir.Unmodeled {
 	var picked map[string]carried
 	for key, entry := range own {
-		name, at, ok := carriedName(p.keys, key, scopes)
+		name, at, ok := carriedName(promoter.keys, key, scopes)
 		if !ok {
 			continue
 		}
@@ -38,23 +38,23 @@ func Carried(p Promoter, own ir.Unmodeled, scopes ...string) ir.Unmodeled {
 		return own
 	}
 	out := maps.Clone(own)
-	for name, c := range picked {
-		out[extensionKeyPrefix+name] = c.entry
+	for name, carried := range picked {
+		out[extensionKeyPrefix+name] = carried.entry
 	}
 	return out
 }
 
 // Shadowed returns, for each of scopes holding one, the entries own holds
-// beneath it for a key p reads that the carrier's own key or a nearer scope
-// states too, keyed unscoped: the statements Carried passes over. A carrier
-// reads each for its findings alone, so a misfit behind a nearer statement of
-// its key is reported once, at its own key. It returns nil where Carried
-// passes over nothing.
-func Shadowed(p Promoter, own ir.Unmodeled, scopes ...string) []ir.Unmodeled {
+// beneath it for a key promoter reads that the carrier's own key or a nearer
+// scope states too, keyed unscoped: the statements Carried passes over. A
+// carrier reads each for its findings alone, so a misfit behind a nearer
+// statement of its key is reported once, at its own key. It returns nil where
+// Carried passes over nothing.
+func Shadowed(promoter Promoter, own ir.Unmodeled, scopes ...string) []ir.Unmodeled {
 	var out []ir.Unmodeled
 	for i, scope := range scopes {
 		var layer ir.Unmodeled
-		for key, entry := range scopedEntries(p.keys, own, scope) {
+		for key, entry := range scopedEntries(promoter.keys, own, scope) {
 			if !statedNearer(own, key, scopes[:i]) {
 				continue
 			}
@@ -103,20 +103,21 @@ type carried struct {
 	entry ir.UnmodeledEntry
 }
 
-// Lent returns from with what the objects own carries state, each read as a
-// $ref target's keys are: a single-sided fact holds where any states it, and
-// a deprecation's members fill from the nearest stating them. The carrier's
-// own keys are its caller's to read, and from is farther than any scope.
-func (p Promoter) Lent(from Referent, own ir.Unmodeled, scopes ...string) Referent {
-	var lent Referent
+// WithOwnCarriedState returns from with what the objects own carries state,
+// each read as a $ref target's keys are: a single-sided fact holds where any
+// states it, and a deprecation's members fill from the nearest stating them.
+// The carrier's own keys are its caller's to read, and from is farther than any
+// scope.
+func (p Promoter) WithOwnCarriedState(from Referent, own ir.Unmodeled, scopes ...string) Referent {
+	var fallbackReferent Referent
 	for i := range scopes {
 		entries := scopedEntries(p.keys, own, scopes[i])
 		if entries == nil {
 			continue
 		}
-		lent = nearer(lent, p.readReferent(true, entries))
+		fallbackReferent = nearer(fallbackReferent, p.readReferent(true, entries))
 	}
-	return nearer(lent, from)
+	return nearer(fallbackReferent, from)
 }
 
 // scopedEntries returns the entries own holds beneath scope for one of keys, keyed

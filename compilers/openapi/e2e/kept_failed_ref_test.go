@@ -43,14 +43,14 @@ func TestKeptFailedRef_TheFailureIsReportedOnceWhereTheRefIsWritten(t *testing.T
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				_, diags := compileAnnotationSpec(t, "failed", admissionSpec(version, "", schemas...))
 				var errs []ir.Diagnostic
-				for _, d := range diags {
-					if d.Severity == ir.SeverityError {
-						errs = append(errs, d)
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityError {
+						errs = append(errs, diagnostic)
 					}
 				}
 				require.Len(t, errs, 2, "one error for each failed $ref: %v", errs)
-				for _, d := range errs {
-					require.Equal(t, diag.UnresolvedRef, d.Code)
+				for _, diagnostic := range errs {
+					require.Equal(t, diag.UnresolvedRef, diagnostic.Code)
 				}
 			})
 		})
@@ -162,7 +162,7 @@ func TestKeptFailedRef_EveryKeyBesideAFailedRefIsKeptAndTheFailureReportedOnce(t
 				requireKeptFailedRef(t, doc, diags, version, "YRev", "/allOf/1", target)
 				requireKeptFailedRef(t, doc, diags, version, "YAlone", "/allOf/0", target)
 				for _, name := range []string{"Y", "YRev"} {
-					_, ok := propByWire(requireModelOf(t, doc, name), "b")
+					_, ok := propertyByWire(requireModelOf(t, doc, name), "b")
 					assert.True(t, ok, "%s: the member the other conjunct declares is typed", name)
 				}
 			})
@@ -244,9 +244,9 @@ func TestKeptFailedRef_ARefOnALoopIsKeptLikeOneThatNamesNothing(t *testing.T) {
 				assert.Empty(t, keptKeywordsOf(doc, "Into"), "Into: a $ref to a declared schema is lowered, not kept")
 				assert.NotNil(t, requireModelOf(t, doc, "Into").Base, "Into: the reference is its base")
 				var cycles int
-				for _, d := range diags {
-					if d.Severity == ir.SeverityError {
-						require.Equal(t, diag.CyclicRef, d.Code, "a loop is reported by the cycle's own finding")
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityError {
+						require.Equal(t, diag.CyclicRef, diagnostic.Code, "a loop is reported by the cycle's own finding")
 						cycles++
 					}
 				}

@@ -19,7 +19,7 @@ import (
 func builds(types *compile.Types, order *[]string, coordinate string) func() []ir.Diagnostic {
 	return func() []ir.Diagnostic {
 		*order = append(*order, coordinate)
-		id := ir.TypeID("t/anon" + coordinate)
+		id := ir.TypeID("type/anonymous" + coordinate)
 		types.Intern(coordinate, id, func() ir.TypeDef { return &ir.Model{ID: id} })
 		return []ir.Diagnostic{{Code: coordinate}}
 	}
@@ -34,9 +34,9 @@ func TestTypes_FulfilBuildsWhatNoLoweringBuiltInCoordinateOrder(t *testing.T) {
 	types := compile.NewTypes()
 	var order []string
 	for _, coordinate := range []string{"/c", "/a", "/owned", "/b"} {
-		types.Promise(coordinate, builds(types, &order, coordinate))
+		types.ReserveNodeAtCoordinate(coordinate, builds(types, &order, coordinate))
 	}
-	types.Intern("/owned", "t/anon/owned", func() ir.TypeDef { return &ir.Model{ID: "t/anon/owned"} })
+	types.Intern("/owned", "type/anonymous/owned", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/owned"} })
 
 	diags := types.Fulfil(t.Context())
 
@@ -59,12 +59,12 @@ func TestTypes_FulfilBuildsWhatABuildPromisesInALaterRound(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	var order []string
-	types.Promise("/b", func() []ir.Diagnostic {
+	types.ReserveNodeAtCoordinate("/b", func() []ir.Diagnostic {
 		order = append(order, "/b")
-		types.Intern("/b", "t/anon/b", func() ir.TypeDef { return &ir.Model{ID: "t/anon/b"} })
-		types.Intern("/b/x", "t/anon/b/x", func() ir.TypeDef { return &ir.Model{ID: "t/anon/b/x"} })
-		types.Promise("/0", builds(types, &order, "/0"))
-		types.Promise("/b/x", builds(types, &order, "/b/x"))
+		types.Intern("/b", "type/anonymous/b", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/b"} })
+		types.Intern("/b/x", "type/anonymous/b/x", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/b/x"} })
+		types.ReserveNodeAtCoordinate("/0", builds(types, &order, "/0"))
+		types.ReserveNodeAtCoordinate("/b/x", builds(types, &order, "/b/x"))
 		return nil
 	})
 
@@ -80,8 +80,8 @@ func TestTypes_PromiseKeepsTheFirstBuild(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	var order []string
-	types.Promise("/a", builds(types, &order, "/a"))
-	types.Promise("/a", func() []ir.Diagnostic {
+	types.ReserveNodeAtCoordinate("/a", builds(types, &order, "/a"))
+	types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic {
 		order = append(order, "second")
 		return nil
 	})
@@ -97,11 +97,11 @@ func TestTypes_PromiseKeepsTheFirstBuild(t *testing.T) {
 func TestTypes_PromiseRefusesWhatFulfilWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	for name, promise := range map[string]func(*compile.Types){
-		"no build":      func(types *compile.Types) { types.Promise("/a", nil) },
-		"no coordinate": func(types *compile.Types) { types.Promise("", func() []ir.Diagnostic { return nil }) },
+		"no build":      func(types *compile.Types) { types.ReserveNodeAtCoordinate("/a", nil) },
+		"no coordinate": func(types *compile.Types) { types.ReserveNodeAtCoordinate("", func() []ir.Diagnostic { return nil }) },
 		"after fulfilment": func(types *compile.Types) {
 			types.Fulfil(t.Context())
-			types.Promise("/a", func() []ir.Diagnostic { return nil })
+			types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic { return nil })
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestTypes_PromiseRefusesWhatFulfilWouldNeverTake(t *testing.T) {
 func TestTypes_FulfilRefusesABuildThatBuildsNothing(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Promise("/a", func() []ir.Diagnostic { return nil })
+	types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic { return nil })
 
 	types.Fulfil(t.Context())
 
@@ -137,8 +137,8 @@ func TestTypes_FulfilStopsBetweenBuildsOnCancellation(t *testing.T) {
 	types := compile.NewTypes()
 	var order []string
 	first := builds(types, &order, "/a")
-	types.Promise("/a", func() []ir.Diagnostic { cancel(); return first() })
-	types.Promise("/b", builds(types, &order, "/b"))
+	types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic { cancel(); return first() })
+	types.ReserveNodeAtCoordinate("/b", builds(types, &order, "/b"))
 
 	diags := types.Fulfil(ctx)
 

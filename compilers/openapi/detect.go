@@ -26,8 +26,8 @@ import (
 func (*Compiler) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	// Source 0 is src: the one source detection is handed is the whole of the
 	// table a declined diagnostic can index (compilers.Compiler.Detect).
-	o := sourceLimits(opts)
-	return detect.Recognize(ctx, rootSrcIndex, src.Data, o.MaxSourceBytes, o.MaxSourceNodes)
+	options := sourceLimits(opts)
+	return detect.Recognize(ctx, rootSrcIndex, src.Data, options.MaxSourceBytes, options.MaxSourceNodes)
 }
 
 // SourceLimit implements compilers.Compiler: the byte budget,
@@ -43,9 +43,9 @@ func (*Compiler) SourceLimit(opts compilers.Options) int {
 // Compile is what reports them, and only if the source turns out to be this
 // compiler's.
 func sourceLimits(opts compilers.Options) load.Options {
-	o, err := optionsFrom(opts)
+	options, err := optionsFrom(opts)
 	if err != nil {
-		o = Options{}.withDefaults()
+		options = Options{}.withDefaults()
 	}
-	return loadOptions(o, nil, compilers.Source{})
+	return loadOptions(options, nil, compilers.Source{})
 }

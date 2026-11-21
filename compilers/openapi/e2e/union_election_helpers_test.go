@@ -69,7 +69,7 @@ func electionView(t *testing.T, doc *ir.Document, rename func(string) string) an
 	if list, ok := tree["diagnostics"].([]any); ok {
 		for _, d := range list {
 			findings = append(findings, fmt.Sprintf("%v %v %v",
-				at(d, "severity"), at(d, "code"), at(d, "provenance", "pointer")))
+				valueAtPath(d, "severity"), valueAtPath(d, "code"), valueAtPath(d, "provenance", "pointer")))
 		}
 	}
 	slices.Sort(findings)
@@ -187,10 +187,10 @@ func requireOneInfoAtEach(t *testing.T, diags []ir.Diagnostic, name, what string
 
 // The entries the election cases write, each a union naming its kinds.
 const (
-	oneStrInt      = "{oneOf: [{type: string}, {type: integer}]}"
+	oneStringInt   = "{oneOf: [{type: string}, {type: integer}]}"
 	oneIntBool     = "{oneOf: [{type: integer}, {type: boolean}]}"
-	anyNumBool     = "{anyOf: [{type: number}, {type: boolean}]}"
-	anyStrInt      = "{anyOf: [{type: string}, {type: integer}]}"
+	anyNumberBool  = "{anyOf: [{type: number}, {type: boolean}]}"
+	anyStringInt   = "{anyOf: [{type: string}, {type: integer}]}"
 	objBody        = "type: object, properties: {x: {type: string}}"
 	oneObjBranches = "oneOf: [{type: object, properties: {a: {type: string}}}, {type: object, properties: {b: {type: string}}}]"
 	anyObjBranches = "anyOf: [{type: object, properties: {c: {type: string}}}, {type: object, properties: {d: {type: string}}}]"

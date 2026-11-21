@@ -21,35 +21,35 @@ import (
 // requirement that a declared type would make a finding.
 func TestValidate_TheChecksOfWhatASourceSaysSkipAReferenceWithNoDeclaration(t *testing.T) {
 	t.Parallel()
-	for name, target := range map[string]ir.TypeID{"empty": "", "undeclared": "t/ghost"} {
+	for name, target := range map[string]ir.TypeID{"empty": "", "undeclared": "type/ghost"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			missing := ir.TypeRef{Target: target}
 			blank := func(id string) ir.Property {
-				return prop(id, missing, func(p *ir.Property) {
-					p.Required = true
-					p.Constraints = lengths(6, 5)
-					p.Default = text("x")
-					p.Examples = []ir.Example{{Value: text("x")}}
+				return property(id, missing, func(property *ir.Property) {
+					property.Required = true
+					property.Constraints = lengths(6, 5)
+					property.Default = text("x")
+					property.Examples = []ir.Example{{Value: text("x")}}
 				})
 			}
-			doc := knotDoc(
-				composed("t/a", &missing, blank("p/a/0")),
-				&ir.List{ID: "t/l", Elem: missing, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
-				&ir.MapT{ID: "t/mp", Value: missing, Constraints: &ir.Constraints{MinProps: new(int64(1))}},
-				&ir.Tuple{ID: "t/p", Elems: []ir.TypeRef{missing, missing}},
-				&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: missing}}},
-				&ir.Scalar{ID: "t/s", Base: &missing},
+			doc := noFiniteValueDoc(
+				composed("type/a", &missing, blank("property/a/0")),
+				&ir.List{ID: "type/l", ElementType: missing, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
+				&ir.MapT{ID: "type/mp", Value: missing, Constraints: &ir.Constraints{MinProperties: new(int64(1))}},
+				&ir.Tuple{ID: "type/p", ElementTypes: []ir.TypeRef{missing, missing}},
+				&ir.Union{ID: "type/u", Variants: []ir.Variant{{Type: missing}}},
+				&ir.Scalar{ID: "type/s", Base: &missing},
 			)
-			doc.Types["t/a"].(*ir.Model).Mixins = []ir.TypeRef{missing}
-			doc.Types["t/l"].Common().Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("x")}}}}
-			doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{{
-				ID: "op/x", Params: []ir.Parameter{{ID: "param/x/q", Type: missing, Default: text("x"), Constraints: numeric("10", "", "5", "")}},
+			doc.Types["type/a"].(*ir.Model).Mixins = []ir.TypeRef{missing}
+			doc.Types["type/l"].Common().Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("x")}}}}
+			doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{{
+				ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x/q", Type: missing, Default: text("x"), Constraints: numeric("10", "", "5", "")}},
 				Examples: []ir.Example{
-					{Name: "blank", Input: &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"": *text("x"), "param/x/q": *text("x"), "param/x/none": *text("x")}}},
+					{Name: "blank", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"": *text("x"), "parameter/x/q": *text("x"), "parameter/x/none": *text("x")}}},
 					{Name: "failing", Input: &ir.ScenarioInput{}, Error: &ir.ErrorExample{Type: missing, Content: *text("x")}},
 				},
-				Responses: []ir.Response{{Headers: []ir.Header{{Property: blank("p/h")}}}},
+				Responses: []ir.Response{{Headers: []ir.Header{{Property: blank("property/h")}}}},
 			}}}}}}
 
 			var diags []ir.Diagnostic

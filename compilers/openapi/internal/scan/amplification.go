@@ -90,14 +90,14 @@ func shapeAllowance(raw int) budget.Limit {
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
-// anchored where tree places n, the innermost node past allowance that
+// anchored where tree places node, the innermost node past allowance that
 // aliasAmplification names. The reported node count is a lower bound ("at
 // least"), not the exact expansion: aliasWeigher holds its sums one past the
 // allowance, so the true expansion of a severe bomb (the 10-level x 10-way
 // fixture expands past 37 billion nodes) is never actually computed, only
 // proven to exceed the allowance.
-func aliasAmplificationDiag(tree provenance.Tree, n *yaml.Node, allowance budget.Limit, raw int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.AliasAmplification, tree.Node(n),
+func aliasAmplificationDiag(tree provenance.Tree, node *yaml.Node, allowance budget.Limit, raw int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.AliasAmplification, tree.Node(node),
 		"YAML alias expansion reaches at least %d nodes, past the %d-node allowance for a %d-node document",
 		allowance.Past(), allowance.Cap(), raw)
 }
@@ -105,8 +105,8 @@ func aliasAmplificationDiag(tree provenance.Tree, n *yaml.Node, allowance budget
 // aliasBudgetDiag builds the diag.BudgetExceeded error diagnostic for a
 // document whose aliases add more nodes than the surplus budget, anchored as
 // aliasAmplificationDiag anchors its own and a lower bound for the same reason.
-func aliasBudgetDiag(tree provenance.Tree, n *yaml.Node, surplus budget.Limit, raw int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, tree.Node(n),
+func aliasBudgetDiag(tree provenance.Tree, node *yaml.Node, surplus budget.Limit, raw int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, tree.Node(node),
 		"YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
 		surplus.Past(), raw, surplus.Cap())
 }
@@ -198,41 +198,41 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 	return innermost
 }
 
-// dependsOnAmplifier reports whether something n's weight depends on (see
-// childrenOf), every one of which holds a weight by the time n is weighed, is
-// itself past the allowance. A node a cycle cut holds the weight the cut gave
-// it rather than one computed, so it is no amplifier, and the node depending
-// on it is the innermost there is.
-func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
-	return slices.ContainsFunc(childrenOf(n), func(c *yaml.Node) bool {
-		return !w.cut[c] && !w.allowance.Admits(w.weight[c])
+// dependsOnAmplifier reports whether something node's weight depends on (see
+// childrenOf), every one of which holds a weight by the time node is weighed,
+// is itself past the allowance. A node a cycle cut holds the weight the cut
+// gave it rather than one computed, so it is no amplifier, and the node
+// depending on it is the innermost there is.
+func (w *aliasWeigher) dependsOnAmplifier(node *yaml.Node) bool {
+	return slices.ContainsFunc(childrenOf(node), func(child *yaml.Node) bool {
+		return !w.cut[child] && !w.allowance.Admits(w.weight[child])
 	})
 }
 
-// pushChildren enqueues the nodes n's weight depends on (see childrenOf). A
+// pushChildren enqueues the nodes node's weight depends on (see childrenOf). A
 // child whose weight is already known is not re-pushed. A child already in
 // flight is a cycle anchorCycle did not see: a recursive anchor below the
 // index's tracked depth, which a parsed document can hold, or a cycle in a
 // tree built by hand. Rather than re-enter it and loop, its weight is held at
 // the first count past the allowance, which is always large enough to carry
 // the document to refusal without ever pretending the cyclic subtree is small.
-func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
-	for _, c := range childrenOf(n) {
-		if c == nil {
+func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, node *yaml.Node) {
+	for _, child := range childrenOf(node) {
+		if child == nil {
 			continue
 		}
-		if w.inFlight[c] {
-			w.weight[c], w.cut[c] = w.allowance.Past(), true
+		if w.inFlight[child] {
+			w.weight[child], w.cut[child] = w.allowance.Past(), true
 			continue
 		}
-		if _, done := w.weight[c]; done {
+		if _, done := w.weight[child]; done {
 			continue
 		}
-		*stack = append(*stack, &weighFrame{n: c})
+		*stack = append(*stack, &weighFrame{n: child})
 	}
 }
 
-// computeWeight returns n's expandedWeight, given that every node it depends
+// computeWeight returns node's expandedWeight, given that every node it depends
 // on (via childrenOf) already has a recorded weight. An alias node's weight is
 // exactly its target's — substituting a copy of the target, unexpanded
 // further, is what an alias stands in for. Every other node's weight is 1
@@ -240,34 +240,34 @@ func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 // first count past it, with the loop exiting the moment the total exceeds the
 // allowance, since nothing further down the same Content list can change that
 // verdict.
-func (w *aliasWeigher) computeWeight(n *yaml.Node) int {
-	if n.Kind == yaml.AliasNode {
-		if n.Alias == nil {
+func (w *aliasWeigher) computeWeight(node *yaml.Node) int {
+	if node.Kind == yaml.AliasNode {
+		if node.Alias == nil {
 			return 0
 		}
-		return w.weight[n.Alias]
+		return w.weight[node.Alias]
 	}
 	total := budget.New(w.allowance)
 	total.Spend(1)
-	for _, c := range n.Content {
-		if !total.Spend(w.weight[c]) {
+	for _, child := range node.Content {
+		if !total.Spend(w.weight[child]) {
 			break
 		}
 	}
 	return min(total.Spent(), w.allowance.Past())
 }
 
-// childrenOf returns the nodes n's expandedWeight depends on: an alias node
+// childrenOf returns the nodes node's expandedWeight depends on: an alias node
 // depends only on its target, never on its own (always empty) Content, and
 // every other node depends on its Content. pushChildren and dependsOnAmplifier
 // read dependencies through it, so only it and computeWeight, which weighs an
 // alias as its target alone, tell the two kinds apart.
-func childrenOf(n *yaml.Node) []*yaml.Node {
-	if n.Kind == yaml.AliasNode {
-		if n.Alias == nil {
+func childrenOf(node *yaml.Node) []*yaml.Node {
+	if node.Kind == yaml.AliasNode {
+		if node.Alias == nil {
 			return nil
 		}
-		return []*yaml.Node{n.Alias}
+		return []*yaml.Node{node.Alias}
 	}
-	return n.Content
+	return node.Content
 }

@@ -23,7 +23,7 @@ var (
 //
 // The walk finds the lists by type, so a new carrier is held at once. A list is
 // read byte by byte, as the join reads it, a name that does not decode being
-// checkUTF8's to report. A marker on a part with no Filename is reported.
+// checkUTF8's to report. A marker on a part with HasFilename false is reported.
 func checkInferred(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
@@ -50,10 +50,10 @@ func checkInferred(*ir.Document) walkCheck {
 }
 
 // partMarkerViolations reports the marker of part, a PartEncoding at at, when
-// the part carries no Filename for it to qualify.
+// the part carries no filename (HasFilename false) for it to qualify.
 func partMarkerViolations(part reflect.Value, at ir.WalkPath) []Violation {
 	inferred := part.FieldByName("Inferred").String()
-	if inferred == "" || part.FieldByName("Filename").Bool() {
+	if inferred == "" || part.FieldByName("HasFilename").Bool() {
 		return nil
 	}
 	return []Violation{{

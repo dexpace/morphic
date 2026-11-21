@@ -19,24 +19,24 @@ import (
 // text, absent where the source states none.
 func TestContent_CatchAllEncodingEncodesByTypeID(t *testing.T) {
 	t.Parallel()
-	c := ir.Content{
+	content := ir.Content{
 		MediaType: "multipart/form-data",
 		CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{
-			"t/m": {
+			"type/m": {
 				Value:    &ir.PartEncoding{ContentTypes: []string{"text/plain"}},
-				Patterns: map[string]ir.PartEncoding{"^f_": {Filename: true}},
+				Patterns: map[string]ir.PartEncoding{"^f_": {HasFilename: true}},
 			},
 		},
 	}
-	got, err := json.Marshal(c, json.Deterministic(true))
+	got, err := json.Marshal(content, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"mediaType":"multipart/form-data","type":{"target":"","nullable":false},`+
-		`"catchAllEncoding":{"t/m":{"value":{"contentTypes":["text/plain"],"multi":false,"filename":false,"allowReserved":false},`+
-		`"patterns":{"^f_":{"multi":false,"filename":true,"allowReserved":false}}}}}`, string(got))
+		`"catchAllEncoding":{"type/m":{"value":{"contentTypes":["text/plain"],"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false},`+
+		`"patterns":{"^f_":{"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}}}}`, string(got))
 
 	var back ir.Content
 	require.NoError(t, json.Unmarshal(got, &back))
-	assert.Empty(t, cmp.Diff(c, back))
+	assert.Empty(t, cmp.Diff(content, back))
 
 	none, err := json.Marshal(ir.Content{MediaType: "application/json"}, json.Deterministic(true))
 	require.NoError(t, err)

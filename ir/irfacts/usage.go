@@ -11,10 +11,11 @@ import (
 )
 
 // UsageFlags is a bitset recording how a type is used across the API surface,
-// from the client's side of the wire. [Index.Usage] derives it and no type
-// stores it, so the bits cannot disagree with the operations they describe.
-// Input and Output say which way a value travels, Error and Multipart in what
-// role, so a type in an error payload also carries the side it travels on.
+// from the client's side of the wire. [DocumentFacts.Usage] derives it and no
+// type stores it, so the bits cannot disagree with the operations they
+// describe. Input and Output say which way a value travels, Error and Multipart
+// in what role, so a type in an error payload also carries the side it travels
+// on.
 type UsageFlags uint32
 
 // Usage bits.
@@ -45,7 +46,7 @@ const multipartPrefix = "multipart/"
 // operation the API itself starts, a webhook or a callback, swaps the two. A
 // flag spreads along the type graph, and a field argument makes the type it
 // names Input. Partial says when operations went unread.
-func (x *Index) Usage(id ir.TypeID) UsageFlags {
+func (x *DocumentFacts) Usage(id ir.TypeID) UsageFlags {
 	return x.usageIndex()[id]
 }
 
@@ -55,19 +56,19 @@ type usageStep struct {
 	flags  UsageFlags
 }
 
-// newUsage derives the usage of every type of doc over g, the graph of its
-// registry. A vertex passes on only the flags it had not reached before, so it
-// is expanded at most once per flag and a cycle ends.
-func newUsage(doc *ir.Document, g *typeGraph) map[ir.TypeID]UsageFlags {
+// newUsage derives the usage of every type of doc over typeGraphValue, the
+// graph of its registry. A vertex passes on only the flags it had not reached
+// before, so it is expanded at most once per flag and a cycle ends.
+func newUsage(doc *ir.Document, typeGraphValue *typeGraph) map[ir.TypeID]UsageFlags {
 	roots := usageRoots{}
 	roots.document(doc)
 	var pending []usageStep
 	for id, flags := range roots {
-		if v, ok := g.reference(id); ok && flags&spreadingUsage != 0 {
+		if v, ok := typeGraphValue.reference(id); ok && flags&spreadingUsage != 0 {
 			pending = append(pending, usageStep{vertex: v, flags: flags & spreadingUsage})
 		}
 	}
-	reached := make([]UsageFlags, len(g.next))
+	reached := make([]UsageFlags, len(typeGraphValue.next))
 	for len(pending) > 0 {
 		step := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
@@ -76,17 +77,17 @@ func newUsage(doc *ir.Document, g *typeGraph) map[ir.TypeID]UsageFlags {
 			continue
 		}
 		reached[step.vertex] |= fresh
-		for _, w := range g.next[step.vertex] {
+		for _, w := range typeGraphValue.next[step.vertex] {
 			pending = append(pending, usageStep{vertex: w, flags: fresh})
 		}
-		for _, w := range g.args[step.vertex] {
+		for _, w := range typeGraphValue.args[step.vertex] {
 			pending = append(pending, usageStep{vertex: w, flags: UsageInput})
 		}
 	}
 	usage := map[ir.TypeID]UsageFlags{}
 	for v, flags := range reached {
 		if flags != 0 {
-			usage[g.typeOf(v)] |= flags
+			usage[typeGraphValue.typeOf(v)] |= flags
 		}
 	}
 	for id, flags := range roots {
@@ -125,8 +126,8 @@ func (r usageRoots) document(doc *ir.Document) {
 		return
 	}
 	callbacks := callbackOperations(doc)
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		r.operation(doc, &op, callbacks[op.ID] || isInbound(&op))
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		r.operation(doc, &operation, callbacks[operation.ID] || isInbound(&operation))
 	})
 	for i := range doc.Services {
 		for j := range doc.Services[i].CommonErrors {
@@ -143,10 +144,10 @@ func (r usageRoots) document(doc *ir.Document) {
 
 // callbackOperations returns the operations an HTTP binding names among its
 // callbacks: requests the API sends the client, not the other way round.
-func callbackOperations(doc *ir.Document) map[ir.OpID]bool {
-	callbacks := map[ir.OpID]bool{}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		for _, b := range op.Bindings.HTTP {
+func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
+	callbacks := map[ir.OperationID]bool{}
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		for _, b := range operation.Bindings.HTTP {
 			for _, cb := range b.Callbacks {
 				for _, id := range cb.Operations {
 					callbacks[id] = true
@@ -157,46 +158,46 @@ func callbackOperations(doc *ir.Document) map[ir.OpID]bool {
 	return callbacks
 }
 
-// isInbound reports whether a binding of op marks it a request the API sends:
-// a webhook or a callback. Its WebhookName may be empty, since an empty
+// isInbound reports whether a binding of operation marks it a request the API
+// sends: a webhook or a callback. Its WebhookName may be empty, since an empty
 // webhooks key is legal.
-func isInbound(op *ir.Operation) bool {
-	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
+func isInbound(operation *ir.Operation) bool {
+	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
-// operation records what op sends and what comes back. The client writes a
-// request and reads a response, and the two swap when the API starts the
+// operation records what operation sends and what comes back. The client writes
+// a request and reads a response, and the two swap when the API starts the
 // operation, as it does a webhook or a callback.
-func (r usageRoots) operation(doc *ir.Document, op *ir.Operation, inbound bool) {
+func (r usageRoots) operation(doc *ir.Document, operation *ir.Operation, inbound bool) {
 	request, response := UsageInput, UsageOutput
 	if inbound {
 		request, response = response, request
 	}
-	r.params(op.Params, request)
-	r.payload(op.Request, request)
-	r.stream(op.RequestStream, request)
-	if rpc := op.Bindings.RPC; rpc != nil {
+	r.params(operation.Params, request)
+	r.payload(operation.Request, request)
+	r.stream(operation.RequestStream, request)
+	if rpc := operation.Bindings.RPC; rpc != nil {
 		r.ref(rpc.InputType, request)
 	}
-	for i := range op.Responses {
-		r.payload(op.Responses[i].Payload, response)
-		r.headers(op.Responses[i].Headers, response)
+	for i := range operation.Responses {
+		r.payload(operation.Responses[i].Payload, response)
+		r.headers(operation.Responses[i].Headers, response)
 	}
-	if def := op.Default; def != nil {
+	if def := operation.Default; def != nil {
 		// The default comes back like any response; whether it is an error the
 		// IR does not say (docs/ir/responses.md), so it is not marked one.
 		r.payload(def.Payload, response)
 		r.headers(def.Headers, response)
 	}
-	r.stream(op.ResponseStream, response)
-	if lro := op.LongRunning; lro != nil {
+	r.stream(operation.ResponseStream, response)
+	if lro := operation.LongRunning; lro != nil {
 		r.ref(lro.PollingType, response)
 		r.ref(lro.FinalType, response)
 	}
-	for i := range op.Errors {
-		r.errorCase(&op.Errors[i], response)
+	for i := range operation.Errors {
+		r.errorCase(&operation.Errors[i], response)
 	}
-	r.messages(doc, op.Bindings.Message)
+	r.messages(doc, operation.Bindings.Message)
 }
 
 // messages records the messages a messaging binding sends or receives, and its
@@ -208,9 +209,9 @@ func (r usageRoots) messages(doc *ir.Document, b *ir.MessageBinding) {
 	}
 	own, reply := UsageInput|UsageOutput, UsageInput|UsageOutput
 	switch b.Direction {
-	case ir.MsgDirectionSend:
+	case ir.MessageDirectionSend:
 		own, reply = UsageInput, UsageOutput
-	case ir.MsgDirectionReceive:
+	case ir.MessageDirectionReceive:
 		own, reply = UsageOutput, UsageInput
 	default:
 		// An unknown direction leaves both sides marked.
@@ -227,27 +228,29 @@ func (r usageRoots) messages(doc *ir.Document, b *ir.MessageBinding) {
 
 // message records the payload and headers of the message id, if doc has one.
 func (r usageRoots) message(doc *ir.Document, id ir.MessageID, flags UsageFlags) {
-	m, ok := doc.Messages[id]
+	message, ok := doc.Messages[id]
 	if !ok {
 		return
 	}
-	r.payload(&m.Payload, flags)
-	r.ref(m.Headers, flags)
+	r.payload(&message.Payload, flags)
+	r.ref(message.Headers, flags)
 }
 
-// errorCase records the payload and headers of e as errors travelling on side.
-func (r usageRoots) errorCase(e *ir.ErrorCase, side UsageFlags) {
-	r.payload(e.Payload, side|UsageError)
-	r.headers(e.Headers, side|UsageError)
+// errorCase records the payload and headers of errorCase as errors travelling
+// on side.
+func (r usageRoots) errorCase(errorCase *ir.ErrorCase, side UsageFlags) {
+	r.payload(errorCase.Payload, side|UsageError)
+	r.headers(errorCase.Headers, side|UsageError)
 }
 
-// stream records the event and initial-message types of s, when there is one.
-func (r usageRoots) stream(s *ir.StreamDetail, flags UsageFlags) {
-	if s == nil {
+// stream records the event and initial-message types of streamDetail, when
+// there is one.
+func (r usageRoots) stream(streamDetail *ir.StreamDetail, flags UsageFlags) {
+	if streamDetail == nil {
 		return
 	}
-	r.ref(s.Events, flags)
-	r.ref(s.Initial, flags)
+	r.ref(streamDetail.Events, flags)
+	r.ref(streamDetail.Initial, flags)
 }
 
 // params records the type of each parameter in ps, and the type its encoding
@@ -255,8 +258,8 @@ func (r usageRoots) stream(s *ir.StreamDetail, flags UsageFlags) {
 func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 	for i := range ps {
 		r.ref(&ps[i].Type, flags)
-		if e := ps[i].Encoding; e != nil {
-			r.ref(e.Schema, flags)
+		if encoding := ps[i].Encoding; encoding != nil {
+			r.ref(encoding.Schema, flags)
 		}
 	}
 }
@@ -267,19 +270,20 @@ func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 func (r usageRoots) headers(hs []ir.Header, flags UsageFlags) {
 	for i := range hs {
 		r.ref(&hs[i].Type, flags)
-		if e := hs[i].Encoding; e != nil {
-			r.ref(e.Schema, flags)
+		if encoding := hs[i].Encoding; encoding != nil {
+			r.ref(encoding.Schema, flags)
 		}
 	}
 }
 
-// payload records the types of each content of p, when there is a payload.
-func (r usageRoots) payload(p *ir.Payload, flags UsageFlags) {
-	if p == nil {
+// payload records the types of each content of payload, when there is a
+// payload.
+func (r usageRoots) payload(payload *ir.Payload, flags UsageFlags) {
+	if payload == nil {
 		return
 	}
-	for i := range p.Contents {
-		r.content(&p.Contents[i], flags)
+	for i := range payload.Contents {
+		r.content(&payload.Contents[i], flags)
 	}
 }
 
@@ -287,22 +291,22 @@ func (r usageRoots) payload(p *ir.Payload, flags UsageFlags) {
 // holders of its catch-alls, which are among its type's shapes, and the headers
 // of its parts. A multipart media type also marks the content's own type, and
 // only that one.
-func (r usageRoots) content(c *ir.Content, flags UsageFlags) {
-	r.ref(&c.Type, flags)
-	if strings.HasPrefix(strings.ToLower(c.MediaType), multipartPrefix) {
-		r.ref(&c.Type, UsageMultipart)
+func (r usageRoots) content(content *ir.Content, flags UsageFlags) {
+	r.ref(&content.Type, flags)
+	if strings.HasPrefix(strings.ToLower(content.MediaType), multipartPrefix) {
+		r.ref(&content.Type, UsageMultipart)
 	}
-	r.ref(c.Item, flags)
-	if c.File != nil {
-		r.ref(c.File.Contents, flags)
+	r.ref(content.Item, flags)
+	if content.File != nil {
+		r.ref(content.File.Contents, flags)
 	}
-	if c.ItemEncoding != nil {
-		r.headers(c.ItemEncoding.Headers, flags)
+	if content.ItemEncoding != nil {
+		r.headers(content.ItemEncoding.Headers, flags)
 	}
-	for _, part := range c.Encoding {
+	for _, part := range content.Encoding {
 		r.headers(part.Headers, flags)
 	}
-	for holder, parts := range c.CatchAllEncoding {
+	for holder, parts := range content.CatchAllEncoding {
 		r.ref(&ir.TypeRef{Target: holder}, flags)
 		if parts.Value != nil {
 			r.headers(parts.Value.Headers, flags)

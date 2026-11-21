@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,7 +17,7 @@ import (
 // hold gives a member of it no type to walk, so the value resolves to nothing.
 func TestRequestValue_AParameterOnlyABindingNamesResolvesNothing(t *testing.T) {
 	t.Parallel()
-	in, typ, why := paramInput(whole.New(&ir.Document{}), &ir.Operation{ID: "op/x"}, "param/x/gone", []string{"a"})
+	in, typ, why := paramInput(compileddoc.New(&ir.Document{}), &ir.Operation{ID: "operation/x"}, "parameter/x/gone", []string{"a"})
 	assert.Nil(t, in)
 	assert.Empty(t, typ)
 	assert.Contains(t, why, "which a binding names and the operation does not hold")
@@ -27,5 +27,5 @@ func TestRequestValue_AParameterOnlyABindingNamesResolvesNothing(t *testing.T) {
 // steps took reaches: a token naming no member types nothing.
 func TestWalkedType_AStepFindingNoMemberHasNoType(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, walkedType(whole.New(&ir.Document{Types: ir.TypeRegistry{}}), "t/gone", []string{"a"}))
+	assert.Empty(t, walkedType(compileddoc.New(&ir.Document{Types: ir.TypeRegistry{}}), "type/gone", []string{"a"}))
 }

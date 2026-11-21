@@ -34,15 +34,15 @@ func (r *entryReader) heldFor(m reflect.Value) heldEntry {
 		return heldEntry{apart: true}
 	}
 	t := m.Type()
-	if h, kept := r.held[t]; kept {
-		return h
+	if heldEntry, kept := r.held[t]; kept {
+		return heldEntry
 	}
 	if r.held == nil {
 		r.held = map[reflect.Type]heldEntry{}
 	}
-	h := heldEntry{key: reflect.New(t.Key()).Elem(), value: reflect.New(t.Elem()).Elem()}
-	r.held[t] = h
-	return h
+	heldEntryValue := heldEntry{key: reflect.New(t.Key()).Elem(), value: reflect.New(t.Elem()).Elem()}
+	r.held[t] = heldEntryValue
+	return heldEntryValue
 }
 
 // read copies iter's current entry and returns its key and value, which the

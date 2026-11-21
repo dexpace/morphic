@@ -28,40 +28,40 @@ import (
 func TestNewf_PopulatesEveryField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		sev     ir.Severity
-		code    string
-		prov    ir.Provenance
-		format  string
-		args    []any
-		wantMsg string
+		name        string
+		sev         ir.Severity
+		code        string
+		prov        ir.Provenance
+		format      string
+		args        []any
+		wantMessage string
 	}{
 		{
 			name: "a formatted message", sev: ir.SeverityError, code: diag.UnresolvedRef,
 			prov:   ir.Provenance{Source: 0, Pointer: "/components/schemas/A"},
 			format: "unresolved $ref %q", args: []any{"#/nope"},
-			wantMsg: `unresolved $ref "#/nope"`,
+			wantMessage: `unresolved $ref "#/nope"`,
 		},
 		{
 			name: "no arguments leaves the format alone", sev: ir.SeverityInfo,
 			code: diag.FalseSchema, format: "boolean false schema matches nothing",
-			wantMsg: "boolean false schema matches nothing",
+			wantMessage: "boolean false schema matches nothing",
 		},
 		{
 			name: "several arguments in order", sev: ir.SeverityWarning,
 			code: diag.ConflictingRedecl, format: "%s disagrees with %s at %d",
-			args:    []any{"minimum", "exclusiveMinimum", 10},
-			wantMsg: "minimum disagrees with exclusiveMinimum at 10",
+			args:        []any{"minimum", "exclusiveMinimum", 10},
+			wantMessage: "minimum disagrees with exclusiveMinimum at 10",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			d := diag.Newf(tc.sev, tc.code, tc.prov, tc.format, tc.args...)
-			assert.Equal(t, tc.sev, d.Severity)
-			assert.Equal(t, tc.code, d.Code)
-			assert.Equal(t, tc.prov, d.Provenance)
-			assert.Equal(t, tc.wantMsg, d.Message)
+			diagnostic := diag.Newf(tc.sev, tc.code, tc.prov, tc.format, tc.args...)
+			assert.Equal(t, tc.sev, diagnostic.Severity)
+			assert.Equal(t, tc.code, diagnostic.Code)
+			assert.Equal(t, tc.prov, diagnostic.Provenance)
+			assert.Equal(t, tc.wantMessage, diagnostic.Message)
 		})
 	}
 }
@@ -77,18 +77,18 @@ func TestNewf_SanitizesInvalidUTF8(t *testing.T) {
 	t.Parallel()
 	// "\xe0\xa5" is the truncated lead of U+0965 (E0 A5 A5): one ill-formed byte
 	// run, coerced to a single U+FFFD.
-	d := diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{}, "bad byte %s here", "\xe0\xa5")
-	require.True(t, utf8.ValidString(d.Message), "message must be valid UTF-8")
-	assert.Equal(t, "bad byte � here", d.Message, "ill-formed run collapses to one U+FFFD")
+	diagnostic := diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{}, "bad byte %s here", "\xe0\xa5")
+	require.True(t, utf8.ValidString(diagnostic.Message), "message must be valid UTF-8")
+	assert.Equal(t, "bad byte � here", diagnostic.Message, "ill-formed run collapses to one U+FFFD")
 
-	first, err := json.Marshal(d)
+	first, err := json.Marshal(diagnostic)
 	require.NoError(t, err)
 	var back ir.Diagnostic
 	require.NoError(t, json.Unmarshal(first, &back))
 	second, err := json.Marshal(back)
 	require.NoError(t, err)
 	assert.Equal(t, string(first), string(second), "sanitized message round-trips byte-for-byte")
-	assert.Equal(t, d.Message, back.Message, "message survives marshal/unmarshal unchanged")
+	assert.Equal(t, diagnostic.Message, back.Message, "message survives marshal/unmarshal unchanged")
 }
 
 // TestRepeatedParameter_NamesTheFirstSpellingWhereItDiffers pins the words of
@@ -167,7 +167,7 @@ func codes() []string {
 		diag.ReservedHeaderName, diag.UnloweredConstruct, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnpromotedExtension, diag.UnhomedConstruct, diag.UnknownKeyBudget,
 		diag.PartlessFormBody, diag.BodyWithoutSemantics, diag.BodyForbiddenByMethod,
-		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
+		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryAlreadyClaimed,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
@@ -210,11 +210,11 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 // whatever it is called or however its value is written.
 func declaredCodes(t *testing.T) []string {
 	t.Helper()
-	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
 	require.NoError(t, err)
 
 	var out []string
-	for c := range p.Objects[*types.Const]() {
+	for c := range loadedPackage.Objects[*types.Const]() {
 		if c.Exported() && c.Val().Kind() == constant.String {
 			out = append(out, constant.StringVal(c.Val()))
 		}

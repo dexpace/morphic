@@ -56,61 +56,62 @@ func diagAt(code string, sev ir.Severity, pointer jsontext.Pointer) ir.Diagnosti
 	}
 }
 
-// opNamed builds a service holding one group with the named operations.
-func opNamed(names ...string) ir.Service {
-	ops := make([]ir.Operation, 0, len(names))
+// operationNamed builds a service holding one group with the named operations.
+func operationNamed(names ...string) ir.Service {
+	operations := make([]ir.Operation, 0, len(names))
 	for _, n := range names {
-		ops = append(ops, ir.Operation{Name: ir.Naming{Source: n}})
+		operations = append(operations, ir.Operation{Name: ir.Naming{Source: n}})
 	}
-	return ir.Service{Groups: []ir.OperationGroup{{Operations: ops}}}
+	return ir.Service{Groups: []ir.OperationGroup{{Operations: operations}}}
 }
 
-// TestFindOp_FindsTheOperationBySourceName covers both outcomes: the match, and
-// the miss that must fail the test rather than return a zero operation quietly.
-func TestFindOp_FindsTheOperationBySourceName(t *testing.T) {
+// TestFindOperation_FindsTheOperationBySourceName covers both outcomes: the
+// match, and the miss that must fail the test rather than return a zero
+// operation quietly.
+func TestFindOperation_FindsTheOperationBySourceName(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Services: []ir.Service{opNamed("getA", "getB")}}
-	assert.Equal(t, "getB", openapitest.FindOp(t, doc, "getB").Name.Source)
+	doc := &ir.Document{Services: []ir.Service{operationNamed("getA", "getB")}}
+	assert.Equal(t, "getB", openapitest.FindOperation(t, doc, "getB").Name.Source)
 
-	r := &recorder{}
-	assert.Equal(t, ir.Operation{}, openapitest.FindOp(r, doc, "absent"))
-	require.Len(t, r.fatalf, 1)
-	assert.Contains(t, r.fatalf[0], `operation "absent" not found`)
+	recorderValue := &recorder{}
+	assert.Equal(t, ir.Operation{}, openapitest.FindOperation(recorderValue, doc, "absent"))
+	require.Len(t, recorderValue.fatalf, 1)
+	assert.Contains(t, recorderValue.fatalf[0], `operation "absent" not found`)
 }
 
-// TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand the
-// single-operation fixtures use.
-func TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
+// TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand
+// the single-operation fixtures use.
+func TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "getA", openapitest.FirstOp(t, opNamed("getA", "getB")).Name.Source)
+	assert.Equal(t, "getA", openapitest.FirstOperation(t, operationNamed("getA", "getB")).Name.Source)
 }
 
 // TestParamBySource_FindsTheParameterBySourceName covers the match and the
 // miss, which reports absence rather than a zero parameter that looks found.
 func TestParamBySource_FindsTheParameterBySourceName(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{Params: []ir.Parameter{
-		{ID: "p/a", Name: ir.Naming{Source: "a"}},
-		{ID: "p/b", Name: ir.Naming{Source: "b"}},
+	operation := ir.Operation{Params: []ir.Parameter{
+		{ID: "property/a", Name: ir.Naming{Source: "a"}},
+		{ID: "property/b", Name: ir.Naming{Source: "b"}},
 	}}
-	p, ok := openapitest.ParamBySource(op, "b")
+	parameter, ok := openapitest.ParamBySource(operation, "b")
 	require.True(t, ok)
-	assert.Equal(t, ir.ParamID("p/b"), p.ID)
+	assert.Equal(t, ir.ParameterID("property/b"), parameter.ID)
 
-	_, ok = openapitest.ParamBySource(op, "c")
+	_, ok = openapitest.ParamBySource(operation, "c")
 	assert.False(t, ok)
 }
 
-// TestIndexBy_KeysEveryItem covers the generic lookup and PropsByWire, the one
-// keying it is used for often enough to have a name.
+// TestIndexBy_KeysEveryItem covers the generic lookup and PropertiesByWire, the
+// one keying it is used for often enough to have a name.
 func TestIndexBy_KeysEveryItem(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[int]string{1: "a", 2: "bb"},
 		openapitest.IndexBy([]string{"a", "bb"}, func(s string) int { return len(s) }))
 
-	props := []ir.Property{{WireName: "x"}, {WireName: "y"}}
-	byWire := openapitest.PropsByWire(props)
-	assert.Equal(t, props[1], byWire["y"])
+	properties := []ir.Property{{WireName: "x"}, {WireName: "y"}}
+	byWire := openapitest.PropertiesByWire(properties)
+	assert.Equal(t, properties[1], byWire["y"])
 	assert.Len(t, byWire, 2)
 }
 
@@ -123,12 +124,12 @@ func TestIndexBy_KeysEveryItem(t *testing.T) {
 // and panics. The passing case executes both of those guards.
 func TestBodyTarget_RequiresExactlyOneMediaType(t *testing.T) {
 	t.Parallel()
-	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/prim/string"}}}}
-	assert.Equal(t, ir.TypeID("t/prim/string"), openapitest.BodyTarget(t, one))
+	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/primitive/string"}}}}
+	assert.Equal(t, ir.TypeID("type/primitive/string"), openapitest.BodyTarget(t, one))
 
-	r := &recorder{}
-	openapitest.BodyTarget(r, &ir.Payload{Contents: []ir.Content{{}, {}}})
-	assert.True(t, r.failed(), "a second media type must fail the test")
+	recorderValue := &recorder{}
+	openapitest.BodyTarget(recorderValue, &ir.Payload{Contents: []ir.Content{{}, {}}})
+	assert.True(t, recorderValue.failed(), "a second media type must fail the test")
 }
 
 // TestRequireNoErrorDiags_FailsOnlyOnAnErrorSeverity pins that warnings pass
@@ -137,9 +138,9 @@ func TestRequireNoErrorDiags_FailsOnlyOnAnErrorSeverity(t *testing.T) {
 	t.Parallel()
 	openapitest.RequireNoErrorDiags(t, []ir.Diagnostic{diagAt("a", ir.SeverityWarning, "")})
 
-	r := &recorder{}
-	openapitest.RequireNoErrorDiags(r, []ir.Diagnostic{diagAt("boom", ir.SeverityError, "")})
-	assert.True(t, r.failed(), "an error diagnostic must fail the test")
+	recorderValue := &recorder{}
+	openapitest.RequireNoErrorDiags(recorderValue, []ir.Diagnostic{diagAt("boom", ir.SeverityError, "")})
+	assert.True(t, recorderValue.failed(), "an error diagnostic must fail the test")
 }
 
 // TestAssertHasCode_RequiresCodeAndSeverityTogether pins that neither half
@@ -149,10 +150,10 @@ func TestAssertHasCode_RequiresCodeAndSeverityTogether(t *testing.T) {
 	diags := []ir.Diagnostic{diagAt("a", ir.SeverityWarning, "/p")}
 	openapitest.AssertHasCode(t, diags, "a", ir.SeverityWarning)
 
-	r := &recorder{}
-	openapitest.AssertHasCode(r, diags, "a", ir.SeverityError)
-	require.Len(t, r.fatalf, 1)
-	assert.Contains(t, r.fatalf[0], `code "a"`)
+	recorderValue := &recorder{}
+	openapitest.AssertHasCode(recorderValue, diags, "a", ir.SeverityError)
+	require.Len(t, recorderValue.fatalf, 1)
+	assert.Contains(t, recorderValue.fatalf[0], `code "a"`)
 }
 
 // TestHasDiag_MatchesCodeAtAnySeverity separates the existential predicate from
@@ -175,9 +176,9 @@ func TestFirstDiag_ReturnsTheFirstCarryingTheCode(t *testing.T) {
 		diagAt("b", ir.SeverityError, "/q"),
 		diagAt("b", ir.SeverityInfo, "/r"),
 	}
-	d, ok := openapitest.FirstDiag(diags, "b")
+	diagnostic, ok := openapitest.FirstDiag(diags, "b")
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/q"), d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/q"), diagnostic.Provenance.Pointer)
 
 	_, ok = openapitest.FirstDiag(diags, "c")
 	assert.False(t, ok)
@@ -265,9 +266,9 @@ func TestAssertInfoDiagAt_MatchesOnSeverityAndPointer(t *testing.T) {
 	diags := []ir.Diagnostic{diagAt("any", ir.SeverityInfo, "/p")}
 	openapitest.AssertInfoDiagAt(t, diags, "/p")
 
-	r := &recorder{}
-	openapitest.AssertInfoDiagAt(r, diags, "/q")
-	assert.True(t, r.failed(), "no info diagnostic at /q")
+	recorderValue := &recorder{}
+	openapitest.AssertInfoDiagAt(recorderValue, diags, "/q")
+	assert.True(t, recorderValue.failed(), "no info diagnostic at /q")
 }
 
 // TestAssertProbeDocsKept_ChecksAllThreeDocumentationKeywords covers the kept
@@ -282,36 +283,36 @@ func TestAssertProbeDocsKept_ChecksAllThreeDocumentationKeywords(t *testing.T) {
 	}
 	openapitest.AssertProbeDocsKept(t, kept)
 
-	r := &recorder{}
-	openapitest.AssertProbeDocsKept(r, ir.Docs{Summary: "SUM", Description: "DOC"})
-	assert.True(t, r.failed(), "a dropped externalDocs must be reported")
+	recorderValue := &recorder{}
+	openapitest.AssertProbeDocsKept(recorderValue, ir.Docs{Summary: "SUM", Description: "DOC"})
+	assert.True(t, recorderValue.failed(), "a dropped externalDocs must be reported")
 }
 
 // TestAssertProbeExample_ChecksTheSingleExampleValue covers the kept case and
 // the dropped case, which returns before reading the value.
 func TestAssertProbeExample_ChecksTheSingleExampleValue(t *testing.T) {
 	t.Parallel()
-	openapitest.AssertProbeExample(t, []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}})
+	openapitest.AssertProbeExample(t, []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, String: "abc"}}})
 
-	r := &recorder{}
-	openapitest.AssertProbeExample(r, nil)
-	assert.True(t, r.failed(), "a dropped example must be reported")
+	recorderValue := &recorder{}
+	openapitest.AssertProbeExample(recorderValue, nil)
+	assert.True(t, recorderValue.failed(), "a dropped example must be reported")
 }
 
 // TestNodeConstraints_ReadsEachKindThatHoldsThem pins the four kinds a test reads
 // bounds off, and the failure on a node that holds none it reads.
 func TestNodeConstraints_ReadsEachKindThatHoldsThem(t *testing.T) {
 	t.Parallel()
-	c := &ir.Constraints{}
+	constraints := &ir.Constraints{}
 	for _, td := range []ir.TypeDef{
-		&ir.Scalar{Constraints: c}, &ir.List{Constraints: c}, &ir.MapT{Constraints: c}, &ir.Tuple{Constraints: c},
+		&ir.Scalar{Constraints: constraints}, &ir.List{Constraints: constraints}, &ir.MapT{Constraints: constraints}, &ir.Tuple{Constraints: constraints},
 	} {
-		r := &recorder{}
-		assert.Same(t, c, openapitest.NodeConstraints(r, td), "%T", td)
-		assert.False(t, r.failed(), "%T", td)
+		recorderValue := &recorder{}
+		assert.Same(t, constraints, openapitest.NodeConstraints(recorderValue, td), "%T", td)
+		assert.False(t, recorderValue.failed(), "%T", td)
 	}
 
-	r := &recorder{}
-	assert.Nil(t, openapitest.NodeConstraints(r, &ir.Model{}))
-	assert.True(t, r.failed(), "a model holds none it reads")
+	otherRecorder := &recorder{}
+	assert.Nil(t, openapitest.NodeConstraints(otherRecorder, &ir.Model{}))
+	assert.True(t, otherRecorder.failed(), "a model holds none it reads")
 }

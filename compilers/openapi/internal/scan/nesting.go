@@ -11,15 +11,15 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
 // MaxNesting bounds how deeply a document may nest, as
-// sourceindex.Index.Nesting counts it. What the parser pays per node grows
-// with the node's depth (docs/parser-library.md#nesting-cost), so a schema
-// thousands of levels deep cost seconds and gigabytes before the schema walk's
-// own bound refused it (GitHub #905).
+// sourcetreestats.Measurements.Nesting counts it. What the parser pays per node
+// grows with the node's depth (docs/parser-library.md#nesting-cost), so a
+// schema thousands of levels deep cost seconds and gigabytes before the schema
+// walk's own bound refused it (GitHub #905).
 //
 // Real specs nest far less: the deepest of the 1,839 OpenAPI 3 documents the
 // real-world sweep read in October 2026 nests 21 levels. Anything the lowering
@@ -39,13 +39,13 @@ const MaxNesting = 1024
 // anchor-cycle refusal: it nests without end, and the index's count of one
 // turn round it is no fact to refuse on or to find a site for. One below the
 // index's tracked depth, which it misses, nests past MaxNesting anyway.
-func Nesting(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
+func Nesting(ctx context.Context, tree provenance.Tree, idx sourcetreestats.Measurements) (ir.Diagnostic, bool) {
 	return nestingWithin(ctx, tree, idx, MaxNesting)
 }
 
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
-func nestingWithin(ctx context.Context, tree provenance.Tree, idx sourceindex.Index, limit int) (ir.Diagnostic, bool) {
+func nestingWithin(ctx context.Context, tree provenance.Tree, idx sourcetreestats.Measurements, limit int) (ir.Diagnostic, bool) {
 	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
@@ -71,23 +71,23 @@ type placed struct {
 // one measure of the tree, under ctx, and one walk of part of it.
 func deepSites(ctx context.Context, root *yaml.Node, limit int) []*yaml.Node {
 	top := nodeview.DocumentRoot(root)
-	if sourceindex.Level(top) > limit {
+	if sourcetreestats.Level(top) > limit {
 		return []*yaml.Node{top}
 	}
-	measure := sourceindex.NewMeasure(sourceindex.MaxIndexedNodes)
+	measure := sourcetreestats.NewMeasure(sourcetreestats.MaxIndexedNodes)
 	if measure.Of(ctx, top) <= limit {
 		return nil
 	}
 	var sites []*yaml.Node
-	stack := []placed{{n: top, level: sourceindex.Level(top)}}
+	stack := []placed{{n: top, level: sourcetreestats.Level(top)}}
 	// The walk asks ctx through the measure alone: each node it takes was
 	// measured first, and once cancelled the measure answers at once.
 	for len(stack) > 0 {
 		at := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		passed := false
-		eachChild(at.n, func(c *yaml.Node, _ string, held bool) {
-			if c == nil || at.level+measure.Of(ctx, c) <= limit {
+		eachChild(at.n, func(node *yaml.Node, _ string, held bool) {
+			if node == nil || at.level+measure.Of(ctx, node) <= limit {
 				return
 			}
 			passed = true
@@ -95,9 +95,9 @@ func deepSites(ctx context.Context, root *yaml.Node, limit int) []*yaml.Node {
 			case !held:
 				sites = append(sites, at.n)
 			case at.level == limit:
-				sites = append(sites, c)
+				sites = append(sites, node)
 			default:
-				stack = append(stack, placed{n: c, level: at.level + sourceindex.Level(c)})
+				stack = append(stack, placed{n: node, level: at.level + sourcetreestats.Level(node)})
 			}
 		})
 		if !passed {

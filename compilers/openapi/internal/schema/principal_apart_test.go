@@ -34,8 +34,8 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 		td := typeByName(doc, name)
 		require.NotNil(t, td, name)
 		out := map[string]string{}
-		for key, e := range td.Common().Unmodeled {
-			out[key] = string(e.Value)
+		for key, unmodeledEntry := range td.Common().Unmodeled {
+			out[key] = string(unmodeledEntry.Value)
 		}
 		return out
 	}
@@ -53,7 +53,7 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 	list := held("List")
 	assert.JSONEq(t, `{"type":["string","boolean"],"format":"int64","minimum":1,"x-k":1}`, list["openapi:allOf/0"])
 	assert.NotContains(t, list, "openapi:minimum", "the union keeps none beside the whole entry")
-	variant := doc.Types["t/anon/components/schemas/List/type/0"]
+	variant := doc.Types["type/anonymous/components/schemas/List/type/0"]
 	require.NotNil(t, variant)
 	assert.NotContains(t, variant.Common().Unmodeled, "openapi:minimum", "nor does the text variant")
 	docs := typeByName(doc, "Docs")

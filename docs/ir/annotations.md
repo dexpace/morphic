@@ -24,8 +24,8 @@ type Deprecation struct {
 }
 
 type EntityRef struct {          // one entity by its ID: exactly one field is set
-    Type TypeID; Operation OpID; Channel ChannelID; Message MessageID; Auth AuthID
-    Service ServiceID; Group GroupID; Property PropID; Param ParamID; Member EnumMemberID
+    Type TypeID; Operation OperationID; Channel ChannelID; Message MessageID; Auth AuthID
+    Service ServiceID; Group GroupID; Property PropertyID; Param ParameterID; Member EnumMemberID
     Server ServerID
 }
 // A scheduled removal is two fields because a version and a date are two facts, not two
@@ -40,20 +40,20 @@ type Example struct {
     Name        string
     Summary     string
     Description string
-    Value       *Value        // single-value examples (schemas, properties, parameters);
-                              // for message examples: the payload
-    Headers     *Value        // message examples: the correlated header values (AsyncAPI message
-                              // examples are header+payload PAIRS — never split them)
+    Value       *Value           // single-value examples (schemas, properties, parameters);
+                                 // for message examples: the payload
+    Headers     *Value           // message examples: the correlated header values (AsyncAPI message
+                                 // examples are header+payload PAIRS — never split them)
     Input       *ScenarioInput // operation scenarios: paired input ↔ output/error;
-                              // nil = not an operation scenario
-    Output      *Value        // (Smithy @examples, TypeSpec @opExample parameters/returnType)
-    Error       *ErrorExample // the scenario ends in this error instead of Output
+                                 // nil = not an operation scenario
+    Output      *Value           // (Smithy @examples, TypeSpec @opExample parameters/returnType)
+    Error       *ErrorExample    // the scenario ends in this error instead of Output
     ExternalURL string
     Unmodeled   Unmodeled
 }
 type ScenarioInput struct {
-    Params map[ParamID]Value  // each parameter's value, by the ID of a parameter of the operation
-    Body   *Value             // the value of the request content; nil = the scenario sends none
+    Params map[ParameterID]Value // each parameter's value, by the ID of a parameter of the operation
+    Body   *Value                // the value of the request content; nil = the scenario sends none
 }
 type ErrorExample struct { Type TypeRef; Content Value }
 // Field legality is contextual, and `irverify` holds it (`ir/example-arm-misplaced`): Value/Headers
@@ -68,10 +68,10 @@ binding, a path, query or header parameter alike, and `Body` is the value of the
 the parameters state the body, so a `Body` beside them would state part of it twice
 (`ir/input-body-twice`), and a `Body` on an operation that sends no request has no content to be the
 value of (`ir/input-body-absent`). A nil `Input` is no operation scenario; an empty one sends
-nothing. The input is keyed by `ParamID`, not by a parameter's source name, because a parameter and
-a body member can share a name; and it is a struct rather than an object `Value`, whose field names
-would hide an ID where no reference check finds it
-([IDs as references](./identity.md#ids-as-references)).
+nothing. The input is keyed by `ParameterID`, not by a parameter's source name, because a parameter
+and a body member can share a name; and it is a struct rather than an object `Value`, whose field
+names would hide an ID where no reference check finds it ([IDs as
+references](./identity.md#ids-as-references)).
 
 ## Replacements
 

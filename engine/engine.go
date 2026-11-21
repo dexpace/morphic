@@ -151,7 +151,7 @@ type config struct {
 // a test or an embedder composing a set of its own. The list is copied.
 func WithCompilers(cs ...compilers.Compiler) Option {
 	cs = slices.Clone(cs)
-	return func(c *config) { c.compilers = cs }
+	return func(configValue *config) { configValue.compilers = cs }
 }
 
 // WithPasses runs ps, in order, in place of the default passes. An embedder
@@ -160,7 +160,7 @@ func WithCompilers(cs ...compilers.Compiler) Option {
 // its own. The list is copied, and an empty one runs no pass.
 func WithPasses(ps ...pass.Pass) Option {
 	ps = slices.Clone(ps)
-	return func(c *config) { c.passes = ps }
+	return func(configValue *config) { configValue.passes = ps }
 }
 
 // New builds an Engine registering every built-in compiler (Compilers) and
@@ -185,8 +185,8 @@ func New(opts ...Option) (*Engine, error) {
 	}
 
 	reg := compilers.NewRegistry()
-	for i, c := range cfg.compilers {
-		if err := reg.Register(c); err != nil {
+	for i, compiler := range cfg.compilers {
+		if err := reg.Register(compiler); err != nil {
 			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
@@ -214,7 +214,7 @@ func New(opts ...Option) (*Engine, error) {
 // the ways (compilers.ErrContract, pass.ErrContract). Everything wrong with the
 // spec is a diagnostic. Calls may overlap; each owns the document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
-	p, err := e.prepare(opts)
+	plan, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	return e.runHeld(ctx, compilers.Source{Path: specPath, Data: data}, opts, p)
+	return e.runHeld(ctx, compilers.Source{Path: specPath, Data: data}, opts, plan)
 }
 
 // RunSpec executes Run's pipeline over a spec held in memory, such as an
@@ -239,31 +239,31 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 // Source.Parsed is not read, and the bytes must not change during the run. It
 // shares Run's other contracts.
 func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOptions) (*Result, error) {
-	p, err := e.prepare(opts)
+	plan, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
 	if spec.Path == "" {
 		return nil, errors.New("engine: the spec has no Path, which its references are read against")
 	}
-	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, p)
+	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, plan)
 }
 
-// runHeld runs the pipeline over spec, whose bytes it holds, located where
-// its Path lies (Engine.located), and judges the Result at p's threshold. A
+// runHeld runs the pipeline over spec, whose bytes it holds, located where its
+// Path lies (Engine.located), and judges the Result at planValue's threshold. A
 // reference or a setting naming spec.Path is served those bytes, as
 // reader.Memory names a document, so the run reads one spec even where a
 // compiler asks for it again. Every other document is read from disk.
-func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
+func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, planValue plan) (*Result, error) {
 	spec, err := e.located(spec)
 	if err != nil {
 		return nil, err
 	}
-	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec), Under: e.under}, p)
+	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec), Under: e.under}, planValue)
 	if err != nil {
 		return nil, err
 	}
-	return p.judge(res)
+	return planValue.judge(res)
 }
 
 // located returns spec with its Location set where reader.SpecLocation
@@ -301,7 +301,7 @@ func specMemory(spec compilers.Source) *reader.Memory {
 // An empty list and two sources naming one document are Go errors: the run is
 // misconfigured. It shares Run's other contracts.
 func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opts RunOptions) (*Result, error) {
-	p, err := e.prepare(opts)
+	plan, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -313,11 +313,11 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 		return nil, fmt.Errorf("engine: %w", err)
 	}
 	spec := compilers.Source{Path: sources[0].Path, Data: sources[0].Data}
-	res, err := e.compileCached(ctx, spec, opts, docs, p)
+	res, err := e.compileCached(ctx, spec, opts, docs, plan)
 	if err != nil {
 		return nil, err
 	}
-	return p.judge(res)
+	return plan.judge(res)
 }
 
 // RunDocument runs the passes not named in opts.DisablePasses over doc, a
@@ -331,7 +331,7 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 // indexing none of its Sources, one breaking the IR's invariants under
 // opts.Verify, and compiler options.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
-	p, err := e.prepare(opts)
+	plan, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -352,20 +352,20 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	}
 	// Its findings join the Result as they are, and no compiler made them, so
 	// they are held to the table here, as a compile's and a pass's are.
-	if d, outside := ir.FirstOutsideTable(doc.Diagnostics, len(doc.Sources)); outside {
+	if diagnostic, outside := ir.FirstOutsideTable(doc.Diagnostics, len(doc.Sources)); outside {
 		return nil, fmt.Errorf("engine: document finding %s indexes source %d of %d",
-			d.Code, d.Provenance.Source, len(doc.Sources))
+			diagnostic.Code, diagnostic.Provenance.Source, len(doc.Sources))
 	}
 	// A cancelled run starts no step, and verifying the input, which reads no
 	// context, is the first.
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("engine: stop before the passes: %w", err)
 	}
-	sum, err := p.hold("input document", nil, doc)
+	sum, err := plan.hold("input document", nil, doc)
 	if err != nil {
 		return nil, err
 	}
-	out, found, err := p.runPasses(ctx, doc, sum)
+	out, found, err := plan.runPasses(ctx, doc, sum)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +373,7 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	// the document it is handed; a copy of the list keeps the Result from sharing
 	// the caller's slice.
 	out = withFindings(out, ir.MergeDiagnostics(slices.Clone(doc.Diagnostics), found))
-	return p.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
+	return plan.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
 }
 
 // plan is what a run needs once its options are checked: the passes it runs,
@@ -418,17 +418,17 @@ func (e *Engine) prepare(opts RunOptions) (plan, error) {
 	if err != nil {
 		return plan{}, fmt.Errorf("engine: %w", err)
 	}
-	p := plan{passes: passes, rules: rules, failOn: failOn}
+	planValue := plan{passes: passes, rules: rules, failOn: failOn}
 	if opts.Verify {
-		p.verify = e.verifier
+		planValue.verify = e.verifier
 	}
-	return p, nil
+	return planValue, nil
 }
 
 // compile runs the pipeline over source: detect, compile, then passes, each
 // compiler configured by cfg. The Result it returns is not yet judged.
 func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compilers.Configuration,
-	p plan,
+	planValue plan,
 ) (*Result, error) {
 	det, ok, err := e.registry.Detect(ctx, source, cfg)
 	if err != nil {
@@ -439,7 +439,7 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 		// Detection is handed the one source, which is the whole table its
 		// findings and the engine's own can index.
 		table := []ir.SourceInfo{{Path: source.Path}}
-		if err := p.holdFindings(fmt.Sprintf("detect %q", source.Path), compilers.ErrContract,
+		if err := planValue.holdFindings(fmt.Sprintf("detect %q", source.Path), compilers.ErrContract,
 			det.Declined, table); err != nil {
 			return nil, err
 		}
@@ -455,7 +455,7 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 	stage := fmt.Sprintf("compile %q", source.Path)
 	doc, compiled := out.Document, out.Diagnostics
 	if doc == nil {
-		if err := p.holdFindings(stage, compilers.ErrContract, compiled, out.Sources); err != nil {
+		if err := planValue.holdFindings(stage, compilers.ErrContract, compiled, out.Sources); err != nil {
 			return nil, err
 		}
 		return &Result{Diagnostics: compiled, Format: format, Sources: out.Sources}, nil
@@ -463,11 +463,11 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 	// A verified run holds the document to the invariants before any pass reads
 	// it, and every finding of the compile's with it: those the compiler
 	// returned beside the document are not on it yet.
-	sum, err := p.hold(stage, compilers.ErrContract, doc)
+	sum, err := planValue.hold(stage, compilers.ErrContract, doc)
 	if err != nil {
 		return nil, err
 	}
-	if err := p.holdFindings(stage, compilers.ErrContract, compiled, doc.Sources); err != nil {
+	if err := planValue.holdFindings(stage, compilers.ErrContract, compiled, doc.Sources); err != nil {
 		return nil, err
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller
@@ -477,7 +477,7 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 	// passes' contract leaves Document.Diagnostics to the engine: a transform
 	// that builds a fresh document cannot lose what the compiler stored on the
 	// old one.
-	doc, found, err := p.runPasses(ctx, doc, sum)
+	doc, found, err := planValue.runPasses(ctx, doc, sum)
 	if err != nil {
 		return nil, err
 	}

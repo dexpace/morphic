@@ -27,8 +27,8 @@ const falseSchema = "openapi/false-schema"
 // pointersOf returns the pointers of diags, sorted.
 func pointersOf(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -83,9 +83,9 @@ func TestCompile_AValueWhereASchemaBelongsThatIsNoMappingIsNoSchema(t *testing.T
 
 			assert.Empty(t, byCode(diags, falseSchema), "the document writes no false: %+v", diags)
 			var errs []ir.Diagnostic
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					errs = append(errs, d)
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					errs = append(errs, diagnostic)
 				}
 			}
 			require.Len(t, errs, 1, "%+v", diags)
@@ -148,10 +148,10 @@ func TestCompile_ABooleanWrittenAsAStringIsReadAsTheFieldLeftOut(t *testing.T) {
 			doc, diags := compileTwins(t, strings.ReplaceAll(boolSites, "%", written), strings.ReplaceAll(boolSites, "%", "~"))
 
 			var errs []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					assert.Equal(t, typeMismatch, d.Code)
-					errs = append(errs, string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					assert.Equal(t, typeMismatch, diagnostic.Code)
+					errs = append(errs, string(diagnostic.Provenance.Pointer))
 				}
 			}
 			slices.Sort(errs)
@@ -191,16 +191,16 @@ func TestCompile_ABooleanWrittenWithAValueOf30IsReadAsLeftOut(t *testing.T) {
 		"/paths/~1a/get/parameters/1/deprecated",
 		"/paths/~1a/get/parameters/1/required",
 	}, pointersOf(diags))
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
 	}
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 2)
-	for _, p := range ops[0].Params {
-		assert.False(t, p.Required, "%s is not required: the field is left out", p.Name.Source)
-		assert.False(t, p.Type.Nullable, "%s is not nullable", p.Name.Source)
-		assert.Nil(t, p.Deprecation, "%s carries no deprecation", p.Name.Source)
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 2)
+	for _, parameter := range operations[0].Params {
+		assert.False(t, parameter.Required, "%s is not required: the field is left out", parameter.Name.Source)
+		assert.False(t, parameter.Type.Nullable, "%s is not nullable", parameter.Name.Source)
+		assert.Nil(t, parameter.Deprecation, "%s carries no deprecation", parameter.Name.Source)
 	}
 }
 
@@ -240,19 +240,19 @@ func TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut(t *test
 	require.NotNil(t, twinDoc)
 	assert.Equal(t, jsonOf(t, twinDoc), jsonOf(t, doc), "each tagged field reads as left out: name, version, auth, the operation's name")
 	got := map[string]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			assert.Equal(t, typeMismatch, d.Code, "%+v", d)
-			got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			assert.Equal(t, typeMismatch, diagnostic.Code, "%+v", diagnostic)
+			got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 		}
 	}
 	for _, pointer := range []string{
 		"/info/title", "/info/version", "/info/summary", "/security", "/paths/~1b/get/operationId",
 		"/paths/~1b/get/tags", "/paths/~1b/get/parameters/0/$ref",
 	} {
-		msg, ok := got[pointer]
+		message, ok := got[pointer]
 		assert.True(t, ok, "no error at %s: %+v", pointer, diags)
-		assert.Contains(t, msg, "outside YAML 1.2's JSON schema ruleset, to which OpenAPI 3.1 limits tags (Format)", pointer)
+		assert.Contains(t, message, "outside YAML 1.2's JSON schema ruleset, to which OpenAPI 3.1 limits tags (Format)", pointer)
 	}
 	assert.Contains(t, got["/info/title"], `it is tagged "!local"`)
 	assert.Contains(t, got["/info/summary"], `it is tagged "!!binary"`)
@@ -309,7 +309,7 @@ func TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten(t *testing.T) {
 	a, ok := typeByName(doc, "A").(*ir.Scalar)
 	require.True(t, ok, "A reads the shared node as a schema: it was not turned")
 	require.NotNil(t, a.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), a.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), a.Base.Target)
 	require.NotNil(t, a.Constraints)
 	require.NotNil(t, a.Constraints.MaxLength)
 	assert.EqualValues(t, 3, *a.Constraints.MaxLength)
@@ -331,10 +331,10 @@ func TestCompile_AValueAMergeBringsToAPlaceAcceptingItStaysAsWritten(t *testing.
 
 	require.NotNil(t, doc)
 	assert.Len(t, byCode(diags, typeMismatch), 1, "the schema refuses required: true: %+v", diags)
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 1)
-	assert.True(t, ops[0].Params[0].Required, "the parameter accepts what the merge brings it")
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 1)
+	assert.True(t, operations[0].Params[0].Required, "the parameter accepts what the merge brings it")
 }
 
 // TestCompile_ACycleFixtureWritingASharedNodeAsSchemaAndPropertiesKeepsItsCycle
@@ -369,13 +369,13 @@ func TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs(t *testing.T) {
 	require.NotNil(t, inlineDoc)
 	require.NotNil(t, aliasedDoc)
 	for name, doc := range map[string]*ir.Document{"inline": inlineDoc, "aliased": aliasedDoc} {
-		ops := allOperations(doc)
-		require.Len(t, ops, 1, name)
-		require.Len(t, ops[0].Params, 1, name)
-		assert.False(t, ops[0].Params[0].Required, "%s: q is not required", name)
-		require.NotEmpty(t, ops[0].Bindings.HTTP, name)
-		require.Len(t, ops[0].Bindings.HTTP[0].ParamBindings, 1, name)
-		assert.Nil(t, ops[0].Bindings.HTTP[0].ParamBindings[0].Explode, "%s: its binding states no explode", name)
+		operations := allOperations(doc)
+		require.Len(t, operations, 1, name)
+		require.Len(t, operations[0].Params, 1, name)
+		assert.False(t, operations[0].Params[0].Required, "%s: q is not required", name)
+		require.NotEmpty(t, operations[0].Bindings.HTTP, name)
+		require.Len(t, operations[0].Bindings.HTTP[0].ParamBindings, 1, name)
+		assert.Nil(t, operations[0].Bindings.HTTP[0].ParamBindings[0].Explode, "%s: its binding states no explode", name)
 	}
 	assert.Equal(t, []string{"/paths/~1a/get/parameters/0/explode", "/paths/~1a/get/parameters/0/required"}, pointersOf(inlineDiags))
 	assert.Equal(t, pointersOf(inlineDiags), pointersOf(aliasedDiags),
@@ -410,11 +410,11 @@ func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T
 
 			require.NotNil(t, doc)
 			assert.Equal(t, []string{row.at}, pointersOf(diags), "%+v", diags)
-			ops := allOperations(doc)
-			require.Len(t, ops, 1)
-			require.Len(t, ops[0].Params, 1)
-			assert.False(t, ops[0].Params[0].Required, "required is read as left out")
-			assert.True(t, containsJSON(t, doc, `"str":"yes"`), "the value renders what the source wrote")
+			operations := allOperations(doc)
+			require.Len(t, operations, 1)
+			require.Len(t, operations[0].Params, 1)
+			assert.False(t, operations[0].Params[0].Required, "required is read as left out")
+			assert.True(t, containsJSON(t, doc, `"string":"yes"`), "the value renders what the source wrote")
 		})
 	}
 }
@@ -432,7 +432,7 @@ func TestCompile_AMappingAValueSharesRendersWhatItsRefusedMemberWrote(t *testing
 
 	require.NotNil(t, doc)
 	require.Len(t, byCode(diags, typeMismatch), 1, "%+v", diags)
-	assert.True(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"string","str":"hello"}}`),
+	assert.True(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"string","string":"hello"}}`),
 		"the example renders what was written")
 	assert.False(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"null"}}`),
 		"and never the null the schema reads there")
@@ -479,7 +479,7 @@ func TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect(t *test
 				require.NotNil(t, doc, "%+v", diags)
 				require.NotNil(t, named, "%+v", namedDiags)
 				assert.Empty(t, cmp.Diff(strippedTree(t, doc), strippedTree(t, named)))
-				namedDiags = slices.DeleteFunc(namedDiags, func(d ir.Diagnostic) bool { return d.Provenance.Pointer == "/jsonSchemaDialect" })
+				namedDiags = slices.DeleteFunc(namedDiags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Pointer == "/jsonSchemaDialect" })
 				assert.Empty(t, cmp.Diff(diags, namedDiags))
 			})
 		}
@@ -502,7 +502,7 @@ func TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect(t *test
 			require.NotNil(t, doc, "%+v", diags)
 			assert.True(t, containsJSON(t, doc, `"pattern":"yes"`), "the pattern a schema accepts is kept")
 			assert.True(t, containsJSON(t, doc, `"summary":"yes"`), "and so is the title")
-			errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Provenance.Pointer == "/jsonSchemaDialect" })
+			errs := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Pointer == "/jsonSchemaDialect" })
 			require.Len(t, errs, 1, "%+v", diags)
 			assert.Equal(t, "/paths/~1a/get/parameters/0/required", string(errs[0].Provenance.Pointer))
 			assert.Equal(t, ir.SeverityError, errs[0].Severity)

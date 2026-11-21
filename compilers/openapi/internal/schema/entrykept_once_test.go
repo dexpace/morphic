@@ -24,20 +24,21 @@ type keptOnceCase struct {
 }
 
 // TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone pins a
-// keyword an entry kept whole for a closure writes alike with another entry: the
-// entry kept whole holds its own, and the other entry's is kept at its keyword,
-// not at the position, in every order of the three entries. A vendor extension
-// and a validation-only keyword fold; readOnly is kept as each voice's residue.
+// keyword an entry kept whole for a closure writes alike with another entry:
+// the entry kept whole holds its own, and the other entry's is kept at its
+// keyword, not at the position, in every order of the three entries. A vendor
+// extension and a validation-only keyword fold; readOnly is kept as each folded
+// branch's residue.
 func TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/Str'}"
-	for _, c := range []keptOnceCase{
+	for _, keptOnceCaseValue := range []keptOnceCase{
 		{"{additionalProperties: false, x-a: 1}", "{x-a: 1}", "openapi:x-a"},
 		{"{additionalProperties: false, not: {required: [z]}}", "{not: {required: [z]}}", "openapi:not"},
 		{"{additionalProperties: false, readOnly: true}", "{readOnly: true}", "openapi:readOnly"},
 	} {
 		for _, perm := range permutations(3) {
-			written := []string{ref, c.whole, c.apart}
+			written := []string{ref, keptOnceCaseValue.whole, keptOnceCaseValue.apart}
 			order := []string{written[perm[0]], written[perm[1]], written[perm[2]]}
 			name := strings.Join(order, ", ")
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Str: {type: string}\n"+
@@ -45,10 +46,10 @@ func TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone(t *test
 			openapitest.RequireNoErrorDiags(t, diags)
 			at := "/components/schemas/S/allOf/"
 			kept := typeByName(doc, "S").Common().Unmodeled
-			whole, apart := indexOf(order, c.whole), indexOf(order, c.apart)
-			assert.Equal(t, []string{"openapi:allOf/" + whole, c.key}, unmodeledKeys(kept), name)
-			assert.Equal(t, jsontext.Pointer(at+apart+"/"+strings.TrimPrefix(c.key, "openapi:")),
-				kept[c.key].Provenance.Pointer, name)
+			whole, apart := indexOf(order, keptOnceCaseValue.whole), indexOf(order, keptOnceCaseValue.apart)
+			assert.Equal(t, []string{"openapi:allOf/" + whole, keptOnceCaseValue.key}, unmodeledKeys(kept), name)
+			assert.Equal(t, jsontext.Pointer(at+apart+"/"+strings.TrimPrefix(keptOnceCaseValue.key, "openapi:")),
+				kept[keptOnceCaseValue.key].Provenance.Pointer, name)
 		}
 	}
 }
@@ -84,15 +85,15 @@ components:
     P: {type: object, properties: {a: `+schema+`}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "P", "a")
-	assert.Equal(t, []string{"openapi:allOf/1", "openapi:x-a"}, unmodeledKeys(p.Unmodeled))
-	assert.Equal(t, jsontext.Pointer("/components/schemas/P/properties/a/allOf/2/x-a"), p.Unmodeled["openapi:x-a"].Provenance.Pointer)
-	q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	property := propertyOf(t, doc, "P", "a")
+	assert.Equal(t, []string{"openapi:allOf/1", "openapi:x-a"}, unmodeledKeys(property.Unmodeled))
+	assert.Equal(t, jsontext.Pointer("/components/schemas/P/properties/a/allOf/2/x-a"), property.Unmodeled["openapi:x-a"].Provenance.Pointer)
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:schema/allOf/1", "openapi:schema/readOnly", "openapi:schema/x-a"}, unmodeledKeys(q.Unmodeled))
+	assert.Equal(t, []string{"openapi:schema/allOf/1", "openapi:schema/readOnly", "openapi:schema/x-a"}, unmodeledKeys(parameter.Unmodeled))
 	for _, key := range []string{"openapi:schema/readOnly", "openapi:schema/x-a"} {
 		assert.Equal(t, jsontext.Pointer("/paths/~1p/get/parameters/0/schema/allOf/2/"+strings.TrimPrefix(key, "openapi:schema/")),
-			q.Unmodeled[key].Provenance.Pointer, key)
+			parameter.Unmodeled[key].Provenance.Pointer, key)
 	}
 }
 
@@ -133,7 +134,7 @@ var keptOnceKeys = []string{"x-a", "not", "readOnly"}
 // member an entry writes to one record: inside its entry where that is kept
 // whole, else at its keyword where no other entry kept apart writes it, else
 // at the position, but readOnly, a residue keyword, at the nearest writer's
-// (recordVoicedResidue).
+// (recordFoldedEntryResidue).
 func TestEntryKeptOnce_EveryKeywordOfAGridIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	var schemas strings.Builder

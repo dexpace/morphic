@@ -51,9 +51,9 @@ func TestTitleNames_DisabledNamesByPosition(t *testing.T) {
 // variants' where it is a union.
 func typeNames(td ir.TypeDef) []ir.Naming {
 	names := []ir.Naming{td.Common().Name}
-	if u, ok := td.(*ir.Union); ok {
-		for _, v := range u.Variants {
-			names = append(names, v.Name)
+	if union, ok := td.(*ir.Union); ok {
+		for _, variant := range union.Variants {
+			names = append(names, variant.Name)
 		}
 	}
 	return names

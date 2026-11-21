@@ -21,13 +21,13 @@ func TestContext_LowersWhatTheLoadPhaseRead(t *testing.T) {
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
 		"components: {schemas: {A: {type: string}}}\n"
 
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByPathPrefix})
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByPathPrefix})
 
-	require.NotNil(t, c.Doc)
-	assert.Equal(t, "3.1.0", c.Doc.GetOpenAPI())
-	assert.Equal(t, "spec.yaml", c.Sources()[0].Path)
-	assert.Equal(t, 0, c.SrcIndex)
-	assert.True(t, c.DeclaresSchema("A"))
-	assert.NotNil(t, c.Bindings(), "the load phase bound the source")
-	assert.Equal(t, service.GroupByPathPrefix, c.Grouping)
+	require.NotNil(t, serviceContext.Doc)
+	assert.Equal(t, "3.1.0", serviceContext.Doc.GetOpenAPI())
+	assert.Equal(t, "spec.yaml", serviceContext.Sources()[0].Path)
+	assert.Equal(t, 0, serviceContext.SrcIndex)
+	assert.True(t, serviceContext.DeclaresSchema("A"))
+	assert.NotNil(t, serviceContext.Bindings(), "the load phase bound the source")
+	assert.Equal(t, service.GroupByPathPrefix, serviceContext.Grouping)
 }

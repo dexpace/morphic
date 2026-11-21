@@ -30,7 +30,7 @@ const (
 
 // The case oracles, in the order CheckCase applies them: the first two compare
 // a case with a neighbour, the third holds it to the instances it writes
-// (Document says which).
+// (CaseDocument says which).
 const (
 	// OracleSpelling holds a case to the partner spelling it must equal.
 	OracleSpelling Oracle = "spelling"
@@ -86,11 +86,11 @@ func (o Oracle) finds() (Outcome, bool) {
 	}
 }
 
-// idle returns why o, a case oracle, asks a case nothing when the case's
+// idle returns why oracle, a case oracle, asks a case nothing when the case's
 // document gives it nothing to compare, and "" for an oracle that is none. A
 // case oracle CheckCase holds no entry for declines for it.
-func idle(o Oracle) Decline {
-	switch o {
+func idle(oracle Oracle) Decline {
+	switch oracle {
 	case OracleSpelling:
 		return DeclineNoPartner
 	case OraclePresence:
@@ -205,25 +205,26 @@ func (v Verdict) Asked() bool { return v.Declined == "" }
 // Found reports whether the oracle asked and found something.
 func (v Verdict) Found() bool { return v.Asked() && v.Outcome != OutcomeOK }
 
-// passed is o's verdict on a spec it asked and found nothing in.
-func passed(o Oracle) Verdict { return Verdict{Oracle: o, Outcome: OutcomeOK} }
+// passed is oracle's verdict on a spec it asked and found nothing in.
+func passed(oracle Oracle) Verdict { return Verdict{Oracle: oracle, Outcome: OutcomeOK} }
 
-// found is o's verdict on a spec it found what detail describes in. A detail
-// is required: a finding nobody can read is no finding.
-func found(o Oracle, detail string) Verdict {
-	outcome, ok := o.finds()
+// found is oracle's verdict on a spec it found what detail describes in. A
+// detail is required: a finding nobody can read is no finding.
+func found(oracle Oracle, detail string) Verdict {
+	outcome, ok := oracle.finds()
 	if !ok || detail == "" {
-		panic(fmt.Sprintf("harness: finding %q by %q", detail, o))
+		panic(fmt.Sprintf("harness: finding %q by %q", detail, oracle))
 	}
-	return Verdict{Oracle: o, Outcome: outcome, Detail: detail}
+	return Verdict{Oracle: oracle, Outcome: outcome, Detail: detail}
 }
 
-// declined is o's verdict on a spec it asked nothing of, for the reason why.
-func declined(o Oracle, why Decline) Verdict {
+// declined is oracle's verdict on a spec it asked nothing of, for the reason
+// why.
+func declined(oracle Oracle, why Decline) Verdict {
 	if why == "" {
-		panic(fmt.Sprintf("harness: %q declined for no reason", o))
+		panic(fmt.Sprintf("harness: %q declined for no reason", oracle))
 	}
-	return Verdict{Oracle: o, Declined: why}
+	return Verdict{Oracle: oracle, Declined: why}
 }
 
 // judge is o's verdict from an oracle function reporting ok, or what it found.
@@ -253,29 +254,29 @@ func CaseSummary(results []Result) string { return summary(results, CaseOracles(
 // summary renders, for each of oracles in order, what Summary says of it.
 func summary(results []Result, oracles []Oracle) string {
 	tallies := make(map[Oracle]*tally, len(oracles))
-	for _, o := range oracles {
-		tallies[o] = &tally{declined: map[Decline]int{}}
+	for _, oracle := range oracles {
+		tallies[oracle] = &tally{declined: map[Decline]int{}}
 	}
-	for _, r := range results {
+	for _, result := range results {
 		answered := map[Oracle]Verdict{}
-		for _, v := range r.Verdicts {
-			answered[v.Oracle] = v
+		for _, verdict := range result.Verdicts {
+			answered[verdict.Oracle] = verdict
 		}
-		for _, o := range oracles {
-			count(tallies[o], answered[o])
+		for _, oracle := range oracles {
+			count(tallies[oracle], answered[oracle])
 		}
 	}
 
 	width := 0
-	for _, o := range oracles {
-		width = max(width, utf8.RuneCountInString(string(o)))
+	for _, oracle := range oracles {
+		width = max(width, utf8.RuneCountInString(string(oracle)))
 	}
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "%-*s %6s %6s %8s\n", width, "oracle", "asked", "found", "declined")
-	for _, o := range oracles {
-		t := tallies[o]
-		line := fmt.Sprintf("%-*s %6d %6d %8d", width, o, t.asked, t.found, total(t.declined))
-		if reasons := reasonsOf(t.declined); reasons != "" {
+	for _, oracle := range oracles {
+		tally := tallies[oracle]
+		line := fmt.Sprintf("%-*s %6d %6d %8d", width, oracle, tally.asked, tally.found, total(tally.declined))
+		if reasons := reasonsOf(tally.declined); reasons != "" {
 			line += "  " + reasons
 		}
 		_, _ = fmt.Fprintln(&b, line)
@@ -283,17 +284,18 @@ func summary(results []Result, oracles []Oracle) string {
 	return b.String()
 }
 
-// count adds v to t; a zero Verdict is an oracle the result has none from.
-func count(t *tally, v Verdict) {
+// count adds verdict to tallyValue; a zero Verdict is an oracle the result has
+// none from.
+func count(tallyValue *tally, verdict Verdict) {
 	switch {
-	case v.Oracle == "":
-		t.declined[DeclineNotReached]++
-	case !v.Asked():
-		t.declined[v.Declined]++
+	case verdict.Oracle == "":
+		tallyValue.declined[DeclineNotReached]++
+	case !verdict.Asked():
+		tallyValue.declined[verdict.Declined]++
 	default:
-		t.asked++
-		if v.Found() {
-			t.found++
+		tallyValue.asked++
+		if verdict.Found() {
+			tallyValue.found++
 		}
 	}
 }
@@ -314,8 +316,8 @@ func reasonsOf(byReason map[Decline]int) string {
 		return cmp.Or(cmp.Compare(byReason[b], byReason[a]), cmp.Compare(a, b))
 	})
 	parts := make([]string, len(reasons))
-	for i, r := range reasons {
-		parts[i] = fmt.Sprintf("%s %d", r, byReason[r])
+	for i, decline := range reasons {
+		parts[i] = fmt.Sprintf("%s %d", decline, byReason[decline])
 	}
 	return strings.Join(parts, ", ")
 }

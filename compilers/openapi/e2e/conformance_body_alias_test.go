@@ -23,9 +23,9 @@ import (
 func assertBodyAlias(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	assert.Empty(t, diags, "a body read through an alias draws no finding")
-	nextCursor := &ir.PropPath{Segments: []ir.PropID{componentProp("Page/properties/next_cursor")}}
+	nextCursor := &ir.PropertyPath{Segments: []ir.PropertyID{componentProperty("Page/properties/next_cursor")}}
 
-	pets := linkOp(t, doc, "listPets")
+	pets := linkOperation(t, doc, "listPets")
 	require.Len(t, pets.Responses, 1)
 	require.Len(t, pets.Responses[0].Links, 1, "the link is lowered, not kept verbatim")
 	link := pets.Responses[0].Links[0]
@@ -45,13 +45,13 @@ func assertBodyAlias(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.True(t, pets.Pagination.Inferred)
 	assert.Equal(t, nextCursor, pets.Pagination.NextCursor)
 
-	dogs := linkOp(t, doc, "listDogs")
-	cursor := ir.ParamID("param/openapi/paths/~1dogs/get/parameters/cursor/query")
+	dogs := linkOperation(t, doc, "listDogs")
+	cursor := ir.ParameterID("parameter/openapi/paths/~1dogs/get/parameters/cursor/query")
 	assert.Equal(t, &ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
 		InputCursor: &ir.InputPath{Param: &cursor},
-		Items:       &ir.PropPath{Segments: []ir.PropID{componentProp("Page/properties/result")}},
+		Items:       &ir.PropertyPath{Segments: []ir.PropertyID{componentProperty("Page/properties/result")}},
 		NextCursor:  nextCursor,
 	}, dogs.Pagination, "the stated pagination reads two aliases of the model")
 	assert.Equal(t, ir.Inferred("extension-promotion"), dogs.Provenance.Inferred)

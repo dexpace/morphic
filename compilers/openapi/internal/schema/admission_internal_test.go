@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
@@ -53,13 +53,13 @@ func (w *admissionReader) formerWhole(js *statement.Statement) admitted {
 		out = out.and(w.formerWhole(b))
 	}
 	choice := js.ChoiceKeywords()
-	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for _, branches := range [][]statement.Subschema{choice.OneOf, choice.AnyOf} {
 		if len(branches) == 0 {
 			continue
 		}
-		union := w.formerWhole(w.c.Statements().Sub(branches[0]))
+		union := w.formerWhole(w.c.Statements().Subschema(branches[0]))
 		for _, b := range branches[1:] {
-			union = union.or(w.formerWhole(w.c.Statements().Sub(b)))
+			union = union.or(w.formerWhole(w.c.Statements().Subschema(b)))
 		}
 		out = out.and(union)
 	}
@@ -105,29 +105,29 @@ func loweredOrNot(t *testing.T, src []byte) *Lowerer {
 }
 
 // statementsOfDocument calls visit with the statement of each schema the
-// root document of l writes, wherever it is written.
-func statementsOfDocument(l *Lowerer, visit func(at jsontext.Pointer, st *statement.Statement)) {
-	var walk func(n *yaml.Node, at jsontext.Pointer, depth int)
-	walk = func(n *yaml.Node, at jsontext.Pointer, depth int) {
-		if n == nil || depth > 512 {
+// root document of lowerer writes, wherever it is written.
+func statementsOfDocument(lowerer *Lowerer, visit func(at jsontext.Pointer, st *statement.Statement)) {
+	var walk func(node *yaml.Node, at jsontext.Pointer, depth int)
+	walk = func(node *yaml.Node, at jsontext.Pointer, depth int) {
+		if node == nil || depth > 512 {
 			return
 		}
-		if st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: at}); st.Held() {
+		if st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at}); st.Held() {
 			visit(at, st)
 		}
-		switch n.Kind {
+		switch node.Kind {
 		case yaml.MappingNode:
-			for i := 0; i+1 < len(n.Content); i += 2 {
-				walk(n.Content[i+1], at.AppendToken(n.Content[i].Value), depth+1)
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				walk(node.Content[i+1], at.AppendToken(node.Content[i].Value), depth+1)
 			}
 		case yaml.SequenceNode:
-			for i, c := range n.Content {
-				walk(c, at.AppendToken(strconv.Itoa(i)), depth+1)
+			for i, child := range node.Content {
+				walk(child, at.AppendToken(strconv.Itoa(i)), depth+1)
 			}
 		default:
 		}
 	}
-	walk(nodeview.DocumentRoot(l.Doc.GetCore().GetRootNode()), "", 0)
+	walk(nodeview.DocumentRoot(lowerer.Doc.GetCore().GetRootNode()), "", 0)
 }
 
 // TestAdmissionOf_AgreesWithAReadOfItsOwn holds what admissionOf remembers of
@@ -138,19 +138,19 @@ func TestAdmissionOf_AgreesWithAReadOfItsOwn(t *testing.T) {
 	t.Parallel()
 	compared := 0
 	for path, src := range specsUnder(t) {
-		l := loweredOrNot(t, src)
-		if l == nil {
+		lowerer := loweredOrNot(t, src)
+		if lowerer == nil {
 			continue
 		}
-		statementsOfDocument(l, func(at jsontext.Pointer, st *statement.Statement) {
-			r := admissionOf(l.Ctx, st)
-			former := newAdmissionReader(l.Ctx)
+		statementsOfDocument(lowerer, func(at jsontext.Pointer, st *statement.Statement) {
+			admission := admissionOf(lowerer.Ctx, st)
+			former := newAdmissionReader(lowerer.Ctx)
 			want := former.formerWhole(st)
-			if r.cut || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
+			if admission.cut || admission.reads > maxAdmissionReads || admission.members > maxAdmissionMembers || former.incomplete() {
 				return
 			}
 			compared++
-			assert.Equal(t, fmt.Sprint(want), fmt.Sprint(r.admitted), "%s#%s", path, at)
+			assert.Equal(t, fmt.Sprint(want), fmt.Sprint(admission.admitted), "%s#%s", path, at)
 		})
 	}
 	assert.Greater(t, compared, 1000, "the corpus reaches what it compares")
@@ -172,14 +172,14 @@ func TestAdmissionOf_ACycleReadsAlikeWhicheverStatementIsAskedFirst(t *testing.T
 		names = append(names, fmt.Sprintf("K%d", i))
 	}
 	readAll := func(first string) map[string]string {
-		l, _ := LoweredFor(t, spec)
+		lowerer, _ := LoweredFor(t, spec)
 		statementOf := func(name string) *statement.Statement {
-			return l.Ctx.Statements().Of(l.Doc.Components.Schemas.GetOrZero(name))
+			return lowerer.Ctx.Statements().Of(lowerer.Doc.Components.Schemas.GetOrZero(name))
 		}
-		admissionOf(l.Ctx, statementOf(first))
+		admissionOf(lowerer.Ctx, statementOf(first))
 		out := map[string]string{}
 		for _, name := range names {
-			out[name] = fmt.Sprint(*admissionOf(l.Ctx, statementOf(name)))
+			out[name] = fmt.Sprint(*admissionOf(lowerer.Ctx, statementOf(name)))
 		}
 		return out
 	}
@@ -210,14 +210,14 @@ func TestAdmissionOf_VisitsEachStatementAndEdgeOnce(t *testing.T) {
 		shape func(int) string
 	}{{"clique", clique}, {"chain", chain}} {
 		for _, n := range []int{16, 32, 64} {
-			l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", tc.shape(n)))
-			for _, js := range l.Doc.Components.Schemas.All() {
-				admissionOf(l.Ctx, l.Ctx.Statements().Of(js))
+			lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", tc.shape(n)))
+			for _, js := range lowerer.Doc.Components.Schemas.All() {
+				admissionOf(lowerer.Ctx, lowerer.Ctx.Statements().Of(js))
 			}
-			store := admissionStore(l.Ctx)
+			store := admissionStore(lowerer.Ctx)
 			edges := 0
 			for st := range store.read {
-				edges += len(conjunctsOf(l.Ctx, st))
+				edges += len(conjunctsOf(lowerer.Ctx, st))
 			}
 			assert.Equal(t, len(store.read), store.visits, "%s of %d: each statement once", tc.name, n)
 			assert.Equal(t, edges, store.edges, "%s of %d: each edge once", tc.name, n)
@@ -250,10 +250,10 @@ func TestAdmissionOf_MergesWhatGrowsWithTheDocument(t *testing.T) {
 	t.Parallel()
 	for _, comb := range []string{"allOf", "oneOf", "anyOf"} {
 		merged := func(n int) int {
-			l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", diamonds(comb, n)))
+			lowerer, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", diamonds(comb, n)))
 			require.Empty(t, diags)
-			admissionOf(l.Ctx, l.Ctx.Statements().Of(l.Doc.Components.Schemas.GetOrZero("D0")))
-			return admissionStore(l.Ctx).merged
+			admissionOf(lowerer.Ctx, lowerer.Ctx.Statements().Of(lowerer.Doc.Components.Schemas.GetOrZero("D0")))
+			return admissionStore(lowerer.Ctx).merged
 		}
 		at4, at8, at16 := merged(4), merged(8), merged(16)
 		assert.LessOrEqual(t, at16-at8, 5*(at8-at4)/2, "%s: merged %d, %d, %d at 4, 8, 16", comb, at4, at8, at16)
@@ -266,7 +266,7 @@ func TestAdmissionOf_MergesWhatGrowsWithTheDocument(t *testing.T) {
 // the nulls walk reads.
 func TestInstanceKinds_ReadsEachKindOfInstance(t *testing.T) {
 	t.Parallel()
-	for kind, want := range map[merge.Instance]kindSet{
+	for kind, want := range map[merge.JSONInstanceKind]kindSet{
 		merge.InstanceString: kindString, merge.InstanceInteger: kindInteger, merge.InstanceNumber: kindNumber,
 		merge.InstanceBoolean: kindBoolean, merge.InstanceArray: kindArray, merge.InstanceObject: kindObject,
 		merge.InstanceNull: 0,
@@ -293,19 +293,19 @@ func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
 	}
 	compared := 0
 	for path, src := range specs {
-		l := loweredOrNot(t, src)
-		if l == nil {
+		lowerer := loweredOrNot(t, src)
+		if lowerer == nil {
 			continue
 		}
-		statementsOfDocument(l, func(at jsontext.Pointer, st *statement.Statement) {
-			n := newNulls(l.Ctx)
-			n.variants = true
-			want := n.conjunct(st, nullSite{}).admits(l.Ctx)
-			if n.conjuncts.Exhausted() {
+		statementsOfDocument(lowerer, func(at jsontext.Pointer, st *statement.Statement) {
+			nulls := newNulls(lowerer.Ctx)
+			nulls.variants = true
+			want := nulls.conjunct(st, nullSite{}).admits(lowerer.Ctx)
+			if nulls.conjuncts.Exhausted() {
 				return
 			}
 			compared++
-			assert.Equal(t, want, !empty(l.Ctx, conjunctAtom{st: st}), "%s#%s", path, at)
+			assert.Equal(t, want, !empty(lowerer.Ctx, conjunctAtom{st: st}), "%s#%s", path, at)
 		})
 	}
 	assert.Greater(t, compared, 1000, "the corpus reaches what it compares")
@@ -319,12 +319,14 @@ func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
 // holder lacks, and a statement read elsewhere.
 func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    U: {type: object, anyOf: [{type: object}, {type: array}]}
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    U: {type: object, anyOf: [{type: object}, {type: array}]}
     O: {oneOf: [{type: string}]}
     N: {type: object, allOf: [{allOf: [{oneOf: [{anyOf: [{type: string}]}]}]}]}
     T: {prefixItems: [{type: string}]}
 `))
-	at := func(p string) bind.Position { return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(p)} }
+	at := func(p string) reftable.DocumentPointer {
+		return reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer(p)}
+	}
 	for _, tc := range []struct {
 		from    string
 		holders []string
@@ -341,18 +343,18 @@ func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
 		{"/components/schemas/U/oneOf/0", nil},
 		{"/components/schemas/U", nil},
 	} {
-		want := []*statement.Statement{l.Ctx.Statements().At(at(tc.from))}
+		want := []*statement.Statement{lowerer.Ctx.Statements().At(at(tc.from))}
 		for _, h := range tc.holders {
-			want = append(want, l.Ctx.Statements().At(at(h)))
+			want = append(want, lowerer.Ctx.Statements().At(at(h)))
 		}
-		got := variantHolders(l.Ctx, at(tc.from), want[0])
+		got := variantHolders(lowerer.Ctx, at(tc.from), want[0])
 		require.Len(t, got, len(want), tc.from)
 		for i := range want {
 			assert.Same(t, want[i], got[i], "%s: holder %d", tc.from, i)
 		}
 	}
-	other := l.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
-	assert.Len(t, variantHolders(l.Ctx, at("/components/schemas/U/anyOf/0"), other), 1,
+	other := lowerer.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
+	assert.Len(t, variantHolders(lowerer.Ctx, at("/components/schemas/U/anyOf/0"), other), 1,
 		"a statement read elsewhere is no branch of the union")
 }
 
@@ -366,7 +368,7 @@ func loweredKinds(t *testing.T, doc *ir.Document, id ir.TypeID) kindSet {
 			require.NotNil(t, td.Base, "%s is an alias", id)
 			id = td.Base.Target
 		case *ir.Primitive:
-			return map[ir.PrimKind]kindSet{ir.PrimString: kindString, ir.PrimAny: anyInstance}[td.Prim]
+			return map[ir.PrimitiveKind]kindSet{ir.PrimitiveString: kindString, ir.PrimitiveAny: anyInstance}[td.PrimitiveKind]
 		case *ir.List:
 			return kindArray
 		case *ir.Model:
@@ -410,14 +412,14 @@ func TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo(t *testing.T) {
 			}
 			schemas += "    " + name + ": {allOf: [" + a + ", " + b + "]}\n"
 		}
-		l, _ := LoweredWith(t, openapitest.ComponentSpecVer("3.1.0", schemas), lowering.Policy{})
-		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-		doc := l.Document(t)
-		for name, st := range l.Schemas() {
-			r := admissionOf(l.Ctx, st)
-			assert.Equal(t, r.kinds, loweredKinds(t, doc, ir.TypeID("t/openapi/components/schemas/"+name)), "%s swapped=%t", name, swap)
+		lowerer, _ := LoweredWith(t, openapitest.ComponentSpecVer("3.1.0", schemas), lowering.Policy{})
+		lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+		doc := lowerer.Document(t)
+		for name, st := range lowerer.Schemas() {
+			admission := admissionOf(lowerer.Ctx, st)
+			assert.Equal(t, admission.kinds, loweredKinds(t, doc, ir.TypeID("type/openapi/components/schemas/"+name)), "%s swapped=%t", name, swap)
 			if row, ok := rows[name]; ok {
-				assert.Equal(t, row.kinds, r.kinds, "%s swapped=%t", name, swap)
+				assert.Equal(t, row.kinds, admission.kinds, "%s swapped=%t", name, swap)
 			}
 		}
 	}
@@ -468,11 +470,11 @@ func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
 	for name, row := range rows {
 		schemas.WriteString("    " + name + ": " + row.schema + "\n")
 	}
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
 	for name, row := range rows {
-		st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
-		r := admissionOf(l.Ctx, st)
-		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
+		st := lowerer.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		admission := admissionOf(lowerer.Ctx, st)
+		assert.Equal(t, row.partial, admission.partial&admission.admits, "%s: %s", name, row.schema)
 	}
 }
 
@@ -502,9 +504,9 @@ func heldMembers(store *admissions) int {
 			held += len(set)
 		}
 	}
-	for _, r := range store.read {
-		count(r.admitted.values)
-		for _, set := range r.admitted.joined {
+	for _, admission := range store.read {
+		count(admission.admitted.values)
+		for _, set := range admission.admitted.joined {
 			count(set)
 		}
 	}
@@ -518,12 +520,12 @@ func heldMembers(store *admissions) int {
 func TestAdmissionOf_AUnionSharesTheSetsItJoins(t *testing.T) {
 	t.Parallel()
 	held := func(n int) int {
-		l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", fanout(n)))
+		lowerer, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", fanout(n)))
 		require.Empty(t, diags)
-		for name, st := range l.Schemas() {
-			require.True(t, admissionOf(l.Ctx, st).admitted.fixed, name)
+		for name, st := range lowerer.Schemas() {
+			require.True(t, admissionOf(lowerer.Ctx, st).admitted.fixed, name)
 		}
-		return heldMembers(admissionStore(l.Ctx))
+		return heldMembers(admissionStore(lowerer.Ctx))
 	}
 	at8, at16, at32 := held(8), held(16), held(32)
 	assert.LessOrEqual(t, at32-at16, 5*(at16-at8)/2, "held %d, %d, %d at 8, 16, 32", at8, at16, at32)
@@ -580,13 +582,13 @@ func TestAdmissionOf_AUnionHoldsFewSetsApart(t *testing.T) {
 		for j := range k {
 			fmt.Fprintf(&b, "    E%d: {enum: [a%d, b%d, c]}\n", j, j, j)
 		}
-		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
-		at := bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"}
-		union := admissionOf(l.Ctx, l.Ctx.Statements().At(at)).admitted
+		lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
+		at := reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/U"}
+		union := admissionOf(lowerer.Ctx, lowerer.Ctx.Statements().At(at)).admitted
 		assert.LessOrEqual(t, len(union.joined), maxJoinedSets, "a union of %d", k)
 		assert.Equal(t, 2*k+1, union.size(), "a union of %d holds each member once", k)
-		for _, r := range admissionStore(l.Ctx).read {
-			assert.LessOrEqual(t, len(r.admitted.joined), maxJoinedSets, "a union of %d", k)
+		for _, admission := range admissionStore(lowerer.Ctx).read {
+			assert.LessOrEqual(t, len(admission.admitted.joined), maxJoinedSets, "a union of %d", k)
 		}
 	}
 }

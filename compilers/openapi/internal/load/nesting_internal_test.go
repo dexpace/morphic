@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -54,12 +54,12 @@ func TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel(t *testing.T) {
 	require.NoError(t, err, "a document too deep is a spec problem, not a Go error")
 	assert.Nil(t, got, "nothing is built")
 	require.Len(t, diags, 1)
-	d := diags[0]
-	assert.Equal(t, diag.SourceTooDeep, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, 4, d.Provenance.Source)
+	diagnostic := diags[0]
+	assert.Equal(t, diag.SourceTooDeep, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Equal(t, 4, diagnostic.Provenance.Source)
 	want := "/components/schemas/A" + strings.Repeat("/items", within+1)
-	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer, "the first level past the bound")
+	assert.Equal(t, jsontext.Pointer(want), diagnostic.Provenance.Pointer, "the first level past the bound")
 }
 
 // nestedValue is n mappings, each holding the next under k, around a scalar.
@@ -71,7 +71,7 @@ func nestedValue(n int) string {
 // requires.
 func sourceDeepDiag(t *testing.T, diags []ir.Diagnostic) ir.Diagnostic {
 	t.Helper()
-	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.SourceTooDeep })
+	i := slices.IndexFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.SourceTooDeep })
 	require.GreaterOrEqual(t, i, 0, "diagnostics: %+v", diags)
 	require.Equal(t, 1, countErrorsAt(diags, diag.SourceTooDeep))
 	return diags[i]
@@ -89,9 +89,9 @@ func TestLoad_RefusesAnOverlayNestedPastTheBoundBeforeApplyingIt(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	d := sourceDeepDiag(t, diags)
-	assert.Equal(t, 1, d.Provenance.Source, "the overlay is the document past the bound")
-	assert.True(t, strings.HasPrefix(string(d.Provenance.Pointer), "/actions/0/update/x-deep/"), "at %s", d.Provenance.Pointer)
+	diagnostic := sourceDeepDiag(t, diags)
+	assert.Equal(t, 1, diagnostic.Provenance.Source, "the overlay is the document past the bound")
+	assert.True(t, strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/actions/0/update/x-deep/"), "at %s", diagnostic.Provenance.Pointer)
 }
 
 // TestLoad_RefusesANestingAnOverlayGrafted pins that the bound covers the tree
@@ -107,13 +107,13 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	d := sourceDeepDiag(t, diags)
-	assert.Equal(t, 1, d.Provenance.WrittenBy, "the overlay grafted what passes the bound")
+	diagnostic := sourceDeepDiag(t, diags)
+	assert.Equal(t, 1, diagnostic.Provenance.WrittenBy, "the overlay grafted what passes the bound")
 	// q is the eighth level and x-deep's value the ninth, so the first past the
 	// bound is MaxNesting-8 levels below that value.
 	want := "/components/schemas/A/properties/p/properties/q/x-deep" + strings.Repeat("/k", scan.MaxNesting-8)
-	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer)
-	assert.NotContains(t, d.Message, "once the overlay applies", "a refusal at a node the overlay grafted is placed at it")
+	assert.Equal(t, jsontext.Pointer(want), diagnostic.Provenance.Pointer)
+	assert.NotContains(t, diagnostic.Message, "once the overlay applies", "a refusal at a node the overlay grafted is placed at it")
 }
 
 // TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay pins where a
@@ -147,7 +147,7 @@ func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T)
 		overlayOptions("  - target: $..leaf\n    update:\n"+update.String()))
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.PointerAmplification })
+	i := slices.IndexFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.PointerAmplification })
 	require.GreaterOrEqual(t, i, 0, "the grafted tree is refused on its pointers: %v", diags)
 	assert.Equal(t, ir.Provenance{Source: 1}, diags[i].Provenance, "the overlay grafted what passes the bound")
 	assert.True(t, strings.HasSuffix(diags[i].Message, ", once the overlay applies"), diags[i].Message)
@@ -161,7 +161,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+itemsDeep(scan.MaxNesting)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -206,8 +206,8 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	diags := refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)}, false)
 
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	slices.Sort(codes)
 	assert.Equal(t, []string{diag.BudgetExceeded, diag.SourceTooDeep, diag.TaggedMapping}, codes)
@@ -229,7 +229,9 @@ func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
 		code     string
 	}{
 		"an index that stops early": {src: "a: 1\n", opts: Options{
-			buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index { return sourceindex.Build(ctx, root, 1) },
+			buildIndex: func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+				return sourcetreestats.Build(ctx, root, 1)
+			},
 		}, code: diag.SourceTooLarge},
 		"an alias scan that faults": {src: "a: &x [*x]\n", pointers: faulting, code: diag.CycleScanFailed},
 	} {

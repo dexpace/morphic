@@ -89,15 +89,15 @@ required, and each variant's parameters.
 
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
-it as it relaxes any member, with no anchor since it has no `PropID`, and anchors a member only
+it as it relaxes any member, with no anchor since it has no `PropertyID`, and anchors a member only
 where the model declaring it is rendered; another table holding it, a subtype's for an inherited
 member, links there. A model rendered as several tables anchors each member in the first of them, in
 `TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
-for each `PropID`. A member no table of its declaring model holds, as one of a base reached only in
-shapes that leave the member out while a subtype's table holds it, is anchored in the first table,
-in the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an anchor
-of its own for each shape it shows, a table coinciding shapes share carrying one for each of them,
-named through the page's ID-keyed resolution from its model and its shape, as identifiers are
+for each `PropertyID`. A member no table of its declaring model holds, as one of a base reached only
+in shapes that leave the member out while a subtype's table holds it, is anchored in the first
+table, in the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an
+anchor of its own for each shape it shows, a table coinciding shapes share carrying one for each of
+them, named through the page's ID-keyed resolution from its model and its shape, as identifiers are
 ([naming](refine/naming.md)), so it never takes a member's or another table's anchor, as a member
 named `create` beside a create table would; a shape's words are its key's, its lifecycles and its
 patch ([the declaration a shape takes](plan/types.md#the-declaration-a-shape-takes)). A switcher
@@ -294,10 +294,10 @@ a way to show one entity across API versions. Each is decided by data, never by 
   Windows device name, which no page's path may hold ([emit rules](emit/rules.md)), is told apart as
   a colliding one is, and a slug is held to the length cap of a name a path holds
   ([naming](refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
-- **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
+- **A total route plan.** Every `ServiceID`, `GroupID`, `OperationID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
   another's page an anchor there, every table of a model narrowing a union an anchor where the model
-  is rendered, and every `PropID` a model declares an anchor where that model is
+  is rendered, and every `PropertyID` a model declares an anchor where that model is
   rendered (above), save one no table holds, such as a write-only member of a model only responses
   reach, which is rendered nowhere, a decorator answering with its `Alias`'s. A `Property` no model
   declares, a header or a resource's identifier or state (`ResourceInfo`), is a row where its holder
@@ -489,12 +489,12 @@ member, operation and message:
   for, and always the body it sends, which 231 of the golden spec's operations, sending an optional
   body with no example on it, would otherwise lack. Its `Input` is a `ScenarioInput`, the shape a
   declared scenario's takes ([annotations](../ir/annotations.md#docs-deprecation-examples)): each
-  parameter's value under its `ParamID`, and the body's in `Body`, which keying by name could not
-  keep apart, since a parameter and a body member may share a name, as they do in 9 of the golden
-  spec's operations. On an operation binding a parameter into its body, whole or by property, those
-  parameters state the body, so the scenario holds their values as it holds any parameter's, reads
-  no body set and leaves `Body` nil, as a declared one does. The document never paired those values,
-  so the scenario is `Inferred` and labelled generated whatever values it takes, and
+  parameter's value under its `ParameterID`, and the body's in `Body`, which keying by name could
+  not keep apart, since a parameter and a body member may share a name, as they do in 9 of the
+  golden spec's operations. On an operation binding a parameter into its body, whole or by property,
+  those parameters state the body, so the scenario holds their values as it holds any parameter's,
+  reads no body set and leaves `Body` nil, as a declared one does. The document never paired those
+  values, so the scenario is `Inferred` and labelled generated whatever values it takes, and
   `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation declares a scenario.
 - **A message's, by its ID.** A message's ID opens with a kind prefix of its own
   ([IDs](../ir/identity.md#what-irverify-holds)), so its set is keyed by it as any entity's is: its
@@ -609,8 +609,8 @@ the API rightly.
   with one and the last element holds none; its `Terminator` as one frame's data, where it is set;
   and then the body ends, the mock never holding a stream open. An `Initial` message is no frame
   ([streams](plan/streams.md)). The elements are the content's declared examples, read through
-  `ContentExamples`: each item of a list value is a frame where `Element` is the `Elem` of the
-  content's list `Type`, a string value on a side with no `Element` is the body's text and is
+  `ContentExamples`: each item of a list value is a frame where `Element` is the `ElementType` of
+  the content's list `Type`, a string value on a side with no `Element` is the body's text and is
   written as it stands, since the schema describes the whole body (OpenAPI 3.2 §4.14.3), closed by a
   line feed under `json_lines` and a blank line under `sse` where it does not end with one, so a
   frame after it stays apart, and any other value `Element` admits is one frame. With none declared,
@@ -885,9 +885,9 @@ depends on it. What it needs is almost all IR and plan facts:
 | A confirmation before a destructive call | the `Destructive` hint, which no method implies |
 | Streamed output for a list | `OpPlan.Page` |
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
-| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all, and for a model narrowing a union, the `PropID`s its `TypePlan.Composed` entries hold |
+| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropertyID`, and each `TypePlan.Undeclared` name, typed as its catch-all, and for a model narrowing a union, the `PropertyID`s its `TypePlan.Composed` entries hold |
 | Flags that exclude or require each other | the branches of a request body's `Union`, or the entries of a body narrowing one |
-| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)), and for a body narrowing a union each `PropID` the `Redacted` of one of its `TypePlan.Composed` entries lists |
+| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)), and for a body narrowing a union each `PropertyID` the `Redacted` of one of its `TypePlan.Composed` entries lists |
 | A command's help naming its tier and what it means, and an `alpha` command run only with a flag acknowledging it | `OpPlan.Stability` ([stability](operations/stability.md)) |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
@@ -899,7 +899,7 @@ removed, so its lines and a code block's stay as written, since a description co
 the user's terminal. Command names, positional arguments, `@file` inputs and hidden commands are
 presentation, so they are [shaping hints](contract/shaping-hints.md) keyed by ID, `Rename` and the
 `Extra` members a CLI target defines. Flag constraints are derived at refine from the union's
-branches by `PropID`, never by a property's leaf name: a leaf name derives no conflict between
+branches by `PropertyID`, never by a property's leaf name: a leaf name derives no conflict between
 `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge into one flag. Flag
 names collide as identifiers do and are told apart by the same ID-keyed resolution
 ([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A

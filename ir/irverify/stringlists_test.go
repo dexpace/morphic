@@ -33,32 +33,32 @@ func operation(doc *ir.Document) *ir.Operation {
 // list sits on the type's own path.
 var heldLists = map[string]listFixture{
 	"TypeCommon.Namespace": {
-		set:  func(doc *ir.Document, s []string) { doc.Types["t/x/A"].Common().Namespace = s },
-		path: "doc.Types[t/x/A].Namespace",
+		set:  func(doc *ir.Document, s []string) { doc.Types["type/x/A"].Common().Namespace = s },
+		path: "document.Types[type/x/A].Namespace",
 	},
 	"Service.Namespace": {
 		set:  func(doc *ir.Document, s []string) { doc.Services[0].Namespace = s },
-		path: "doc.Services[0].Namespace",
+		path: "document.Services[0].Namespace",
 	},
 	"GraphQLBinding.FieldPath": {
 		set:  func(doc *ir.Document, s []string) { operation(doc).Bindings.GraphQL.FieldPath = s },
-		path: "doc.Services[0].Groups[0].Operations[0].Bindings.GraphQL.FieldPath",
+		path: "document.Services[0].Groups[0].Operations[0].Bindings.GraphQL.FieldPath",
 	},
 	"Visibility.Only": {
 		set: func(doc *ir.Document, s []string) {
-			doc.Types["t/x/A"].(*ir.Model).Properties[0].Visibility.Only = s
+			doc.Types["type/x/A"].(*ir.Model).Properties[0].Visibility.Only = s
 		},
-		path:  "doc.Types[t/x/A].Properties[0].Visibility.Only",
+		path:  "document.Types[type/x/A].Properties[0].Visibility.Only",
 		isSet: true,
 	},
 	"Operation.ParameterVisibility": {
 		set:   func(doc *ir.Document, s []string) { operation(doc).ParameterVisibility = s },
-		path:  "doc.Services[0].Groups[0].Operations[0].ParameterVisibility",
+		path:  "document.Services[0].Groups[0].Operations[0].ParameterVisibility",
 		isSet: true,
 	},
 	"Operation.ReturnTypeVisibility": {
 		set:   func(doc *ir.Document, s []string) { operation(doc).ReturnTypeVisibility = s },
-		path:  "doc.Services[0].Groups[0].Operations[0].ReturnTypeVisibility",
+		path:  "document.Services[0].Groups[0].Operations[0].ReturnTypeVisibility",
 		isSet: true,
 	},
 	"OAuthFlow.TokenEndpointAuthMethods": {
@@ -66,7 +66,7 @@ var heldLists = map[string]listFixture{
 			scheme := doc.Auth["auth/x/s"]
 			scheme.Flows[0].TokenEndpointAuthMethods = s
 		},
-		path:  "doc.Auth[auth/x/s].Flows[0].TokenEndpointAuthMethods",
+		path:  "document.Auth[auth/x/s].Flows[0].TokenEndpointAuthMethods",
 		isSet: true,
 	},
 }
@@ -74,15 +74,15 @@ var heldLists = map[string]listFixture{
 // heldListDoc returns a document that verifies clean and holds every list in
 // heldLists, each empty until a case sets one.
 func heldListDoc() *ir.Document {
-	doc := opDoc(ir.Operation{
-		ID:       "op/x/S/op",
+	doc := singleOperationDocument(ir.Operation{
+		ID:       "operation/x/S/op",
 		Name:     named("op"),
-		Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query"}},
+		Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query"}},
 	})
 	doc.IRVersion = ir.IRVersion
 	doc.Services[0].Groups[0].Name = named("g")
-	doc.Types = ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Name: named("a"),
-		Properties: []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"}}}}}
+	doc.Types = ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A", Name: named("a"),
+		Properties: []ir.Property{{ID: "property/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "type/x/A"}}}}}
 	doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/s": {ID: "auth/x/s", Name: named("s"), Kind: ir.AuthKindOAuth2,
 		Flows: []ir.OAuthFlow{{Kind: "client_credentials"}}}}
 	return doc
@@ -119,10 +119,10 @@ func TestVerify_BlankListEntryIsAViolation(t *testing.T) {
 
 			got := verifyDeclared(doc)
 			require.Len(t, got, 4, "one violation per blank entry, none for a visible format character")
-			for i, v := range got {
-				assert.Equal(t, code, v.Code)
-				assert.Equal(t, fmt.Sprintf("%s[%d]", list.path, i), v.Path)
-				assert.Equal(t, message, v.Message)
+			for i, violation := range got {
+				assert.Equal(t, code, violation.Code)
+				assert.Equal(t, fmt.Sprintf("%s[%d]", list.path, i), violation.Path)
+				assert.Equal(t, message, violation.Message)
 			}
 		})
 	}
@@ -197,8 +197,8 @@ func TestVerify_ListEntryIsSpelledAsTheWalkWould(t *testing.T) {
 			require.Len(t, got, size)
 			reported := make([]string, 0, size) // Verify sorts [10] before [2]
 			want := make([]string, 0, size)
-			for i, v := range got {
-				reported = append(reported, v.Path)
+			for i, violation := range got {
+				reported = append(reported, violation.Path)
 				want = append(want, walked[entries[i]])
 			}
 			assert.ElementsMatch(t, want, reported)
@@ -213,6 +213,6 @@ func TestVerify_ListEntryIsSpelledAsTheWalkWould(t *testing.T) {
 func TestVerify_VerbatimListsAreNotHeld(t *testing.T) {
 	t.Parallel()
 	doc := heldListDoc()
-	doc.Types["t/x/A"].Common().Tags = []string{"", "a", "a"}
+	doc.Types["type/x/A"].Common().Tags = []string{"", "a", "a"}
 	assert.Empty(t, verifyDeclared(doc))
 }

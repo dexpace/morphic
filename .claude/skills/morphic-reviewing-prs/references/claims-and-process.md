@@ -88,7 +88,7 @@ The matrix is each claim class with the members checked, and each closed issue w
 ## Read each cut against main's words, not only beside the rules it cites
 `cut-against-mains-words`
 
-- **Rule.** Where the change shortens or rewords a rule or a `SKILL.md` passage, as a word cap
+- **Rule.** Where the change shortens or rewords a rule or a `SKILL.md` read-through, as a word cap
   forces, read `git diff --word-diff "$main"...<head> -- '.claude/skills/*.md'` and place each
   removed span: carried into the head's text, or a change of meaning the PR states and wants. A
   span that is neither is a condition the cut dropped.

@@ -22,10 +22,10 @@ import (
 // what it selected, the steps it spent and its error.
 func selectWithin(t testing.TB, query string, root *yaml.Node, limit budget.Limit) ([]jsonpath.Located, int, error) {
 	t.Helper()
-	q, err := jsonpath.Parse(query)
+	queryValue, err := jsonpath.Parse(query)
 	require.NoError(t, err, "the query %q", query)
 	b := budget.New(limit)
-	got, err := q.Select(t.Context(), nodeview.New(), root, &b)
+	got, err := queryValue.Select(t.Context(), nodeview.New(), root, &b)
 	return got, b.Spent(), err
 }
 
@@ -56,8 +56,8 @@ func paths(got []jsonpath.Located) []string {
 		return nil
 	}
 	out := make([]string, len(got))
-	for i, l := range got {
-		out[i] = l.Path.String()
+	for i, located := range got {
+		out[i] = located.Path.String()
 	}
 	return out
 }
@@ -210,13 +210,13 @@ func TestSelect_DescendsWithoutRecursion(t *testing.T) {
 // link to its parent's and not a copy: allocations over a chain of 4n are
 // about four times those over n, where copied paths would be sixteen times.
 func TestSelect_BuildsAResultsPathsInLinearMemory(t *testing.T) {
-	q, err := jsonpath.Parse("$..a")
+	query, err := jsonpath.Parse("$..a")
 	require.NoError(t, err)
 	allocs := func(n int) float64 {
 		root := chain(n)
 		return testing.AllocsPerRun(3, func() {
 			b := budget.New(budget.Unbounded())
-			if _, err := q.Select(t.Context(), nodeview.New(), root, &b); err != nil {
+			if _, err := query.Select(t.Context(), nodeview.New(), root, &b); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -370,12 +370,12 @@ func TestSelect_IsRepeatableAndLeavesTheTreeAlone(t *testing.T) {
 	t.Parallel()
 	root := readTree(t, "a: &x {p: 1}\nb: *x\nc: {<<: *x, q: 2}\n")
 	before := fmt.Sprintf("%v", root)
-	q, err := jsonpath.Parse("$..[?@ == 1 || match(@.q, '2')]")
+	query, err := jsonpath.Parse("$..[?@ == 1 || match(@.q, '2')]")
 	require.NoError(t, err)
 
 	run := func() ([]string, int) {
 		b := budget.New(budget.Unbounded())
-		got, err := q.Select(t.Context(), nodeview.New(), root, &b)
+		got, err := query.Select(t.Context(), nodeview.New(), root, &b)
 		require.NoError(t, err)
 		return paths(got), b.Spent()
 	}
@@ -394,8 +394,8 @@ func TestSelect_IsRepeatableAndLeavesTheTreeAlone(t *testing.T) {
 func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, a, op, b string
-		holds          bool
+		name, a, operator, b string
+		holds                bool
 	}{
 		{"a date and its quoted twin", "2021-01-01", "==", "'2021-01-01'", true},
 		{"a hexadecimal and a decimal", "0x10", "==", "16", true},
@@ -419,7 +419,7 @@ func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
 			t.Parallel()
 			root := readTree(t, "[{a: "+tc.a+", b: "+tc.b+"}]")
 
-			got, _, err := selectWithin(t, "$[?@.a "+tc.op+" @.b]", root, budget.Unbounded())
+			got, _, err := selectWithin(t, "$[?@.a "+tc.operator+" @.b]", root, budget.Unbounded())
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.holds, len(got) == 1)

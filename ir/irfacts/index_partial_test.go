@@ -17,12 +17,12 @@ import (
 // nestedGroupsDoc returns a document with one operation, nested depth groups
 // down in a service's groups.
 func nestedGroupsDoc(depth int) *ir.Document {
-	g := ir.OperationGroup{ID: "g/x/leaf", Operations: []ir.Operation{{ID: "op/x/o"}}}
+	operationGroup := ir.OperationGroup{ID: "operation-group/x/leaf", Operations: []ir.Operation{{ID: "operation/x/o"}}}
 	for i := range depth {
-		g = ir.OperationGroup{ID: ir.GroupID(fmt.Sprintf("g/x/n%d", i)), Groups: []ir.OperationGroup{g}}
+		operationGroup = ir.OperationGroup{ID: ir.GroupID(fmt.Sprintf("operation-group/x/n%d", i)), Groups: []ir.OperationGroup{operationGroup}}
 	}
-	doc := irtest.DocOf(irtest.ModelOf("t/x/M", nil))
-	doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{g}}}
+	doc := irtest.DocOf(irtest.ModelOf("type/x/M", nil))
+	doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{operationGroup}}}
 	return doc
 }
 
@@ -45,8 +45,8 @@ func TestIndex_PartialSaysTheFactsReadPartOfTheDocument(t *testing.T) {
 			assert.Equal(t, tc.want, irfacts.New(nestedGroupsDoc(tc.depth)).Partial(), "asked first")
 
 			facts := irfacts.New(nestedGroupsDoc(tc.depth))
-			facts.Usage("t/x/M")
-			facts.Correlation("op/x/o")
+			facts.Usage("type/x/M")
+			facts.Correlation("operation/x/o")
 			assert.Equal(t, tc.want, facts.Partial(), "asked after the facts that read operations")
 		})
 	}

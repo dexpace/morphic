@@ -76,9 +76,9 @@ func compileMinors(t *testing.T, root, ext string, widening openapi.NullableInfe
 // extFindings returns the pointers in ext.yaml at which code is reported.
 func extFindings(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 	var out []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Source == 1 {
-			out = append(out, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Provenance.Source == 1 {
+			out = append(out, diagnostic.Provenance.Pointer)
 		}
 	}
 	return out
@@ -89,9 +89,9 @@ func extFindings(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 func extBounds(doc *ir.Document) map[jsontext.Pointer]ir.BigVal {
 	out := map[jsontext.Pointer]ir.BigVal{}
 	for _, td := range doc.Types {
-		s, ok := td.(*ir.Scalar)
-		if ok && s.Provenance.Source == 1 && s.Constraints != nil && s.Constraints.ExclusiveMin != nil {
-			out[s.Provenance.Pointer] = *s.Constraints.ExclusiveMin
+		scalar, ok := td.(*ir.Scalar)
+		if ok && scalar.Provenance.Source == 1 && scalar.Constraints != nil && scalar.Constraints.ExclusiveMin != nil {
+			out[scalar.Provenance.Pointer] = *scalar.Constraints.ExclusiveMin
 		}
 	}
 	return out
@@ -165,9 +165,9 @@ func TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable(t *testing.T) {
 		minorExt(declaring("3.1.0"), "    S: {type: string}\n", "{content: {application/json: {schema: {type: string}}}}"),
 		openapi.NullableInference{})
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.Validation+"/validation-required-field" {
-			found = append(found, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.Validation+"/validation-required-field" {
+			found = append(found, diagnostic.Message)
 		}
 	}
 	assert.Equal(t, []string{`Response Object field "description" is REQUIRED in OpenAPI 3.1 (Response Object)`}, found)
@@ -208,9 +208,9 @@ func TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableInference{Disabled: true})
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := holderProps(t, doc)["p"].Type
-			assert.Equal(t, tc.nullable, p.Nullable)
-			assert.Empty(t, p.Inferred)
+			typeRef := holderProperties(t, doc)["p"].Type
+			assert.Equal(t, tc.nullable, typeRef.Nullable)
+			assert.Empty(t, typeRef.Inferred)
 			assert.Equal(t, tc.unknown, extFindings(diags, diag.UnknownSchemaKeyword))
 			assert.Equal(t, tc.later, extFindings(diags, diag.LaterVersionConstruct))
 		})
@@ -241,11 +241,11 @@ components:
 		ext := minorExt(declaring("3.1.0"), alias+"    U: {default: null}\n", minorResponse)
 		doc, diags := compileMinors(t, root, ext, openapi.NullableInference{})
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("M")].(*ir.Model)
+		model, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok)
-		p, ok := propByWire(m, "p")
+		property, ok := propertyByWire(model, "p")
 		require.True(t, ok)
-		return p.Default
+		return property.Default
 	}
 	plain := defaultOf("    S: {$ref: '#/components/schemas/U', type: string}\n")
 	require.NotNil(t, plain, "no conjunct narrows the alias written plainly")
@@ -290,8 +290,8 @@ components:
 	assert.Equal(t, []string{"openapi@3.2", "openapi@3.0", "openapi@3.1"}, formats)
 	bounds := map[string]ir.BigVal{}
 	for _, td := range doc.Types {
-		if s, ok := td.(*ir.Scalar); ok && s.Constraints != nil && s.Constraints.ExclusiveMin != nil {
-			bounds[doc.Sources[s.Provenance.Source].Path] = *s.Constraints.ExclusiveMin
+		if scalar, ok := td.(*ir.Scalar); ok && scalar.Constraints != nil && scalar.Constraints.ExclusiveMin != nil {
+			bounds[doc.Sources[scalar.Provenance.Source].Path] = *scalar.Constraints.ExclusiveMin
 		}
 	}
 	assert.Equal(t, map[string]ir.BigVal{filepath.Join(dir, "a.yaml"): "5", filepath.Join(dir, "b.yaml"): "6"}, bounds)
@@ -323,11 +323,11 @@ paths:
           schema: {type: object, properties: {blob: {}}}
 `, openapi.NullableInference{})
 			openapitest.RequireNoErrorDiags(t, diags)
-			upload, ok := opByName(doc, "upload")
+			upload, ok := operationByName(doc, "upload")
 			require.True(t, ok)
 			var files []bool
 			for _, pe := range requestContent(t, upload).Encoding {
-				files = append(files, pe.Filename)
+				files = append(files, pe.HasFilename)
 			}
 			if ext == "3.1.0" {
 				assert.Equal(t, []bool{true}, files, "the 3.1 document's untyped part is a file")

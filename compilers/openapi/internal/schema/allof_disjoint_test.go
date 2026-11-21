@@ -35,9 +35,9 @@ const disjointComponents = `    List: {type: array, items: {type: string}}
 
 // Short spellings of the $ref entries the cases compose.
 const (
-	refList = `{$ref: '#/components/schemas/List'}`
-	refStr  = `{$ref: '#/components/schemas/Str'}`
-	refObj  = `{$ref: '#/components/schemas/Obj'}`
+	refList   = `{$ref: '#/components/schemas/List'}`
+	refString = `{$ref: '#/components/schemas/Str'}`
+	refObj    = `{$ref: '#/components/schemas/Obj'}`
 )
 
 // disjointSpec is a document holding disjointComponents, extra, and S written
@@ -50,10 +50,10 @@ func disjointSpec(s, extra string) string {
 // value.
 func disjointReports(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
-			strings.Contains(d.Message, "share no value") {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning &&
+			strings.Contains(diagnostic.Message, "share no value") {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -76,7 +76,7 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"a type beside the allOf against a $ref",
 			`{type: object, allOf: [` + refList + `]}`, "type: object, allOf/0: array"},
 		{"two $refs",
-			`{allOf: [` + refStr + `, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
+			`{allOf: [` + refString + `, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"an allOf beside a $ref, which joins its conjunction",
 			`{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "$ref: string, allOf/0: object"},
 		{"an inline entry against a $ref",
@@ -99,13 +99,13 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"a $ref to a composition writing a type",
 			`{allOf: [{$ref: '#/components/schemas/TypedComposed'}, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"boolean entries spend no budget",
-			`{allOf: [` + strings.Repeat(`true, `, 300) + refStr + `, ` + refObj + `]}`,
+			`{allOf: [` + strings.Repeat(`true, `, 300) + refString + `, ` + refObj + `]}`,
 			"allOf/300: string, allOf/301: object"},
 		{"a wide allOf the budget reaches",
-			`{allOf: [` + strings.Repeat(`{description: d}, `, 200) + refStr + `, ` + refObj + `]}`,
+			`{allOf: [` + strings.Repeat(`{description: d}, `, 200) + refString + `, ` + refObj + `]}`,
 			"allOf/200: string, allOf/201: object"},
 		{"a flattened wrapper",
-			`{allOf: [{allOf: [` + refStr + `, ` + refObj + `]}]}`,
+			`{allOf: [{allOf: [` + refString + `, ` + refObj + `]}]}`,
 			"allOf/0/allOf/0: string, allOf/0/allOf/1: object"},
 		{"a flattened wrapper's own type",
 			`{allOf: [{type: string, allOf: [` + refObj + `]}]}`, "allOf/0/allOf/0: object, allOf/0: string"},
@@ -114,7 +114,7 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"a nullable string against an object",
 			`{allOf: [{$ref: '#/components/schemas/NullStr'}, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"an entry stating nothing goes unnamed",
-			`{allOf: [` + refStr + `, {description: d}, ` + refObj + `]}`, "allOf/0: string, allOf/2: object"},
+			`{allOf: [` + refString + `, {description: d}, ` + refObj + `]}`, "allOf/0: string, allOf/2: object"},
 		{"two nullable types beside an enum",
 			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, {enum: [a]}]}`,
 			"allOf/0: string, allOf/1: object, allOf/2: string"},
@@ -135,18 +135,18 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{allOf: [` + refObj + `, {type: string}], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: object, allOf/1: string"},
 		{"a distributed union",
-			`{allOf: [` + refStr + `, ` + refObj + `], oneOf: [` + refObj + `, ` + refList + `]}`,
+			`{allOf: [` + refString + `, ` + refObj + `], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: string, allOf/1: object"},
 		{"a union beside sharing no kind with a composition", `{allOf: [` + refObj + `], oneOf: [{type: string}, {type: integer}]}`,
 			"oneOf: string or integer, allOf/0: object"},
-		{"a union beside sharing no kind with a refinement", `{allOf: [` + refStr + `], anyOf: [{type: integer}, {type: boolean}]}`,
+		{"a union beside sharing no kind with a refinement", `{allOf: [` + refString + `], anyOf: [{type: integer}, {type: boolean}]}`,
 			"anyOf: integer or boolean, allOf/0: string"},
-		{"an allOf an enum passes over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`,
+		{"an allOf an enum passes over", `{enum: [a], allOf: [` + refString + `, ` + refObj + `]}`,
 			"enum: string, allOf/0: string, allOf/1: object"},
 		{"an allOf a const passes over", `{type: string, const: a, allOf: [{type: integer}]}`,
 			"type: string, const: string, allOf/0: integer"},
 		{"an allOf an enum passes over beside a union",
-			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
+			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refString + `, ` + refObj + `]}`,
 			"enum: string, oneOf: string or integer, allOf/0: string, allOf/1: object"},
 		{"an entry the enum beats that cannot be kept",
 			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
@@ -203,8 +203,8 @@ func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 		{"an integer with a number", `{allOf: [{type: integer}, {type: number}]}`, "", ""},
 		{"an object with an object", `{allOf: [` + refObj + `, {type: object}]}`, "", ""},
 		{"a string with a schema writing no type",
-			`{allOf: [` + refStr + `, {$ref: '#/components/schemas/Props'}]}`, "", ""},
-		{"a string with a constraint of strings", `{allOf: [` + refStr + `, {maxLength: 3}]}`, "", ""},
+			`{allOf: [` + refString + `, {$ref: '#/components/schemas/Props'}]}`, "", ""},
+		{"a string with a constraint of strings", `{allOf: [` + refString + `, {maxLength: 3}]}`, "", ""},
 		{"two nullable types",
 			`{allOf: [{$ref: '#/components/schemas/NullStr'}, {$ref: '#/components/schemas/NullObj'}]}`, "", ""},
 		{"a null with a nullable object",
@@ -265,7 +265,7 @@ func TestAllOf_AKeywordBesideARefIsReadAtEveryVersion(t *testing.T) {
 // writes them.
 func TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refList+`]}`, `    Mid: {allOf: [`+refStr+`, `+refObj+`]}
+	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refList+`]}`, `    Mid: {allOf: [`+refString+`, `+refObj+`]}
     Outer: {allOf: [{$ref: '#/components/schemas/Mid'}]}
     Outer2: {allOf: [{$ref: '#/components/schemas/Mid'}, `+refObj+`]}
 `))
@@ -284,21 +284,21 @@ func TestAllOf_DisjointInlineEntryReportsItsResidueAsInfo(t *testing.T) {
 	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refObj+`, {type: string, maxLength: 3}]}`, ""))
 
 	var atEntry []ir.Diagnostic
-	for _, d := range doc.Diagnostics {
-		if d.Provenance.Pointer == "/components/schemas/S/allOf/1" {
-			atEntry = append(atEntry, d)
+	for _, diagnostic := range doc.Diagnostics {
+		if diagnostic.Provenance.Pointer == "/components/schemas/S/allOf/1" {
+			atEntry = append(atEntry, diagnostic)
 		}
 	}
 	require.Len(t, atEntry, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atEntry[0].Severity)
 	assert.Contains(t, atEntry[0].Message, "no home for type, maxLength written on this inline entry")
 
-	s, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:maxLength", "openapi:type"}, unmodeledKeys(s.Unmodeled))
-	assert.JSONEq(t, `3`, string(s.Unmodeled["openapi:maxLength"].Value),
+	assert.Equal(t, []string{"openapi:maxLength", "openapi:type"}, unmodeledKeys(model.Unmodeled))
+	assert.JSONEq(t, `3`, string(model.Unmodeled["openapi:maxLength"].Value),
 		"the maxLength the object beside it cannot take")
-	assert.JSONEq(t, `"string"`, string(s.Unmodeled["openapi:type"].Value))
+	assert.JSONEq(t, `"string"`, string(model.Unmodeled["openapi:type"].Value))
 }
 
 // TestAllOf_DisjointConjunctsFollowTheNullableReading holds the report to the
@@ -310,7 +310,7 @@ func TestAllOf_DisjointConjunctsFollowTheNullableReading(t *testing.T) {
 	spec := openapitest.ComponentSpecVer("3.0.3", `    Str: {type: string}
     Obj: {type: object}
     S:
-      allOf: [`+refStr+`, `+refObj+`]
+      allOf: [`+refString+`, `+refObj+`]
       nullable: true
 `)
 
@@ -331,7 +331,7 @@ func TestAllOf_DisjointConjunctsFollowTheNullableReading(t *testing.T) {
 func TestAllOf_DisjointConjunctsIgnoreDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const (
-		composing = "    S: {allOf: [{$ref: '#/components/schemas/Alias'}, {$ref: '#/components/schemas/Composed'}, " + refStr + "]}\n"
+		composing = "    S: {allOf: [{$ref: '#/components/schemas/Alias'}, {$ref: '#/components/schemas/Composed'}, " + refString + "]}\n"
 		targets   = `    Str: {type: string}
     List: {type: array, items: {type: string}}
     Alias: {$ref: '#/components/schemas/List'}
@@ -402,8 +402,8 @@ components:
 
 	reports := disjointReports(doc.Diagnostics)
 	got := make([]string, 0, len(reports))
-	for _, d := range reports {
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range reports {
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"/components/schemas/Holder/properties/errors",

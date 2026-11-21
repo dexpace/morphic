@@ -66,17 +66,17 @@ value 0 0 Level 100
 // fixturePackage loads one of the packages under testdata.
 func fixturePackage(t *testing.T, name string) *decls.Package {
 	t.Helper()
-	p, err := decls.Load("./testdata/" + name)
+	loadedPackage, err := decls.Load("./testdata/" + name)
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 // fixtureUniverse is the universe of the fixture's Root.
 func fixtureUniverse(t *testing.T) census.Universe {
 	t.Helper()
-	u, err := census.UniverseOf(fixturePackage(t, "fixture"), "Root")
+	universe, err := census.UniverseOf(fixturePackage(t, "fixture"), "Root")
 	require.NoError(t, err)
-	return u
+	return universe
 }
 
 func TestUniverseOf_ListsEveryFactTheRootReaches(t *testing.T) {
@@ -89,7 +89,7 @@ func TestUniverseOf_ListsEveryFactTheRootReaches(t *testing.T) {
 
 func TestUniverseOf_Refusals(t *testing.T) {
 	t.Parallel()
-	p := fixturePackage(t, "fixture")
+	loadedPackage := fixturePackage(t, "fixture")
 	for _, tc := range []struct {
 		root, want string
 	}{
@@ -103,9 +103,9 @@ func TestUniverseOf_Refusals(t *testing.T) {
 	} {
 		t.Run(tc.root, func(t *testing.T) {
 			t.Parallel()
-			u, err := census.UniverseOf(p, tc.root)
+			universe, err := census.UniverseOf(loadedPackage, tc.root)
 			require.Error(t, err)
-			assert.Zero(t, u)
+			assert.Zero(t, universe)
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
@@ -133,9 +133,9 @@ func TestCheckVersion_AcceptsOnlyTheBuildsOwnVersion(t *testing.T) {
 
 func TestNewUniverse_ContainsTheIRsFacts(t *testing.T) {
 	t.Parallel()
-	u, err := universe()
+	universeValue, err := universe()
 	require.NoError(t, err)
-	got := facts(t, census.New(u).Report())
+	got := facts(t, census.New(universeValue).Report())
 
 	for _, want := range []string{
 		"member Model.base",
@@ -153,12 +153,12 @@ func TestNewUniverse_ContainsTheIRsFacts(t *testing.T) {
 
 func TestNewUniverse_ListsEveryEmbeddedStructOnceUnderItsOwnName(t *testing.T) {
 	t.Parallel()
-	u, err := universe()
+	universeValue, err := universe()
 	require.NoError(t, err)
-	got := facts(t, census.New(u).Report())
+	got := facts(t, census.New(universeValue).Report())
 
 	assert.Contains(t, got, "member TypeCommon.id")
-	assert.Contains(t, got, "member Primitive.prim")
+	assert.Contains(t, got, "member Primitive.primitiveKind")
 	for _, repeated := range []string{"Primitive.id", "Primitive.docs", "Model.id", "Model.provenance", "Model.TypeCommon"} {
 		assert.NotContains(t, got, "member "+repeated, "TypeCommon's members are not repeated under its embedders")
 	}
@@ -166,13 +166,13 @@ func TestNewUniverse_ListsEveryEmbeddedStructOnceUnderItsOwnName(t *testing.T) {
 
 func TestNewUniverse_NamesOnlyTypesOfPackageIR(t *testing.T) {
 	t.Parallel()
-	u, err := universe()
+	universeValue, err := universe()
 	require.NoError(t, err)
-	p, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
 	require.NoError(t, err)
 
 	var named int
-	for fact := range facts(t, census.New(u).Report()) {
+	for fact := range facts(t, census.New(universeValue).Report()) {
 		kind, rest, _ := strings.Cut(fact, " ")
 		owner, _, _ := strings.Cut(rest, ".")
 		if kind == "value" {
@@ -182,7 +182,7 @@ func TestNewUniverse_NamesOnlyTypesOfPackageIR(t *testing.T) {
 			continue
 		}
 		named++
-		_, err := p.Named(owner)
+		_, err := loadedPackage.Named(owner)
 		assert.NoError(t, err, "%s is not a type package ir declares", fact)
 	}
 	assert.Positive(t, named)
@@ -190,9 +190,9 @@ func TestNewUniverse_NamesOnlyTypesOfPackageIR(t *testing.T) {
 
 func TestNewUniverse_RefusesDeclarationsOfAnotherVersion(t *testing.T) {
 	t.Parallel()
-	u, err := census.NewUniverseOfVersion("0.0.1")
+	universe, err := census.NewUniverseOfVersion("0.0.1")
 	require.Error(t, err)
-	assert.Zero(t, u)
+	assert.Zero(t, universe)
 	assert.Contains(t, err.Error(), "this build reads IRVersion 0.0.1, but the declarations it read are of "+ir.IRVersion)
 }
 
@@ -201,8 +201,8 @@ func TestNewUniverse_FailsOutsideTheModule(t *testing.T) {
 	// from the working directory's module.
 	t.Chdir(t.TempDir())
 
-	u, err := census.NewUniverse()
+	universe, err := census.NewUniverse()
 	require.Error(t, err)
-	assert.Zero(t, u)
+	assert.Zero(t, universe)
 	assert.Contains(t, err.Error(), "census:")
 }

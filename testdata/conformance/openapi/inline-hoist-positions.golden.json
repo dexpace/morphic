@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "InlineHoistPositions",
         "canonical": "inline_hoist_positions"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1orders/post",
+              "id": "operation/openapi/paths/~1orders/post",
               "name": {
                 "source": "placeOrder",
                 "canonical": "place_order"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1orders/post/parameters/audit/query",
+                  "id": "parameter/openapi/paths/~1orders/post/parameters/audit/query",
                   "name": {
                     "source": "audit",
                     "canonical": "audit"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1orders/post/parameters/0/schema",
+                    "target": "type/anonymous/paths/~1orders/post/parameters/0/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -89,7 +89,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -114,7 +114,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -122,21 +122,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace",
+                      "id": "property/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace",
                       "name": {
                         "source": "X-Order-Trace",
                         "canonical": "x_order_trace"
                       },
                       "wireName": "X-Order-Trace",
                       "type": {
-                        "target": "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
+                        "target": "type/anonymous/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -163,7 +163,7 @@
                     "uriTemplate": "/orders",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1orders/post/parameters/audit/query",
+                        "param": "parameter/openapi/paths/~1orders/post/parameters/audit/query",
                         "location": "query",
                         "wireName": "audit",
                         "style": "form",
@@ -179,7 +179,7 @@
                         "name": "onProgress",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
-                          "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
+                          "operation/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
                         ]
                       }
                     ],
@@ -194,7 +194,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post",
+              "id": "operation/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post",
               "name": {
                 "source": "onProgress",
                 "canonical": "on_progress"
@@ -205,7 +205,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -254,14 +254,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/onShipped/post",
+              "id": "operation/openapi/webhooks/onShipped/post",
               "name": {
                 "source": "onShipped",
                 "canonical": "on_shipped"
@@ -272,7 +272,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/webhooks/onShipped/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -330,9 +330,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "on_progress_request"
       },
@@ -345,21 +345,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema/properties/v",
+          "id": "property/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -376,9 +376,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/parameters/0/schema": {
+    "type/anonymous/paths/~1orders/post/parameters/0/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/parameters/0/schema",
+      "id": "type/anonymous/paths/~1orders/post/parameters/0/schema",
       "name": {
         "hint": "audit"
       },
@@ -391,21 +391,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/parameters/0/schema/properties/v",
+          "id": "property/openapi/paths/~1orders/post/parameters/0/schema/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -422,9 +422,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "place_order_request"
       },
@@ -437,21 +437,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+          "id": "property/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
           "name": {
             "source": "shipping",
             "canonical": "shipping"
           },
           "wireName": "shipping",
           "type": {
-            "target": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+            "target": "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -468,9 +468,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping": {
+    "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+      "id": "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
       "name": {
         "hint": "shipping"
       },
@@ -483,21 +483,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping/properties/v",
+          "id": "property/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -514,9 +514,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -529,21 +529,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+          "id": "property/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
           "name": {
             "source": "receipt",
             "canonical": "receipt"
           },
           "wireName": "receipt",
           "type": {
-            "target": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+            "target": "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -560,9 +560,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt": {
+    "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+      "id": "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
       "name": {
         "hint": "receipt"
       },
@@ -575,21 +575,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt/properties/v",
+          "id": "property/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -606,9 +606,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema": {
+    "type/anonymous/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
+      "id": "type/anonymous/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
       "name": {
         "hint": "x_order_trace"
       },
@@ -621,21 +621,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema/properties/v",
+          "id": "property/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -652,9 +652,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/webhooks/onShipped/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/webhooks/onShipped/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "on_shipped_request"
       },
@@ -667,21 +667,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/webhooks/onShipped/post/requestBody/content/application~1json/schema/properties/v",
+          "id": "property/openapi/webhooks/onShipped/post/requestBody/content/application~1json/schema/properties/v",
           "name": {
             "source": "v",
             "canonical": "v"
           },
           "wireName": "v",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -698,9 +698,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -708,7 +708,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

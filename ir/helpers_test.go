@@ -36,9 +36,9 @@ var irPackage = sync.OnceValues(func() (*decls.Package, error) {
 // irDecls returns the ir package, type-checked.
 func irDecls(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := irPackage()
+	loadedPackage, err := irPackage()
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 // declaredConstsOfType returns every constant of the named type the ir package
@@ -71,7 +71,7 @@ func parseVersion(s string) (semver, bool) {
 	if len(parts) != len(semver{}) {
 		return semver{}, false
 	}
-	var v semver
+	var semverValue semver
 	for i, part := range parts {
 		if part == "" || len(part) > 9 || (len(part) > 1 && part[0] == '0') || strings.Trim(part, "0123456789") != "" {
 			return semver{}, false
@@ -80,9 +80,9 @@ func parseVersion(s string) (semver, bool) {
 		if err != nil {
 			return semver{}, false
 		}
-		v[i] = n
+		semverValue[i] = n
 	}
-	return v, true
+	return semverValue, true
 }
 
 // compareVersions orders two versions by precedence. One that does not parse
@@ -218,7 +218,7 @@ func populatedDocs() ir.Docs {
 	return ir.Docs{
 		Summary:     "short summary",
 		Description: "long CommonMark description naming Pet",
-		Refs:        []ir.DocRef{{StartByte: 34, EndByte: 37, Type: "t/x"}},
+		Refs:        []ir.DocRef{{StartByte: 34, EndByte: 37, Type: "type/x"}},
 		ExternalDocs: []ir.Link{
 			{URL: "https://example.com/a", Description: "doc a"},
 			{URL: "https://example.com/b", Description: "doc b"},
@@ -233,7 +233,7 @@ func populatedProvenance() ir.Provenance {
 		WrittenBy: 4,
 		Pointer:   "/paths/~1users/get",
 		Position:  ir.Position{Line: 12, Column: 7},
-		Node:      "op/openapi/paths/~1users/get",
+		Node:      "operation/openapi/paths/~1users/get",
 		Inferred:  "pagination-name-match",
 	}
 }
@@ -265,7 +265,7 @@ func populatedDeprecation() *ir.Deprecation {
 		Since:          "1.2.0",
 		RemovalVersion: "2.0.0",
 		RemovalDate:    "2026-08-01",
-		ReplacedBy:     []ir.EntityRef{{Operation: "op/v2"}, {Type: "t/v2"}},
+		ReplacedBy:     []ir.EntityRef{{Operation: "operation/v2"}, {Type: "type/v2"}},
 	}
 }
 
@@ -280,7 +280,7 @@ func populatedAvailability() *ir.Availability {
 			{Version: "v2", Name: "olderName"},
 		},
 		TypeChangedFrom: []ir.VersionedType{
-			{Version: "v1", Type: ir.TypeRef{Target: "t/old", Nullable: true}},
+			{Version: "v1", Type: ir.TypeRef{Target: "type/old", Nullable: true}},
 		},
 		RequiredChanged: []ir.VersionedBool{
 			{Version: "v1", WasRequired: false},
@@ -326,8 +326,8 @@ func populatedConstraints() *ir.Constraints {
 		MinItems:       new(int64(1)),
 		MaxItems:       new(int64(10)),
 		UniqueItems:    true,
-		MinProps:       new(int64(1)),
-		MaxProps:       new(int64(20)),
+		MinProperties:  new(int64(1)),
+		MaxProperties:  new(int64(20)),
 	}
 }
 
@@ -335,9 +335,9 @@ func populatedConstraints() *ir.Constraints {
 func populatedEncoding() *ir.Encoding {
 	return &ir.Encoding{
 		Name:      "rfc3339",
-		WireType:  &ir.TypeRef{Target: "t/prim/string", Nullable: true},
+		WireType:  &ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 		MediaType: "text/plain",
-		Schema:    &ir.TypeRef{Target: "t/openapi/components/schemas/Decoded"},
+		Schema:    &ir.TypeRef{Target: "type/openapi/components/schemas/Decoded"},
 	}
 }
 
@@ -355,7 +355,7 @@ func populatedXMLHints() *ir.XMLHints {
 
 // populatedTypeRef returns a TypeRef with every field set.
 func populatedTypeRef() ir.TypeRef {
-	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true, Inferred: "nullable-inference"}
+	return ir.TypeRef{Target: "type/openapi/components/schemas/User", Nullable: true, Inferred: "nullable-inference"}
 }
 
 // errorPayload returns the one-media-type body an ir.ErrorCase fixture carries,
@@ -374,19 +374,19 @@ func populatedValue() ir.Value {
 		List: []ir.Value{
 			{Kind: ir.ValueNull},
 			{Kind: ir.ValueBool, Bool: true},
-			{Kind: ir.ValueString, Str: "hello"},
-			{Kind: ir.ValueSymbol, Str: "ok"},
-			{Kind: ir.ValueNumber, Num: ir.BigVal("3.14")},
+			{Kind: ir.ValueString, String: "hello"},
+			{Kind: ir.ValueSymbol, String: "ok"},
+			{Kind: ir.ValueNumber, Number: ir.BigVal("3.14")},
 			{Kind: ir.ValueBytes, Bytes: []byte{0x01, 0x02}},
 			{Kind: ir.ValueObject, Object: []ir.Field{
 				{Name: "b", Value: ir.Value{Kind: ir.ValueBool, Bool: false}},
-				{Name: "a", Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+				{Name: "a", Value: ir.Value{Kind: ir.ValueString, String: "x"}},
 			}},
-			{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/x", Member: "M"}},
-			{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{
-				Scalar: "t/s",
+			{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/x", Member: "M"}},
+			{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{
+				Scalar: "type/s",
 				Name:   "fromISO",
-				Args:   []ir.Value{{Kind: ir.ValueString, Str: "2024-05-06"}},
+				Args:   []ir.Value{{Kind: ir.ValueString, String: "2024-05-06"}},
 			}},
 		},
 	}
@@ -410,11 +410,11 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 		MediaTypeHint:    "application/json",
 		XML:              populatedXMLHints(),
 		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
+			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
 		},
 		Instantiation: &ir.TemplateInstantiation{
 			Template: "Page",
-			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/item"}}},
+			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "type/item"}}},
 		},
 		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
@@ -439,26 +439,26 @@ type testingT interface {
 // zero, and is asserted in both directions, so it cannot outlive its reason.
 // The walk reads the struct's own fields alone, not the fields of a value one
 // of them holds.
-func assertNoFieldZero(t testingT, v any, zeroOK ...zeroField) {
-	t.Helper()
+func assertNoFieldZero(testingTValue testingT, v any, zeroOK ...zeroField) {
+	testingTValue.Helper()
 	rv := reflect.Indirect(reflect.ValueOf(v))
-	require.Equal(t, reflect.Struct, rv.Kind(), "a populated value must be a struct or a pointer to one")
-	require.Positive(t, rv.NumField(), "a struct with no fields witnesses nothing")
+	require.Equal(testingTValue, reflect.Struct, rv.Kind(), "a populated value must be a struct or a pointer to one")
+	require.Positive(testingTValue, rv.NumField(), "a struct with no fields witnesses nothing")
 	exempt := make(map[string]string, len(zeroOK))
-	for _, z := range zeroOK {
-		field, ok := rv.Type().FieldByName(z.name)
-		require.Truef(t, ok && len(field.Index) == 1, "%s declares no field %s of its own", rv.Type().Name(), z.name)
-		exempt[z.name] = z.why
+	for _, zeroField := range zeroOK {
+		field, ok := rv.Type().FieldByName(zeroField.name)
+		require.Truef(testingTValue, ok && len(field.Index) == 1, "%s declares no field %s of its own", rv.Type().Name(), zeroField.name)
+		exempt[zeroField.name] = zeroField.why
 	}
-	require.Len(t, exempt, len(zeroOK), "each field is listed once")
+	require.Len(testingTValue, exempt, len(zeroOK), "each field is listed once")
 	for field, value := range rv.Fields() {
 		if why, ok := exempt[field.Name]; ok {
-			assert.Truef(t, value.IsZero(),
+			assert.Truef(testingTValue, value.IsZero(),
 				"%s.%s is listed as deliberately zero (%s) but the value sets it; drop the entry",
 				rv.Type().Name(), field.Name, why)
 			continue
 		}
-		assert.Falsef(t, value.IsZero(), "%s.%s is left zero, so a round trip of the value says nothing of it",
+		assert.Falsef(testingTValue, value.IsZero(), "%s.%s is left zero, so a round trip of the value says nothing of it",
 			rv.Type().Name(), field.Name)
 	}
 }
@@ -509,16 +509,16 @@ func populatedHeader() ir.Header {
 func populatedOperationLink() ir.OperationLink {
 	return ir.OperationLink{
 		Name:      populatedNaming(),
-		Operation: "op/next",
+		Operation: "operation/next",
 		Params: []ir.LinkParam{
-			{Param: "param/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
-			{Param: "param/next/etag", Value: ir.LinkValue{
-				Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{"p/etag"}},
+			{Param: "parameter/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
+			{Param: "parameter/next/etag", Value: ir.LinkValue{
+				Kind: ir.LinkResponse, Response: &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/etag"}},
 			}},
-			{Param: "param/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
+			{Param: "parameter/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
 		},
 		Body: &ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{
-			Param: new(ir.ParamID("param/op/filter")), Segments: []ir.PropID{"p/filter/id"},
+			Param: new(ir.ParameterID("parameter/op/filter")), Segments: []ir.PropertyID{"property/filter/id"},
 		}},
 		Server:     new(ir.ServerID("server/next")),
 		Docs:       populatedDocs(),
@@ -538,7 +538,7 @@ func eventPayloadLeftZero() zeroField {
 // and the zero-value list in the test specification.
 func populatedProperty() ir.Property {
 	return ir.Property{
-		ID:               "p/openapi/components/schemas/User/properties/id",
+		ID:               "property/openapi/components/schemas/User/properties/id",
 		Name:             populatedNaming(),
 		WireName:         "id",
 		WireNameByFormat: map[string]string{"xml": "Id", "json": "id"},
@@ -549,8 +549,8 @@ func populatedProperty() ir.Property {
 		Presence:         ir.PresenceExplicit,
 		ClientOptional:   true,
 		DefaultAdded:     true,
-		Visibility:       ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}, None: false},
-		Default:          &ir.Value{Kind: ir.ValueString, Str: "default"},
+		Visibility:       ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}, InvisibleInEveryLifecycle: false},
+		Default:          &ir.Value{Kind: ir.ValueString, String: "default"},
 		Constraints:      populatedConstraints(),
 		Encoding:         populatedEncoding(),
 		Args: []ir.Parameter{
@@ -563,8 +563,8 @@ func populatedProperty() ir.Property {
 		Secret:       true,
 		XML:          populatedXMLHints(),
 		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
-			{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, Str: "v2"}},
+			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
+			{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, String: "v2"}},
 		},
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),
@@ -593,16 +593,16 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 	return out, truncated
 }
 
-// flatLines renders each member of f on one line: the declaration it takes as
-// ID@owner, each it overrides after a <, "required" when an instance must
-// carry it, "secret" when its value is redacted, and the message of its
+// flatLines renders each member of flattening on one line: the declaration it
+// takes as ID@owner, each it overrides after a <, "required" when an instance
+// must carry it, "secret" when its value is redacted, and the message of its
 // deprecation where it has one.
-func flatLines(f ir.Flattening) []string {
-	out := make([]string, 0, len(f.Properties))
-	for _, fp := range f.Properties {
+func flatLines(flattening ir.Flattening) []string {
+	out := make([]string, 0, len(flattening.Properties))
+	for _, fp := range flattening.Properties {
 		line := fmt.Sprintf("%s@%s", fp.Property.ID, fp.Owner)
-		for _, d := range fp.Overridden {
-			line += fmt.Sprintf(" < %s@%s", d.Property.ID, d.Owner)
+		for _, propertyDecl := range fp.Overridden {
+			line += fmt.Sprintf(" < %s@%s", propertyDecl.Property.ID, propertyDecl.Owner)
 		}
 		if fp.Required {
 			line += " required"
@@ -641,22 +641,22 @@ func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	}
 
 	for _, td := range doc.Types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		for i := range m.Properties {
-			digit := int(m.Properties[i].ID[len(m.Properties[i].ID)-1] - '0')
-			m.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
-			m.Properties[i].Required = digit == 1 || digit == 4
-			m.Properties[i].Secret = digit == 6
-			m.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
+		for i := range model.Properties {
+			digit := int(model.Properties[i].ID[len(model.Properties[i].ID)-1] - '0')
+			model.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
+			model.Properties[i].Required = digit == 1 || digit == 4
+			model.Properties[i].Secret = digit == 6
+			model.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
 			if digit == 3 || digit == 5 {
-				m.Properties[i].Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", m.Properties[i].ID, m.ID)}
+				model.Properties[i].Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", model.Properties[i].ID, model.ID)}
 			}
 		}
-		if len(m.Properties) == 1 {
-			m.Requires = []string{"w2", "zz"}
+		if len(model.Properties) == 1 {
+			model.Requires = []string{"w2", "zz"}
 		}
 	}
 	return doc, types
@@ -702,7 +702,7 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 	models := map[ir.TypeID]*ir.Model{}
 	unflattened := map[ir.TypeID]bool{}
 	queue := []ir.TypeID{standsFor(types, root)}
-	if m, ok := types[queue[0]].(*ir.Model); !ok || m == nil {
+	if model, ok := types[queue[0]].(*ir.Model); !ok || model == nil {
 		return models, unflattened
 	}
 	for len(queue) > 0 {
@@ -711,9 +711,9 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 		if _, seen := models[id]; seen {
 			continue
 		}
-		m := types[id].(*ir.Model)
-		models[id] = m
-		for _, target := range entries(m) {
+		model := types[id].(*ir.Model)
+		models[id] = model
+		for _, target := range entries(model) {
 			end := standsFor(types, target)
 			if pm, ok := types[end].(*ir.Model); ok && pm != nil {
 				queue = append(queue, end)
@@ -729,8 +729,8 @@ func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model
 // itself only when a cycle leads back.
 func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
 	below := map[ir.TypeID]bool{}
-	m, _ := types[id].(*ir.Model)
-	queue := entriesOf(types, m)
+	model, _ := types[id].(*ir.Model)
+	queue := entriesOf(types, model)
 	for len(queue) > 0 {
 		next := queue[0]
 		queue = queue[1:]
@@ -744,14 +744,14 @@ func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
 	return below
 }
 
-// entriesOf returns the live models m's entries compose in, read through alias
-// scalars.
-func entriesOf(types ir.TypeRegistry, m *ir.Model) []ir.TypeID {
-	if m == nil {
+// entriesOf returns the live models model's entries compose in, read through
+// alias scalars.
+func entriesOf(types ir.TypeRegistry, model *ir.Model) []ir.TypeID {
+	if model == nil {
 		return nil
 	}
 	var out []ir.TypeID
-	for _, target := range entries(m) {
+	for _, target := range entries(model) {
 		end := standsFor(types, target)
 		if pm, ok := types[end].(*ir.Model); ok && pm != nil {
 			out = append(out, end)
@@ -760,15 +760,15 @@ func entriesOf(types ir.TypeRegistry, m *ir.Model) []ir.TypeID {
 	return out
 }
 
-// entries returns the targets of m's set Base, Implements and Mixins.
-func entries(m *ir.Model) []ir.TypeID {
+// entries returns the targets of model's set Base, Implements and Mixins.
+func entries(model *ir.Model) []ir.TypeID {
 	var out []ir.TypeID
-	if m.Base != nil && m.Base.Target != "" {
-		out = append(out, m.Base.Target)
+	if model.Base != nil && model.Base.Target != "" {
+		out = append(out, model.Base.Target)
 	}
-	for _, r := range append(slices.Clone(m.Implements), m.Mixins...) {
-		if r.Target != "" {
-			out = append(out, r.Target)
+	for _, typeRef := range append(slices.Clone(model.Implements), model.Mixins...) {
+		if typeRef.Target != "" {
+			out = append(out, typeRef.Target)
 		}
 	}
 	return out

@@ -21,10 +21,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -128,7 +128,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 
 	data, err := newExternal(Options{}, read, &aside{}).prepare(t.Context(), "k", "k", []byte("a: [\n"))
 
-	var unparsable *bind.UnparsableError
+	var unparsable *reftable.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
 	assert.Equal(t, "yaml: line 1: did not find expected node content", unparsable.Err.Error())
 	assert.Nil(t, data)
@@ -161,7 +161,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 				assert.True(t, recorded)
 				return
 			}
-			require.ErrorIs(t, err, bind.ErrEmptyDocument)
+			require.ErrorIs(t, err, reftable.ErrEmptyDocument)
 			assert.False(t, recorded)
 		})
 	}
@@ -175,7 +175,7 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -192,7 +192,7 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\nq: !x {b: 1}\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -211,7 +211,7 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	nodes := nodeCount(t.Context(), root)
 	admit := func(limit int) error {
 		return newExternal(Options{MaxSourceNodes: budget.AtMost(limit)},
-			newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root, Nodes: nodes})
+			newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root, Nodes: nodes})
 	}
 
 	require.NoError(t, admit(nodes), "a document of the budget's nodes is within it")
@@ -229,7 +229,7 @@ func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: &x {b: 1}\nc: *x\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.ParsedYAMLDocument{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -387,14 +387,14 @@ func assertAnchorsReleasedAliasesStand(t *testing.T, root *yaml.Node) {
 	var sawAlias bool
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		assert.Empty(t, n.Anchor, "anchors are released before the tree is recorded")
-		if n.Kind == yaml.AliasNode {
+		assert.Empty(t, node.Anchor, "anchors are released before the tree is recorded")
+		if node.Kind == yaml.AliasNode {
 			sawAlias = true
-			assert.NotNil(t, n.Alias, "an alias still stands for its target")
+			assert.NotNil(t, node.Alias, "an alias still stands for its target")
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	assert.True(t, sawAlias, "sanity: the fixture carries an alias")
 }

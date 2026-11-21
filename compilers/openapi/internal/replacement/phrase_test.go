@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,10 +22,10 @@ var phraseMembers = []string{"a", "b", "c", "d", "X"}
 
 // phraseRoutes are the operations every phrase case declares beside the
 // deprecated one, by the route that names each.
-var phraseRoutes = map[string]ir.OpID{
-	"GET /v2/zones":  "op/v2",
-	"GET /v0/zones":  "op/v0",
-	"POST /v0/zones": "op/v0-post",
+var phraseRoutes = map[string]ir.OperationID{
+	"GET /v2/zones":  "operation/v2",
+	"GET /v0/zones":  "operation/v0",
+	"POST /v0/zones": "operation/v0-post",
 }
 
 // phraseDocument is a document holding one deprecated operation and one
@@ -33,34 +33,34 @@ var phraseRoutes = map[string]ir.OpID{
 // names and the members phraseMembers names. It returns the document, the
 // deprecated operation and the deprecated member.
 func phraseDocument(message string) (*ir.Document, *ir.Operation, *ir.Property) {
-	old := route("op/old", http.MethodGet, "/old", says(message))
+	old := route("operation/old", http.MethodGet, "/old", says(message))
 	old.Provenance = ir.Provenance{Pointer: "/paths/~1old/get"}
 	doc := routes(old,
-		route("op/v2", http.MethodGet, "/v2/zones", nil),
-		route("op/v0", http.MethodGet, "/v0/zones", nil),
-		route("op/v0-post", http.MethodPost, "/v0/zones", nil))
-	props := make([]ir.Property, 0, 1+len(phraseMembers))
-	props = append(props, ir.Property{ID: "p/old", WireName: "old", Deprecation: says(message),
+		route("operation/v2", http.MethodGet, "/v2/zones", nil),
+		route("operation/v0", http.MethodGet, "/v0/zones", nil),
+		route("operation/v0-post", http.MethodPost, "/v0/zones", nil))
+	properties := make([]ir.Property, 0, 1+len(phraseMembers))
+	properties = append(properties, ir.Property{ID: "property/old", WireName: "old", Deprecation: says(message),
 		Provenance: ir.Provenance{Pointer: "/components/schemas/m/properties/old"}})
 	for _, name := range phraseMembers {
-		props = append(props, ir.Property{ID: ir.PropID("p/" + name), WireName: name})
+		properties = append(properties, ir.Property{ID: ir.PropertyID("property/" + name), WireName: name})
 	}
-	model := &ir.Model{ID: "t/m", Properties: props}
-	doc.Types = ir.TypeRegistry{"t/m": model}
+	model := &ir.Model{ID: "type/m", Properties: properties}
+	doc.Types = ir.TypeRegistry{"type/m": model}
 	return doc, &doc.Services[0].Groups[0].Operations[0], &model.Properties[0]
 }
 
 // entities returns the references naming each of names: a route by its
 // operation, anything else by the member it spells.
-func entities(names []string) (ops, members []ir.EntityRef) {
+func entities(names []string) (operations, members []ir.EntityRef) {
 	for _, name := range names {
-		if op, ok := phraseRoutes[name]; ok {
-			ops = append(ops, ir.EntityRef{Operation: op})
+		if operation, ok := phraseRoutes[name]; ok {
+			operations = append(operations, ir.EntityRef{Operation: operation})
 			continue
 		}
-		members = append(members, ir.EntityRef{Property: ir.PropID("p/" + name)})
+		members = append(members, ir.EntityRef{Property: ir.PropertyID("property/" + name)})
 	}
-	return ops, members
+	return operations, members
 }
 
 // TestMessage_ReadsOnlyIntroducedNames pins that a message names a replacement
@@ -115,13 +115,13 @@ func TestMessage_ReadsOnlyIntroducedNames(t *testing.T) {
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			t.Parallel()
-			doc, op, member := phraseDocument(tc.message)
+			doc, operation, member := phraseDocument(tc.message)
 
-			assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)),
+			assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)),
 				"a name no phrase introduces is not reported")
 
-			wantOps, wantMembers := entities(tc.want)
-			assert.Equal(t, wantOps, op.Deprecation.ReplacedBy, "the operation")
+			wantOperations, wantMembers := entities(tc.want)
+			assert.Equal(t, wantOperations, operation.Deprecation.ReplacedBy, "the operation")
 			assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, "the member")
 		})
 	}
@@ -161,7 +161,7 @@ func TestMessage_ReadsEachCueAndNoNearMiss(t *testing.T) {
 				tc.read: {"a"}, tc.negated: nil, tc.longer: nil, tc.nameless: nil,
 			} {
 				doc, _, member := phraseDocument(message)
-				assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), message)
+				assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)), message)
 				_, wantMembers := entities(want)
 				assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, message)
 			}
@@ -178,17 +178,17 @@ func TestMessage_ReadsEachCueAndNoNearMiss(t *testing.T) {
 func TestMessage_CostsItsLength(t *testing.T) {
 	cost := func(n int) float64 {
 		names := make([]string, n)
-		props := make([]ir.Property, 0, n+1)
+		properties := make([]ir.Property, 0, n+1)
 		for i := range names {
 			names[i] = fmt.Sprintf("`m%d`", i)
-			props = append(props, ir.Property{ID: ir.PropID(fmt.Sprintf("p/m%d", i)), WireName: fmt.Sprintf("m%d", i)})
+			properties = append(properties, ir.Property{ID: ir.PropertyID(fmt.Sprintf("property/m%d", i)), WireName: fmt.Sprintf("m%d", i)})
 		}
 		message := "Use " + strings.Join(names, " And ") + "."
 		return testing.AllocsPerRun(5, func() {
-			own := append([]ir.Property{{ID: "p/old", WireName: "old", Deprecation: says(message)}}, props...)
+			own := append([]ir.Property{{ID: "property/old", WireName: "old", Deprecation: says(message)}}, properties...)
 			doc := routes()
-			doc.Types = ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Properties: own}}
-			replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc))
+			doc.Types = ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Properties: own}}
+			replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc))
 		})
 	}
 	small, double, quad := cost(64), cost(128), cost(256)

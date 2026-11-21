@@ -31,19 +31,19 @@ type payloadRule struct {
 // reference naming nothing is an empty ID, which the reference rules own
 // (GitHub #473).
 var valuePayloads = map[ir.ValueKind]payloadRule{
-	ir.ValueNull:    {},
-	ir.ValueBool:    {field: "Bool", zeroIsValue: true},
-	ir.ValueString:  {field: "Str", zeroIsValue: true},
-	ir.ValueNumber:  {field: "Num"},
-	ir.ValueBytes:   {field: "Bytes", zeroIsValue: true},
-	ir.ValueSymbol:  {field: "Str", zeroIsValue: true},
-	ir.ValueList:    {field: "List", zeroIsValue: true},
-	ir.ValueObject:  {field: "Object", zeroIsValue: true},
-	ir.ValueRefKind: {field: "Ref"},
-	ir.ValueCtor:    {field: "Ctor"},
-	ir.ValueInf:     {},
-	ir.ValueNegInf:  {},
-	ir.ValueNaN:     {},
+	ir.ValueNull:             {},
+	ir.ValueBool:             {field: "Bool", zeroIsValue: true},
+	ir.ValueString:           {field: "String", zeroIsValue: true},
+	ir.ValueNumber:           {field: "Number"},
+	ir.ValueBytes:            {field: "Bytes", zeroIsValue: true},
+	ir.ValueSymbol:           {field: "String", zeroIsValue: true},
+	ir.ValueList:             {field: "List", zeroIsValue: true},
+	ir.ValueObject:           {field: "Object", zeroIsValue: true},
+	ir.ValueRefKind:          {field: "Ref"},
+	ir.ValueConstructor:      {field: "Constructor"},
+	ir.ValueInfinity:         {},
+	ir.ValueNegativeInfinity: {},
+	ir.ValueNaN:              {},
 }
 
 // checkValues asserts every ir.Value is what its Kind says it is: a declared

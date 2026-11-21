@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Neutral.Naming API",
         "canonical": "neutral_naming_api"
@@ -52,7 +52,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/inventory.core",
+          "id": "operation-group/tags/inventory.core",
           "name": {
             "source": "inventory.core",
             "canonical": "inventory_core"
@@ -60,7 +60,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets~1{widget.id}/get",
+              "id": "operation/openapi/paths/~1widgets~1{widget.id}/get",
               "name": {
                 "source": "widgets.list",
                 "canonical": "widgets_list"
@@ -68,13 +68,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
+                  "id": "parameter/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
                   "name": {
                     "source": "widget.id",
                     "canonical": "widget_id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -85,13 +85,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
+                  "id": "parameter/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
                   "name": {
                     "source": "filter[name]",
                     "canonical": "filter_name"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -120,7 +120,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/com.example.Widget",
+                          "target": "type/openapi/components/schemas/com.example.Widget",
                           "nullable": false
                         }
                       }
@@ -128,21 +128,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1widgets~1{widget.id}/get/responses/200/headers/X-Rate.Limit",
+                      "id": "property/openapi/paths/~1widgets~1{widget.id}/get/responses/200/headers/X-Rate.Limit",
                       "name": {
                         "source": "X-Rate.Limit",
                         "canonical": "x_rate_limit"
                       },
                       "wireName": "X-Rate.Limit",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -181,7 +181,7 @@
                     "uriTemplate": "/widgets/{widget.id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
+                        "param": "parameter/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
                         "location": "path",
                         "wireName": "widget.id",
                         "style": "simple",
@@ -189,7 +189,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
+                        "param": "parameter/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
                         "location": "query",
                         "wireName": "filter[name]",
                         "style": "form",
@@ -219,9 +219,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/com.example.Widget/properties/rollout.state": {
+    "type/anonymous/components/schemas/com.example.Widget/properties/rollout.state": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/com.example.Widget/properties/rollout.state",
+      "id": "type/anonymous/components/schemas/com.example.Widget/properties/rollout.state",
       "name": {
         "hint": "rollout_state"
       },
@@ -235,26 +235,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/com.example.Widget/properties/rollout.state/s:in.progress",
+          "id": "enum-member/anonymous/components/schemas/com.example.Widget/properties/rollout.state/string:in.progress",
           "name": {
             "source": "in.progress",
             "canonical": "in_progress"
           },
           "value": {
             "kind": "string",
-            "str": "in.progress"
+            "string": "in.progress"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/com.example.Widget/properties/rollout.state/s:done",
+          "id": "enum-member/anonymous/components/schemas/com.example.Widget/properties/rollout.state/string:done",
           "name": {
             "source": "done",
             "canonical": "done"
           },
           "value": {
             "kind": "string",
-            "str": "done"
+            "string": "done"
           },
           "docs": {}
         }
@@ -262,9 +262,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/com.example.Widget": {
+    "type/openapi/components/schemas/com.example.Widget": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/com.example.Widget",
+      "id": "type/openapi/components/schemas/com.example.Widget",
       "name": {
         "source": "com.example.Widget",
         "canonical": "com_example_widget"
@@ -278,21 +278,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/com.example.Widget/properties/widget.name",
+          "id": "property/openapi/components/schemas/com.example.Widget/properties/widget.name",
           "name": {
             "source": "widget.name",
             "canonical": "widget_name"
           },
           "wireName": "widget.name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -305,21 +305,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/com.example.Widget/properties/api.version.v2",
+          "id": "property/openapi/components/schemas/com.example.Widget/properties/api.version.v2",
           "name": {
             "source": "api.version.v2",
             "canonical": "api_version_v_2"
           },
           "wireName": "api.version.v2",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -332,21 +332,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/com.example.Widget/properties/rollout.state",
+          "id": "property/openapi/components/schemas/com.example.Widget/properties/rollout.state",
           "name": {
             "source": "rollout.state",
             "canonical": "rollout_state"
           },
           "wireName": "rollout.state",
           "type": {
-            "target": "t/anon/components/schemas/com.example.Widget/properties/rollout.state",
+            "target": "type/anonymous/components/schemas/com.example.Widget/properties/rollout.state",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -363,9 +363,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -373,11 +373,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -385,7 +385,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

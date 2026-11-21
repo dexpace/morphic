@@ -36,20 +36,20 @@ func attribute(ctx context.Context, root *yaml.Node, written map[*yaml.Node]bool
 		if !work.Spend(1) || ctx.Err() != nil {
 			return nil, false
 		}
-		f := stack[len(stack)-1]
+		frame := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if f.node == nil {
+		if frame.node == nil {
 			continue
 		}
-		if written[f.node] {
-			at := f.position(positions)
+		if written[frame.node] {
+			at := frame.position(positions)
 			at.Write()
-			positions.Place(f.node, at)
+			positions.Place(frame.node, at)
 		}
-		if f.key != nil && written[f.key] {
-			positions.Place(f.key, f.position(positions))
+		if frame.key != nil && written[frame.key] {
+			positions.Place(frame.key, frame.position(positions))
 		}
-		stack = append(stack, children(f)...)
+		stack = append(stack, children(frame)...)
 	}
 	return positions, true
 }
@@ -86,38 +86,38 @@ func (f *frame) position(positions *provenance.Positions) *provenance.Position {
 	for at := f; at.at == nil; at = at.holder {
 		pending = append(pending, at)
 	}
-	for _, p := range slices.Backward(pending) {
-		if p.merged {
-			p.at = p.holder.at
+	for _, frame := range slices.Backward(pending) {
+		if frame.merged {
+			frame.at = frame.holder.at
 			continue
 		}
-		p.at = positions.Child(p.holder.at, p.token())
+		frame.at = positions.Child(frame.holder.at, frame.token())
 	}
 	return f.at
 }
 
-// children returns the frames beneath f, placed the way the compiler places
-// them: a mapping's values under their keys as nodeview.KeyOf names them, a
-// sequence's elements under their positions, and a `<<` merge's value at the
-// mapping merging it.
+// children returns the frames beneath frameValue, placed the way the compiler
+// places them: a mapping's values under their keys as nodeview.KeyOf names
+// them, a sequence's elements under their positions, and a `<<` merge's value
+// at the mapping merging it.
 //
 // Mapping keys are not walked in their own right; each rides on its value's
 // frame, since a member is added with its key. An alias node is a leaf,
 // because the content it stands for lives at the anchor's own position, which
 // the walk reaches there, and the overlay writes no alias.
-func children(f *frame) []*frame {
-	switch f.node.Kind {
+func children(frameValue *frame) []*frame {
+	switch frameValue.node.Kind {
 	case yaml.MappingNode:
-		out := make([]*frame, 0, len(f.node.Content)/2)
-		for i := 0; i+1 < len(f.node.Content); i += 2 {
-			key, own := nodeview.KeyOf(f.node.Content[i])
-			out = append(out, &frame{node: f.node.Content[i+1], key: f.node.Content[i], holder: f, name: key, merged: !own})
+		out := make([]*frame, 0, len(frameValue.node.Content)/2)
+		for i := 0; i+1 < len(frameValue.node.Content); i += 2 {
+			key, own := nodeview.KeyOf(frameValue.node.Content[i])
+			out = append(out, &frame{node: frameValue.node.Content[i+1], key: frameValue.node.Content[i], holder: frameValue, name: key, merged: !own})
 		}
 		return out
 	case yaml.SequenceNode:
-		out := make([]*frame, 0, len(f.node.Content))
-		for i, child := range f.node.Content {
-			out = append(out, &frame{node: child, holder: f, index: i, element: !f.merged, merged: f.merged})
+		out := make([]*frame, 0, len(frameValue.node.Content))
+		for i, child := range frameValue.node.Content {
+			out = append(out, &frame{node: child, holder: frameValue, index: i, element: !frameValue.merged, merged: frameValue.merged})
 		}
 		return out
 	default:

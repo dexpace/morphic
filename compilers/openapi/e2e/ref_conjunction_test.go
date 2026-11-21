@@ -77,23 +77,23 @@ actions:
     update: {description: e, oneOf: [{minLength: 1}, {maxLength: 5}]}
 `)
 	requireErrorsAndWarnings(t, diags, nil)
-	u, ok := kindNode(t, doc, componentID("U")).(*ir.Scalar)
+	scalar, ok := kindNode(t, doc, componentID("U")).(*ir.Scalar)
 	require.True(t, ok)
-	require.NotNil(t, u.Base)
-	assert.Equal(t, componentID("T"), u.Base.Target)
-	assert.Equal(t, "d", u.Docs.Description)
-	require.NotNil(t, u.Constraints)
-	require.NotNil(t, u.Constraints.MinLength)
-	assert.Equal(t, int64(2), *u.Constraints.MinLength)
-	assert.Empty(t, u.Unmodeled)
+	require.NotNil(t, scalar.Base)
+	assert.Equal(t, componentID("T"), scalar.Base.Target)
+	assert.Equal(t, "d", scalar.Docs.Description)
+	require.NotNil(t, scalar.Constraints)
+	require.NotNil(t, scalar.Constraints.MinLength)
+	assert.Equal(t, int64(2), *scalar.Constraints.MinLength)
+	assert.Empty(t, scalar.Unmodeled)
 
-	h := requireModelNode(t, doc, componentID("H"))
-	p, ok := propByWire(h, "p")
+	model := requireModelNode(t, doc, componentID("H"))
+	property, ok := propertyByWire(model, "p")
 	require.True(t, ok)
-	assert.Equal(t, componentID("T"), p.Type.Target, "a carrier hoists no node")
-	assert.Equal(t, "e", p.Docs.Description)
-	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, p.Unmodeled, "openapi:oneOf").Reason)
-	assert.Len(t, p.Unmodeled, 1)
+	assert.Equal(t, componentID("T"), property.Type.Target, "a carrier hoists no node")
+	assert.Equal(t, "e", property.Docs.Description)
+	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, property.Unmodeled, "openapi:oneOf").Reason)
+	assert.Len(t, property.Unmodeled, 1)
 }
 
 // TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs holds that a
@@ -110,14 +110,14 @@ func TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs(t *testing.
 			"Doc: {type: object, description: the target's own, properties: {a: {type: string}}}",
 			"Holder: {type: object, properties: {p: "+schema+"}}"))
 		requireErrorsAndWarnings(t, diags, nil)
-		p, ok := propByWire(requireModelNode(t, doc, componentID("Holder")), "p")
+		property, ok := propertyByWire(requireModelNode(t, doc, componentID("Holder")), "p")
 		require.True(t, ok)
-		assert.Equal(t, componentID("Doc"), p.Type.Target, schema)
-		assert.Equal(t, "the target's own", p.Docs.Description, schema)
-		op := operationAt(t, doc, "GET", "/a")
-		require.Len(t, op.Params, 1)
-		assert.Equal(t, componentID("Doc"), op.Params[0].Type.Target, schema)
-		params = append(params, op.Params[0])
+		assert.Equal(t, componentID("Doc"), property.Type.Target, schema)
+		assert.Equal(t, "the target's own", property.Docs.Description, schema)
+		operation := operationAt(t, doc, "GET", "/a")
+		require.Len(t, operation.Params, 1)
+		assert.Equal(t, componentID("Doc"), operation.Params[0].Type.Target, schema)
+		params = append(params, operation.Params[0])
 	}
 	assert.Equal(t, params[0].Docs, params[1].Docs, "the parameter reads the docs alike in either spelling")
 }
@@ -137,7 +137,7 @@ func TestRefConjunction_AKeywordBesideAValueSetIsKeptOnceOnItsNode(t *testing.T)
 		for _, site := range conjSites[:2] {
 			doc, diags := compileUnrefused(t, site.write("3.1.0", schema, conjTargets["Str"]))
 			at := name + " at " + site.name
-			id := ir.TypeID("t/anon" + site.pointer)
+			id := ir.TypeID("type/anonymous" + site.pointer)
 			if site.name == "component" {
 				id = componentID("Use")
 			}
@@ -210,8 +210,8 @@ func TestRefConjunction_AFailedRefBesideKeywordsIsKeptAsBesideAnAllOfOfIt(t *tes
 				"openapi:minLength": ir.ReasonDegradedLowering, "openapi:x-a": ir.ReasonVendorExtension}, got, at)
 			assert.JSONEq(t, `"#/components/schemas/Ghost"`, string(use.Unmodeled["openapi:$ref"].Value), at)
 			errs := 0
-			for _, d := range diags {
-				if d.Code == diag.UnresolvedRef {
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnresolvedRef {
 					errs++
 				}
 			}

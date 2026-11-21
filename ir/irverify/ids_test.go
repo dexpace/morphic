@@ -25,18 +25,18 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 	}{
 		{name: "no kind prefix", id: "x/space/path"},
 		{name: "kind alone", id: "t"},
-		{name: "kind with a trailing separator and no space", id: "t/"},
-		{name: "empty space", id: "t//path"},
-		{name: "empty path", id: "t/space/"},
-		{name: "another kind's prefix", id: "op/space/path"},
+		{name: "kind with a trailing separator and no space", id: "type/"},
+		{name: "empty space", id: "type//path"},
+		{name: "empty path", id: "type/space/"},
+		{name: "another kind's prefix", id: "operation/space/path"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{
+			model := &ir.Model{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: model}}
 			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-malformed",
 				"%q is not an ID the grammar produces", tc.id)
 		})
@@ -48,29 +48,29 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 // checks spell it.
 func TestVerify_RegistryIDDefectIsPlacedOnItsEntry(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "t//path", Name: ir.Naming{Source: "M", Canonical: "m"}}
+	model := &ir.Model{ID: "type//path", Name: ir.Naming{Source: "M", Canonical: "m"}}
 	scheme := ir.AuthScheme{ID: "a//path", Name: ir.Naming{Source: "S", Canonical: "s"}, Kind: ir.AuthKindHTTPBearer}
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
-		Types:     ir.TypeRegistry{m.ID: m},
+		Types:     ir.TypeRegistry{model.ID: model},
 		Auth:      map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme},
 	}
-	assert.Equal(t, []string{"auth[a//path]", "types[t//path]"}, violationPaths(verifyDeclared(doc), "ir/id-malformed"))
+	assert.Equal(t, []string{"auth[a//path]", "types[type//path]"}, violationPaths(verifyDeclared(doc), "ir/id-malformed"))
 }
 
 // TestVerify_IDDisagreeingWithItsPointerIsAViolation is the half that catches
-// GitHub #141's actual instance. "t/anonaddr" lost the separator between its
+// GitHub #141's actual instance. "type/anonaddr" lost the separator between its
 // space and its path, so by shape it reads as a legitimate ID in a space named
 // "anonaddr" — indistinguishable from a real one. What gives it away is the
 // source pointer recorded beside it, which the path no longer matches.
 func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{
-		ID:         "t/anonaddr",
+	model := &ir.Model{
+		ID:         "type/anonaddr",
 		Name:       ir.Naming{Source: "Addr", Canonical: "addr"},
 		Provenance: ir.Provenance{Pointer: "addr"},
 	}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 
 	got := verifyDeclared(doc)
 	assert.Contains(t, violationCodes(got), "ir/id-provenance-disagreement")
@@ -84,12 +84,12 @@ func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 // it passes the wrong `at`, which nothing else in the repository can see.
 func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{
-		ID:         "t/openapi/components/schemas/Child",
+	model := &ir.Model{
+		ID:         "type/openapi/components/schemas/Child",
 		Name:       ir.Naming{Source: "Child", Canonical: "child"},
 		Provenance: ir.Provenance{Pointer: "/components/schemas/Parent"},
 	}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 	assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-provenance-disagreement")
 }
 
@@ -100,8 +100,8 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 // have would make every document violate.
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
-	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
+	primitive := &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString, Provenance: ir.Provenance{Source: ir.NoSource}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{primitive.ID: primitive}}
 	assert.Empty(t, verifyDeclared(doc))
 }
 
@@ -111,31 +111,31 @@ func TestVerify_PointerlessIDIsClean(t *testing.T) {
 //
 // The rows break the agreement two ways. The first two put a shared leaf in a
 // format's own space, so one type lowered from two formats stops being one
-// type; the second looks right, a private space merely spelled "prim". The rest
-// keep the shared space with a path that is not the node's kind (another kind,
-// none, or re-cased), which contradicts itself: no consumer can tell which to
-// believe.
+// type; the second looks right, a private space merely spelled "primitive".
+// The rest keep the shared space with a path that is not the node's kind
+// (another kind, none, or re-cased), which contradicts itself: no consumer can
+// tell which to believe.
 func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		id   ir.TypeID
-		kind ir.PrimKind
+		kind ir.PrimitiveKind
 	}{
-		{name: "a per-position ID", id: "t/openapi/components/schemas/Name", kind: ir.PrimString},
-		{name: "a compiler's private prim space", id: "t/graphql/prim/string", kind: ir.PrimString},
-		{name: "the right space, the wrong kind", id: "t/prim/int32", kind: ir.PrimString},
-		{name: "the space alone", id: "t/prim", kind: ir.PrimString},
-		{name: "a re-cased kind", id: "t/prim/dateTimeOffset", kind: ir.PrimDatetimeOffset},
+		{name: "a per-position ID", id: "type/openapi/components/schemas/Name", kind: ir.PrimitiveString},
+		{name: "a compiler's private primitive space", id: "type/graphql/primitive/string", kind: ir.PrimitiveString},
+		{name: "the right space, the wrong kind", id: "type/primitive/int32", kind: ir.PrimitiveString},
+		{name: "the space alone", id: "type/primitive", kind: ir.PrimitiveString},
+		{name: "a re-cased kind", id: "type/primitive/dateTimeOffset", kind: ir.PrimitiveDatetimeOffset},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := &ir.Primitive{ID: tc.id, Prim: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
+			primitive := &ir.Primitive{ID: tc.id, PrimitiveKind: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: primitive}}
 
 			got := verifyDeclared(doc)
-			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
+			assert.Contains(t, violationCodes(got), "ir/primitive-id-not-derived")
 			assert.NotContains(t, violationCodes(got), "ir/id-malformed",
 				"the point of these cases is that shape alone cannot tell: each is well-shaped")
 		})
@@ -143,80 +143,80 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 }
 
 // TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms pins the one case with no
-// destination to name. ir.PrimTypeID derives t/prim/ from the zero-value kind,
-// which is not an ID at all, so the message must not offer it as the place the
-// node belongs — a reader sent there fixes the wrong end, and the check would be
-// telling them to write an ID checkIDs reports as malformed.
+// destination to name. ir.PrimitiveTypeID derives type/primitive/ from the
+// zero-value kind, which is not an ID at all, so the message must not offer it
+// as the place the node belongs — a reader sent there fixes the wrong end, and
+// the check would be telling them to write an ID checkIDs reports as malformed.
 //
 // The kindless primitive breaks two claims at once and each is stated: the ID is
 // not the one its kind derives, and the kind is not one ir declares. They name
 // different repairs, so neither subsumes the other.
 func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	t.Parallel()
-	const id ir.TypeID = "t/openapi/components/schemas/Name"
+	const id ir.TypeID = "type/openapi/components/schemas/Name"
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
 		id: &ir.Primitive{ID: id, Provenance: ir.Provenance{Source: ir.NoSource}},
 	}}
 
 	got := verifyDeclared(doc)
 	require.Len(t, got, 2)
-	assert.Equal(t, "ir/prim-id-not-derived", got[0].Code)
+	assert.Equal(t, "ir/primitive-id-not-derived", got[0].Code)
 	assert.Contains(t, got[0].Message, "carries no kind")
-	assert.NotContains(t, got[0].Message, string(ir.PrimTypeID("")),
-		"t/prim/ is not an ID; naming it as the destination sends the reader to the wrong end")
-	assert.Equal(t, "ir/unknown-prim-kind", got[1].Code)
+	assert.NotContains(t, got[0].Message, string(ir.PrimitiveTypeID("")),
+		"type/primitive/ is not an ID; naming it as the destination sends the reader to the wrong end")
+	assert.Equal(t, "ir/unknown-primitive-kind", got[1].Code)
 }
 
-// TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.
-// The space is reserved rather than conventional: a node there either collides
-// with the primitive of that kind outright, or squats a name the next PrimKind
-// takes — and either way which node is reached depends on what was interned
-// first, which is invariant 3's corollary.
-func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
+// TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation covers the other
+// direction. The space is reserved rather than conventional: a node there
+// either collides with the primitive of that kind outright, or squats a name
+// the next PrimitiveKind takes — and either way which node is reached depends
+// on what was interned first, which is invariant 3's corollary.
+func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		id   ir.TypeID
 	}{
-		{name: "squatting an existing kind", id: "t/prim/string"},
-		{name: "squatting a name no kind uses yet", id: "t/prim/instant"},
-		{name: "the space alone", id: "t/prim"},
+		{name: "squatting an existing kind", id: "type/primitive/string"},
+		{name: "squatting a name no kind uses yet", id: "type/primitive/instant"},
+		{name: "the space alone", id: "type/primitive"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{
+			model := &ir.Model{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
-			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
-			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/prim-space-reserved")
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: model}}
+			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/primitive-space-reserved")
 		})
 	}
 }
 
-// TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind is the control for both
-// checks above: every primitive at the ID its kind derives, beside ordinary
-// types in a format's own space, reports nothing. Without it a check that fired
-// on everything would pass both tables.
+// TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind is the control for
+// both checks above: every primitive at the ID its kind derives, beside
+// ordinary types in a format's own space, reports nothing. Without it a check
+// that fired on everything would pass both tables.
 //
-// "prim" appears in one model as a path segment and in the other inside a name,
-// and neither is in the reserved space, which only reading the space segment
-// can tell. Matching the ID as a substring passes both tables above and fails
-// here.
-func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
+// "primitive" appears in one model as a path segment and in the other inside a
+// name, and neither is in the reserved space, which only reading the space
+// segment can tell. Matching the ID as a substring passes both tables above and
+// fails here.
+func TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
-	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimDatetimeOffset, ir.PrimAny} {
-		id := ir.PrimTypeID(kind)
-		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind, Provenance: ir.Provenance{Source: ir.NoSource}}
+	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInt32, ir.PrimitiveDatetimeOffset, ir.PrimitiveAny} {
+		id := ir.PrimitiveTypeID(kind)
+		doc.Types[id] = &ir.Primitive{ID: id, PrimitiveKind: kind, Provenance: ir.Provenance{Source: ir.NoSource}}
 	}
 	for _, m := range []struct {
 		id      ir.TypeID
 		pointer jsontext.Pointer
 		source  string
 	}{
-		{id: "t/openapi/prim/string", pointer: "/prim/string", source: "String"},
-		{id: "t/openapi/components/schemas/primitive", pointer: "/components/schemas/primitive", source: "primitive"},
+		{id: "type/openapi/primitive/string", pointer: "/primitive/string", source: "String"},
+		{id: "type/openapi/components/schemas/primitives", pointer: "/components/schemas/primitives", source: "primitives"},
 	} {
 		doc.Types[m.id] = &ir.Model{
 			ID:         m.id,
@@ -226,7 +226,7 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	}
 
 	assert.Empty(t, verifyDeclared(doc),
-		"an ID carrying \"prim\" outside the space segment is not in the reserved space")
+		"an ID carrying \"primitive\" outside the space segment is not in the reserved space")
 }
 
 // TestVerify_AuthIDIsHeldToTheSameRule pins that the check is about the grammar
@@ -250,9 +250,9 @@ func TestVerify_DerivedIDsAreClean(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, id := range []ir.TypeID{
-		"t/openapi/components/schemas/User",
-		"t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",
-		"t/composed/components/schemas/Combo/oneOf/0",
+		"type/openapi/components/schemas/User",
+		"type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema",
+		"type/composed/components/schemas/Combo/oneOf/0",
 	} {
 		path, ok := ir.IDPath(ir.IDKindType, string(id))
 		require.True(t, ok, "%s carries a path", id)
@@ -278,19 +278,19 @@ type declaredIDClass struct {
 
 func declaredIDClasses() []declaredIDClass {
 	service := func(groups ...ir.OperationGroup) *ir.Document {
-		return &ir.Document{IRVersion: ir.IRVersion, Services: []ir.Service{{ID: "s/x", Groups: groups}}}
+		return &ir.Document{IRVersion: ir.IRVersion, Services: []ir.Service{{ID: "service/x", Groups: groups}}}
 	}
 	return []declaredIDClass{
 		{
-			name: "operation", noun: "op", prefix: ir.IDKindOp, path: "doc.Services[0].Groups[0].Operations[0]",
+			name: "operation", noun: "operation", prefix: ir.IDKindOperation, path: "document.Services[0].Groups[0].Operations[0]",
 			doc: func(id, pointer string) *ir.Document {
-				return service(ir.OperationGroup{ID: "g/x", Operations: []ir.Operation{{
-					ID: ir.OpID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
+				return service(ir.OperationGroup{ID: "operation-group/x", Operations: []ir.Operation{{
+					ID: ir.OperationID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
 				}}})
 			},
 		},
 		{
-			name: "service", noun: "service", prefix: ir.IDKindService, path: "doc.Services[0]",
+			name: "service", noun: "service", prefix: ir.IDKindService, path: "document.Services[0]",
 			doc: func(id, pointer string) *ir.Document {
 				doc := service()
 				doc.Services[0].ID = ir.ServiceID(id)
@@ -299,33 +299,33 @@ func declaredIDClasses() []declaredIDClass {
 			},
 		},
 		{
-			name: "group", noun: "group", prefix: ir.IDKindGroup, path: "doc.Services[0].Groups[0]",
+			name: "group", noun: "group", prefix: ir.IDKindGroup, path: "document.Services[0].Groups[0]",
 			doc: func(id, _ string) *ir.Document { return service(ir.OperationGroup{ID: ir.GroupID(id)}) },
 		},
 		{
-			name: "parameter", noun: "param", prefix: ir.IDKindParam, path: "doc.Services[0].Groups[0].Operations[0].Params[0]",
+			name: "parameter", noun: "parameter", prefix: ir.IDKindParameter, path: "document.Services[0].Groups[0].Operations[0].Params[0]",
 			doc: func(id, pointer string) *ir.Document {
-				return service(ir.OperationGroup{ID: "g/x", Operations: []ir.Operation{{
-					ID: "op/x/o", Params: []ir.Parameter{{
-						ID: ir.ParamID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
+				return service(ir.OperationGroup{ID: "operation-group/x", Operations: []ir.Operation{{
+					ID: "operation/x/o", Params: []ir.Parameter{{
+						ID: ir.ParameterID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
 					}},
 				}}})
 			},
 		},
 		{
-			name: "enum member", noun: "enummember", prefix: ir.IDKindEnumMember, path: "doc.Types[t/x/E].Members[0]",
+			name: "enum member", noun: "enummember", prefix: ir.IDKindEnumMember, path: "document.Types[type/x/E].Members[0]",
 			doc: func(id, _ string) *ir.Document {
-				e := &ir.Enum{ID: "t/x/E", Members: []ir.EnumMember{{ID: ir.EnumMemberID(id)}}}
-				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
+				enum := &ir.Enum{ID: "type/x/E", Members: []ir.EnumMember{{ID: ir.EnumMemberID(id)}}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{enum.ID: enum}}
 			},
 		},
 		{
-			name: "property", noun: "prop", prefix: ir.IDKindProp, path: "doc.Types[t/x/M].Properties[0]",
+			name: "property", noun: "property", prefix: ir.IDKindProperty, path: "document.Types[type/x/M].Properties[0]",
 			doc: func(id, pointer string) *ir.Document {
-				m := &ir.Model{ID: "t/x/M", Properties: []ir.Property{{
-					ID: ir.PropID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
+				model := &ir.Model{ID: "type/x/M", Properties: []ir.Property{{
+					ID: ir.PropertyID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
 				}}}
-				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 			},
 		},
 	}
@@ -359,7 +359,7 @@ func TestVerify_MalformedDeclaredIDIsAViolation(t *testing.T) {
 	for _, class := range declaredIDClasses() {
 		malformed := []row{
 			{"no kind prefix", "x/space/path"},
-			{"a type's prefix", "t/space/path"},
+			{"a type's prefix", "type/space/path"},
 			{"the kind alone", class.prefix},
 			{"no space", class.prefix + "/"},
 			{"an empty space", class.prefix + "//path"},
@@ -423,8 +423,8 @@ func TestVerify_PropertyIDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	t.Parallel()
 	property := declaredIDClassNamed(t, "property")
 	tests := []struct{ name, id, pointer string }{
-		{"a lost separator", "p/openapicomponents/schemas/M/properties/f", "/components/schemas/M/properties/f"},
-		{"another position's pointer", "p/openapi/components/schemas/M/properties/f", "/components/schemas/M/properties/g"},
+		{"a lost separator", "property/openapicomponents/schemas/M/properties/f", "/components/schemas/M/properties/f"},
+		{"another position's pointer", "property/openapi/components/schemas/M/properties/f", "/components/schemas/M/properties/g"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -443,7 +443,7 @@ func TestVerify_PropertyIDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 func TestVerify_PropertyIDAgreeingWithItsPointerIsClean(t *testing.T) {
 	t.Parallel()
 	property := declaredIDClassNamed(t, "property")
-	const id = "p/openapi/components/schemas/M/properties/f"
+	const id = "property/openapi/components/schemas/M/properties/f"
 	for _, pointer := range []string{"/components/schemas/M/properties/f", ""} {
 		got := verifyDeclared(property.doc(id, pointer))
 		assert.Empty(t, violationPaths(got, "ir/id-provenance-disagreement"), "pointer %q", pointer)
@@ -460,9 +460,9 @@ func TestVerify_OperationIDMayDifferFromItsPointer(t *testing.T) {
 	t.Parallel()
 	operation, service := declaredIDClassNamed(t, "operation"), declaredIDClassNamed(t, "service")
 
-	mounted := operation.doc("op/openapi/paths/~1widgets/get", "/components/pathItems/Listing/get")
+	mounted := operation.doc("operation/openapi/paths/~1widgets/get", "/components/pathItems/Listing/get")
 	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
-	indexed := service.doc("s/openapi/0", "/info")
+	indexed := service.doc("service/openapi/0", "/info")
 	assert.Empty(t, violationPaths(verifyDeclared(indexed), "ir/id-provenance-disagreement"))
 }
 
@@ -475,7 +475,7 @@ func TestVerify_ParameterIDMayDifferFromItsPointer(t *testing.T) {
 	t.Parallel()
 	parameter := declaredIDClassNamed(t, "parameter")
 
-	mounted := parameter.doc("param/openapi/paths/~1widgets/get/parameters/id/query", "/components/pathItems/Listing/parameters/0")
+	mounted := parameter.doc("parameter/openapi/paths/~1widgets/get/parameters/id/query", "/components/pathItems/Listing/parameters/0")
 	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
 }
 
@@ -488,18 +488,18 @@ func TestVerify_ChannelAndMessageIDsAreHeldToTheGrammar(t *testing.T) {
 	t.Parallel()
 	const code = "ir/id-malformed"
 	message := scenarioBase()
-	message.Messages = map[ir.MessageID]ir.Message{"t/prim/string": {ID: "t/prim/string", Name: named("evt")}}
-	assert.Equal(t, []string{"messages[t/prim/string]"}, violationPaths(verifyDeclared(message), code))
+	message.Messages = map[ir.MessageID]ir.Message{"type/primitive/string": {ID: "type/primitive/string", Name: named("evt")}}
+	assert.Equal(t, []string{"messages[type/primitive/string]"}, violationPaths(verifyDeclared(message), code))
 
 	channel := scenarioBase()
-	channel.Channels = map[ir.ChannelID]ir.Channel{"op/x/o": {ID: "op/x/o", Name: named("c")}}
-	assert.Equal(t, []string{"channels[op/x/o]"}, violationPaths(verifyDeclared(channel), code))
+	channel.Channels = map[ir.ChannelID]ir.Channel{"operation/x/o": {ID: "operation/x/o", Name: named("c")}}
+	assert.Equal(t, []string{"channels[operation/x/o]"}, violationPaths(verifyDeclared(channel), code))
 
 	valid := scenarioBase()
-	valid.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt")}}
-	valid.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}}
-	valid.IDSpaces["msg"] = []string{"x"}
-	valid.IDSpaces["chan"] = []string{"x"}
+	valid.Messages = map[ir.MessageID]ir.Message{"message/x/evt": {ID: "message/x/evt", Name: named("evt")}}
+	valid.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c")}}
+	valid.IDSpaces["message"] = []string{"x"}
+	valid.IDSpaces["channel"] = []string{"x"}
 	assert.Empty(t, violationPaths(verifyDeclared(valid), code))
 }
 
@@ -510,29 +510,29 @@ func TestVerify_MessageNamespaceIsDeclared(t *testing.T) {
 	t.Parallel()
 	const code = "ir/id-space-undeclared"
 	doc := scenarioBase()
-	doc.Messages = map[ir.MessageID]ir.Message{"msg/y/evt": {ID: "msg/y/evt", Name: named("evt")}}
-	doc.IDSpaces["msg"] = []string{"x"}
-	assert.Equal(t, []string{"doc.Messages[msg/y/evt]"}, violationPaths(verifyDeclared(doc), code))
+	doc.Messages = map[ir.MessageID]ir.Message{"message/y/evt": {ID: "message/y/evt", Name: named("evt")}}
+	doc.IDSpaces["message"] = []string{"x"}
+	assert.Equal(t, []string{"document.Messages[message/y/evt]"}, violationPaths(verifyDeclared(doc), code))
 
 	valid := scenarioBase()
-	valid.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt")}}
-	valid.IDSpaces["msg"] = []string{"x"}
+	valid.Messages = map[ir.MessageID]ir.Message{"message/x/evt": {ID: "message/x/evt", Name: named("evt")}}
+	valid.IDSpaces["message"] = []string{"x"}
 	assert.Empty(t, violationPaths(verifyDeclared(valid), code))
 }
 
 // TestVerify_ChannelNamespaceIsDeclared is the channel's half of the namespace
-// check, and shows an undeclared kind is no unknown one: "chan" and "msg" are
-// kinds a declaration may key.
+// check, and shows an undeclared kind is no unknown one: "channel" and
+// "message" are kinds a declaration may key.
 func TestVerify_ChannelNamespaceIsDeclared(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/y/c": {ID: "chan/y/c", Name: named("c")}}
-	doc.IDSpaces["chan"] = []string{"x"}
-	doc.IDSpaces["msg"] = []string{"x"}
+	doc.Channels = map[ir.ChannelID]ir.Channel{"channel/y/c": {ID: "channel/y/c", Name: named("c")}}
+	doc.IDSpaces["channel"] = []string{"x"}
+	doc.IDSpaces["message"] = []string{"x"}
 
 	got := verifyDeclared(doc)
 
-	assert.Equal(t, []string{"doc.Channels[chan/y/c]"}, violationPaths(got, "ir/id-space-undeclared"))
+	assert.Equal(t, []string{"document.Channels[channel/y/c]"}, violationPaths(got, "ir/id-space-undeclared"))
 	assert.Empty(t, violationPaths(got, "ir/id-spaces-unknown-kind"), "chan and msg are kinds a declaration may key")
 }
 
@@ -545,10 +545,10 @@ func TestVerify_ChannelAndMessageAreNotHeldToTheirPointer(t *testing.T) {
 	doc := scenarioBase()
 	doc.Sources = oneSource()
 	prov := ir.Provenance{Source: 0, Pointer: "/channels/other"}
-	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c"), Provenance: prov}}
-	doc.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt"), Provenance: prov}}
-	doc.IDSpaces["chan"] = []string{"x"}
-	doc.IDSpaces["msg"] = []string{"x"}
+	doc.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c"), Provenance: prov}}
+	doc.Messages = map[ir.MessageID]ir.Message{"message/x/evt": {ID: "message/x/evt", Name: named("evt"), Provenance: prov}}
+	doc.IDSpaces["channel"] = []string{"x"}
+	doc.IDSpaces["message"] = []string{"x"}
 
 	got := verifyDeclared(doc)
 

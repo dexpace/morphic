@@ -9,8 +9,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -18,17 +18,17 @@ import (
 // scalarForm is one `format` a reading holds: as written, and the primitive the
 // type and format beside each other select where the table has a row for them.
 type scalarForm struct {
-	spelled string
-	prim    ir.PrimKind
-	listed  bool
+	spelled   string
+	primitive ir.PrimitiveKind
+	listed    bool
 }
 
-// narrows reports whether f is the form g is, or a narrower one.
-func (f scalarForm) narrows(g scalarForm) bool {
-	if f.spelled == g.spelled {
+// narrows reports whether f is the form scalarFormValue is, or a narrower one.
+func (f scalarForm) narrows(scalarFormValue scalarForm) bool {
+	if f.spelled == scalarFormValue.spelled {
 		return true
 	}
-	return f.listed && g.listed && spelling.Relate(f.prim, g.prim) == spelling.ANarrower
+	return f.listed && scalarFormValue.listed && typeformat.Relate(f.primitive, scalarFormValue.primitive) == typeformat.ANarrower
 }
 
 // admitted is what a schema's keywords leave an instance able to be: its kinds,
@@ -226,17 +226,17 @@ func (a admitted) narrowedTo(joint admitted) bool {
 // formsWithin reports whether a is held to some form narrowing each of b's.
 func (a admitted) formsWithin(b admitted) bool {
 	for _, want := range b.forms {
-		if !slices.ContainsFunc(a.forms, func(f scalarForm) bool { return f.narrows(want) }) {
+		if !slices.ContainsFunc(a.forms, func(scalarFormValue scalarForm) bool { return scalarFormValue.narrows(want) }) {
 			return false
 		}
 	}
 	return true
 }
 
-// takes reports whether a admits the value v writes, for a default read across a
-// narrowing (Use.Default). One it cannot read is no value it takes.
-func (a admitted) takes(v *yaml.Node) bool {
-	key, kind, ok := memberOf(v)
+// takes reports whether a admits the value node writes, for a default read
+// across a narrowing (Use.Default). One it cannot read is no value it takes.
+func (a admitted) takes(node *yaml.Node) bool {
+	key, kind, ok := memberOf(node)
 	if !ok {
 		return false
 	}
@@ -246,11 +246,11 @@ func (a admitted) takes(v *yaml.Node) bool {
 	return kind&a.kinds != 0
 }
 
-// memberOf returns the key v compares by, as an enum compares its own entries
-// (valueKey), so 1 and 1.0 are one value, with its kind, and false for a value
-// it cannot read.
-func memberOf(v *yaml.Node) (string, kindSet, bool) {
-	val, err := value.FromNode(v)
+// memberOf returns the key node compares by, as an enum compares its own
+// entries (valueKey), so 1 and 1.0 are one value, with its kind, and false for
+// a value it cannot read.
+func memberOf(node *yaml.Node) (string, kindSet, bool) {
+	val, err := value.FromNode(node)
 	if err != nil {
 		return "", 0, false
 	}

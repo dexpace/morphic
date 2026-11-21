@@ -69,8 +69,8 @@ func (a Attribution) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer)
 		return own
 	}
 	writer := a.WriterAt(from[0])
-	for _, p := range from[1:] {
-		if a.WriterAt(p) != writer {
+	for _, pointer := range from[1:] {
+		if a.WriterAt(pointer) != writer {
 			return own
 		}
 	}
@@ -80,11 +80,11 @@ func (a Attribution) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer)
 // At returns the pointer at which the overlay put a node it introduced or
 // rewrote, and false for any other node, nil included. The pointer is spelled
 // when asked for, never stored.
-func (a Attribution) At(n *yaml.Node) (jsontext.Pointer, bool) {
+func (a Attribution) At(node *yaml.Node) (jsontext.Pointer, bool) {
 	if a.written == nil {
 		return "", false
 	}
-	at, ok := a.written.nodes[n]
+	at, ok := a.written.nodes[node]
 	if !ok {
 		return "", false
 	}
@@ -123,26 +123,26 @@ type Tree struct {
 	Pointers func(*yaml.Node) (jsontext.Pointer, bool)
 }
 
-// Node returns where a finding about n is placed in Doc.Source: where the
-// overlay put n, with the overlay as its writer, for a node it introduced or
-// rewrote, and otherwise at n's line and column and its pointer in the tree. A
-// node the parser did not place has no line or column, which is the zero
-// Position rather than one at 0:0. A nil n is the document as a whole.
+// Node returns where a finding about node is placed in Doc.Source: where the
+// overlay put node, with the overlay as its writer, for a node it introduced or
+// rewrote, and otherwise at node's line and column and its pointer in the tree.
+// A node the parser did not place has no line or column, which is the zero
+// Position rather than one at 0:0. A nil node is the document as a whole.
 //
 // The tree's root has the empty pointer, which beside a position reads as none,
 // so a finding on the document's top mapping is placed by position alone.
-func (t Tree) Node(n *yaml.Node) ir.Provenance {
+func (t Tree) Node(node *yaml.Node) ir.Provenance {
 	prov := ir.Provenance{Source: t.Doc.Source}
-	if pointer, ok := t.Doc.Overlay.At(n); ok {
+	if pointer, ok := t.Doc.Overlay.At(node); ok {
 		prov.Pointer, prov.WrittenBy = pointer, t.Doc.Overlay.index
 		return prov
 	}
-	if n == nil {
+	if node == nil {
 		return prov
 	}
-	prov.Position = ir.Position{Line: n.Line, Column: n.Column}
+	prov.Position = ir.Position{Line: node.Line, Column: node.Column}
 	if t.Pointers != nil {
-		prov.Pointer, _ = t.Pointers(n)
+		prov.Pointer, _ = t.Pointers(node)
 	}
 	return prov
 }

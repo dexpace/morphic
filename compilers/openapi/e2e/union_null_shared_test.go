@@ -109,23 +109,23 @@ func checkNullShared(t *testing.T, version, keyword, rest, branch string, ref bo
 			if !shared {
 				requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/P",
 					contains: []string{"share no value", "so no instance satisfies this schema"}}})
-				m, ok := typeByName(doc, "P").(*ir.Model)
+				model, ok := typeByName(doc, "P").(*ir.Model)
 				require.True(t, ok, "the schema is the Model the rest of its allOf gives")
-				kept, ok := m.Unmodeled["openapi:"+keyword]
-				require.True(t, ok, "the union is kept: %v", keptOn(m))
+				kept, ok := model.Unmodeled["openapi:"+keyword]
+				require.True(t, ok, "the union is kept: %v", keptOn(model))
 				assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
 				return
 			}
-			for _, d := range diags {
-				assert.NotContains(t, d.Message, "so no instance satisfies this schema", "null is a value the two share")
+			for _, diagnostic := range diags {
+				assert.NotContains(t, diagnostic.Message, "so no instance satisfies this schema", "null is a value the two share")
 			}
-			if u, ok := typeByName(doc, "P").(*ir.Union); ok {
-				assert.Len(t, u.Variants, 1, "the branch admitting null is the one variant")
+			if union, ok := typeByName(doc, "P").(*ir.Union); ok {
+				assert.Len(t, union.Variants, 1, "the branch admitting null is the one variant")
 				return
 			}
-			m, ok := typeByName(doc, "P").(*ir.Model)
+			irModel, ok := typeByName(doc, "P").(*ir.Model)
 			require.True(t, ok, "a union whose null branch alone lives keeps it on the Model")
-			assert.Contains(t, keptOn(m), "openapi:"+keyword)
+			assert.Contains(t, keptOn(irModel), "openapi:"+keyword)
 		})
 	}
 }

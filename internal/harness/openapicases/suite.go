@@ -119,16 +119,16 @@ func fileGroups(name string, data []byte, release int) ([]Group, error) {
 	}
 	var groups []Group
 	seen := map[string]int{}
-	for i, g := range file.Tests {
-		seen[g.Description]++
-		applies, err := compatible(g.Compatibility, release)
+	for i, suiteGroup := range file.Tests {
+		seen[suiteGroup.Description]++
+		applies, err := compatible(suiteGroup.Compatibility, release)
 		if err != nil {
 			return nil, fmt.Errorf("group %d: %w", i, err)
 		}
 		if !applies {
 			continue
 		}
-		group, err := g.group(name, seen[g.Description])
+		group, err := suiteGroup.group(name, seen[suiteGroup.Description])
 		if err != nil {
 			return nil, fmt.Errorf("group %d: %w", i, err)
 		}
@@ -149,11 +149,11 @@ func (g suiteGroup) group(name string, n int) (Group, error) {
 	if n > 1 {
 		out.Name += "#" + strconv.Itoa(n)
 	}
-	for j, t := range g.Tests {
-		if t.Valid == nil {
+	for j, suiteTest := range g.Tests {
+		if suiteTest.Valid == nil {
 			return Group{}, fmt.Errorf("%q: test %d says nothing of whether it is valid", g.Description, j)
 		}
-		out.Tests = append(out.Tests, Test{Description: t.Description, Data: t.Data, Valid: *t.Valid})
+		out.Tests = append(out.Tests, Test{Description: suiteTest.Description, Data: suiteTest.Data, Valid: *suiteTest.Valid})
 	}
 	return out, nil
 }
@@ -170,14 +170,14 @@ func compatible(expr string, release int) (bool, error) {
 	}
 	applies, decided := true, false
 	for term := range strings.SplitSeq(expr, ",") {
-		op, n, err := compatibilityTerm(strings.TrimSpace(term))
+		operation, n, err := compatibilityTerm(strings.TrimSpace(term))
 		if err != nil {
 			return false, fmt.Errorf("compatibility %q: %w", expr, err)
 		}
 		if decided {
 			continue
 		}
-		switch op {
+		switch operation {
 		case "<=":
 			applies = release <= n
 		case "=":
@@ -193,16 +193,16 @@ func compatible(expr string, release int) (bool, error) {
 // compatibilityTerm splits one term of a compatibility expression into its
 // operator, "<=", "=" or none, and its release.
 func compatibilityTerm(term string) (string, int, error) {
-	op := ""
+	operation := ""
 	for _, o := range []string{"<=", "="} {
 		if rest, ok := strings.CutPrefix(term, o); ok {
-			op, term = o, rest
+			operation, term = o, rest
 			break
 		}
 	}
 	n, err := strconv.Atoi(term)
 	if err != nil || n < 0 {
-		return "", 0, fmt.Errorf("a term naming no release: %q", op+term)
+		return "", 0, fmt.Errorf("a term naming no release: %q", operation+term)
 	}
-	return op, n, nil
+	return operation, n, nil
 }

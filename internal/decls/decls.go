@@ -92,12 +92,12 @@ func LoadEach(patterns ...string) ([]*Package, error) {
 	var errs []error
 	out := make([]*Package, 0, len(paths))
 	for _, path := range paths {
-		p, err := loadAlone(path)
+		loadedPackage, err := loadAlone(path)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		out = append(out, p)
+		out = append(out, loadedPackage)
 	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("load %s: %w", what, errors.Join(errs...))

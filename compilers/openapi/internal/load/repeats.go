@@ -11,11 +11,11 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -69,18 +69,20 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, b *type
 // compile records once (compile.Diags).
 func landingRepeats(ctx context.Context, sites places, sibs Siblings, b *typed.Bindings) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, l := range b.Table().ObjectLandings() {
+	for _, objectLanding := range b.Table().ObjectLandings() {
 		// A cancelled load reports nothing it found, so it reads no further.
 		if ctx.Err() != nil {
 			return nil
 		}
-		rp, built := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
-		if l.Kind != bind.RefPathItem || !l.Reached || !built {
+		rp, built := b.ObjectAt(objectLanding.At, reftable.RefPathItem).(*soa.ReferencedPathItem)
+		if objectLanding.Kind != reftable.RefPathItem || !objectLanding.Reached || !built {
 			continue
 		}
-		doc := l.At.Doc
-		at := func(p jsontext.Pointer) ir.Provenance { return sites.position(bind.Position{Doc: doc, Pointer: p}) }
-		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
+		doc := objectLanding.At.Doc
+		at := func(pointer jsontext.Pointer) ir.Provenance {
+			return sites.position(reftable.DocumentPointer{Doc: doc, Pointer: pointer})
+		}
+		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), objectLanding.At.Pointer))
 		diags = append(diags, listRepeats(at, sibs, b, items)...)
 	}
 	return diags

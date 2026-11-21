@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -35,9 +35,9 @@ import (
 // A `null` entry is neither member nor variant but the reference's Nullable
 // bit, which schemaAdmitsNull decides at every site (enumEntries), so a list
 // of null alone is an Enum with no member.
-func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
-	s, written := site.set, site.written
-	members := s.Enum()
+func lowerEnum(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+	schema, written := site.set, site.written
+	members := schema.Enum()
 	var diags []ir.Diagnostic
 	build := func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
@@ -45,34 +45,34 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 		// nothing, but reading the empty case beside the members it lacks is
 		// clearer than reading it after a bound on how many there may be.
 		if len(members) == 0 {
-			def, emptyDiags := emptyEnum(c, site, common)
+			def, emptyDiags := emptyEnum(loweringContext, site, common)
 			diags = append(diags, emptyDiags...)
 			return def
 		}
-		if n := len(members); !c.Limits.MaxEnumMembers.Admits(n) {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, written,
+		if n := len(members); !loweringContext.Limits.MaxEnumMembers.Admits(n) {
+			diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.BudgetExceeded, written,
 				"enum declares %d members, past the %d-member budget; lowered as any",
-				n, c.Limits.MaxEnumMembers.Cap()))
+				n, loweringContext.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
 		entries := readEnum(members)
-		diags = append(diags, enumRepeats(c, entries, written)...)
-		kept, keptDiags := enumEntries(c, s, entries, written)
+		diags = append(diags, enumRepeats(loweringContext, entries, written)...)
+		kept, keptDiags := enumEntries(loweringContext, schema, entries, written)
 		diags = append(diags, keptDiags...)
-		members, memberPrim, ok := enumMembers(kept, common.ID)
+		members, memberPrimitive, ok := enumMembers(kept, common.ID)
 		if !ok {
-			def, enumDiags := enumAsUnion(c, ts, site, common, kept)
+			def, enumDiags := enumAsUnion(loweringContext, ts, site, common, kept)
 			diags = append(diags, enumDiags...)
 			return def
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  site.enumType(c, func(p ir.PrimKind) bool { return enumMembersAre(members, p) }, memberPrim),
+			ValueType:  site.enumType(loweringContext, func(primitiveKind ir.PrimitiveKind) bool { return enumMembersAre(members, primitiveKind) }, memberPrimitive),
 			Members:    members,
 			Closed:     true,
 		}
 	}
-	id := internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(loweringContext, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		td := build(common)
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
@@ -108,53 +108,53 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // exclude null, which nothing then holds, and a value no type s declares
 // admits, a type of null included, which is kept as written beside the type
 // kept verbatim as unread.
-func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
-	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
-	types := s.Types()
+func enumEntries(loweringContext lowering.Ctx, schema *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
+	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(loweringContext, schema)
+	types := schema.Types()
 	kept := make([]enumEntry, 0, len(entries))
 	var diags []ir.Diagnostic
-	for _, e := range entries {
-		at := pointer + ids.Ptr("enum", strconv.Itoa(e.index))
+	for _, enumEntry := range entries {
+		at := pointer + ids.Ptr("enum", strconv.Itoa(enumEntry.index))
 		switch {
-		case e.isNull():
+		case enumEntry.isNull():
 			if !admitsNull {
-				diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+				diags = append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 					"enum member null admits no instance: a keyword beside the enum excludes null, and JSON "+
 						"Schema conjoins the two; the member is dropped, and the reference admits no null"))
 			}
 			continue
-		case e.err == nil && !typesAdmit(types, e.val):
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+		case enumEntry.err == nil && !typesAdmit(types, enumEntry.val):
+			diags = append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 				"enum member %s is no value of the declared type %s, which JSON Schema conjoins with enum, so no "+
-					"instance matches it; the members are lowered as written", describeValue(e.val), typeList(types)))
+					"instance matches it; the members are lowered as written", describeValue(enumEntry.val), typeList(types)))
 		}
-		kept = append(kept, e)
+		kept = append(kept, enumEntry)
 	}
 	return kept, diags
 }
 
-// typesAdmit reports whether v is a value of one of types, read by the JSON
-// kinds the admission reading gives a type and a value (kindOfType,
+// typesAdmit reports whether irValue is a value of one of types, read by the
+// JSON kinds the admission reading gives a type and a value (kindOfType,
 // kindOfValue). An empty list declares no type, and a type no schema defines
-// judges nothing, which validation reports; either admits v.
-func typesAdmit(types []statement.Kind, v ir.Value) bool {
+// judges nothing, which validation reports; either admits irValue.
+func typesAdmit(types []statement.JSONSchemaTypeName, irValue ir.Value) bool {
 	var admitted kindSet
-	for _, t := range types {
-		k := kindOfType(t)
-		if k == 0 {
+	for _, jsonSchemaTypeName := range types {
+		kindSet := kindOfType(jsonSchemaTypeName)
+		if kindSet == 0 {
 			return true
 		}
-		admitted |= k
+		admitted |= kindSet
 	}
-	return len(types) == 0 || kindOfValue(v)&admitted != 0
+	return len(types) == 0 || kindOfValue(irValue)&admitted != 0
 }
 
 // typeList spells a declared type set for a message: its one type, or the
 // list.
-func typeList(types []statement.Kind) string {
+func typeList(types []statement.JSONSchemaTypeName) string {
 	names := make([]string, 0, len(types))
-	for _, t := range types {
-		names = append(names, string(t))
+	for _, jsonSchemaTypeName := range types {
+		names = append(names, string(jsonSchemaTypeName))
 	}
 	if len(names) == 1 {
 		return names[0]
@@ -162,23 +162,23 @@ func typeList(types []statement.Kind) string {
 	return "[" + strings.Join(names, ", ") + "]"
 }
 
-// describeValue spells v for a message: a scalar as JSON writes it, and a
+// describeValue spells irValue for a message: a scalar as JSON writes it, and a
 // value JSON writes no scalar for by its kind.
-func describeValue(v ir.Value) string {
-	switch v.Kind {
+func describeValue(irValue ir.Value) string {
+	switch irValue.Kind {
 	case ir.ValueString, ir.ValueSymbol:
-		return strconv.Quote(v.Str)
+		return strconv.Quote(irValue.String)
 	case ir.ValueNumber:
-		return string(v.Num)
+		return string(irValue.Number)
 	case ir.ValueBool:
-		return strconv.FormatBool(v.Bool)
+		return strconv.FormatBool(irValue.Bool)
 	case ir.ValueNull:
 		return "null"
-	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
-		return "of kind " + string(v.Kind)
+	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
+		return "of kind " + string(irValue.Kind)
 	default:
-		return "of kind " + string(v.Kind)
+		return "of kind " + string(irValue.Kind)
 	}
 }
 
@@ -193,12 +193,12 @@ func describeValue(v ir.Value) string {
 // ValueType is what the declaration selects, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type
 // keyword at each use site (GitHub #288).
-func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, site.written,
+func emptyEnum(loweringContext lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityWarning, diag.EmptyEnum, site.written,
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  site.enumType(c, admitsEvery, ir.PrimAny),
+		ValueType:  site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny),
 		Closed:     true,
 	}, diags
 }
@@ -206,69 +206,69 @@ func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.Type
 // enumMembers converts the entries enumEntries kept into scalar members,
 // reporting ok=false for an entry that converts to no value, a non-scalar
 // member or members heterogeneous in kind. No entry kept is an Enum with no
-// member, whose PrimKind is the top type's; otherwise the PrimKind is the one
-// every member maps to, meaningful only when ok.
+// member, whose PrimitiveKind is the top type's; otherwise the PrimitiveKind is
+// the one every member maps to, meaningful only when ok.
 //
 // Each member's ID is keyed by its value beneath enum, the enum's ID, and a
 // repeat is kept, numbered; enumRepeats reports it. An ID no member fits under
 // keeps none.
-func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimKind, bool) {
+func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimitiveKind, bool) {
 	members := make([]ir.EnumMember, 0, len(entries))
 	occurrences := make(map[string]int, len(entries))
-	prim := ir.PrimAny
-	for i, e := range entries {
-		memberPrim, text, admissible := enumMemberOf(entries, i)
+	primitive := ir.PrimitiveAny
+	for i, enumEntry := range entries {
+		memberPrimitive, text, admissible := enumMemberOf(entries, i)
 		if !admissible {
 			return nil, "", false
 		}
-		key, keyed := ir.EnumMemberKey(e.val)
+		key, keyed := ir.EnumMemberKey(enumEntry.val)
 		occurrences[key]++
 		id, placed := ir.EnumMemberIDFor(enum, key, occurrences[key])
 		if !keyed || !placed {
 			return nil, "", false
 		}
-		prim = memberPrim
+		primitive = memberPrimitive
 		members = append(members, ir.EnumMember{
 			ID:    id,
 			Name:  ir.NamingFor(text),
-			Value: e.val,
+			Value: enumEntry.val,
 		})
 	}
-	return members, prim, true
+	return members, primitive, true
 }
 
 // enumMemberOf classifies the entry at index i of entries as an Enum member, as
 // enumMemberForm does its value, and refuses one converting to no value or of
 // another kind than the first, which no Enum holds beside it.
-func enumMemberOf(entries []enumEntry, i int) (ir.PrimKind, string, bool) {
-	e := entries[i]
-	if e.err != nil || i > 0 && e.val.Kind != entries[0].val.Kind {
+func enumMemberOf(entries []enumEntry, i int) (ir.PrimitiveKind, string, bool) {
+	enumEntryValue := entries[i]
+	if enumEntryValue.err != nil || i > 0 && enumEntryValue.val.Kind != entries[0].val.Kind {
 		return "", "", false
 	}
-	return enumMemberForm(e.val)
+	return enumMemberForm(enumEntryValue.val)
 }
 
-// enumMemberPrim is the PrimKind enumMembers gives entries, and false where it
-// refuses one (enumMemberOf), read with no member built: a value
+// enumMemberPrimitive is the PrimitiveKind enumMembers gives entries, and false
+// where it refuses one (enumMemberOf), read with no member built: a value
 // enumMemberForm admits always has a key, and a type's ID always places one. A
 // position asking only its ValueType names no member (enumSetType).
-func enumMemberPrim(entries []enumEntry) (ir.PrimKind, bool) {
-	prim := ir.PrimAny
+func enumMemberPrimitive(entries []enumEntry) (ir.PrimitiveKind, bool) {
+	primitive := ir.PrimitiveAny
 	for i := range entries {
-		memberPrim, _, admissible := enumMemberOf(entries, i)
+		memberPrimitive, _, admissible := enumMemberOf(entries, i)
 		if !admissible {
 			return "", false
 		}
-		prim = memberPrim
+		primitive = memberPrimitive
 	}
-	return prim, true
+	return primitive, true
 }
 
-// entriesAre reports whether every entry's value is a value of prim, as
+// entriesAre reports whether every entry's value is a value of primitive, as
 // enumMembersAre asks of the members they lower to.
-func entriesAre(entries []enumEntry, prim ir.PrimKind) bool {
-	for _, e := range entries {
-		if !merge.Admits(prim, e.val) {
+func entriesAre(entries []enumEntry, primitive ir.PrimitiveKind) bool {
+	for _, enumEntry := range entries {
+		if !merge.Admits(primitive, enumEntry.val) {
 			return false
 		}
 	}
@@ -279,16 +279,16 @@ func entriesAre(entries []enumEntry, prim ir.PrimKind) bool {
 // enumEntries kept to a Union of Literals, each hoisted at the pointer its
 // entry is written at, emitting one info diagnostic. The Union is exclusive where those
 // entries are distinct: otherwise an instance can match two variants.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, site valueSetSite, common ir.TypeCommon, entries []enumEntry) (ir.TypeDef, []ir.Diagnostic) {
-	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, site.written,
+func enumAsUnion(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite, common ir.TypeCommon, entries []enumEntry) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, site.written,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	variants := make([]ir.Variant, 0, len(entries))
-	for _, e := range entries {
-		lptr := site.written + ids.Ptr("enum", strconv.Itoa(e.index))
-		litID, litDiags := hoistLiteral(c, ts, site.memberSite(lptr), e.node)
+	for _, enumEntry := range entries {
+		lptr := site.written + ids.Ptr("enum", strconv.Itoa(enumEntry.index))
+		litID, litDiags := hoistLiteral(loweringContext, ts, site.memberSite(lptr), enumEntry.node)
 		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(lowering.NameAt(c, lptr)),
+			Name: compile.NamingHint(lowering.NameAt(loweringContext, lptr)),
 			Type: ir.TypeRef{Target: litID},
 		})
 	}
@@ -305,18 +305,18 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, site valueSetSite, common ir
 // at the const, a value no type that schema declares admits, as enumEntries reports an enum member. The Literal
 // holds the value as written, and a type it does not fit is kept
 // verbatim as unread.
-func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+func lowerConst(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
 	constant := site.set.Const()
 	val, err := value.FromNode(constant)
 	if err == nil && val.Kind == ir.ValueNull {
-		return nullConst(c, ts, site)
+		return nullConst(loweringContext, ts, site)
 	}
-	id, diags := hoistLiteral(c, ts, site, constant)
+	id, diags := hoistLiteral(loweringContext, ts, site, constant)
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
 	if types := site.set.Types(); !typesAdmit(types, val) {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
+		diags = append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))
 	}
@@ -328,12 +328,12 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID
 // (docs/ir/containers.md#literals). Where a keyword beside the const excludes
 // null, the position admits nothing, which is reported at the const as
 // enumEntries reports such a member.
-func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
-	id := lowerNullAlone(c, ts, site)
-	if schemaAdmitsNull(c, site.set) {
+func nullConst(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+	id := lowerNullAlone(loweringContext, ts, site)
+	if schemaAdmitsNull(loweringContext, site.set) {
 		return id, nil
 	}
-	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
+	return id, []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
 		"const null admits no instance: a keyword beside the const excludes null, and JSON Schema "+
 			"conjoins the two; lowered as an enum with no member, and the reference admits no null")}
 }
@@ -344,9 +344,9 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // by null alone (docs/compilers/openapi.md#null-alone). Its ValueType is what
 // that schema's type and format select, as an enum's is (enumValueType), the
 // top type where they select none, narrowed as the site types it.
-func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
-	return internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+func lowerNullAlone(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
+	return internNode(loweringContext, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(loweringContext, admitsEvery, ir.PrimitiveAny), Closed: true}
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
 }
@@ -361,58 +361,58 @@ func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.Typ
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *yaml.Node) (ir.TypeID, []ir.Diagnostic) {
+func hoistLiteral(loweringContext lowering.Ctx, ts *compile.Types, site valueSetSite, node *yaml.Node) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
 	// would be indistinguishable today — a second visit produces the identical
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(loweringContext, ts, site.pointer(), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		val, err := value.FromNode(node)
 		if err != nil {
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,
+			diags = append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,
 				"unconvertible value lowered as the top type: %s", err.Error()))
 			top := &ir.Any{TypeCommon: common}
 			return top, valueSetReads(site.set, top)
 		}
-		td := &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
+		td := &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(loweringContext, val)}
 		return td, valueSetReads(site.set, td)
 	}, site.finish)
 	return id, diags
 }
 
 // literalValueType picks a Literal's ValueType as enumValueType picks an
-// Enum's, for its one value: the primitive the declared type and format
-// select, else the declared type's, where the value is one of it (declaredPrim);
+// Enum's, for its one value: the primitive the declared type and format select,
+// else the declared type's, where the value is one of it (declaredPrimitive);
 // else the primitive the value's own kind declares, and none for a list or an
-// object, which no primitive types. A refinement's value set is then typed
-// by every conjunct (valueSetSite.valueType).
-func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
-	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {
-		return prim
+// object, which no primitive types. A refinement's value set is then typed by
+// every conjunct (valueSetSite.valueType).
+func literalValueType(schema *statement.Schema, val ir.Value) ir.PrimitiveKind {
+	if primitive, ok := declaredPrimitive(schema, func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) }); ok {
+		return primitive
 	}
 
-	prim, _, scalar := enumMemberForm(val)
+	irPrimitive, _, scalar := enumMemberForm(val)
 	if !scalar {
 		return ""
 	}
 
-	return prim
+	return irPrimitive
 }
 
 // enumValueType picks an Enum's ValueType as literalValueType picks a
 // Literal's: the primitive the schema's declared type and format select, as a
 // scalar's are read, else the declared type's, where every member is a value of
-// it (declaredPrim); else the primitive its members classified to. A type or a
-// format the members do not fit is one no target could back the enum with, so
-// it stays verbatim. It does not re-derive memberPrim from a ValueKind:
+// it (declaredPrimitive); else the primitive its members classified to. A type
+// or a format the members do not fit is one no target could back the enum with,
+// so it stays verbatim. It does not re-derive memberPrimitive from a ValueKind:
 // enumMemberForm decided it once, for the same members.
-func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPrim ir.PrimKind) ir.PrimKind {
-	if prim, ok := declaredPrim(s, admits); ok {
-		return prim
+func enumValueType(schema *statement.Schema, admits func(ir.PrimitiveKind) bool, memberPrimitive ir.PrimitiveKind) ir.PrimitiveKind {
+	if primitive, ok := declaredPrimitive(schema, admits); ok {
+		return primitive
 	}
-	return memberPrim
+	return memberPrimitive
 }
 
 // valueSetReads returns what the build of td, the node the value set set writes
@@ -459,20 +459,20 @@ func valueSetTypeRead(set *statement.Schema, td ir.TypeDef) bool {
 
 // structural reports whether st names an object or an array, which no
 // primitive types.
-func structural(st statement.Kind) bool {
+func structural(st statement.JSONSchemaTypeName) bool {
 	return st == statement.KindObject || st == statement.KindArray
 }
 
-// literalTyped reports whether lit holds the type s declares: its ValueType is
-// the primitive that one type, or the type and format, select, which
-// literalValueType took because the value is one of it, or a format of the
-// type, as bytes is of string, or the type is the object or array a composite
-// value already is. A type set naming no shape holds where it admits the
-// value; one naming several, or a type the value is not, reached no field.
-func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
-	types := effectiveTypes(s)
+// literalTyped reports whether lit holds the type schema declares: its
+// ValueType is the primitive that one type, or the type and format, select,
+// which literalValueType took because the value is one of it, or a format of
+// the type, as bytes is of string, or the type is the object or array a
+// composite value already is. A type set naming no shape holds where it admits
+// the value; one naming several, or a type the value is not, reached no field.
+func literalTyped(lit *ir.Literal, schema *statement.Schema) bool {
+	types := effectiveTypes(schema)
 	if len(types) == 0 {
-		return typesAdmit(s.Types(), lit.Value)
+		return typesAdmit(schema.Types(), lit.Value)
 	}
 	if len(types) > 1 {
 		return false
@@ -483,56 +483,57 @@ func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 	if lit.Value.Kind == ir.ValueList {
 		return types[0] == statement.KindArray
 	}
-	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
+	if primitive, paired := formatPrimitive(schema); paired && primitive == lit.ValueType {
 		return true
 	}
-	prim, known := spelling.Lookup(string(types[0]))
-	return known && narrowsOrIs(lit.ValueType, prim)
+	irPrimitive, known := typeformat.Lookup(string(types[0]))
+	return known && narrowsOrIs(lit.ValueType, irPrimitive)
 }
 
 // membersTyped reports whether every member of an Enum is a value of the type
-// set s declares, which then says nothing the members do not. One a member is
-// no value of is a type the Enum's ValueType does not take (enumValueType).
-func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
-	types := s.Types()
-	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
+// set schema declares, which then says nothing the members do not. One a member
+// is no value of is a type the Enum's ValueType does not take (enumValueType).
+func membersTyped(members []ir.EnumMember, schema *statement.Schema) bool {
+	types := schema.Types()
+	return !slices.ContainsFunc(members, func(enumMember ir.EnumMember) bool { return !typesAdmit(types, enumMember.Value) })
 }
 
-// enumMembersAre reports whether every member's value is a value of prim.
-func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
-	for _, m := range members {
-		if !merge.Admits(prim, m.Value) {
+// enumMembersAre reports whether every member's value is a value of primitive.
+func enumMembersAre(members []ir.EnumMember, primitive ir.PrimitiveKind) bool {
+	for _, enumMember := range members {
+		if !merge.Admits(primitive, enumMember.Value) {
 			return false
 		}
 	}
 	return true
 }
 
-// enumMemberForm classifies one lowered value as an Enum member: the PrimKind
-// its kind declares and the literal text that names the member. ok=false means
-// the kind has no place in an Enum, and the caller degrades the whole enum to a
-// Union of Literals with a diagnostic.
+// enumMemberForm classifies one lowered value as an Enum member: the
+// PrimitiveKind its kind declares and the literal text that names the member.
+// ok=false means the kind has no place in an Enum, and the caller degrades the
+// whole enum to a Union of Literals with a diagnostic.
 //
 // Its switch has one arm per ir.ValueKind, as ir.EnumMemberKey's does; the
 // exhaustive linter fails when ir adds a kind either lacks. The default arm
 // refuses a kind rather than assert a type the source never wrote.
-func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
-	switch v.Kind {
+func enumMemberForm(irValue ir.Value) (ir.PrimitiveKind, string, bool) {
+	switch irValue.Kind {
 	case ir.ValueString:
-		return ir.PrimString, v.Str, true
+		return ir.PrimitiveString, irValue.String, true
 	case ir.ValueSymbol:
-		// An interned symbol has no primitive of its own; PrimString is the form
-		// it takes on a JSON wire. Unreachable from OpenAPI, whose values come
-		// from YAML nodes, but ValueKind is IR-wide and this is its enum home.
-		return ir.PrimString, v.Str, true
+		// An interned symbol has no primitive of its own; PrimitiveString is
+		// the form it takes on a JSON wire. Unreachable from OpenAPI, whose
+		// values come from YAML nodes, but ValueKind is IR-wide and this is its
+		// enum home.
+		return ir.PrimitiveString, irValue.String, true
 	case ir.ValueNumber:
-		return ir.PrimNumber, string(v.Num), true
+		return ir.PrimitiveNumber, string(irValue.Number), true
 	case ir.ValueBool:
-		return ir.PrimBool, strconv.FormatBool(v.Bool), true
+		return ir.PrimitiveBool, strconv.FormatBool(irValue.Bool), true
 	case ir.ValueBytes:
-		return ir.PrimBytes, base64.StdEncoding.EncodeToString(v.Bytes), true
-	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		return ir.PrimitiveBytes, base64.StdEncoding.EncodeToString(irValue.Bytes), true
+	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		// Composite, reference and null values are not enum members: none has a
 		// primitive to declare or a literal text form to name a member by. Nor
 		// is a non-finite number, which no OpenAPI value is.
@@ -547,21 +548,21 @@ func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 // so a repeat is reported whether the set lowers to an Enum or a Union, and a
 // repeated null though no member holds one. Values compare by valueKey, so a
 // repeat in an Enum is a member whose ID ends in its occurrence number.
-func enumRepeats(c lowering.Ctx, entries []enumEntry, pointer jsontext.Pointer) []ir.Diagnostic {
+func enumRepeats(loweringContext lowering.Ctx, entries []enumEntry, pointer jsontext.Pointer) []ir.Diagnostic {
 	firstAt := make(map[string]int, len(entries))
 	var diags []ir.Diagnostic
-	for _, e := range entries {
-		key, keyed := e.key()
+	for _, enumEntry := range entries {
+		key, keyed := enumEntry.key()
 		if !keyed {
 			continue
 		}
 		first, repeated := firstAt[key]
 		if !repeated {
-			firstAt[key] = e.index
+			firstAt[key] = enumEntry.index
 			continue
 		}
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue,
-			pointer+ids.Ptr("enum", strconv.Itoa(e.index)),
+		diags = append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue,
+			pointer+ids.Ptr("enum", strconv.Itoa(enumEntry.index)),
 			"enum value repeats the entry at index %d; every occurrence is kept", first))
 	}
 	return diags
@@ -571,8 +572,8 @@ func enumRepeats(c lowering.Ctx, entries []enumEntry, pointer jsontext.Pointer) 
 // repeats, and each has a key, since one with none may lower to the top type.
 func distinctEntries(entries []enumEntry) bool {
 	seen := make(map[string]bool, len(entries))
-	for _, e := range entries {
-		key, keyed := e.key()
+	for _, enumEntry := range entries {
+		key, keyed := enumEntry.key()
 		if !keyed || seen[key] {
 			return false
 		}
@@ -605,18 +606,18 @@ const maxValueKeyDepth = 128
 //
 // ok is false for a reference or a constructor, which no source enum holds, and
 // for a value nested past maxValueKeyDepth.
-func valueKey(v ir.Value, depth int) (key string, ok bool) {
+func valueKey(irValue ir.Value, depth int) (key string, ok bool) {
 	if depth > maxValueKeyDepth {
 		return "", false
 	}
-	switch v.Kind {
+	switch irValue.Kind {
 	case ir.ValueString, ir.ValueSymbol, ir.ValueNumber, ir.ValueBool, ir.ValueBytes, ir.ValueNull:
-		return ir.EnumMemberKey(v)
+		return ir.EnumMemberKey(irValue)
 	case ir.ValueList:
-		return listKey(v.List, depth)
+		return listKey(irValue.List, depth)
 	case ir.ValueObject:
-		return objectKey(v.Object, depth)
-	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		return objectKey(irValue.Object, depth)
+	case ir.ValueRefKind, ir.ValueConstructor, ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false
@@ -625,11 +626,11 @@ func valueKey(v ir.Value, depth int) (key string, ok bool) {
 
 // listKey returns the key of a list at depth: "l", then each element's key in
 // order.
-func listKey(elems []ir.Value, depth int) (string, bool) {
+func listKey(elements []ir.Value, depth int) (string, bool) {
 	var b strings.Builder
 	b.WriteString("l")
-	for _, e := range elems {
-		k, ok := valueKey(e, depth+1)
+	for _, irValue := range elements {
+		k, ok := valueKey(irValue, depth+1)
 		if !ok {
 			return "", false
 		}
@@ -642,12 +643,12 @@ func listKey(elems []ir.Value, depth int) (string, bool) {
 // and its value's key, the members sorted so their order does not count.
 func objectKey(fields []ir.Field, depth int) (string, bool) {
 	members := make([]string, 0, len(fields))
-	for _, f := range fields {
-		k, ok := valueKey(f.Value, depth+1)
+	for _, field := range fields {
+		k, ok := valueKey(field.Value, depth+1)
 		if !ok {
 			return "", false
 		}
-		members = append(members, lengthPrefixed(f.Name)+lengthPrefixed(k))
+		members = append(members, lengthPrefixed(field.Name)+lengthPrefixed(k))
 	}
 	slices.Sort(members)
 	return "o" + strings.Join(members, ""), true

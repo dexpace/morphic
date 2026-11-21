@@ -49,10 +49,10 @@ func compileUnder(t *testing.T, src string, opts openapi.Options) (*ir.Document,
 func httpDateReports(t *testing.T, diags []ir.Diagnostic) []string {
 	t.Helper()
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.InferredHTTPDate {
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.InferredHTTPDate {
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return out
@@ -65,14 +65,14 @@ func httpDateReports(t *testing.T, diags []ir.Diagnostic) []string {
 func TestHTTPDate_ReachesAHeaderParameter(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileUnder(t, instantParam, openapi.Options{})
-	op := openapitest.FindOp(t, doc, "putFile")
-	require.Len(t, op.Params, 2)
+	operation := openapitest.FindOperation(t, doc, "putFile")
+	require.Len(t, operation.Params, 2)
 
-	assert.Nil(t, op.Params[0].Encoding)
-	assert.Empty(t, op.Params[0].Provenance.Inferred)
-	assert.Equal(t, &ir.Encoding{Name: "http-date"}, op.Params[1].Encoding)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), op.Params[1].Type.Target)
-	assert.Equal(t, openapi.HTTPDateInferenceHeuristic, op.Params[1].Provenance.Inferred)
+	assert.Nil(t, operation.Params[0].Encoding)
+	assert.Empty(t, operation.Params[0].Provenance.Inferred)
+	assert.Equal(t, &ir.Encoding{Name: "http-date"}, operation.Params[1].Encoding)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveDatetimeOffset), operation.Params[1].Type.Target)
+	assert.Equal(t, openapi.HTTPDateInferenceHeuristic, operation.Params[1].Provenance.Inferred)
 	assert.Equal(t, []string{"/paths/~1files~1{name}/put/parameters/1"}, httpDateReports(t, diags))
 	assert.Len(t, diags, 1, "nothing else is reported: %+v", diags)
 }
@@ -120,9 +120,9 @@ paths:
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileUnder(t, tc.src, tc.opts)
-			for _, p := range allParams(doc) {
-				assert.Nil(t, p.Encoding, p.Name.Source)
-				assert.Empty(t, p.Provenance.Inferred, p.Name.Source)
+			for _, parameter := range allParams(doc) {
+				assert.Nil(t, parameter.Encoding, parameter.Name.Source)
+				assert.Empty(t, parameter.Provenance.Inferred, parameter.Name.Source)
 			}
 			assert.Empty(t, diags)
 		})
@@ -150,15 +150,15 @@ components:
   schemas:
     Stamp: {type: string, format: date-time}
 `, openapi.Options{})
-		get := openapitest.FindOp(t, doc, "getA")
+		get := openapitest.FindOperation(t, doc, "getA")
 		require.Len(t, get.Params, 1)
 		assert.Equal(t, &ir.Encoding{Name: "http-date"}, get.Params[0].Encoding)
-		assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Stamp"), get.Params[0].Type.Target, "its type is still the component")
+		assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Stamp"), get.Params[0].Type.Target, "its type is still the component")
 		stamp, ok := doc.Types[get.Params[0].Type.Target].(*ir.Scalar)
 		require.True(t, ok)
 		assert.Nil(t, stamp.Encoding, "the component is shared and says nothing of one use")
 
-		body, ok := doc.Types[openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postB").Request)].(*ir.Model)
+		body, ok := doc.Types[openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "postB").Request)].(*ir.Model)
 		require.True(t, ok)
 		require.Len(t, body.Properties, 1)
 		assert.Nil(t, body.Properties[0].Encoding, "the member that names it is read as declared")
@@ -176,10 +176,10 @@ paths:
     put: {operationId: putA, responses: {"204": {description: ok}}}
 `, openapi.Options{})
 		for _, name := range []string{"getA", "putA"} {
-			op := openapitest.FindOp(t, doc, name)
-			require.Len(t, op.Params, 1, name)
-			assert.Equal(t, &ir.Encoding{Name: "http-date"}, op.Params[0].Encoding, name)
-			assert.Equal(t, openapi.HTTPDateInferenceHeuristic, op.Params[0].Provenance.Inferred, name)
+			operation := openapitest.FindOperation(t, doc, name)
+			require.Len(t, operation.Params, 1, name)
+			assert.Equal(t, &ir.Encoding{Name: "http-date"}, operation.Params[0].Encoding, name)
+			assert.Equal(t, openapi.HTTPDateInferenceHeuristic, operation.Params[0].Provenance.Inferred, name)
 		}
 		assert.Equal(t, []string{"/paths/~1a/parameters/0"}, httpDateReports(t, diags), "one declaration, one report")
 	})
@@ -190,11 +190,11 @@ func allParams(doc *ir.Document) []ir.Parameter {
 	var out []ir.Parameter
 	var walk func(gs []ir.OperationGroup)
 	walk = func(gs []ir.OperationGroup) {
-		for _, g := range gs {
-			for _, op := range g.Operations {
-				out = append(out, op.Params...)
+		for _, operationGroup := range gs {
+			for _, operation := range operationGroup.Operations {
+				out = append(out, operation.Params...)
 			}
-			walk(g.Groups)
+			walk(operationGroup.Groups)
 		}
 	}
 	for _, svc := range doc.Services {

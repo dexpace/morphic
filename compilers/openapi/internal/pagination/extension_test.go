@@ -39,16 +39,16 @@ func pagePolicy() openapi.ExtensionPromotions {
 	}}
 }
 
-// pagedSpec is a document whose one operation, x, writes op beneath its
+// pagedSpec is a document whose one operation, x, writes operation beneath its
 // operationId: the extensions, parameters, body and responses a case reads.
-func pagedSpec(op string) string {
+func pagedSpec(operation string) string {
 	return `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /x:
     post:
       operationId: x
-` + op + `
+` + operation + `
 components:
   schemas:
     Page:
@@ -73,68 +73,68 @@ const pageResponse = `      responses:
           content: {application/json: {schema: {$ref: '#/components/schemas/Page'}}}`
 
 // compilePaged compiles a pagedSpec under policy and returns operation x.
-func compilePaged(t *testing.T, op string, policy openapi.ExtensionPromotions) (*ir.Document, ir.Operation, []ir.Diagnostic) {
+func compilePaged(t *testing.T, operation string, policy openapi.ExtensionPromotions) (*ir.Document, ir.Operation, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(pagedSpec(op))},
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(pagedSpec(operation))},
 		compilers.Options{FormatOptions: openapi.Options{Promotions: policy}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return doc, openapitest.FirstOp(t, doc.Services[0]), diags
+	return doc, openapitest.FirstOperation(t, doc.Services[0]), diags
 }
 
-// renderPage spells p by the names its fields reach, so a case reads as the
-// document it compiles: a parameter as param:<name>, the request body as
+// renderPage spells pagination by the names its fields reach, so a case reads
+// as the document it compiles: a parameter as param:<name>, the request body as
 // body:<members>, and a page value as its members, or header:<name>.
-func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
-	if p == nil {
+func renderPage(doc *ir.Document, operation ir.Operation, pagination *ir.Pagination) string {
+	if pagination == nil {
 		return "none"
 	}
-	names := map[ir.PropID]string{}
+	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, prop := range m.Properties {
-				names[prop.ID] = prop.Name.Source
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				names[property.ID] = property.Name.Source
 			}
 		}
 	}
-	for _, r := range op.Responses {
-		for _, h := range r.Headers {
-			names[h.ID] = h.Name.Source
+	for _, response := range operation.Responses {
+		for _, header := range response.Headers {
+			names[header.ID] = header.Name.Source
 		}
 	}
-	path := func(segments []ir.PropID) string {
+	path := func(segments []ir.PropertyID) string {
 		words := make([]string, len(segments))
-		for i, s := range segments {
-			words[i] = names[s]
+		for i, propertyID := range segments {
+			words[i] = names[propertyID]
 		}
 		return strings.Join(words, ".")
 	}
-	in := func(name string, v *ir.InputPath) string {
+	in := func(name string, inputPath *ir.InputPath) string {
 		switch {
-		case v == nil:
+		case inputPath == nil:
 			return ""
-		case v.Param == nil:
-			return " " + name + "=body:" + path(v.Segments)
+		case inputPath.Param == nil:
+			return " " + name + "=body:" + path(inputPath.Segments)
 		}
-		for _, param := range op.Params {
-			if param.ID == *v.Param {
-				return " " + name + "=param:" + strings.TrimSuffix(param.Name.Source+"."+path(v.Segments), ".")
+		for _, param := range operation.Params {
+			if param.ID == *inputPath.Param {
+				return " " + name + "=param:" + strings.TrimSuffix(param.Name.Source+"."+path(inputPath.Segments), ".")
 			}
 		}
 		return " " + name + "=?"
 	}
-	out := func(name string, v *ir.PropPath) string {
+	out := func(name string, propertyPath *ir.PropertyPath) string {
 		switch {
-		case v == nil:
+		case propertyPath == nil:
 			return ""
-		case v.In == "header":
-			return " " + name + "=header:" + path(v.Segments)
+		case propertyPath.In == "header":
+			return " " + name + "=header:" + path(propertyPath.Segments)
 		default:
-			return " " + name + "=" + path(v.Segments)
+			return " " + name + "=" + path(propertyPath.Segments)
 		}
 	}
-	return string(p.Strategy) + in("in", p.InputCursor) + in("limit", p.InputLimit) + out("items", p.Items) +
-		out("next", p.NextCursor) + out("link", p.NextLink) + out("total", p.TotalCount) + out("pages", p.TotalPages)
+	return string(pagination.Strategy) + in("in", pagination.InputCursor) + in("limit", pagination.InputLimit) + out("items", pagination.Items) +
+		out("next", pagination.NextCursor) + out("link", pagination.NextLink) + out("total", pagination.TotalCount) + out("pages", pagination.TotalPages)
 }
 
 // TestPromote_FillsWhatTheExtensionsDeclare pins each way a policy's
@@ -145,7 +145,7 @@ func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
 func TestPromote_FillsWhatTheExtensionsDeclare(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, op, want string
+		name, operation, want string
 	}{
 		{"a cursor walk in shorthand", `      x-page: {cursor: $request.c, next: $response.info.next, items: $response.items, limit: $request.n}
       parameters:
@@ -209,10 +209,10 @@ func TestPromote_FillsWhatTheExtensionsDeclare(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, op, diags := compilePaged(t, tc.op, pagePolicy())
-			assert.Equal(t, tc.want, renderPage(doc, op, op.Pagination))
-			if op.Pagination != nil {
-				assert.True(t, op.Pagination.Inferred, "a pagination an extension declares is still a guess")
+			doc, operation, diags := compilePaged(t, tc.operation, pagePolicy())
+			assert.Equal(t, tc.want, renderPage(doc, operation, operation.Pagination))
+			if operation.Pagination != nil {
+				assert.True(t, operation.Pagination.Inferred, "a pagination an extension declares is still a guess")
 				openapitest.RequireNoErrorDiags(t, diags)
 			}
 		})
@@ -234,7 +234,7 @@ func TestPromote_ReportsWhatFillsNone(t *testing.T) {
 		return out
 	}
 	for _, tc := range []struct {
-		name, op, want string
+		name, operation, want string
 	}{
 		{"two inputs continue it", "      x-page: {cursor: $request.c, page: $request.p, next: $response.next}\n" +
 			query("c", "p") + pageResponse, "names more than one input continuing it (pagination.cursor, pagination.page)"},
@@ -282,11 +282,11 @@ func TestPromote_ReportsWhatFillsNone(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, op, diags := compilePaged(t, tc.op, pagePolicy())
-			assert.Nil(t, op.Pagination)
+			_, operation, diags := compilePaged(t, tc.operation, pagePolicy())
+			assert.Nil(t, operation.Pagination)
 			var found bool
-			for _, d := range diags {
-				found = found || strings.Contains(d.Message, tc.want) && d.Code == "openapi/degraded-construct"
+			for _, diagnostic := range diags {
+				found = found || strings.Contains(diagnostic.Message, tc.want) && diagnostic.Code == "openapi/degraded-construct"
 			}
 			assert.True(t, found, "want a report holding %q, got %+v", tc.want, diags)
 		})
@@ -329,7 +329,7 @@ func streamBeside(body string) string {
 func TestPromote_ReadsEverySuccessResponse(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, op, want, report string
+		name, operation, want, report string
 	}{
 		{"two responses holding one member", "      x-page: {link: $response.next}\n" +
 			twoResponses(`{$ref: '#/components/schemas/Page'}`), "next_link link=next", ""},
@@ -432,12 +432,12 @@ func TestPromote_ReadsEverySuccessResponse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, op, diags := compilePaged(t, tc.op, pagePolicy())
-			assert.Equal(t, tc.want, renderPage(doc, op, op.Pagination))
+			doc, operation, diags := compilePaged(t, tc.operation, pagePolicy())
+			assert.Equal(t, tc.want, renderPage(doc, operation, operation.Pagination))
 			var reports []string
-			for _, d := range diags {
-				if d.Code == "openapi/degraded-construct" {
-					reports = append(reports, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == "openapi/degraded-construct" {
+					reports = append(reports, diagnostic.Message)
 				}
 			}
 			if tc.report == "" {
@@ -458,14 +458,14 @@ const queryC = "      parameters:\n        - {name: c, in: query, schema: {type:
 // a document declaring one fills nothing and reports nothing.
 func TestPromote_ReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
-	op := "      x-page: {link: $response.next}\n" + pageResponse
+	operation := "      x-page: {link: $response.next}\n" + pageResponse
 	for name, policy := range map[string]openapi.ExtensionPromotions{
 		"no pagination target": {Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
 			openapi.TargetDeprecationMessage: {{Key: "x-why"}},
 		}},
 		"off": {Disabled: true},
 	} {
-		_, got, diags := compilePaged(t, op, policy)
+		_, got, diags := compilePaged(t, operation, policy)
 		assert.Nil(t, got.Pagination, name)
 		assert.Empty(t, diags, name)
 	}
@@ -486,15 +486,15 @@ func TestPromote_ReadsAHeaderOffItsOwnOperation(t *testing.T) {
 `
 	}
 	doc, _ := compile(t, openapitest.PathsSpec(operation("a")+operation("b")), openapi.Options{Promotions: pagePolicy()})
-	next := map[ir.PropID]string{}
+	next := map[ir.PropertyID]string{}
 	for _, name := range []string{"a", "b"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.Len(t, op.Responses, 1, name)
-		require.Len(t, op.Responses[0].Headers, 1, name)
-		require.NotNil(t, op.Pagination, name)
-		require.NotNil(t, op.Pagination.NextLink, name)
-		own := op.Responses[0].Headers[0].ID
-		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{own}}, op.Pagination.NextLink, name)
+		operation := openapitest.FindOperation(t, doc, name)
+		require.Len(t, operation.Responses, 1, name)
+		require.Len(t, operation.Responses[0].Headers, 1, name)
+		require.NotNil(t, operation.Pagination, name)
+		require.NotNil(t, operation.Pagination.NextLink, name)
+		own := operation.Responses[0].Headers[0].ID
+		assert.Equal(t, &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{own}}, operation.Pagination.NextLink, name)
 		next[own] = name
 	}
 	assert.Len(t, next, 2, "the two operations declare two headers")

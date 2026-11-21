@@ -17,82 +17,85 @@ var (
 	_ TypeDef = (*Any)(nil)
 )
 
-// PrimKind names a built-in primitive scalar (docs/ir/primitives.md). The set
-// is the union of TypeSpec's intrinsic scalars, JSON Schema's types, and
+// PrimitiveKind names a built-in primitive scalar (docs/ir/primitives.md). The
+// set is the union of TypeSpec's intrinsic scalars, JSON Schema's types, and
 // Protobuf's needs.
-type PrimKind string
+type PrimitiveKind string
 
 // Primitive kinds.
 const (
-	// PrimBool is a boolean.
-	PrimBool PrimKind = "bool"
-	// PrimString is a Unicode string.
-	PrimString PrimKind = "string"
-	// PrimBytes is a byte string.
-	PrimBytes PrimKind = "bytes"
-	// PrimInt8 is a signed 8-bit integer.
-	PrimInt8 PrimKind = "int8"
-	// PrimInt16 is a signed 16-bit integer.
-	PrimInt16 PrimKind = "int16"
-	// PrimInt32 is a signed 32-bit integer.
-	PrimInt32 PrimKind = "int32"
-	// PrimInt64 is a signed 64-bit integer.
-	PrimInt64 PrimKind = "int64"
-	// PrimUint8 is an unsigned 8-bit integer.
-	PrimUint8 PrimKind = "uint8"
-	// PrimUint16 is an unsigned 16-bit integer.
-	PrimUint16 PrimKind = "uint16"
-	// PrimUint32 is an unsigned 32-bit integer.
-	PrimUint32 PrimKind = "uint32"
-	// PrimUint64 is an unsigned 64-bit integer.
-	PrimUint64 PrimKind = "uint64"
-	// PrimInteger is an arbitrary-precision integer (JSON Schema/TypeSpec integer).
-	PrimInteger PrimKind = "integer"
-	// PrimFloat32 is a 32-bit IEEE-754 float.
-	PrimFloat32 PrimKind = "float32"
-	// PrimFloat64 is a 64-bit IEEE-754 float.
-	PrimFloat64 PrimKind = "float64"
-	// PrimFloat is an arbitrary-precision binary float (supertype of float32/64).
-	PrimFloat PrimKind = "float"
-	// PrimNumber is an arbitrary-precision number (JSON Schema number, TypeSpec numeric).
-	PrimNumber PrimKind = "number"
-	// PrimDecimal is an arbitrary-precision decimal.
-	PrimDecimal PrimKind = "decimal"
-	// PrimDecimal128 is a 128-bit IEEE-754 decimal.
-	PrimDecimal128 PrimKind = "decimal128"
-	// PrimDate is a calendar date without time.
-	PrimDate PrimKind = "date"
-	// PrimTime is a time of day without date or offset.
-	PrimTime PrimKind = "time"
-	// PrimDatetime is a date and time without offset.
-	PrimDatetime PrimKind = "datetime"
-	// PrimDatetimeOffset is a date and time with UTC offset.
-	PrimDatetimeOffset PrimKind = "datetime_offset"
-	// PrimDuration is a time span.
-	PrimDuration PrimKind = "duration"
-	// PrimURL is a URL.
-	PrimURL PrimKind = "url"
-	// PrimUUID is a UUID.
-	PrimUUID PrimKind = "uuid"
-	// PrimAny is an unknown/JSON any (schemaless) primitive.
-	PrimAny PrimKind = "any"
+	// PrimitiveBool is a boolean.
+	PrimitiveBool PrimitiveKind = "bool"
+	// PrimitiveString is a Unicode string.
+	PrimitiveString PrimitiveKind = "string"
+	// PrimitiveBytes is a byte string.
+	PrimitiveBytes PrimitiveKind = "bytes"
+	// PrimitiveInt8 is a signed 8-bit integer.
+	PrimitiveInt8 PrimitiveKind = "int8"
+	// PrimitiveInt16 is a signed 16-bit integer.
+	PrimitiveInt16 PrimitiveKind = "int16"
+	// PrimitiveInt32 is a signed 32-bit integer.
+	PrimitiveInt32 PrimitiveKind = "int32"
+	// PrimitiveInt64 is a signed 64-bit integer.
+	PrimitiveInt64 PrimitiveKind = "int64"
+	// PrimitiveUint8 is an unsigned 8-bit integer.
+	PrimitiveUint8 PrimitiveKind = "uint8"
+	// PrimitiveUint16 is an unsigned 16-bit integer.
+	PrimitiveUint16 PrimitiveKind = "uint16"
+	// PrimitiveUint32 is an unsigned 32-bit integer.
+	PrimitiveUint32 PrimitiveKind = "uint32"
+	// PrimitiveUint64 is an unsigned 64-bit integer.
+	PrimitiveUint64 PrimitiveKind = "uint64"
+	// PrimitiveInteger is an arbitrary-precision integer (JSON Schema/TypeSpec
+	// integer).
+	PrimitiveInteger PrimitiveKind = "integer"
+	// PrimitiveFloat32 is a 32-bit IEEE-754 float.
+	PrimitiveFloat32 PrimitiveKind = "float32"
+	// PrimitiveFloat64 is a 64-bit IEEE-754 float.
+	PrimitiveFloat64 PrimitiveKind = "float64"
+	// PrimitiveFloat is an arbitrary-precision binary float (supertype of
+	// float32/64).
+	PrimitiveFloat PrimitiveKind = "float"
+	// PrimitiveNumber is an arbitrary-precision number (JSON Schema number,
+	// TypeSpec numeric).
+	PrimitiveNumber PrimitiveKind = "number"
+	// PrimitiveDecimal is an arbitrary-precision decimal.
+	PrimitiveDecimal PrimitiveKind = "decimal"
+	// PrimitiveDecimal128 is a 128-bit IEEE-754 decimal.
+	PrimitiveDecimal128 PrimitiveKind = "decimal128"
+	// PrimitiveDate is a calendar date without time.
+	PrimitiveDate PrimitiveKind = "date"
+	// PrimitiveTime is a time of day without date or offset.
+	PrimitiveTime PrimitiveKind = "time"
+	// PrimitiveDatetime is a date and time without offset.
+	PrimitiveDatetime PrimitiveKind = "datetime"
+	// PrimitiveDatetimeOffset is a date and time with UTC offset.
+	PrimitiveDatetimeOffset PrimitiveKind = "datetime_offset"
+	// PrimitiveDuration is a time span.
+	PrimitiveDuration PrimitiveKind = "duration"
+	// PrimitiveURL is a URL.
+	PrimitiveURL PrimitiveKind = "url"
+	// PrimitiveUUID is a UUID.
+	PrimitiveUUID PrimitiveKind = "uuid"
+	// PrimitiveAny is an unknown/JSON any (schemaless) primitive.
+	PrimitiveAny PrimitiveKind = "any"
 )
 
-// Valid reports whether k is one of the kinds declared above. PrimKind is a bare
-// string enum, so nothing rejects an invented or stale value on the wire, and
-// PrimTypeID derives a consistent ID from any string it is handed — an invented
-// kind agrees with its own ID and reads as sound. irverify calls this so a kind
-// no emitter can switch on is reported as the compiler bug it is, rather than
-// reaching a target that has no type to lower it to.
-func (k PrimKind) Valid() bool {
+// Valid reports whether k is one of the kinds declared above. PrimitiveKind is
+// a bare string enum, so nothing rejects an invented or stale value on the
+// wire, and PrimitiveTypeID derives a consistent ID from any string it is
+// handed — an invented kind agrees with its own ID and reads as sound. irverify
+// calls this so a kind no emitter can switch on is reported as the compiler bug
+// it is, rather than reaching a target that has no type to lower it to.
+func (k PrimitiveKind) Valid() bool {
 	switch k {
-	case PrimBool, PrimString, PrimBytes,
-		PrimInt8, PrimInt16, PrimInt32, PrimInt64,
-		PrimUint8, PrimUint16, PrimUint32, PrimUint64,
-		PrimInteger, PrimFloat32, PrimFloat64, PrimFloat, PrimNumber,
-		PrimDecimal, PrimDecimal128,
-		PrimDate, PrimTime, PrimDatetime, PrimDatetimeOffset, PrimDuration,
-		PrimURL, PrimUUID, PrimAny:
+	case PrimitiveBool, PrimitiveString, PrimitiveBytes,
+		PrimitiveInt8, PrimitiveInt16, PrimitiveInt32, PrimitiveInt64,
+		PrimitiveUint8, PrimitiveUint16, PrimitiveUint32, PrimitiveUint64,
+		PrimitiveInteger, PrimitiveFloat32, PrimitiveFloat64, PrimitiveFloat, PrimitiveNumber,
+		PrimitiveDecimal, PrimitiveDecimal128,
+		PrimitiveDate, PrimitiveTime, PrimitiveDatetime, PrimitiveDatetimeOffset, PrimitiveDuration,
+		PrimitiveURL, PrimitiveUUID, PrimitiveAny:
 		return true
 	default:
 		return false
@@ -105,40 +108,40 @@ const maxDomainDepth = 8
 
 // domainParents returns the immediate supertypes of k by value domain: the
 // kinds that hold every finite value of k, with no kind between
-// (docs/ir/primitives.md). A kind with none is a root. PrimAny is the top of
-// every kind without being an edge; see StrictlyWithin. The result is fresh, so
-// a caller may keep it.
-func (k PrimKind) domainParents() []PrimKind {
+// (docs/ir/primitives.md). A kind with none is a root. PrimitiveAny is the top
+// of every kind without being an edge; see StrictlyWithin. The result is fresh,
+// so a caller may keep it.
+func (k PrimitiveKind) domainParents() []PrimitiveKind {
 	switch k {
-	case PrimInt8:
-		return []PrimKind{PrimInt16}
-	case PrimInt16:
-		return []PrimKind{PrimInt32, PrimFloat32}
-	case PrimInt32:
-		return []PrimKind{PrimInt64, PrimFloat64}
-	case PrimInt64, PrimUint64:
-		return []PrimKind{PrimInteger, PrimDecimal128}
-	case PrimUint8:
-		return []PrimKind{PrimUint16, PrimInt16}
-	case PrimUint16:
-		return []PrimKind{PrimUint32, PrimInt32, PrimFloat32}
-	case PrimUint32:
-		return []PrimKind{PrimUint64, PrimInt64, PrimFloat64}
-	case PrimInteger:
-		return []PrimKind{PrimFloat}
-	case PrimFloat32:
-		return []PrimKind{PrimFloat64}
-	case PrimFloat64:
-		return []PrimKind{PrimFloat}
-	case PrimFloat:
-		return []PrimKind{PrimDecimal}
-	case PrimDecimal:
-		return []PrimKind{PrimNumber}
-	case PrimDecimal128:
-		return []PrimKind{PrimDecimal}
-	case PrimBool, PrimString, PrimBytes, PrimNumber,
-		PrimDate, PrimTime, PrimDatetime, PrimDatetimeOffset, PrimDuration,
-		PrimURL, PrimUUID, PrimAny:
+	case PrimitiveInt8:
+		return []PrimitiveKind{PrimitiveInt16}
+	case PrimitiveInt16:
+		return []PrimitiveKind{PrimitiveInt32, PrimitiveFloat32}
+	case PrimitiveInt32:
+		return []PrimitiveKind{PrimitiveInt64, PrimitiveFloat64}
+	case PrimitiveInt64, PrimitiveUint64:
+		return []PrimitiveKind{PrimitiveInteger, PrimitiveDecimal128}
+	case PrimitiveUint8:
+		return []PrimitiveKind{PrimitiveUint16, PrimitiveInt16}
+	case PrimitiveUint16:
+		return []PrimitiveKind{PrimitiveUint32, PrimitiveInt32, PrimitiveFloat32}
+	case PrimitiveUint32:
+		return []PrimitiveKind{PrimitiveUint64, PrimitiveInt64, PrimitiveFloat64}
+	case PrimitiveInteger:
+		return []PrimitiveKind{PrimitiveFloat}
+	case PrimitiveFloat32:
+		return []PrimitiveKind{PrimitiveFloat64}
+	case PrimitiveFloat64:
+		return []PrimitiveKind{PrimitiveFloat}
+	case PrimitiveFloat:
+		return []PrimitiveKind{PrimitiveDecimal}
+	case PrimitiveDecimal:
+		return []PrimitiveKind{PrimitiveNumber}
+	case PrimitiveDecimal128:
+		return []PrimitiveKind{PrimitiveDecimal}
+	case PrimitiveBool, PrimitiveString, PrimitiveBytes, PrimitiveNumber,
+		PrimitiveDate, PrimitiveTime, PrimitiveDatetime, PrimitiveDatetimeOffset, PrimitiveDuration,
+		PrimitiveURL, PrimitiveUUID, PrimitiveAny:
 		return nil
 	default:
 		return nil
@@ -147,18 +150,18 @@ func (k PrimKind) domainParents() []PrimKind {
 
 // StrictlyWithin reports whether every finite value of k is a value of broad and the
 // kinds differ: broad is reached by walking domainParents up from k, or is
-// PrimAny and k is another valid kind. It is a strict partial order, and the
+// PrimitiveAny and k is another valid kind. It is a strict partial order, and the
 // walk is bounded by maxDomainDepth.
-func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
+func (k PrimitiveKind) StrictlyWithin(broad PrimitiveKind) bool {
 	if k == broad || !k.Valid() || !broad.Valid() {
 		return false
 	}
-	if broad == PrimAny {
+	if broad == PrimitiveAny {
 		return true
 	}
-	frontier := []PrimKind{k}
+	frontier := []PrimitiveKind{k}
 	for depth := 0; depth < maxDomainDepth && len(frontier) > 0; depth++ {
-		var next []PrimKind
+		var next []PrimitiveKind
 		for _, kind := range frontier {
 			for _, parent := range kind.domainParents() {
 				if parent == broad {
@@ -204,8 +207,8 @@ func (m AdditionalMode) Valid() bool {
 // Primitive is a built-in scalar leaf type (docs/ir/primitives.md).
 type Primitive struct {
 	TypeCommon
-	// Prim selects the primitive kind.
-	Prim PrimKind `json:"prim"`
+	// PrimitiveKind selects the primitive kind.
+	PrimitiveKind PrimitiveKind `json:"primitiveKind"`
 }
 
 // Scalar is a named restricted or extended primitive (docs/ir/scalars.md).
@@ -249,10 +252,10 @@ type Model struct {
 	// Mixins is composition without subtyping (Smithy mixins, TypeSpec spread,
 	// extra allOf entries).
 	Mixins []TypeRef `json:"mixins,omitempty"`
-	// AdditionalProps is the catch-all for members beside the model's declared
-	// structure. A catch-all with nothing beside it is a MapT, never a Model
-	// (AsMap).
-	AdditionalProps *AdditionalProps `json:"additionalProps,omitzero"`
+	// AdditionalProperties is the catch-all for members beside the model's
+	// declared structure. A catch-all with nothing beside it is a MapT, never a
+	// Model (AsMap).
+	AdditionalProperties *AdditionalProperties `json:"additionalProperties,omitzero"`
 	// Additional is the openness of the property set.
 	Additional AdditionalMode `json:"additional,omitempty"`
 	// Constraints bounds the property set's cardinality (JSON Schema
@@ -286,10 +289,10 @@ type WireIDRange struct {
 	To int `json:"to"`
 }
 
-// AdditionalProps describes a model's catch-all for undeclared properties
+// AdditionalProperties describes a model's catch-all for undeclared properties
 // (docs/ir/models.md). It types the members beside a model's declared
 // structure; a map that declares nothing else is a MapT.
-type AdditionalProps struct {
+type AdditionalProperties struct {
 	// Value is the value schema for a key no pattern matches; nil = no such key
 	// is allowed, as Tuple.Rest is nil when no element may follow. It is nil
 	// only beside Patterns, since a catch-all naming neither admits nothing a
@@ -298,12 +301,12 @@ type AdditionalProps struct {
 	// Key is the key schema; nil = string keys, the one spelling of them.
 	Key *TypeRef `json:"key,omitzero"`
 	// Patterns are key-pattern-scoped value schemas (JSON Schema patternProperties).
-	Patterns []PatternProps `json:"patterns,omitempty"`
+	Patterns []PatternProperties `json:"patterns,omitempty"`
 }
 
-// PatternProps binds a key pattern to a value schema (JSON Schema
+// PatternProperties binds a key pattern to a value schema (JSON Schema
 // patternProperties).
-type PatternProps struct {
+type PatternProperties struct {
 	// Pattern is the ECMA-262 key pattern.
 	Pattern string `json:"pattern"`
 	// Value is the value schema for matching keys.
@@ -318,14 +321,14 @@ type Discriminator struct {
 	// declaration the flattening of the model holding it takes
 	// (docs/ir/models.md#the-flattening); empty when PropertyName or Index
 	// locates the tag instead.
-	Property PropID `json:"property,omitempty"`
+	Property PropertyID `json:"property,omitempty"`
 	// PropertyName is the wire name of the tag property in unions, where the
 	// property exists on no single model (TypeSpec @discriminated
 	// discriminatorPropertyName, OpenAPI discriminator on oneOf).
 	PropertyName string `json:"propertyName,omitempty"`
-	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
-	// tuples, JSON arrays with a const head via prefixItems).
-	Index *int `json:"index,omitzero"`
+	// TupleElementIndex is the 0-based tuple element carrying the tag Literal
+	// (Erlang tagged tuples, JSON arrays with a const head via prefixItems).
+	TupleElementIndex *int `json:"tupleElementIndex,omitzero"`
 	// Mapping maps a wire value to the type it routes to, a union's variant or
 	// a hierarchy's base or subtype, and no value is empty. Nil on a union, it
 	// routes by type name; otherwise it holds the routes declared or inferred
@@ -428,7 +431,7 @@ type EventInfo struct {
 type Enum struct {
 	TypeCommon
 	// ValueType is the primitive type of the members' values.
-	ValueType PrimKind `json:"valueType"`
+	ValueType PrimitiveKind `json:"valueType"`
 	// Members are the enum's members, in source order.
 	Members []EnumMember `json:"members,omitempty"`
 	// Closed is false for open/extensible enums: unknown values must be
@@ -469,8 +472,8 @@ type EnumMember struct {
 // List is an ordered collection (docs/ir/containers.md).
 type List struct {
 	TypeCommon
-	// Elem is the element type.
-	Elem TypeRef `json:"elem"`
+	// ElementType is the element type.
+	ElementType TypeRef `json:"elementType"`
 	// Constraints restricts minItems/maxItems/uniqueItems.
 	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding is the container-level wire encoding (protobuf packed vs expanded
@@ -478,15 +481,15 @@ type List struct {
 	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
-// MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf
-// map, an OpenAPI object whose only statement about its members is
+// MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf map,
+// an OpenAPI object whose only statement about its members is
 // additionalProperties (docs/ir/containers.md). A catch-all beside any other
-// member fact stays a Model's AdditionalProps; AsMap draws that line for every
-// producer.
+// member fact stays a Model's AdditionalProperties; AsMap draws that line for
+// every producer.
 type MapT struct {
 	TypeCommon
 	// Key is the key type; nil = string keys, the one spelling of them, as for
-	// AdditionalProps.Key.
+	// AdditionalProperties.Key.
 	Key *TypeRef `json:"key,omitzero"`
 	// Value is the value type.
 	Value TypeRef `json:"value"`
@@ -497,16 +500,18 @@ type MapT struct {
 
 // Tuple is a positional sequence: a type for each leading position, then the
 // type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
-// tuples) (docs/ir/containers.md). Elems types positions without requiring
-// them: how many elements an instance must hold is Constraints.MinItems, so a
-// tuple of fixed length sets it to len(Elems) and has no Rest.
+// tuples) (docs/ir/containers.md). ElementTypes types positions without
+// requiring them: how many elements an instance must hold is
+// Constraints.MinItems, so a tuple of fixed length sets it to len(ElementTypes)
+// and has no Rest.
 type Tuple struct {
 	TypeCommon
-	// Elems are the element types in position order.
-	Elems []TypeRef `json:"elems,omitempty"`
-	// Rest types every element past Elems; nil = no element may follow them.
+	// ElementTypes are the element types in position order.
+	ElementTypes []TypeRef `json:"elementTypes,omitempty"`
+	// Rest types every element past ElementTypes; nil = no element may follow
+	// them.
 	Rest *TypeRef `json:"rest,omitzero"`
-	// Constraints bounds the whole instance, Elems and Rest together
+	// Constraints bounds the whole instance, ElementTypes and Rest together
 	// (minItems/maxItems/uniqueItems).
 	Constraints *Constraints `json:"constraints,omitzero"`
 }
@@ -523,7 +528,7 @@ type Literal struct {
 	// Enum.ValueType types an enum's members: an integer and a number of one
 	// value differ here, as do a string and a date. "" where the value is of no
 	// primitive, a list or an object.
-	ValueType PrimKind `json:"valueType,omitempty"`
+	ValueType PrimitiveKind `json:"valueType,omitempty"`
 }
 
 // External is a well-known library type that no target can structurally model,

@@ -51,8 +51,8 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 
 	vs := checkRegistryKeys(doc)
 	vs = append(vs, checkIDs(doc)...)
-	vs = append(vs, checkPrimIDs(doc)...)
-	vs = append(vs, checkPrimKinds(doc)...)
+	vs = append(vs, checkPrimitiveIDs(doc)...)
+	vs = append(vs, checkPrimitiveKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkModelEnums(doc)...)
 	vs = append(vs, checkVersions(doc)...)
@@ -234,8 +234,8 @@ func walkWith(doc *ir.Document, root any, path string, walk walkFunc,
 	decls := declarations{collected: ids, truncated: walk(root, path, visitors...)}
 
 	reports := make([][]Violation, len(built))
-	for i, c := range built {
-		reports[i] = c.report(decls)
+	for i, walkCheck := range built {
+		reports[i] = walkCheck.report(decls)
 	}
 	return slices.Concat(reports...), decls.truncated
 }
@@ -279,8 +279,8 @@ func checkRegistryKeys(doc *ir.Document) []Violation {
 	for id, ch := range doc.Channels {
 		vs = registryKey(vs, "channel", "channels", string(id), string(ch.ID))
 	}
-	for id, msg := range doc.Messages {
-		vs = registryKey(vs, "message", "messages", string(id), string(msg.ID))
+	for id, message := range doc.Messages {
+		vs = registryKey(vs, "message", "messages", string(id), string(message.ID))
 	}
 	for id, scheme := range doc.Auth {
 		vs = registryKey(vs, "auth", "auth", string(id), string(scheme.ID))

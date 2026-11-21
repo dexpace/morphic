@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "XMLHints",
         "canonical": "xml_hints"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Book/properties/authors": {
+    "type/anonymous/components/schemas/Book/properties/authors": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Book/properties/authors",
+      "id": "type/anonymous/components/schemas/Book/properties/authors",
       "name": {
         "hint": "authors"
       },
@@ -76,14 +76,14 @@
         "source": 0,
         "pointer": "/components/schemas/Book/properties/authors"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/Book/properties/authors/items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/Book/properties/authors/items",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Book/properties/authors/items": {
+    "type/anonymous/components/schemas/Book/properties/authors/items": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Book/properties/authors/items",
+      "id": "type/anonymous/components/schemas/Book/properties/authors/items",
       "name": {
         "hint": "authors_item"
       },
@@ -98,13 +98,13 @@
         "pointer": "/components/schemas/Book/properties/authors/items"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Book": {
+    "type/openapi/components/schemas/Book": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Book",
+      "id": "type/openapi/components/schemas/Book",
       "name": {
         "source": "Book",
         "canonical": "book"
@@ -123,21 +123,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Book/properties/isbn",
+          "id": "property/openapi/components/schemas/Book/properties/isbn",
           "name": {
             "source": "isbn",
             "canonical": "isbn"
           },
           "wireName": "isbn",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -155,21 +155,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Book/properties/lang",
+          "id": "property/openapi/components/schemas/Book/properties/lang",
           "name": {
             "source": "lang",
             "canonical": "lang"
           },
           "wireName": "lang",
           "type": {
-            "target": "t/openapi/components/schemas/Lang",
+            "target": "type/openapi/components/schemas/Lang",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -182,21 +182,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Book/properties/title",
+          "id": "property/openapi/components/schemas/Book/properties/title",
           "name": {
             "source": "title",
             "canonical": "title"
           },
           "wireName": "title",
           "type": {
-            "target": "t/openapi/components/schemas/Lang",
+            "target": "type/openapi/components/schemas/Lang",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -212,21 +212,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Book/properties/authors",
+          "id": "property/openapi/components/schemas/Book/properties/authors",
           "name": {
             "source": "authors",
             "canonical": "authors"
           },
           "wireName": "authors",
           "type": {
-            "target": "t/anon/components/schemas/Book/properties/authors",
+            "target": "type/anonymous/components/schemas/Book/properties/authors",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -243,9 +243,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Lang": {
+    "type/openapi/components/schemas/Lang": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Lang",
+      "id": "type/openapi/components/schemas/Lang",
       "name": {
         "source": "Lang",
         "canonical": "lang"
@@ -261,13 +261,13 @@
         "pointer": "/components/schemas/Lang"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -275,7 +275,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

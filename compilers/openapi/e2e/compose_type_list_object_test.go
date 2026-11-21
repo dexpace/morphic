@@ -15,15 +15,15 @@ import (
 
 // petVariant is the object variant of Pet's type list, which the compiler
 // mints at the list's position.
-const petVariant ir.TypeID = "t/anon/components/schemas/Pet/type/0"
+const petVariant ir.TypeID = "type/anonymous/components/schemas/Pet/type/0"
 
 // flattenedNames is the wire names of the members model exposes across its
 // composition.
 func flattenedNames(doc *ir.Document, model ir.TypeID) []string {
 	flat := ir.FlattenedProperties(doc.Types, model).Properties
 	names := make([]string, 0, len(flat))
-	for _, p := range flat {
-		names = append(names, p.Property.WireName)
+	for _, flatProperty := range flat {
+		names = append(names, flatProperty.Property.WireName)
 	}
 	slices.Sort(names)
 	return names
@@ -149,8 +149,8 @@ func TestAllOfCompose_TheObjectVariantIsTheOneTheUnionHolds(t *testing.T) {
 				requireModelsNameModels(t, doc)
 				pet, ok := kindNode(t, doc, componentID("Pet")).(*ir.Union)
 				require.True(t, ok, "a type list is a union")
-				i := slices.IndexFunc(pet.Variants, func(v ir.Variant) bool {
-					_, model := doc.Types[v.Type.Target].(*ir.Model)
+				i := slices.IndexFunc(pet.Variants, func(variant ir.Variant) bool {
+					_, model := doc.Types[variant.Type.Target].(*ir.Model)
 					return model
 				})
 				require.GreaterOrEqual(t, i, 0, "the union holds an object variant")

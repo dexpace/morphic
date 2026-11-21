@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DynamicRef",
         "canonical": "dynamic_ref"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/": {
+    "type/anonymous/components/schemas/": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/",
+      "id": "type/anonymous/components/schemas/",
       "name": {
         "hint": "empty"
       },
@@ -83,13 +83,13 @@
         "pointer": "/components/schemas/"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Holder/$defs/Deep": {
+    "type/anonymous/components/schemas/Holder/$defs/Deep": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Holder/$defs/Deep",
+      "id": "type/anonymous/components/schemas/Holder/$defs/Deep",
       "name": {
         "hint": "deep"
       },
@@ -102,21 +102,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/$defs/Deep/properties/d",
+          "id": "property/openapi/components/schemas/Holder/$defs/Deep/properties/d",
           "name": {
             "source": "d",
             "canonical": "d"
           },
           "wireName": "d",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -133,9 +133,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Recursive/properties/children": {
+    "type/anonymous/components/schemas/Recursive/properties/children": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Recursive/properties/children",
+      "id": "type/anonymous/components/schemas/Recursive/properties/children",
       "name": {
         "hint": "children"
       },
@@ -146,14 +146,14 @@
         "source": 0,
         "pointer": "/components/schemas/Recursive/properties/children"
       },
-      "elem": {
-        "target": "t/anon/components/schemas/Recursive/properties/children/items",
+      "elementType": {
+        "target": "type/anonymous/components/schemas/Recursive/properties/children/items",
         "nullable": false
       }
     },
-    "t/anon/components/schemas/Recursive/properties/children/items": {
+    "type/anonymous/components/schemas/Recursive/properties/children/items": {
       "kind": "scalar",
-      "id": "t/anon/components/schemas/Recursive/properties/children/items",
+      "id": "type/anonymous/components/schemas/Recursive/properties/children/items",
       "name": {
         "hint": "children_item"
       },
@@ -165,13 +165,13 @@
         "pointer": "/components/schemas/Recursive/properties/children/items"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Recursive",
+        "target": "type/openapi/components/schemas/Recursive",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -187,9 +187,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Leaf": {
+    "type/openapi/components/schemas/Leaf": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Leaf",
+      "id": "type/openapi/components/schemas/Leaf",
       "name": {
         "source": "Leaf",
         "canonical": "leaf"
@@ -202,13 +202,13 @@
         "pointer": "/components/schemas/Leaf"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Linked": {
+    "type/openapi/components/schemas/Linked": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Linked",
+      "id": "type/openapi/components/schemas/Linked",
       "name": {
         "source": "Linked",
         "canonical": "linked"
@@ -232,21 +232,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Linked/properties/next",
+          "id": "property/openapi/components/schemas/Linked/properties/next",
           "name": {
             "source": "next",
             "canonical": "next"
           },
           "wireName": "next",
           "type": {
-            "target": "t/openapi/components/schemas/Linked",
+            "target": "type/openapi/components/schemas/Linked",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -263,9 +263,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Node": {
+    "type/openapi/components/schemas/Node": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Node",
+      "id": "type/openapi/components/schemas/Node",
       "name": {
         "source": "Node",
         "canonical": "node"
@@ -279,21 +279,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Node/properties/label",
+          "id": "property/openapi/components/schemas/Node/properties/label",
           "name": {
             "source": "label",
             "canonical": "label"
           },
           "wireName": "label",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -310,9 +310,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Recursive": {
+    "type/openapi/components/schemas/Recursive": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Recursive",
+      "id": "type/openapi/components/schemas/Recursive",
       "name": {
         "source": "Recursive",
         "canonical": "recursive"
@@ -344,21 +344,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Recursive/properties/children",
+          "id": "property/openapi/components/schemas/Recursive/properties/children",
           "name": {
             "source": "children",
             "canonical": "children"
           },
           "wireName": "children",
           "type": {
-            "target": "t/anon/components/schemas/Recursive/properties/children",
+            "target": "type/anonymous/components/schemas/Recursive/properties/children",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -375,9 +375,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Tree": {
+    "type/openapi/components/schemas/Tree": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Tree",
+      "id": "type/openapi/components/schemas/Tree",
       "name": {
         "source": "Tree",
         "canonical": "tree"
@@ -391,21 +391,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Tree/properties/child",
+          "id": "property/openapi/components/schemas/Tree/properties/child",
           "name": {
             "source": "child",
             "canonical": "child"
           },
           "wireName": "child",
           "type": {
-            "target": "t/openapi/components/schemas/Node",
+            "target": "type/openapi/components/schemas/Node",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -418,21 +418,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tree/properties/escaped",
+          "id": "property/openapi/components/schemas/Tree/properties/escaped",
           "name": {
             "source": "escaped",
             "canonical": "escaped"
           },
           "wireName": "escaped",
           "type": {
-            "target": "t/openapi/components/schemas/Leaf",
+            "target": "type/openapi/components/schemas/Leaf",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -445,21 +445,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tree/properties/ghost",
+          "id": "property/openapi/components/schemas/Tree/properties/ghost",
           "name": {
             "source": "ghost",
             "canonical": "ghost"
           },
           "wireName": "ghost",
           "type": {
-            "target": "t/prim/any",
+            "target": "type/primitive/any",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -482,21 +482,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tree/properties/static",
+          "id": "property/openapi/components/schemas/Tree/properties/static",
           "name": {
             "source": "static",
             "canonical": "static"
           },
           "wireName": "static",
           "type": {
-            "target": "t/openapi/components/schemas/Leaf",
+            "target": "type/openapi/components/schemas/Leaf",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -509,21 +509,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tree/properties/boundary",
+          "id": "property/openapi/components/schemas/Tree/properties/boundary",
           "name": {
             "source": "boundary",
             "canonical": "boundary"
           },
           "wireName": "boundary",
           "type": {
-            "target": "t/prim/any",
+            "target": "type/primitive/any",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -546,21 +546,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Tree/properties/deep",
+          "id": "property/openapi/components/schemas/Tree/properties/deep",
           "name": {
             "source": "deep",
             "canonical": "deep"
           },
           "wireName": "deep",
           "type": {
-            "target": "t/anon/components/schemas/Holder/$defs/Deep",
+            "target": "type/anonymous/components/schemas/Holder/$defs/Deep",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -577,9 +577,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Twice": {
+    "type/openapi/components/schemas/Twice": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Twice",
+      "id": "type/openapi/components/schemas/Twice",
       "name": {
         "source": "Twice",
         "canonical": "twice"
@@ -592,13 +592,13 @@
         "pointer": "/components/schemas/Twice"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/TwiceAgain": {
+    "type/openapi/components/schemas/TwiceAgain": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/TwiceAgain",
+      "id": "type/openapi/components/schemas/TwiceAgain",
       "name": {
         "source": "TwiceAgain",
         "canonical": "twice_again"
@@ -611,13 +611,13 @@
         "pointer": "/components/schemas/TwiceAgain"
       },
       "base": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -625,11 +625,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -637,11 +637,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -649,7 +649,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {
@@ -682,7 +682,7 @@
     {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
-      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Node\", the one matching $dynamicAnchor in this document",
+      "message": "$dynamicRef expanded to \"type/openapi/components/schemas/Node\", the one matching $dynamicAnchor in this document",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tree/properties/child/$dynamicRef"
@@ -691,7 +691,7 @@
     {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
-      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Leaf\", the one matching $dynamicAnchor in this document",
+      "message": "$dynamicRef expanded to \"type/openapi/components/schemas/Leaf\", the one matching $dynamicAnchor in this document",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tree/properties/escaped/$dynamicRef"
@@ -718,7 +718,7 @@
     {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
-      "message": "$dynamicRef expanded to \"t/anon/components/schemas/Holder/$defs/Deep\", the one matching $dynamicAnchor in this document",
+      "message": "$dynamicRef expanded to \"type/anonymous/components/schemas/Holder/$defs/Deep\", the one matching $dynamicAnchor in this document",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tree/properties/deep/$dynamicRef"
@@ -727,7 +727,7 @@
     {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
-      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Linked\", the one matching $dynamicAnchor in this document",
+      "message": "$dynamicRef expanded to \"type/openapi/components/schemas/Linked\", the one matching $dynamicAnchor in this document",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Linked/properties/next/$dynamicRef"
@@ -745,7 +745,7 @@
     {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
-      "message": "$recursiveRef expanded to \"t/openapi/components/schemas/Recursive\", the root of the schema resource it is written in",
+      "message": "$recursiveRef expanded to \"type/openapi/components/schemas/Recursive\", the root of the schema resource it is written in",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Recursive/properties/children/items/$recursiveRef"

@@ -17,12 +17,12 @@ import (
 // source coordinate it was derived from — carrying that coordinate as its path.
 //
 // Neither half implies the other. Shape alone misses an ID that lost the
-// separator between its space and its path: "t/anonaddr" reads as a space named
-// "anonaddr". The recorded pointer catches it (GitHub #141).
+// separator between its space and its path: "type/anonaddr" reads as a space
+// named "anonaddr". The recorded pointer catches it (GitHub #141).
 //
 // Agreement is asked only of entities that record a pointer. A primitive
-// derives from no source position, so checkPrimIDs holds it to the ID its kind
-// derives.
+// derives from no source position, so checkPrimitiveIDs holds it to the ID its
+// kind derives.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
@@ -43,8 +43,8 @@ func checkIDs(doc *ir.Document) []Violation {
 	for id, ch := range doc.Channels {
 		vs = appendRegistryIDDefect(vs, ir.IDKindChannel, "channels", string(id), string(ch.ID), ir.Provenance{})
 	}
-	for id, msg := range doc.Messages {
-		vs = appendRegistryIDDefect(vs, ir.IDKindMessage, "messages", string(id), string(msg.ID), ir.Provenance{})
+	for id, message := range doc.Messages {
+		vs = appendRegistryIDDefect(vs, ir.IDKindMessage, "messages", string(id), string(message.ID), ir.Provenance{})
 	}
 	return append(vs, checkMemberIDs(doc)...)
 }
@@ -57,12 +57,12 @@ func appendRegistryIDDefect(vs []Violation, kind, reg, key, nodeID string, prov 
 	if !keyedByOwnID(key, nodeID) {
 		return vs
 	}
-	v, bad := idDefect(kind, key, prov)
+	violation, bad := idDefect(kind, key, prov)
 	if !bad {
 		return vs
 	}
-	v.Path = reg + "[" + key + "]"
-	return append(vs, v)
+	violation.Path = reg + "[" + key + "]"
+	return append(vs, violation)
 }
 
 // keyedByOwnID reports whether a registry entry's key is set and is its node's
@@ -77,11 +77,11 @@ func keyedByOwnID(key, nodeID string) bool {
 var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.TypeID]():       ir.IDKindType,
 	reflect.TypeFor[ir.AuthID]():       ir.IDKindAuth,
-	reflect.TypeFor[ir.OpID]():         ir.IDKindOp,
+	reflect.TypeFor[ir.OperationID]():  ir.IDKindOperation,
 	reflect.TypeFor[ir.ServiceID]():    ir.IDKindService,
 	reflect.TypeFor[ir.GroupID]():      ir.IDKindGroup,
-	reflect.TypeFor[ir.PropID]():       ir.IDKindProp,
-	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
+	reflect.TypeFor[ir.PropertyID]():   ir.IDKindProperty,
+	reflect.TypeFor[ir.ParameterID]():  ir.IDKindParameter,
 	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
 	reflect.TypeFor[ir.ServerID]():     ir.IDKindServer,
 	reflect.TypeFor[ir.ChannelID]():    ir.IDKindChannel,
@@ -98,7 +98,7 @@ var kindPrefixes = map[reflect.Type]string{
 // where it is mounted, and the two differ for a $ref'd path item (GitHub #107).
 // A service records no pointer, and a group or an enum member no provenance.
 var pointerDerived = map[reflect.Type]bool{
-	reflect.TypeFor[ir.PropID](): true,
+	reflect.TypeFor[ir.PropertyID](): true,
 }
 
 // appendDeclaredIDViolations reports what is wrong with the ID a node declares
@@ -129,12 +129,12 @@ func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflec
 	if pointerDerived[class] {
 		prov.Pointer = recordedPointer(node)
 	}
-	v, bad := idDefect(prefix, id, prov)
+	violation, bad := idDefect(prefix, id, prov)
 	if !bad {
 		return vs
 	}
-	v.Path = at.String()
-	return append(vs, v)
+	violation.Path = at.String()
+	return append(vs, violation)
 }
 
 // recordedPointer returns the pointer the Provenance beside a node's ID records,
@@ -148,36 +148,36 @@ func recordedPointer(node reflect.Value) jsontext.Pointer {
 	return jsontext.Pointer(prov.FieldByName("Pointer").String())
 }
 
-// checkPrimIDs asserts the one TypeID ir can derive is the one the document
-// carries: every primitive is interned at ir.PrimTypeID of its kind, and nothing
-// else occupies the space those IDs live in.
+// checkPrimitiveIDs asserts the one TypeID ir can derive is the one the
+// document carries: every primitive is interned at ir.PrimitiveTypeID of its
+// kind, and nothing else occupies the space those IDs live in.
 //
 // checkIDs cannot reach this. A primitive records no pointer, so shape alone
-// accepts a string primitive at t/openapi/components/schemas/Name or at
-// t/prim/int32, and documents from different formats stop sharing one node per
-// kind (GitHub #73).
+// accepts a string primitive at type/openapi/components/schemas/Name or at
+// type/primitive/int32, and documents from different formats stop sharing one
+// node per kind (GitHub #73).
 //
 // The architecture test on ID derivation reaches only this repository's
 // compilers, so a Document decoded from JSON, rewritten by a pass or produced
 // elsewhere is held by this alone.
-func checkPrimIDs(doc *ir.Document) []Violation {
+func checkPrimitiveIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		if ir.IsNilTypeDef(td) || !keyedByOwnID(string(id), string(td.Common().ID)) {
 			continue // checkRegistryKeys reports the entry itself
 		}
-		prim, isPrim := td.(*ir.Primitive)
-		if !isPrim {
+		primitive, isPrimitive := td.(*ir.Primitive)
+		if !isPrimitive {
 			vs = appendReservedSpace(vs, id, td.Kind())
 			continue
 		}
-		if want := ir.PrimTypeID(prim.Prim); id != want {
-			vs = append(vs, primIDViolation(id, prim.Prim, want))
+		if want := ir.PrimitiveTypeID(primitive.PrimitiveKind); id != want {
+			vs = append(vs, primitiveIDViolation(id, primitive.PrimitiveKind, want))
 		}
-		if namesSource(doc, prim) {
+		if namesSource(doc, primitive) {
 			vs = append(vs, Violation{
-				Code: "ir/prim-names-source",
-				Message: "primitive is credited to source " + strconv.Itoa(prim.Provenance.Source) +
+				Code: "ir/primitive-names-source",
+				Message: "primitive is credited to source " + strconv.Itoa(primitive.Provenance.Source) +
 					", and a primitive shared by every source names none",
 				Path: typePath(id),
 			})
@@ -186,30 +186,31 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 	return vs
 }
 
-// namesSource reports whether prim is credited to a source. A primitive is one
-// node every source shares, so it is on ir.NoSource; the zero Provenance is
+// namesSource reports whether primitive is credited to a source. A primitive is
+// one node every source shares, so it is on ir.NoSource; the zero Provenance is
 // admitted only where the document declares no sources, as a node built without
 // one carries it.
-func namesSource(doc *ir.Document, prim *ir.Primitive) bool {
-	if prim.Provenance.Source == ir.NoSource {
+func namesSource(doc *ir.Document, primitive *ir.Primitive) bool {
+	if primitive.Provenance.Source == ir.NoSource {
 		return false
 	}
-	return len(doc.Sources) > 0 || prim.Provenance != (ir.Provenance{})
+	return len(doc.Sources) > 0 || primitive.Provenance != (ir.Provenance{})
 }
 
-// primIDViolation names what is wrong with one primitive's ID.
+// primitiveIDViolation names what is wrong with one primitive's ID.
 //
 // A kind that is empty is reported on its own terms rather than against a
-// destination. ir.PrimTypeID derives t/prim/ from it, which is not an ID at all
-// — checkIDs reports it malformed wherever it is used — so offering it as the
-// place the node belongs would send a reader to fix the wrong end.
-func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID) Violation {
-	msg := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
+// destination. ir.PrimitiveTypeID derives type/primitive/ from it, which is not
+// an ID at all — checkIDs reports it malformed wherever it is used — so
+// offering it as the place the node belongs would send a reader to fix the
+// wrong end.
+func primitiveIDViolation(id ir.TypeID, kind ir.PrimitiveKind, want ir.TypeID) Violation {
+	message := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
 		" rather than the shared " + strconv.Quote(string(want))
 	if kind == "" {
-		msg = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
+		message = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
 	}
-	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: typePath(id)}
+	return Violation{Code: "ir/primitive-id-not-derived", Message: message, Path: typePath(id)}
 }
 
 // appendReservedSpace reports a type that is not a primitive addressing the
@@ -217,15 +218,15 @@ func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID) Violation {
 //
 // The space is reserved rather than merely conventional: a node there either
 // collides with the primitive of that kind outright, or squats a name the next
-// PrimKind takes. Both make the node reached for a kind depend on which
+// PrimitiveKind takes. Both make the node reached for a kind depend on which
 // declaration lowered first, which is invariant 3's corollary.
 func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind) []Violation {
 	space, ok := ir.IDSpace(ir.IDKindType, string(id))
-	if !ok || space != ir.IDSpacePrim {
+	if !ok || space != ir.IDSpacePrimitive {
 		return vs
 	}
 	return append(vs, Violation{
-		Code: "ir/prim-space-reserved",
+		Code: "ir/primitive-space-reserved",
 		Message: "id " + strconv.Quote(string(id)) + " addresses the reserved primitive space but names a " +
 			string(kind),
 		Path: typePath(id),

@@ -28,12 +28,13 @@ type stand struct {
 	held bool
 }
 
-// position returns the schema a union s writes is elected at
-// (docs/compilers/openapi.md#competing-keywords): the position s is the
-// principal of, whose branches declare shape against all it conjoins, else s.
-func (st stand) position(s *statement.Schema) *statement.Schema {
+// position returns the schema a union schema writes is elected at
+// (docs/compilers/openapi.md#competing-keywords): the position schema is the
+// principal of, whose branches declare shape against all it conjoins, else
+// schema.
+func (st stand) position(schema *statement.Schema) *statement.Schema {
 	if st.of == nil {
-		return s
+		return schema
 	}
 	return st.of
 }
@@ -46,40 +47,40 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 	return st.at
 }
 
-// voices returns what the node of s, written at written, reads beside s: the
-// voices of its position (positionVoices), where it stands at another, that
-// position's own keywords and each voice of its allOf but s, whose keywords the
-// node reads as its own.
-func (st stand) voices(c lowering.Ctx, s *statement.Schema, written jsontext.Pointer) []annotation.Voice {
+// foldedEntries returns what the node of schema, written at written, reads
+// beside schema: the foldedEntries of its position (positionFoldedEntries),
+// where it stands at another, that position's own keywords and each folded
+// branch of its allOf but schema, whose keywords the node reads as its own.
+func (st stand) foldedEntries(loweringContext lowering.Ctx, schema *statement.Schema, written jsontext.Pointer) []annotation.FoldedAllOfEntry {
 	if st.of == nil {
-		return positionVoices(c, s, written, ir.TypeRef{})
+		return positionFoldedEntries(loweringContext, schema, written, ir.TypeRef{})
 	}
-	voices := positionVoices(c, st.of, st.at, ir.TypeRef{})
-	out := make([]annotation.Voice, 0, len(voices)+1)
-	beside := voiceAt(c, st.of, st.at)
+	foldedEntries := positionFoldedEntries(loweringContext, st.of, st.at, ir.TypeRef{})
+	out := make([]annotation.FoldedAllOfEntry, 0, len(foldedEntries)+1)
+	beside := foldedEntryAt(loweringContext, st.of, st.at)
 	beside.Beside = true
 	out = append(out, beside)
-	for _, v := range voices {
-		if v.Node != s || v.At != written {
-			out = append(out, v)
+	for _, foldedAllOfEntry := range foldedEntries {
+		if foldedAllOfEntry.Node != schema || foldedAllOfEntry.At != written {
+			out = append(out, foldedAllOfEntry)
 		}
 	}
 	return out
 }
 
-// takes returns the kinds whose value bounds the node of s takes (boundKinds):
-// those its position admits.
-func (st stand) takes(c lowering.Ctx, s *statement.Schema) kindSet {
+// takes returns the kinds whose value bounds the node of schema takes
+// (boundKinds): those its position admits.
+func (st stand) takes(loweringContext lowering.Ctx, schema *statement.Schema) kindSet {
 	if st.of == nil {
-		return boundKinds(c, s)
+		return boundKinds(loweringContext, schema)
 	}
-	return boundKinds(c, st.of)
+	return boundKinds(loweringContext, st.of)
 }
 
 // standsAtPosition reports whether r's principal is inline and built the node
 // the position written at pointer owns, having lowered to target: its unread
 // keywords were kept on that node (keepsAtOutcome), and what that node holds is
 // the principal's (ownHomes).
-func standsAtPosition(c lowering.Ctx, r refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
-	return r.principal != nil && r.principal.schema.Ref == nil && LoweredToOwnNode(c, pointer, target)
+func standsAtPosition(loweringContext lowering.Ctx, refinementValue refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
+	return refinementValue.principal != nil && refinementValue.principal.schema.Ref == nil && LoweredToOwnNode(loweringContext, pointer, target)
 }

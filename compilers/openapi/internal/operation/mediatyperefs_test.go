@@ -28,7 +28,7 @@ import (
 // from a request body, a response, a parameter and a header, in the order
 // first, second.
 func mediaTypeUses(ref string, first, second bool) string {
-	ops := map[bool]string{
+	operations := map[bool]string{
 		true: `  /a:
     post:
       operationId: postA
@@ -56,7 +56,7 @@ func mediaTypeUses(ref string, first, second bool) string {
             application/json: {$ref: '` + ref + `'}
 `,
 	}
-	return ops[first] + ops[second]
+	return operations[first] + operations[second]
 }
 
 // compileMediaTypeUses compiles a source at root.yaml, beside other.yaml
@@ -119,16 +119,16 @@ components:
 		withReader    bool
 	}{
 		"the source's component": {"#/components/mediaTypes/Pet",
-			"t/anon/components/mediaTypes/Pet/schema", "pet", false},
+			"type/anonymous/components/mediaTypes/Pet/schema", "pet", false},
 		"the source's component, read with a reader": {"#/components/mediaTypes/Pet",
-			"t/anon/components/mediaTypes/Pet/schema", "pet", true},
+			"type/anonymous/components/mediaTypes/Pet/schema", "pet", true},
 		"another document's component": {"other.yaml#/components/mediaTypes/Pet",
-			"t/anon@other.yaml/components/mediaTypes/Pet/schema", "pet", true},
+			"type/anonymous@other.yaml/components/mediaTypes/Pet/schema", "pet", true},
 		"an inline content entry": {"#/paths/~1inline/get/responses/200/content/application~1problem+json",
-			"t/anon/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", false},
+			"type/anonymous/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", false},
 		"an inline content entry, read with a reader": {
 			"#/paths/~1inline/get/responses/200/content/application~1problem+json",
-			"t/anon/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", true},
+			"type/anonymous/paths/~1inline/get/responses/200/content/application~1problem+json/schema", "response", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -141,7 +141,7 @@ components:
 			td, ok := forward.Types[ir.TypeID(tc.id)]
 			require.True(t, ok, "types: %v", slices.Collect(maps.Keys(forward.Types)))
 			assert.Equal(t, tc.hint, td.Common().Name.Hint)
-			post, get := openapitest.FindOp(t, forward, "postA"), openapitest.FindOp(t, forward, "getB")
+			post, get := openapitest.FindOperation(t, forward, "postA"), openapitest.FindOperation(t, forward, "getB")
 			for _, target := range []ir.TypeID{post.Request.Contents[0].Type.Target,
 				get.Responses[0].Payload.Contents[0].Type.Target, get.Params[0].Type.Target,
 				get.Responses[0].Headers[0].Type.Target} {
@@ -150,7 +150,7 @@ components:
 			model, ok := td.(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, model.Properties, 1)
-			assert.NotEqual(t, ir.PrimTypeID(ir.PrimAny), model.Properties[0].Type.Target,
+			assert.NotEqual(t, ir.PrimitiveTypeID(ir.PrimitiveAny), model.Properties[0].Type.Target,
 				"what the declaration holds, a schema $ref included, resolves where it is declared")
 		})
 	}
@@ -183,10 +183,10 @@ components:
     Filter: {description: From the declaration., schema: {type: string}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	assert.Equal(t, ir.Docs{Summary: "Use.", Description: "From the alias."}, op.Responses[0].Payload.Contents[0].Docs)
-	require.Len(t, op.Params, 1)
-	kept := op.Params[0].Unmodeled
+	operation := openapitest.FirstOperation(t, svc)
+	assert.Equal(t, ir.Docs{Summary: "Use.", Description: "From the alias."}, operation.Responses[0].Payload.Contents[0].Docs)
+	require.Len(t, operation.Params, 1)
+	kept := operation.Params[0].Unmodeled
 	assert.JSONEq(t, `"From the alias."`, string(kept["openapi:content/application~1json/reference/1/description"].Value))
 	assert.Equal(t, "/components/mediaTypes/Alias/description",
 		string(kept["openapi:content/application~1json/reference/1/description"].Provenance.Pointer))
@@ -194,7 +194,7 @@ components:
 	assert.Equal(t, "/paths/~1a/get/parameters/0/content/application~1json/summary",
 		string(kept["openapi:content/application~1json/reference/0/summary"].Provenance.Pointer))
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 }
 
 // TestMediaTypeRef_ReferencesInsideTheDeclarationResolve pins that what a
@@ -228,14 +228,14 @@ components:
             X-Rate: {$ref: '#/components/headers/Rate'}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 	assert.Equal(t, typeByName(doc, "Upload").Common().ID, content.Type.Target)
 	require.Len(t, content.Examples, 1)
 	require.NotNil(t, content.Examples[0].Value)
 	require.Len(t, content.Encoding, 1)
 	for _, part := range content.Encoding {
 		require.Len(t, part.Headers, 1)
-		assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), part.Headers[0].Type.Target)
+		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), part.Headers[0].Type.Target)
 	}
 	for _, kept := range []string{"examples/One", "headers/Rate", "mediaTypes/Upload"} {
 		assert.NotContains(t, doc.Unmodeled, "openapi:components/"+kept, "a reached entry is not kept")
@@ -262,11 +262,11 @@ func TestMediaTypeRef_AnUnresolvedRefLowersNothing(t *testing.T) {
             application/json: {$ref: '#/components/mediaTypes/Missing'}
             text/plain: {schema: {type: string}}
 `))
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	assert.Equal(t, "text/plain", op.Responses[0].Payload.Contents[0].MediaType)
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), op.Params[0].Type.Target)
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses[0].Payload.Contents, 1)
+	assert.Equal(t, "text/plain", operation.Responses[0].Payload.Contents[0].MediaType)
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), operation.Params[0].Type.Target)
 	for _, at := range []string{"/paths/~1a/get/parameters/0/content/application~1json",
 		"/paths/~1a/get/responses/200/content/application~1json"} {
 		assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, at), "at %s: %v", at, diags)
@@ -276,8 +276,8 @@ func TestMediaTypeRef_AnUnresolvedRefLowersNothing(t *testing.T) {
 // countDiagsAt counts the diagnostics of code at pointer.
 func countDiagsAt(diags []ir.Diagnostic, code, pointer string) int {
 	n := 0
-	for _, d := range diags {
-		if d.Code == code && string(d.Provenance.Pointer) == pointer {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && string(diagnostic.Provenance.Pointer) == pointer {
 			n++
 		}
 	}
@@ -302,7 +302,7 @@ components:
 	doc, diags := compileMediaTypeUses(t, other, mediaTypeUses("other.yaml#/components/mediaTypes/Alias", true, false),
 		true)
 	openapitest.RequireNoErrorDiags(t, diags)
-	get := openapitest.FindOp(t, doc, "getB")
+	get := openapitest.FindOperation(t, doc, "getB")
 	assert.Equal(t, ir.Docs{Description: "From the alias."}, get.Responses[0].Payload.Contents[0].Docs)
 	require.Len(t, get.Params, 1)
 	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/reference/1/description"]
@@ -339,13 +339,13 @@ components:
   mediaTypes:
     M: {schema: {type: string}, description: From the declaration.}
 `))
-			op := openapitest.FirstOp(t, svc)
-			assert.Equal(t, ir.Docs{Description: "From the declaration."}, op.Responses[0].Payload.Contents[0].Docs)
-			require.Len(t, op.Params, 1)
-			kept := op.Params[0].Unmodeled["openapi:content/application~1json/description"]
+			operation := openapitest.FirstOperation(t, svc)
+			assert.Equal(t, ir.Docs{Description: "From the declaration."}, operation.Responses[0].Payload.Contents[0].Docs)
+			require.Len(t, operation.Params, 1)
+			kept := operation.Params[0].Unmodeled["openapi:content/application~1json/description"]
 			assert.JSONEq(t, `"From the declaration."`, string(kept.Value))
 			assert.Equal(t, "/components/mediaTypes/M/description", string(kept.Provenance.Pointer))
-			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 		})
 	}
 }
@@ -413,17 +413,17 @@ components:
 			break
 		}
 	}
-	op := openapitest.FirstOp(t, svc)
-	docs := op.Responses[0].Payload.Contents[0].Docs
+	operation := openapitest.FirstOperation(t, svc)
+	docs := operation.Responses[0].Payload.Contents[0].Docs
 	assert.Equal(t, want, map[string]string{"summary": docs.Summary, "description": docs.Description}[key])
 
 	// A parameter has no docs, so it folds nothing: each position's text is kept
 	// at that position's own entry, the use's and the alias's as what the chain
 	// writes beside its $ref, and the declaration's as the Media Type Object's.
-	require.Len(t, op.Params, 1)
+	require.Len(t, operation.Params, 1)
 	entries := [3]string{"reference/0/", "reference/1/", ""}
 	for i, at := range written {
-		kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/"+entries[i]+key]
+		kept, ok := operation.Params[0].Unmodeled["openapi:content/application~1json/"+entries[i]+key]
 		if writes[i] != "text" {
 			continue
 		}
@@ -470,7 +470,7 @@ components:
                 application/json: {$ref: 'other.yaml#/components/mediaTypes/H'}
 `, true)
 	openapitest.RequireNoErrorDiags(t, diags)
-	get := openapitest.FindOp(t, doc, "getB")
+	get := openapitest.FindOperation(t, doc, "getB")
 
 	require.Len(t, get.Params, 1)
 	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/schema/readOnly"]
@@ -516,18 +516,18 @@ components:
     A2: {$ref: '#/components/mediaTypes/M', x-a: a2}
     M: {schema: {type: string}, x-a: own}
 `))
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 	for _, payload := range []struct{ name, at string }{
 		{"request", "/paths/~1a/post/requestBody/content/application~1json"},
 		{"ok", "/paths/~1a/post/responses/200/content/application~1json"},
 		{"default", "/paths/~1a/post/responses/default/content/application~1json"},
 	} {
 		content := map[string]any{
-			"request": at(a, "request", "contents", "0"),
-			"ok":      at(a, "responses", "0", "payload", "contents", "0"),
-			"default": at(a, "default", "payload", "contents", "0"),
+			"request": valueAtPath(a, "request", "contents", "0"),
+			"ok":      valueAtPath(a, "responses", "0", "payload", "contents", "0"),
+			"default": valueAtPath(a, "default", "payload", "contents", "0"),
 		}[payload.name]
-		assert.Equal(t, "s", at(content, "docs", "summary"), payload.name)
+		assert.Equal(t, "s", valueAtPath(content, "docs", "summary"), payload.name)
 		assert.Empty(t, cmp.Diff(map[string]string{
 			"openapi:x-a":               `vendor_extension "own" /components/mediaTypes/M/x-a`,
 			"openapi:reference/0/x-a":   `out_of_scope "` + payload.name + `" ` + payload.at + `/x-a`,
@@ -535,12 +535,12 @@ components:
 			"openapi:reference/1/x-a":   `out_of_scope "a1" /components/mediaTypes/A1/x-a`,
 			"openapi:reference/1/x-one": `out_of_scope 1 /components/mediaTypes/A1/x-one`,
 			"openapi:reference/2/x-a":   `out_of_scope "a2" /components/mediaTypes/A2/x-a`,
-		}, entries(t, at(content, "unmodeled"))), payload.name)
+		}, entries(t, valueAtPath(content, "unmodeled"))), payload.name)
 	}
 	reported := make([]string, 0, len(diags))
-	for _, d := range diags {
-		require.Equal(t, diag.UnknownObjectKey, d.Code, d.Message)
-		reported = append(reported, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		require.Equal(t, diag.UnknownObjectKey, diagnostic.Code, diagnostic.Message)
+		reported = append(reported, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"/paths/~1a/post/requestBody/content/application~1json/x-a",

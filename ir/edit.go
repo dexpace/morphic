@@ -59,9 +59,9 @@ type ownership struct {
 // stands for an empty document, so Finish still returns one.
 func NewEditor(doc *Document) *Editor {
 	if doc == nil {
-		e := &Editor{doc: &Document{}, out: &Document{}}
-		e.refuse("edit rejected: no document to edit")
-		return e
+		editor := &Editor{doc: &Document{}, out: &Document{}}
+		editor.refuse("edit rejected: no document to edit")
+		return editor
 	}
 	out := *doc
 	return &Editor{doc: doc, out: &out}
@@ -87,33 +87,33 @@ type nodeKind[N any] struct {
 // declares an ID the node does not, or one more often, an enum member's own
 // aside (withOwnMembers). A refused or panicking change leaves the edit as it
 // was.
-func updated[N any](e *Editor, kind nodeKind[N], id string, at subject, node N, change func(N)) (N, bool) {
+func updated[N any](editor *Editor, kind nodeKind[N], id string, at subject, node N, change func(N)) (N, bool) {
 	var none N
 	if change == nil {
-		e.refuse("update rejected: no change for %s", at)
+		editor.refuse("update rejected: no change for %s", at)
 		return none, false
 	}
-	next, copied := cloneNode(node, &e.copying)
+	next, copied := cloneNode(node, &editor.copying)
 	if !copied {
-		e.refuse("update rejected: %s nests deeper than %d levels, past what an edit copies", at, MaxWalkDepth)
+		editor.refuse("update rejected: %s nests deeper than %d levels, past what an edit copies", at, MaxWalkDepth)
 		return none, false
 	}
-	e.declared.node = e.declared.scan(e.declared.node[:0], node)
-	e.apply(kind.method, func() { change(next) })
+	editor.declared.node = editor.declared.scan(editor.declared.node[:0], node)
+	editor.apply(kind.method, func() { change(next) })
 	moved := kind.id(next)
 	switch {
-	case e.intruded:
-		e.refuse("update rejected: the change of %s wrote to the edit or ended it; a change alters its node alone", at)
+	case editor.intruded:
+		editor.refuse("update rejected: the change of %s wrote to the edit or ended it; a change alters its node alone", at)
 	case moved != id:
-		e.refuse("update rejected: the change moved %s to %q; a node keeps its ID", at, moved)
+		editor.refuse("update rejected: the change moved %s to %q; a node keeps its ID", at, moved)
 	case kind.keyed != nil && kind.keyed(next) != "":
-		e.refuse("update rejected: the change of %s set its %s, whose nodes the edit changes by their own IDs",
+		editor.refuse("update rejected: the change of %s set its %s, whose nodes the edit changes by their own IDs",
 			at, kind.keyed(next))
 	default:
-		e.declared.change = e.declared.scan(e.declared.change[:0], next)
-		e.declared.node = e.withOwnMembers(e.declared.node, next)
-		if added, n, ok := e.declared.excess(); ok {
-			e.refuse("update rejected: the change of %s declares %s; an edit adds no ID", at, n.clause(added, "the node"))
+		editor.declared.change = editor.declared.scan(editor.declared.change[:0], next)
+		editor.declared.node = editor.withOwnMembers(editor.declared.node, next)
+		if added, idCount, ok := editor.declared.excess(); ok {
+			editor.refuse("update rejected: the change of %s declares %s; an edit adds no ID", at, idCount.clause(added, "the node"))
 			return none, false
 		}
 		return next, true

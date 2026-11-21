@@ -101,7 +101,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/defs-order`
 - Code:
-  - `bind.definitions.definition` finds the definition from the reference's own position.
+  - `reftable.definitions.definition` finds the definition from the reference's own position.
 
 ### `mapping-unresolved`
 
@@ -124,7 +124,7 @@ x-lib:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
-  - `bind.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
+  - `reftable.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
 
 ### `reference-object-cycle`
 
@@ -149,7 +149,7 @@ components:
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
   - `load.bindTable` binds every reference object in the compiler, never through the resolver.
-  - `bind.objects.closeLoop` records a loop of reference objects, to be reported once.
+  - `reftable.objects.closeLoop` records a loop of reference objects, to be reported once.
 
 ### `trailing-empty-token`
 
@@ -173,7 +173,7 @@ x-params:
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
   - `load.bindTable` binds every reference object in the compiler, never through the resolver.
-  - `bind.objects.readRef` reads a reference object's pointer as RFC 6901 does.
+  - `reftable.objects.readRef` reads a reference object's pointer as RFC 6901 does.
 
 ### `merge-list-pointer`
 
@@ -195,7 +195,7 @@ x-params:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/merge-list-pointer`
 - Code:
-  - `bind.objects.readRef` reads a reference object's pointer as the decoder reads a mapping.
+  - `reftable.objects.readRef` reads a reference object's pointer as the decoder reads a mapping.
 
 ### `pointer-token-range`
 
@@ -215,7 +215,7 @@ x-params:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/pointer-token-range`
 - Code:
-  - `bind.objects.readRef` admits any character in a token.
+  - `reftable.objects.readRef` admits any character in a token.
 
 ### `media-type-references`
 
@@ -245,7 +245,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/media-type-references`
 - Code:
-  - `resolve.ReferencedMediaType` names the reference the library names no alias for.
+  - `componentlookup.ReferencedMediaType` names the reference the library names no alias for.
   - `load.MediaTypes` models each `components/mediaTypes` entry and each content entry written as a
     `$ref`, so every pass of the load phase walks them as the source's own reference objects.
   - `load.modelItem` hands a walk a model the library's walk does not know, without asking the
@@ -281,7 +281,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
-  - `bind.definitions.definition` reads the pointer from the document's root first, raw YAML
+  - `reftable.definitions.definition` reads the pointer from the document's root first, raw YAML
     included, in every order.
 
 ## Decoding
@@ -395,7 +395,7 @@ components:
 - Code:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
     decoded.
-  - `sourceindex.Index.TaggedMappings` finds them.
+  - `sourcetreestats.Measurements.TaggedMappings` finds them.
   - `load.buildRecovered` recovers a panic on its own goroutine only.
 
 ### `recoverable-panic`
@@ -419,7 +419,7 @@ B: {$ref}   # decoded as a response, which A names
   - `load.runRecovered` turns a panic in decoding an object a reference lands on, in a walk, or in
     building the fields beside a path item's `$ref` into an error naming what was running.
   - `load.buildRecovered` turns a panic in decoding into an `ErrParse` error.
-  - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
+  - `reftable/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
 
 ### `nil-populate-panic`
@@ -580,7 +580,7 @@ components:
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
   - `nodeview.Child` looks one key up through the merges by the same order and copies.
-  - `oas.CheckFormat` reports a `<<` naming no mapping.
+  - `specrules.CheckFormat` reports a `<<` naming no mapping.
   - `nodeview.MergesNothing` finds a `<<` naming no mapping wherever a mapping's merges reach.
   - `auth.namesAnOption` reads a requirement merging nothing as no option, not the empty one.
   - `statement.listedOnly` reads a schema whose merges run past `nodeview.MergeDepthLimit` from its
@@ -605,7 +605,7 @@ components:
 - Code:
   - `nodeview.KeyOf` names no key for it, so every reader of the compiler leaves the entry out.
   - `load.readyForModel` sets the entry aside for the model's build.
-  - `oas.CheckFormat` reports it.
+  - `specrules.CheckFormat` reports it.
 
 ### `scalar-resolution`
 
@@ -749,8 +749,8 @@ parameters:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/string-as-boolean`
 - Code:
-  - `oas.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
-    string.
+  - `specrules.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports
+    such a string.
   - `statement.Exclusive` holds the arm the model read, which the node's tag does not give for such
     a string.
 
@@ -770,7 +770,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
-  - `bind.identifiers` holds every `$dynamicAnchor`, read from the raw tree.
+  - `reftable.identifiers` holds every `$dynamicAnchor`, read from the raw tree.
   - `annotation.decidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
@@ -798,7 +798,7 @@ components:
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
   - `statement.truthOf` reads such a value as `Unwritten` by its node.
-  - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
+  - `statement.SchemaValueForm.ReadsFalse` excludes it, so no reader takes one for `false`.
   - `statement.Schema.Held` tells a position holding one from a position holding nothing.
 
 ### `failure-beneath-itself`
@@ -820,10 +820,10 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/failure-beneath-itself`
 - Code:
-  - `bind/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
-    them one below another, once `Build` has built the landings.
-  - `statement.Truth` holds one left past that bound as `Unread`, which the lowering reports and
-    lowers as the top type.
+  - `reftable/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends`
+    of them one below another, once `Build` has built the landings.
+  - `statement.SchemaValueForm` holds one left past that bound as `Unread`, which the lowering
+    reports and lowers as the top type.
 
 ### `null-type-is-empty`
 

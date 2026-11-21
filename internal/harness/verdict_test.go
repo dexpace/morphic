@@ -27,12 +27,12 @@ func TestCheck_GivesEveryOracleAVerdict(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := harness.Check(context.Background(), "spec.yaml", []byte(tc.data))
+			result := harness.Check(context.Background(), "spec.yaml", []byte(tc.data))
 
-			oracles := make([]harness.Oracle, len(r.Verdicts))
-			for i, v := range r.Verdicts {
-				oracles[i] = v.Oracle
-				assert.NotEqual(t, v.Asked(), v.Outcome == "", "%s: an outcome exactly when it asked", v.Oracle)
+			oracles := make([]harness.Oracle, len(result.Verdicts))
+			for i, verdict := range result.Verdicts {
+				oracles[i] = verdict.Oracle
+				assert.NotEqual(t, verdict.Asked(), verdict.Outcome == "", "%s: an outcome exactly when it asked", verdict.Oracle)
 			}
 			assert.Equal(t, harness.Oracles(), oracles)
 		})
@@ -45,9 +45,11 @@ func TestCheck_GivesEveryOracleAVerdict(t *testing.T) {
 // oracle's verdict counted as not reached by it.
 func TestSummary_CountsEachOraclesReach(t *testing.T) {
 	t.Parallel()
-	ok := func(o harness.Oracle) harness.Verdict { return harness.Verdict{Oracle: o, Outcome: harness.OutcomeOK} }
-	no := func(o harness.Oracle, why harness.Decline) harness.Verdict {
-		return harness.Verdict{Oracle: o, Declined: why}
+	ok := func(oracle harness.Oracle) harness.Verdict {
+		return harness.Verdict{Oracle: oracle, Outcome: harness.OutcomeOK}
+	}
+	no := func(oracle harness.Oracle, why harness.Decline) harness.Verdict {
+		return harness.Verdict{Oracle: oracle, Declined: why}
 	}
 	results := []harness.Result{
 		{Spec: "a", Verdicts: []harness.Verdict{

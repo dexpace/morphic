@@ -55,8 +55,8 @@ func compileDiags(t *testing.T, path, spec string, opts compilers.Options) []ir.
 
 // withExternalRefs returns the options of a compile that allows external
 // references, so a reader supplied beside them is unconfined.
-func withExternalRefs(r compilers.DocumentReader) compilers.Options {
-	return compilers.Options{Reader: r, FormatOptions: openapi.Options{AllowExternalRefs: true}}
+func withExternalRefs(documentReader compilers.DocumentReader) compilers.Options {
+	return compilers.Options{Reader: documentReader, FormatOptions: openapi.Options{AllowExternalRefs: true}}
 }
 
 // TestCompile_ExternalHTTPRefIsNotFetchedByDefault holds the SSRF half: with
@@ -195,13 +195,13 @@ components:
 	require.True(t, hasErrorRef(diags), "four refused refs are reported")
 
 	var pointers []string
-	for _, d := range diags {
-		if d.Code != diag.UnresolvedRef {
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.UnresolvedRef {
 			continue
 		}
-		assert.NotContains(t, d.Message, "\n",
-			"one diagnostic carries one message, not a joined list: %+v", d)
-		pointers = append(pointers, string(d.Provenance.Pointer))
+		assert.NotContains(t, diagnostic.Message, "\n",
+			"one diagnostic carries one message, not a joined list: %+v", diagnostic)
+		pointers = append(pointers, string(diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(pointers)
 	assert.Equal(t, []string{

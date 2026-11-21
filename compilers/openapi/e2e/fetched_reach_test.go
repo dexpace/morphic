@@ -50,21 +50,21 @@ func reachEvilReader(evilSpace compilers.AddressSpace) *fetchedReader {
 func assertTheSecretIsRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, reads *fetchedReader, name string) {
 	t.Helper()
 	require.Len(t, diags, 1, "%s: %v", name, diags)
-	d := diags[0]
-	assert.Equal(t, ir.SeverityError, d.Severity, name)
-	assert.Equal(t, "openapi/unresolved-ref", d.Code, name)
-	assert.EqualValues(t, "/X", d.Provenance.Pointer, name)
-	require.Less(t, d.Provenance.Source, len(doc.Sources), name)
-	assert.Contains(t, doc.Sources[d.Provenance.Source].Path, "evil.yaml", "%s: the finding lies in the fetched document's entry", name)
-	assert.Contains(t, d.Message, reachRefusalPrivate, name)
+	diagnostic := diags[0]
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity, name)
+	assert.Equal(t, "openapi/unresolved-ref", diagnostic.Code, name)
+	assert.EqualValues(t, "/X", diagnostic.Provenance.Pointer, name)
+	require.Less(t, diagnostic.Provenance.Source, len(doc.Sources), name)
+	assert.Contains(t, doc.Sources[diagnostic.Provenance.Source].Path, "evil.yaml", "%s: the finding lies in the fetched document's entry", name)
+	assert.Contains(t, diagnostic.Message, reachRefusalPrivate, name)
 
 	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated}, reads.servedAt(reachEvil),
 		"%s: the source's own reference reaches nothing", name)
 	assert.Empty(t, reads.servedAt(reachSecret), "%s: nothing was served from the private address", name)
 	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, reads.refusedAt(reachSecret),
 		"%s: the read was asked for at the reach of its referrer, and refused", name)
-	for _, s := range doc.Sources {
-		assert.NotContains(t, s.Path, "secret.yaml", "%s: the secret is no source", name)
+	for _, sourceInfo := range doc.Sources {
+		assert.NotContains(t, sourceInfo.Path, "secret.yaml", "%s: the secret is no source", name)
 	}
 	assert.NotContains(t, jsonOf(t, doc), "secret", "%s: nor is it in the document", name)
 }
@@ -251,7 +251,7 @@ func TestCompile_AReaderThatCannotBoundAReadFailsOnlyTheAsker(t *testing.T) {
 		resolved, ok := doc.Types[componentID("B")].(*ir.Scalar)
 		require.True(t, ok, "%s: B resolves", name)
 		require.NotNil(t, resolved.Base, name)
-		assert.NotEqual(t, ir.TypeID("t/prim/any"), resolved.Base.Target, name)
+		assert.NotEqual(t, ir.TypeID("type/primitive/any"), resolved.Base.Target, name)
 		failed := byCode(diags, "openapi/unresolved-ref")
 		require.Len(t, failed, 1, "%s: %v", name, fetchedFindings(doc, diags))
 		assert.EqualValues(t, "/X", failed[0].Provenance.Pointer, name)
@@ -338,14 +338,14 @@ func TestCompile_AFailedReadIsNoAnswerToADocumentThatCouldNotReadIt(t *testing.T
 			doc, diags := compileFetched(t, reads, reachSource(tc.schemas), "")
 
 			require.Len(t, diags, 2, "%s, %s: %v", failure, name, fetchedFindings(doc, diags))
-			for _, d := range diags {
-				switch d.Provenance.Pointer {
+			for _, diagnostic := range diags {
+				switch diagnostic.Provenance.Pointer {
 				case "/X":
-					assert.Contains(t, d.Message, reachRefusalPrivate, "%s, %s", failure, name)
-					assert.NotContains(t, d.Message, failure, "%s, %s", failure, name)
+					assert.Contains(t, diagnostic.Message, reachRefusalPrivate, "%s, %s", failure, name)
+					assert.NotContains(t, diagnostic.Message, failure, "%s, %s", failure, name)
 				default:
-					assert.EqualValues(t, "/components/schemas/B", d.Provenance.Pointer, "%s, %s", failure, name)
-					assert.Contains(t, d.Message, failure, "%s, %s: the source's own read failed", failure, name)
+					assert.EqualValues(t, "/components/schemas/B", diagnostic.Provenance.Pointer, "%s, %s", failure, name)
+					assert.Contains(t, diagnostic.Message, failure, "%s, %s: the source's own read failed", failure, name)
 				}
 			}
 		}
@@ -395,8 +395,8 @@ func TestCompile_ADocumentReadThroughAProxyAnswersEachReferenceAsItsOwnRead(t *t
 				assert.Equal(t, read, reads.servedAt(proxied), "%s: the reach each read of it was asked at", name)
 			}
 			var got []string
-			for _, d := range diags {
-				got = append(got, fmt.Sprintf("%s %s %s %s", d.Code, doc.Sources[d.Provenance.Source].Path, d.Provenance.Pointer, d.Message))
+			for _, diagnostic := range diags {
+				got = append(got, fmt.Sprintf("%s %s %s %s", diagnostic.Code, doc.Sources[diagnostic.Provenance.Source].Path, diagnostic.Provenance.Pointer, diagnostic.Message))
 			}
 			slices.Sort(got)
 			require.NotEmpty(t, got, "%d, %s", resolved, name)

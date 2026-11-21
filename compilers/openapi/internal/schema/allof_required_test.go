@@ -103,12 +103,12 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
+			model, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.model)
-			p, ok := openapitest.PropsByWire(m.Properties)[tc.wire]
+			property, ok := openapitest.PropertiesByWire(model.Properties)[tc.wire]
 			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
-			assert.True(t, p.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
-			assert.Empty(t, m.Requires, "every required name matches an own property, so none is listed beside them")
+			assert.True(t, property.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
+			assert.Empty(t, model.Requires, "every required name matches an own property, so none is listed beside them")
 		})
 	}
 }
@@ -134,17 +134,17 @@ func TestAllOf_RequiredOnlyEntryNamingBaseOwnedPropertyLandsInRequires(t *testin
             gender: {type: string}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	m, ok := doc.Types[componentID("SuperBaby")].(*ir.Model)
+	model, ok := doc.Types[componentID("SuperBaby")].(*ir.Model)
 	require.True(t, ok, "SuperBaby should be a model")
-	require.NotNil(t, m.Base, "the sole $ref still becomes Base")
-	assert.Equal(t, componentID("Human"), m.Base.Target)
+	require.NotNil(t, model.Base, "the sole $ref still becomes Base")
+	assert.Equal(t, componentID("Human"), model.Base.Target)
 
-	_, hasLevel := openapitest.PropsByWire(m.Properties)["level"]
+	_, hasLevel := openapitest.PropertiesByWire(model.Properties)["level"]
 	assert.False(t, hasLevel, "level belongs to the base, not to SuperBaby's own properties")
-	gender, hasGender := openapitest.PropsByWire(m.Properties)["gender"]
+	gender, hasGender := openapitest.PropertiesByWire(model.Properties)["gender"]
 	require.True(t, hasGender, "gender is SuperBaby's own property")
 	assert.False(t, gender.Required, "level's requiredness never misattaches to gender")
-	assert.Equal(t, []string{"level"}, m.Requires, "SuperBaby makes the level Human declares required")
+	assert.Equal(t, []string{"level"}, model.Requires, "SuperBaby makes the level Human declares required")
 	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
 }
 
@@ -164,17 +164,17 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
-	assert.Nil(t, m.Base, "no $ref entry at all: no Base")
-	assert.Empty(t, m.Mixins, "no $ref entry at all: no Mixins")
+	assert.Nil(t, model.Base, "no $ref entry at all: no Base")
+	assert.Empty(t, model.Mixins, "no $ref entry at all: no Mixins")
 
-	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
+	id, hasID := openapitest.PropertiesByWire(model.Properties)["id"]
 	require.True(t, hasID, "the entry's own id property still lowers")
 	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
-	_, hasGhost := openapitest.PropsByWire(m.Properties)["ghost"]
+	_, hasGhost := openapitest.PropertiesByWire(model.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
-	assert.Equal(t, []string{"ghost"}, m.Requires)
+	assert.Equal(t, []string{"ghost"}, model.Requires)
 	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
 }
 
@@ -201,11 +201,11 @@ func TestAllOf_RefEntryWithSiblingRequired31(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("SuperBoyLike")].(*ir.Model)
+	model, ok := doc.Types[componentID("SuperBoyLike")].(*ir.Model)
 	require.True(t, ok, "SuperBoyLike should be a model")
-	require.NotNil(t, m.Base, "the sole $ref still becomes Base despite the sibling required")
+	require.NotNil(t, model.Base, "the sole $ref still becomes Base despite the sibling required")
 
-	level, ok := openapitest.PropsByWire(m.Properties)["level"]
+	level, ok := openapitest.PropertiesByWire(model.Properties)["level"]
 	require.True(t, ok, "level is declared by the inline entry")
 	assert.True(t, level.Required,
 		"a required sibling on a $ref entry is read off the entry's own local schema and attaches to level")
@@ -231,17 +231,17 @@ func TestAllOf_RequiresIsTheSameInEitherComponentOrder(t *testing.T) {
 	for _, src := range []string{user + created, created + user} {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(src))
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := typeByName(doc, "CreatedUser").(*ir.Model)
+		model, ok := typeByName(doc, "CreatedUser").(*ir.Model)
 		require.True(t, ok, "CreatedUser is a model")
-		nodes = append(nodes, m)
+		nodes = append(nodes, model)
 	}
 
 	assert.Empty(t, cmp.Diff(nodes[0], nodes[1]), "declaration order must not change the composed model")
-	for i, m := range nodes {
-		assert.Equal(t, []string{"id", "extra"}, m.Requires, "order %d: in source order, the inherited name included", i)
-		assert.Empty(t, m.Properties, "order %d: neither name is declared here, so no property holds one", i)
-		require.NotNil(t, m.Base, "order %d", i)
-		assert.Equal(t, componentID("User"), m.Base.Target)
+	for i, model := range nodes {
+		assert.Equal(t, []string{"id", "extra"}, model.Requires, "order %d: in source order, the inherited name included", i)
+		assert.Empty(t, model.Properties, "order %d: neither name is declared here, so no property holds one", i)
+		require.NotNil(t, model.Base, "order %d", i)
+		assert.Equal(t, componentID("User"), model.Base.Target)
 	}
 }
 
@@ -264,9 +264,9 @@ func TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags, "no list repeats a name, so nothing is reported")
 
-	m, ok := typeByName(doc, "CreatedUser").(*ir.Model)
+	model, ok := typeByName(doc, "CreatedUser").(*ir.Model)
 	require.True(t, ok, "CreatedUser is a model")
-	assert.Equal(t, []string{"id", "extra", "other"}, m.Requires, "once each, in the order first written")
+	assert.Equal(t, []string{"id", "extra", "other"}, model.Requires, "once each, in the order first written")
 }
 
 // TestAllOf_BoolEntryContributesNoRequiredNames covers an allOf entry that is
@@ -286,13 +286,13 @@ func TestAllOf_BoolEntryContributesNoRequiredNames(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
-	assert.Nil(t, m.Base, "a bare boolean entry is never a $ref, so no Base")
-	assert.Empty(t, m.Mixins)
+	assert.Nil(t, model.Base, "a bare boolean entry is never a $ref, so no Base")
+	assert.Empty(t, model.Mixins)
 
-	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
+	id, hasID := openapitest.PropertiesByWire(model.Properties)["id"]
 	require.True(t, hasID, "the object entry's own property still lowers despite the sibling bool entry")
 	assert.True(t, id.Required, "the object entry's own required still attaches to its own property")
-	assert.Empty(t, m.Requires, "the boolean entry contributes no required names, so nothing goes unattached")
+	assert.Empty(t, model.Requires, "the boolean entry contributes no required names, so nothing goes unattached")
 }

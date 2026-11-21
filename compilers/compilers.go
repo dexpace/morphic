@@ -190,19 +190,19 @@ func NewRegistry() *Registry {
 	return &Registry{byFormat: make(map[SourceFormat]*registered)}
 }
 
-// Register adds c under every format it reports. It rejects a nil compiler, and
-// a compiler reporting no formats, naming no dialect (an empty name or version,
-// or a name holding '@') or panicking in Formats, the last three with an error
-// wrapping ErrContract, and it fails if any format is already claimed. On
-// failure nothing is registered.
+// Register adds compiler under every format it reports. It rejects a nil
+// compiler, and a compiler reporting no formats, naming no dialect (an empty
+// name or version, or a name holding '@') or panicking in Formats, the last
+// three with an error wrapping ErrContract, and it fails if any format is
+// already claimed. On failure nothing is registered.
 //
 // Rejecting nil keeps a caller's mistake a Go error rather than a segmentation
-// fault in this package, so the check comes before any call on c.
-func (r *Registry) Register(c Compiler) error {
-	if isNilCompiler(c) {
+// fault in this package, so the check comes before any call on compiler.
+func (r *Registry) Register(compiler Compiler) error {
+	if isNilCompiler(compiler) {
 		return errors.New("compilers: register: nil compiler")
 	}
-	formats, err := reported(c)
+	formats, err := reported(compiler)
 	if err != nil {
 		return fmt.Errorf("compilers: register: %w", err)
 	}
@@ -220,7 +220,7 @@ func (r *Registry) Register(c Compiler) error {
 	if r.byFormat == nil {
 		r.byFormat = make(map[SourceFormat]*registered, len(formats))
 	}
-	entry := &registered{c: c, formats: formats}
+	entry := &registered{c: compiler, formats: formats}
 	for _, format := range formats {
 		r.byFormat[format] = entry
 	}
@@ -228,11 +228,11 @@ func (r *Registry) Register(c Compiler) error {
 	return nil
 }
 
-// reported asks c for its formats, behind a barrier, and returns a copy: the
-// compiler may keep the slice it answered with and change it later.
-func reported(c Compiler) ([]SourceFormat, error) {
+// reported asks compiler for its formats, behind a barrier, and returns a copy:
+// the compiler may keep the slice it answered with and change it later.
+func reported(compiler Compiler) ([]SourceFormat, error) {
 	var formats []SourceFormat
-	if err := barrier.Catch(func() { formats = c.Formats() }); err != nil {
+	if err := barrier.Catch(func() { formats = compiler.Formats() }); err != nil {
 		return nil, breach("Formats", err)
 	}
 	return slices.Clone(formats), nil
@@ -266,14 +266,14 @@ func (cfg Configuration) valid() bool {
 	return cfg.FormatOptions == nil || len(cfg.Settings.Settings) == 0
 }
 
-// optionsFor resolves the options c would compile a source with under cfg:
-// FormatOptions, or what c decodes Settings to. A decoder that fails leaves
-// the zero Options, as whatever it had got partway is not options.
-func optionsFor(c Compiler, cfg Configuration) (Options, error) {
+// optionsFor resolves the options compiler would compile a source with under
+// cfg: FormatOptions, or what compiler decodes Settings to. A decoder that
+// fails leaves the zero Options, as whatever it had got partway is not options.
+func optionsFor(compiler Compiler, cfg Configuration) (Options, error) {
 	if len(cfg.Settings.Settings) == 0 {
 		return Options{FormatOptions: cfg.FormatOptions, Reader: cfg.Reader}, nil
 	}
-	decoded, err := c.DecodeOptions(cfg.Settings)
+	decoded, err := compiler.DecodeOptions(cfg.Settings)
 	if err != nil {
 		return Options{}, fmt.Errorf("decode: %w", err)
 	}
@@ -321,11 +321,11 @@ func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (D
 	}
 
 	var declined []ir.Diagnostic
-	for _, e := range r.ordered {
+	for _, registered := range r.ordered {
 		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
-		a, err := e.ask(ctx, src, cfg)
+		a, err := registered.ask(ctx, src, cfg)
 		if err != nil {
 			return Detection{}, false, err
 		}
@@ -334,12 +334,12 @@ func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (D
 		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
-		if err := e.heldToLimit(a, len(src.Data)); err != nil {
+		if err := registered.heldToLimit(a, len(src.Data)); err != nil {
 			return Detection{}, false, err
 		}
 		if !a.ok {
 			if err := checkDecline(a.diags); err != nil {
-				return Detection{}, false, fmt.Errorf("compilers: detect by %s: %w", e.served(), err)
+				return Detection{}, false, fmt.Errorf("compilers: detect by %s: %w", registered.served(), err)
 			}
 			declined = append(declined, a.diags...)
 			continue
@@ -348,9 +348,9 @@ func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (D
 		// would hide which compiler swallowed a source the next one might take.
 		if !a.rec.Format.valid() {
 			return Detection{}, false, fmt.Errorf("compilers: detect by %s: claimed the source as %q: %w",
-				e.served(), a.rec.Format, ErrContract)
+				registered.served(), a.rec.Format, ErrContract)
 		}
-		det, ok, err := r.claim(e, a, cfg)
+		det, ok, err := r.claim(registered, a, cfg)
 		if err != nil {
 			return Detection{}, false, err
 		}
@@ -372,12 +372,12 @@ func (r *Registry) SourceLimit(cfg Configuration) (int, error) {
 		return 0, errOptionChannels
 	}
 	most := 0
-	for _, e := range r.ordered {
-		opts, _, err := e.configured(cfg)
+	for _, registered := range r.ordered {
+		opts, _, err := registered.configured(cfg)
 		if err != nil {
 			return 0, err
 		}
-		limit, err := e.sourceLimit(opts)
+		limit, err := registered.sourceLimit(opts)
 		if err != nil {
 			return 0, err
 		}
@@ -463,18 +463,19 @@ func (e *registered) configured(cfg Configuration) (opts Options, failed, breach
 // a Compiler is an interface value, and its formats are what tell one apart.
 func (e *registered) served() string {
 	names := make([]string, 0, len(e.formats))
-	for _, f := range e.formats {
-		names = append(names, f.String())
+	for _, sourceFormat := range e.formats {
+		names = append(names, sourceFormat.String())
 	}
 	return strings.Join(names, ", ")
 }
 
-// claim resolves what e recognized into the compiler that will compile the
-// source and the options it compiles with. The caller records the source.
-func (r *Registry) claim(e *registered, a answer, cfg Configuration) (Detection, bool, error) {
+// claim resolves what registeredValue recognized into the compiler that will
+// compile the source and the options it compiles with. The caller records the
+// source.
+func (r *Registry) claim(registeredValue *registered, a answer, cfg Configuration) (Detection, bool, error) {
 	rec, opts, optsErr := a.rec, a.opts, a.optsErr
 	owner := r.byFormat[rec.Format]
-	if owner != e {
+	if owner != registeredValue {
 		// The recognizer is not the owner, so its parse is not the owner's.
 		rec.Parsed = nil
 	}
@@ -482,7 +483,7 @@ func (r *Registry) claim(e *registered, a answer, cfg Configuration) (Detection,
 		// Nothing will compile the source, so no options are wanted for it.
 		return Detection{Recognition: rec}, false, nil
 	}
-	if owner != e {
+	if owner != registeredValue {
 		// Nor are its options the owner's.
 		var err error
 		if opts, optsErr, err = owner.configured(cfg); err != nil {
@@ -495,17 +496,18 @@ func (r *Registry) claim(e *registered, a answer, cfg Configuration) (Detection,
 	return Detection{Compiler: owner.c, Recognition: rec, Options: opts}, true, nil
 }
 
-// isNilCompiler reports whether c is unsafe to call: an untyped nil interface or
-// a typed nil pointer stored in one.
+// isNilCompiler reports whether compiler is unsafe to call: an untyped nil
+// interface or a typed nil pointer stored in one.
 //
-// The two spellings are one bug — a typed nil passes c == nil and panics on the
-// first method call that touches the receiver — so screening only the first
-// leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same way.
-func isNilCompiler(c Compiler) bool {
-	if c == nil {
+// The two spellings are one bug — a typed nil passes compiler == nil and panics
+// on the first method call that touches the receiver — so screening only the
+// first leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same
+// way.
+func isNilCompiler(compiler Compiler) bool {
+	if compiler == nil {
 		return true
 	}
-	rv := reflect.ValueOf(c)
+	rv := reflect.ValueOf(compiler)
 	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 

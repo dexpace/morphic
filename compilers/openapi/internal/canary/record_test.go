@@ -89,20 +89,20 @@ func readRecord(t *testing.T) []entry {
 func parseRecord(text string) ([]entry, []string) {
 	read, problems := keydoc.Parse(text, verifiedField, pinnedField, codeField)
 	entries := make([]entry, 0, len(read))
-	for _, e := range read {
-		got := entry{key: e.Key, line: e.Line}
-		if f, ok := e.Field(verifiedField); ok {
-			got.verified = f.Text()
+	for _, keydocEntry := range read {
+		got := entry{key: keydocEntry.Key, line: keydocEntry.Line}
+		if field, ok := keydocEntry.Field(verifiedField); ok {
+			got.verified = field.Text()
 		}
-		if f, ok := e.Field(pinnedField); ok {
-			got.pinnedBy = firstSpan(f.Text())
+		if field, ok := keydocEntry.Field(pinnedField); ok {
+			got.pinnedBy = firstSpan(field.Text())
 		}
-		if f, ok := e.Field(codeField); ok {
+		if field, ok := keydocEntry.Field(codeField); ok {
 			var bad []string
-			got.code, bad = codeItems(e.Key, f)
+			got.code, bad = codeItems(keydocEntry.Key, field)
 			problems = append(problems, bad...)
 		}
-		problems = append(problems, fieldProblems(e, got)...)
+		problems = append(problems, fieldProblems(keydocEntry, got)...)
 		entries = append(entries, got)
 	}
 	return entries, problems
@@ -111,20 +111,20 @@ func parseRecord(text string) ([]entry, []string) {
 // codeItems returns the declaration each item of a Code field names, and a
 // problem for each line of the field that neither opens an item naming one
 // nor continues one.
-func codeItems(key string, f keydoc.Field) ([]string, []string) {
+func codeItems(key string, field keydoc.Field) ([]string, []string) {
 	code := []string{}
 	var problems []string
-	if f.Value != "" {
-		problems = append(problems, fmt.Sprintf("line %d: %s writes its Code items on the bullet's own line", f.Line, key))
+	if field.Value != "" {
+		problems = append(problems, fmt.Sprintf("line %d: %s writes its Code items on the bullet's own line", field.Line, key))
 	}
-	for i, line := range f.Lines {
+	for i, line := range field.Lines {
 		switch {
 		case strings.HasPrefix(line, codeItem) && firstSpan(line) != "":
 			code = append(code, firstSpan(line))
 		case strings.HasPrefix(line, codeItem):
-			problems = append(problems, fmt.Sprintf("line %d: a Code item of %s names no declaration", f.Line+i+1, key))
+			problems = append(problems, fmt.Sprintf("line %d: a Code item of %s names no declaration", field.Line+i+1, key))
 		case !strings.HasPrefix(line, "    ") || i == 0:
-			problems = append(problems, fmt.Sprintf("line %d: %s writes a Code line that is no item: %q", f.Line+i+1, key, line))
+			problems = append(problems, fmt.Sprintf("line %d: %s writes a Code line that is no item: %q", field.Line+i+1, key, line))
 		}
 	}
 	return code, problems
@@ -138,22 +138,23 @@ func firstSpan(s string) string {
 	return ""
 }
 
-// fieldProblems reports each field e leaves unwritten, a version or pin that
-// is written naming nothing, and a Code field that names no declaration.
-func fieldProblems(e keydoc.Entry, got entry) []string {
+// fieldProblems reports each field keydocEntry leaves unwritten, a version or
+// pin that is written naming nothing, and a Code field that names no
+// declaration.
+func fieldProblems(keydocEntry keydoc.Entry, got entry) []string {
 	var problems []string
 	for _, field := range []string{verifiedField, pinnedField, codeField} {
-		if _, ok := e.Field(field); !ok {
-			problems = append(problems, fmt.Sprintf("line %d: %s does not write the field %q", e.Line, e.Key, field))
+		if _, ok := keydocEntry.Field(field); !ok {
+			problems = append(problems, fmt.Sprintf("line %d: %s does not write the field %q", keydocEntry.Line, keydocEntry.Key, field))
 		}
 	}
 	for _, w := range []struct{ field, value string }{{verifiedField, got.verified}, {pinnedField, got.pinnedBy}} {
-		if f, ok := e.Field(w.field); ok && w.value == "" {
-			problems = append(problems, fmt.Sprintf("line %d: %s writes the field %q naming nothing", f.Line, e.Key, w.field))
+		if field, ok := keydocEntry.Field(w.field); ok && w.value == "" {
+			problems = append(problems, fmt.Sprintf("line %d: %s writes the field %q naming nothing", field.Line, keydocEntry.Key, w.field))
 		}
 	}
-	if _, ok := e.Field(codeField); ok && len(got.code) == 0 {
-		problems = append(problems, fmt.Sprintf("line %d: %s names no declaration under %q", e.Line, e.Key, codeField))
+	if _, ok := keydocEntry.Field(codeField); ok && len(got.code) == 0 {
+		problems = append(problems, fmt.Sprintf("line %d: %s names no declaration under %q", keydocEntry.Line, keydocEntry.Key, codeField))
 	}
 	return problems
 }
@@ -165,8 +166,8 @@ func TestRecord_EveryEntryHasACanaryAndNoMore(t *testing.T) {
 	t.Parallel()
 	entries := readRecord(t)
 	keys := make([]string, 0, len(entries))
-	for _, e := range entries {
-		keys = append(keys, e.key)
+	for _, entry := range entries {
+		keys = append(keys, entry.key)
 	}
 	slices.Sort(keys)
 	assert.Equal(t, slices.Sorted(maps.Keys(canaries())), keys)
@@ -176,8 +177,8 @@ func TestRecord_EveryEntryHasACanaryAndNoMore(t *testing.T) {
 // subtest named for its key, the one TestLibraryBehaviour runs.
 func TestRecord_EachEntryNamesItsCanary(t *testing.T) {
 	t.Parallel()
-	for _, e := range readRecord(t) {
-		assert.Equal(t, pinPrefix+e.key, e.pinnedBy, "line %d", e.line)
+	for _, entry := range readRecord(t) {
+		assert.Equal(t, pinPrefix+entry.key, entry.pinnedBy, "line %d", entry.line)
 	}
 }
 
@@ -188,10 +189,10 @@ func TestRecord_EntriesAreVerifiedAtTheLinkedVersion(t *testing.T) {
 	t.Parallel()
 	linked, err := linkedVersion()
 	require.NoError(t, err)
-	for _, e := range readRecord(t) {
-		assert.Equal(t, linked, e.verified,
+	for _, entry := range readRecord(t) {
+		assert.Equal(t, linked, entry.verified,
 			"line %d: %s was verified at another version; re-read it against %s, then restamp it",
-			e.line, e.key, linked)
+			entry.line, entry.key, linked)
 	}
 }
 
@@ -217,16 +218,16 @@ func TestRecord_CodeCitesItsEntry(t *testing.T) {
 	t.Parallel()
 	entries := readRecord(t)
 	paths := map[string]bool{}
-	for _, e := range entries {
-		for _, symbol := range e.code {
+	for _, entry := range entries {
+		for _, symbol := range entry.code {
 			paths[importPath(strings.Split(symbol, ".")[0])] = true
 		}
 	}
 	pkgs, err := decls.LoadEach(slices.Sorted(maps.Keys(paths))...)
 	require.NoError(t, err)
 	byPath := map[string]*decls.Package{}
-	for _, p := range pkgs {
-		byPath[p.Types.Path()] = p
+	for _, loadedPackage := range pkgs {
+		byPath[loadedPackage.Types.Path()] = loadedPackage
 	}
 	for _, problem := range codeProblems(entries, func(symbol string) (string, error) {
 		return docOf(byPath, symbol)
@@ -239,15 +240,15 @@ func TestRecord_CodeCitesItsEntry(t *testing.T) {
 // find, or whose doc comment does not cite the entry.
 func codeProblems(entries []entry, docOf func(symbol string) (string, error)) []string {
 	var problems []string
-	for _, e := range entries {
-		for _, symbol := range e.code {
+	for _, entry := range entries {
+		for _, symbol := range entry.code {
 			doc, err := docOf(symbol)
 			switch {
 			case err != nil:
-				problems = append(problems, fmt.Sprintf("%s names %s: %v", e.key, symbol, err))
-			case !citesEntry(doc, e.key):
+				problems = append(problems, fmt.Sprintf("%s names %s: %v", entry.key, symbol, err))
+			case !citesEntry(doc, entry.key):
 				problems = append(problems, fmt.Sprintf("%s names %s, whose doc comment does not cite %s#%s",
-					e.key, symbol, recordPath, e.key))
+					entry.key, symbol, recordPath, entry.key))
 			}
 		}
 	}
@@ -280,22 +281,22 @@ func docOf(pkgs map[string]*decls.Package, symbol string) (string, error) {
 	if len(parts) < 2 || len(parts) > 3 {
 		return "", fmt.Errorf("%q is neither package.Name nor package.Type.Member", symbol)
 	}
-	p, ok := pkgs[importPath(parts[0])]
+	loadedPackage, ok := pkgs[importPath(parts[0])]
 	if !ok {
 		return "", fmt.Errorf("no package %s was loaded", importPath(parts[0]))
 	}
-	obj := p.Types.Scope().Lookup(parts[1])
+	obj := loadedPackage.Types.Scope().Lookup(parts[1])
 	if obj == nil {
-		return "", fmt.Errorf("%s declares no %s", p.Types.Path(), parts[1])
+		return "", fmt.Errorf("%s declares no %s", loadedPackage.Types.Path(), parts[1])
 	}
 	if len(parts) == 3 {
-		member, _, _ := types.LookupFieldOrMethod(types.NewPointer(obj.Type()), true, p.Types, parts[2])
+		member, _, _ := types.LookupFieldOrMethod(types.NewPointer(obj.Type()), true, loadedPackage.Types, parts[2])
 		if member == nil {
-			return "", fmt.Errorf("%s.%s has no field or method %s", p.Types.Path(), parts[1], parts[2])
+			return "", fmt.Errorf("%s.%s has no field or method %s", loadedPackage.Types.Path(), parts[1], parts[2])
 		}
 		obj = member
 	}
-	doc, ok := docAt(p.Syntax, obj.Pos())
+	doc, ok := docAt(loadedPackage.Syntax, obj.Pos())
 	if !ok {
 		return "", fmt.Errorf("no declaration of %s was found in its package's files", symbol)
 	}
@@ -354,8 +355,8 @@ func specDoc(spec ast.Spec, decl *ast.GenDecl, at func(*ast.Ident, ...*ast.Comme
 func TestRecord_CitationsNameAnEntry(t *testing.T) {
 	t.Parallel()
 	keys := map[string]bool{}
-	for _, e := range readRecord(t) {
-		keys[e.key] = true
+	for _, entry := range readRecord(t) {
+		keys[entry.key] = true
 	}
 	problems, cited, err := citationProblems(repoRoot, keys)
 	require.NoError(t, err)
@@ -370,10 +371,10 @@ func TestRecord_CitationsNameAnEntry(t *testing.T) {
 func citationProblems(root string, keys map[string]bool) ([]string, int, error) {
 	found, err := keydoc.Citations(root, recordPath, citedAs)
 	var problems []string
-	for _, c := range found {
-		if !keys[c.Key] {
+	for _, citation := range found {
+		if !keys[citation.Key] {
 			problems = append(problems, fmt.Sprintf("%s:%d cites %q, which is no entry of %s",
-				c.Path, c.Line, c.Key, recordPath))
+				citation.Path, citation.Line, citation.Key, recordPath))
 		}
 	}
 	return problems, len(found), err
@@ -414,9 +415,9 @@ func versionProblems(root, tree string) ([]string, int, error) {
 			return err
 		}
 		read += len(comments)
-		for _, c := range comments {
-			if v := version.FindString(c.Text); v != "" {
-				problems = append(problems, fmt.Sprintf("%s:%d names %s", keydoc.Rel(root, path), c.Line, v))
+		for _, comment := range comments {
+			if v := version.FindString(comment.Text); v != "" {
+				problems = append(problems, fmt.Sprintf("%s:%d names %s", keydoc.Rel(root, path), comment.Line, v))
 			}
 		}
 		return nil

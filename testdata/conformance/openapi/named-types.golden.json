@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NamedTypes",
         "canonical": "named_types"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Address": {
+    "type/openapi/components/schemas/Address": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Address",
+      "id": "type/openapi/components/schemas/Address",
       "name": {
         "source": "Address",
         "canonical": "address"
@@ -75,21 +75,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Address/properties/city",
+          "id": "property/openapi/components/schemas/Address/properties/city",
           "name": {
             "source": "city",
             "canonical": "city"
           },
           "wireName": "city",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -106,9 +106,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/User": {
+    "type/openapi/components/schemas/User": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/User",
+      "id": "type/openapi/components/schemas/User",
       "name": {
         "source": "User",
         "canonical": "user"
@@ -122,21 +122,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/User/properties/name",
+          "id": "property/openapi/components/schemas/User/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -149,21 +149,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/User/properties/address",
+          "id": "property/openapi/components/schemas/User/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/openapi/components/schemas/Address",
+            "target": "type/openapi/components/schemas/Address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -180,9 +180,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -190,7 +190,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

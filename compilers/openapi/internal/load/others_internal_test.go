@@ -16,8 +16,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
@@ -32,7 +32,7 @@ func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) (co
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
 // to ref, reading every other document through servedReader, and returns it
 // with the code of each diagnostic the load reported.
-func loadReferencing(t *testing.T, ref string) (*Document, []string) {
+func loadReferencing(t *testing.T, ref string) (*LoadedOpenAPIDocument, []string) {
 	t.Helper()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
 		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    A: {$ref: '" + ref + "'}\n",
@@ -40,16 +40,16 @@ func loadReferencing(t *testing.T, ref string) (*Document, []string) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	return doc, codes
 }
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
 // reference reads is found again by the name the binder spells it with, which
-// for a URL is the one spelling it is located by (resolve.Locate), escaping
-// what the URL's syntax requires. A name no read answered, or one no
+// for a URL is the one spelling it is located by (componentlookup.Locate),
+// escaping what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
 // A space is no URI reference, which validation reports, and the document is
 // read all the same.
@@ -101,14 +101,14 @@ func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
 	held := pointersIn(t.Context(), trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
 
 	for key, tree := range trees {
-		x := tree.Content[0].Content[3].Alias.Content[1]
-		p, ok := held(x)
+		node := tree.Content[0].Content[3].Alias.Content[1]
+		pointer, ok := held(node)
 		assert.True(t, ok, key)
-		assert.Equal(t, jsontext.Pointer("/A/x"), p, key)
+		assert.Equal(t, jsontext.Pointer("/A/x"), pointer, key)
 	}
-	p, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
+	pointerValue, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
 	assert.False(t, ok)
-	assert.Empty(t, p)
+	assert.Empty(t, pointerValue)
 }
 
 // TestPointersIn_IndexesUnderTheLoadsContext pins that each tree's pointer
@@ -153,9 +153,9 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 }
 
 // TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource pins the path
-// Document.Sources records for another document: beside the path the caller
-// handed, as relative as it is, where its label is relative, though the
-// references were read against the source's absolute Location, a label
+// LoadedOpenAPIDocument.Sources records for another document: beside the path
+// the caller handed, as relative as it is, where its label is relative, though
+// the references were read against the source's absolute Location, a label
 // climbing out of the handed directory keeping its dot segments, which a link
 // to that directory gives another meaning than cleaning them away would; else
 // as read.
@@ -184,7 +184,7 @@ func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
 }
 
 // TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead pins what leaves
-// Document.Sources: a document the table holds nothing of.
+// LoadedOpenAPIDocument.Sources: a document the table holds nothing of.
 func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{
@@ -194,11 +194,11 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("components:\n  schemas:\n"+
 		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
-	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
+	table := reftable.Bind(t.Context(), &root, reftable.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
 		Open: func(name, _ string) (*yaml.Node, error) {
-			var n yaml.Node
-			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
+			var node yaml.Node
+			return &node, yaml.Unmarshal([]byte(docs[name]), &node)
 		}})
 
 	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table))

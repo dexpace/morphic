@@ -47,7 +47,7 @@ func TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits(t *testing.T) 
 	spec := admissionSpec("3.1.0", "",
 		"P: {allOf: [{enum: [a], oneOf: [{type: string}, {type: integer}]}, {enum: [b, shared]}]}")
 	_, diags := compileAnnotationSpec(t, "valueset", spec)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "admits a value the rest of the allOf admits", "%s", d.Message)
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "admits a value the rest of the allOf admits", "%s", diagnostic.Message)
 	}
 }

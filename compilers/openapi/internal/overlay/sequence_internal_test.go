@@ -44,9 +44,9 @@ components:
 // planOf reads ov as an overlay to apply, requiring that it reads.
 func planOf(t *testing.T, ov string) plan {
 	t.Helper()
-	p, diags := read(ir.Provenance{Source: 1}, docOf(t, ov))
+	planValue, diags := read(ir.Provenance{Source: 1}, docOf(t, ov))
 	require.False(t, diag.HasError(diags), "%+v", diags)
-	return p
+	return planValue
 }
 
 // budgetedOverlay applies an overlay to sequenceSpec under a node budget.
@@ -229,7 +229,7 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 	for i := range 20 {
 		fmt.Fprintf(&b, "  - target: $.info\n    update: {title: T%d}\n", i)
 	}
-	p := planOf(t, b.String())
+	plan := planOf(t, b.String())
 	tree := func() *yaml.Node {
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
@@ -237,9 +237,9 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 	}
 	limit := budget.AtMost(countNodes(t.Context(), tree(), budget.AtMost(maxNodes)) + 10)
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	_, _, ok := runSequence(whole, p, tree(), false, limit, budget.AtMost(MaxSteps))
+	_, _, ok := runSequence(whole, plan, tree(), false, limit, budget.AtMost(MaxSteps))
 	require.True(t, ok)
-	require.Greater(t, whole.Calls, 1+len(p.actions),
+	require.Greater(t, whole.Calls, 1+len(plan.actions),
 		"beside the first count and the check after each charge, a recount asks too")
 
 	for left := range whole.Calls {
@@ -251,7 +251,7 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 		ctx.OnRefuse = func() { refusedOn, err = yaml.Marshal(root) }
 
-		_, diags, ok := runSequence(ctx, p, root, false, limit, budget.AtMost(MaxSteps))
+		_, diags, ok := runSequence(ctx, plan, root, false, limit, budget.AtMost(MaxSteps))
 
 		require.NoError(t, err)
 		require.False(t, ok, "check %d", left+1)
@@ -281,9 +281,9 @@ func TestSequence_AppliesWithoutABudget(t *testing.T) {
 func TestWeigher_CountsWhatTheCloneBuilds(t *testing.T) {
 	t.Parallel()
 	decode := func(src string) *yaml.Node {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-		return n.Content[0]
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &node))
+		return node.Content[0]
 	}
 
 	plain := decode("{a: 1, b: 2}")
@@ -324,12 +324,12 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			t.Parallel()
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
-			p := planOf(t, head+action)
+			plan := planOf(t, head+action)
 
-			s := &sequence{plan: p, root: &root, size: budget.New(budget.AtMost(1 << 20)), grafts: newGrafter(p.version, &root)}
-			sel, err := s.selected(t.Context(), p.actions[0])
+			sequenceValue := &sequence{plan: plan, root: &root, size: budget.New(budget.AtMost(1 << 20)), grafts: newGrafter(plan.version, &root)}
+			sel, err := sequenceValue.selected(t.Context(), plan.actions[0])
 			require.NoError(t, err)
-			charged := s.cost(p.actions[0], nodesOf(sel.targets), nodesOf(sel.sources))
+			charged := sequenceValue.cost(plan.actions[0], nodesOf(sel.targets), nodesOf(sel.sources))
 			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
 			_, diags := Apply(t.Context(), 1, &root, docOf(t, head+action), Options{Data: []byte(head + action)})
@@ -365,13 +365,13 @@ func TestCountNodes_TheLargestLimitCountsTheWholeTree(t *testing.T) {
 // and the action with it, before any target is written.
 func TestSequence_RefusesACopyItCannotTakeATemplateOf(t *testing.T) {
 	t.Parallel()
-	p := planOf(t, "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.a\n    copy: $.b\n")
+	plan := planOf(t, "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.a\n    copy: $.b\n")
 	a := ynode.Map()
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{
 		ynode.Map(ynode.Scalar("a"), a, ynode.Scalar("b"), nested(maxPayloadDepth+1)),
 	}}
 
-	_, diags, ok := runSequence(t.Context(), p, root, false, budget.Unbounded(), budget.AtMost(MaxSteps))
+	_, diags, ok := runSequence(t.Context(), plan, root, false, budget.Unbounded(), budget.AtMost(MaxSteps))
 
 	assert.False(t, ok)
 	require.Len(t, diags, 1)
@@ -384,11 +384,11 @@ func TestSequence_RefusesACopyItCannotTakeATemplateOf(t *testing.T) {
 // without copying anything.
 func TestSequence_ChargesNoCopyOfManyOrNoNodes(t *testing.T) {
 	t.Parallel()
-	p := planOf(t, "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.a\n    copy: $.b\n")
-	s := &sequence{plan: p, size: budget.New(budget.AtMost(10))}
+	plan := planOf(t, "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.a\n    copy: $.b\n")
+	sequenceValue := &sequence{plan: plan, size: budget.New(budget.AtMost(10))}
 	targets := []*yaml.Node{ynode.Map()}
 
-	assert.Zero(t, s.cost(p.actions[0], targets, nil))
-	assert.Zero(t, s.cost(p.actions[0], targets, []*yaml.Node{ynode.Map(), ynode.Map()}))
-	assert.Equal(t, 3, s.cost(p.actions[0], targets, []*yaml.Node{ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))}))
+	assert.Zero(t, sequenceValue.cost(plan.actions[0], targets, nil))
+	assert.Zero(t, sequenceValue.cost(plan.actions[0], targets, []*yaml.Node{ynode.Map(), ynode.Map()}))
+	assert.Equal(t, 3, sequenceValue.cost(plan.actions[0], targets, []*yaml.Node{ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))}))
 }

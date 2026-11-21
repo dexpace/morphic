@@ -57,9 +57,9 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 		return nil, nil
 	}
 	doc, refused := withoutEmptyKeys(doc)
-	// One walk reads what the reference, PropID and parameter checks need, and
-	// asks ctx as it goes. checkParams leaves to the dangling check exactly what
-	// it reports.
+	// One walk reads what the reference, PropertyID and parameter checks need,
+	// and asks ctx as it goes. checkParams leaves to the dangling check exactly
+	// what it reports.
 	read, err := walkDocument(ctx, doc, walk)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func withoutEmptyKeys(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 // list and a map it keeps for the run, so a value with nothing wrong costs it
 // nothing but a step those or a log may grow by. The index it asks, facts,
 // allocates per index it builds and not per type it indexes (GitHub #1150).
-func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
+func families(doc *ir.Document, read walked, facts *irfacts.DocumentFacts) []func() []ir.Diagnostic {
 	// Sorted once for the run, and written by no family.
 	live := liveTypeIDs(doc)
 	// A family that ranges a map sorts its keys first. A new family takes a row of
@@ -137,7 +137,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkCatchAllEncodingKeys(doc) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs, read.truncated) },
+		func() []ir.Diagnostic { return checkPropertyIDRefs(read.properties, read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, live, facts) },
 		func() []ir.Diagnostic { return checkRepeatedVariants(doc, live) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc, live) },
@@ -151,7 +151,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc, live) },
 		func() []ir.Diagnostic { return checkBounds(doc, live) },
 		func() []ir.Diagnostic { return checkValues(doc, live) },
-		func() []ir.Diagnostic { return checkKnots(doc, live) },
+		func() []ir.Diagnostic { return checkCompositionCyclesAndInfiniteTypes(doc, live) },
 	}
 }
 
@@ -159,21 +159,21 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 // references that may dangle with the identities they resolve against, its
 // PropIDs, the references it holds empty, and whether the walk was cut short.
 type walked struct {
-	refs      *ir.IDReferences
-	props     *propIDSites
-	empty     *ir.EmptyReferences
-	truncated bool
+	refs       *ir.IDReferences
+	properties *propertyIDSites
+	empty      *ir.EmptyReferences
+	truncated  bool
 }
 
 // walkDocument reads doc in one walk, taken with walk under ctx, and returns
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	w := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props, w.empty)
+	walkedValue := walked{refs: refs, properties: &propertyIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, walkedValue.refs, walkedValue.properties, walkedValue.empty)
 	if err != nil {
 		return walked{}, err
 	}
-	w.truncated = truncated
-	return w, nil
+	walkedValue.truncated = truncated
+	return walkedValue, nil
 }

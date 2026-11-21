@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
 
 // TestMessage_UseOpensItsSentence pins that `use` is a cue only where nothing
@@ -28,7 +28,7 @@ func TestMessage_UseOpensItsSentence(t *testing.T) {
 		"Callers should, instead, use `a`.": {"a"},
 	} {
 		doc, _, member := phraseDocument(message)
-		assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), message)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)), message)
 		_, wantMembers := entities(want)
 		assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, message)
 	}

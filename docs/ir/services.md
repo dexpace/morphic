@@ -49,11 +49,11 @@ type OperationGroup struct {
 type ResourceInfo struct {
     Identifiers []Property                  // resource identity fields
     Properties  []Property                  // resource state fields (Smithy 2.0 resource properties)
-    Lifecycle   map[string]OpID             // "create"|"put"|"read"|"update"|"delete"|"list" → op
+    Lifecycle   map[string]OperationID      // "create"|"put"|"read"|"update"|"delete"|"list" → op
                                             // (put = create-or-replace with client-provided identifier)
     NoReplace   bool                        // put may create but not replace (Smithy @noReplace)
-    InstanceOps   []OpID                    // declared non-lifecycle instance operations (require identifiers)
-    CollectionOps []OpID                    // declared collectionOperations — the split drives
+    InstanceOperations   []OperationID      // declared non-lifecycle instance operations (require identifiers)
+    CollectionOperations []OperationID      // declared collectionOperations — the split drives
                                             // sub-client shape and is a declared fact, not a heuristic
 }
 ```

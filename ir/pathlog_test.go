@@ -19,10 +19,10 @@ import (
 // among them, elements, map keys and map values, nested and side by side.
 func loggedDoc() *ir.Document {
 	doc := declaringDoc()
-	m := &ir.Model{TypeCommon: populatedTypeCommon("t/x/P"), Properties: []ir.Property{populatedProperty(), {ID: "p/x/P/b"}}}
-	doc.Types[m.ID] = m
+	model := &ir.Model{TypeCommon: populatedTypeCommon("type/x/P"), Properties: []ir.Property{populatedProperty(), {ID: "property/x/P/b"}}}
+	doc.Types[model.ID] = model
 	doc.Unmodeled = populatedUnmodeled()
-	doc.Services[0].Renames = map[ir.TypeID]ir.Naming{"t/x/M": populatedNaming(), "t/x/P": {Source: "p"}}
+	doc.Services[0].Renames = map[ir.TypeID]ir.Naming{"type/x/M": populatedNaming(), "type/x/P": {Source: "p"}}
 	return doc
 }
 
@@ -56,7 +56,7 @@ func TestPathLog_ReplaysEachPathAsTheWalkShowedIt(t *testing.T) {
 		return true
 	}))
 	require.Equal(t, len(shown), log.Len())
-	require.Contains(t, shown, recorded{path: "doc.Unmodeled[openapi:a-ext].key", mapKey: true}, "a map key is reached")
+	require.Contains(t, shown, recorded{path: "document.Unmodeled[openapi:a-ext].key", mapKey: true}, "a map key is reached")
 
 	var replayed []recorded
 	for i, at := range log.All() {
@@ -126,7 +126,7 @@ func TestPathLog_KeepsTheZeroPathAsEmpty(t *testing.T) {
 	var log ir.PathLog
 	log.Record(ir.WalkPath{})
 	ir.WalkValues(&ir.Document{Name: "x"}, ir.DocumentPath, ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
-		if at.String() == "doc.Name" {
+		if at.String() == "document.Name" {
 			log.Record(at)
 		}
 		return true
@@ -135,7 +135,7 @@ func TestPathLog_KeepsTheZeroPathAsEmpty(t *testing.T) {
 	for _, at := range log.All() {
 		replayed = append(replayed, at.String())
 	}
-	assert.Equal(t, []string{"", "doc.Name"}, replayed)
+	assert.Equal(t, []string{"", "document.Name"}, replayed)
 }
 
 // TestPathLog_StopsWhereTheCallerStops holds a replay to yielding nothing after

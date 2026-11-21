@@ -26,9 +26,9 @@ var decimalSpellings = []string{
 // mustParseDecimal reads a literal the caller knows is a decimal in range.
 func mustParseDecimal(t *testing.T, s string) ir.Decimal {
 	t.Helper()
-	d, err := ir.ParseDecimal(s)
+	decimal, err := ir.ParseDecimal(s)
 	require.NoError(t, err, "%q is a decimal literal in range", s)
-	return d
+	return decimal
 }
 
 // TestParseDecimal_ReadsSignDigitsAndExponent pins the one reading every
@@ -44,7 +44,7 @@ func TestParseDecimal_ReadsSignDigitsAndExponent(t *testing.T) {
 		digits   string
 		exponent int64
 		isInt    bool
-		str      string
+		text     string
 	}{
 		{[]string{"0", "-0.0", "0e9", "0e999999999999999999999999"}, 0, "", 0, true, "0"},
 		{[]string{"1500", "1500.0", "15e2", "1.5e3", "+1500", "001500", ".15e4"}, 1, "15", 3, true, "1.5e3"},
@@ -63,13 +63,13 @@ func TestParseDecimal_ReadsSignDigitsAndExponent(t *testing.T) {
 		for _, in := range tc.ins {
 			t.Run(in, func(t *testing.T) {
 				t.Parallel()
-				d := mustParseDecimal(t, in)
+				decimal := mustParseDecimal(t, in)
 
-				assert.Equal(t, tc.sign, d.Sign())
-				assert.Equal(t, tc.digits, d.Digits())
-				assert.Equal(t, tc.exponent, d.Exponent())
-				assert.Equal(t, tc.isInt, d.IsInt())
-				assert.Equal(t, tc.str, d.String())
+				assert.Equal(t, tc.sign, decimal.Sign())
+				assert.Equal(t, tc.digits, decimal.Digits())
+				assert.Equal(t, tc.exponent, decimal.Exponent())
+				assert.Equal(t, tc.isInt, decimal.IsInt())
+				assert.Equal(t, tc.text, decimal.String())
 			})
 		}
 	}
@@ -88,10 +88,10 @@ func TestParseDecimal_RefusesWhatIsNotADecimalLiteral(t *testing.T) {
 	} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
-			d, err := ir.ParseDecimal(in)
+			decimal, err := ir.ParseDecimal(in)
 
 			require.ErrorIs(t, err, ir.ErrNotDecimal)
-			assert.Equal(t, ir.Decimal{}, d)
+			assert.Equal(t, ir.Decimal{}, decimal)
 		})
 	}
 }
@@ -128,10 +128,10 @@ func TestParseDecimal_HoldsTheExponentRange(t *testing.T) {
 	} {
 		t.Run("refuses "+in, func(t *testing.T) {
 			t.Parallel()
-			d, err := ir.ParseDecimal(in)
+			decimal, err := ir.ParseDecimal(in)
 
 			require.ErrorIs(t, err, ir.ErrExponentRange)
-			assert.Equal(t, ir.Decimal{}, d)
+			assert.Equal(t, ir.Decimal{}, decimal)
 		})
 	}
 }
@@ -274,14 +274,14 @@ func TestDecimal_EqualityIsOneValue(t *testing.T) {
 // to, so the zero value is a usable number and not a trap state.
 func TestDecimal_ZeroValueIsZero(t *testing.T) {
 	t.Parallel()
-	var d ir.Decimal
+	var decimal ir.Decimal
 
-	assert.Equal(t, 0, d.Sign())
-	assert.Equal(t, "0", d.String())
-	assert.True(t, d.IsInt())
-	assert.Empty(t, d.Digits())
-	assert.Zero(t, d.Exponent())
-	assert.Equal(t, mustParseDecimal(t, "-0.0"), d, "negative zero reads to the zero value")
+	assert.Equal(t, 0, decimal.Sign())
+	assert.Equal(t, "0", decimal.String())
+	assert.True(t, decimal.IsInt())
+	assert.Empty(t, decimal.Digits())
+	assert.Zero(t, decimal.Exponent())
+	assert.Equal(t, mustParseDecimal(t, "-0.0"), decimal, "negative zero reads to the zero value")
 }
 
 // TestParseDecimal_ReadsAHugeLiteralWithoutAllocating pins the cost of a hostile
@@ -317,10 +317,10 @@ func TestParseDecimal_ReadsAHugeLiteralWithoutAllocating(t *testing.T) {
 func TestBigVal_DecimalReadsWhatNewBigValBuilt(t *testing.T) {
 	t.Parallel()
 	for _, s := range bigValDecimalForms {
-		v, err := ir.NewBigVal(s)
+		bigVal, err := ir.NewBigVal(s)
 		require.NoError(t, err, s)
 
-		_, err = v.Decimal()
+		_, err = bigVal.Decimal()
 		assert.NoError(t, err, s)
 	}
 

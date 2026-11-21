@@ -328,18 +328,18 @@ func TestEngine_RunHoldsAPassToWhatItsOutputMustKeep(t *testing.T) {
 		want error
 	}{
 		{"no document", funcPass{"p", func(*ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }}, engine.ErrNoDocument},
-		{"another IR version", changed(func(d *ir.Document) { d.IRVersion = "9.9.9" }), engine.ErrVersionChanged},
-		{"no IR version", changed(func(d *ir.Document) { d.IRVersion = "" }), engine.ErrVersionChanged},
-		{"a source table with an entry dropped", changed(func(d *ir.Document) { d.Sources = nil }), engine.ErrSourcesMoved},
-		{"a source table with an entry replaced", changed(func(d *ir.Document) {
-			d.Sources = slices.Clone(d.Sources)
-			d.Sources[0].Path = "elsewhere"
+		{"another IR version", changed(func(document *ir.Document) { document.IRVersion = "9.9.9" }), engine.ErrVersionChanged},
+		{"no IR version", changed(func(document *ir.Document) { document.IRVersion = "" }), engine.ErrVersionChanged},
+		{"a source table with an entry dropped", changed(func(document *ir.Document) { document.Sources = nil }), engine.ErrSourcesMoved},
+		{"a source table with an entry replaced", changed(func(document *ir.Document) {
+			document.Sources = slices.Clone(document.Sources)
+			document.Sources[0].Path = "elsewhere"
 		}), engine.ErrSourcesMoved},
-		{"findings put on the document", changed(func(d *ir.Document) {
-			d.Diagnostics = append(slices.Clone(d.Diagnostics), own)
+		{"findings put on the document", changed(func(document *ir.Document) {
+			document.Diagnostics = append(slices.Clone(document.Diagnostics), own)
 		}), engine.ErrDiagnosticsChanged},
-		{"findings replacing the document's", changed(func(d *ir.Document) {
-			d.Diagnostics = []ir.Diagnostic{own}
+		{"findings replacing the document's", changed(func(document *ir.Document) {
+			document.Diagnostics = []ir.Diagnostic{own}
 		}), engine.ErrDiagnosticsChanged},
 		{"a finding indexing no source", funcPass{"p", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 			return doc, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityInfo, "pass/far", "m", ir.Provenance{Source: 7})}
@@ -349,8 +349,8 @@ func TestEngine_RunHoldsAPassToWhatItsOutputMustKeep(t *testing.T) {
 			return &ir.Document{IRVersion: doc.IRVersion, Sources: doc.Sources}, nil
 		}}, nil},
 		{"a copy carrying the findings it was given", changed(func(*ir.Document) {}), nil},
-		{"a source appended to the table", changed(func(d *ir.Document) {
-			d.Sources = append(slices.Clone(d.Sources), ir.SourceInfo{Path: "more"})
+		{"a source appended to the table", changed(func(document *ir.Document) {
+			document.Sources = append(slices.Clone(document.Sources), ir.SourceInfo{Path: "more"})
 		}), nil},
 		{"a finding on a source the pass appended", funcPass{"p", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 			next := *doc

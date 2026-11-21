@@ -51,31 +51,31 @@ paths:
 `, params, body)
 }
 
-// listOp compiles src under opts and returns its listThings operation, the
-// document and every diagnostic.
-func listOp(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.Document, []ir.Diagnostic) {
+// listOperation compiles src under opts and returns its listThings operation,
+// the document and every diagnostic.
+func listOperation(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compile(t, src, opts)
-	return openapitest.FindOp(t, doc, "listThings"), doc, diags
+	return openapitest.FindOperation(t, doc, "listThings"), doc, diags
 }
 
-// describe renders op's Pagination by the names it reads, a path as the wire
-// names of its members joined by dots, so a case states what a walk reads in
-// the document's own words: "-" for no Pagination.
-func describe(doc *ir.Document, op ir.Operation) string {
-	pg := op.Pagination
+// describe renders operation's Pagination by the names it reads, a path as the
+// wire names of its members joined by dots, so a case states what a walk reads
+// in the document's own words: "-" for no Pagination.
+func describe(doc *ir.Document, operation ir.Operation) string {
+	pg := operation.Pagination
 	if pg == nil {
 		return "-"
 	}
-	params := map[ir.ParamID]string{}
-	for _, p := range op.Params {
-		params[p.ID] = p.Name.Source
+	params := map[ir.ParameterID]string{}
+	for _, parameter := range operation.Params {
+		params[parameter.ID] = parameter.Name.Source
 	}
-	members := map[ir.PropID]string{}
+	members := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				members[p.ID] = p.EffectiveWireName()
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				members[property.ID] = property.EffectiveWireName()
 			}
 		}
 	}
@@ -85,13 +85,13 @@ func describe(doc *ir.Document, op ir.Operation) string {
 		}
 		return params[*in.Param]
 	}
-	path := func(p *ir.PropPath) string {
-		if p == nil {
+	path := func(propertyPath *ir.PropertyPath) string {
+		if propertyPath == nil {
 			return "-"
 		}
-		names := make([]string, len(p.Segments))
-		for i, s := range p.Segments {
-			names[i] = members[s]
+		names := make([]string, len(propertyPath.Segments))
+		for i, propertyID := range propertyPath.Segments {
+			names[i] = members[propertyID]
 		}
 		return "/" + strings.Join(names, "/")
 	}
@@ -104,9 +104,9 @@ func describe(doc *ir.Document, op ir.Operation) string {
 // among diags.
 func undecided(diags []ir.Diagnostic) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.UndecidedPagination {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UndecidedPagination {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out

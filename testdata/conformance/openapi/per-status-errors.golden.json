@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "PerStatusErrors",
         "canonical": "per_status_errors"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/get",
+              "id": "operation/openapi/paths/~1widgets/get",
               "name": {
                 "source": "getWidgets",
                 "canonical": "get_widgets"
@@ -101,7 +101,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Err",
+                          "target": "type/openapi/components/schemas/Err",
                           "nullable": false
                         }
                       }
@@ -129,14 +129,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Err",
+                          "target": "type/openapi/components/schemas/Err",
                           "nullable": false
                         }
                       },
                       {
                         "mediaType": "application/problem+json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Problem",
+                          "target": "type/openapi/components/schemas/Problem",
                           "nullable": false
                         }
                       }
@@ -144,21 +144,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1widgets/get/responses/429/headers/Retry-After",
+                      "id": "property/openapi/paths/~1widgets/get/responses/429/headers/Retry-After",
                       "name": {
                         "source": "Retry-After",
                         "canonical": "retry_after"
                       },
                       "wireName": "Retry-After",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -171,21 +171,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1widgets/get/responses/429/headers/X-RateLimit-Remaining",
+                      "id": "property/openapi/paths/~1widgets/get/responses/429/headers/X-RateLimit-Remaining",
                       "name": {
                         "source": "X-RateLimit-Remaining",
                         "canonical": "x_rate_limit_remaining"
                       },
                       "wireName": "X-RateLimit-Remaining",
                       "type": {
-                        "target": "t/prim/integer",
+                        "target": "type/primitive/integer",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -266,9 +266,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Err": {
+    "type/openapi/components/schemas/Err": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Err",
+      "id": "type/openapi/components/schemas/Err",
       "name": {
         "source": "Err",
         "canonical": "err"
@@ -282,21 +282,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Err/properties/message",
+          "id": "property/openapi/components/schemas/Err/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -313,9 +313,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Problem": {
+    "type/openapi/components/schemas/Problem": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Problem",
+      "id": "type/openapi/components/schemas/Problem",
       "name": {
         "source": "Problem",
         "canonical": "problem"
@@ -329,21 +329,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Problem/properties/title",
+          "id": "property/openapi/components/schemas/Problem/properties/title",
           "name": {
             "source": "title",
             "canonical": "title"
           },
           "wireName": "title",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -356,21 +356,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Problem/properties/status",
+          "id": "property/openapi/components/schemas/Problem/properties/status",
           "name": {
             "source": "status",
             "canonical": "status"
           },
           "wireName": "status",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -387,9 +387,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -397,11 +397,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -409,7 +409,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

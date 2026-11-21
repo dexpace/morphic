@@ -8,74 +8,75 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
-// InferWalks fills the Pagination of each GET or QUERY of doc the client sends that
-// holds none, where a query parameter names where its walk continues and its
-// success responses say where a page holds its items, and a cursor walk's next
-// cursor (docs/compilers/openapi.md#pagination-policy), marking it inferred on
-// the Pagination and in the operation's Provenance. An operation whose
-// parameters name a walk it cannot settle keeps none, reported as an info
+// InferWalks fills the Pagination of each GET or QUERY of doc the client sends
+// that holds none, where a query parameter names where its walk continues and
+// its success responses say where a page holds its items, and a cursor walk's
+// next cursor (docs/compilers/openapi.md#pagination-policy), marking it
+// inferred on the Pagination and in the operation's Provenance. An operation
+// whose parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
-// pagination, nor any while policy is off. w is the whole document.
-func InferWalks(policy Inference, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+// pagination, nor any while policy is off. compiledDocumentView is the whole
+// document.
+func InferWalks(policy Inference, compiledDocumentView *compileddoc.CompiledDocumentView, stated map[ir.OperationID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
-	r := newReader(w)
+	reader := newReader(compiledDocumentView)
 	var diags []ir.Diagnostic
-	for _, op := range w.Ops {
-		if stated[op.ID] {
+	for _, operation := range compiledDocumentView.Operations {
+		if stated[operation.ID] {
 			continue
 		}
-		if why, undecided := r.infer(op); undecided {
-			diags = append(diags, undecidedAt(op, why))
+		if why, undecided := reader.infer(operation); undecided {
+			diags = append(diags, undecidedAt(operation, why))
 		}
 	}
 	return diags
 }
 
-// infer fills op's Pagination where the names it uses settle one. It reports
-// undecided, with why, where its request names an input, or its response a
-// continuation, and the names settle none; an operation holding a Pagination,
-// or one the API sends, is left alone.
-func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
-	if op.Pagination != nil || inbound(op) {
+// infer fills operation's Pagination where the names it uses settle one. It
+// reports undecided, with why, where its request names an input, or its
+// response a continuation, and the names settle none; an operation holding a
+// Pagination, or one the API sends, is left alone.
+func (r *reader) infer(operation *ir.Operation) (why string, undecided bool) {
+	if operation.Pagination != nil || inbound(operation) {
 		return "", false
 	}
-	walk, why := r.walk(op)
+	walk, why := r.walk(operation)
 	if walk != nil {
-		op.Pagination = walk
-		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, InferenceHeuristic)
+		operation.Pagination = walk
+		operation.Provenance.Inferred = ir.JoinInferred(operation.Provenance.Inferred, InferenceHeuristic)
 	}
 	return why, why != ""
 }
 
-// walk returns the walk op's places and pages name, or, where no place names
-// where a walk continues, the link walk its response alone continues
+// walk returns the walk operation's places and pages name, or, where no place
+// names where a walk continues, the link walk its response alone continues
 // (reader.linkWalk), and why it settles none where they name one.
-func (r *reader) walk(op *ir.Operation) (*ir.Pagination, string) {
-	in, why, named := requestInputs(r.w, op)
+func (r *reader) walk(operation *ir.Operation) (*ir.Pagination, string) {
+	in, why, named := requestInputs(r.w, operation)
 	switch {
 	case !named:
-		return r.linkWalk(op)
+		return r.linkWalk(operation)
 	case why != "":
 		return nil, why
 	}
-	pg, why := r.responsePage(op, in)
+	pg, why := r.responsePage(operation, in)
 	if why != "" {
 		return nil, why
 	}
 	return build(in, pg), ""
 }
 
-// inbound reports whether the API sends op rather than the client: a webhook
-// or a callback, whose receiver walks no pages.
-func inbound(op *ir.Operation) bool {
-	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
+// inbound reports whether the API sends operation rather than the client: a
+// webhook or a callback, whose receiver walks no pages.
+func inbound(operation *ir.Operation) bool {
+	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
 // methodQuery is the QUERY method OpenAPI 3.2 binds a query operation to,
@@ -93,7 +94,7 @@ func build(in inputs, pg page) *ir.Pagination {
 		Strategy:    in.strategy,
 		Inferred:    true,
 		InputCursor: in.cursor.input(),
-		Items:       &ir.PropPath{Segments: slices.Clone(pg.items)},
+		Items:       &ir.PropertyPath{Segments: slices.Clone(pg.items)},
 		TotalCount:  pathTo(pg.totalCount),
 		TotalPages:  pathTo(pg.totalPages),
 	}
@@ -116,18 +117,18 @@ func build(in inputs, pg page) *ir.Pagination {
 }
 
 // pathTo is the path through segments, or nil for none.
-func pathTo(segments []ir.PropID) *ir.PropPath {
+func pathTo(segments []ir.PropertyID) *ir.PropertyPath {
 	if segments == nil {
 		return nil
 	}
-	return &ir.PropPath{Segments: slices.Clone(segments)}
+	return &ir.PropertyPath{Segments: slices.Clone(segments)}
 }
 
-// undecidedAt reports why op gets no Pagination, at op: the declaration its
-// Provenance names, which every mount of it shares, so a path item mounted
-// twice is reported once.
-func undecidedAt(op *ir.Operation, why string) ir.Diagnostic {
-	at := op.Provenance
+// undecidedAt reports why operation gets no Pagination, at operation: the
+// declaration its Provenance names, which every mount of it shares, so a path
+// item mounted twice is reported once.
+func undecidedAt(operation *ir.Operation, why string) ir.Diagnostic {
+	at := operation.Provenance
 	at.Inferred = ""
 	return diag.Newf(ir.SeverityInfo, diag.UndecidedPagination, at, "no pagination is inferred: %s", why)
 }

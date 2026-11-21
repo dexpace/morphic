@@ -31,38 +31,38 @@ var schemaRun, groupRun, schemaFull, groupFull run
 // coreResults returns what the case oracles found at the schema cases' core.
 func coreResults(t *testing.T) []harness.Result {
 	t.Helper()
-	c := openapicases.New()
-	return schemaRun.of(t, c, harness.Core(c))
+	cases := openapicases.New()
+	return schemaRun.of(t, cases, harness.Core(cases))
 }
 
 // groupResults returns what the case oracles found at the suite groups' core.
 func groupResults(t *testing.T) []harness.Result {
 	t.Helper()
-	c := openapicases.Groups()
-	return groupRun.of(t, c, harness.Core(c))
+	cases := openapicases.Groups()
+	return groupRun.of(t, cases, harness.Core(cases))
 }
 
-// of returns what the case oracles found at c's cases pick admits, in index
+// of returns what the case oracles found at cases' cases pick admits, in index
 // order. The first test asking checks them, a shard of the first two axes'
 // values per parallel subtest of its own.
-func (r *run) of(t *testing.T, c harness.Cases, pick func([]int) bool) []harness.Result {
+func (r *run) of(t *testing.T, cases harness.Cases, pick func([]int) bool) []harness.Result {
 	t.Helper()
-	r.once.Do(func() { r.results, r.checked = checkShards(t, c, pick) })
+	r.once.Do(func() { r.results, r.checked = checkShards(t, cases, pick) })
 	require.True(t, r.checked, "a shard of the cases did not check")
 	return r.results
 }
 
-// checkShards checks c's cases pick admits shard by shard in parallel subtests
-// of t, and reports whether each shard checked.
-func checkShards(t *testing.T, c harness.Cases, pick func([]int) bool) ([]harness.Result, bool) {
-	keys := shardKeys(t, c, pick)
+// checkShards checks cases' cases pick admits shard by shard in parallel
+// subtests of t, and reports whether each shard checked.
+func checkShards(t *testing.T, cases harness.Cases, pick func([]int) bool) ([]harness.Result, bool) {
+	keys := shardKeys(t, cases, pick)
 	parts := make([][]harness.Result, len(keys))
-	axes := c.Axes()
+	axes := cases.Axes()
 	checked := t.Run("cases", func(t *testing.T) {
 		for i, key := range keys {
 			t.Run(axes[0].Values[key[0]].Name+"/"+axes[1].Values[key[1]].Name, func(t *testing.T) {
 				t.Parallel()
-				results, err := harness.CheckCases(t.Context(), c, func(at []int) bool {
+				results, err := harness.CheckCases(t.Context(), cases, func(at []int) bool {
 					return at[0] == key[0] && at[1] == key[1] && pick(at)
 				})
 				require.NoError(t, err)
@@ -73,12 +73,12 @@ func checkShards(t *testing.T, c harness.Cases, pick func([]int) bool) ([]harnes
 	return slices.Concat(parts...), checked
 }
 
-// shardKeys returns the version and target of every case of c pick admits,
+// shardKeys returns the version and target of every case of cases pick admits,
 // each once, in order, holding no case's coordinates.
-func shardKeys(t *testing.T, c harness.Cases, pick func([]int) bool) [][2]int {
+func shardKeys(t *testing.T, cases harness.Cases, pick func([]int) bool) [][2]int {
 	t.Helper()
 	seen := map[[2]int]bool{}
-	each, err := harness.Each(c)
+	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	for _, at := range each {
 		if pick(at) {

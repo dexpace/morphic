@@ -36,9 +36,9 @@ func checkBoundKinds(doc *ir.Document) []Violation {
 func foreignBounds(td ir.TypeDef) (string, bool) {
 	switch n := td.(type) {
 	case *ir.Model:
-		return "model", n != nil && beyondProps(n.Constraints)
+		return "model", n != nil && beyondProperties(n.Constraints)
 	case *ir.MapT:
-		return "map", n != nil && beyondProps(n.Constraints)
+		return "map", n != nil && beyondProperties(n.Constraints)
 	case *ir.List:
 		return "list", n != nil && beyondItems(n.Constraints)
 	case *ir.Tuple:
@@ -48,23 +48,25 @@ func foreignBounds(td ir.TypeDef) (string, bool) {
 	}
 }
 
-// beyondProps reports whether c holds a bound other than the property counts.
-func beyondProps(c *ir.Constraints) bool {
-	if c == nil {
+// beyondProperties reports whether constraints holds a bound other than the
+// property counts.
+func beyondProperties(constraints *ir.Constraints) bool {
+	if constraints == nil {
 		return false
 	}
-	rest := *c
-	rest.MinProps, rest.MaxProps = nil, nil
+	rest := *constraints
+	rest.MinProperties, rest.MaxProperties = nil, nil
 	return rest != ir.Constraints{}
 }
 
-// beyondItems reports whether c holds a bound other than the item counts and
-// uniqueness. A false UniqueItems states nothing, as it is the field's zero.
-func beyondItems(c *ir.Constraints) bool {
-	if c == nil {
+// beyondItems reports whether constraints holds a bound other than the item
+// counts and uniqueness. A false UniqueItems states nothing, as it is the
+// field's zero.
+func beyondItems(constraints *ir.Constraints) bool {
+	if constraints == nil {
 		return false
 	}
-	rest := *c
+	rest := *constraints
 	rest.MinItems, rest.MaxItems, rest.UniqueItems = nil, nil, false
 	return rest != ir.Constraints{}
 }

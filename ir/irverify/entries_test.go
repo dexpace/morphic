@@ -13,11 +13,11 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// readEntries returns what r reads of map m, key by key, ranging over it as a
-// check does.
-func readEntries(r *irverify.EntryReader, m reflect.Value) map[string]int64 {
+// readEntries returns what entryReader reads of map m, key by key, ranging over
+// it as a check does.
+func readEntries(entryReader *irverify.EntryReader, m reflect.Value) map[string]int64 {
 	read := map[string]int64{}
-	held := r.HeldFor(m)
+	held := entryReader.HeldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, value := held.Read(iter)
 		read[key.String()] = value.Int()
@@ -29,11 +29,11 @@ func readEntries(r *irverify.EntryReader, m reflect.Value) map[string]int64 {
 // each map it is handed, the second map of a type read into what the first was.
 func TestEntryReader_ReadsEveryEntryOfEveryMap(t *testing.T) {
 	t.Parallel()
-	var r irverify.EntryReader
+	var entryReader irverify.EntryReader
 	first, second := map[string]int64{"a": 1, "b": 2}, map[string]int64{"c": 3}
-	assert.Equal(t, first, readEntries(&r, reflect.ValueOf(first)))
-	assert.Equal(t, second, readEntries(&r, reflect.ValueOf(second)))
-	assert.Empty(t, readEntries(&r, reflect.ValueOf(map[string]int64{})))
+	assert.Equal(t, first, readEntries(&entryReader, reflect.ValueOf(first)))
+	assert.Equal(t, second, readEntries(&entryReader, reflect.ValueOf(second)))
+	assert.Empty(t, readEntries(&entryReader, reflect.ValueOf(map[string]int64{})))
 }
 
 // TestEntryReader_ReadsAMapBehindAnUnexportedField holds the reader to a map it
@@ -42,8 +42,8 @@ func TestEntryReader_ReadsAMapBehindAnUnexportedField(t *testing.T) {
 	t.Parallel()
 	entries := map[string]int64{"a": 1, "b": 2}
 	hidden := reflect.ValueOf(struct{ m map[string]int64 }{m: entries}).Field(0)
-	var r irverify.EntryReader
-	assert.Equal(t, entries, readEntries(&r, hidden))
+	var entryReader irverify.EntryReader
+	assert.Equal(t, entries, readEntries(&entryReader, hidden))
 }
 
 // TestEntryReader_ReadingAllocatesNothing holds the reason the reader exists:
@@ -55,10 +55,10 @@ func TestEntryReader_ReadingAllocatesNothing(t *testing.T) {
 	for i := range 32 {
 		many[strconv.Itoa(i)] = int64(i)
 	}
-	var r irverify.EntryReader
+	var entryReader irverify.EntryReader
 	for _, m := range []reflect.Value{reflect.ValueOf(few), reflect.ValueOf(many)} {
 		assert.Zero(t, testing.AllocsPerRun(10, func() {
-			held := r.HeldFor(m)
+			held := entryReader.HeldFor(m)
 			for iter := m.MapRange(); iter.Next(); {
 				key, value := held.Read(iter)
 				_, _ = key.String(), value.Int()

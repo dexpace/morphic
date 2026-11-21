@@ -39,11 +39,11 @@ var registryReadRatchet = ratchet{
 // registryReads names the registry's methods that read what was built.
 var registryReads = []string{"Lookup", "NodeAt", "Node", "Building"}
 
-// registrySelections returns where p calls or names one of registryReads, by
-// method.
-func registrySelections(p *decls.Package) map[string][]string {
+// registrySelections returns where loadedPackage calls or names one of
+// registryReads, by method.
+func registrySelections(loadedPackage *decls.Package) map[string][]string {
 	out := map[string][]string{}
-	for expr, sel := range p.Info.Selections {
+	for expr, sel := range loadedPackage.Info.Selections {
 		fn, ok := sel.Obj().(*types.Func)
 		if !ok || fn.Pkg() == nil || fn.Pkg().Path() != module+"/compilers/compile" ||
 			!slices.Contains(registryReads, fn.Name()) {
@@ -53,7 +53,7 @@ func registrySelections(p *decls.Package) map[string][]string {
 		if recv == nil || pointee(recv.Type()).(*types.Named).Obj().Name() != "Types" {
 			continue
 		}
-		out[fn.Name()] = append(out[fn.Name()], p.Fset.Position(expr.Sel.Pos()).String())
+		out[fn.Name()] = append(out[fn.Name()], loadedPackage.Fset.Position(expr.Sel.Pos()).String())
 	}
 	return out
 }
@@ -67,9 +67,9 @@ func TestRegistryReads_HeldToTheBaseline(t *testing.T) {
 	root := irtest.RepoRoot(t)
 
 	sites := map[string]map[string][]string{}
-	for _, p := range pkgs {
-		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
-		for method, at := range registrySelections(p) {
+	for _, loadedPackage := range pkgs {
+		rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
+		for method, at := range registrySelections(loadedPackage) {
 			if sites[rel] == nil {
 				sites[rel] = map[string][]string{}
 			}
@@ -101,9 +101,9 @@ func TestRegistryFreeFiles_NameNoRegistry(t *testing.T) {
 	pkgs, err := productionLoad()
 	require.NoError(t, err)
 	var schema *decls.Package
-	for _, p := range pkgs {
-		if p.Types.Path() == module+"/compilers/openapi/internal/schema" {
-			schema = p
+	for _, loadedPackage := range pkgs {
+		if loadedPackage.Types.Path() == module+"/compilers/openapi/internal/schema" {
+			schema = loadedPackage
 		}
 	}
 	require.NotNil(t, schema, "the schema package loads")

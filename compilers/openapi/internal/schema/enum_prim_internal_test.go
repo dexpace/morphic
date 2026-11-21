@@ -18,11 +18,11 @@ func scalar(tag, value string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value}
 }
 
-// TestEnumMemberPrim_ReadsWhatEnumMembersGives pins enumMemberPrim, the reading
-// a position asking only its ValueType takes, to enumMembers' under a type's
-// ID: one PrimKind and one refusal for each list, members of one kind, of two,
-// of a kind no Enum holds, and none.
-func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
+// TestEnumMemberPrimitive_ReadsWhatEnumMembersGives pins enumMemberPrimitive,
+// the reading a position asking only its ValueType takes, to enumMembers' under
+// a type's ID: one PrimitiveKind and one refusal for each list, members of one
+// kind, of two, of a kind no Enum holds, and none.
+func TestEnumMemberPrimitive_ReadsWhatEnumMembersGives(t *testing.T) {
 	t.Parallel()
 	for name, nodes := range map[string][]*yaml.Node{
 		"strings":  {scalar("!!str", "a"), scalar("!!str", "b"), scalar("!!str", "a")},
@@ -33,27 +33,27 @@ func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
 		"none":     nil,
 	} {
 		entries := readEnum(nodes)
-		members, wantPrim, wantOK := enumMembers(entries, "t/openapi/components/schemas/E")
-		prim, ok := enumMemberPrim(entries)
+		members, wantPrimitive, wantOK := enumMembers(entries, "type/openapi/components/schemas/E")
+		primitive, ok := enumMemberPrimitive(entries)
 		assert.Equal(t, wantOK, ok, name)
-		assert.Equal(t, wantPrim, prim, name)
-		for _, p := range []ir.PrimKind{ir.PrimString, ir.PrimInteger, ir.PrimNumber, ir.PrimBool} {
-			assert.Equal(t, enumMembersAre(members, p), !wantOK || entriesAre(entries, p), "%s %s", name, p)
+		assert.Equal(t, wantPrimitive, primitive, name)
+		for _, primitiveKind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveBool} {
+			assert.Equal(t, enumMembersAre(members, primitiveKind), !wantOK || entriesAre(entries, primitiveKind), "%s %s", name, primitiveKind)
 		}
 	}
 }
 
-// TestEnumMemberPrim_BuildsNoMember pins that a ValueType's reading of a set
-// allocates nothing however many members it holds: no member, ID or name is
+// TestEnumMemberPrimitive_BuildsNoMember pins that a ValueType's reading of a
+// set allocates nothing however many members it holds: no member, ID or name is
 // minted for a position that only asks its type.
-func TestEnumMemberPrim_BuildsNoMember(t *testing.T) {
+func TestEnumMemberPrimitive_BuildsNoMember(t *testing.T) {
 	nodes := make([]*yaml.Node, 0, 200)
 	for i := range 200 {
 		nodes = append(nodes, scalar("!!str", fmt.Sprintf("v%d", i)))
 	}
 	entries := readEnum(nodes)
 	allocs := testing.AllocsPerRun(10, func() {
-		if _, ok := enumMemberPrim(entries); !ok || !entriesAre(entries, ir.PrimString) {
+		if _, ok := enumMemberPrimitive(entries); !ok || !entriesAre(entries, ir.PrimitiveString) {
 			t.Fatal("200 strings are an Enum of strings")
 		}
 	})

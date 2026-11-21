@@ -178,7 +178,7 @@ func TestCompile_AStaticDynamicRefLowersAsItsRefTwinAtEveryPosition(t *testing.T
 	ref, refDiags := compile(func(s string) string { return s })
 	dyn, dynDiags := compile(func(s string) string { return strings.ReplaceAll(s, "$ref:", "$dynamicRef:") })
 
-	require.Contains(t, ref, `"t/openapi@other.yaml/components/schemas/Ext"`, "the other document is read")
+	require.Contains(t, ref, `"type/openapi@other.yaml/components/schemas/Ext"`, "the other document is read")
 	require.NotEmpty(t, refDiags, "the missing target and the loop report")
 	assert.Empty(t, cmp.Diff(ref, dyn), "the document")
 	assert.Empty(t, cmp.Diff(refDiags, dynDiags), "the diagnostics")

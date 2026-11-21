@@ -89,15 +89,15 @@ func readJSON(ctx context.Context, data []byte, maxNodes budget.Limit) (*yaml.No
 		if nodes++; !maxNodes.Admits(nodes) {
 			return nil, 0, &PastNodesError{Nodes: nodes, Limit: maxNodes}
 		}
-		n := newNode(tok)
-		n.Line, n.Column = pos.at(start)
+		node := newNode(tok)
+		node.Line, node.Column = pos.at(start)
 		top := stack[len(stack)-1]
-		top.Content = append(top.Content, n)
+		top.Content = append(top.Content, node)
 		if top == doc {
-			doc.Line, doc.Column = n.Line, n.Column
+			doc.Line, doc.Column = node.Line, node.Column
 		}
-		if n.Kind != yaml.ScalarNode {
-			stack = append(stack, n)
+		if node.Kind != yaml.ScalarNode {
+			stack = append(stack, node)
 		}
 	}
 
@@ -120,9 +120,9 @@ func newNode(tok jsontext.Token) *yaml.Node {
 	default:
 		// A number, true, false or null, written plain. The parser resolves the
 		// tag from the text, so the node asks the parser's resolver.
-		n := &yaml.Node{Kind: yaml.ScalarNode, Value: tok.String()}
-		n.Tag = n.ShortTag()
-		return n
+		node := &yaml.Node{Kind: yaml.ScalarNode, Value: tok.String()}
+		node.Tag = node.ShortTag()
+		return node
 	}
 }
 

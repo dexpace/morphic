@@ -111,22 +111,22 @@ func CompareGolden(t *testing.T, goldenPath string, doc *ir.Document) {
 // compareGolden holds the comparison logic against the minimal testingT surface.
 // The preconditions precede the -update branch, so a bad call is refused the
 // same way whether the golden is being compared or rewritten.
-func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
-	t.Helper()
+func compareGolden(testingTValue testingT, goldenPath string, doc *ir.Document) {
+	testingTValue.Helper()
 	if goldenPath == "" {
-		t.Fatalf("irtest: compare golden: empty golden path")
+		testingTValue.Fatalf("irtest: compare golden: empty golden path")
 	}
 	if doc == nil {
-		t.Fatalf("irtest: compare golden: nil document")
+		testingTValue.Fatalf("irtest: compare golden: nil document")
 	}
 	if err := stampError(doc); err != nil {
-		t.Fatalf("irtest: compare golden %s: %v", goldenPath, err)
+		testingTValue.Fatalf("irtest: compare golden %s: %v", goldenPath, err)
 	}
 	raw, err := encodeGolden(doc)
 	if err != nil {
-		t.Fatalf("marshal document: %v", err)
+		testingTValue.Fatalf("marshal document: %v", err)
 	}
-	compareBytes(t, goldenPath, raw)
+	compareBytes(testingTValue, goldenPath, raw)
 }
 
 // CompareBytes compares got against the golden file at path, or rewrites it
@@ -143,26 +143,26 @@ func CompareBytes(t *testing.T, path string, got []byte) {
 }
 
 // compareBytes is CompareBytes against the minimal testingT surface.
-func compareBytes(t testingT, path string, got []byte) {
-	t.Helper()
+func compareBytes(testingTValue testingT, path string, got []byte) {
+	testingTValue.Helper()
 	if path == "" {
-		t.Fatalf("irtest: compare golden: empty golden path")
+		testingTValue.Fatalf("irtest: compare golden: empty golden path")
 	}
 	if Update() {
-		if t.Failed() {
-			t.Fatalf("irtest: update golden %s: the test has already failed, so the golden is left as it was", path)
+		if testingTValue.Failed() {
+			testingTValue.Fatalf("irtest: update golden %s: the test has already failed, so the golden is left as it was", path)
 		}
 		if err := writeBytes(path, got); err != nil {
-			t.Fatalf("update golden: %v", err)
+			testingTValue.Fatalf("update golden: %v", err)
 		}
 		return
 	}
 	want, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read golden %s (run with -update to create): %v", path, err)
+		testingTValue.Fatalf("read golden %s (run with -update to create): %v", path, err)
 	}
 	if diff := cmp.Diff(string(want), string(got)); diff != "" {
-		t.Errorf("golden mismatch for %s (-golden +got); -update rewrites it:\n%s", path, diff)
+		testingTValue.Errorf("golden mismatch for %s (-golden +got); -update rewrites it:\n%s", path, diff)
 	}
 }
 

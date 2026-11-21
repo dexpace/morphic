@@ -35,8 +35,8 @@ func TestUnion_AnAnyOfAloneDeclaringShapeIsElected(t *testing.T) {
 		require.True(t, ok, "%s distributes", name)
 		assert.False(t, union.Exclusive, "%s elects its anyOf", name)
 		require.Len(t, union.Variants, 2)
-		for _, v := range union.Variants {
-			kept := doc.Types[v.Type.Target].Common().Unmodeled
+		for _, variant := range union.Variants {
+			kept := doc.Types[variant.Type.Target].Common().Unmodeled
 			require.Contains(t, kept, "openapi:oneOf", name)
 			assert.Equal(t, ir.ReasonValidationOnly, kept["openapi:oneOf"].Reason, name)
 		}
@@ -115,8 +115,8 @@ func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 		assert.True(t, union.Exclusive, name)
 		require.Contains(t, union.Unmodeled, "openapi:anyOf", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, union.Unmodeled["openapi:anyOf"].Reason, name)
-		for _, v := range union.Variants {
-			assert.Contains(t, string(v.Type.Target), "t/anon/", "%s's variant is its branch", name)
+		for _, variant := range union.Variants {
+			assert.Contains(t, string(variant.Type.Target), "type/anonymous/", "%s's variant is its branch", name)
 		}
 	}
 	shapeless, ok := typeByName(doc, "Shapeless").(*ir.Union)
@@ -128,8 +128,8 @@ func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 	assert.True(t, isModel, "two oneOfs elect neither")
 	required, ok := typeByName(doc, "Required").(*ir.Union)
 	require.True(t, ok, "the oneOf distributes over the body")
-	for _, v := range required.Variants {
-		assert.Contains(t, string(v.Type.Target), "t/composed/", "the variant composes the body")
+	for _, variant := range required.Variants {
+		assert.Contains(t, string(variant.Type.Target), "type/composed/", "the variant composes the body")
 	}
 }
 
@@ -146,11 +146,11 @@ func TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten(t *testing.T)
     TwoEntries: {allOf: [{`+anyOf+`}, {`+oneOf+`}]}
 `))
 	var warned []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			assert.Contains(t, d.Message, "share no value")
-			assert.Contains(t, d.Message, "which the union it lowered as cannot state")
-			warned = append(warned, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			assert.Contains(t, diagnostic.Message, "share no value")
+			assert.Contains(t, diagnostic.Message, "which the union it lowered as cannot state")
+			warned = append(warned, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/Flat", "/components/schemas/TwoEntries"}, warned)
@@ -197,9 +197,9 @@ func TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth(t *testing.T) {
 		_, ok := typeByName(doc, name).(*ir.Scalar)
 		assert.True(t, ok, "%s is the string its body gives", name)
 		var warned []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
@@ -246,10 +246,10 @@ func TestUnion_TwoShapelessUnionsSharingNoValueBesideTheirBodyWarn(t *testing.T)
     Lists: {type: string, oneOf: [{type: [string, 'null']}, {type: [string, 'null']}], anyOf: [{type: 'null'}]}
 `))
 	warned := map[string][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			name := string(d.Provenance.Pointer)[strings.LastIndexByte(string(d.Provenance.Pointer), '/')+1:]
-			warned[name] = append(warned[name], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			name := string(diagnostic.Provenance.Pointer)[strings.LastIndexByte(string(diagnostic.Provenance.Pointer), '/')+1:]
+			warned[name] = append(warned[name], diagnostic.Message)
 		}
 	}
 	for _, name := range []string{"Flat", "Beside", "Shared", "SharedBeside", "Lists"} {
@@ -276,9 +276,9 @@ func TestUnion_AnEntryElectingAUnionOfNullAloneIsNamedByItsNull(t *testing.T) {
 	}
 	for name, names := range want {
 		var warned []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
@@ -303,8 +303,8 @@ func TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes(t *testing.T) {
     PairAlone: {oneOf: `+branches+`, anyOf: [{type: string}]}
     PairAloneTwo: {allOf: [{oneOf: `+branches+`}, {anyOf: [{type: string}]}]}
 `))
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityWarning, d.Severity, d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityWarning, diagnostic.Severity, diagnostic.Message)
 	}
 	for name, nullable := range map[string]bool{
 		"Beside": false, "Entry": false, "PairBeside": false, "PairTwo": false, "NoBody": true,
@@ -333,9 +333,9 @@ func TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten(t *testing.T) {
 `))
 	for _, name := range []string{"Flat", "OneEntry", "TwoEntries", "Composed"} {
 		var warned []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
@@ -360,14 +360,14 @@ func TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay(t *testing.T) {
     Open: {oneOf: [{type: string}, {type: 'null'}], anyOf: [{}]}
     C: {type: object, properties: {f: {$ref: '#/components/schemas/Flat'}, b: {$ref: '#/components/schemas/Beside'}, s: {$ref: '#/components/schemas/StringOrNull'}, o: {$ref: '#/components/schemas/Open'}}}
 `))
-	for _, d := range diags {
-		assert.NotEqual(t, "openapi/inferred-nullable", d.Code, d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "openapi/inferred-nullable", diagnostic.Code, diagnostic.Message)
 	}
 	model, ok := typeByName(doc, "C").(*ir.Model)
 	require.True(t, ok)
 	want := map[string]bool{"f": false, "b": false, "s": false, "o": true}
-	for _, p := range model.Properties {
-		assert.Equal(t, want[p.Name.Source], p.Type.Nullable, p.Name.Source)
+	for _, property := range model.Properties {
+		assert.Equal(t, want[property.Name.Source], property.Type.Nullable, property.Name.Source)
 	}
 }
 
@@ -389,9 +389,9 @@ func TestUnion_TwoUnionsSharingNoMemberBesideAScalarLowerAsTheBody(t *testing.T)
 		assert.Contains(t, scalar.Unmodeled, "openapi:oneOf", name)
 		assert.Contains(t, scalar.Unmodeled, "openapi:anyOf", name)
 		var warned []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
@@ -411,9 +411,9 @@ func TestUnion_AnElectedUnionOfAPairIsReportedAsTheUnionItLowersTo(t *testing.T)
 	_, ok := typeByName(doc, "Two").(*ir.Union)
 	require.True(t, ok, "the position is the Union of its oneOf")
 	var reported []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/Two/allOf/1" {
-			reported = append(reported, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/components/schemas/Two/allOf/1" {
+			reported = append(reported, diagnostic.Message)
 		}
 	}
 	require.Len(t, reported, 1)
@@ -461,9 +461,9 @@ func TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut(t *testing.T) {
 		"Beside": "1 of the 2 branches of this anyOf admits nothing but null, which the rest of this schema keeps out (anyOf/1",
 	} {
 		var messages []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				messages = append(messages, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				messages = append(messages, diagnostic.Message)
 			}
 		}
 		require.Len(t, messages, 1, name)
@@ -487,9 +487,9 @@ func TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem(t *testing.T)
     Two: {allOf: [{oneOf: [`+null+`]}, {`+other+`}]}
 `))
 	warned := map[string]int{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(diagnostic.Provenance.Pointer), "/")[3]]++
 		}
 	}
 	for _, name := range []string{"Flat", "WithNull", "One", "Two"} {
@@ -510,9 +510,9 @@ func TestUnion_APrincipalEntryWhoseUnionSharesNoKindWithItsTypeWarnsOnce(t *test
     Annotated: {allOf: [{description: d}, {type: integer, oneOf: [{type: string}, {type: boolean}]}]}
 `))
 	warned := map[string]int{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(diagnostic.Provenance.Pointer), "/")[3]]++
 		}
 	}
 	assert.Equal(t, map[string]int{"Alone": 1, "Annotated": 1}, warned)
@@ -534,8 +534,8 @@ func TestUnion_APairOnTwoEntriesReadsAUnionBranchsNull(t *testing.T) {
 	model, ok := typeByName(doc, "C").(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, model.Properties, 3)
-	for _, p := range model.Properties {
-		assert.False(t, p.Type.Nullable, p.Name.Source)
+	for _, property := range model.Properties {
+		assert.False(t, property.Type.Nullable, property.Name.Source)
 	}
 }
 
@@ -553,10 +553,10 @@ func TestUnion_APairElectingAValueSetOfNullAloneWarnsWhereItSharesNoValue(t *tes
     Shared: {oneOf: [{enum: [null]}], anyOf: [{type: 'null'}]}
 `))
 	warned := map[string][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			name := string(d.Provenance.Pointer)[strings.LastIndexByte(string(d.Provenance.Pointer), '/')+1:]
-			warned[name] = append(warned[name], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			name := string(diagnostic.Provenance.Pointer)[strings.LastIndexByte(string(diagnostic.Provenance.Pointer), '/')+1:]
+			warned[name] = append(warned[name], diagnostic.Message)
 		}
 	}
 	for _, name := range []string{"Flat", "Const", "Entries", "BesideObject"} {
@@ -600,9 +600,9 @@ func TestUnion_AShapelessUnionSharingNoKindWithAScalarWarnsBesideItsKeywords(t *
     Beside: {allOf: [{type: string}], oneOf: [{type: 'null'}]}
 `))
 	warned := map[string]int{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(diagnostic.Provenance.Pointer), "/")[3]]++
 		}
 	}
 	assert.Equal(t, map[string]int{"Flat": 1, "Beside": 1}, warned)
@@ -628,9 +628,9 @@ func TestUnion_TwoUnionsApartAreNamedTheOneOfFirst(t *testing.T) {
 	}
 	for name, names := range want {
 		var warned []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
-				warned = append(warned, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityWarning && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+name) {
+				warned = append(warned, diagnostic.Message)
 			}
 		}
 		require.Len(t, warned, 1, name)
@@ -653,10 +653,10 @@ func TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten(t *testing.T) {
     TwoEntries: {allOf: [{$ref: '#/components/schemas/T'}, {`+one+`}, {`+anyOf+`}]}
 `))
 	warned := map[string][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
-			warned[name] = append(warned[name], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			name := strings.Split(string(diagnostic.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], diagnostic.Message)
 		}
 	}
 	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
@@ -682,10 +682,10 @@ func keepsBothOnItsModel(t *testing.T, oneOf, anyOf string) map[string][]string 
 	t.Helper()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(nullableBodySpellings(oneOf, anyOf)))
 	warned := map[string][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
-			warned[name] = append(warned[name], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			name := strings.Split(string(diagnostic.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], diagnostic.Message)
 		}
 	}
 	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {

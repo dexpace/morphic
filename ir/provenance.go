@@ -117,8 +117,8 @@ func (s Severity) Rank() (int, bool) {
 // naming the severities a caller may give lists them in.
 func SeverityNames() []string {
 	names := make([]string, 0, len(Severities()))
-	for _, s := range slices.Backward(Severities()) {
-		names = append(names, string(s))
+	for _, severity := range slices.Backward(Severities()) {
+		names = append(names, string(severity))
 	}
 	return names
 }
@@ -220,7 +220,7 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 // from advisory warnings that must be carried forward, and to report the
 // offending diagnostic once a refusal is confirmed.
 func FirstError(diags []Diagnostic) (Diagnostic, bool) {
-	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return d.Severity == SeverityError })
+	i := slices.IndexFunc(diags, func(diagnostic Diagnostic) bool { return diagnostic.Severity == SeverityError })
 	if i < 0 {
 		return Diagnostic{}, false
 	}
@@ -241,7 +241,7 @@ func HasError(diags []Diagnostic) bool {
 // the zero Diagnostic and false if each indexes one. A holder of a table asks
 // it of the findings that will be read against the table.
 func FirstOutsideTable(diags []Diagnostic, n int) (Diagnostic, bool) {
-	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return !d.Provenance.InTable(n) })
+	i := slices.IndexFunc(diags, func(diagnostic Diagnostic) bool { return !diagnostic.Provenance.InTable(n) })
 	if i < 0 {
 		return Diagnostic{}, false
 	}
@@ -262,16 +262,16 @@ func MergeDiagnostics(stored, produced []Diagnostic) []Diagnostic {
 		return stored
 	}
 	held := make(map[DiagnosticKey]struct{}, len(stored))
-	for _, d := range stored {
-		held[d.Key()] = struct{}{}
+	for _, diagnostic := range stored {
+		held[diagnostic.Key()] = struct{}{}
 	}
 	merged := make([]Diagnostic, len(stored), len(stored)+len(produced))
 	copy(merged, stored)
-	for _, d := range produced {
-		if _, dup := held[d.Key()]; dup {
+	for _, diagnostic := range produced {
+		if _, dup := held[diagnostic.Key()]; dup {
 			continue
 		}
-		merged = append(merged, d)
+		merged = append(merged, diagnostic)
 	}
 	return merged
 }

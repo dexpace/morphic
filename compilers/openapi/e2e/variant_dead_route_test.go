@@ -116,8 +116,8 @@ func TestCompile_TheNameOfADeadBranchIsNoRoute(t *testing.T) {
 					requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct,
 						pointer: "/components/schemas/P", contains: []string{
 							`no tag of the discriminator routes to it (the name "Str")`}}})
-					for _, d := range diags {
-						assert.NotContains(t, d.Message, "routes it writes", "nothing is written to keep")
+					for _, diagnostic := range diags {
+						assert.NotContains(t, diagnostic.Message, "routes it writes", "nothing is written to keep")
 					}
 					union, ok := kindNode(t, doc, componentID("P")).(*ir.Union)
 					require.True(t, ok)
@@ -178,14 +178,14 @@ func TestCompile_ADiscriminatorBesideAUnionNoBranchOfWhichLivesIsKeptWhole(t *te
 				t.Run(strings.Join([]string{version, sp.name, order}, "/"), func(t *testing.T) {
 					t.Parallel()
 					doc, diags := parseVerified(t, spec)
-					for _, d := range diags {
-						assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s", d.Code, d.Message)
+					for _, diagnostic := range diags {
+						assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s", diagnostic.Code, diagnostic.Message)
 					}
-					m, ok := kindNode(t, doc, componentID("P")).(*ir.Model)
+					model, ok := kindNode(t, doc, componentID("P")).(*ir.Model)
 					require.True(t, ok)
-					assert.Nil(t, m.Discriminator, "the discriminator routes nothing")
-					kept, ok := m.Unmodeled["openapi:discriminator"]
-					require.True(t, ok, "it is kept whole: %v", keptOn(m))
+					assert.Nil(t, model.Discriminator, "the discriminator routes nothing")
+					kept, ok := model.Unmodeled["openapi:discriminator"]
+					require.True(t, ok, "it is kept whole: %v", keptOn(model))
 					assert.Equal(t, strings.TrimSuffix(sp.at, "/mapping/s"), string(kept.Provenance.Pointer))
 				})
 			}

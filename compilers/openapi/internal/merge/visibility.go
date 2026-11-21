@@ -13,17 +13,18 @@ import (
 // intersection semantics (docs/compilers/openapi.md#disjoint-visibility): the
 // merged property is visible only in a lifecycle both entries admit.
 //
-// An empty Only (None false) means visible in every lifecycle, not none, so
-// each side is read as the set it admits before intersecting. Disjoint sets
-// (readOnly with writeOnly) intersect to none, recorded as None rather than a
-// conflict because nothing is discarded; the fold adds a warning (foldUse).
+// An empty Only (InvisibleInEveryLifecycle false) means visible in every
+// lifecycle, not none, so each side is read as the set it admits before
+// intersecting. Disjoint sets (readOnly with writeOnly) intersect to none,
+// recorded as InvisibleInEveryLifecycle rather than a conflict because nothing
+// is discarded; the fold adds a warning (foldUse).
 //
 // The result is the same whichever entry arrives as dst, down to the order of
 // Only, since allOf gives entry order no meaning (intersectLifecycles).
 func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	switch {
-	case dst.None || src.None:
-		return ir.Visibility{None: true}
+	case dst.InvisibleInEveryLifecycle || src.InvisibleInEveryLifecycle:
+		return ir.Visibility{InvisibleInEveryLifecycle: true}
 	case len(dst.Only) == 0:
 		return src
 	case len(src.Only) == 0:
@@ -32,13 +33,13 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 		if only := intersectLifecycles(dst.Only, src.Only); len(only) > 0 {
 			return ir.Visibility{Only: only}
 		}
-		return ir.Visibility{None: true}
+		return ir.Visibility{InvisibleInEveryLifecycle: true}
 	}
 }
 
 // intersectLifecycles returns the lifecycles present in both a and b, or nil
-// when they share none; mergeVisibility maps nil to None, not to an
-// empty-but-unrestricted Only.
+// when they share none; mergeVisibility maps nil to InvisibleInEveryLifecycle,
+// not to an empty-but-unrestricted Only.
 //
 // Both operands are in source order, so the result takes its order from
 // whichever sorts first by value, not from which entry was declared first, or

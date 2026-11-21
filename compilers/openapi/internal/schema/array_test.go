@@ -33,10 +33,10 @@ func TestLower_TupleRest(t *testing.T) {
 		consts *ir.Constraints
 		kept   []string
 	}{
-		{name: "absent items admits anything after", body: head, rest: "t/prim/any"},
-		{name: "items true admits anything after", body: head + "      items: true\n", rest: "t/prim/any"},
+		{name: "absent items admits anything after", body: head, rest: "type/primitive/any"},
+		{name: "items true admits anything after", body: head + "      items: true\n", rest: "type/primitive/any"},
 		{name: "items false admits nothing after", body: head + "      items: false\n"},
-		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "t/prim/bool"},
+		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "type/primitive/bool"},
 		{
 			name: "a referenced rest",
 			body: head + "      items: {$ref: '#/components/schemas/B'}\n    B: {type: object}\n",
@@ -45,7 +45,7 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name: "an inline rest hoists at its own pointer",
 			body: head + "      items: {type: object, properties: {f: {type: string}}}\n",
-			rest: "t/anon/components/schemas/Tup/items",
+			rest: "type/anonymous/components/schemas/Tup/items",
 		},
 		{
 			name:   "closed and pinned from below",
@@ -55,13 +55,13 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name:   "an upper bound leaves the rest open",
 			body:   head + "      maxItems: 1\n",
-			rest:   "t/prim/any",
+			rest:   "type/primitive/any",
 			consts: &ir.Constraints{MaxItems: i64(1)},
 		},
 		{
 			name:   "a lower bound past the elements requires a rest",
 			body:   head + "      items: {type: boolean}\n      minItems: 3\n",
-			rest:   "t/prim/bool",
+			rest:   "type/primitive/bool",
 			consts: &ir.Constraints{MinItems: i64(3)},
 		},
 		{
@@ -72,7 +72,7 @@ func TestLower_TupleRest(t *testing.T) {
 		{
 			name: "unevaluatedItems is kept and the rest read from items alone",
 			body: head + "      unevaluatedItems: false\n",
-			rest: "t/prim/any",
+			rest: "type/primitive/any",
 			kept: []string{"openapi:unevaluated"},
 		},
 	} {
@@ -83,7 +83,7 @@ func TestLower_TupleRest(t *testing.T) {
 
 			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 			require.True(t, ok, "prefixItems hoists a Tuple")
-			assert.Equal(t, []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}, tup.Elems)
+			assert.Equal(t, []ir.TypeRef{{Target: "type/primitive/string"}, {Target: "type/primitive/integer"}}, tup.ElementTypes)
 			if tc.rest == "" {
 				assert.Nil(t, tup.Rest, "no element may follow the head")
 			} else if assert.NotNil(t, tup.Rest) {
@@ -109,12 +109,12 @@ func TestLower_ListConstraints(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	l, ok := typeByName(doc, "L").(*ir.List)
+	list, ok := typeByName(doc, "L").(*ir.List)
 	require.True(t, ok)
-	require.NotNil(t, l.Constraints)
-	assert.True(t, l.Constraints.UniqueItems)
-	require.NotNil(t, l.Constraints.MinItems)
-	assert.Equal(t, int64(1), *l.Constraints.MinItems)
+	require.NotNil(t, list.Constraints)
+	assert.True(t, list.Constraints.UniqueItems)
+	require.NotNil(t, list.Constraints.MinItems)
+	assert.Equal(t, int64(1), *list.Constraints.MinItems)
 }
 
 // TestLower_ListWithoutItems pins that an array schema writing no items lowers
@@ -127,9 +127,9 @@ func TestLower_ListWithoutItems(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer(version, "    L: {type: array}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			l, ok := typeByName(doc, "L").(*ir.List)
+			list, ok := typeByName(doc, "L").(*ir.List)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+			assert.Equal(t, ir.TypeID("type/primitive/any"), list.ElementType.Target)
 		})
 	}
 }
@@ -219,13 +219,13 @@ func TestLower_MissingArrayItems(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, loadDiags := schema.LoweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+			lowerer, loadDiags := schema.LoweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 			openapitest.RequireNoErrorDiags(t, raw)
 			var invalid []string
-			for _, d := range loadDiags {
-				if d.Severity == ir.SeverityError {
-					invalid = append(invalid, d.Code)
+			for _, diagnostic := range loadDiags {
+				if diagnostic.Severity == ir.SeverityError {
+					invalid = append(invalid, diagnostic.Code)
 				}
 			}
 			assert.Equal(t, tc.invalid, strings.Join(invalid, ", "), "the load phase's errors: %+v", loadDiags)
@@ -250,15 +250,15 @@ func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+			lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas())
 			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
-			_, finished := l.Types.Finish(t.Context())
+			_, finished := lowerer.Types.Finish(t.Context())
 			raw = append(raw, finished...)
 			require.Len(t, missingItemsAt(t, raw), 1, "and the reference's promise lowers it no more")
 
-			l.Diags.AppendAll(raw)
-			assert.Equal(t, []string{tags}, missingItemsAt(t, l.Diags.List()))
+			lowerer.Diags.AppendAll(raw)
+			assert.Equal(t, []string{tags}, missingItemsAt(t, lowerer.Diags.List()))
 		})
 	}
 }
@@ -273,9 +273,9 @@ func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 	assert.Equal(t, []string{"/components/schemas/NoItems"}, missingItemsAt(t, diags),
 		"the warning reaches Compile's diagnostics, once")
 
-	l, ok := doc.Types[componentID("NoItems")].(*ir.List)
+	list, ok := doc.Types[componentID("NoItems")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), list.ElementType.Target)
 }
 
 // missingItemsAt returns the pointer of each missing-array-items report in
@@ -283,12 +283,12 @@ func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 func missingItemsAt(t *testing.T, diags []ir.Diagnostic) []string {
 	t.Helper()
 	var at []string
-	for _, d := range diags {
-		if d.Code != diag.MissingArrayItems {
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.MissingArrayItems {
 			continue
 		}
-		assert.Equal(t, ir.SeverityWarning, d.Severity, "at %s", d.Provenance.Pointer)
-		at = append(at, string(d.Provenance.Pointer))
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity, "at %s", diagnostic.Provenance.Pointer)
+		at = append(at, string(diagnostic.Provenance.Pointer))
 	}
 	return at
 }

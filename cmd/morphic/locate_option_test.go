@@ -29,7 +29,7 @@ func TestRun_LocateOptionMapsAURLPrefixToADirectory(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.yaml"), []byte("B: {type: string}\n"), 0o600))
 
 	var stdout, stderr bytes.Buffer
-	code := run(t.Context(), []string{"validate", spec, "--opt", "locate=https://example.com/x/=."}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--compiler-option", "locate=https://example.com/x/=."}, &stdout, &stderr)
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Empty(t, stderr.String())
 
@@ -42,7 +42,7 @@ func TestRun_LocateOptionMapsAURLPrefixToADirectory(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run(t.Context(), []string{"validate", spec, "--opt", "locate=https://example.com/x=."}, &stdout, &stderr)
+	code = run(t.Context(), []string{"validate", spec, "--compiler-option", "locate=https://example.com/x=."}, &stdout, &stderr)
 	assert.NotEqual(t, 0, code)
 	assert.Contains(t, stderr.String(), "locate")
 }

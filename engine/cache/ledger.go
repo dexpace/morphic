@@ -48,7 +48,7 @@ func (d *Dir) pruneDue(ctx context.Context, size int) bool {
 // afresh. A ledger already gone, another process's prune having reset it, is
 // no failure.
 func (d *Dir) resetLedger() error {
-	err := d.ops.remove(d.ledger())
+	err := d.operations.remove(d.ledger())
 	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}

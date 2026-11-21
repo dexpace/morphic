@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,11 +20,11 @@ func sensitiveKey(value string) ir.Unmodeled {
 	return ir.Unmodeled{"openapi:x-sensitive": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value)}}
 }
 
-// memberOf is a document holding one model, whose one property is p, over the
-// types of reg.
-func memberOf(p ir.Property, reg ir.TypeRegistry) *ir.Document {
+// memberOf is a document holding one model, whose one property is property,
+// over the types of reg.
+func memberOf(property ir.Property, reg ir.TypeRegistry) *ir.Document {
 	types := registry(reg)
-	types["t/model"] = &ir.Model{ID: "t/model", Properties: []ir.Property{p}}
+	types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{property}}
 	return &ir.Document{Types: types}
 }
 
@@ -32,11 +32,11 @@ func memberOf(p ir.Property, reg ir.TypeRegistry) *ir.Document {
 func scalars(n int) ir.TypeRegistry {
 	reg := ir.TypeRegistry{}
 	for i := range n {
-		base := ir.TypeID(fmt.Sprintf("t/c/%d", i+1))
+		base := ir.TypeID(fmt.Sprintf("type/c/%d", i+1))
 		if i == n-1 {
-			base = ir.PrimTypeID(ir.PrimString)
+			base = ir.PrimitiveTypeID(ir.PrimitiveString)
 		}
-		id := ir.TypeID(fmt.Sprintf("t/c/%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/c/%d", i))
 		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}}
 	}
 	return reg
@@ -45,10 +45,10 @@ func scalars(n int) ir.TypeRegistry {
 // propertyOf returns the one property memberOf built doc around.
 func propertyOf(t *testing.T, doc *ir.Document) ir.Property {
 	t.Helper()
-	m, ok := doc.Types["t/model"].(*ir.Model)
+	model, ok := doc.Types["type/model"].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	return m.Properties[0]
+	require.Len(t, model.Properties, 1)
+	return model.Properties[0]
 }
 
 // TestRedact_ReadsTheNamesTail pins which names say a value is a credential:
@@ -74,11 +74,11 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := memberOf(ir.Property{ID: "p/a", Name: ir.NamingFor(name), Type: prim(ir.PrimString)}, nil)
-			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), whole.New(doc)))
-			p := propertyOf(t, doc)
-			assert.Equal(t, secret, p.Secret)
-			assert.Equal(t, secret, p.Provenance.Inferred == convention.SecretInferenceHeuristic, "marked where set")
+			doc := memberOf(ir.Property{ID: "property/a", Name: ir.NamingFor(name), Type: primitive(ir.PrimitiveString)}, nil)
+			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
+			property := propertyOf(t, doc)
+			assert.Equal(t, secret, property.Secret)
+			assert.Equal(t, secret, property.Provenance.Inferred == convention.SecretInferenceHeuristic, "marked where set")
 		})
 	}
 }
@@ -98,26 +98,26 @@ func TestRedact_ReadsTheValuesType(t *testing.T) {
 		reg    ir.TypeRegistry
 		secret bool
 	}{
-		{"text", ir.PrimTypeID(ir.PrimString), nil, true},
-		{"bytes", ir.PrimTypeID(ir.PrimBytes), nil, true},
-		{"a scalar over text", "t/s", ir.TypeRegistry{"t/s": over("t/s", ir.PrimTypeID(ir.PrimString))}, true},
-		{"an alias over a scalar over bytes", "t/a", ir.TypeRegistry{
-			"t/a": over("t/a", "t/s"), "t/s": over("t/s", ir.PrimTypeID(ir.PrimBytes)),
+		{"text", ir.PrimitiveTypeID(ir.PrimitiveString), nil, true},
+		{"bytes", ir.PrimitiveTypeID(ir.PrimitiveBytes), nil, true},
+		{"a scalar over text", "type/s", ir.TypeRegistry{"type/s": over("type/s", ir.PrimitiveTypeID(ir.PrimitiveString))}, true},
+		{"an alias over a scalar over bytes", "type/a", ir.TypeRegistry{
+			"type/a": over("type/a", "type/s"), "type/s": over("type/s", ir.PrimitiveTypeID(ir.PrimitiveBytes)),
 		}, true},
-		{"a boolean", ir.PrimTypeID(ir.PrimBool), nil, false},
-		{"a date", ir.PrimTypeID(ir.PrimDate), nil, false},
-		{"a model", "t/m", ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m"}}, false},
-		{"an alias over a model", "t/a", ir.TypeRegistry{"t/a": over("t/a", "t/m"), "t/m": &ir.Model{ID: "t/m"}}, false},
-		{"an opaque scalar", "t/o", ir.TypeRegistry{"t/o": &ir.Scalar{ID: "t/o"}}, false},
-		{"a type the registry lacks", "t/missing", nil, false},
-		{"a cycle of scalars", "t/x", ir.TypeRegistry{"t/x": over("t/x", "t/y"), "t/y": over("t/y", "t/x")}, false},
-		{"a chain of scalars the bound reads to its primitive", "t/c/0", scalars(63), true},
-		{"a chain past the bound", "t/c/0", scalars(64), false},
+		{"a boolean", ir.PrimitiveTypeID(ir.PrimitiveBool), nil, false},
+		{"a date", ir.PrimitiveTypeID(ir.PrimitiveDate), nil, false},
+		{"a model", "type/m", ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m"}}, false},
+		{"an alias over a model", "type/a", ir.TypeRegistry{"type/a": over("type/a", "type/m"), "type/m": &ir.Model{ID: "type/m"}}, false},
+		{"an opaque scalar", "type/o", ir.TypeRegistry{"type/o": &ir.Scalar{ID: "type/o"}}, false},
+		{"a type the registry lacks", "type/missing", nil, false},
+		{"a cycle of scalars", "type/x", ir.TypeRegistry{"type/x": over("type/x", "type/y"), "type/y": over("type/y", "type/x")}, false},
+		{"a chain of scalars the bound reads to its primitive", "type/c/0", scalars(63), true},
+		{"a chain past the bound", "type/c/0", scalars(64), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := memberOf(ir.Property{ID: "p/a", Name: ir.NamingFor("password"), Type: ir.TypeRef{Target: tc.typ}}, tc.reg)
-			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), whole.New(doc)))
+			doc := memberOf(ir.Property{ID: "property/a", Name: ir.NamingFor("password"), Type: ir.TypeRef{Target: tc.typ}}, tc.reg)
+			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
 			assert.Equal(t, tc.secret, propertyOf(t, doc).Secret)
 		})
 	}
@@ -130,8 +130,8 @@ func TestRedact_ReadsTheValuesType(t *testing.T) {
 func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 	t.Parallel()
 	scalar := func(common ir.TypeCommon) ir.TypeRegistry {
-		common.ID = "t/s"
-		return ir.TypeRegistry{"t/s": &ir.Scalar{TypeCommon: common, Base: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}}}
+		common.ID = "type/s"
+		return ir.TypeRegistry{"type/s": &ir.Scalar{TypeCommon: common, Base: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}}}
 	}
 	for _, tc := range []struct {
 		name   string
@@ -140,25 +140,25 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 		secret bool
 		marker ir.Inferred
 	}{
-		{"already redacted", ir.Property{Secret: true, Type: prim(ir.PrimString),
+		{"already redacted", ir.Property{Secret: true, Type: primitive(ir.PrimitiveString),
 			Provenance: ir.Provenance{Inferred: "extension-promotion"}}, nil, true, "extension-promotion"},
-		{"a sensitive type", ir.Property{Type: ir.TypeRef{Target: "t/s"}}, scalar(ir.TypeCommon{Sensitive: true}), false, ""},
-		{"a key saying false at the use", ir.Property{Type: prim(ir.PrimString), Unmodeled: sensitiveKey(`false`)}, nil,
+		{"a sensitive type", ir.Property{Type: ir.TypeRef{Target: "type/s"}}, scalar(ir.TypeCommon{Sensitive: true}), false, ""},
+		{"a key saying false at the use", ir.Property{Type: primitive(ir.PrimitiveString), Unmodeled: sensitiveKey(`false`)}, nil,
 			false, ""},
-		{"a key saying false along the type", ir.Property{Type: ir.TypeRef{Target: "t/s"}},
+		{"a key saying false along the type", ir.Property{Type: ir.TypeRef{Target: "type/s"}},
 			scalar(ir.TypeCommon{Unmodeled: sensitiveKey(`false`)}), false, ""},
-		{"a key under another target", ir.Property{Type: prim(ir.PrimString), Unmodeled: ir.Unmodeled{
+		{"a key under another target", ir.Property{Type: primitive(ir.PrimitiveString), Unmodeled: ir.Unmodeled{
 			"openapi:x-stability": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"beta"`)},
 		}}, nil, true, convention.SecretInferenceHeuristic},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.p.ID, tc.p.Name = "p/a", ir.NamingFor("password")
+			tc.p.ID, tc.p.Name = "property/a", ir.NamingFor("password")
 			doc := memberOf(tc.p, tc.reg)
-			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), whole.New(doc)))
-			p := propertyOf(t, doc)
-			assert.Equal(t, tc.secret, p.Secret)
-			assert.Equal(t, tc.marker, p.Provenance.Inferred)
+			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc)))
+			property := propertyOf(t, doc)
+			assert.Equal(t, tc.secret, property.Secret)
+			assert.Equal(t, tc.marker, property.Provenance.Inferred)
 		})
 	}
 }
@@ -169,41 +169,41 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 // each model's members, and that with the policy off none is.
 func TestRedact_ReachesEveryUse(t *testing.T) {
 	t.Parallel()
-	pw := func(id ir.PropID) ir.Header {
-		return ir.Header{ID: id, Name: ir.NamingFor("X-Api-Key"), WireName: "X-Api-Key", Type: prim(ir.PrimString)}
+	pw := func(id ir.PropertyID) ir.Header {
+		return ir.Header{ID: id, Name: ir.NamingFor("X-Api-Key"), WireName: "X-Api-Key", Type: primitive(ir.PrimitiveString)}
 	}
-	parts := func(at ir.PropID) *ir.Payload {
+	parts := func(at ir.PropertyID) *ir.Payload {
 		return &ir.Payload{Contents: []ir.Content{{
 			ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{pw(at + "/item")}},
-			Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: []ir.Header{pw(at + "/part")}}},
+			Encoding:     map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: []ir.Header{pw(at + "/part")}}},
 		}}}
 	}
 	build := func() *ir.Document {
-		op := ir.Operation{
-			ID:        "op/a",
-			Params:    []ir.Parameter{{ID: "param/a", Name: ir.NamingFor("password"), Type: prim(ir.PrimString)}},
-			Request:   parts("p/request"),
-			Responses: []ir.Response{{Headers: []ir.Header{pw("p/response")}, Payload: parts("p/response-body")}},
-			Errors:    []ir.ErrorCase{{Headers: []ir.Header{pw("p/error")}, Payload: parts("p/error-body")}},
-			Default:   &ir.Response{Headers: []ir.Header{pw("p/default")}, Payload: parts("p/default-body")},
+		operation := ir.Operation{
+			ID:        "operation/a",
+			Params:    []ir.Parameter{{ID: "parameter/a", Name: ir.NamingFor("password"), Type: primitive(ir.PrimitiveString)}},
+			Request:   parts("property/request"),
+			Responses: []ir.Response{{Headers: []ir.Header{pw("property/response")}, Payload: parts("property/response-body")}},
+			Errors:    []ir.ErrorCase{{Headers: []ir.Header{pw("property/error")}, Payload: parts("property/error-body")}},
+			Default:   &ir.Response{Headers: []ir.Header{pw("property/default")}, Payload: parts("property/default-body")},
 		}
-		doc := oneOperation(op, registry(nil))
-		doc.Types["t/model"] = &ir.Model{ID: "t/model", Properties: []ir.Property{
-			{ID: "p/member", Name: ir.NamingFor("client_secret"), Type: prim(ir.PrimString)},
+		doc := oneOperation(operation, registry(nil))
+		doc.Types["type/model"] = &ir.Model{ID: "type/model", Properties: []ir.Property{
+			{ID: "property/member", Name: ir.NamingFor("client_secret"), Type: primitive(ir.PrimitiveString)},
 		}}
 		return doc
 	}
 
 	on := build()
-	assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), whole.New(on)))
+	assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(on)))
 	got := redacted(on)
-	assert.ElementsMatch(t, []string{"param/a", "p/request/item", "p/request/part", "p/response",
-		"p/response-body/item", "p/response-body/part", "p/error", "p/error-body/item", "p/error-body/part",
-		"p/default", "p/default-body/item", "p/default-body/part", "p/member"}, got)
+	assert.ElementsMatch(t, []string{"parameter/a", "property/request/item", "property/request/part", "property/response",
+		"property/response-body/item", "property/response-body/part", "property/error", "property/error-body/item", "property/error-body/part",
+		"property/default", "property/default-body/item", "property/default-body/part", "property/member"}, got)
 
 	off := build()
 	assert.Empty(t, convention.Apply(convention.Policy{Secret: convention.SecretInference{Disabled: true}}, defaults(),
-		whole.New(off)))
+		compileddoc.New(off)))
 	assert.Empty(t, redacted(off))
 }
 
@@ -217,32 +217,32 @@ func redacted(doc *ir.Document) []string {
 		}
 	}
 	headers := func(hs []ir.Header) {
-		for _, h := range hs {
-			mark(string(h.ID), h.Secret, h.Provenance)
+		for _, header := range hs {
+			mark(string(header.ID), header.Secret, header.Provenance)
 		}
 	}
-	payload := func(p *ir.Payload) {
-		for _, c := range p.Contents {
-			headers(c.ItemEncoding.Headers)
-			for _, e := range c.Encoding {
-				headers(e.Headers)
+	payload := func(payload *ir.Payload) {
+		for _, content := range payload.Contents {
+			headers(content.ItemEncoding.Headers)
+			for _, partEncoding := range content.Encoding {
+				headers(partEncoding.Headers)
 			}
 		}
 	}
-	op := operationOf(doc)
-	for _, p := range op.Params {
-		mark(string(p.ID), p.Secret, p.Provenance)
+	operation := operationOf(doc)
+	for _, parameter := range operation.Params {
+		mark(string(parameter.ID), parameter.Secret, parameter.Provenance)
 	}
-	payload(op.Request)
-	headers(op.Responses[0].Headers)
-	payload(op.Responses[0].Payload)
-	headers(op.Errors[0].Headers)
-	payload(op.Errors[0].Payload)
-	headers(op.Default.Headers)
-	payload(op.Default.Payload)
-	if m, ok := doc.Types["t/model"].(*ir.Model); ok {
-		for _, p := range m.Properties {
-			mark(string(p.ID), p.Secret, p.Provenance)
+	payload(operation.Request)
+	headers(operation.Responses[0].Headers)
+	payload(operation.Responses[0].Payload)
+	headers(operation.Errors[0].Headers)
+	payload(operation.Errors[0].Payload)
+	headers(operation.Default.Headers)
+	payload(operation.Default.Payload)
+	if model, ok := doc.Types["type/model"].(*ir.Model); ok {
+		for _, property := range model.Properties {
+			mark(string(property.ID), property.Secret, property.Provenance)
 		}
 	}
 	return ids

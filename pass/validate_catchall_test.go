@@ -18,15 +18,15 @@ import (
 // catch.
 func catchAllDoc(target ir.TypeID, catch map[ir.TypeID]ir.CatchAllParts) *ir.Document {
 	doc := validDoc()
-	str := ir.TypeRef{Target: "t/prim/string"}
-	doc.Types["t/map"] = &ir.MapT{ID: "t/map", Value: str}
-	doc.Types["t/open"] = &ir.Model{ID: "t/open", AdditionalProps: &ir.AdditionalProps{
-		Value: &str, Patterns: []ir.PatternProps{{Pattern: "^f_", Value: str}},
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
+	doc.Types["type/map"] = &ir.MapT{ID: "type/map", Value: stringType}
+	doc.Types["type/open"] = &ir.Model{ID: "type/open", AdditionalProperties: &ir.AdditionalProperties{
+		Value: &stringType, Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: stringType}},
 	}}
-	doc.Types["t/patterns"] = &ir.Model{ID: "t/patterns", AdditionalProps: &ir.AdditionalProps{
-		Patterns: []ir.PatternProps{{Pattern: "^f_", Value: str}},
+	doc.Types["type/patterns"] = &ir.Model{ID: "type/patterns", AdditionalProperties: &ir.AdditionalProperties{
+		Patterns: []ir.PatternProperties{{Pattern: "^f_", Value: stringType}},
 	}}
-	doc.Types["t/derived"] = &ir.Model{ID: "t/derived", Base: &ir.TypeRef{Target: "t/open"}}
+	doc.Types["type/derived"] = &ir.Model{ID: "type/derived", Base: &ir.TypeRef{Target: "type/open"}}
 	doc.Services = docWithOperation(ir.Operation{Request: &ir.Payload{Contents: []ir.Content{{
 		MediaType: "multipart/form-data", Type: ir.TypeRef{Target: target}, CatchAllEncoding: catch,
 	}}}}).Services
@@ -40,36 +40,36 @@ func catchAllDoc(target ir.TypeID, catch map[ir.TypeID]ir.CatchAllParts) *ir.Doc
 func TestValidate_CatchAllEncodingKeys(t *testing.T) {
 	t.Parallel()
 	value := &ir.PartEncoding{ContentTypes: []string{"text/plain"}}
-	file := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Filename: true}
+	file := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, HasFilename: true}
 	for _, tc := range []struct {
 		name   string
 		target ir.TypeID
 		catch  map[ir.TypeID]ir.CatchAllParts
 		bad    bool
 	}{
-		{"a map's value", "t/map", map[ir.TypeID]ir.CatchAllParts{"t/map": {Value: value}}, false},
-		{"a model's value and pattern", "t/open", map[ir.TypeID]ir.CatchAllParts{
-			"t/open": {Value: value, Patterns: map[string]ir.PartEncoding{"^f_": file}},
+		{"a map's value", "type/map", map[ir.TypeID]ir.CatchAllParts{"type/map": {Value: value}}, false},
+		{"a model's value and pattern", "type/open", map[ir.TypeID]ir.CatchAllParts{
+			"type/open": {Value: value, Patterns: map[string]ir.PartEncoding{"^f_": file}},
 		}, false},
-		{"a base model's, through the flattening", "t/derived", map[ir.TypeID]ir.CatchAllParts{
-			"t/open": {Value: value},
+		{"a base model's, through the flattening", "type/derived", map[ir.TypeID]ir.CatchAllParts{
+			"type/open": {Value: value},
 		}, false},
-		{"a pattern alone, where the model lists it", "t/patterns", map[ir.TypeID]ir.CatchAllParts{
-			"t/patterns": {Patterns: map[string]ir.PartEncoding{"^f_": file}},
+		{"a pattern alone, where the model lists it", "type/patterns", map[ir.TypeID]ir.CatchAllParts{
+			"type/patterns": {Patterns: map[string]ir.PartEncoding{"^f_": file}},
 		}, false},
-		{"an empty key, which the empty-reference check reports", "t/map", map[ir.TypeID]ir.CatchAllParts{
+		{"an empty key, which the empty-reference check reports", "type/map", map[ir.TypeID]ir.CatchAllParts{
 			"": {Value: value},
 		}, false},
-		{"a model with no catch-all", "t/m", map[ir.TypeID]ir.CatchAllParts{"t/m": {Value: value}}, true},
-		{"a type outside the body's shapes", "t/m", map[ir.TypeID]ir.CatchAllParts{"t/open": {Value: value}}, true},
-		{"a value where the holder has none", "t/patterns", map[ir.TypeID]ir.CatchAllParts{
-			"t/patterns": {Value: value},
+		{"a model with no catch-all", "type/m", map[ir.TypeID]ir.CatchAllParts{"type/m": {Value: value}}, true},
+		{"a type outside the body's shapes", "type/m", map[ir.TypeID]ir.CatchAllParts{"type/open": {Value: value}}, true},
+		{"a value where the holder has none", "type/patterns", map[ir.TypeID]ir.CatchAllParts{
+			"type/patterns": {Value: value},
 		}, true},
-		{"a pattern the holder does not list", "t/open", map[ir.TypeID]ir.CatchAllParts{
-			"t/open": {Patterns: map[string]ir.PartEncoding{"^g_": file}},
+		{"a pattern the holder does not list", "type/open", map[ir.TypeID]ir.CatchAllParts{
+			"type/open": {Patterns: map[string]ir.PartEncoding{"^g_": file}},
 		}, true},
-		{"a type that exists nowhere, which the dangling check reports", "t/map",
-			map[ir.TypeID]ir.CatchAllParts{"t/ghost": {Value: value}}, false},
+		{"a type that exists nowhere, which the dangling check reports", "type/map",
+			map[ir.TypeID]ir.CatchAllParts{"type/ghost": {Value: value}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -89,10 +89,10 @@ func TestValidate_CatchAllEncodingKeys(t *testing.T) {
 func TestValidate_ACatchAllKeyNamingNoTypeDrawsOneCode(t *testing.T) {
 	t.Parallel()
 	value := &ir.PartEncoding{ContentTypes: []string{"text/plain"}}
-	diags := validated(t, catchAllDoc("t/map", map[ir.TypeID]ir.CatchAllParts{"t/ghost": {Value: value}}))
+	diags := validated(t, catchAllDoc("type/map", map[ir.TypeID]ir.CatchAllParts{"type/ghost": {Value: value}}))
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	assert.Equal(t, []string{"ir/dangling-type-ref"}, codes)
 }

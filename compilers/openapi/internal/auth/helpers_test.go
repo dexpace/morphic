@@ -16,9 +16,9 @@ import (
 // how many.
 func messagesAt(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -29,9 +29,9 @@ func messagesAt(diags []ir.Diagnostic, code string) []string {
 // arriving at the right place under the wrong code is still returned.
 func messagesAtPointer(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -42,9 +42,9 @@ func messagesAtPointer(diags []ir.Diagnostic, pointer string) []string {
 // loader's findings carry the pointer of the node they are about as well.
 func codesAtPointer(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic.Code)
 		}
 	}
 	slices.Sort(out)
@@ -55,17 +55,17 @@ func codesAtPointer(diags []ir.Diagnostic, pointer string) []string {
 // with code, sorted so a caller pins the set rather than the walk's order.
 func sortedPointersAt(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)
 	return out
 }
 
-// unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
-// than probing for the ones it happened to think of.
-func unmodeledKeys(u ir.Unmodeled) []string {
-	return slices.Sorted(maps.Keys(u))
+// unmodeledKeys returns unmodeled's keys sorted, so a caller pins the whole set
+// rather than probing for the ones it happened to think of.
+func unmodeledKeys(unmodeled ir.Unmodeled) []string {
+	return slices.Sorted(maps.Keys(unmodeled))
 }

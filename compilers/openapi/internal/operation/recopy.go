@@ -9,31 +9,31 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
-// chargeItemCopy charges the run's expansion budget, in c, the mount's
-// context, what an additionalOperations entry copies of what the mount's item
-// declares itself: kept, the bytes of the entries kept onto it and of its
-// PathDocs; servers, those of the servers it takes; and the item's inline
-// parameters among taken, those the merge left it. Declared charges an item's
-// $ref'd parameters at every operation. These grow as 3.2's
+// chargeItemCopy charges the run's expansion budget, in serviceContext, the
+// mount's context, what an additionalOperations entry copies of what the
+// mount's item declares itself: kept, the bytes of the entries kept onto it and
+// of its PathDocs; servers, those of the servers it takes; and the item's
+// inline parameters among taken, those the merge left it. Declared charges an
+// item's $ref'd parameters at every operation. These grow as 3.2's
 // additionalOperations entries times what the item declares (GitHub #1428), as
 // no fixed method's do. Every entry is charged, the first too, so a mount's
 // charge is the same in any order.
-func chargeItemCopy(c service.Ctx, kept, servers int, taken []sourcedParam) {
-	service.ChargeExpansion(c, kept+servers)
+func chargeItemCopy(serviceContext service.Ctx, kept, servers int, taken []sourcedParam) {
+	service.ChargeExpansion(serviceContext, kept+servers)
 	for _, sp := range taken {
-		if _, isRef := c.Bindings().Reference(sp.ref); isRef {
+		if _, isRef := serviceContext.Bindings().Reference(sp.ref); isRef {
 			continue
 		}
-		pc := c
+		pc := serviceContext
 		if sp.in != nil {
 			pc = *sp.in
 		}
-		if p := resolve.Object[soa.Parameter](c.Bindings(), sp.ref); p != nil {
+		if p := componentlookup.Object[soa.Parameter](serviceContext.Bindings(), sp.ref); p != nil {
 			service.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
 		}
 	}

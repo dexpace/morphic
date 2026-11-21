@@ -15,7 +15,7 @@ import (
 // every subtype it may hold, so a subtype holding its own polymorphic base is
 // recursive, while a subtype that only composes its base is not. A type the
 // document does not declare is not recursive.
-func (x *Index) Recursive(id ir.TypeID) bool {
+func (x *DocumentFacts) Recursive(id ir.TypeID) bool {
 	return x.componentIndex().recursive[id]
 }
 
@@ -23,7 +23,7 @@ func (x *Index) Recursive(id ir.TypeID) bool {
 // component of the type graph with id's, as a slice the caller owns: id alone
 // when no other type's shape lies on a cycle with it. It is nil when id is not
 // in the document.
-func (x *Index) Component(id ir.TypeID) []ir.TypeID {
+func (x *DocumentFacts) Component(id ir.TypeID) []ir.TypeID {
 	return slices.Clone(x.componentIndex().of[id])
 }
 
@@ -34,11 +34,11 @@ type components struct {
 	recursive map[ir.TypeID]bool        // types whose shape lies on a cycle
 }
 
-// newComponents condenses g. A shape lies on a cycle when its component has
-// another vertex, or it has an edge to itself.
-func newComponents(g *typeGraph) *components {
-	c := &components{of: make(map[ir.TypeID][]ir.TypeID, len(g.ids)), recursive: map[ir.TypeID]bool{}}
-	for _, vertices := range newTarjan(g.next).run() {
+// newComponents condenses typeGraphValue. A shape lies on a cycle when its
+// component has another vertex, or it has an edge to itself.
+func newComponents(typeGraphValue *typeGraph) *components {
+	componentsValue := &components{of: make(map[ir.TypeID][]ir.TypeID, len(typeGraphValue.ids)), recursive: map[ir.TypeID]bool{}}
+	for _, vertices := range newTarjan(typeGraphValue.next).run() {
 		var shapes []int
 		for _, v := range vertices {
 			if v%2 == 0 {
@@ -48,14 +48,14 @@ func newComponents(g *typeGraph) *components {
 		slices.Sort(shapes) // shape order is ID order.
 		members := make([]ir.TypeID, len(shapes))
 		for k, v := range shapes {
-			members[k] = g.typeOf(v)
+			members[k] = typeGraphValue.typeOf(v)
 		}
 		for k, v := range shapes {
-			c.of[members[k]] = members
-			if len(vertices) > 1 || g.loops[v] {
-				c.recursive[members[k]] = true
+			componentsValue.of[members[k]] = members
+			if len(vertices) > 1 || typeGraphValue.loops[v] {
+				componentsValue.recursive[members[k]] = true
 			}
 		}
 	}
-	return c
+	return componentsValue
 }

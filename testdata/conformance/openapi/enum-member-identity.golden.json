@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "EnumMemberIdentity",
         "canonical": "enum_member_identity"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1status/get",
+              "id": "operation/openapi/paths/~1status/get",
               "name": {
                 "source": "getStatus",
                 "canonical": "get_status"
@@ -83,7 +83,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1status/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -123,9 +123,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1status/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema": {
       "kind": "enum",
-      "id": "t/anon/paths/~1status/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -139,26 +139,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
+          "id": "enum-member/anonymous/paths/~1status/get/responses/200/content/application~1json/schema/string:open",
           "name": {
             "source": "open",
             "canonical": "open"
           },
           "value": {
             "kind": "string",
-            "str": "open"
+            "string": "open"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
+          "id": "enum-member/anonymous/paths/~1status/get/responses/200/content/application~1json/schema/string:closed",
           "name": {
             "source": "closed",
             "canonical": "closed"
           },
           "value": {
             "kind": "string",
-            "str": "closed"
+            "string": "closed"
           },
           "docs": {}
         }
@@ -166,9 +166,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/E": {
+    "type/openapi/components/schemas/E": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/E",
+      "id": "type/openapi/components/schemas/E",
       "name": {
         "source": "E",
         "canonical": "e"
@@ -183,74 +183,74 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/openapi/components/schemas/E/s:a-b",
+          "id": "enum-member/openapi/components/schemas/E/string:a-b",
           "name": {
             "source": "a-b",
             "canonical": "a_b"
           },
           "value": {
             "kind": "string",
-            "str": "a-b"
+            "string": "a-b"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/E/s:a_b",
+          "id": "enum-member/openapi/components/schemas/E/string:a_b",
           "name": {
             "source": "a_b",
             "canonical": "a_b"
           },
           "value": {
             "kind": "string",
-            "str": "a_b"
+            "string": "a_b"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/E/s:A B",
+          "id": "enum-member/openapi/components/schemas/E/string:A B",
           "name": {
             "source": "A B",
             "canonical": "a_b"
           },
           "value": {
             "kind": "string",
-            "str": "A B"
+            "string": "A B"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/E/s:a~0b",
+          "id": "enum-member/openapi/components/schemas/E/string:a~0b",
           "name": {
             "source": "a~b",
             "canonical": "a_b"
           },
           "value": {
             "kind": "string",
-            "str": "a~b"
+            "string": "a~b"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/E/s:a-b/2",
+          "id": "enum-member/openapi/components/schemas/E/string:a-b/2",
           "name": {
             "source": "a-b",
             "canonical": "a_b"
           },
           "value": {
             "kind": "string",
-            "str": "a-b"
+            "string": "a-b"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/E/s:a-b~12",
+          "id": "enum-member/openapi/components/schemas/E/string:a-b~12",
           "name": {
             "source": "a-b/2",
             "canonical": "a_b_2"
           },
           "value": {
             "kind": "string",
-            "str": "a-b/2"
+            "string": "a-b/2"
           },
           "docs": {}
         }
@@ -258,9 +258,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/N": {
+    "type/openapi/components/schemas/N": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/N",
+      "id": "type/openapi/components/schemas/N",
       "name": {
         "source": "N",
         "canonical": "n"
@@ -275,38 +275,38 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/openapi/components/schemas/N/n:-1e0",
+          "id": "enum-member/openapi/components/schemas/N/number:-1e0",
           "name": {
             "source": "-1",
             "canonical": "1"
           },
           "value": {
             "kind": "number",
-            "num": "-1"
+            "number": "-1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/N/n:1e0",
+          "id": "enum-member/openapi/components/schemas/N/number:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
           },
           "value": {
             "kind": "number",
-            "num": "1"
+            "number": "1"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/N/n:0",
+          "id": "enum-member/openapi/components/schemas/N/number:0",
           "name": {
             "source": "0",
             "canonical": "0"
           },
           "value": {
             "kind": "number",
-            "num": "0"
+            "number": "0"
           },
           "docs": {}
         }

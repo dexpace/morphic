@@ -49,8 +49,8 @@ type locatedDirectory struct {
 // compile's reader placed it: a link retargeted since moves the documents a
 // compile names through it, and the labels their IDs carry.
 func directoriesUnchanged(docs compilers.DocumentReader, dirs []locatedDirectory) bool {
-	for _, d := range dirs {
-		if locateDirectory(docs, d.Directory) != d.Located {
+	for _, locatedDirectory := range dirs {
+		if locateDirectory(docs, locatedDirectory.Directory) != locatedDirectory.Located {
 			return false
 		}
 	}
@@ -60,8 +60,8 @@ func directoriesUnchanged(docs compilers.DocumentReader, dirs []locatedDirectory
 // locateDirectory is where docs places dir (compilers.DirectoryLocator), or
 // dir itself for a reader placing none.
 func locateDirectory(docs compilers.DocumentReader, dir string) string {
-	if l, ok := docs.(compilers.DirectoryLocator); ok {
-		return l.LocateDirectory(dir)
+	if directoryLocator, ok := docs.(compilers.DirectoryLocator); ok {
+		return directoryLocator.LocateDirectory(dir)
 	}
 	return dir
 }

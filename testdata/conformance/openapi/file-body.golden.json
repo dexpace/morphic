@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "FileBody",
         "canonical": "file_body"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1blob/put",
+              "id": "operation/openapi/paths/~1blob/put",
               "name": {
                 "source": "putBlob",
                 "canonical": "put_blob"
@@ -70,7 +70,7 @@
                   {
                     "mediaType": "application/octet-stream",
                     "type": {
-                      "target": "t/prim/bytes",
+                      "target": "type/primitive/bytes",
                       "nullable": false
                     },
                     "file": {
@@ -101,7 +101,7 @@
                       {
                         "mediaType": "image/png",
                         "type": {
-                          "target": "t/prim/bytes",
+                          "target": "type/primitive/bytes",
                           "nullable": false
                         },
                         "file": {
@@ -139,7 +139,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1documented/put",
+              "id": "operation/openapi/paths/~1documented/put",
               "name": {
                 "source": "putDocumented",
                 "canonical": "put_documented"
@@ -150,7 +150,7 @@
                   {
                     "mediaType": "application/octet-stream",
                     "type": {
-                      "target": "t/openapi/components/schemas/Blob",
+                      "target": "type/openapi/components/schemas/Blob",
                       "nullable": false
                     },
                     "file": {
@@ -181,7 +181,7 @@
                       {
                         "mediaType": "application/octet-stream",
                         "type": {
-                          "target": "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
+                          "target": "type/anonymous/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
                           "nullable": false
                         },
                         "file": {
@@ -219,7 +219,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1dialect/put",
+              "id": "operation/openapi/paths/~1dialect/put",
               "name": {
                 "source": "putDialect",
                 "canonical": "put_dialect"
@@ -230,7 +230,7 @@
                   {
                     "mediaType": "application/octet-stream",
                     "type": {
-                      "target": "t/anon/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema",
+                      "target": "type/anonymous/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema",
                       "nullable": false
                     },
                     "file": {
@@ -293,9 +293,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema": {
+    "type/anonymous/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema",
+      "id": "type/anonymous/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema",
       "name": {
         "hint": "put_dialect_request"
       },
@@ -317,13 +317,13 @@
         "pointer": "/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema": {
+    "type/anonymous/paths/~1documented/put/responses/200/content/application~1octet-stream/schema": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
+      "id": "type/anonymous/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
       "name": {
         "hint": "response"
       },
@@ -337,13 +337,13 @@
         "pointer": "/paths/~1documented/put/responses/200/content/application~1octet-stream/schema"
       },
       "base": {
-        "target": "t/prim/bytes",
+        "target": "type/primitive/bytes",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Blob": {
+    "type/openapi/components/schemas/Blob": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Blob",
+      "id": "type/openapi/components/schemas/Blob",
       "name": {
         "source": "Blob",
         "canonical": "blob"
@@ -358,7 +358,7 @@
         "pointer": "/components/schemas/Blob"
       },
       "base": {
-        "target": "t/prim/bytes",
+        "target": "type/primitive/bytes",
         "nullable": false
       },
       "constraints": {
@@ -366,9 +366,9 @@
         "uniqueItems": false
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -376,11 +376,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -388,11 +388,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -400,7 +400,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

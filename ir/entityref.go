@@ -12,7 +12,7 @@ type EntityRef struct {
 	// Type is a type's ID.
 	Type TypeID `json:"type,omitempty"`
 	// Operation is an operation's ID.
-	Operation OpID `json:"operation,omitempty"`
+	Operation OperationID `json:"operation,omitempty"`
 	// Channel is a channel's ID.
 	Channel ChannelID `json:"channel,omitempty"`
 	// Message is a message's ID.
@@ -24,9 +24,9 @@ type EntityRef struct {
 	// Group is an operation group's ID.
 	Group GroupID `json:"group,omitempty"`
 	// Property is a property's ID.
-	Property PropID `json:"property,omitempty"`
+	Property PropertyID `json:"property,omitempty"`
 	// Param is a parameter's ID.
-	Param ParamID `json:"param,omitempty"`
+	Param ParameterID `json:"param,omitempty"`
 	// Member is an enum member's ID.
 	Member EnumMemberID `json:"member,omitempty"`
 	// Server is a server's ID.

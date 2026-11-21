@@ -66,47 +66,48 @@ type tally struct {
 // A block with no statements is skipped: go emits one for an empty body, such as
 // an unreached "case x:", and it cannot be uncovered.
 func tallyOf(profiles []*cover.Profile) tally {
-	var t tally
+	var tallyValue tally
 	for _, p := range profiles {
 		for _, b := range p.Blocks {
 			if b.NumStmt == 0 {
 				continue
 			}
-			t.total += b.NumStmt
+			tallyValue.total += b.NumStmt
 			if b.Count == 0 {
-				t.missed += b.NumStmt
-				t.gaps = append(t.gaps, gap{file: p.FileName, block: b})
+				tallyValue.missed += b.NumStmt
+				tallyValue.gaps = append(tallyValue.gaps, gap{file: p.FileName, block: b})
 			}
 		}
 	}
-	slices.SortFunc(t.gaps, func(a, b gap) int {
+	slices.SortFunc(tallyValue.gaps, func(a, b gap) int {
 		return cmp.Or(cmp.Compare(a.file, b.file),
 			cmp.Compare(a.block.StartLine, b.block.StartLine),
 			cmp.Compare(a.block.StartCol, b.block.StartCol))
 	})
-	return t
+	return tallyValue
 }
 
-// verdict writes the gate's judgement of t and returns the exit code. A profile
-// recording no statements fails: it is what a run that measured nothing leaves.
-func verdict(w io.Writer, t tally) int {
-	if t.total == 0 {
+// verdict writes the gate's judgement of tallyValue and returns the exit code.
+// A profile recording no statements fails: it is what a run that measured
+// nothing leaves.
+func verdict(w io.Writer, tallyValue tally) int {
+	if tallyValue.total == 0 {
 		emitf(w, "COVERAGE FAIL: the profile records no statements\n")
 		return 1
 	}
-	if t.missed == 0 {
-		emitf(w, "Coverage gate passed: all %d statements covered.\n", t.total)
+	if tallyValue.missed == 0 {
+		emitf(w, "Coverage gate passed: all %d statements covered.\n", tallyValue.total)
 		return 0
 	}
-	for _, g := range t.gaps[:min(len(t.gaps), maxReported)] {
-		b := g.block
+	for _, gap := range tallyValue.gaps[:min(len(tallyValue.gaps), maxReported)] {
+		b := gap.block
 		emitf(w, "COVERAGE FAIL: %s:%d.%d,%d.%d (%d statement(s) uncovered)\n",
-			g.file, b.StartLine, b.StartCol, b.EndLine, b.EndCol, b.NumStmt)
+			gap.file, b.StartLine, b.StartCol, b.EndLine, b.EndCol, b.NumStmt)
 	}
-	if more := len(t.gaps) - maxReported; more > 0 {
+	if more := len(tallyValue.gaps) - maxReported; more > 0 {
 		emitf(w, "  ... and %d more uncovered block(s)\n", more)
 	}
-	emitf(w, "Coverage gate failed: %d of %d statements uncovered; 100%% is required.\n", t.missed, t.total)
+	emitf(w, "Coverage gate failed: %d of %d statements uncovered; 100%% is required.\n", tallyValue.missed, tallyValue.total)
 	return 1
 }
 

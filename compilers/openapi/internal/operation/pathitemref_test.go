@@ -44,8 +44,8 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 	doc, diags := parseFull(t, pathItemRefSiblingsSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	putA := openapitest.FindOp(t, doc, "putA")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), putA.ID)
+	putA := openapitest.FindOperation(t, doc, "putA")
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/put"), putA.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), putA.Provenance.Pointer,
 		"the sibling operation is declared where it is mounted")
 	assert.Equal(t, "PUT", putA.Bindings.HTTP[0].Method)
@@ -56,10 +56,10 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 
 	// The referent's own operation keeps mounting at both paths: a use site that
 	// adds fields beside the $ref does not stop referencing it.
-	atA := opByPath(t, doc, "GET", "/a")
-	atB := opByPath(t, doc, "GET", "/b")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get"), atA.ID)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1b/get"), atB.ID)
+	atA := operationByPath(t, doc, "GET", "/a")
+	atB := operationByPath(t, doc, "GET", "/b")
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/get"), atA.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1b/get"), atB.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer,
 		"the remounted operation is still declared at the component it names")
 	assert.Equal(t, "getB", atA.Name.Source)
@@ -107,16 +107,16 @@ func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	doc, diags := parseFull(t, pathItemRefWebhookSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	sibling := openapitest.FindOp(t, doc, "siblingHook")
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/post"), sibling.ID)
+	sibling := openapitest.FindOperation(t, doc, "siblingHook")
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/hooked/post"), sibling.ID)
 	assert.Equal(t, jsontext.Pointer("/webhooks/hooked/post"), sibling.Provenance.Pointer)
 	assert.Equal(t, ir.HTTPInboundWebhook, sibling.Bindings.HTTP[0].Inbound, "a webhook operation keeps its binding")
 
-	referent := openapitest.FindOp(t, doc, "refHook")
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/get"), referent.ID)
+	referent := openapitest.FindOperation(t, doc, "refHook")
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/hooked/get"), referent.ID)
 
-	for _, op := range []ir.Operation{sibling, referent} {
-		assertPathItemSiblingConstructs(t, doc, op, "/webhooks/hooked")
+	for _, operation := range []ir.Operation{sibling, referent} {
+		assertPathItemSiblingConstructs(t, doc, operation, "/webhooks/hooked")
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/webhooks/hooked/bogusUse"),
 		"and the census names the use site's undeclared key where it was written")
@@ -163,14 +163,14 @@ func TestPathItemRefSiblings_CallbackRoute(t *testing.T) {
 
 	const usePtr = "/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"
 
-	sibling := openapitest.FindOp(t, doc, "siblingCb")
+	sibling := openapitest.FindOperation(t, doc, "siblingCb")
 	assert.Equal(t, jsontext.Pointer(usePtr+"/post"), sibling.Provenance.Pointer)
 
-	referent := openapitest.FindOp(t, doc, "refCb")
+	referent := openapitest.FindOperation(t, doc, "refCb")
 	assert.Equal(t, jsontext.Pointer("/components/pathItems/Cb/get"), referent.Provenance.Pointer)
 
-	for _, op := range []ir.Operation{sibling, referent} {
-		assertPathItemSiblingConstructs(t, doc, op, usePtr)
+	for _, operation := range []ir.Operation{sibling, referent} {
+		assertPathItemSiblingConstructs(t, doc, operation, usePtr)
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, usePtr+"/bogusUse"),
 		"and the census names the use site's undeclared key where it was written")
@@ -210,51 +210,51 @@ func TestPathItemRefSiblings_ItemConstructsReachEveryOperation(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	mounted := []ir.Operation{
-		opByPath(t, doc, "GET", "/a"),        // the referent's, mounted at this path
-		openapitest.FindOp(t, doc, "usePut"), // the use site's own
+		operationByPath(t, doc, "GET", "/a"),        // the referent's, mounted at this path
+		openapitest.FindOperation(t, doc, "usePut"), // the use site's own
 	}
-	for _, op := range mounted {
-		assertPathItemSiblingConstructs(t, doc, op, "/paths/~1a")
+	for _, operation := range mounted {
+		assertPathItemSiblingConstructs(t, doc, operation, "/paths/~1a")
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/paths/~1a/bogusUse"),
 		"and the census names it where it was written")
 }
 
 // assertPathItemSiblingConstructs requires the full item-level construct set a
-// use site writes beside a $ref to have reached op, each under the use site's
-// own pointer: the summary, the servers, an x-* extension, an undeclared key,
-// and the item parameter drawn from the use site's YAML.
+// use site writes beside a $ref to have reached operation, each under the use
+// site's own pointer: the summary, the servers, an x-* extension, an undeclared
+// key, and the item parameter drawn from the use site's YAML.
 //
 // It is shared by the paths, webhook and callback route tests so the three
 // cannot assert different constructs: what one route forgets is what all three
 // fail to notice, which is exactly how the servers half came to be missing on
 // two of the three routes (GitHub #39).
-func assertPathItemSiblingConstructs(t *testing.T, doc *ir.Document, op ir.Operation, usePtr string) {
+func assertPathItemSiblingConstructs(t *testing.T, doc *ir.Document, operation ir.Operation, usePtr string) {
 	t.Helper()
-	where := op.Name.Source
+	where := operation.Name.Source
 
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, "written beside the ref", op.Bindings.HTTP[0].PathDocs.Summary,
+	require.Len(t, operation.Bindings.HTTP, 1)
+	assert.Equal(t, "written beside the ref", operation.Bindings.HTTP[0].PathDocs.Summary,
 		"%s takes the use site's path-item summary", where)
 
-	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, op.Servers),
+	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, operation.Servers),
 		"%s is sent to the use site's servers", where)
-	assert.Equal(t, []ir.ServerID{ir.ServerID("server/openapi" + usePtr + "/servers/0")}, op.Servers,
+	assert.Equal(t, []ir.ServerID{ir.ServerID("server/openapi" + usePtr + "/servers/0")}, operation.Servers,
 		"%s names them where the use site declares them", where)
 
-	ext, ok := op.Unmodeled["openapi:pathItem/x-beside"]
+	ext, ok := operation.Unmodeled["openapi:pathItem/x-beside"]
 	require.True(t, ok, "%s keeps the use site's x-*", where)
 	assert.JSONEq(t, `"use"`, string(ext.Value))
 	assert.Equal(t, jsontext.Pointer(usePtr+"/x-beside"), ext.Provenance.Pointer)
 
-	unknown, ok := op.Unmodeled["openapi:pathItem/bogusUse"]
+	unknown, ok := operation.Unmodeled["openapi:pathItem/bogusUse"]
 	require.True(t, ok, "%s keeps the use site's undeclared key", where)
 	assert.JSONEq(t, `{"responses":{"200":{"description":"use"}}}`, string(unknown.Value))
 	assert.Equal(t, jsontext.Pointer(usePtr+"/bogusUse"), unknown.Provenance.Pointer)
 
-	require.Len(t, op.Params, 1, "%s merges the use site's item parameter", where)
-	assert.Equal(t, "useParam", op.Params[0].Name.Source)
-	assert.Equal(t, jsontext.Pointer(usePtr+"/parameters/0"), op.Params[0].Provenance.Pointer)
+	require.Len(t, operation.Params, 1, "%s merges the use site's item parameter", where)
+	assert.Equal(t, "useParam", operation.Params[0].Name.Source)
+	assert.Equal(t, jsontext.Pointer(usePtr+"/parameters/0"), operation.Params[0].Provenance.Pointer)
 }
 
 // pathItemRefSharedCallbackSpec has two operations share one $ref'd callback
@@ -305,19 +305,19 @@ func TestPathItemRefSiblings_ASharedCallbackMountsPerParent(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "no operation ID is declared twice")
 
 	const expr = "/callbacks/cb/{$request.body#~1url}/put"
-	puts := map[ir.OpID]jsontext.Pointer{}
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if strings.HasSuffix(string(op.ID), expr) {
-				puts[op.ID] = op.Provenance.Pointer
+	puts := map[ir.OperationID]jsontext.Pointer{}
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if strings.HasSuffix(string(operation.ID), expr) {
+				puts[operation.ID] = operation.Provenance.Pointer
 			}
 		}
 	}
-	assert.Equal(t, map[ir.OpID]jsontext.Pointer{
-		"op/openapi/paths/~1one/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
-		"op/openapi/paths/~1two/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
-		"op/openapi/paths/~1three/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
-		"op/openapi/webhooks/hook/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+	assert.Equal(t, map[ir.OperationID]jsontext.Pointer{
+		"operation/openapi/paths/~1one/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"operation/openapi/paths/~1two/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"operation/openapi/paths/~1three/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+		"operation/openapi/webhooks/hook/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
 	}, puts, "one operation per parent, each declared where the expression writes it")
 }
 
@@ -362,7 +362,7 @@ func TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes(t *testing.T) {
 	inline := methodsAt(doc, "/c")
 	require.Equal(t, []string{"GET", "PUT", "POST", "LOCK", "COPY", "LINK"}, inline)
 	assert.Equal(t, inline, methodsAt(doc, "/a"), "the mount lists them as /c, written inline, does")
-	assert.Equal(t, "copyA", opByPath(t, doc, "COPY", "/a").Name.Source,
+	assert.Equal(t, "copyA", operationByPath(t, doc, "COPY", "/a").Name.Source,
 		"the repeated key keeps its place and takes the nearer layer's declaration")
 }
 
@@ -370,9 +370,9 @@ func TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes(t *testing.T) {
 // the document's groups list them.
 func methodsAt(doc *ir.Document, uri string) []string {
 	var methods []string
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if hb := op.Bindings.HTTP[0]; hb.URITemplate == uri {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if hb := operation.Bindings.HTTP[0]; hb.URITemplate == uri {
 				methods = append(methods, hb.Method)
 			}
 		}

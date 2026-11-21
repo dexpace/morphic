@@ -28,8 +28,8 @@ func TestOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads(t *testing.T) {
 	_, why = reencodeMappings([]byte(head + pair + tail))
 	assert.Equal(t, DeclineNotYAML, why, "and refuses the source written with the pair")
 
-	v := orderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
-	assert.Equal(t, DeclineNotYAML, v.Declined, "the oracle asks the source nothing")
+	verdict := orderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
+	assert.Equal(t, DeclineNotYAML, verdict.Declined, "the oracle asks the source nothing")
 }
 
 // TestSequenceOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads pins the
@@ -45,6 +45,6 @@ func TestSequenceOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads(t *testing
 
 	written := sequenceOrderInvariant(t.Context(), "char.json", []byte(head+"\U0001F600"+tail), true)
 	assert.True(t, written.Asked(), "the oracle asks the source written with the character: %+v", written)
-	v := sequenceOrderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
-	assert.Equal(t, declined(OracleSequenceOrder, DeclineNotYAML), v, "and nothing of the source written with the pair")
+	verdict := sequenceOrderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineNotYAML), verdict, "and nothing of the source written with the pair")
 }

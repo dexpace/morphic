@@ -25,17 +25,18 @@ import (
 // readers keep after the frames outside (principalKept), nil for none.
 type finisher func(td ir.TypeDef, read keySet, held *principalKept)
 
-// then returns the finisher running f, then g, either of which may be nil.
-func (f finisher) then(g finisher) finisher {
+// then returns the finisher running f, then finisherValue, either of which may
+// be nil.
+func (f finisher) then(finisherValue finisher) finisher {
 	switch {
 	case f == nil:
-		return g
-	case g == nil:
+		return finisherValue
+	case finisherValue == nil:
 		return f
 	default:
 		return func(td ir.TypeDef, read keySet, held *principalKept) {
 			f(td, read, held)
-			g(td, read, held)
+			finisherValue(td, read, held)
 		}
 	}
 }
@@ -65,20 +66,20 @@ func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
-// interns build's result under that ID, finished by fin. build receives the
-// built TypeCommon, so it never re-derives pointer, name or id, and returns
-// what it read of the schema it builds from.
+// TypeID (ids.DocumentIDNamespace.ForPointer) and shared TypeCommon (commonFor)
+// once, then interns build's result under that ID, finished by fin. build
+// receives the built TypeCommon, so it never re-derives pointer, name or id,
+// and returns what it read of the schema it builds from.
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
 // the first build, finished, stands for all.
-func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, build func(common ir.TypeCommon) (ir.TypeDef, keySet),
+func internNode(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, build func(common ir.TypeCommon) (ir.TypeDef, keySet),
 	fin finisher,
 ) ir.TypeID {
-	id := c.IDs().ForPointer(pointer)
-	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef {
-		td, read := build(commonFor(c, id, pointer))
+	id := loweringContext.IDs().ForPointer(pointer)
+	return ts.Intern(loweringContext.IDs().Coordinate(pointer), id, func() ir.TypeDef {
+		td, read := build(commonFor(loweringContext, id, pointer))
 		if fin != nil && !ir.IsNilTypeDef(td) {
 			fin(td, read, nil)
 		}
@@ -90,16 +91,16 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, bui
 // top-level component schema is named (source + canonical words); any deeper
 // inline position is anonymous and carries only the hint its coordinate names
 // it by (lowering.NameAt), whichever lowering builds it.
-func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCommon {
+func commonFor(loweringContext lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: c.Place().At(pointer),
+		Provenance: loweringContext.Place().At(pointer),
 	}
 	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
 		common.Name = ir.NamingFor(name)
 	} else {
 		common.Anonymous = true
-		common.Name = compile.NamingHint(lowering.NameAt(c, pointer))
+		common.Name = compile.NamingHint(lowering.NameAt(loweringContext, pointer))
 	}
 	return common
 }
@@ -111,31 +112,31 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 // no node answers, or where the use admits null, which a Base does not carry,
 // the Scalar alias (docs/compilers/openapi.md#allof-classification). fin
 // finishes whichever it builds.
-func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer, ref ir.TypeRef,
+func internOwnNode(loweringContext lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer, ref ir.TypeRef,
 	fin finisher,
 ) []ir.Diagnostic {
-	if kinds, _ := lowersTo(c, js); ref.Nullable || kinds != kindObject || !stated(js.Schema) {
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
+	if kinds, _ := lowersTo(loweringContext, js); ref.Nullable || kinds != kindObject || !stated(js.Schema) {
+		_, diags := internAlias(loweringContext, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
 	comp := allOfComposition{pointer: pointer, entries: []allOfEntry{{schema: js, pointer: pointer}}}
 	if js.Ref == nil {
-		comp = readAllOf(c, js.Schema, pointer)
+		comp = readAllOf(loweringContext, js.Schema, pointer)
 	}
-	if !slices.ContainsFunc(comp.entries, func(e allOfEntry) bool {
-		if e.schema.Ref == nil {
+	if !slices.ContainsFunc(comp.entries, func(allOfEntryValue allOfEntry) bool {
+		if allOfEntryValue.schema.Ref == nil {
 			return false
 		}
-		_, resolved := resolveSchemaRef(c, ts, e.schema)
+		_, resolved := resolveSchemaRef(loweringContext, ts, allOfEntryValue.schema)
 		return resolved
 	}) {
 		// The reference lowered to the top type, already reported.
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
+		_, diags := internAlias(loweringContext, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
 	var diags []ir.Diagnostic
-	internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		td, read, modelDiags := composeModel(c, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
+	internNode(loweringContext, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td, read, modelDiags := composeModel(loweringContext, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
 		diags = modelDiags
 		return td, read
 	}, fin)
@@ -145,20 +146,20 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 // internAlias interns a Scalar at pointer whose Base is target, so a component
 // (or a sibling-carrying schema) whose body lowered to a shared or referenced
 // target still owns a resolvable node at its own TypeID. It carries the value
-// constraints s writes that the types the position admits take (boundKinds),
-// and the exclusive modifier no Constraints field holds, for the reason
-// hoistScalar records. fin finishes the alias where this builds it, which is
-// where st says.
-func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+// constraints schema writes that the types the position admits take
+// (boundKinds), and the exclusive modifier no Constraints field holds, for the
+// reason hoistScalar records. fin finishes the alias where this builds it,
+// which is where st says.
+func internAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	voices := positionVoices(c, s, pointer, target)
+	foldedEntries := positionFoldedEntries(loweringContext, schema, pointer, target)
 	if st.of != nil {
-		voices = st.voices(c, s, pointer)
+		foldedEntries = st.foldedEntries(loweringContext, schema, pointer)
 	}
-	cons, diags := ConstraintsOf(c, &kept, s, voices, pointer, st.takes(c, s))
-	return internAliasHolding(c, ts, cons, kept, boundsRead(s, st.takes(c, s), nil), st.pointer(pointer), target, fin), diags
+	cons, diags := ConstraintsOf(loweringContext, &kept, schema, foldedEntries, pointer, st.takes(loweringContext, schema))
+	return internAliasHolding(loweringContext, ts, cons, kept, boundsRead(schema, st.takes(loweringContext, schema), nil), st.pointer(pointer), target, fin), diags
 }
 
 // internReferenceAlias is internAlias for the home of a declaration whose
@@ -166,20 +167,20 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 // writes. A position that reached a shared node with one written had its alias
 // hoisted by the keeping of unread keywords first, so this reads none it also
 // keeps.
-func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+func internReferenceAlias(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), target, pointer)
-	return internAliasHolding(c, ts, cons, kept, referenceReads(c, s), pointer, target, fin), diags
+	cons, diags := referenceConstraintsOf(loweringContext, &kept, schema, positionFoldedEntries(loweringContext, schema, pointer, target), target, pointer)
+	return internAliasHolding(loweringContext, ts, cons, kept, referenceReads(loweringContext, schema), pointer, target, fin), diags
 }
 
 // internAliasHolding interns the alias over target, holding the bounds its caller
 // read, those of read, and the keyword kept beside them, finished by fin.
-func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, read keySet,
+func internAliasHolding(loweringContext lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, read keySet,
 	pointer jsontext.Pointer, target ir.TypeRef, fin finisher,
 ) ir.TypeID {
-	return internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	return internNode(loweringContext, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
 		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}, read
 	}, fin)

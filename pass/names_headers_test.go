@@ -15,16 +15,16 @@ import (
 
 // headerOf is a header spelled name.
 func headerOf(id, name string) ir.Header {
-	return ir.Header{ID: ir.PropID(id), Name: named(name)}
+	return ir.Header{ID: ir.PropertyID(id), Name: named(name)}
 }
 
 // headers are the two spellings of one header the wire reads as one.
 func headers(a, b string) []ir.Header { return []ir.Header{headerOf("h/"+a, a), headerOf("h/"+b, b)} }
 
-// inOperation is a document whose one operation, op/x, is op.
-func inOperation(op ir.Operation) *ir.Document {
-	op.ID = "op/x"
-	return inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{op}})
+// inOperation is a document whose one operation, operation/x, is operation.
+func inOperation(operation ir.Operation) *ir.Document {
+	operation.ID = "operation/x"
+	return inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{operation}})
 }
 
 // TestNames_ReadsTheHeadersOfAResponseAndAnErrorCaseAsAScope holds each place
@@ -45,21 +45,21 @@ func TestNames_ReadsTheHeadersOfAResponseAndAnErrorCaseAsAScope(t *testing.T) {
 			Responses: []ir.Response{{Name: hinted("200"), Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
 			Errors:    []ir.ErrorCase{{Name: hinted("429"), Headers: headers("Retry-After", "retry_after")}},
 		}), []ir.Diagnostic{
-			collision("op/x", `in operation op/x, response "200", `+pair),
-			collision("op/x", `in operation op/x, error "429", headers 0 ("Retry-After") and 1 ("retry_after") share the neutral name "retry_after"`),
+			collision("operation/x", `in operation operation/x, response "200", `+pair),
+			collision("operation/x", `in operation operation/x, error "429", headers 0 ("Retry-After") and 1 ("retry_after") share the neutral name "retry_after"`),
 		}},
 		{"the default response's headers", inOperation(ir.Operation{
 			Default: &ir.Response{Headers: headers("X-Rate-Limit", "X_Rate_Limit")},
-		}), []ir.Diagnostic{collision("op/x", `in operation op/x, the default response, `+pair)}},
+		}), []ir.Diagnostic{collision("operation/x", `in operation operation/x, the default response, `+pair)}},
 		{"a service's common error's headers", &ir.Document{Services: []ir.Service{{
-			ID: "s/x", CommonErrors: []ir.ErrorCase{{Name: named("Throttled"), Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
-		}}}, []ir.Diagnostic{collision("s/x", `in service s/x, common error "Throttled", `+pair)}},
+			ID: "service/x", CommonErrors: []ir.ErrorCase{{Name: named("Throttled"), Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
+		}}}, []ir.Diagnostic{collision("service/x", `in service service/x, common error "Throttled", `+pair)}},
 		{"a response named by nothing", inOperation(ir.Operation{
 			Responses: []ir.Response{{Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
-		}), []ir.Diagnostic{collision("op/x", `in operation op/x, response "", `+pair)}},
+		}), []ir.Diagnostic{collision("operation/x", `in operation operation/x, response "", `+pair)}},
 		{"a response named by its canonical spelling", inOperation(ir.Operation{
 			Responses: []ir.Response{{Name: ir.Naming{Canonical: "ok"}, Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
-		}), []ir.Diagnostic{collision("op/x", `in operation op/x, response "ok", `+pair)}},
+		}), []ir.Diagnostic{collision("operation/x", `in operation operation/x, response "ok", `+pair)}},
 		// The valid twins. Headers are compared as properties are, by their words as
 		// they are, so two whose words break apart differ.
 		{"headers whose words break apart", inOperation(ir.Operation{
@@ -114,7 +114,7 @@ func TestNames_ReadsTheHeadersOfTwoResponsesAtTheOperationInEitherOrder(t *testi
 			got := namesOf(t, inOperation(ir.Operation{Responses: tc.responses}))
 
 			require.Len(t, got, 1)
-			assert.Equal(t, "op/x", got[0].Provenance.Node)
+			assert.Equal(t, "operation/x", got[0].Provenance.Node)
 			assert.Equal(t, "pass/name-collision", got[0].Code)
 			assert.Contains(t, got[0].Message, `response "`+tc.label+`", headers 0`)
 		})

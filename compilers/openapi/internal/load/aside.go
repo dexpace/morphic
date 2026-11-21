@@ -30,46 +30,46 @@ type asWritten struct {
 	change func()
 }
 
-// hide takes out of the mapping m each pair drop reports, until restore.
-func (a *aside) hide(m *yaml.Node, drop func(key, val *yaml.Node) bool) {
-	if m == nil || m.Kind != yaml.MappingNode {
+// hide takes out of the mapping node each pair drop reports, until restore.
+func (a *aside) hide(node *yaml.Node, drop func(key, val *yaml.Node) bool) {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return
 	}
-	kept := make([]*yaml.Node, 0, len(m.Content))
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if !drop(m.Content[i], m.Content[i+1]) {
-			kept = append(kept, m.Content[i], m.Content[i+1])
+	kept := make([]*yaml.Node, 0, len(node.Content))
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if !drop(node.Content[i], node.Content[i+1]) {
+			kept = append(kept, node.Content[i], node.Content[i+1])
 		}
 	}
-	if len(kept) == len(m.Content) {
+	if len(kept) == len(node.Content) {
 		return
 	}
-	a.keep(m, func() { a.hide(m, drop) })
-	m.Content = kept
+	a.keep(node, func() { a.hide(node, drop) })
+	node.Content = kept
 }
 
-// spoil has n, a null, read as an empty sequence until restore.
-func (a *aside) spoil(n *yaml.Node) {
-	a.keep(n, func() { a.spoil(n) })
-	*n = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: n.Line, Column: n.Column}
+// spoil has node, a null, read as an empty sequence until restore.
+func (a *aside) spoil(node *yaml.Node) {
+	a.keep(node, func() { a.spoil(node) })
+	*node = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: node.Line, Column: node.Column}
 }
 
-// standIn has the mapping m read as a Reference Object whose $ref is an empty
-// sequence, as spoil leaves one, until restore.
-func (a *aside) standIn(m *yaml.Node) {
-	a.keep(m, func() { a.standIn(m) })
-	m.Content = []*yaml.Node{
-		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref", Line: m.Line, Column: m.Column},
-		{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: m.Line, Column: m.Column},
+// standIn has the mapping node read as a Reference Object whose $ref is an
+// empty sequence, as spoil leaves one, until restore.
+func (a *aside) standIn(node *yaml.Node) {
+	a.keep(node, func() { a.standIn(node) })
+	node.Content = []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref", Line: node.Line, Column: node.Column},
+		{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: node.Line, Column: node.Column},
 	}
 }
 
-// keep records n as it is now, so restore puts it back, and change, the
+// keep records node as it is now, so restore puts it back, and change, the
 // change about to be made to it.
-func (a *aside) keep(n *yaml.Node, change func()) {
+func (a *aside) keep(node *yaml.Node, change func()) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.changed = append(a.changed, asWritten{node: n, was: *n, change: change})
+	a.changed = append(a.changed, asWritten{node: node, was: *node, change: change})
 }
 
 // restore puts back every node the aside changed, newest first, and then
@@ -77,8 +77,8 @@ func (a *aside) keep(n *yaml.Node, change func()) {
 func (a *aside) restore() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, c := range slices.Backward(a.changed) {
-		*c.node = c.was
+	for _, asWritten := range slices.Backward(a.changed) {
+		*asWritten.node = asWritten.was
 	}
 	a.changed = nil
 }
@@ -91,8 +91,8 @@ func (a *aside) restore() {
 func (a *aside) whileWritten(read func()) {
 	a.mu.Lock()
 	changes := make([]func(), len(a.changed))
-	for i, c := range a.changed {
-		changes[i] = c.change
+	for i, asWritten := range a.changed {
+		changes[i] = asWritten.change
 	}
 	a.mu.Unlock()
 	a.restore()

@@ -23,20 +23,20 @@ func (r *nameReader) inherited(doc *ir.Document) {
 	r.owners, r.wires = r.owners[:0], r.wires[:0]
 	r.parties = r.parties[:0]
 	for k, id := range ids {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
-		for i := range m.Properties {
-			r.parties = append(r.parties, partyOf(m.Properties[i].Name))
+		for i := range model.Properties {
+			r.parties = append(r.parties, partyOf(model.Properties[i].Name))
 			r.owners = append(r.owners, int32(k))
-			r.wires = append(r.wires, m.Properties[i].WireName)
+			r.wires = append(r.wires, model.Properties[i].WireName)
 		}
 	}
 	if !r.read(byWords) || len(r.shared) == 0 {
 		return
 	}
-	var facts *irfacts.Index
+	var facts *irfacts.DocumentFacts
 	for _, id := range r.meetings(doc, ids) {
 		if facts == nil {
 			facts = irfacts.New(doc)
@@ -58,7 +58,7 @@ func (r *nameReader) meetings(doc *ir.Document, ids []ir.TypeID) []ir.TypeID {
 		candidate = true
 		for i := first; i >= 0; i = r.later[i] {
 			id := ids[r.owners[i]]
-			if m, ok := doc.Types[id].(*ir.Model); ok && entries(m) > 0 {
+			if model, ok := doc.Types[id].(*ir.Model); ok && entries(model) > 0 {
 				models = append(models, id)
 			}
 		}
@@ -67,7 +67,7 @@ func (r *nameReader) meetings(doc *ir.Document, ids []ir.TypeID) []ir.TypeID {
 		return nil
 	}
 	for _, id := range ids {
-		if m, ok := doc.Types[id].(*ir.Model); ok && entries(m) >= 2 {
+		if model, ok := doc.Types[id].(*ir.Model); ok && entries(model) >= 2 {
 			models = append(models, id)
 		}
 	}
@@ -86,11 +86,11 @@ func (r *nameReader) spelledTwoWays(first int) bool {
 	return false
 }
 
-// entries counts the composition entries of m: its base, the interfaces it
+// entries counts the composition entries of model: its base, the interfaces it
 // implements and its mixins.
-func entries(m *ir.Model) int {
-	n := len(m.Implements) + len(m.Mixins)
-	if m.Base != nil {
+func entries(model *ir.Model) int {
+	n := len(model.Implements) + len(model.Mixins)
+	if model.Base != nil {
 		n++
 	}
 	return n
@@ -98,7 +98,7 @@ func entries(m *ir.Model) int {
 
 // exposed reads the members the model id exposes as one scope and reports each
 // set of one neutral name the model is the first to meet.
-func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.Index, id ir.TypeID) {
+func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.DocumentFacts, id ir.TypeID) {
 	fl := ir.FlattenedProperties(doc.Types, id)
 	members := fl.Properties
 	r.parties = r.parties[:0]
@@ -120,7 +120,7 @@ func (r *nameReader) exposed(doc *ir.Document, facts *irfacts.Index, id ir.TypeI
 // first reports whether the model id is the first to meet the set of members
 // from first: not where its own scope reports it, with every member its own,
 // and not where a model it composes met two of them already.
-func (r *nameReader) first(doc *ir.Document, facts *irfacts.Index, id ir.TypeID, members []ir.FlatProperty, first int) bool {
+func (r *nameReader) first(doc *ir.Document, facts *irfacts.DocumentFacts, id ir.TypeID, members []ir.FlatProperty, first int) bool {
 	owned, total := 0, 0
 	for i := first; i >= 0; i = r.later[i] {
 		total++
@@ -134,8 +134,8 @@ func (r *nameReader) first(doc *ir.Document, facts *irfacts.Index, id ir.TypeID,
 	if owned > 0 {
 		return true
 	}
-	m, ok := doc.Types[id].(*ir.Model)
-	return !ok || !slices.ContainsFunc(entryTargets(m), func(target ir.TypeID) bool {
+	model, ok := doc.Types[id].(*ir.Model)
+	return !ok || !slices.ContainsFunc(entryTargets(model), func(target ir.TypeID) bool {
 		exposing := 0
 		for i := first; i >= 0; i = r.later[i] {
 			if facts.Exposes(target, members[i].Property.ID) {
@@ -146,17 +146,17 @@ func (r *nameReader) first(doc *ir.Document, facts *irfacts.Index, id ir.TypeID,
 	})
 }
 
-// entryTargets lists the types m's composition entries name.
-func entryTargets(m *ir.Model) []ir.TypeID {
-	targets := make([]ir.TypeID, 0, entries(m))
-	if m.Base != nil {
-		targets = append(targets, m.Base.Target)
+// entryTargets lists the types model's composition entries name.
+func entryTargets(model *ir.Model) []ir.TypeID {
+	targets := make([]ir.TypeID, 0, entries(model))
+	if model.Base != nil {
+		targets = append(targets, model.Base.Target)
 	}
-	for i := range m.Implements {
-		targets = append(targets, m.Implements[i].Target)
+	for i := range model.Implements {
+		targets = append(targets, model.Implements[i].Target)
 	}
-	for i := range m.Mixins {
-		targets = append(targets, m.Mixins[i].Target)
+	for i := range model.Mixins {
+		targets = append(targets, model.Mixins[i].Target)
 	}
 	return targets
 }

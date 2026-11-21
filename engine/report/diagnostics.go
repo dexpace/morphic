@@ -76,7 +76,7 @@ type group struct {
 	withheld int
 }
 
-// WriteText writes r's findings to w for a person, one per line as
+// WriteText writes runReport's findings to w for a person, one per line as
 // "<severity> <code><location>: <message>" at the rated severity, in reported
 // order, as many as opts admits. Then, indented so no line parser reads it as
 // a finding: a line per code and rating it withheld findings of, the unused
@@ -85,7 +85,7 @@ type group struct {
 //
 // It refuses a nil w and options naming no severity or a negative count, and
 // stops at the first write that fails, returning its error.
-func WriteText(w io.Writer, r Report, opts TextOptions) error {
+func WriteText(w io.Writer, runReport Report, opts TextOptions) error {
 	if w == nil {
 		return errNoWriter
 	}
@@ -97,26 +97,26 @@ func WriteText(w io.Writer, r Report, opts TextOptions) error {
 	var groups []*group
 	byKey := map[groupKey]*group{}
 	accepted := 0
-	for _, f := range r.Findings {
-		if f.Accepted {
+	for _, finding := range runReport.Findings {
+		if finding.Accepted {
 			accepted++
 			continue
 		}
-		at := groupKey{severity: f.Severity, code: f.Diagnostic.Code}
-		g, seen := byKey[at]
+		at := groupKey{severity: finding.Severity, code: finding.Diagnostic.Code}
+		groupValue, seen := byKey[at]
 		if !seen {
-			g = &group{groupKey: at}
-			byKey[at], groups = g, append(groups, g)
+			groupValue = &group{groupKey: at}
+			byKey[at], groups = groupValue, append(groups, groupValue)
 		}
-		rank, ranked := f.Severity.Rank()
-		if (ranked && rank < least) || (opts.PerCode > 0 && g.shown == opts.PerCode) {
-			g.withheld++
+		rank, ranked := finding.Severity.Rank()
+		if (ranked && rank < least) || (opts.PerCode > 0 && groupValue.shown == opts.PerCode) {
+			groupValue.withheld++
 			continue
 		}
-		g.shown++
-		lw.printf("%s\n", line(f, r.Sources))
+		groupValue.shown++
+		lw.printf("%s\n", line(finding, runReport.Sources))
 	}
-	writeFooter(lw, r, groups, accepted, opts.PerCode)
+	writeFooter(lw, runReport, groups, accepted, opts.PerCode)
 	return lw.err
 }
 
@@ -138,33 +138,33 @@ func (o TextOptions) least() (int, error) {
 // writeFooter writes what follows the findings WriteText shows: what it
 // withheld of each group, the unused rules, and the tally once anything was
 // withheld or accepted.
-func writeFooter(lw *lineWriter, r Report, groups []*group, accepted, perCode int) {
+func writeFooter(lw *lineWriter, runReport Report, groups []*group, accepted, perCode int) {
 	withheld := accepted
-	for _, g := range groups {
-		withheld += g.withheld
+	for _, group := range groups {
+		withheld += group.withheld
 		switch {
-		case g.withheld == 0:
-		case g.shown > 0:
-			lw.printf("  %d more %s %s not shown\n", g.withheld, printable(string(g.severity)), printable(g.code))
+		case group.withheld == 0:
+		case group.shown > 0:
+			lw.printf("  %d more %s %s not shown\n", group.withheld, printable(string(group.severity)), printable(group.code))
 		default:
-			lw.printf("  %d %s %s not shown\n", g.withheld, printable(string(g.severity)), printable(g.code))
+			lw.printf("  %d %s %s not shown\n", group.withheld, printable(string(group.severity)), printable(group.code))
 		}
 	}
-	writeUnused(lw, r.UnusedRules, perCode)
+	writeUnused(lw, runReport.UnusedRules, perCode)
 	if withheld == 0 {
 		return
 	}
 	counts := map[ir.Severity]int{}
-	for _, f := range r.Findings {
-		if !f.Accepted {
-			counts[f.Severity]++
+	for _, finding := range runReport.Findings {
+		if !finding.Accepted {
+			counts[finding.Severity]++
 		}
 	}
 	var tally strings.Builder
 	for _, sev := range slices.Backward(ir.Severities()) {
 		fmt.Fprintf(&tally, "%d %s, ", counts[sev], sev)
 	}
-	lw.printf("  %d of %d findings shown: %s%d accepted\n", len(r.Findings)-withheld, len(r.Findings), tally.String(), accepted)
+	lw.printf("  %d of %d findings shown: %s%d accepted\n", len(runReport.Findings)-withheld, len(runReport.Findings), tally.String(), accepted)
 }
 
 // writeUnused writes a line naming each unused rule, the first perCode of each
@@ -205,11 +205,11 @@ func rulePlace(rule triage.Rule) string {
 	}
 }
 
-// line renders f as WriteText writes it, newline aside.
-func line(f triage.Finding, sources []ir.SourceInfo) string {
-	d := f.Diagnostic
-	return printable(string(f.Severity)) + " " + printable(d.Code) + location(sources, d.Provenance) +
-		writer(sources, d.Provenance) + ": " + printable(d.Message)
+// line renders finding as WriteText writes it, newline aside.
+func line(finding triage.Finding, sources []ir.SourceInfo) string {
+	diagnostic := finding.Diagnostic
+	return printable(string(finding.Severity)) + " " + printable(diagnostic.Code) + location(sources, diagnostic.Provenance) +
+		writer(sources, diagnostic.Provenance) + ": " + printable(diagnostic.Message)
 }
 
 // location renders the "where" of a diagnostic line, leading space included,
@@ -265,11 +265,11 @@ func onPath(path, sep, locator string) string {
 
 // positionText spells a position as <line>:<column>, or <line> alone when the
 // producer knows no column.
-func positionText(p ir.Position) string {
-	if p.Column > 0 {
-		return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
+func positionText(position ir.Position) string {
+	if position.Column > 0 {
+		return strconv.Itoa(position.Line) + ":" + strconv.Itoa(position.Column)
 	}
-	return strconv.Itoa(p.Line)
+	return strconv.Itoa(position.Line)
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning

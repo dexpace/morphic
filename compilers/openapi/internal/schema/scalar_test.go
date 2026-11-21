@@ -30,19 +30,19 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := typeByName(doc, "S").(*ir.Model)
-	bases := map[string]ir.PrimKind{}
-	for _, p := range m.Properties {
-		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
-		require.True(t, ok, "prop %s hoisted as scalar", p.WireName)
+	model := typeByName(doc, "S").(*ir.Model)
+	bases := map[string]ir.PrimitiveKind{}
+	for _, property := range model.Properties {
+		sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "prop %s hoisted as scalar", property.WireName)
 		require.NotNil(t, sc.Base)
-		bases[p.WireName] = doc.Types[sc.Base.Target].(*ir.Primitive).Prim
+		bases[property.WireName] = doc.Types[sc.Base.Target].(*ir.Primitive).PrimitiveKind
 		assert.Equal(t, "weird", sc.Encoding.Name)
 	}
-	assert.Equal(t, ir.PrimInteger, bases["i"])
-	assert.Equal(t, ir.PrimNumber, bases["n"])
-	assert.Equal(t, ir.PrimBool, bases["b"])
-	assert.Equal(t, ir.PrimString, bases["s"])
+	assert.Equal(t, ir.PrimitiveInteger, bases["i"])
+	assert.Equal(t, ir.PrimitiveNumber, bases["n"])
+	assert.Equal(t, ir.PrimitiveBool, bases["b"])
+	assert.Equal(t, ir.PrimitiveString, bases["s"])
 }
 
 // TestScalar_NumericFormatPairings pins which numeric (type, format) pairings
@@ -54,39 +54,39 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		typ, format string
-		prim        ir.PrimKind // the primitive the pairing selects; "" = it hoists
-		base        ir.PrimKind // the hoisted Scalar's base
+		primitive   ir.PrimitiveKind // the primitive the pairing selects; "" = it hoists
+		base        ir.PrimitiveKind // the hoisted Scalar's base
 	}{
-		{typ: "integer", format: "int8", prim: ir.PrimInt8},
-		{typ: "integer", format: "int16", prim: ir.PrimInt16},
-		{typ: "integer", format: "int32", prim: ir.PrimInt32},
-		{typ: "integer", format: "int64", prim: ir.PrimInt64},
-		{typ: "integer", format: "uint8", prim: ir.PrimUint8},
-		{typ: "integer", format: "uint16", prim: ir.PrimUint16},
-		{typ: "integer", format: "uint32", prim: ir.PrimUint32},
-		{typ: "integer", format: "uint64", prim: ir.PrimUint64},
-		{typ: "number", format: "int8", prim: ir.PrimInt8},
-		{typ: "number", format: "int16", prim: ir.PrimInt16},
-		{typ: "number", format: "int32", prim: ir.PrimInt32},
-		{typ: "number", format: "int64", prim: ir.PrimInt64},
-		{typ: "number", format: "uint8", prim: ir.PrimUint8},
-		{typ: "number", format: "uint16", prim: ir.PrimUint16},
-		{typ: "number", format: "uint32", prim: ir.PrimUint32},
-		{typ: "number", format: "uint64", prim: ir.PrimUint64},
-		{typ: "number", format: "float", prim: ir.PrimFloat32},
-		{typ: "number", format: "double", prim: ir.PrimFloat64},
-		{typ: "number", format: "decimal", prim: ir.PrimDecimal},
-		{typ: "number", format: "decimal128", prim: ir.PrimDecimal128},
+		{typ: "integer", format: "int8", primitive: ir.PrimitiveInt8},
+		{typ: "integer", format: "int16", primitive: ir.PrimitiveInt16},
+		{typ: "integer", format: "int32", primitive: ir.PrimitiveInt32},
+		{typ: "integer", format: "int64", primitive: ir.PrimitiveInt64},
+		{typ: "integer", format: "uint8", primitive: ir.PrimitiveUint8},
+		{typ: "integer", format: "uint16", primitive: ir.PrimitiveUint16},
+		{typ: "integer", format: "uint32", primitive: ir.PrimitiveUint32},
+		{typ: "integer", format: "uint64", primitive: ir.PrimitiveUint64},
+		{typ: "number", format: "int8", primitive: ir.PrimitiveInt8},
+		{typ: "number", format: "int16", primitive: ir.PrimitiveInt16},
+		{typ: "number", format: "int32", primitive: ir.PrimitiveInt32},
+		{typ: "number", format: "int64", primitive: ir.PrimitiveInt64},
+		{typ: "number", format: "uint8", primitive: ir.PrimitiveUint8},
+		{typ: "number", format: "uint16", primitive: ir.PrimitiveUint16},
+		{typ: "number", format: "uint32", primitive: ir.PrimitiveUint32},
+		{typ: "number", format: "uint64", primitive: ir.PrimitiveUint64},
+		{typ: "number", format: "float", primitive: ir.PrimitiveFloat32},
+		{typ: "number", format: "double", primitive: ir.PrimitiveFloat64},
+		{typ: "number", format: "decimal", primitive: ir.PrimitiveDecimal},
+		{typ: "number", format: "decimal128", primitive: ir.PrimitiveDecimal128},
 
 		// A pairing no primitive holds hoists over its type's primitive.
-		{typ: "integer", format: "float", base: ir.PrimInteger},
-		{typ: "integer", format: "double", base: ir.PrimInteger},
-		{typ: "integer", format: "decimal", base: ir.PrimInteger},
-		{typ: "integer", format: "decimal128", base: ir.PrimInteger},
-		{typ: "integer", format: "Int8", base: ir.PrimInteger},     // a format name is case-sensitive
-		{typ: "number", format: "double-int", base: ir.PrimNumber}, // a registry format with no primitive
-		{typ: "number", format: "float16", base: ir.PrimNumber},    // a width no PrimKind names
-		{typ: "string", format: "double-int", base: ir.PrimString}, // no number's format the table pairs
+		{typ: "integer", format: "float", base: ir.PrimitiveInteger},
+		{typ: "integer", format: "double", base: ir.PrimitiveInteger},
+		{typ: "integer", format: "decimal", base: ir.PrimitiveInteger},
+		{typ: "integer", format: "decimal128", base: ir.PrimitiveInteger},
+		{typ: "integer", format: "Int8", base: ir.PrimitiveInteger},     // a format name is case-sensitive
+		{typ: "number", format: "double-int", base: ir.PrimitiveNumber}, // a registry format with no primitive
+		{typ: "number", format: "float16", base: ir.PrimitiveNumber},    // a width no PrimitiveKind names
+		{typ: "string", format: "double-int", base: ir.PrimitiveString}, // no number's format the table pairs
 	} {
 		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
 			t.Parallel()
@@ -94,17 +94,17 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
 				tc.typ, tc.format)))
 			assert.Empty(t, diags, "the format is homed either way, so nothing is reported")
-			h, ok := typeByName(doc, "H").(*ir.Model)
+			model, ok := typeByName(doc, "H").(*ir.Model)
 			require.True(t, ok, "H lowers to a model")
-			require.Len(t, h.Properties, 1)
-			assert.Empty(t, h.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
-			target := h.Properties[0].Type.Target
+			require.Len(t, model.Properties, 1)
+			assert.Empty(t, model.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
+			target := model.Properties[0].Type.Target
 
-			if tc.prim != "" {
-				assert.Equal(t, ir.PrimTypeID(tc.prim), target, "the position resolves to the shared primitive")
-				prim, ok := doc.Types[target].(*ir.Primitive)
+			if tc.primitive != "" {
+				assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), target, "the position resolves to the shared primitive")
+				primitive, ok := doc.Types[target].(*ir.Primitive)
 				require.True(t, ok, "the primitive is interned")
-				assert.Equal(t, tc.prim, prim.Prim)
+				assert.Equal(t, tc.primitive, primitive.PrimitiveKind)
 				for id, td := range doc.Types {
 					assert.NotEqual(t, ir.KindScalar, td.Kind(), "%s: no node is hoisted for the position", id)
 				}
@@ -113,7 +113,7 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 			sc, ok := doc.Types[target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
 			require.NotNil(t, sc.Base)
-			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target)
+			assert.Equal(t, ir.PrimitiveTypeID(tc.base), sc.Base.Target)
 			require.NotNil(t, sc.Encoding)
 			assert.Equal(t, tc.format, sc.Encoding.Name, "the format is kept verbatim")
 		})
@@ -131,24 +131,24 @@ func TestScalar_EncodedFormatPairings(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		typ, format string
-		base        ir.PrimKind
+		base        ir.PrimitiveKind
 		encoding    string
-		wire        ir.PrimKind // "" = no WireType
+		wire        ir.PrimitiveKind // "" = no WireType
 	}{
-		{typ: "string", format: "byte", base: ir.PrimBytes, encoding: "base64", wire: ir.PrimString},
-		{typ: "string", format: "base64url", base: ir.PrimBytes, encoding: "base64url", wire: ir.PrimString},
-		{typ: "string", format: "http-date", base: ir.PrimDatetimeOffset, encoding: "http-date"},
-		{typ: "integer", format: "unixtime", base: ir.PrimDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimInteger},
-		{typ: "number", format: "unixtime", base: ir.PrimDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimNumber},
-		{typ: "string", format: "unixtime", base: ir.PrimDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimString},
+		{typ: "string", format: "byte", base: ir.PrimitiveBytes, encoding: "base64", wire: ir.PrimitiveString},
+		{typ: "string", format: "base64url", base: ir.PrimitiveBytes, encoding: "base64url", wire: ir.PrimitiveString},
+		{typ: "string", format: "http-date", base: ir.PrimitiveDatetimeOffset, encoding: "http-date"},
+		{typ: "integer", format: "unixtime", base: ir.PrimitiveDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimitiveInteger},
+		{typ: "number", format: "unixtime", base: ir.PrimitiveDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimitiveNumber},
+		{typ: "string", format: "unixtime", base: ir.PrimitiveDatetimeOffset, encoding: "unixTimestamp", wire: ir.PrimitiveString},
 
 		// A format the registry names on another type, or a name it does not
 		// register, is an unknown format.
-		{typ: "integer", format: "http-date", base: ir.PrimInteger, encoding: "http-date"},
-		{typ: "integer", format: "base64url", base: ir.PrimInteger, encoding: "base64url"},
-		{typ: "boolean", format: "unixtime", base: ir.PrimBool, encoding: "unixtime"},
-		{typ: "string", format: "unixtimes", base: ir.PrimString, encoding: "unixtimes"},
-		{typ: "string", format: "HTTP-date", base: ir.PrimString, encoding: "HTTP-date"},
+		{typ: "integer", format: "http-date", base: ir.PrimitiveInteger, encoding: "http-date"},
+		{typ: "integer", format: "base64url", base: ir.PrimitiveInteger, encoding: "base64url"},
+		{typ: "boolean", format: "unixtime", base: ir.PrimitiveBool, encoding: "unixtime"},
+		{typ: "string", format: "unixtimes", base: ir.PrimitiveString, encoding: "unixtimes"},
+		{typ: "string", format: "HTTP-date", base: ir.PrimitiveString, encoding: "HTTP-date"},
 	} {
 		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
 			t.Parallel()
@@ -156,18 +156,18 @@ func TestScalar_EncodedFormatPairings(t *testing.T) {
 				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
 				tc.typ, tc.format)))
 			assert.Empty(t, diags, "the format is homed, so nothing is reported")
-			p := propertyOf(t, doc, "H", "p")
-			assert.Empty(t, p.Unmodeled, "the format is homed, so nothing is kept")
+			property := propertyOf(t, doc, "H", "p")
+			assert.Empty(t, property.Unmodeled, "the format is homed, so nothing is kept")
 
-			sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+			sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/H/properties/p"), sc.ID, "at its own pointer")
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/H/properties/p"), sc.ID, "at its own pointer")
 			require.NotNil(t, sc.Base)
-			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target)
+			assert.Equal(t, ir.PrimitiveTypeID(tc.base), sc.Base.Target)
 			assert.Contains(t, doc.Types, sc.Base.Target, "the base is interned")
 			want := ir.Encoding{Name: tc.encoding}
 			if tc.wire != "" {
-				want.WireType = &ir.TypeRef{Target: ir.PrimTypeID(tc.wire)}
+				want.WireType = &ir.TypeRef{Target: ir.PrimitiveTypeID(tc.wire)}
 				assert.Contains(t, doc.Types, want.WireType.Target, "the wire type is interned")
 			}
 			require.NotNil(t, sc.Encoding)
@@ -217,17 +217,17 @@ func TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive(t *testing
 	t.Parallel()
 	for _, tc := range []struct {
 		schema string
-		base   ir.PrimKind
+		base   ir.PrimitiveKind
 		want   ir.Encoding
 	}{
-		{"{type: string, format: byte, contentEncoding: base64url}", ir.PrimBytes,
-			ir.Encoding{Name: "base64url", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}}},
-		{"{type: string, format: http-date, contentEncoding: base64}", ir.PrimDatetimeOffset,
+		{"{type: string, format: byte, contentEncoding: base64url}", ir.PrimitiveBytes,
+			ir.Encoding{Name: "base64url", WireType: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}}},
+		{"{type: string, format: http-date, contentEncoding: base64}", ir.PrimitiveDatetimeOffset,
 			ir.Encoding{Name: "base64"}},
-		{"{type: string, format: unixtime, contentEncoding: base64}", ir.PrimDatetimeOffset,
-			ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}}},
-		{"{type: integer, format: unixtime, contentEncoding: base64}", ir.PrimDatetimeOffset,
-			ir.Encoding{Name: "unixTimestamp", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimInteger)}}},
+		{"{type: string, format: unixtime, contentEncoding: base64}", ir.PrimitiveDatetimeOffset,
+			ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}}},
+		{"{type: integer, format: unixtime, contentEncoding: base64}", ir.PrimitiveDatetimeOffset,
+			ir.Encoding{Name: "unixTimestamp", WireType: &ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveInteger)}}},
 	} {
 		t.Run(tc.schema, func(t *testing.T) {
 			t.Parallel()
@@ -236,7 +236,7 @@ func TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive(t *testing
 			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 			require.True(t, ok, "the format hoists a Scalar")
 			require.NotNil(t, sc.Base)
-			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the format still selects the primitive")
+			assert.Equal(t, ir.PrimitiveTypeID(tc.base), sc.Base.Target, "the format still selects the primitive")
 			require.NotNil(t, sc.Encoding)
 			assert.Empty(t, cmp.Diff(tc.want, *sc.Encoding), "contentEncoding names the encoding")
 		})
@@ -253,15 +253,15 @@ func TestScalar_AnEncodedFormatBesideAValueSetLowersAsByteDoes(t *testing.T) {
 	for _, tc := range []struct {
 		schema string
 		kind   ir.TypeKind
-		value  ir.PrimKind
+		value  ir.PrimitiveKind
 	}{
-		{`{type: string, format: byte, enum: [YWJj]}`, ir.KindEnum, ir.PrimString},
-		{`{type: string, format: base64url, enum: [YWJj]}`, ir.KindEnum, ir.PrimString},
-		{`{type: string, format: http-date, enum: ["Sun, 06 Nov 1994 08:49:37 GMT"]}`, ir.KindEnum, ir.PrimString},
-		{`{type: integer, format: unixtime, enum: [0, 1700000000]}`, ir.KindEnum, ir.PrimInteger},
-		{`{type: string, format: unixtime, const: "1700000000"}`, ir.KindLiteral, ir.PrimString},
-		{`{type: number, format: unixtime, const: 1.5}`, ir.KindLiteral, ir.PrimNumber},
-		{`{type: string, format: http-date, const: "Sun, 06 Nov 1994 08:49:37 GMT"}`, ir.KindLiteral, ir.PrimString},
+		{`{type: string, format: byte, enum: [YWJj]}`, ir.KindEnum, ir.PrimitiveString},
+		{`{type: string, format: base64url, enum: [YWJj]}`, ir.KindEnum, ir.PrimitiveString},
+		{`{type: string, format: http-date, enum: ["Sun, 06 Nov 1994 08:49:37 GMT"]}`, ir.KindEnum, ir.PrimitiveString},
+		{`{type: integer, format: unixtime, enum: [0, 1700000000]}`, ir.KindEnum, ir.PrimitiveInteger},
+		{`{type: string, format: unixtime, const: "1700000000"}`, ir.KindLiteral, ir.PrimitiveString},
+		{`{type: number, format: unixtime, const: 1.5}`, ir.KindLiteral, ir.PrimitiveNumber},
+		{`{type: string, format: http-date, const: "Sun, 06 Nov 1994 08:49:37 GMT"}`, ir.KindLiteral, ir.PrimitiveString},
 	} {
 		t.Run(tc.schema, func(t *testing.T) {
 			t.Parallel()
@@ -298,45 +298,45 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		format, extra string
-		base          ir.PrimKind
+		base          ir.PrimitiveKind
 		name          string
 		kept          bool
 		wire          bool
 	}{
-		{format: "int8", base: ir.PrimInt8, name: "string", wire: true},
-		{format: "int16", base: ir.PrimInt16, name: "string", wire: true},
-		{format: "int32", base: ir.PrimInt32, name: "string", wire: true},
-		{format: "int64", base: ir.PrimInt64, name: "string", wire: true},
-		{format: "uint8", base: ir.PrimUint8, name: "string", wire: true},
-		{format: "uint16", base: ir.PrimUint16, name: "string", wire: true},
-		{format: "uint32", base: ir.PrimUint32, name: "string", wire: true},
-		{format: "uint64", base: ir.PrimUint64, name: "string", wire: true},
-		{format: "float", base: ir.PrimFloat32, name: "string", wire: true},
-		{format: "double", base: ir.PrimFloat64, name: "string", wire: true},
-		{format: "decimal", base: ir.PrimDecimal, name: "string", wire: true},
-		{format: "decimal128", base: ir.PrimDecimal128, name: "string", wire: true},
-		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimString, name: "base64", kept: true},
-		{format: "double", extra: ", contentEncoding: base32, contentMediaType: text/plain", base: ir.PrimString,
+		{format: "int8", base: ir.PrimitiveInt8, name: "string", wire: true},
+		{format: "int16", base: ir.PrimitiveInt16, name: "string", wire: true},
+		{format: "int32", base: ir.PrimitiveInt32, name: "string", wire: true},
+		{format: "int64", base: ir.PrimitiveInt64, name: "string", wire: true},
+		{format: "uint8", base: ir.PrimitiveUint8, name: "string", wire: true},
+		{format: "uint16", base: ir.PrimitiveUint16, name: "string", wire: true},
+		{format: "uint32", base: ir.PrimitiveUint32, name: "string", wire: true},
+		{format: "uint64", base: ir.PrimitiveUint64, name: "string", wire: true},
+		{format: "float", base: ir.PrimitiveFloat32, name: "string", wire: true},
+		{format: "double", base: ir.PrimitiveFloat64, name: "string", wire: true},
+		{format: "decimal", base: ir.PrimitiveDecimal, name: "string", wire: true},
+		{format: "decimal128", base: ir.PrimitiveDecimal128, name: "string", wire: true},
+		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimitiveString, name: "base64", kept: true},
+		{format: "double", extra: ", contentEncoding: base32, contentMediaType: text/plain", base: ir.PrimitiveString,
 			name: "base32", kept: true},
-		{format: "int64", extra: ", contentEncoding: string", base: ir.PrimInt64, name: "string", wire: true},
-		{format: "int64", extra: ", contentMediaType: text/plain", base: ir.PrimInt64, name: "string", wire: true},
-		{format: "int64", extra: ", contentSchema: {type: integer}", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentEncoding: string", base: ir.PrimitiveInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentMediaType: text/plain", base: ir.PrimitiveInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentSchema: {type: integer}", base: ir.PrimitiveInt64, name: "string", wire: true},
 	} {
 		t.Run(tc.format+tc.extra, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
 				"    H:\n      type: object\n      properties:\n        p: {type: string, format: %s%s}\n", tc.format, tc.extra)))
-			h, ok := typeByName(doc, "H").(*ir.Model)
+			model, ok := typeByName(doc, "H").(*ir.Model)
 			require.True(t, ok)
-			sc, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Scalar)
+			sc, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
 			require.NotNil(t, sc.Base)
-			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the base is the number the format selects, or the string an encoding overrides it with")
+			assert.Equal(t, ir.PrimitiveTypeID(tc.base), sc.Base.Target, "the base is the number the format selects, or the string an encoding overrides it with")
 			require.NotNil(t, sc.Encoding)
 			assert.Equal(t, tc.name, sc.Encoding.Name)
 			if tc.wire {
 				require.NotNil(t, sc.Encoding.WireType, "the number travels as a string")
-				assert.Equal(t, ir.PrimTypeID(ir.PrimString), sc.Encoding.WireType.Target)
+				assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveString), sc.Encoding.WireType.Target)
 			} else {
 				assert.Nil(t, sc.Encoding.WireType, "the string is the encoded text already")
 			}
@@ -377,14 +377,14 @@ components:
         d: {type: string, format: date, maxLength: 10}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	h, ok := typeByName(doc, "H").(*ir.Model)
+	model, ok := typeByName(doc, "H").(*ir.Model)
 	require.True(t, ok)
-	props := openapitest.PropsByWire(h.Properties)
+	properties := openapitest.PropertiesByWire(model.Properties)
 	params := doc.Services[0].Groups[0].Operations[0].Params
 	require.Len(t, params, 1)
 	for at, carrier := range map[jsontext.Pointer]*ir.Constraints{
 		"/components/schemas/N":              nil,
-		"/components/schemas/H/properties/p": props["p"].Constraints,
+		"/components/schemas/H/properties/p": properties["p"].Constraints,
 		"/paths/~1n/get/parameters/0/schema": params[0].Constraints,
 	} {
 		assert.Nil(t, carrier, "%s: what carries the number holds no bound", at)
@@ -402,15 +402,15 @@ components:
 		}
 		assert.Len(t, sc.Unmodeled, len(keywords), "%s keeps nothing else", at)
 	}
-	assert.Empty(t, props["p"].Unmodeled, "the property keeps no copy of what its node keeps")
+	assert.Empty(t, properties["p"].Unmodeled, "the property keeps no copy of what its node keeps")
 	assert.Empty(t, params[0].Unmodeled, "the parameter keeps no copy of what its node keeps")
-	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
-	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
+	require.NotNil(t, properties["d"].Constraints, "a date keeps the length bound of its text")
+	assert.Equal(t, new(int64(10)), properties["d"].Constraints.MaxLength)
 
-	r, ok := typeByName(doc, "R").(*ir.Scalar)
+	scalar, ok := typeByName(doc, "R").(*ir.Scalar)
 	require.True(t, ok, "the refinement owns an alias")
-	_, kept := r.Unmodeled["openapi:minimum"]
-	assert.True(t, kept || (r.Constraints != nil && r.Constraints.Min != nil), "the alias holds its bound somewhere")
+	_, kept := scalar.Unmodeled["openapi:minimum"]
+	assert.True(t, kept || (scalar.Constraints != nil && scalar.Constraints.Min != nil), "the alias holds its bound somewhere")
 }
 
 // nodeAt returns the type node lowered at the source pointer at.
@@ -444,13 +444,13 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 		{
 			name:    "property",
 			schemas: "    A: {type: object, properties: {p: {type: string, contentMediaType: text/csv}}}\n",
-			at:      "t/anon/components/schemas/A/properties/p",
+			at:      "type/anonymous/components/schemas/A/properties/p",
 			want:    ir.Encoding{MediaType: "text/csv"},
 		},
 		{
 			name:    "items",
 			schemas: "    A: {type: array, items: {type: string, contentEncoding: base32}}\n",
-			at:      "t/anon/components/schemas/A/items",
+			at:      "type/anonymous/components/schemas/A/items",
 			want:    ir.Encoding{Name: "base32"},
 		},
 		{
@@ -463,7 +463,7 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			name:    "format byte agrees with contentEncoding",
 			schemas: "    A: {type: string, format: byte, contentEncoding: base64}\n",
 			at:      componentID("A"),
-			want:    ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: "t/prim/string"}},
+			want:    ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: "type/primitive/string"}},
 		},
 		{
 			name:    "contentSchema beside contentMediaType",
@@ -471,15 +471,15 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			at:      componentID("A"),
 			want: ir.Encoding{
 				MediaType: "application/json",
-				Schema:    &ir.TypeRef{Target: "t/anon/components/schemas/A/contentSchema"},
+				Schema:    &ir.TypeRef{Target: "type/anonymous/components/schemas/A/contentSchema"},
 			},
 		},
 		{
 			name:    "contentSchema alone still hoists the scalar that holds it",
 			schemas: "    A: {type: array, items: {type: string, contentSchema: {type: object}}}\n",
-			at:      "t/anon/components/schemas/A/items",
+			at:      "type/anonymous/components/schemas/A/items",
 			want: ir.Encoding{
-				Schema: &ir.TypeRef{Target: "t/anon/components/schemas/A/items/contentSchema"},
+				Schema: &ir.TypeRef{Target: "type/anonymous/components/schemas/A/items/contentSchema"},
 			},
 		},
 		{
@@ -532,7 +532,7 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 		{
 			name:    "an inline position",
 			schemas: "    A: {type: array, items: {type: string, contentMediaType: text/csv, minLength: 5}}\n",
-			at:      "t/anon/components/schemas/A/items",
+			at:      "type/anonymous/components/schemas/A/items",
 			want:    ir.Constraints{MinLength: &five},
 		},
 	}
@@ -673,9 +673,9 @@ func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 		"    A: {type: object, properties: {p: {contentMediaType: application/json}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := propertyOf(t, doc, "A", "p")
-	assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target, "an untyped schema stays schemaless")
-	entry, ok := p.Unmodeled["openapi:contentMediaType"]
+	property := propertyOf(t, doc, "A", "p")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target, "an untyped schema stays schemaless")
+	entry, ok := property.Unmodeled["openapi:contentMediaType"]
 	require.True(t, ok, "the carrier is the only home when the schema hoisted no node")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
@@ -694,10 +694,10 @@ func TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns(t *testing.T) {
 		kind         ir.TypeKind
 		base         ir.TypeID // the alias's base, for a Scalar
 	}{
-		{"string", "{type: string, format: password}", ir.KindScalar, "t/prim/string"},
-		{"integer", "{type: integer, format: password}", ir.KindScalar, "t/prim/integer"},
-		{"untyped", "{format: password}", ir.KindScalar, "t/prim/any"},
-		{"nullable", "{type: [string, 'null'], format: password}", ir.KindScalar, "t/prim/string"},
+		{"string", "{type: string, format: password}", ir.KindScalar, "type/primitive/string"},
+		{"integer", "{type: integer, format: password}", ir.KindScalar, "type/primitive/integer"},
+		{"untyped", "{format: password}", ir.KindScalar, "type/primitive/any"},
+		{"nullable", "{type: [string, 'null'], format: password}", ir.KindScalar, "type/primitive/string"},
 		{"enum", "{type: string, enum: [a, b], format: password}", ir.KindEnum, ""},
 		{"const", "{const: abc, format: password}", ir.KindLiteral, ""},
 		{"object", "{type: object, properties: {a: {type: string}}, format: password}", ir.KindModel, ""},
@@ -739,15 +739,15 @@ func TestRedactionFormat_HoistsAnAliasWhereTheShapeOwnsNone(t *testing.T) {
 
 	secrets, ok := typeByName(doc, "Secrets").(*ir.List)
 	require.True(t, ok)
-	item, ok := doc.Types[secrets.Elem.Target].(*ir.Scalar)
+	item, ok := doc.Types[secrets.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "the items own an alias")
 	assert.True(t, item.Sensitive)
 	require.NotNil(t, item.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), item.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), item.Base.Target)
 
 	plain, ok := typeByName(doc, "Plain").(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), plain.Elem.Target, "no redaction, no alias")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), plain.ElementType.Target, "no redaction, no alias")
 }
 
 // TestRedactionFormat_APropertyOwningNoNodeIsSecret pins the carrier half: a
@@ -765,9 +765,9 @@ func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 
 	token := propertyOf(t, doc, "Holder", "token")
 	assert.True(t, token.Secret)
-	assert.Equal(t, ir.TypeID("t/prim/string"), token.Type.Target, "the shape is the bare string's")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), token.Type.Target, "the shape is the bare string's")
 	assert.Equal(t, "the token", token.Docs.Description, "the docs stay on the property")
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Holder/properties/token"),
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/properties/token"),
 		"no node is hoisted for the redaction at a carrier")
 
 	choice := propertyOf(t, doc, "Holder", "choice")
@@ -778,8 +778,8 @@ func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 }
 
 // TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins that the fact lands
-// on the position's own node and never on t/prim/string, which every other
-// plain string declaration resolves to: a shared node never carries one
+// on the position's own node and never on type/primitive/string, which every
+// other plain string declaration resolves to: a shared node never carries one
 // declaration's annotations (GitHub #116).
 func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	t.Parallel()
@@ -790,7 +790,7 @@ func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.False(t, typeByName(doc, "Plain").Common().Sensitive)
-	shared, ok := doc.Types[ir.TypeID("t/prim/string")]
+	shared, ok := doc.Types[ir.TypeID("type/primitive/string")]
 	require.True(t, ok, "the shared string primitive is registered")
 	assert.False(t, shared.Common().Sensitive, "the shared primitive is never sensitive")
 }

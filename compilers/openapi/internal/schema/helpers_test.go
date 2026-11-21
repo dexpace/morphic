@@ -68,10 +68,10 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // needs the lowering's diagnostics on their own.
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	l, _ := schema.LoweredFor(t, src)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-	doc := l.Document(t)
-	return doc, l.Diags.List()
+	lowerer, _ := schema.LoweredFor(t, src)
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	doc := lowerer.Document(t)
+	return doc, lowerer.Diags.List()
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a
@@ -79,7 +79,7 @@ func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // copy for the reason openapitest's doc comment gives: a spelled-out ID belongs
 // in a test file, which the idderivations rule does not hold.
 func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
+	return ir.TypeID("type/openapi/components/schemas/" + name)
 }
 
 // typeByName returns the named component schema's lowered TypeDef.
@@ -109,12 +109,12 @@ func unionReading(doc *ir.Document, name string) string {
 			return string(kept.Reason)
 		}
 	}
-	u, ok := td.(*ir.Union)
+	union, ok := td.(*ir.Union)
 	if !ok {
 		return ""
 	}
-	if slices.ContainsFunc(u.Variants, func(v ir.Variant) bool {
-		return strings.HasPrefix(string(v.Type.Target), "t/composed/")
+	if slices.ContainsFunc(union.Variants, func(variant ir.Variant) bool {
+		return strings.HasPrefix(string(variant.Type.Target), "type/composed/")
 	}) {
 		return readDistributed
 	}
@@ -124,9 +124,9 @@ func unionReading(doc *ir.Document, name string) string {
 // conflictDiags returns every conflicting-redeclaration diagnostic in diags.
 func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingRedecl {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -146,8 +146,8 @@ func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []
 // diagnostics are appended in the order the walk reaches them.
 func reported(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s: %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s: %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	slices.Sort(out)
 	return out
@@ -190,17 +190,17 @@ func onlyBodyTarget(t *testing.T, doc *ir.Document) ir.TypeID {
 	require.Len(t, doc.Services, 1)
 	require.Len(t, doc.Services[0].Groups, 1)
 	require.Len(t, doc.Services[0].Groups[0].Operations, 1)
-	op := doc.Services[0].Groups[0].Operations[0]
-	require.Len(t, op.Responses, 1)
-	return openapitest.BodyTarget(t, op.Responses[0].Payload)
+	operation := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, operation.Responses, 1)
+	return openapitest.BodyTarget(t, operation.Responses[0].Payload)
 }
 
 // withCode returns the diagnostics among diags that carry code.
 func withCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -245,7 +245,7 @@ type stolenPosition struct {
 // declared first or last. Components lower in source order, so the two are the
 // two orders in which the pointer's node can be reached.
 func (p stolenPosition) spec(refFirst bool) string {
-	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "t/anon") + "'}\n"
+	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "type/anonymous") + "'}\n"
 	if refFirst {
 		return openapitest.ComponentSpec(outsider + p.owner)
 	}
@@ -273,11 +273,11 @@ func orderInvariantIR() []cmp.Option {
 // name.
 func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property {
 	t.Helper()
-	m, ok := doc.Types[componentID(model)].(*ir.Model)
+	irModel, ok := doc.Types[componentID(model)].(*ir.Model)
 	require.True(t, ok, "%s lowers to a model", model)
-	p, ok := openapitest.PropsByWire(m.Properties)[wire]
+	property, ok := openapitest.PropertiesByWire(irModel.Properties)[wire]
 	require.True(t, ok, "%s declares a property %q", model, wire)
-	return p
+	return property
 }
 
 // unreadKeywordSpec wraps the two $ref targets every ref-site row aliases in a
@@ -291,9 +291,9 @@ func unreadKeywordSpec(schemas string) string {
 // provenance is pointer.
 func diagsAtPointer(diags []ir.Diagnostic, code, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

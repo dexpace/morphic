@@ -59,11 +59,11 @@ type memberIndex struct {
 	merges bool
 }
 
-// newLocator returns a locator over the tree g writes, charging what it
-// does to steps. The tree holds a value (sequence.selected).
-func newLocator(g *grafter, steps *budget.Budget) *locator {
-	root := prefix{node: nodeview.Deref(nodeview.DocumentRoot(g.root))}
-	return &locator{g: g, steps: steps, ids: map[jsonpath.Path]int{{}: 0}, named: map[prefixKey]int{},
+// newLocator returns a locator over the tree grafterValue writes, charging what
+// it does to steps. The tree holds a value (sequence.selected).
+func newLocator(grafterValue *grafter, steps *budget.Budget) *locator {
+	root := prefix{node: nodeview.Deref(nodeview.DocumentRoot(grafterValue.root))}
+	return &locator{g: grafterValue, steps: steps, ids: map[jsonpath.Path]int{{}: 0}, named: map[prefixKey]int{},
 		prefixes: []prefix{root}, indexes: map[*yaml.Node]memberIndex{}}
 }
 
@@ -76,12 +76,12 @@ func (l *locator) spend(ctx context.Context, n int) error {
 	return ctx.Err()
 }
 
-// number returns the number of the position p names, and whether a target
+// number returns the number of the position path names, and whether a target
 // named it before, then marks it named by one. Each link is numbered once, at
 // a step, so a path costs only the links no path before it held.
-func (l *locator) number(ctx context.Context, p jsonpath.Path) (int, bool, error) {
+func (l *locator) number(ctx context.Context, path jsonpath.Path) (int, bool, error) {
 	var chain []jsonpath.Path
-	at := p
+	at := path
 	for {
 		if _, known := l.ids[at]; known {
 			break
@@ -122,15 +122,15 @@ func (l *locator) own(ctx context.Context, id int) (*yaml.Node, error) {
 	}
 	node := l.prefixes[id].node
 	for _, next := range slices.Backward(chain) {
-		p := &l.prefixes[next]
-		slot, err := l.slot(ctx, node, p.step, false)
+		prefix := &l.prefixes[next]
+		slot, err := l.slot(ctx, node, prefix.step, false)
 		if err != nil {
 			return nil, err
 		}
 		if node, err = l.g.ownSlot(ctx, node, slot); err != nil {
 			return nil, err
 		}
-		p.node = node
+		prefix.node = node
 	}
 	return node, nil
 }
@@ -167,22 +167,22 @@ func (l *locator) positions(ctx context.Context, ids []int) ([]position, error) 
 	return out, nil
 }
 
-// slot returns the index in holder's Content of the value s names: an
+// slot returns the index in holder's Content of the value step names: an
 // object's own member, at the last of its copies, or an array's element. A
 // member a merge brings in is made the mapping's own first, as every member
 // is where whole is set.
-func (l *locator) slot(ctx context.Context, holder *yaml.Node, s jsonpath.Step, whole bool) (int, error) {
-	if !s.Member {
-		if holder.Kind == yaml.SequenceNode && s.Index < len(holder.Content) {
-			return s.Index, nil
+func (l *locator) slot(ctx context.Context, holder *yaml.Node, step jsonpath.Step, whole bool) (int, error) {
+	if !step.IsObjectMemberStep {
+		if holder.Kind == yaml.SequenceNode && step.Index < len(holder.Content) {
+			return step.Index, nil
 		}
-		return 0, fmt.Errorf("the document no longer holds the element %d it selected", s.Index)
+		return 0, fmt.Errorf("the document no longer holds the element %d it selected", step.Index)
 	}
 	index, err := l.index(ctx, holder)
 	if err != nil {
 		return 0, err
 	}
-	slot, found := index.slots[s.Name]
+	slot, found := index.slots[step.Name]
 	if index.merges && (whole || !found) {
 		if err := l.g.flatten(ctx, holder); err != nil {
 			return 0, err
@@ -191,10 +191,10 @@ func (l *locator) slot(ctx context.Context, holder *yaml.Node, s jsonpath.Step, 
 		if index, err = l.index(ctx, holder); err != nil {
 			return 0, err
 		}
-		slot, found = index.slots[s.Name]
+		slot, found = index.slots[step.Name]
 	}
 	if !found {
-		return 0, fmt.Errorf("the document no longer holds the member %q it selected", s.Name)
+		return 0, fmt.Errorf("the document no longer holds the member %q it selected", step.Name)
 	}
 	return slot, nil
 }

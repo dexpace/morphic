@@ -41,16 +41,16 @@ func TestPasses_KeepTheContractOverTheCorpus(t *testing.T) {
 			reached++
 
 			doc := res.Document
-			for _, p := range engine.Passes() {
+			for _, pass := range engine.Passes() {
 				before, err := json.Marshal(doc)
 				require.NoError(t, err)
 
-				next, _ := p.Run(t.Context(), doc)
+				next, _ := pass.Run(t.Context(), doc)
 
-				require.NotNil(t, next, "pass %q returned no document", p.Name())
+				require.NotNil(t, next, "pass %q returned no document", pass.Name())
 				after, err := json.Marshal(doc)
 				require.NoError(t, err)
-				assert.Empty(t, cmp.Diff(string(before), string(after)), "pass %q mutated its input", p.Name())
+				assert.Empty(t, cmp.Diff(string(before), string(after)), "pass %q mutated its input", pass.Name())
 				doc = next
 			}
 		})

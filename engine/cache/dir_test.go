@@ -204,7 +204,7 @@ func TestDir_AnUnmarkableEntryStillAnswers(t *testing.T) {
 	aged(t, path, keyN(0), "entry", 0)
 	dir := newDir(t, path)
 	marked := 0
-	cache.UseOps(dir, cache.Ops{Mark: func(string, time.Time, time.Time) error {
+	cache.UseOperations(dir, cache.Operations{Mark: func(string, time.Time, time.Time) error {
 		marked++
 		return fs.ErrPermission
 	}})

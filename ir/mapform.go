@@ -3,40 +3,40 @@
 
 package ir
 
-// AsMap returns the MapT that m is when m is a map and nothing else, and false
-// otherwise (docs/ir/containers.md). It is the one reading of that rule: a
-// compiler converts the Model it built through it, and irverify holds a
+// AsMap returns the MapT that model is when model is a map and nothing else,
+// and false otherwise (docs/ir/containers.md). It is the one reading of that
+// rule: a compiler converts the Model it built through it, and irverify holds a
 // document to it.
 //
-// The MapT keeps m's TypeCommon, so its ID, name and annotations, and takes the
-// catch-all's key and value and m's Constraints. It shares their slices, maps
-// and pointers with m, so a caller converting m replaces it rather than keeping
-// both. A nil m is no map.
-func AsMap(m *Model) (*MapT, bool) {
-	if m == nil || !mapOnly(m) {
+// The MapT keeps model's TypeCommon, so its ID, name and annotations, and takes
+// the catch-all's key and value and model's Constraints. It shares their
+// slices, maps and pointers with model, so a caller converting model replaces
+// it rather than keeping both. A nil model is no map.
+func AsMap(model *Model) (*MapT, bool) {
+	if model == nil || !mapOnly(model) {
 		return nil, false
 	}
 	return &MapT{
-		TypeCommon:  m.TypeCommon,
-		Key:         m.AdditionalProps.Key,
-		Value:       *m.AdditionalProps.Value,
-		Constraints: m.Constraints,
+		TypeCommon:  model.TypeCommon,
+		Key:         model.AdditionalProperties.Key,
+		Value:       *model.AdditionalProperties.Value,
+		Constraints: model.Constraints,
 	}, true
 }
 
-// mapOnly reports whether m's one member fact is its catch-all: one value type
-// under every key, with no pattern-scoped value, property, required member,
-// composition, closure, discriminator or other model-only fact beside it. Each
-// field of Model is either carried by AsMap or required empty here.
-func mapOnly(m *Model) bool {
-	ap := m.AdditionalProps
+// mapOnly reports whether model's one member fact is its catch-all: one value
+// type under every key, with no pattern-scoped value, property, required
+// member, composition, closure, discriminator or other model-only fact beside
+// it. Each field of Model is either carried by AsMap or required empty here.
+func mapOnly(model *Model) bool {
+	ap := model.AdditionalProperties
 	if ap == nil || ap.Value == nil || len(ap.Patterns) > 0 {
 		return false
 	}
-	return len(m.Properties) == 0 && len(m.Requires) == 0 &&
-		m.Base == nil && len(m.Implements) == 0 && len(m.Mixins) == 0 &&
-		m.Additional == AdditionalUnspecified &&
-		!m.Abstract && !m.Positional && len(m.ExtensionRanges) == 0 &&
-		m.Discriminator == nil && m.DiscriminatorValue == "" &&
-		!m.InputOnly
+	return len(model.Properties) == 0 && len(model.Requires) == 0 &&
+		model.Base == nil && len(model.Implements) == 0 && len(model.Mixins) == 0 &&
+		model.Additional == AdditionalUnspecified &&
+		!model.Abstract && !model.Positional && len(model.ExtensionRanges) == 0 &&
+		model.Discriminator == nil && model.DiscriminatorValue == "" &&
+		!model.InputOnly
 }

@@ -25,7 +25,7 @@ func TestBoundOf_FillsAFieldForEveryValueBound(t *testing.T) {
 	full := &ir.Constraints{
 		Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("1")), Max: new(ir.BigVal("9")),
 		ExclusiveMax: new(ir.BigVal("9")), MultipleOf: new(ir.BigVal("2")), MinLength: new(int64(1)),
-		MaxLength: new(int64(9)), MinProps: new(int64(1)), MaxProps: new(int64(9)), Pattern: "^a$",
+		MaxLength: new(int64(9)), MinProperties: new(int64(1)), MaxProperties: new(int64(9)), Pattern: "^a$",
 	}
 	for _, keyword := range valueConstraintKeywords {
 		assert.NotEqual(t, ir.Constraints{}, boundOf(keyword, full), keyword)
@@ -49,8 +49,8 @@ func TestAgreement_ReadsABoundInTheDialectOfItsSchemas(t *testing.T) {
 		return js.GetSchema()
 	}
 	for version, met := range map[string]*ir.Constraints{"3.0.3": nil, "3.1.0": {ExclusiveMin: new(ir.BigVal("6"))}} {
-		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, "    A: {type: string}\n"))
-		a := newAgreement(l.Ctx)
+		lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, "    A: {type: string}\n"))
+		a := newAgreement(lowerer.Ctx)
 		a.write(StandaloneSchema(conjunct("{exclusiveMinimum: 5}")))
 		a.write(StandaloneSchema(conjunct("{exclusiveMinimum: 6}")))
 		assert.Equal(t, met, a.bounds["exclusiveMinimum"].met, version)

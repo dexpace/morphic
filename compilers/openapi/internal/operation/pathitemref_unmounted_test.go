@@ -74,9 +74,9 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	var said []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/paths/~1a" {
-			said = append(said, strings.TrimPrefix(d.Message, "path item declares no operation this compiler lowers; "))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == "/paths/~1a" {
+			said = append(said, strings.TrimPrefix(diagnostic.Message, "path item declares no operation this compiler lowers; "))
 		}
 	}
 	assert.Equal(t, []string{
@@ -144,7 +144,7 @@ func TestPathItemRefSiblings_UnmountedCallbackKeepsSiblings(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	const expr = "{$request.body#~1url}"
-	parent := openapitest.FindOp(t, doc, "parent")
+	parent := openapitest.FindOperation(t, doc, "parent")
 	entry, ok := parent.Bindings.HTTP[0].Unmodeled["openapi:pathItem/paths/~1p/post/callbacks/onEvent/"+expr+"/x-beside"]
 	require.True(t, ok, "the expression's sibling x-* is kept on the parent's binding")
 	assert.JSONEq(t, `"use"`, string(entry.Value))
@@ -205,7 +205,7 @@ func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
 	for _, at := range []string{"x-both", "bogusBoth", "summary", "parameters/0"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/"+at), at)
 	}
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed))
 }
 
 // TestPathItem_WithNoOperationIsReportedAtItsUseSite pins where a mount
@@ -245,10 +245,10 @@ paths:
 	require.NotNil(t, doc)
 
 	var found []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			require.Less(t, d.Provenance.Source, len(doc.Sources))
-			found = append(found, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			require.Less(t, diagnostic.Provenance.Source, len(doc.Sources))
+			found = append(found, filepath.Base(doc.Sources[diagnostic.Provenance.Source].Path)+"#"+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"root.yaml#/paths/~1a", "other.yaml#/components/callbacks/C/{$request.body#~1u}"}, found)

@@ -18,9 +18,9 @@ import (
 // them.
 func byCode(diags []ir.Diagnostic, code string) []string {
 	var matching []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == code {
-			matching = append(matching, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			matching = append(matching, diagnostic)
 		}
 	}
 	return findings(matching)
@@ -30,7 +30,7 @@ func byCode(diags []ir.Diagnostic, code string) []string {
 // named source.
 func requestContent(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	c := at(opTree(t, doc, source), "request", "contents", "0")
+	c := valueAtPath(operationTree(t, doc, source), "request", "contents", "0")
 	require.NotNil(t, c, "operation %q lowers a request body", source)
 	return c
 }
@@ -55,24 +55,24 @@ func TestPartKeys_KeysACatchAll(t *testing.T) {
 
 	put := requestContent(t, doc, "putSnippet")
 	catchAll := func(c any) map[string]any {
-		m, _ := at(c, "catchAllEncoding").(map[string]any)
+		m, _ := valueAtPath(c, "catchAllEncoding").(map[string]any)
 		return m
 	}
-	assert.JSONEq(t, `{"t/anon/paths/~1snippet/put`+formDataSchema+`":{"value":{`+octetStream+
-		`,"multi":true,"filename":true,"allowReserved":false}}}`, toJSON(t, catchAll(put)))
-	encoding, _ := at(put, "encoding").(map[string]any)
+	assert.JSONEq(t, `{"type/anonymous/paths/~1snippet/put`+formDataSchema+`":{"value":{`+octetStream+
+		`,"repeatsPerArrayItem":true,"hasFilename":true,"allowReserved":false}}}`, toJSON(t, catchAll(put)))
+	encoding, _ := valueAtPath(put, "encoding").(map[string]any)
 	assert.Len(t, encoding, 1, "the declared part keeps its encoding beside the catch-all's")
-	assert.Contains(t, encoding, "p/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata")
+	assert.Contains(t, encoding, "property/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata")
 
 	assets := requestContent(t, doc, "uploadAssets")
-	assert.JSONEq(t, `{"t/anon/paths/~1assets/post`+formDataSchema+`":{"value":{`+octetStream+
-		`,"multi":false,"filename":true,"allowReserved":false}}}`, toJSON(t, catchAll(assets)),
+	assert.JSONEq(t, `{"type/anonymous/paths/~1assets/post`+formDataSchema+`":{"value":{`+octetStream+
+		`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}}`, toJSON(t, catchAll(assets)),
 		"a body that is a map declares no part, and its values are still parts")
 
 	mixed := requestContent(t, doc, "mixed")
 	assert.JSONEq(t, `{`+
-		`"t/openapi/components/schemas/Files":{"patterns":{"^f_":{`+octetStream+`,"multi":false,"filename":true,"allowReserved":false}}},`+
-		`"t/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],"multi":false,"filename":false,"allowReserved":false}}}`,
+		`"type/openapi/components/schemas/Files":{"patterns":{"^f_":{`+octetStream+`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}},`+
+		`"type/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false}}}`,
 		toJSON(t, catchAll(mixed)), "each variant of the union is keyed, not the union")
 }
 
@@ -85,7 +85,7 @@ func TestPartless_FormBodyWithNoObject(t *testing.T) {
 	assert.Equal(t, []string{
 		"openapi/partless-form-body warning /paths/~1mp/post/requestBody/content/multipart~1form-data/schema",
 	}, byCode(diags, "openapi/partless-form-body"))
-	assert.NotNil(t, at(opTree(t, doc, "mp"), "request"), "the body still lowers as declared")
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "mp"), "request"), "the body still lowers as declared")
 
 	_, diags = parseFull(t, specFrom(t, conformanceSpecsDir, "catch-all-encoding"))
 	assert.Empty(t, byCode(diags, "openapi/partless-form-body"), "a map and a model with a catch-all are objects")
@@ -104,7 +104,7 @@ func TestRequestBody_OnAMethodWithoutSemantics(t *testing.T) {
 	}, byCode(diags, "openapi/body-without-semantics"))
 	assert.Empty(t, byCode(diags, "openapi/body-forbidden-by-method"))
 	for _, name := range []string{"g", "d", "h", "o", "u"} {
-		assert.NotNil(t, at(opTree(t, doc, name), "request"), "operation %s keeps its body", name)
+		assert.NotNil(t, valueAtPath(operationTree(t, doc, name), "request"), "operation %s keeps its body", name)
 	}
 
 	_, diags = parseFull(t, specFrom(t, specsDir, "media_key_and_form_bodies"))
@@ -120,9 +120,9 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	t.Parallel()
 	section := func(diags []ir.Diagnostic) []string {
 		var out []string
-		for _, d := range diags {
-			if d.Code == "openapi/body-forbidden-by-method" {
-				out = append(out, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/body-forbidden-by-method" {
+				out = append(out, diagnostic.Message)
 			}
 		}
 		return out
@@ -133,7 +133,7 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	assert.Equal(t, []string{"TRACE request declares a body, which HTTP forbids (RFC 9110 §9.3.8); lowered as declared"},
 		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
-	assert.NotNil(t, at(opTree(t, doc, "a"), "request"))
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "a"), "request"))
 
 	doc, diags = parseFull(t, specFrom(t, specsDir, "body_on_additional_operations"))
 	assert.Equal(t, []string{"openapi/body-forbidden-by-method warning /paths/~1a/additionalOperations/CONNECT/requestBody"},
@@ -141,7 +141,7 @@ func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	assert.Equal(t, []string{"CONNECT request declares a body, which HTTP forbids (RFC 9110 §9.3.6); lowered as declared"},
 		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
-	assert.NotNil(t, at(opTree(t, doc, "c"), "request"))
+	assert.NotNil(t, valueAtPath(operationTree(t, doc, "c"), "request"))
 }
 
 // TestExamples_EmptyKeyIsKept holds an examples entry keyed by the empty string
@@ -153,14 +153,14 @@ func TestExamples_EmptyKeyIsKept(t *testing.T) {
 	const entry = "/paths/~1a/get/responses/200/content/application~1json/examples/"
 	named, diags := parseFull(t, specFrom(t, specsDir, "example_key_empty"))
 	assert.Equal(t, []string{"openapi/degraded-construct info " + entry}, findings(diags))
-	got := at(tree(t, named.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"},"unmodeled":{"openapi:examples/key":{"reason":"degraded_lowering",`+
+	got := valueAtPath(tree(t, named.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
+	assert.JSONEq(t, `[{"value":{"kind":"number","number":"1"},"unmodeled":{"openapi:examples/key":{"reason":"degraded_lowering",`+
 		`"value":"","provenance":{"source":0,"pointer":"`+entry+`"}}}}]`, toJSON(t, got))
 
 	single, diags := parseFull(t, specFrom(t, specsDir, "example_key_single"))
 	assert.Empty(t, diags)
-	one := at(tree(t, single.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"}}]`, toJSON(t, one))
+	one := valueAtPath(tree(t, single.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
+	assert.JSONEq(t, `[{"value":{"kind":"number","number":"1"}}]`, toJSON(t, one))
 	assert.NotEqual(t, withoutSources(t, named), withoutSources(t, single))
 }
 
@@ -177,19 +177,19 @@ func TestParameter_ContentStatesNoDefaultStyle(t *testing.T) {
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/style",
 	}, findings(diags))
 
-	a := at(opTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
+	a := valueAtPath(operationTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
 	q := namedItem(t, a, "q")
-	assert.Equal(t, "form", at(q, "style"))
-	assert.Equal(t, false, at(q, "explode"))
-	assert.Equal(t, true, at(q, "allowReserved"))
-	assert.Equal(t, "application/json", at(q, "contentType"))
+	assert.Equal(t, "form", valueAtPath(q, "style"))
+	assert.Equal(t, false, valueAtPath(q, "explode"))
+	assert.Equal(t, true, valueAtPath(q, "allowReserved"))
+	assert.Equal(t, "application/json", valueAtPath(q, "contentType"))
 
 	c := namedItem(t, a, "c")
-	assert.Equal(t, "application/json", at(c, "contentType"))
+	assert.Equal(t, "application/json", valueAtPath(c, "contentType"))
 	binding, _ := c.(map[string]any)
 	assert.NotContains(t, binding, "style", "the media type serializes the value: no style is stated for it")
 
-	assert.Equal(t, "form", at(namedItem(t, a, "s"), "style"), "a schema parameter keeps its location's default")
+	assert.Equal(t, "form", valueAtPath(namedItem(t, a, "s"), "style"), "a schema parameter keeps its location's default")
 }
 
 // TestPartless_JudgesWhatTheBodyNames holds the warning to a body naming no

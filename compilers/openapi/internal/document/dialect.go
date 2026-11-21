@@ -17,15 +17,15 @@ import (
 // Objects, and the IR models no dialect, so it is kept as a schema's own
 // `$schema` is (annotation.DialectKeywords()): ReasonOutOfScope, read only for
 // the dialect a schema naming none of its own is read in.
-func keepJSONSchemaDialect(c service.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+func keepJSONSchemaDialect(serviceContext service.Ctx, unmodeled *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")
-	node := nodeview.Child(c.Doc.GetRootNode(), "jsonSchemaDialect")
-	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,
-		ir.ReasonOutOfScope, c.Place().At(at))
+	node := nodeview.Child(serviceContext.Doc.GetRootNode(), "jsonSchemaDialect")
+	kept, diags := annotation.PreserveNodeInto(unmodeled, annotation.EntryKey("", "jsonSchemaDialect"), node,
+		ir.ReasonOutOfScope, serviceContext.Place().At(at))
 	if !kept {
 		return diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no "+
 			"dialect, so it is kept verbatim under Unmodeled and read only to choose the dialect of each "+
 			"schema of a 3.1 or 3.2 document that names none of its own"))

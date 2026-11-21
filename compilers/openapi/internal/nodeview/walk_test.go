@@ -20,23 +20,23 @@ import (
 // leave marked with a slash.
 type trace []string
 
-func (tr *trace) visit(step nodeview.Step) func(n *yaml.Node, depth int) nodeview.Step {
-	return func(n *yaml.Node, depth int) nodeview.Step {
-		*tr = append(*tr, strings.Repeat(".", depth)+label(n))
+func (tr *trace) visit(step nodeview.Step) func(node *yaml.Node, depth int) nodeview.Step {
+	return func(node *yaml.Node, depth int) nodeview.Step {
+		*tr = append(*tr, strings.Repeat(".", depth)+label(node))
 		return step
 	}
 }
 
-func (tr *trace) leave(n *yaml.Node, depth int) {
-	*tr = append(*tr, strings.Repeat(".", depth)+"/"+label(n))
+func (tr *trace) leave(node *yaml.Node, depth int) {
+	*tr = append(*tr, strings.Repeat(".", depth)+"/"+label(node))
 }
 
 // label names a node for a trace: a scalar by its value, anything else by its
 // kind.
-func label(n *yaml.Node) string {
-	switch n.Kind {
+func label(node *yaml.Node) string {
+	switch node.Kind {
 	case yaml.ScalarNode:
-		return n.Value
+		return node.Value
 	case yaml.MappingNode:
 		return "map"
 	case yaml.SequenceNode:
@@ -68,9 +68,9 @@ func TestWalk_PruneAndStop(t *testing.T) {
 	root := ynode.Seq(ynode.Seq(ynode.Scalar("hidden")), ynode.Scalar("after"))
 
 	var pruned trace
-	out := nodeview.Walk{Nodes: 10, Leave: pruned.leave, Visit: func(n *yaml.Node, depth int) nodeview.Step {
-		pruned.visit(nodeview.Descend)(n, depth)
-		if depth == 1 && n.Kind == yaml.SequenceNode {
+	out := nodeview.Walk{Nodes: 10, Leave: pruned.leave, Visit: func(node *yaml.Node, depth int) nodeview.Step {
+		pruned.visit(nodeview.Descend)(node, depth)
+		if depth == 1 && node.Kind == yaml.SequenceNode {
 			return nodeview.Prune
 		}
 		return nodeview.Descend
@@ -173,8 +173,8 @@ func TestWalk_StopsOnceItsContextIsDone(t *testing.T) {
 
 	ctx, stop := context.WithCancel(t.Context())
 	t.Cleanup(stop)
-	out := nodeview.Walk{Nodes: len(items) + 1, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Kind == yaml.ScalarNode {
+	out := nodeview.Walk{Nodes: len(items) + 1, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Kind == yaml.ScalarNode {
 			stop()
 		}
 		return nodeview.Descend

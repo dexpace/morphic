@@ -33,11 +33,11 @@ func compileAtLimit(t *testing.T, src []byte, limit int) (*ir.Document, []string
 // model Holder of doc.
 func holderProperty(t *testing.T, doc *ir.Document, wire string) ir.Property {
 	t.Helper()
-	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	model, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := propByWire(m, wire)
+	property, ok := propertyByWire(model, wire)
 	require.True(t, ok, "no property %s", wire)
-	return p
+	return property
 }
 
 // assertOneReadingInEitherOrder compiles head followed by the blocks, then by
@@ -62,11 +62,11 @@ func reversedBlocks(blocks []string) []string {
 	return out
 }
 
-// TestUseSites_AnAliasChainLendsAlikeInEitherOrder pins the annotations a use
-// takes from its chain, nearest hop first, with a default no ir.Value holds
-// reported at its own position: the aliases, the use and the schema they end
-// on declared in either order lower to one document and one set of findings.
-func TestUseSites_AnAliasChainLendsAlikeInEitherOrder(t *testing.T) {
+// TestUseSites_AnAliasChainFallsBackAlikeInEitherOrder pins the annotations a
+// use takes from its chain, nearest hop first, with a default no ir.Value holds
+// reported at its own position: the aliases, the use and the schema they end on
+// declared in either order lower to one document and one set of findings.
+func TestUseSites_AnAliasChainFallsBackAlikeInEitherOrder(t *testing.T) {
 	t.Parallel()
 	doc, found := assertOneReadingInEitherOrder(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
 		"components:\n  schemas:\n", []string{
@@ -82,7 +82,7 @@ func TestUseSites_AnAliasChainLendsAlikeInEitherOrder(t *testing.T) {
 	assert.Contains(t, found, "warning openapi/unlowered-construct /components/schemas/Bad/default")
 	b := holderProperty(t, doc, "b")
 	require.NotNil(t, b.Default)
-	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Num: "2"}, *b.Default)
+	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Number: "2"}, *b.Default)
 	assert.Equal(t, "from-fine", b.Docs.Description)
 	assert.Nil(t, holderProperty(t, doc, "bad").Default)
 	assert.Equal(t, "from-use", holderProperty(t, doc, "own").Docs.Description)
@@ -103,10 +103,10 @@ func TestUseSites_APositionTwoReadersReachLowersAlikeInEitherOrder(t *testing.T)
 			"        Sub: {type: object, properties: {s: {type: string}}}\n" +
 			"      properties:\n        a: {$ref: '#/components/schemas/Typed/$defs/Sub'}\n",
 	}, -1)
-	mid, ok := doc.Types["t/anon/components/schemas/Typed/$defs/Mid"]
+	mid, ok := doc.Types["type/anonymous/components/schemas/Typed/$defs/Mid"]
 	require.True(t, ok, "the alias only the kept keyword reaches is lowered")
 	assert.Equal(t, "mid", mid.Common().Docs.Description)
-	assert.Contains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Typed/$defs/Sub"))
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Typed/$defs/Sub"))
 }
 
 // TestUseSites_APathItemLandingMountsAlikeInEitherOrder pins a path item two

@@ -48,36 +48,36 @@ func TestParameter_SchemaEntriesAreScoped(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, conformanceSpecsDir, "carried-keys"))
 	assert.Equal(t, []string{"openapi/unpromoted-extension info /tags/1/x-stability"}, findings(diags))
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
-	p := namedItem(t, at(a, "params"), "p")
+	p := namedItem(t, valueAtPath(a, "params"), "p")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-a":                `vendor_extension "FROM_PARAMETER" /paths/~1a/get/parameters/0/x-a`,
 		"openapi:schema/x-a":         `vendor_extension "FROM_SCHEMA" /paths/~1a/get/parameters/0/schema/x-a`,
 		"openapi:schema/x-sensitive": `vendor_extension true /paths/~1a/get/parameters/0/schema/x-sensitive`,
-	}, entries(t, at(p, "unmodeled"))))
-	assert.Equal(t, true, at(p, "secret"))
-	assert.Equal(t, "extension-promotion", at(p, "provenance", "inferred"))
+	}, entries(t, valueAtPath(p, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(p, "secret"))
+	assert.Equal(t, "extension-promotion", valueAtPath(p, "provenance", "inferred"))
 
 	const media = "/paths/~1a/get/parameters/1/content/application~1json"
-	c := namedItem(t, at(a, "params"), "c")
+	c := namedItem(t, valueAtPath(a, "params"), "c")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:content/application~1json/x-a":         `vendor_extension "FROM_MEDIA" ` + media + `/x-a`,
 		"openapi:content/application~1json/x-sensitive": `vendor_extension true ` + media + `/x-sensitive`,
 		"openapi:content/application~1json/schema/x-a":  `vendor_extension "FROM_SCHEMA" ` + media + `/schema/x-a`,
-	}, entries(t, at(c, "unmodeled"))))
-	assert.Equal(t, true, at(c, "secret"))
-	assert.Equal(t, "extension-promotion", at(c, "provenance", "inferred"))
+	}, entries(t, valueAtPath(c, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(c, "secret"))
+	assert.Equal(t, "extension-promotion", valueAtPath(c, "provenance", "inferred"))
 
 	const header = "/paths/~1a/get/responses/200/headers/X-H"
-	h := namedItem(t, at(a, "responses", "0", "headers"), "X-H")
+	h := namedItem(t, valueAtPath(a, "responses", "0", "headers"), "X-H")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-a": `vendor_extension "FROM_HEADER" ` + header + `/x-a`,
 		"openapi:content/text~1plain/x-sensitive": `vendor_extension true ` + header +
 			`/content/text~1plain/x-sensitive`,
-	}, entries(t, at(h, "unmodeled"))))
-	assert.Equal(t, true, at(h, "secret"))
-	assert.Equal(t, "extension-promotion", at(h, "provenance", "inferred"))
+	}, entries(t, valueAtPath(h, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(h, "secret"))
+	assert.Equal(t, "extension-promotion", valueAtPath(h, "provenance", "inferred"))
 }
 
 // TestParameter_SchemaAndObjectSpellOneKey holds a parameter, its schema and a
@@ -109,17 +109,17 @@ func TestParameter_SchemaAndObjectSpellOneKey(t *testing.T) {
 		doc, diags := parseFull(t, src)
 		docs[name] = doc
 		for _, f := range findings(diags) {
-			assert.NotContains(t, f, "unknown-key-entry-taken", name)
+			assert.NotContains(t, f, "unknown-key-entry-already-claimed", name)
 		}
 		assert.Len(t, findings(diags), 6, "%s: three table findings, two schema keywords, the $ref's key", name)
 
-		a := opTree(t, doc, "a")
+		a := operationTree(t, doc, "a")
 		for param, entry := range want {
-			assert.Empty(t, cmp.Diff(entry, entries(t, at(namedItem(t, at(a, "params"), param), "unmodeled"))),
+			assert.Empty(t, cmp.Diff(entry, entries(t, valueAtPath(namedItem(t, valueAtPath(a, "params"), param), "unmodeled"))),
 				"%s: %s", name, param)
 		}
-		h := namedItem(t, at(a, "responses", "0", "headers"), "X-H")
-		assert.Empty(t, cmp.Diff(wantHeader, entries(t, at(h, "unmodeled"))), name)
+		h := namedItem(t, valueAtPath(a, "responses", "0", "headers"), "X-H")
+		assert.Empty(t, cmp.Diff(wantHeader, entries(t, valueAtPath(h, "unmodeled"))), name)
 	}
 	assert.Empty(t, cmp.Diff(withoutSources(t, docs["object key first"]), withoutSources(t, docs["schema first"])),
 		"the two orders give one document")
@@ -131,16 +131,16 @@ func TestParameter_SchemaAndObjectSpellOneKey(t *testing.T) {
 func TestParameter_XMLKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, specFrom(t, specsDir, "param_xml_kept_once"))
-	q := namedItem(t, at(opTree(t, doc, ""), "params"), "q")
+	q := namedItem(t, valueAtPath(operationTree(t, doc, ""), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/xml": `no_ir_home {"name":"s","x-tag":5} /paths/~1p/get/parameters/0/schema/xml`,
-	}, entries(t, at(q, "unmodeled"))))
+	}, entries(t, valueAtPath(q, "unmodeled"))))
 
 	doc, _ = parseFull(t, specFrom(t, specsDir, "param_branch_kept_once"))
-	q = namedItem(t, at(opTree(t, doc, "g"), "params"), "q")
+	q = namedItem(t, valueAtPath(operationTree(t, doc, "g"), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/xml": `no_ir_home {"name":"s","x-tag":5} /paths/~1s~1{schema_id}/get/parameters/1/schema/xml`,
-	}, entries(t, at(q, "unmodeled"))))
+	}, entries(t, valueAtPath(q, "unmodeled"))))
 }
 
 // TestParameter_BranchKeptOnce holds the keywords an allOf entry of a
@@ -150,11 +150,11 @@ func TestParameter_XMLKeptOnce(t *testing.T) {
 func TestParameter_BranchKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "param_branch_kept_once"))
-	id := namedItem(t, at(opTree(t, doc, "g"), "params"), "schema_id")
+	id := namedItem(t, valueAtPath(operationTree(t, doc, "g"), "params"), "schema_id")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:schema/format":   `degraded_lowering "uuid" /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/format`,
 		"openapi:schema/readOnly": `no_ir_home true /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly`,
-	}, entries(t, at(id, "unmodeled"))))
+	}, entries(t, valueAtPath(id, "unmodeled"))))
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1",
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly",
@@ -171,27 +171,27 @@ func TestParameter_RedactionIsSingleSided(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "param_redaction_single_sided"))
 	assert.Empty(t, diags)
-	a := opTree(t, doc, "a")
+	a := operationTree(t, doc, "a")
 
-	inl := namedItem(t, at(a, "params"), "inl")
-	assert.Equal(t, true, at(inl, "secret"))
-	assert.Equal(t, "extension-promotion", at(inl, "provenance", "inferred"))
+	inl := namedItem(t, valueAtPath(a, "params"), "inl")
+	assert.Equal(t, true, valueAtPath(inl, "secret"))
+	assert.Equal(t, "extension-promotion", valueAtPath(inl, "provenance", "inferred"))
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-sensitive":        `vendor_extension false /paths/~1a/get/parameters/0/x-sensitive`,
 		"openapi:schema/x-sensitive": `vendor_extension true /paths/~1a/get/parameters/0/schema/x-sensitive`,
-	}, entries(t, at(inl, "unmodeled"))))
-	assert.Equal(t, true, at(namedItem(t, at(a, "params"), "ref"), "secret"))
+	}, entries(t, valueAtPath(inl, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(namedItem(t, valueAtPath(a, "params"), "ref"), "secret"))
 
 	var found bool
 	for _, td := range doc.Types {
-		m, ok := td.(*ir.Model)
+		model, ok := td.(*ir.Model)
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.WireName == "s" {
+		for _, property := range model.Properties {
+			if property.WireName == "s" {
 				found = true
-				assert.True(t, p.Secret, "the property's false withdraws nothing its $ref target states")
+				assert.True(t, property.Secret, "the property's false withdraws nothing its $ref target states")
 			}
 		}
 	}
@@ -210,20 +210,20 @@ func TestGroups_ARepeatedTagNameTakesItsFirstDeclaration(t *testing.T) {
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-first":     `vendor_extension 1 /tags/0/x-first`,
 		"openapi:x-stability": `vendor_extension "beta" /tags/0/x-stability`,
-	}, entries(t, at(d, "tagDefs", "0", "unmodeled"))))
+	}, entries(t, valueAtPath(d, "tagDefs", "0", "unmodeled"))))
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-second":    `vendor_extension 2 /tags/1/x-second`,
 		"openapi:x-stability": `vendor_extension "alpha" /tags/1/x-stability`,
-	}, entries(t, at(d, "tagDefs", "1", "unmodeled"))))
+	}, entries(t, valueAtPath(d, "tagDefs", "1", "unmodeled"))))
 
 	g := tree(t, doc.Services[0].Groups[0])
-	assert.Equal(t, "g/tags/T", at(g, "id"))
-	assert.Equal(t, "beta", at(g, "stability"))
-	assert.Equal(t, "extension-promotion", at(g, "inferred"))
+	assert.Equal(t, "operation-group/tags/T", valueAtPath(g, "id"))
+	assert.Equal(t, "beta", valueAtPath(g, "stability"))
+	assert.Equal(t, "extension-promotion", valueAtPath(g, "inferred"))
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:x-first":     `vendor_extension 1 /tags/0/x-first`,
 		"openapi:x-stability": `vendor_extension "beta" /tags/0/x-stability`,
-	}, entries(t, at(g, "unmodeled"))))
+	}, entries(t, valueAtPath(g, "unmodeled"))))
 }
 
 // TestParameter_AContentEntrysRedactionIsSingleSided holds a content
@@ -242,9 +242,9 @@ paths:
       responses: {"204": {description: ok}}
 `)
 	assert.Empty(t, diags)
-	c := namedItem(t, at(opTree(t, doc, "a"), "params"), "c")
-	assert.Equal(t, true, at(c, "secret"))
-	assert.Equal(t, "extension-promotion", at(c, "provenance", "inferred"))
+	c := namedItem(t, valueAtPath(operationTree(t, doc, "a"), "params"), "c")
+	assert.Equal(t, true, valueAtPath(c, "secret"))
+	assert.Equal(t, "extension-promotion", valueAtPath(c, "provenance", "inferred"))
 }
 
 // TestPromotion_AMisfitBehindANearerKeyIsReported holds each statement of a
@@ -276,16 +276,16 @@ paths:
       x-stability: beta
       responses: {"204": {description: ok}}
 `)
-	const op = "/paths/~1a/get/"
+	const operation = "/paths/~1a/get/"
 	assert.Equal(t, []string{
-		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/1/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/1/x-sensitive",
-		"openapi/degraded-construct info " + op + "parameters/2/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "responses/200/headers/H/schema/x-sensitive",
-		"openapi/degraded-construct info " + op + "responses/200/headers/H/x-sensitive",
-		"openapi/degraded-construct info " + op + "x-stability",
+		"openapi/degraded-construct info " + operation + "parameters/0/content/application~1json/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/0/content/application~1json/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/1/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/1/x-sensitive",
+		"openapi/degraded-construct info " + operation + "parameters/2/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "responses/200/headers/H/schema/x-sensitive",
+		"openapi/degraded-construct info " + operation + "responses/200/headers/H/x-sensitive",
+		"openapi/degraded-construct info " + operation + "x-stability",
 		"openapi/degraded-construct info /paths/~1a/x-stability",
 	}, findings(diags))
 }
@@ -317,12 +317,12 @@ paths:
 	assert.Equal(t, ir.StabilityBeta, doc.Services[0].Groups[1].Stability)
 }
 
-// TestHeader_LentAndCarriedReadApart holds a header's two readings of what
+// TestHeader_FallbackAndCarriedReadApart holds a header's two readings of what
 // its schema states to the case only each reads: a header's own x-sensitive:
 // false withdraws nothing its schema's true states, which the single-sided
 // reading takes; and a schema's misfit, behind no key of the header's own, is
 // reported at the schema's key, which the nearest reading does.
-func TestHeader_LentAndCarriedReadApart(t *testing.T) {
+func TestHeader_FallbackAndCarriedReadApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -337,8 +337,8 @@ paths:
             Lent: {x-sensitive: false, schema: {type: string, x-sensitive: true}}
             Carried: {schema: {type: string, x-sensitive: 5}}
 `)
-	headers := at(opTree(t, doc, "a"), "responses", "0", "headers")
-	assert.Equal(t, true, at(namedItem(t, headers, "Lent"), "secret"))
+	headers := valueAtPath(operationTree(t, doc, "a"), "responses", "0", "headers")
+	assert.Equal(t, true, valueAtPath(namedItem(t, headers, "Lent"), "secret"))
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1a/get/responses/200/headers/Carried/schema/x-sensitive",
 	}, findings(diags))

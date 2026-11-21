@@ -39,16 +39,16 @@ func TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := typeByName(doc, "Shape").(*ir.Union)
+	union, ok := typeByName(doc, "Shape").(*ir.Union)
 	require.True(t, ok, "Shape distributes into a union")
-	require.Len(t, u.Variants, 2)
-	for i, v := range u.Variants {
-		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+	require.Len(t, union.Variants, 2)
+	for i, variant := range union.Variants {
+		model, ok := doc.Types[variant.Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
-		require.Len(t, m.Properties, 1, "variant %d keeps the body's property", i)
-		assert.Equal(t, "a", m.Properties[0].WireName)
-		assert.True(t, m.Properties[0].Required, "variant %d: a is declared, so it is required on its property", i)
-		assert.Equal(t, []string{"z"}, m.Requires, "variant %d: z is declared nowhere, so it is listed", i)
+		require.Len(t, model.Properties, 1, "variant %d keeps the body's property", i)
+		assert.Equal(t, "a", model.Properties[0].WireName)
+		assert.True(t, model.Properties[0].Required, "variant %d: a is declared, so it is required on its property", i)
+		assert.Equal(t, []string{"z"}, model.Requires, "variant %d: z is declared nowhere, so it is listed", i)
 	}
 }
 
@@ -90,10 +90,10 @@ func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
 
 	nullableOf := func(name string) []bool {
 		t.Helper()
-		u, isUnion := typeByName(doc, name).(*ir.Union)
+		union, isUnion := typeByName(doc, name).(*ir.Union)
 		require.True(t, isUnion, "%s is a union", name)
-		require.Len(t, u.Variants, 2, "%s keeps one variant per branch", name)
-		return []bool{u.Variants[0].Type.Nullable, u.Variants[1].Type.Nullable}
+		require.Len(t, union.Variants, 2, "%s keeps one variant per branch", name)
+		return []bool{union.Variants[0].Type.Nullable, union.Variants[1].Type.Nullable}
 	}
 
 	assert.Equal(t, []bool{true, false}, nullableOf("PlainUnion"),
@@ -104,7 +104,7 @@ func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
 		"a body declaring type: object conjoins with every branch and forbids null")
 
 	// The synthesized variant model still names its branch as a plain conjunct.
-	base, isModel := doc.Types[ir.TypeID("t/composed/components/schemas/DistributedUntyped/oneOf/0")].(*ir.Model)
+	base, isModel := doc.Types[ir.TypeID("type/composed/components/schemas/DistributedUntyped/oneOf/0")].(*ir.Model)
 	require.True(t, isModel, "the untyped distribution synthesizes a variant model")
 	require.NotNil(t, base.Base)
 	assert.False(t, base.Base.Nullable, "the variant model's Base names a conjunct and carries no bit")
@@ -132,16 +132,16 @@ func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 	choice, ok := typeByName(doc, "Choice").(*ir.Union)
 	require.True(t, ok, "Choice should be a union")
 	require.Len(t, choice.Variants, 4)
-	z, ok := typeByName(doc, "Z").(*ir.Union)
+	union, ok := typeByName(doc, "Z").(*ir.Union)
 	require.True(t, ok, "Z should be a union")
-	require.Len(t, z.Variants, 1)
+	require.Len(t, union.Variants, 1)
 
 	got := variantsNamingTheirNodes(t, doc, map[string]ir.Variant{
 		"Choice/oneOf/0 (X's own inline branch)": choice.Variants[0],
 		"Choice/oneOf/1 (A's items)":             choice.Variants[1],
 		"Choice/oneOf/2 (X/oneOf/1, two hops)":   choice.Variants[2],
 		"Choice/oneOf/3 (Z/oneOf/0, three hops)": choice.Variants[3],
-		"Z/oneOf/0 (X/oneOf/1, two hops)":        z.Variants[0],
+		"Z/oneOf/0 (X/oneOf/1, two hops)":        union.Variants[0],
 	})
 	want := map[string]string{
 		"Choice/oneOf/0 (X's own inline branch)": "variant_0",
@@ -289,17 +289,17 @@ func TestOneOfAnyOf_NullOnlyLowersAsNullAlone(t *testing.T) {
 		{"OtherSpellings", "openapi:oneOf"},
 		{"Nil", ""},
 	} {
-		e, ok := doc.Types[componentID(tc.name)].(*ir.Enum)
+		enum, ok := doc.Types[componentID(tc.name)].(*ir.Enum)
 		require.True(t, ok, "%s lowers to an Enum, the node a schema of null alone lowers to, got %T",
 			tc.name, doc.Types[componentID(tc.name)])
-		assert.Empty(t, e.Members, "%s holds no value but the null its references admit", tc.name)
-		assert.True(t, e.Closed)
-		assert.Equal(t, ir.PrimAny, e.ValueType)
+		assert.Empty(t, enum.Members, "%s holds no value but the null its references admit", tc.name)
+		assert.True(t, enum.Closed)
+		assert.Equal(t, ir.PrimitiveAny, enum.ValueType)
 		if tc.key == "" {
-			assert.Empty(t, e.Unmodeled, "%s keeps nothing", tc.name)
+			assert.Empty(t, enum.Unmodeled, "%s keeps nothing", tc.name)
 			continue
 		}
-		entry, ok := e.Unmodeled[tc.key]
+		entry, ok := enum.Unmodeled[tc.key]
 		require.True(t, ok, "%s: the union is kept verbatim on the node", tc.name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	}
@@ -322,9 +322,9 @@ func TestUnion_VariantHints(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	u := typeByName(doc, "U").(*ir.Union)
-	require.Len(t, u.Variants, 2)
-	hints := []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}
+	union := typeByName(doc, "U").(*ir.Union)
+	require.Len(t, union.Variants, 2)
+	hints := []string{union.Variants[0].Name.Hint, union.Variants[1].Name.Hint}
 	assert.Contains(t, hints, "named", "ref-with-siblings hint from target name")
 	assert.Contains(t, hints, "variant_1", "inline branch positional hint")
 }
@@ -478,21 +478,21 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 				openapitest.RequireNoErrorDiags(t, diags)
 			}
 
-			u, ok := typeByName(doc, "U").(*ir.Union)
+			union, ok := typeByName(doc, "U").(*ir.Union)
 			require.True(t, ok, "U should be a union")
-			require.Len(t, u.Variants, wantVariants)
-			assert.Equal(t, "user", u.Variants[0].Name.Hint, "a bare $ref names its variant for its target")
+			require.Len(t, union.Variants, wantVariants)
+			assert.Equal(t, "user", union.Variants[0].Name.Hint, "a bare $ref names its variant for its target")
 			if tc.bare != "" {
-				assert.Equal(t, u.Variants[2].Name.Hint, u.Variants[1].Name.Hint,
+				assert.Equal(t, union.Variants[2].Name.Hint, union.Variants[1].Name.Hint,
 					"the wrapped ref is named as the same ref written bare")
-				assert.NotEqual(t, "variant_1", u.Variants[1].Name.Hint, "and as what it names, not where it sits")
+				assert.NotEqual(t, "variant_1", union.Variants[1].Name.Hint, "and as what it names, not where it sits")
 			} else {
-				assert.Equal(t, tc.want, u.Variants[1].Name.Hint)
+				assert.Equal(t, tc.want, union.Variants[1].Name.Hint)
 			}
-			assert.Equal(t, tc.wantNullable, u.Variants[1].Type.Nullable)
+			assert.Equal(t, tc.wantNullable, union.Variants[1].Type.Nullable)
 
-			nodeID := ir.TypeID("t/anon/components/schemas/U/" + keyword + "/1")
-			assert.Equal(t, nodeID, u.Variants[1].Type.Target, "the variant holds the branch's own node")
+			nodeID := ir.TypeID("type/anonymous/components/schemas/U/" + keyword + "/1")
+			assert.Equal(t, nodeID, union.Variants[1].Type.Target, "the variant holds the branch's own node")
 			node, ok := doc.Types[nodeID]
 			require.True(t, ok, "the branch lowers to a node of its own")
 			wantNode := tc.wantNode
@@ -526,13 +526,13 @@ func TestUnion_ADecoratedBranchIsHintedTheSameInEitherOrder(t *testing.T) {
 	last, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", members+host+outsider))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	branch := ir.TypeID("t/anon/components/schemas/U/oneOf/1")
+	branch := ir.TypeID("type/anonymous/components/schemas/U/oneOf/1")
 	for _, doc := range []*ir.Document{first, last} {
-		u, ok := typeByName(doc, "U").(*ir.Union)
+		union, ok := typeByName(doc, "U").(*ir.Union)
 		require.True(t, ok, "U should be a union")
-		require.Len(t, u.Variants, 2)
-		assert.Equal(t, "pet", u.Variants[1].Name.Hint)
-		require.Equal(t, branch, u.Variants[1].Type.Target)
+		require.Len(t, union.Variants, 2)
+		assert.Equal(t, "pet", union.Variants[1].Name.Hint)
+		require.Equal(t, branch, union.Variants[1].Type.Target)
 		node, ok := doc.Types[branch]
 		require.True(t, ok, "the branch lowers to a node of its own")
 		assert.Equal(t, "variant_1", node.Common().Name.Hint)
@@ -560,7 +560,7 @@ func TestNullCollapse_BranchHintIsOrderIndependent(t *testing.T) {
 	last, diags := parseFull(t, nullCollapseSpec(false))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	branch := ir.TypeID("t/anon/components/schemas/S/oneOf/0")
+	branch := ir.TypeID("type/anonymous/components/schemas/S/oneOf/0")
 	require.Contains(t, first.Types, branch, "the surviving branch owns a node of its own")
 	assert.Equal(t, "variant_0", first.Types[branch].Common().Name.Hint,
 		"the branch takes the hint its composition gives it, not the enclosing schema's")
@@ -590,13 +590,13 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "structural body lowers to a Model, not a bare Union")
-	require.Len(t, m.Properties, 1)
-	assert.Equal(t, "common", m.Properties[0].Name.Source)
-	assert.True(t, m.Properties[0].Required)
-	assert.Equal(t, ir.AdditionalClosed, m.Additional)
-	raw, ok := m.Unmodeled["openapi:oneOf"]
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, "common", model.Properties[0].Name.Source)
+	assert.True(t, model.Properties[0].Required)
+	assert.Equal(t, ir.AdditionalClosed, model.Additional)
+	raw, ok := model.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Contains(t, string(raw.Value), "required")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
@@ -626,12 +626,12 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := doc.Types[componentID("Flag")].(*ir.Model)
+	model, ok := doc.Types[componentID("Flag")].(*ir.Model)
 	require.True(t, ok, "the structural body survives as a Model")
-	require.Len(t, m.Properties, 1)
-	assert.Equal(t, "common", m.Properties[0].Name.Source)
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, "common", model.Properties[0].Name.Source)
 
-	raw, ok := m.Unmodeled["openapi:oneOf"]
+	raw, ok := model.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"boolean branches declare no shape, so the union is validation-only (docs/compilers/openapi.md#union-beside-structure)")
@@ -656,12 +656,12 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
       oneOf: ` + branches + "\n")
 		doc, diags := schema.LowerSpec(t, spec)
 		openapitest.RequireNoErrorDiags(t, diags)
-		m, ok := doc.Types[componentID("Combo")].(*ir.Model)
+		model, ok := doc.Types[componentID("Combo")].(*ir.Model)
 		require.True(t, ok, "%s: got %T", branches, doc.Types[componentID("Combo")])
-		require.NotNil(t, m.Base, branches)
-		assert.Equal(t, componentID("Base"), m.Base.Target, branches)
-		assert.Equal(t, []string{"openapi:oneOf"}, unmodeledKeys(m.Unmodeled), branches)
-		assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:oneOf"].Reason, branches)
+		require.NotNil(t, model.Base, branches)
+		assert.Equal(t, componentID("Base"), model.Base.Target, branches)
+		assert.Equal(t, []string{"openapi:oneOf"}, unmodeledKeys(model.Unmodeled), branches)
+		assert.Equal(t, ir.ReasonDegradedLowering, model.Unmodeled["openapi:oneOf"].Reason, branches)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 			"/components/schemas/Combo"), "share no value", branches)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
@@ -678,10 +678,10 @@ func TestLower_MultiTypeUnion(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "MT").(*ir.Union)
+	union, ok := typeByName(doc, "MT").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 3)
-	assert.True(t, u.Exclusive)
+	require.Len(t, union.Variants, 3)
+	assert.True(t, union.Exclusive)
 }
 
 // TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes holds a type array's union
@@ -710,9 +710,9 @@ func TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    U: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			u, ok := typeByName(doc, "U").(*ir.Union)
+			union, ok := typeByName(doc, "U").(*ir.Union)
 			require.True(t, ok)
-			assert.Equal(t, tc.want, u.Exclusive)
+			assert.Equal(t, tc.want, union.Exclusive)
 		})
 	}
 }
@@ -724,10 +724,10 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    U: {type: [string, integer, string]}\n"))
 	openapitest.AssertHasCode(t, diags, "openapi/validation/validation-duplicate-key", ir.SeverityError)
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 3)
-	assert.False(t, u.Exclusive)
+	require.Len(t, union.Variants, 3)
+	assert.False(t, union.Exclusive)
 }
 
 // TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion pins that a type array's
@@ -770,7 +770,7 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 			"          type: [object, string]\n          properties: {kind: {type: string}}\n" +
 			"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n",
 			"    Cat: {allOf: [{$ref: '#/components/schemas/Holder/properties/pet'}], type: object}\n", `"mapping"`,
-			holder, "t/anon" + holder, ir.KindModel, map[string]string{"Cat": "cat"}},
+			holder, "type/anonymous" + holder, ir.KindModel, map[string]string{"Cat": "cat"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -781,7 +781,7 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 					sub, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s is a model", name)
 					require.NotNil(t, sub.Base, name)
-					assert.Equal(t, ir.TypeID("t/anon"+string(c.at)+"/type/0"), sub.Base.Target,
+					assert.Equal(t, ir.TypeID("type/anonymous"+string(c.at)+"/type/0"), sub.Base.Target,
 						"%s composes the union's object variant", name)
 					assert.Equal(t, c.variant, doc.Types[sub.Base.Target].Kind(), name)
 					assert.Equal(t, tag, sub.DiscriminatorValue, name)
@@ -802,7 +802,7 @@ func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 		"      $defs: {Sub: {type: object, properties: {s: {type: string}}}}\n" +
 		"      discriminator: {propertyName: kind, mapping: {sub: '#/components/schemas/Pet/$defs/Sub'}}\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", reached, cat) {
-		_, ok := doc.Types["t/anon/components/schemas/Pet/$defs/Sub"].(*ir.Model)
+		_, ok := doc.Types["type/anonymous/components/schemas/Pet/$defs/Sub"].(*ir.Model)
 		assert.True(t, ok, "the position only the mapping names is lowered")
 	}
 
@@ -813,9 +813,9 @@ func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 			"discriminator: {propertyName: kind, defaultMapping: '#/components/schemas/Nope'}}\n"+
 			"    NoObj: {type: [string, integer], discriminator: "+dangling+"}\n"))
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.ElementsMatch(t, []jsontext.Pointer{
@@ -829,20 +829,20 @@ func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 // as unread, and its object variant, of kind variant, to hold none.
 func assertKeptOnTheUnion(t *testing.T, doc *ir.Document, id ir.TypeID, pointer jsontext.Pointer, want string, variant ir.TypeKind) {
 	t.Helper()
-	u, ok := doc.Types[id].(*ir.Union)
+	union, ok := doc.Types[id].(*ir.Union)
 	require.True(t, ok, "a type array lowers to a union; got %T", doc.Types[id])
-	entry, ok := u.Unmodeled["openapi:discriminator"]
+	entry, ok := union.Unmodeled["openapi:discriminator"]
 	require.True(t, ok, "the union keeps the discriminator")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.Equal(t, pointer+"/discriminator", entry.Provenance.Pointer)
 	assert.Contains(t, string(entry.Value), `"propertyName":"kind"`, "the whole object is kept")
 	assert.Contains(t, string(entry.Value), want)
 
-	node := doc.Types[ir.TypeID("t/anon"+string(pointer)+"/type/0")]
+	node := doc.Types[ir.TypeID("type/anonymous"+string(pointer)+"/type/0")]
 	require.False(t, ir.IsNilTypeDef(node), "the object variant is interned")
 	assert.Equal(t, variant, node.Kind())
-	if m, isModel := node.(*ir.Model); isModel {
-		assert.Nil(t, m.Discriminator, "the object variant holds none")
+	if model, isModel := node.(*ir.Model); isModel {
+		assert.Nil(t, model.Discriminator, "the object variant holds none")
 	}
 	assert.NotContains(t, node.Common().Unmodeled, "openapi:discriminator", "nor keeps it")
 	reports := unreadReports(doc.Diagnostics, pointer)
@@ -877,9 +877,9 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 	for _, name := range []string{"B", "C", "D"} {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
-		c := td.Common()
-		_, hasOneOf := c.Unmodeled["openapi:oneOf"]
-		_, hasAnyOf := c.Unmodeled["openapi:anyOf"]
+		typeCommon := td.Common()
+		_, hasOneOf := typeCommon.Unmodeled["openapi:oneOf"]
+		_, hasAnyOf := typeCommon.Unmodeled["openapi:anyOf"]
 		assert.True(t, hasOneOf || hasAnyOf, "union preserved for %s", name)
 	}
 }
@@ -910,9 +910,9 @@ func TestSchema_OneOfWithBoolBranch(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
-	assert.Len(t, u.Variants, 2, "the boolean branch is a variant, not a null strip")
+	assert.Len(t, union.Variants, 2, "the boolean branch is a variant, not a null strip")
 }
 
 // TestUnionSiblings_UnpreservableIsReportedNotClaimed pins the announcement
@@ -929,9 +929,9 @@ func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 `))
 
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.UnpreservableConstruct {
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnpreservableConstruct {
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Contains(t, at, "/components/schemas/S/oneOf",
@@ -950,8 +950,8 @@ func TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes(t *testing.
 		"    NullOnly: {oneOf: [{type: 'null'}], format: uuid}\n    NullTyped: {type: 'null', format: uuid}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	unreadOf := func(name string) string {
-		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
-			return string(d.Provenance.Pointer) == "/components/schemas/"+name && strings.Contains(d.Message, "which has no home for")
+		i := slices.IndexFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return string(diagnostic.Provenance.Pointer) == "/components/schemas/"+name && strings.Contains(diagnostic.Message, "which has no home for")
 		})
 		require.GreaterOrEqual(t, i, 0, "%s reports what it kept", name)
 		return diags[i].Message
@@ -964,12 +964,12 @@ func TestNullOnlyUnion_ReportsWhatItKeepsUnreadAsABareNullSchemaDoes(t *testing.
 func variantsNamingTheirNodes(t *testing.T, doc *ir.Document, labeled map[string]ir.Variant) map[string]string {
 	t.Helper()
 	got := make(map[string]string, len(labeled))
-	for label, v := range labeled {
-		target, ok := doc.Types[v.Type.Target]
-		require.True(t, ok, "%s: variant target %s is interned", label, v.Type.Target)
-		assert.Equal(t, v.Name.Hint, target.Common().Name.Hint,
+	for label, variant := range labeled {
+		target, ok := doc.Types[variant.Type.Target]
+		require.True(t, ok, "%s: variant target %s is interned", label, variant.Type.Target)
+		assert.Equal(t, variant.Name.Hint, target.Common().Name.Hint,
 			"%s: the variant must be named as the node its Type.Target holds", label)
-		got[label] = v.Name.Hint
+		got[label] = variant.Name.Hint
 	}
 	return got
 }
@@ -1003,12 +1003,12 @@ func TestDistributedUnion_AVariantOverAnInferredBranchOfAnInferredBodyIsMarked(t
       oneOf: [{type: object, properties: {o: {type: string}}}, {properties: {u: {type: string}}}]
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "Body").(*ir.Union)
+	union, ok := typeByName(doc, "Body").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 2)
+	require.Len(t, union.Variants, 2)
 	for i, marked := range []bool{false, true} {
-		v := doc.Types[u.Variants[i].Type.Target]
-		require.NotNil(t, v, "variant %d", i)
-		assert.Equal(t, marked, v.Common().Provenance.Inferred == "kind-inference", "variant %d", i)
+		typeDef := doc.Types[union.Variants[i].Type.Target]
+		require.NotNil(t, typeDef, "variant %d", i)
+		assert.Equal(t, marked, typeDef.Common().Provenance.Inferred == "kind-inference", "variant %d", i)
 	}
 }

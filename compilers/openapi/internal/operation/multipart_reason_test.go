@@ -72,8 +72,8 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct {
-		op, key string
-		reason  ir.UnmodeledReason
+		operation, key string
+		reason         ir.UnmodeledReason
 		// warned is whether the entry is also reported as naming no property.
 		warned bool
 		at     string
@@ -89,16 +89,16 @@ paths:
 		{"open", "openapi:encoding/extra", ir.ReasonNoIRHome, false,
 			"/paths/~1open/post/requestBody/content/multipart~1form-data/encoding/extra"},
 	} {
-		op := openapitest.FindOp(t, doc, tc.op)
-		require.NotNil(t, op.Request, tc.op)
-		entry, ok := op.Request.Contents[0].Unmodeled[tc.key]
-		if !assert.True(t, ok, "%s keeps %s", tc.op, tc.key) {
+		operation := openapitest.FindOperation(t, doc, tc.operation)
+		require.NotNil(t, operation.Request, tc.operation)
+		entry, ok := operation.Request.Contents[0].Unmodeled[tc.key]
+		if !assert.True(t, ok, "%s keeps %s", tc.operation, tc.key) {
 			continue
 		}
-		assert.Equal(t, tc.reason, entry.Reason, "%s: %s", tc.op, tc.key)
+		assert.Equal(t, tc.reason, entry.Reason, "%s: %s", tc.operation, tc.key)
 		if tc.key != "openapi:encoding/file/contentTyp" {
 			assert.Equal(t, tc.warned, openapitest.HasDiagCodeAt(diags, diag.UnknownEncodingKey, tc.at),
-				"%s: whether the entry is reported as naming no property", tc.op)
+				"%s: whether the entry is reported as naming no property", tc.operation)
 		}
 	}
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.UnknownEncodingKey,

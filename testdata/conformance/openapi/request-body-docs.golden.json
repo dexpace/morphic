@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "RequestBodyDocs",
         "canonical": "request_body_docs"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1orders/post",
+              "id": "operation/openapi/paths/~1orders/post",
               "name": {
                 "source": "createOrder",
                 "canonical": "create_order"
@@ -70,7 +70,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "target": "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -119,7 +119,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1orders~1{id}/put",
+              "id": "operation/openapi/paths/~1orders~1{id}/put",
               "name": {
                 "source": "replaceOrder",
                 "canonical": "replace_order"
@@ -127,13 +127,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1orders~1{id}/put/parameters/id/path",
+                  "id": "parameter/openapi/paths/~1orders~1{id}/put/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -149,7 +149,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "target": "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -186,7 +186,7 @@
                     "uriTemplate": "/orders/{id}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1orders~1{id}/put/parameters/id/path",
+                        "param": "parameter/openapi/paths/~1orders~1{id}/put/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
@@ -208,7 +208,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1drafts/post",
+              "id": "operation/openapi/paths/~1drafts/post",
               "name": {
                 "source": "saveDraft",
                 "canonical": "save_draft"
@@ -219,7 +219,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema",
+                      "target": "type/anonymous/paths/~1drafts/post/requestBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -279,9 +279,9 @@
     }
   ],
   "types": {
-    "t/anon/components/requestBodies/OrderBody/content/application~1json/schema": {
+    "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+      "id": "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema",
       "name": {
         "hint": "order_body"
       },
@@ -294,21 +294,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
+          "id": "property/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
           "name": {
             "source": "sku",
             "canonical": "sku"
           },
           "wireName": "sku",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -325,9 +325,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema": {
+    "type/anonymous/paths/~1drafts/post/requestBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1drafts/post/requestBody/content/application~1json/schema",
       "name": {
         "hint": "save_draft_request"
       },
@@ -340,21 +340,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1drafts/post/requestBody/content/application~1json/schema/properties/sku",
+          "id": "property/openapi/paths/~1drafts/post/requestBody/content/application~1json/schema/properties/sku",
           "name": {
             "source": "sku",
             "canonical": "sku"
           },
           "wireName": "sku",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -371,9 +371,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -381,7 +381,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

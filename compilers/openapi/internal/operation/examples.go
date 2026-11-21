@@ -12,9 +12,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -23,12 +23,12 @@ import (
 // examples, in source order. An unconvertible node is skipped with a warning
 // diagnostic rather than silently. The singular `example` keyword is a bare
 // value with nowhere to hang a name or summary, so it lowers to a value alone.
-func exampleList(c service.Ctx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
+func exampleList(serviceContext service.Ctx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	if single != nil {
 		var exDiags []ir.Diagnostic
-		out, exDiags = annotation.AppendExample(out, ir.Example{}, single, c.Place(), pointer, "example")
+		out, exDiags = annotation.AppendExample(out, ir.Example{}, single, serviceContext.Place(), pointer, "example")
 		diags = append(diags, exDiags...)
 	}
 	if plural == nil {
@@ -36,7 +36,7 @@ func exampleList(c service.Ctx, single *yaml.Node, plural *sequencedmap.Map[stri
 	}
 	for name, re := range plural.All() {
 		var pluralDiags []ir.Diagnostic
-		out, pluralDiags = appendPluralExample(c, out, re, pointer, name)
+		out, pluralDiags = appendPluralExample(serviceContext, out, re, pointer, name)
 		diags = append(diags, pluralDiags...)
 	}
 	return out, diags
@@ -51,27 +51,27 @@ func exampleList(c service.Ctx, single *yaml.Node, plural *sequencedmap.Map[stri
 // `dataValue`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
-func appendPluralExample(c service.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
+func appendPluralExample(serviceContext service.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	// The declaration pointer, not the entry's, is where an Example Object's own
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
 	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
 	// scope.
 	use := pointer + ids.Ptr("examples", name)
-	ex, dc, decl := service.Declared[soa.Example](c, re, use)
+	ex, dc, decl := service.Declared[soa.Example](serviceContext, re, use)
 	if ex == nil {
 		return out, nil
 	}
 	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.Place(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
-	beside, besideDiags := service.Beside[soa.Example](c, re, use, true)
+	beside, besideDiags := service.Beside[soa.Example](serviceContext, re, use, true)
 	ext = annotation.MergeUnmodeled(ext, beside)
 	diags = append(diags, besideDiags...)
 	if name == "" {
-		diags = append(diags, keepEmptyName(c, &ext, use)...)
+		diags = append(diags, keepEmptyName(serviceContext, &ext, use)...)
 	}
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
-	docs := resolve.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
+	docs := componentlookup.UseDocs[soa.Example](serviceContext.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
 		Summary:     docs.Summary,
@@ -79,7 +79,7 @@ func appendPluralExample(c service.Ctx, out []ir.Example, re *soa.ReferencedExam
 		ExternalURL: ex.GetExternalValue(),
 		Unmodeled:   ext,
 	}
-	out, exDiags := appendExampleValue(c, dc, out, proto, ex, re, pointer, decl, name)
+	out, exDiags := appendExampleValue(serviceContext, dc, out, proto, ex, re, pointer, decl, name)
 	return out, append(diags, exDiags...)
 }
 
@@ -88,10 +88,10 @@ func appendPluralExample(c service.Ctx, out []ir.Example, re *soa.ReferencedExam
 // openapi:examples/key (docs/compilers/openapi.md#example-values), with an info
 // there. No key of the Example Object can spell it, as one holding a "/" is
 // escaped, so an undeclared name key the object writes stays its own entry.
-func keepEmptyName(c service.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
+func keepEmptyName(serviceContext service.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
 	annotation.PreserveInto(ext, annotation.EntryKey("examples", "key"), ir.RawValue(`""`),
-		ir.ReasonDegradedLowering, c.Place().At(use))
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, use,
+		ir.ReasonDegradedLowering, serviceContext.Place().At(use))
+	return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, use,
 		"examples entry is keyed by the empty string, which ir.Example.Name reads as no name; the key is kept under Unmodeled")}
 }
 
@@ -102,7 +102,7 @@ func keepEmptyName(c service.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.
 // 3.2's `serializedValue` whatever it is written beside, and a `dataValue`
 // written beside `value`, which the rule table reports. An entry with no value in
 // any spelling is an empty stub, dropped with a warning.
-func appendExampleValue(c, dc service.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
+func appendExampleValue(serviceContext, dc service.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
 	re *soa.ReferencedExample, pointer, decl jsontext.Pointer, name string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	serialized, diags := keepExampleSpelling(dc, &proto.Unmodeled, ex.GetCore().SerializedValue.ValueNode,
@@ -115,15 +115,15 @@ func appendExampleValue(c, dc service.Ctx, out []ir.Example, proto ir.Example, e
 				ir.ReasonDegradedLowering, decl, "dataValue is written beside value, which lowered")
 			diags = append(diags, dataDiags...)
 		}
-		out, valueDiags := appendExampleData(c, out, proto, re, value, pointer, name, "value")
+		out, valueDiags := appendExampleData(serviceContext, out, proto, re, value, pointer, name, "value")
 		return out, append(diags, valueDiags...)
 	case data != nil:
-		out, dataDiags := appendExampleData(c, out, proto, re, data, pointer, name, "dataValue")
+		out, dataDiags := appendExampleData(serviceContext, out, proto, re, data, pointer, name, "dataValue")
 		return out, append(diags, dataDiags...)
 	case serialized || proto.ExternalURL != "":
 		return append(out, proto), diags
 	}
-	return out, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
+	return out, append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
 		pointer+ids.Ptr("examples", name), "example declares no value"))
 }
 
@@ -131,29 +131,29 @@ func appendExampleValue(c, dc service.Ctx, out []ir.Example, proto ir.Example, e
 // written with — stamping the failure pointer where the value is written: at the
 // reference site for a $ref entry, which holds no node of its own, and at its own
 // keyword for an inline one.
-func appendExampleData(c service.Ctx, out []ir.Example, proto ir.Example,
+func appendExampleData(serviceContext service.Ctx, out []ir.Example, proto ir.Example,
 	re *soa.ReferencedExample, node *yaml.Node, pointer jsontext.Pointer, name, keyword string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	if re.IsReference() {
-		return annotation.AppendExample(out, proto, node, c.Place(), pointer, "examples", name)
+		return annotation.AppendExample(out, proto, node, serviceContext.Place(), pointer, "examples", name)
 	}
-	return annotation.AppendExample(out, proto, node, c.Place(), pointer, "examples", name, keyword)
+	return annotation.AppendExample(out, proto, node, serviceContext.Place(), pointer, "examples", name, keyword)
 }
 
 // keepExampleSpelling keeps the node an Example Object writes under keyword
-// verbatim on u, at the keyword's own pointer beneath decl, and announces it
-// with why. node is the parser's own reading of the field, so a value merged in
-// through `<<` is kept like one written directly. It reports whether anything
-// was kept.
-func keepExampleSpelling(c service.Ctx, u *ir.Unmodeled, node *yaml.Node, keyword string,
+// verbatim on unmodeled, at the keyword's own pointer beneath decl, and
+// announces it with why. node is the parser's own reading of the field, so a
+// value merged in through `<<` is kept like one written directly. It reports
+// whether anything was kept.
+func keepExampleSpelling(serviceContext service.Ctx, unmodeled *ir.Unmodeled, node *yaml.Node, keyword string,
 	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
 ) (bool, []ir.Diagnostic) {
 	at := decl + ids.Ptr(keyword)
-	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey("", keyword), node, reason, c.Place().At(at))
+	kept, diags := annotation.PreserveNodeInto(unmodeled, annotation.EntryKey("", keyword), node, reason, serviceContext.Place().At(at))
 	if !kept {
 		return false, diags
 	}
-	return true, append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+	return true, append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"%s; kept verbatim under Unmodeled", why))
 }
 

@@ -31,10 +31,10 @@ func TestStatusRange_NamesAStatus(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.code, func(t *testing.T) {
 			t.Parallel()
-			r, ok := statusRange(tc.code)
+			irStatusRange, ok := statusRange(tc.code)
 			require.True(t, ok, "%q names a status", tc.code)
-			assert.Equal(t, tc.from, r.From)
-			assert.Equal(t, tc.to, r.To)
+			assert.Equal(t, tc.from, irStatusRange.From)
+			assert.Equal(t, tc.to, irStatusRange.To)
 		})
 	}
 }
@@ -69,9 +69,9 @@ func TestStatusRange_NamesNoStatus(t *testing.T) {
 		// Quoted so the empty key names a subtest of its own rather than "#00".
 		t.Run(strconv.Quote(code), func(t *testing.T) {
 			t.Parallel()
-			r, ok := statusRange(code)
+			irStatusRange, ok := statusRange(code)
 			assert.False(t, ok, "%q names no status", code)
-			assert.Equal(t, ir.StatusRange{}, r,
+			assert.Equal(t, ir.StatusRange{}, irStatusRange,
 				"a false is paired with the zero range; lowerResponses routes on that")
 		})
 	}
@@ -98,15 +98,15 @@ func TestFaultFor(t *testing.T) {
 
 func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	op := &ir.Operation{}
-	w := l.serviceWalk()
-	diags := lowerResponses(l.ctx, w, op, &soa.Operation{}, "/op")
-	assert.Nil(t, op.Responses)
-	assert.Nil(t, op.Errors)
-	assert.Nil(t, op.Default)
+	lowerer := newRawLowerer(&soa.OpenAPI{})
+	operation := &ir.Operation{}
+	loweringState := lowerer.serviceWalk()
+	diags := lowerResponses(lowerer.ctx, loweringState, operation, &soa.Operation{}, "/op")
+	assert.Nil(t, operation.Responses)
+	assert.Nil(t, operation.Errors)
+	assert.Nil(t, operation.Default)
 	assert.Empty(t, diags)
-	assert.Empty(t, w.links.pending, "no response drafts a link")
+	assert.Empty(t, loweringState.links.pending, "no response drafts a link")
 }
 
 // TestFaultFor_ClassifiesAtTheClassBoundaries pins where one HTTP class ends and

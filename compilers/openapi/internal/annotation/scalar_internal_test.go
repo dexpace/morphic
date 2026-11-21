@@ -37,9 +37,9 @@ func TestScalarRenderers_AgreeOnKind(t *testing.T) {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
 			node := openapitest.YAMLNode(t, src)
-			v, valueErr := value.FromNode(node)
+			irValue, valueErr := value.FromNode(node)
 			raw, rawErr := RawFromNode(node)
-			s, classErr := value.Classify(node)
+			scalar, classErr := value.Classify(node)
 
 			if classErr != nil {
 				require.Error(t, valueErr, "a scalar Classify refuses no value holds")
@@ -47,29 +47,29 @@ func TestScalarRenderers_AgreeOnKind(t *testing.T) {
 				return
 			}
 			require.NoError(t, rawErr)
-			switch s.Kind {
+			switch scalar.Kind {
 			case value.ScalarBinary:
 				require.NoError(t, valueErr)
-				assert.Equal(t, ir.ValueBytes, v.Kind)
+				assert.Equal(t, ir.ValueBytes, irValue.Kind)
 				assert.Equal(t, jsontext.Kind('"'), raw.Kind(), "a payload keeps the source text")
 			case value.ScalarTagged:
 				require.Error(t, valueErr, "no ir.Value holds a document's own tag")
 				assert.Equal(t, jsontext.Kind('"'), raw.Kind(), "a payload keeps the text")
 			default:
 				require.NoError(t, valueErr)
-				assert.Equal(t, jsonKindOf(v), raw.Kind(), "the two renderers read one kind")
+				assert.Equal(t, jsonKindOf(irValue), raw.Kind(), "the two renderers read one kind")
 			}
 		})
 	}
 }
 
-// jsonKindOf is the JSON kind the scalar ir.Value v is written as.
-func jsonKindOf(v ir.Value) jsontext.Kind {
-	switch v.Kind {
+// jsonKindOf is the JSON kind the scalar ir.Value irValue is written as.
+func jsonKindOf(irValue ir.Value) jsontext.Kind {
+	switch irValue.Kind {
 	case ir.ValueNull:
 		return 'n'
 	case ir.ValueBool:
-		if v.Bool {
+		if irValue.Bool {
 			return 't'
 		}
 		return 'f'
@@ -77,8 +77,8 @@ func jsonKindOf(v ir.Value) jsontext.Kind {
 		return '0'
 	case ir.ValueString:
 		return '"'
-	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+	case ir.ValueBytes, ir.ValueList, ir.ValueObject, ir.ValueSymbol, ir.ValueRefKind, ir.ValueConstructor,
+		ir.ValueInfinity, ir.ValueNegativeInfinity, ir.ValueNaN:
 		return 0
 	}
 	return 0

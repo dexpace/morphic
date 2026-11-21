@@ -15,8 +15,8 @@ import (
 
 func TestValidate_OneWayWithResponses(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "op", OneWay: true, Responses: []ir.Response{{}}}
-	diags := validated(t, docWithOperation(op))
+	operation := ir.Operation{ID: "op", OneWay: true, Responses: []ir.Response{{}}}
+	diags := validated(t, docWithOperation(operation))
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/oneway-with-responses")
 }
@@ -38,9 +38,9 @@ func defaultResponse() *ir.Response {
 func TestValidate_AOneWayOperationWithADefaultIsReported(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name string
-		op   ir.Operation
-		want string
+		name      string
+		operation ir.Operation
+		want      string
 	}{
 		{"a Default alone", ir.Operation{ID: "op", OneWay: true, Default: defaultResponse()},
 			"operation op is one-way but declares 1 response(s)"},
@@ -52,7 +52,7 @@ func TestValidate_AOneWayOperationWithADefaultIsReported(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			found := withCode(validated(t, docWithOperation(tc.op)), "pass/oneway-with-responses")
+			found := withCode(validated(t, docWithOperation(tc.operation)), "pass/oneway-with-responses")
 			if tc.want == "" {
 				assert.Empty(t, found)
 				return
@@ -90,8 +90,8 @@ func TestValidate_ADefaultAnswersTheCatchAllAlone(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "op", Default: &ir.Response{Conditions: tc.conditions}}
-			found := withCode(validated(t, docWithOperation(op)), "ir/default-response-conditions")
+			operation := ir.Operation{ID: "op", Default: &ir.Response{Conditions: tc.conditions}}
+			found := withCode(validated(t, docWithOperation(operation)), "ir/default-response-conditions")
 			if tc.want == "" {
 				assert.Empty(t, found)
 				return
@@ -109,8 +109,8 @@ func TestValidate_ADefaultAnswersTheCatchAllAlone(t *testing.T) {
 // response has no conditions to hold to the catch-all.
 func TestValidate_AnOperationWithoutADefaultHasNoDefaultConditionsToJudge(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "op", Responses: []ir.Response{{
+	operation := ir.Operation{ID: "op", Responses: []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
 	}}}
-	assert.Empty(t, withCode(validated(t, docWithOperation(op)), "ir/default-response-conditions"))
+	assert.Empty(t, withCode(validated(t, docWithOperation(operation)), "ir/default-response-conditions"))
 }

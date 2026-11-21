@@ -95,11 +95,11 @@ func wantedFindings(t *testing.T, dir string) []string {
 				continue
 			}
 			for _, q := range quotedFinding.FindAllString(m[1], -1) {
-				msg, err := strconv.Unquote(q)
+				message, err := strconv.Unquote(q)
 				if err != nil {
 					return fmt.Errorf("%s:%d: %w", rel, i+1, err)
 				}
-				want = append(want, fmt.Sprintf("%s:%d: %s", filepath.ToSlash(rel), i+1, msg))
+				want = append(want, fmt.Sprintf("%s:%d: %s", filepath.ToSlash(rel), i+1, message))
 			}
 		}
 		return nil
@@ -200,23 +200,23 @@ func TestRegistryOf_TakesAMapKeyedByANamedString(t *testing.T) {
 	named := func(name string, under types.Type) types.Type {
 		return types.NewNamed(types.NewTypeName(token.NoPos, pkg, name, nil), under, nil)
 	}
-	elem := types.Typ[types.Int]
+	element := types.Typ[types.Int]
 	tests := []struct {
 		name string
 		typ  types.Type
 		noun string
 	}{
-		{"a named string key", types.NewMap(named("ChannelID", types.Typ[types.String]), elem), "channel"},
-		{"a named integer key", types.NewMap(named("Index", types.Typ[types.Int]), elem), ""},
-		{"a plain string key", types.NewMap(types.Typ[types.String], elem), ""},
-		{"no map", types.NewSlice(elem), ""},
+		{"a named string key", types.NewMap(named("ChannelID", types.Typ[types.String]), element), "channel"},
+		{"a named integer key", types.NewMap(named("Index", types.Typ[types.Int]), element), ""},
+		{"a plain string key", types.NewMap(types.Typ[types.String], element), ""},
+		{"no map", types.NewSlice(element), ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r, ok := registryOf(tt.typ)
+			registryType, ok := registryOf(tt.typ)
 			assert.Equal(t, tt.noun != "", ok)
-			assert.Equal(t, tt.noun, r.noun)
+			assert.Equal(t, tt.noun, registryType.noun)
 		})
 	}
 }

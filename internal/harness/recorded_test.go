@@ -26,9 +26,9 @@ func reasons() map[string]string {
 
 func readRecord(t *testing.T) harness.Recorded {
 	t.Helper()
-	r, err := harness.ReadRecorded([]byte(record))
+	recorded, err := harness.ReadRecorded([]byte(record))
 	require.NoError(t, err)
-	return r
+	return recorded
 }
 
 // TestRecorded_EachDisagreementLandsInItsOwnReturn holds Judge's four
@@ -105,10 +105,10 @@ func TestReadRecorded_RefusesWhatNoRecordHolds(t *testing.T) {
 }
 
 func TestRecorded_ExplainsAFindingAtItsCoreName(t *testing.T) {
-	r := readRecord(t)
-	assert.True(t, r.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/x"))
-	assert.False(t, r.Explains(harness.Finding{Name: "b/y", What: "base"}, "b/x"), "another What")
-	assert.False(t, r.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/y"), "no line at that name")
+	recorded := readRecord(t)
+	assert.True(t, recorded.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/x"))
+	assert.False(t, recorded.Explains(harness.Finding{Name: "b/y", What: "base"}, "b/x"), "another What")
+	assert.False(t, recorded.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/y"), "no line at that name")
 }
 
 // caseResults are a run's results: one case each oracle passes, one the
@@ -275,9 +275,9 @@ func TestUnexplained_ATwoKeywordFindingIsNewWhereNeitherPartDiffers(t *testing.T
 		harness.OracleSpelling: spelling, harness.OraclePresence: presence})
 
 	left := map[string]harness.Oracle{}
-	for _, r := range got {
-		require.Len(t, r.Verdicts, 1, r.Spec)
-		left[r.Spec] = r.Verdicts[0].Oracle
+	for _, result := range got {
+		require.Len(t, result.Verdicts, 1, result.Spec)
+		left[result.Spec] = result.Verdicts[0].Oracle
 	}
 	assert.Equal(t, map[string]harness.Oracle{
 		"k/u": harness.OracleSpelling, "k/s": harness.OraclePresence, "q/v": harness.OracleSpelling,

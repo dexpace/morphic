@@ -15,10 +15,10 @@ import (
 	"github.com/speakeasy-api/openapi/openapi/core"
 	yaml "go.yaml.in/yaml/v3"
 
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -94,7 +94,7 @@ func modelMediaTypes(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree
 // can hand it one that faults.
 func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree, build mediaTypeBuild,
 ) (MediaTypes, []ir.Diagnostic) {
-	m := MediaTypes{uses: map[*yaml.Node]*refscope.ReferencedMediaType{}, faults: map[*yaml.Node]error{},
+	mediaTypes := MediaTypes{uses: map[*yaml.Node]*refscope.ReferencedMediaType{}, faults: map[*yaml.Node]error{},
 		canonical: map[*yaml.Node]*refscope.ReferencedMediaType{}, build: build}
 	view := nodeview.New()
 	components := nodeview.Deref(view.ChildByToken(nodeview.DocumentRoot(doc.GetRootNode()), "components"))
@@ -113,13 +113,13 @@ func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree,
 				"this media type could not be read: %s", err.Error()))
 			continue
 		}
-		m.declared = append(m.declared, declaredMediaType{model: model,
+		mediaTypes.declared = append(mediaTypes.declared, declaredMediaType{model: model,
 			pointer: jsontext.Pointer("/components/mediaTypes").AppendToken(entry.Key)})
 		if !model.IsReference() {
-			m.canonical[node] = model
+			mediaTypes.canonical[node] = model
 		}
 	}
-	return m, faults
+	return mediaTypes, faults
 }
 
 // buildMediaType builds node, a Media Type Object or a Reference Object, as the
@@ -177,8 +177,8 @@ func (m MediaTypes) followedByDeclared(ctx context.Context, items iter.Seq[soa.W
 				return
 			}
 		}
-		for _, d := range m.declared {
-			for item := range locatedWalk(walk(ctx, d.model), d.pointer) {
+		for _, declaredMediaType := range m.declared {
+			for item := range locatedWalk(walk(ctx, declaredMediaType.model), declaredMediaType.pointer) {
 				if !yield(item) {
 					return
 				}

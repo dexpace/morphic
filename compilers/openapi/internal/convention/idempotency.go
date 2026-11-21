@@ -6,8 +6,8 @@ package convention
 import (
 	"net/http"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,43 +19,44 @@ const idempotencyKeyHeader = "Idempotency-Key"
 // names no constant for.
 const methodQuery = "QUERY"
 
-// idempotency names op's idempotency token, and marks op, under the
-// idempotency policy, where op states no idempotency, is bound to HTTP once, by
-// a method RFC 9110 does not define as safe, and binds exactly one header
-// parameter under idempotencyKeyHeader, compared without case. A safe method
-// states op's idempotency itself, so the header is not read there; a method
-// whose safety the compiler does not know, and the header bound twice, are
-// reported as undecided. w is the document holding op. The rule is
+// idempotency names operation's idempotency token, and marks operation, under
+// the idempotency policy, where operation states no idempotency, is bound to
+// HTTP once, by a method RFC 9110 does not define as safe, and binds exactly
+// one header parameter under idempotencyKeyHeader, compared without case. A
+// safe method states operation's idempotency itself, so the header is not read
+// there; a method whose safety the compiler does not know, and the header bound
+// twice, are reported as undecided. compiledDocumentView is the document
+// holding operation. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
-func idempotency(policy IdempotencyInference, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
-	if !policy.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||
-		len(op.Bindings.HTTP) != 1 {
+func idempotency(policy IdempotencyInference, compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) []ir.Diagnostic {
+	if !policy.Honours() || operation.Idempotency.Kind != ir.IdempotencyUnknown ||
+		len(operation.Bindings.HTTP) != 1 {
 		return nil
 	}
-	method := op.Bindings.HTTP[0].Method
+	method := operation.Bindings.HTTP[0].Method
 	if safeMethod(method) {
 		return nil
 	}
-	keys := w.Params(op).Bound(ir.HTTPLocationHeader, idempotencyKeyHeader)
+	keys := compiledDocumentView.Params(operation).Bound(ir.HTTPLocationHeader, idempotencyKeyHeader)
 	switch {
 	case len(keys) == 0:
 		return nil
 	case !keyedMethod(method):
-		return undecidedToken(op, "%s is no method a path item's fixed fields declare, so whether it is safe is unknown",
+		return undecidedToken(operation, "%s is no method a path item's fixed fields declare, so whether it is safe is unknown",
 			method)
 	case len(keys) > 1:
-		return undecidedToken(op, "%d header parameters are named %s, compared without case", len(keys),
+		return undecidedToken(operation, "%d header parameters are named %s, compared without case", len(keys),
 			idempotencyKeyHeader)
 	}
-	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: keys[0]}
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, IdempotencyInferenceHeuristic)
+	operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: keys[0]}
+	operation.Provenance.Inferred = ir.JoinInferred(operation.Provenance.Inferred, IdempotencyInferenceHeuristic)
 	return nil
 }
 
-// undecidedToken reports why op takes no token, formatted from format and
-// args, at op: the declaration its Provenance names.
-func undecidedToken(op *ir.Operation, format string, args ...any) []ir.Diagnostic {
-	at := op.Provenance
+// undecidedToken reports why operation takes no token, formatted from format
+// and args, at operation: the declaration its Provenance names.
+func undecidedToken(operation *ir.Operation, format string, args ...any) []ir.Diagnostic {
+	at := operation.Provenance
 	at.Inferred = ""
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UndecidedIdempotency, at,
 		"no idempotency token is inferred: "+format, args...)}

@@ -5,9 +5,9 @@ type AdditionalMode string
 	const "closed"
 	const "closed_after_composition"
 
-type AdditionalProps struct
+type AdditionalProperties struct
 	"key" *TypeRef omitzero
-	"patterns" []PatternProps omitempty
+	"patterns" []PatternProperties omitempty
 	"value" *TypeRef omitzero
 
 type Any struct
@@ -68,7 +68,7 @@ type BigVal string
 type Callback struct
 	"expression" string omitempty
 	"name" string omitempty
-	"operations" []OpID omitempty
+	"operations" []OperationID omitempty
 
 type CatchAllParts struct
 	"patterns" map[string]PartEncoding omitempty
@@ -95,17 +95,22 @@ type Constraints struct
 	"max" *BigVal omitzero
 	"maxItems" *int64 omitzero
 	"maxLength" *int64 omitzero
-	"maxProps" *int64 omitzero
+	"maxProperties" *int64 omitzero
 	"min" *BigVal omitzero
 	"minItems" *int64 omitzero
 	"minLength" *int64 omitzero
-	"minProps" *int64 omitzero
+	"minProperties" *int64 omitzero
 	"multipleOf" *BigVal omitzero
 	"pattern" string omitempty
 	"patternMessage" string omitempty
 	"precision" *int64 omitzero
 	"scale" *int64 omitzero
 	"uniqueItems" bool
+
+type ConstructorValue struct
+	"args" []Value omitempty
+	"name" string omitempty
+	"scalar" TypeID omitempty
 
 type Contact struct
 	"email" string omitempty
@@ -115,7 +120,7 @@ type Contact struct
 type Content struct
 	"catchAllEncoding" map[TypeID]CatchAllParts omitempty
 	"docs" Docs omitzero
-	"encoding" map[PropID]PartEncoding omitempty
+	"encoding" map[PropertyID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero
 	"inferred" Inferred omitempty
@@ -129,11 +134,6 @@ type Content struct
 
 type ContentStream struct
 	"inferred" Inferred omitempty
-
-type CtorValue struct
-	"args" []Value omitempty
-	"name" string omitempty
-	"scalar" TypeID omitempty
 
 type Deprecation struct
 	"message" string omitempty
@@ -153,11 +153,11 @@ type Discriminator struct
 	"default" TypeID omitempty
 	"envelope" string omitempty
 	"envelopeValueName" string omitempty
-	"index" *int omitzero
 	"inferred" bool
 	"mapping" map[string]TypeID omitempty
-	"property" PropID omitempty
+	"property" PropertyID omitempty
 	"propertyName" string omitempty
+	"tupleElementIndex" *int omitzero
 
 type DocRef struct
 	"endByte" int
@@ -205,9 +205,9 @@ type EntityRef struct
 	"group" GroupID omitempty
 	"member" EnumMemberID omitempty
 	"message" MessageID omitempty
-	"operation" OpID omitempty
-	"param" ParamID omitempty
-	"property" PropID omitempty
+	"operation" OperationID omitempty
+	"param" ParameterID omitempty
+	"property" PropertyID omitempty
 	"server" ServerID omitempty
 	"service" ServiceID omitempty
 	"type" TypeID omitempty
@@ -218,7 +218,7 @@ type Enum struct
 	"fallbackMember" string omitempty
 	"flags" bool
 	"members" []EnumMember omitempty
-	"valueType" PrimKind
+	"valueType" PrimitiveKind
 	method (*Enum) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Enum) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
 
@@ -307,7 +307,7 @@ type HTTPBinding struct
 	"patchImplicitOptionality" *bool omitzero
 	"pathDocs" Docs omitzero
 	"requestContentTypes" []string omitempty
-	"responseBodyPath" *PropPath omitzero
+	"responseBodyPath" *PropertyPath omitzero
 	"sharedRoute" bool
 	"successStatus" map[int]int omitempty
 	"unmodeled" Unmodeled omitempty
@@ -331,12 +331,12 @@ type HTTPLocation string
 type HTTPParamBinding struct
 	"allowEmptyValue" bool
 	"allowReserved" bool
-	"bodyPath" []PropID omitempty
+	"bodyPath" []PropertyID omitempty
 	"contentType" string omitempty
 	"explode" *bool omitzero
 	"location" HTTPLocation omitempty
-	"param" ParamID omitempty
-	"paramPath" []PropID omitempty
+	"param" ParameterID omitempty
+	"paramPath" []PropertyID omitempty
 	"pathPattern" string omitempty
 	"prefix" *string omitzero
 	"style" string omitempty
@@ -350,7 +350,7 @@ type Header struct
 
 type Idempotency struct
 	"kind" IdempotencyKind omitempty
-	"tokenParam" ParamID omitempty
+	"tokenParam" ParameterID omitempty
 
 type IdempotencyKind string
 	const ""
@@ -361,8 +361,8 @@ type IdempotencyKind string
 type Inferred string
 
 type InputPath struct
-	"param" *ParamID omitzero
-	"segments" []PropID omitempty
+	"param" *ParameterID omitzero
+	"segments" []PropertyID omitempty
 
 type License struct
 	"identifier" string omitempty
@@ -374,14 +374,14 @@ type Link struct
 	"url" string omitempty
 
 type LinkParam struct
-	"param" ParamID
+	"param" ParameterID
 	"value" LinkValue
 
 type LinkValue struct
 	"constant" *Value omitzero
 	"kind" LinkValueKind
 	"request" *InputPath omitzero
-	"response" *PropPath omitzero
+	"response" *PropertyPath omitzero
 
 type LinkValueKind string
 	const "constant"
@@ -394,7 +394,7 @@ type LinkValueKind string
 type List struct
 	embed TypeCommon
 	"constraints" *Constraints omitzero
-	"elem" TypeRef
+	"elementType" TypeRef
 	"encoding" *Encoding omitzero
 	method (*List) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*List) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
@@ -402,17 +402,17 @@ type List struct
 type Literal struct
 	embed TypeCommon
 	"value" Value
-	"valueType" PrimKind omitempty
+	"valueType" PrimitiveKind omitempty
 	method (*Literal) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Literal) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
 
 type LongRunning struct
-	"finalOperation" *OpID omitzero
+	"finalOperation" *OperationID omitzero
 	"finalStateVia" string omitempty
 	"finalType" *TypeRef omitzero
-	"pollingOperation" *OpID omitzero
+	"pollingOperation" *OperationID omitzero
 	"pollingType" *TypeRef omitzero
-	"resultPath" *PropPath omitzero
+	"resultPath" *PropertyPath omitzero
 
 type MapT struct
 	embed TypeCommon
@@ -425,7 +425,7 @@ type MapT struct
 type Message struct
 	"bindings" map[string]RawConfig omitempty
 	"contentType" string omitempty
-	"correlationID" *PropPath omitzero
+	"correlationID" *PropertyPath omitzero
 	"deprecation" *Deprecation omitzero
 	"docs" Docs
 	"examples" []Example omitempty
@@ -440,10 +440,14 @@ type Message struct
 type MessageBinding struct
 	"bindings" map[string]RawConfig omitempty
 	"channel" ChannelID omitempty
-	"direction" MsgDirection omitempty
+	"direction" MessageDirection omitempty
 	"messages" []MessageID omitempty
 	"reply" *Reply omitzero
 	"unmodeled" Unmodeled omitempty
+
+type MessageDirection string
+	const "receive"
+	const "send"
 
 type MessageID string
 
@@ -451,7 +455,7 @@ type Model struct
 	embed TypeCommon
 	"abstract" bool
 	"additional" AdditionalMode omitempty
-	"additionalProps" *AdditionalProps omitzero
+	"additionalProperties" *AdditionalProperties omitzero
 	"base" *TypeRef omitzero
 	"constraints" *Constraints omitzero
 	"discriminator" *Discriminator omitzero
@@ -465,10 +469,6 @@ type Model struct
 	"requires" []string omitempty
 	method (*Model) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Model) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
-
-type MsgDirection string
-	const "receive"
-	const "send"
 
 type Naming struct
 	"aliases" []string omitempty
@@ -497,30 +497,21 @@ type OTPBinding struct
 	"requestTag" *Value omitzero
 	"unmodeled" Unmodeled omitempty
 
-type OpBindings struct
-	"graphql" *GraphQLBinding omitzero
-	"http" []HTTPBinding omitempty
-	"message" *MessageBinding omitzero
-	"otp" *OTPBinding omitzero
-	"rpc" *RPCBinding omitzero
-
-type OpID string
-
 type Operation struct
 	"auth" []AuthRequirement omitzero
 	"availability" *Availability omitzero
-	"bindings" OpBindings
+	"bindings" OperationBindings
 	"default" *Response omitzero
 	"deprecation" *Deprecation omitzero
 	"docs" Docs
 	"errors" []ErrorCase omitempty
 	"examples" []Example omitempty
-	"id" OpID omitempty
+	"id" OperationID omitempty
 	"idempotency" Idempotency
 	"longRunning" *LongRunning omitzero
 	"name" Naming
 	"oneWay" bool
-	"overloadOf" *OpID omitzero
+	"overloadOf" *OperationID omitzero
 	"pagination" *Pagination omitzero
 	"paramChoices" []ParamChoice omitempty
 	"parameterVisibility" []string omitempty
@@ -537,6 +528,13 @@ type Operation struct
 	"tags" []string omitempty
 	"unmodeled" Unmodeled omitempty
 
+type OperationBindings struct
+	"graphql" *GraphQLBinding omitzero
+	"http" []HTTPBinding omitempty
+	"message" *MessageBinding omitzero
+	"otp" *OTPBinding omitzero
+	"rpc" *RPCBinding omitzero
+
 type OperationGroup struct
 	"availability" *Availability omitzero
 	"docs" Docs
@@ -549,11 +547,13 @@ type OperationGroup struct
 	"stability" Stability omitempty
 	"unmodeled" Unmodeled omitempty
 
+type OperationID string
+
 type OperationLink struct
 	"body" *LinkValue omitzero
 	"docs" Docs
 	"name" Naming
-	"operation" OpID
+	"operation" OperationID
 	"params" []LinkParam omitempty
 	"provenance" Provenance
 	"server" *ServerID omitzero
@@ -575,31 +575,29 @@ type PageStrategy string
 	const "token"
 
 type Pagination struct
-	"firstLink" *PropPath omitzero
-	"hasMore" *PropPath omitzero
+	"firstLink" *PropertyPath omitzero
+	"hasMore" *PropertyPath omitzero
 	"inferred" bool
 	"inputCursor" *InputPath omitzero
 	"inputLimit" *InputPath omitzero
-	"items" *PropPath omitzero
-	"lastLink" *PropPath omitzero
-	"nextCursor" *PropPath omitzero
-	"nextLink" *PropPath omitzero
-	"prevLink" *PropPath omitzero
+	"items" *PropertyPath omitzero
+	"lastLink" *PropertyPath omitzero
+	"nextCursor" *PropertyPath omitzero
+	"nextLink" *PropertyPath omitzero
+	"prevLink" *PropertyPath omitzero
 	"stop" []PageStop omitempty
 	"strategy" PageStrategy omitempty
-	"totalCount" *PropPath omitzero
-	"totalPages" *PropPath omitzero
+	"totalCount" *PropertyPath omitzero
+	"totalPages" *PropertyPath omitzero
 
 type ParamChoice struct
 	"name" Naming
 	"required" bool
 	"variants" []ParamVariant omitempty
 
-type ParamID string
-
 type ParamVariant struct
 	"name" Naming
-	"params" []ParamID omitempty
+	"params" []ParameterID omitempty
 
 type Parameter struct
 	"availability" *Availability omitzero
@@ -609,26 +607,28 @@ type Parameter struct
 	"docs" Docs
 	"encoding" *Encoding omitzero
 	"examples" []Example omitempty
-	"id" ParamID
+	"id" ParameterID
 	"name" Naming
 	"provenance" Provenance
 	"required" bool
 	"secret" bool omitzero
 	"type" TypeRef
 	"unmodeled" Unmodeled omitempty
-	"valueFrom" *PropPath omitzero
+	"valueFrom" *PropertyPath omitzero
+
+type ParameterID string
 
 type PartEncoding struct
 	"allowReserved" bool
 	"contentTypes" []string omitempty
 	"explode" *bool omitzero
-	"filename" bool
+	"hasFilename" bool
 	"headers" []Header omitempty
 	"inferred" Inferred omitempty
-	"multi" bool
+	"repeatsPerArrayItem" bool
 	"style" string omitempty
 
-type PatternProps struct
+type PatternProperties struct
 	"pattern" string
 	"value" TypeRef
 
@@ -648,7 +648,13 @@ type PresenceKind string
 	const "implicit"
 	const "required"
 
-type PrimKind string
+type Primitive struct
+	embed TypeCommon
+	"primitiveKind" PrimitiveKind
+	method (*Primitive) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Primitive) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type PrimitiveKind string
 	const "any"
 	const "bool"
 	const "bytes"
@@ -676,19 +682,6 @@ type PrimKind string
 	const "url"
 	const "uuid"
 
-type Primitive struct
-	embed TypeCommon
-	"prim" PrimKind
-	method (*Primitive) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
-	method (*Primitive) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
-
-type PropID string
-
-type PropPath struct
-	"in" string omitempty
-	"root" *TypeRef omitzero
-	"segments" []PropID omitempty
-
 type Property struct
 	"args" []Parameter omitempty
 	"availability" *Availability omitzero
@@ -704,7 +697,7 @@ type Property struct
 	"examples" []Example omitempty
 	"extensionOf" string omitempty
 	"flatten" bool
-	"id" PropID
+	"id" PropertyID
 	"name" Naming
 	"presence" PresenceKind omitempty
 	"provenance" Provenance
@@ -717,6 +710,13 @@ type Property struct
 	"wireName" string omitempty
 	"wireNameByFormat" map[string]string omitempty
 	"xml" *XMLHints omitzero
+
+type PropertyID string
+
+type PropertyPath struct
+	"in" string omitempty
+	"root" *TypeRef omitzero
+	"segments" []PropertyID omitempty
 
 type ProtocolDecl struct
 	"name" string omitempty
@@ -749,7 +749,7 @@ type RelatedRole string
 	const "kept"
 
 type Reply struct
-	"address" *PropPath omitzero
+	"address" *PropertyPath omitzero
 	"channel" *ChannelID omitzero
 	"docs" Docs
 	"messages" []MessageID omitempty
@@ -758,10 +758,10 @@ type RequestCompression struct
 	"encodings" []string omitempty
 
 type ResourceInfo struct
-	"collectionOps" []OpID omitempty
+	"collectionOperations" []OperationID omitempty
 	"identifiers" []Property omitempty
-	"instanceOps" []OpID omitempty
-	"lifecycle" map[string]OpID omitempty
+	"instanceOperations" []OperationID omitempty
+	"lifecycle" map[string]OperationID omitempty
 	"noReplace" bool
 	"properties" []Property omitempty
 
@@ -772,7 +772,7 @@ type Response struct
 	"links" []OperationLink omitempty
 	"name" Naming
 	"payload" *Payload omitzero
-	"statusCodeProp" *PropPath omitzero
+	"statusCodeProperty" *PropertyPath omitzero
 	"unmodeled" Unmodeled omitempty
 
 type ResponseConditions struct
@@ -788,7 +788,7 @@ type Scalar struct
 
 type ScenarioInput struct
 	"body" *Value omitzero
-	"params" map[ParamID]Value omitempty
+	"params" map[ParameterID]Value omitempty
 
 type SchemeUse struct
 	"scheme" AuthID omitempty
@@ -869,7 +869,7 @@ type StreamDetail struct
 
 type StreamingMode string
 	const ""
-	const "bidi"
+	const "bidirectional"
 	const "client"
 	const "server"
 
@@ -891,7 +891,7 @@ type TemplateInstantiation struct
 type Tuple struct
 	embed TypeCommon
 	"constraints" *Constraints omitzero
-	"elems" []TypeRef omitempty
+	"elementTypes" []TypeRef omitempty
 	"rest" *TypeRef omitzero
 	method (*Tuple) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Tuple) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
@@ -981,26 +981,26 @@ type UnmodeledReason string
 type Value struct
 	"bool" bool omitzero
 	"bytes" []uint8 omitempty
-	"ctor" *CtorValue omitzero
+	"constructor" *ConstructorValue omitzero
 	"kind" ValueKind
 	"list" []Value omitempty
-	"num" BigVal omitempty
+	"number" BigVal omitempty
 	"object" []Field omitempty
 	"ref" *ValueRef omitzero
-	"str" string omitempty
+	"string" string omitempty
 
 type ValueKind string
 	const "bool"
 	const "bytes"
-	const "ctor"
-	const "inf"
+	const "constructor"
+	const "infinity"
 	const "list"
 	const "nan"
-	const "neginf"
+	const "negative-infinity"
 	const "null"
 	const "number"
 	const "object"
-	const "ref"
+	const "reference"
 	const "string"
 	const "symbol"
 
@@ -1034,7 +1034,7 @@ type VersionedType struct
 	"version" string omitempty
 
 type Visibility struct
-	"none" bool
+	"invisibleInEveryLifecycle" bool
 	"only" []string omitempty
 
 type WireIDRange struct

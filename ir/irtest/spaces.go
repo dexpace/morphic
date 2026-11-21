@@ -23,13 +23,13 @@ func SpacesUsed(doc *ir.Document) (map[string][]string, bool) {
 	var out map[string][]string
 	var decls ir.IDDeclarations
 	cut := ir.WalkValues(doc, ir.DocumentPath, &decls)
-	for _, d := range decls.List() {
-		kind, _, found := strings.Cut(d.ID, ir.IDSeparator)
+	for _, idDeclaration := range decls.List() {
+		kind, _, found := strings.Cut(idDeclaration.ID, ir.IDSeparator)
 		if !found || !slices.Contains(kinds, kind) {
 			continue
 		}
-		space, wellFormed := ir.IDSpace(kind, d.ID)
-		if !wellFormed || (kind == ir.IDKindType && space == ir.IDSpacePrim) {
+		space, wellFormed := ir.IDSpace(kind, idDeclaration.ID)
+		if !wellFormed || (kind == ir.IDKindType && space == ir.IDSpacePrimitive) {
 			continue
 		}
 		if out == nil {

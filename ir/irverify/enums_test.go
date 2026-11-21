@@ -27,15 +27,15 @@ type enumCase struct {
 // hold. An enum with an empty form that its field's comment lists as a value
 // (AdditionalMode, PresenceKind, IdempotencyKind) holds "" among its valid
 // values, and one whose comment gives a closed list with no empty form
-// (HTTPLocation, MsgDirection, PageStrategy) draws the code for "".
+// (HTTPLocation, MessageDirection, PageStrategy) draws the code for "".
 func enumCases() map[string]enumCase {
 	return map[string]enumCase{
 		"AdditionalMode": {
 			place: func(doc *ir.Document, v string) {
-				doc.Types["t/x/M"].(*ir.Model).Additional = ir.AdditionalMode(v)
+				doc.Types["type/x/M"].(*ir.Model).Additional = ir.AdditionalMode(v)
 			},
 			code: "ir/unknown-additional-mode",
-			path: "types[t/x/M].Additional",
+			path: "types[type/x/M].Additional",
 			valid: []string{
 				string(ir.AdditionalUnspecified), string(ir.AdditionalClosed), string(ir.AdditionalClosedAfterComposition),
 			},
@@ -43,10 +43,10 @@ func enumCases() map[string]enumCase {
 		},
 		"PresenceKind": {
 			place: func(doc *ir.Document, v string) {
-				doc.Types["t/x/M"].(*ir.Model).Properties[0].Presence = ir.PresenceKind(v)
+				doc.Types["type/x/M"].(*ir.Model).Properties[0].Presence = ir.PresenceKind(v)
 			},
 			code: "ir/unknown-presence-kind",
-			path: "types[t/x/M].Properties[0].Presence",
+			path: "types[type/x/M].Properties[0].Presence",
 			valid: []string{
 				string(ir.PresenceDefault), string(ir.PresenceImplicit), string(ir.PresenceExplicit), string(ir.PresenceRequired),
 			},
@@ -57,7 +57,7 @@ func enumCases() map[string]enumCase {
 				scenarioOperation(doc).Bindings.HTTP[0].ParamBindings[0].Location = ir.HTTPLocation(v)
 			},
 			code: "ir/unknown-http-location",
-			path: scenarioOp + ".Bindings.HTTP[0].ParamBindings[0].Location",
+			path: scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[0].Location",
 			valid: []string{
 				string(ir.HTTPLocationPath), string(ir.HTTPLocationQuery), string(ir.HTTPLocationQuerystring),
 				string(ir.HTTPLocationHeader), string(ir.HTTPLocationCookie), string(ir.HTTPLocationBody),
@@ -67,31 +67,31 @@ func enumCases() map[string]enumCase {
 		},
 		"IdempotencyKind": {
 			place: func(doc *ir.Document, v string) {
-				op := scenarioOperation(doc)
-				op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyKind(v)}
+				operation := scenarioOperation(doc)
+				operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencyKind(v)}
 				if ir.IdempotencyKind(v) == ir.IdempotencyToken {
-					op.Idempotency.TokenParam = "param/x/o/q"
+					operation.Idempotency.TokenParam = "parameter/x/o/q"
 				}
 			},
 			code: "ir/unknown-idempotency-kind",
-			path: scenarioOp + ".Idempotency.Kind",
+			path: scenarioOperationPath + ".Idempotency.Kind",
 			valid: []string{
 				string(ir.IdempotencyUnknown), string(ir.IdempotencySafe), string(ir.IdempotencyIdempotent),
 				string(ir.IdempotencyToken),
 			},
 			invalid: []string{"bogus"},
 		},
-		"MsgDirection": {
+		"MessageDirection": {
 			place: func(doc *ir.Document, v string) {
-				doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}}
+				doc.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: named("c")}}
 				doc.IDSpaces[ir.IDKindChannel] = []string{"x"}
 				scenarioOperation(doc).Bindings.Message = &ir.MessageBinding{
-					Channel: "chan/x/c", Direction: ir.MsgDirection(v),
+					Channel: "channel/x/c", Direction: ir.MessageDirection(v),
 				}
 			},
 			code:    "ir/unknown-message-direction",
-			path:    scenarioOp + ".Bindings.Message.Direction",
-			valid:   []string{string(ir.MsgDirectionSend), string(ir.MsgDirectionReceive)},
+			path:    scenarioOperationPath + ".Bindings.Message.Direction",
+			valid:   []string{string(ir.MessageDirectionSend), string(ir.MessageDirectionReceive)},
 			invalid: []string{"bogus", ""},
 		},
 		"PageStrategy": {
@@ -99,7 +99,7 @@ func enumCases() map[string]enumCase {
 				scenarioOperation(doc).Pagination = &ir.Pagination{Strategy: ir.PageStrategy(v)}
 			},
 			code: "ir/unknown-page-strategy",
-			path: scenarioOp + ".Pagination.Strategy",
+			path: scenarioOperationPath + ".Pagination.Strategy",
 			valid: []string{
 				string(ir.PageStrategyCursor), string(ir.PageStrategyOffset), string(ir.PageStrategyPage),
 				string(ir.PageStrategyLinkHeader), string(ir.PageStrategyNextLink), string(ir.PageStrategyToken),
@@ -108,12 +108,12 @@ func enumCases() map[string]enumCase {
 		},
 		"RelatedRole": {
 			place: func(doc *ir.Document, v string) {
-				d := severityDiagnostic(string(ir.SeverityWarning))
-				d.Related = []ir.Related{{Role: ir.RelatedRole(v), Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}}}
-				doc.Diagnostics = []ir.Diagnostic{d}
+				diagnostic := severityDiagnostic(string(ir.SeverityWarning))
+				diagnostic.Related = []ir.Related{{Role: ir.RelatedRole(v), Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/a"}}}
+				doc.Diagnostics = []ir.Diagnostic{diagnostic}
 			},
 			code:    "ir/unknown-related-role",
-			path:    "doc.Diagnostics[0].Related[0].Role",
+			path:    "document.Diagnostics[0].Related[0].Role",
 			valid:   []string{string(ir.RelatedKept), string(ir.RelatedDecided)},
 			invalid: []string{"bogus", ""},
 		},
@@ -122,7 +122,7 @@ func enumCases() map[string]enumCase {
 				doc.Diagnostics = []ir.Diagnostic{severityDiagnostic(v)}
 			},
 			code:    "ir/unknown-severity",
-			path:    "doc.Diagnostics[0].Severity",
+			path:    "document.Diagnostics[0].Severity",
 			valid:   []string{string(ir.SeverityInfo), string(ir.SeverityWarning), string(ir.SeverityError)},
 			invalid: []string{"bogus"},
 		},
@@ -168,14 +168,14 @@ func TestVerify_UndeclaredEnumValueIsAViolation(t *testing.T) {
 func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 	t.Parallel()
 	messages := map[string]string{
-		"AdditionalMode":  `model carries undeclared additional mode "bogus"`,
-		"PresenceKind":    `property carries undeclared presence "bogus"`,
-		"HTTPLocation":    `parameter binding carries undeclared location "bogus"`,
-		"IdempotencyKind": `operation carries undeclared idempotency kind "bogus"`,
-		"MsgDirection":    `message binding carries undeclared direction "bogus"`,
-		"PageStrategy":    `pagination names undeclared strategy "bogus"`,
-		"Severity":        `diagnostic carries undeclared severity "bogus"`,
-		"RelatedRole":     `diagnostic's related entry carries undeclared role "bogus"`,
+		"AdditionalMode":   `model carries undeclared additional mode "bogus"`,
+		"PresenceKind":     `property carries undeclared presence "bogus"`,
+		"HTTPLocation":     `parameter binding carries undeclared location "bogus"`,
+		"IdempotencyKind":  `operation carries undeclared idempotency kind "bogus"`,
+		"MessageDirection": `message binding carries undeclared direction "bogus"`,
+		"PageStrategy":     `pagination names undeclared strategy "bogus"`,
+		"Severity":         `diagnostic carries undeclared severity "bogus"`,
+		"RelatedRole":      `diagnostic's related entry carries undeclared role "bogus"`,
 	}
 	cases := enumCases()
 	assert.Len(t, messages, len(cases), "every enum case has a message row")
@@ -186,9 +186,9 @@ func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 			doc := scenarioBase()
 			tc.place(doc, "bogus")
 			var got []string
-			for _, v := range verifyDeclared(doc) {
-				if v.Code == tc.code {
-					got = append(got, v.Message)
+			for _, violation := range verifyDeclared(doc) {
+				if violation.Code == tc.code {
+					got = append(got, violation.Message)
 				}
 			}
 			assert.Equal(t, []string{want}, got)
@@ -203,14 +203,14 @@ func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 func TestVerify_ModelEnumsAreReadOnEveryPropertyAndType(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	m := doc.Types["t/x/M"].(*ir.Model)
-	m.Properties = append(m.Properties, ir.Property{
-		ID: "p/x/M/b", Name: named("b"), Type: ir.TypeRef{Target: "t/prim/string"}, Presence: "bogus",
+	model := doc.Types["type/x/M"].(*ir.Model)
+	model.Properties = append(model.Properties, ir.Property{
+		ID: "property/x/M/b", Name: named("b"), Type: ir.TypeRef{Target: "type/primitive/string"}, Presence: "bogus",
 	})
-	doc.Types["t/x/N"] = &ir.Model{ID: "t/x/N", Name: named("n"), Additional: "bogus"}
+	doc.Types["type/x/N"] = &ir.Model{ID: "type/x/N", Name: named("n"), Additional: "bogus"}
 
-	assert.Equal(t, []string{"types[t/x/M].Properties[1].Presence"}, scenarioCodes(doc, "ir/unknown-presence-kind"))
-	assert.Equal(t, []string{"types[t/x/N].Additional"}, scenarioCodes(doc, "ir/unknown-additional-mode"))
+	assert.Equal(t, []string{"types[type/x/M].Properties[1].Presence"}, scenarioCodes(doc, "ir/unknown-presence-kind"))
+	assert.Equal(t, []string{"types[type/x/N].Additional"}, scenarioCodes(doc, "ir/unknown-additional-mode"))
 }
 
 // TestVerifyFindings_UndeclaredSeverityIsAViolation holds the same set on the
@@ -233,12 +233,12 @@ func TestVerifyFindings_UndeclaredSeverityIsAViolation(t *testing.T) {
 func TestVerify_IdempotencyAndWebhookChecksKeepTheirFindings(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	op := scenarioOperation(doc)
-	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: "param/x/o/q"}
-	op.Bindings.HTTP[0].Inbound = "bogus"
+	operation := scenarioOperation(doc)
+	operation.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: "parameter/x/o/q"}
+	operation.Bindings.HTTP[0].Inbound = "bogus"
 
-	assert.Equal(t, []string{scenarioOp + ".Idempotency"}, scenarioCodes(doc, "ir/idempotency-token"))
-	assert.Equal(t, []string{scenarioOp + ".Bindings.HTTP[0].Inbound"}, scenarioCodes(doc, "ir/unknown-http-inbound"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Idempotency"}, scenarioCodes(doc, "ir/idempotency-token"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].Inbound"}, scenarioCodes(doc, "ir/unknown-http-inbound"))
 
 	valid := scenarioBase()
 	assert.Empty(t, scenarioCodes(valid, "ir/idempotency-token"))

@@ -20,28 +20,28 @@ const memberKindCode = "ir/enum-member-kind"
 // ValueType" means. No row admits a list, an object, a reference, a
 // constructor or a non-finite number, so a member of one is refused under
 // every value type.
-var admittedMemberKinds = func() map[ir.PrimKind][]ir.ValueKind {
+var admittedMemberKinds = func() map[ir.PrimitiveKind][]ir.ValueKind {
 	text := []ir.ValueKind{ir.ValueString, ir.ValueSymbol}
 	number := []ir.ValueKind{ir.ValueNumber}
-	rows := map[ir.PrimKind][]ir.ValueKind{
-		ir.PrimBool:  {ir.ValueBool},
-		ir.PrimBytes: {ir.ValueBytes},
-		ir.PrimAny: {
+	rows := map[ir.PrimitiveKind][]ir.ValueKind{
+		ir.PrimitiveBool:  {ir.ValueBool},
+		ir.PrimitiveBytes: {ir.ValueBytes},
+		ir.PrimitiveAny: {
 			ir.ValueBool, ir.ValueString, ir.ValueSymbol, ir.ValueNumber, ir.ValueBytes, ir.ValueNull,
 		},
 	}
-	for _, k := range []ir.PrimKind{
-		ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
-		ir.PrimURL, ir.PrimUUID,
+	for _, primitiveKind := range []ir.PrimitiveKind{
+		ir.PrimitiveString, ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset, ir.PrimitiveDuration,
+		ir.PrimitiveURL, ir.PrimitiveUUID,
 	} {
-		rows[k] = text
+		rows[primitiveKind] = text
 	}
-	for _, k := range []ir.PrimKind{
-		ir.PrimInt8, ir.PrimInt16, ir.PrimInt32, ir.PrimInt64, ir.PrimUint8, ir.PrimUint16, ir.PrimUint32,
-		ir.PrimUint64, ir.PrimInteger, ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimNumber,
-		ir.PrimDecimal, ir.PrimDecimal128,
+	for _, primitiveKind := range []ir.PrimitiveKind{
+		ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveUint8, ir.PrimitiveUint16, ir.PrimitiveUint32,
+		ir.PrimitiveUint64, ir.PrimitiveInteger, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber,
+		ir.PrimitiveDecimal, ir.PrimitiveDecimal128,
 	} {
-		rows[k] = number
+		rows[primitiveKind] = number
 	}
 	return rows
 }()
@@ -51,47 +51,47 @@ var admittedMemberKinds = func() map[ir.PrimKind][]ir.ValueKind {
 var askedMemberKinds = []ir.Value{
 	{Kind: ir.ValueNull},
 	{Kind: ir.ValueBool, Bool: true},
-	{Kind: ir.ValueString, Str: "a"},
-	{Kind: ir.ValueSymbol, Str: "a"},
-	{Kind: ir.ValueNumber, Num: "1"},
+	{Kind: ir.ValueString, String: "a"},
+	{Kind: ir.ValueSymbol, String: "a"},
+	{Kind: ir.ValueNumber, Number: "1"},
 	{Kind: ir.ValueBytes, Bytes: []byte("a")},
 	{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueNull}}},
 	{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueNull}}}},
-	{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/x/E", Member: "m"}},
-	{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/x/E"}},
-	{Kind: ir.ValueInf},
-	{Kind: ir.ValueNegInf},
+	{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/x/E", Member: "m"}},
+	{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/x/E"}},
+	{Kind: ir.ValueInfinity},
+	{Kind: ir.ValueNegativeInfinity},
 	{Kind: ir.ValueNaN},
 }
 
 // enumHolding returns a document of one enum of value type vt with one member
 // holding value.
-func enumHolding(vt ir.PrimKind, value ir.Value) *ir.Document {
+func enumHolding(vt ir.PrimitiveKind, value ir.Value) *ir.Document {
 	name := ir.Naming{Source: "e", Canonical: "e"}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{
-			"t/x/E": &ir.Enum{ID: "t/x/E", Name: name, ValueType: vt, Members: []ir.EnumMember{
-				{ID: "e/x/E/m", Name: name, Value: value},
+			"type/x/E": &ir.Enum{ID: "type/x/E", Name: name, ValueType: vt, Members: []ir.EnumMember{
+				{ID: "enum-member/x/E/m", Name: name, Value: value},
 			}},
 		},
 	}
 }
 
-// TestMemberKinds_EveryPrimKindHasARow holds the table above to the PrimKind
-// constants ir declares, both ways: a value type added to ir without a row
-// would admit no kind or all of them, and a row for one ir does not declare is
-// a test of nothing.
-func TestMemberKinds_EveryPrimKindHasARow(t *testing.T) {
+// TestMemberKinds_EveryPrimitiveKindHasARow holds the table above to the
+// PrimitiveKind constants ir declares, both ways: a value type added to ir
+// without a row would admit no kind or all of them, and a row for one ir does
+// not declare is a test of nothing.
+func TestMemberKinds_EveryPrimitiveKindHasARow(t *testing.T) {
 	t.Parallel()
-	consts, err := irDecls(t).StringConsts("PrimKind")
+	consts, err := irDecls(t).StringConsts("PrimitiveKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, consts)
-	declared := map[ir.PrimKind]bool{}
-	for _, c := range consts {
-		kind := ir.PrimKind(c.Value)
+	declared := map[ir.PrimitiveKind]bool{}
+	for _, declaredConst := range consts {
+		kind := ir.PrimitiveKind(declaredConst.Value)
 		declared[kind] = true
-		assert.Contains(t, admittedMemberKinds, kind, "ir.%s is a value type with no row of admitted member kinds", c.Name)
+		assert.Contains(t, admittedMemberKinds, kind, "ir.%s is a value type with no row of admitted member kinds", declaredConst.Name)
 	}
 	for kind := range admittedMemberKinds {
 		assert.True(t, declared[kind], "a row names value type %q, which ir does not declare", kind)
@@ -106,12 +106,12 @@ func TestMemberKinds_AsksEveryValueKind(t *testing.T) {
 	consts, err := irDecls(t).StringConsts("ValueKind")
 	require.NoError(t, err)
 	declared := make([]ir.ValueKind, 0, len(consts))
-	for _, c := range consts {
-		declared = append(declared, ir.ValueKind(c.Value))
+	for _, declaredConst := range consts {
+		declared = append(declared, ir.ValueKind(declaredConst.Value))
 	}
 	asked := make([]ir.ValueKind, 0, len(askedMemberKinds))
-	for _, v := range askedMemberKinds {
-		asked = append(asked, v.Kind)
+	for _, value := range askedMemberKinds {
+		asked = append(asked, value.Kind)
 	}
 	assert.ElementsMatch(t, declared, asked)
 }
@@ -126,16 +126,16 @@ func TestVerify_EnumMemberKindMatchesTheValueType(t *testing.T) {
 			t.Parallel()
 			for _, value := range askedMemberKinds {
 				var got []string
-				for _, v := range Verify(enumHolding(vt, value)) {
-					if v.Code == memberKindCode {
-						got = append(got, v.Path)
+				for _, violation := range Verify(enumHolding(vt, value)) {
+					if violation.Code == memberKindCode {
+						got = append(got, violation.Path)
 					}
 				}
 				if slices.Contains(admitted, value.Kind) {
 					assert.Empty(t, got, "a %s member of an enum of value type %s", value.Kind, vt)
 					continue
 				}
-				assert.Equal(t, []string{"types[t/x/E].Members[0].Value"}, got,
+				assert.Equal(t, []string{"types[type/x/E].Members[0].Value"}, got,
 					"a %s member of an enum of value type %s", value.Kind, vt)
 			}
 		})
@@ -146,24 +146,24 @@ func TestVerify_EnumMemberKindMatchesTheValueType(t *testing.T) {
 func TestVerify_EnumMemberKindNamesBothKinds(t *testing.T) {
 	t.Parallel()
 	var got []string
-	for _, v := range Verify(enumHolding(ir.PrimInteger, ir.Value{Kind: ir.ValueString, Str: "a"})) {
-		if v.Code == memberKindCode {
-			got = append(got, v.Message)
+	for _, violation := range Verify(enumHolding(ir.PrimitiveInteger, ir.Value{Kind: ir.ValueString, String: "a"})) {
+		if violation.Code == memberKindCode {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{"enum of value type integer holds a string member"}, got)
 }
 
 // TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType pins that an enum of
-// a value type no PrimKind declares draws ir/unknown-prim-kind alone: there is
-// no row to hold its members to.
+// a value type no PrimitiveKind declares draws ir/unknown-primitive-kind alone:
+// there is no row to hold its members to.
 func TestVerify_EnumMemberKindIsReadOnlyForADeclaredValueType(t *testing.T) {
 	t.Parallel()
-	got := Verify(enumHolding("bogus", ir.Value{Kind: ir.ValueString, Str: "a"}))
+	got := Verify(enumHolding("bogus", ir.Value{Kind: ir.ValueString, String: "a"}))
 	codes := make([]string, 0, len(got))
-	for _, v := range got {
-		codes = append(codes, v.Code)
+	for _, violation := range got {
+		codes = append(codes, violation.Code)
 	}
-	assert.Contains(t, codes, "ir/unknown-prim-kind")
+	assert.Contains(t, codes, "ir/unknown-primitive-kind")
 	assert.NotContains(t, codes, memberKindCode)
 }

@@ -25,11 +25,11 @@ func TestDropContained_AsksEachEntryOfItsAncestorsOnly(t *testing.T) {
 			t.Parallel()
 			var asked [3]int
 			for k, n := range []int{100, 200, 400} {
-				u := ir.Unmodeled{"openapi:s": {Value: ir.RawValue(`{}`), Provenance: ir.Provenance{Pointer: "/s"}}}
+				unmodeled := ir.Unmodeled{"openapi:s": {Value: ir.RawValue(`{}`), Provenance: ir.Provenance{Pointer: "/s"}}}
 				whole := []string{"openapi:s"}
 				for i := range n {
 					key := fmt.Sprintf("openapi:allOf/%d", i)
-					u[key] = ir.UnmodeledEntry{
+					unmodeled[key] = ir.UnmodeledEntry{
 						Value:      ir.RawValue(`{"x":1}`),
 						Provenance: ir.Provenance{Pointer: jsontext.Pointer(fmt.Sprintf("/s/allOf/%d", i))},
 					}
@@ -38,11 +38,11 @@ func TestDropContained_AsksEachEntryOfItsAncestorsOnly(t *testing.T) {
 				if !listed {
 					whole = nil
 				}
-				dropContained(New(ExtensionPromotions{Disabled: true}), &u, func(outer, inner ir.UnmodeledEntry) bool {
+				dropContained(New(ExtensionPromotions{Disabled: true}), &unmodeled, func(outer, inner ir.UnmodeledEntry) bool {
 					asked[k]++
 					return holdsWhole(outer, inner)
 				}, whole)
-				assert.Len(t, u, n+1, "nothing lies beneath another entry")
+				assert.Len(t, unmodeled, n+1, "nothing lies beneath another entry")
 			}
 			assert.Positive(t, asked[0], "no entry was asked against another: the shape reaches no question")
 			assert.LessOrEqual(t, float64(asked[2]-asked[1]), 2.5*float64(asked[1]-asked[0]),

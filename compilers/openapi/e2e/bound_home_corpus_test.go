@@ -18,13 +18,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// statedBounds returns the names of the fields c states, none for a nil c.
-func statedBounds(c *ir.Constraints) []string {
-	if c == nil {
+// statedBounds returns the names of the fields constraints states, none for a
+// nil constraints.
+func statedBounds(constraints *ir.Constraints) []string {
+	if constraints == nil {
 		return nil
 	}
 	var names []string
-	v := reflect.ValueOf(*c)
+	v := reflect.ValueOf(*constraints)
 	for i := range v.NumField() {
 		if !v.Field(i).IsZero() {
 			names = append(names, v.Type().Field(i).Name)
@@ -44,8 +45,8 @@ func nodeBounds(doc *ir.Document, id ir.TypeID) []string {
 	if !held.IsValid() {
 		return nil
 	}
-	c, _ := reflect.TypeAssert[*ir.Constraints](held)
-	return statedBounds(c)
+	constraints, _ := reflect.TypeAssert[*ir.Constraints](held)
+	return statedBounds(constraints)
 }
 
 // restatedBounds returns, for each property, header and parameter of doc that

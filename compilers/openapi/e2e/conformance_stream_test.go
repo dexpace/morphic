@@ -33,11 +33,11 @@ func corpusWith(t *testing.T, name string, opts openapi.Options) (*ir.Document, 
 }
 
 // markersOf splits a marker list into its names.
-func markersOf(m ir.Inferred) []string {
-	if m == "" {
+func markersOf(inferred ir.Inferred) []string {
+	if inferred == "" {
 		return nil
 	}
-	return strings.Split(string(m), ",")
+	return strings.Split(string(inferred), ",")
 }
 
 // streamPromotions maps the two stream targets to the keys stream-terminator
@@ -62,30 +62,30 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		promoted  = ir.Inferred("extension-promotion")
 		streaming = ir.Inferred("streaming-inference")
 	)
-	contentsOf := func(op ir.Operation) []ir.Content {
-		require.Len(t, op.Responses, 1)
-		require.NotNil(t, op.Responses[0].Payload)
-		require.Len(t, op.Responses[0].Payload.Contents, 2)
-		return op.Responses[0].Payload.Contents
+	contentsOf := func(operation ir.Operation) []ir.Content {
+		require.Len(t, operation.Responses, 1)
+		require.NotNil(t, operation.Responses[0].Payload)
+		require.Len(t, operation.Responses[0].Payload.Contents, 2)
+		return operation.Responses[0].Payload.Contents
 	}
 
-	op, ok := opByName(doc, "chat")
+	irOperation, ok := operationByName(doc, "chat")
 	require.True(t, ok)
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Terminator)
-	assert.Equal(t, "[DONE]", *op.ResponseStream.Terminator)
-	assert.Nil(t, op.ResponseStream.Condition, "no default source names a condition")
-	contents := contentsOf(op)
+	require.NotNil(t, irOperation.ResponseStream)
+	require.NotNil(t, irOperation.ResponseStream.Terminator)
+	assert.Equal(t, "[DONE]", *irOperation.ResponseStream.Terminator)
+	assert.Nil(t, irOperation.ResponseStream.Condition, "no default source names a condition")
+	contents := contentsOf(irOperation)
 	assert.Empty(t, contents[0].Inferred, "the content that does not stream read no key")
 	assert.Equal(t, promoted, contents[1].Inferred, "the content whose key was read records it")
 	require.NotNil(t, contents[1].Stream)
 	assert.Equal(t, streaming, contents[1].Stream.Inferred, "how it is known to stream is unchanged")
-	assert.Equal(t, streaming, op.Provenance.Inferred, "the operation records no promotion for a key it did not read")
+	assert.Equal(t, streaming, irOperation.Provenance.Inferred, "the operation records no promotion for a key it did not read")
 	assert.Contains(t, contents[1].Unmodeled, key, "the key is kept")
 	assert.Empty(t, diags)
 
 	mapped, mappedDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: streamPromotions()})
-	mop, ok := opByName(mapped, "chat")
+	mop, ok := operationByName(mapped, "chat")
 	require.True(t, ok)
 	require.NotNil(t, mop.ResponseStream)
 	require.NotNil(t, mop.ResponseStream.Terminator)
@@ -93,7 +93,7 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	cond := mop.ResponseStream.Condition
 	require.NotNil(t, cond)
 	assert.Nil(t, cond.Input.Param, "the input is a member of the request body")
-	assert.Equal(t, []ir.PropID{"p/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"},
+	assert.Equal(t, []ir.PropertyID{"property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream"},
 		cond.Input.Segments)
 	assert.Equal(t, ir.ValueBool, cond.Value.Kind)
 	assert.True(t, cond.Value.Bool)
@@ -102,7 +102,7 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Empty(t, mappedDiags)
 
 	off, offDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
-	oop, ok := opByName(off, "chat")
+	oop, ok := operationByName(off, "chat")
 	require.True(t, ok)
 	require.NotNil(t, oop.ResponseStream)
 	assert.Nil(t, oop.ResponseStream.Terminator, "promotion off fills nothing")
@@ -130,26 +130,26 @@ func assertPathPrefixQuery(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) 
 	groups := doc.Services[0].Groups
 	require.Len(t, groups, 2)
 
-	assert.Equal(t, ir.GroupID("g/path-prefix/users"), groups[0].ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix/users"), groups[0].ID)
 	require.Len(t, groups[0].Operations, 2)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1users/get"), groups[0].Operations[0].ID)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1users?role=admin/get"), groups[0].Operations[1].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1users/get"), groups[0].Operations[0].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1users?role=admin/get"), groups[0].Operations[1].ID)
 	assert.Equal(t, "/users?role=admin", groups[0].Operations[1].Bindings.HTTP[0].URITemplate,
 		"the query stays in the template")
 
-	assert.Equal(t, ir.GroupID("g/path-prefix"), groups[1].ID)
+	assert.Equal(t, ir.GroupID("operation-group/path-prefix"), groups[1].ID)
 	assert.Equal(t, ir.Naming{Hint: "empty"}, groups[1].Name)
 	require.Len(t, groups[1].Operations, 1)
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1?probe=1/get"), groups[1].Operations[0].ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1?probe=1/get"), groups[1].Operations[0].ID)
 }
 
 // sortedPointers returns the pointers of the diagnostics of code, as strings
 // in sorted order.
 func sortedPointers(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)

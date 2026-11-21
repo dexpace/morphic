@@ -64,13 +64,13 @@ func TestPassedOverEntries_ReportsExtraMediaTypes(t *testing.T) {
 	}
 }
 
-// TestElectContentEntry_DoesNotFollowDeclarationOrder compiles a parameter and a
-// header in every order of their entries. Each order lowers one entry, keeps the
-// others whole on the Document, and reports them alike, so a reordered map changes
-// nothing, and nothing an entry wrote is lost (GitHub #606). It is the diff the
-// harness cannot run: such a document draws a validation error, where the order
-// oracle stops.
-func TestElectContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
+// TestChooseSingleContentEntry_DoesNotFollowDeclarationOrder compiles a
+// parameter and a header in every order of their entries. Each order lowers one
+// entry, keeps the others whole on the Document, and reports them alike, so a
+// reordered map changes nothing, and nothing an entry wrote is lost (GitHub
+// #606). It is the diff the harness cannot run: such a document draws a
+// validation error, where the order oracle stops.
+func TestChooseSingleContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const (
 		numberEntry = `application/json: {schema: {$ref: "#/components/schemas/Num"}}`
@@ -122,7 +122,7 @@ components:
 			"parameter": electedParam, "header": electedHeader,
 		} {
 			target, mediaType, unmodeled := elected(t, doc)
-			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Num"), target, "%s, %q", name, entries)
+			assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Num"), target, "%s, %q", name, entries)
 			assert.Equal(t, "application/json", mediaType, "%s, %q", name, entries)
 			assert.Empty(t, unmodeled, "%s, %q: a passed-over entry is the document's", name, entries)
 		}
@@ -159,7 +159,7 @@ paths:
       responses: {"200": {description: ok}}
 `)
 	target, mediaType, _ := electedParam(t, doc)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), target)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), target)
 	assert.Equal(t, "application/json", mediaType)
 	assert.Contains(t, doc.Unmodeled, "openapi:/paths/~1x/get/parameters/0/content/text~1plain")
 }
@@ -303,12 +303,12 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 	assert.Equal(t, []string{"openapi:" + headerMap + "/text~1plain", "openapi:" + paramMap + "/text~1plain"},
 		slices.Sorted(maps.Keys(doc.Unmodeled)))
 	for _, name := range []string{"a", "b", "c"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.Len(t, op.Params, 1)
-		assert.Empty(t, op.Params[0].Unmodeled, name)
-		require.Len(t, op.Responses, 1)
-		require.Len(t, op.Responses[0].Headers, 1)
-		assert.Empty(t, op.Responses[0].Headers[0].Unmodeled, name)
+		operation := openapitest.FindOperation(t, doc, name)
+		require.Len(t, operation.Params, 1)
+		assert.Empty(t, operation.Params[0].Unmodeled, name)
+		require.Len(t, operation.Responses, 1)
+		require.Len(t, operation.Responses[0].Headers, 1)
+		assert.Empty(t, operation.Responses[0].Headers[0].Unmodeled, name)
 	}
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "%+v", diags)
 	_, reported := serviceAsReported(t, src)
@@ -398,9 +398,10 @@ webhooks:
 	assert.Equal(t, contentMaps, openapitest.PointersOf(reported, diag.DegradedConstruct), "%+v", reported)
 }
 
-// TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry
-// spelling must not warn, or every content-style header and parameter would.
-func TestElectContentEntry_OneEntryIsSilent(t *testing.T) {
+// TestChooseSingleContentEntry_OneEntryIsSilent is the control: the legal
+// one-entry spelling must not warn, or every content-style header and parameter
+// would.
+func TestChooseSingleContentEntry_OneEntryIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.PathsSpec("  /x:\n    get:\n      responses:\n"+
 		"        \"200\":\n          description: ok\n          headers:\n"+
@@ -420,9 +421,9 @@ func TestElectTypeSpelling_NeitherSpelling(t *testing.T) {
 		"            H: {description: untyped}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	headers := openapitest.FindOp(t, doc, "untypedHeader").Responses[0].Headers
+	headers := openapitest.FindOperation(t, doc, "untypedHeader").Responses[0].Headers
 	require.Len(t, headers, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), headers[0].Type.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/any"), headers[0].Type.Target,
 		"a header declaring no type lowers to the top type")
 	assert.Nil(t, headers[0].Encoding, "no content map means no media type")
 	assert.Equal(t, "untyped", headers[0].Docs.Description)
@@ -485,7 +486,7 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 				errorFindings(diags))
 			target, mediaType, unmodeled := tc.elected(t, doc)
 
-			assert.Equal(t, ir.TypeID("t/prim/string"), target,
+			assert.Equal(t, ir.TypeID("type/primitive/string"), target,
 				"the content entry's schema is the type, not the schema written beside it")
 			assert.Equal(t, "application/json", mediaType,
 				"and the media type it names reaches the field that models it")
@@ -497,9 +498,9 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer(tc.at+"/schema"), entry.Provenance.Pointer,
 				"located at the keyword itself, not at the object that carried it")
 
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at+"/schema")
-			assert.Contains(t, msg, "lowered as its content", "the message names the elected spelling")
-			assert.Contains(t, msg, "with schema kept verbatim", "and the one it passed over")
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at+"/schema")
+			assert.Contains(t, message, "lowered as its content", "the message names the elected spelling")
+			assert.Contains(t, message, "with schema kept verbatim", "and the one it passed over")
 		})
 	}
 }
@@ -534,15 +535,15 @@ func TestElectTypeSpelling_SoleSpellingReportsNothing(t *testing.T) {
 	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"one spelling is the legal form, so there is no election to announce: %+v", diags)
 
-	op := openapitest.FindOp(t, doc, "getX")
-	require.Len(t, op.Params, 2)
-	for _, p := range op.Params {
-		assertNoPassedOverSpelling(t, p.Unmodeled, p.Name.Source)
+	operation := openapitest.FindOperation(t, doc, "getX")
+	require.Len(t, operation.Params, 2)
+	for _, parameter := range operation.Params {
+		assertNoPassedOverSpelling(t, parameter.Unmodeled, parameter.Name.Source)
 	}
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assertNoPassedOverSpelling(t, h.Unmodeled, h.WireName)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 2)
+	for _, header := range operation.Responses[0].Headers {
+		assertNoPassedOverSpelling(t, header.Unmodeled, header.WireName)
 	}
 }
 
@@ -568,24 +569,24 @@ func TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins(t *testing.T) {
             application/json: {}
       responses: {"200": {description: ok}}
 `))
-	op := openapitest.FindOp(t, doc, "getX")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), op.Params[0].Type.Target,
+	operation := openapitest.FindOperation(t, doc, "getX")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), operation.Params[0].Type.Target,
 		"the elected content states no schema, so the position states no type")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	assert.Equal(t, "application/json", op.Bindings.HTTP[0].ParamBindings[0].ContentType,
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
+	assert.Equal(t, "application/json", operation.Bindings.HTTP[0].ParamBindings[0].ContentType,
 		"the media type it does state is still modelled")
 
 	at := "/paths/~1x/get/parameters/0/schema"
-	entry, ok := op.Params[0].Unmodeled["openapi:schema"]
-	require.True(t, ok, "and the passed-over schema is kept; got %v", op.Params[0].Unmodeled)
+	entry, ok := operation.Params[0].Unmodeled["openapi:schema"]
+	require.True(t, ok, "and the passed-over schema is kept; got %v", operation.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
 	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
-	assert.Contains(t, msg, "lowered as its content", "the message names the elected spelling")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+	assert.Contains(t, message, "lowered as its content", "the message names the elected spelling")
 }
 
 // TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt covers the other
@@ -608,25 +609,25 @@ func TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt(t *testing.T) {
           content: {}
       responses: {"200": {description: ok}}
 `))
-	op := openapitest.FindOp(t, doc, "getX")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target,
+	operation := openapitest.FindOperation(t, doc, "getX")
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), operation.Params[0].Type.Target,
 		"the schema is the type, since the content map names none")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	assert.Empty(t, op.Bindings.HTTP[0].ParamBindings[0].ContentType,
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
+	assert.Empty(t, operation.Bindings.HTTP[0].ParamBindings[0].ContentType,
 		"and there is no media type to record")
 
 	at := "/paths/~1x/get/parameters/0/content"
-	entry, ok := op.Params[0].Unmodeled["openapi:content"]
-	require.True(t, ok, "the passed-over content map is kept verbatim; got %v", op.Params[0].Unmodeled)
+	entry, ok := operation.Params[0].Unmodeled["openapi:content"]
+	require.True(t, ok, "the passed-over content map is kept verbatim; got %v", operation.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{}`, string(entry.Value))
 	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
-	assert.Contains(t, msg, "lowered as its schema", "the message names the elected spelling")
-	assert.Contains(t, msg, "with content kept verbatim", "and the one it passed over")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+	assert.Contains(t, message, "lowered as its schema", "the message names the elected spelling")
+	assert.Contains(t, message, "with content kept verbatim", "and the one it passed over")
 }
 
 // TestParamContent_MergedFieldIsKept pins that a content-only field merged into
@@ -648,10 +649,10 @@ func TestParamContent_MergedFieldIsKept(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/itemSchema"]
-	require.True(t, ok, "got %v", slices.Sorted(maps.Keys(op.Params[0].Unmodeled)))
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	kept, ok := operation.Params[0].Unmodeled["openapi:content/application~1json/itemSchema"]
+	require.True(t, ok, "got %v", slices.Sorted(maps.Keys(operation.Params[0].Unmodeled)))
 	assert.JSONEq(t, `{"type":"string"}`, string(kept.Value))
 }
 
@@ -683,9 +684,9 @@ paths:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	param := op.Params[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	param := operation.Params[0]
 
 	require.Len(t, param.Examples, 1, "the media type's own examples reach the parameter")
 	assert.Equal(t, "one", param.Examples[0].Name)
@@ -729,7 +730,7 @@ paths:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	header := openapitest.FirstOperation(t, svc).Responses[0].Headers[0]
 
 	require.Len(t, header.Examples, 1, "the media type's own examples reach the header")
 	assert.Equal(t, "hit", header.Examples[0].Name)
@@ -758,17 +759,17 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	for key := range op.Params[0].Unmodeled {
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	for key := range operation.Params[0].Unmodeled {
 		assert.NotContains(t, key, "openapi:content/", "the schema spelling elects no media type")
 	}
-	assert.Empty(t, op.Params[0].Examples)
-	require.Len(t, op.Responses[0].Headers, 1)
-	for key := range op.Responses[0].Headers[0].Unmodeled {
+	assert.Empty(t, operation.Params[0].Examples)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	for key := range operation.Responses[0].Headers[0].Unmodeled {
 		assert.NotContains(t, key, "openapi:content/")
 	}
-	assert.Empty(t, op.Responses[0].Headers[0].Examples)
+	assert.Empty(t, operation.Responses[0].Headers[0].Examples)
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"nothing was passed over, so nothing is announced")
 }
@@ -777,18 +778,18 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
 // parameter: its type, the media type on its binding, and its Unmodeled.
 func electedParam(t *testing.T, doc *ir.Document) (ir.TypeID, string, ir.Unmodeled) {
 	t.Helper()
-	op := openapitest.FindOp(t, doc, "getX")
-	require.Len(t, op.Params, 1)
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	return op.Params[0].Type.Target, op.Bindings.HTTP[0].ParamBindings[0].ContentType, op.Params[0].Unmodeled
+	operation := openapitest.FindOperation(t, doc, "getX")
+	require.Len(t, operation.Params, 1)
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
+	return operation.Params[0].Type.Target, operation.Bindings.HTTP[0].ParamBindings[0].ContentType, operation.Params[0].Unmodeled
 }
 
 // electedHeader reads the same three things off the operation's single response
 // header, where the media type has a different home.
 func electedHeader(t *testing.T, doc *ir.Document) (ir.TypeID, string, ir.Unmodeled) {
 	t.Helper()
-	responses := openapitest.FindOp(t, doc, "getX").Responses
+	responses := openapitest.FindOperation(t, doc, "getX").Responses
 	require.Len(t, responses, 1)
 	headers := responses[0].Headers
 	require.Len(t, headers, 1)
@@ -798,8 +799,8 @@ func electedHeader(t *testing.T, doc *ir.Document) (ir.TypeID, string, ir.Unmode
 
 // assertNoPassedOverSpelling requires that neither spelling was kept verbatim at
 // a position that declared only one of them.
-func assertNoPassedOverSpelling(t *testing.T, u ir.Unmodeled, at string) {
+func assertNoPassedOverSpelling(t *testing.T, unmodeled ir.Unmodeled, at string) {
 	t.Helper()
-	assert.NotContains(t, u, "openapi:schema", "%s kept a schema it never passed over", at)
-	assert.NotContains(t, u, "openapi:content", "%s kept a content map it never passed over", at)
+	assert.NotContains(t, unmodeled, "openapi:schema", "%s kept a schema it never passed over", at)
+	assert.NotContains(t, unmodeled, "openapi:content", "%s kept a content map it never passed over", at)
 }

@@ -239,10 +239,10 @@ func TestReverseNode_DepthBound(t *testing.T) {
 // holds key/value pairs, so this guards the helper rather than a reachable input.
 func TestReversedPairs_OddTrailingElementIsKept(t *testing.T) {
 	t.Parallel()
-	a, b, c := scalarNode("a"), scalarNode("b"), scalarNode("c")
-	got := reversedPairs([]*yaml.Node{a, b, c})
+	a, b, node := scalarNode("a"), scalarNode("b"), scalarNode("c")
+	got := reversedPairs([]*yaml.Node{a, b, node})
 	require.Len(t, got, 3)
-	assert.Equal(t, []*yaml.Node{a, b, c}, got, "one pair, reversed onto itself, then the odd tail")
+	assert.Equal(t, []*yaml.Node{a, b, node}, got, "one pair, reversed onto itself, then the odd tail")
 }
 
 // TestOrderInvariant_DeclinesWhatItCannotPermute pins each way the oracle
@@ -388,10 +388,10 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		return &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
-			Properties: []ir.Property{{ID: ir.PropID("p/x/" + wire), WireName: wire}},
+			Properties: []ir.Property{{ID: ir.PropertyID("property/x/" + wire), WireName: wire}},
 		}
 	}
-	one := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "a")}}
+	one := &ir.Document{Types: ir.TypeRegistry{"type/x/A": model("type/x/A", "a")}}
 	const differs = "document depends on declaration order"
 
 	t.Run("a different number of types", func(t *testing.T) {
@@ -403,7 +403,7 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 
 	t.Run("a type that changed shape", func(t *testing.T) {
 		t.Parallel()
-		other := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "b")}}
+		other := &ir.Document{Types: ir.TypeRegistry{"type/x/A": model("type/x/A", "b")}}
 		detail, ok := diffOrderInvariants(one, nil, other, nil)
 		assert.False(t, ok)
 		assert.Contains(t, detail, differs)
@@ -435,14 +435,14 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		t.Parallel()
 		// What #606 flipped: the type an operation's response header names.
 		header := func(target ir.TypeID) *ir.Document {
-			return withOperation(ir.Operation{ID: "op/x/get", Responses: []ir.Response{{
-				Headers: []ir.Header{{ID: "p/x/h", Type: ir.TypeRef{Target: target}}},
+			return withOperation(ir.Operation{ID: "operation/x/get", Responses: []ir.Response{{
+				Headers: []ir.Header{{ID: "property/x/h", Type: ir.TypeRef{Target: target}}},
 			}}})
 		}
-		detail, ok := diffOrderInvariants(header("t/prim/string"), nil, header("t/prim/integer"), nil)
+		detail, ok := diffOrderInvariants(header("type/primitive/string"), nil, header("type/primitive/integer"), nil)
 		assert.False(t, ok)
 		assert.Contains(t, detail, differs)
-		assert.Contains(t, detail, `"target": "t/prim/integer"`, "the diff names what changed")
+		assert.Contains(t, detail, `"target": "type/primitive/integer"`, "the diff names what changed")
 	})
 
 	t.Run("the hash of the source compiled", func(t *testing.T) {
@@ -461,7 +461,7 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 
 	t.Run("a different set of diagnostics", func(t *testing.T) {
 		t.Parallel()
-		other := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "a")}}
+		other := &ir.Document{Types: ir.TypeRegistry{"type/x/A": model("type/x/A", "a")}}
 		detail, ok := diffOrderInvariants(one, nil, other,
 			[]ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "c", Provenance: ir.Provenance{Pointer: "/p"}}})
 		assert.False(t, ok)
@@ -484,10 +484,10 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	})
 }
 
-// withOperation is a document of one service holding op in one group.
-func withOperation(op ir.Operation) *ir.Document {
-	return &ir.Document{Services: []ir.Service{{ID: "s/x/S", Groups: []ir.OperationGroup{{
-		ID: "g/x/G", Operations: []ir.Operation{op},
+// withOperation is a document of one service holding operation in one group.
+func withOperation(operation ir.Operation) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{ID: "service/x/S", Groups: []ir.OperationGroup{{
+		ID: "operation-group/x/G", Operations: []ir.Operation{operation},
 	}}}}}
 }
 
@@ -547,21 +547,21 @@ func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 		Severity:   ir.SeverityWarning,
 		Code:       "x/y",
 		Message:    "m",
-		Provenance: ir.Provenance{Source: 0, Pointer: "/a", Node: "t/x/A"},
+		Provenance: ir.Provenance{Source: 0, Pointer: "/a", Node: "type/x/A"},
 	}
 	for _, tc := range []struct {
 		name     string
-		vary     func(d *ir.Diagnostic)
+		vary     func(diagnostic *ir.Diagnostic)
 		distinct bool
 	}{
-		{"severity", func(d *ir.Diagnostic) { d.Severity = ir.SeverityError }, true},
-		{"code", func(d *ir.Diagnostic) { d.Code = "x/z" }, true},
-		{"source", func(d *ir.Diagnostic) { d.Provenance.Source = 1 }, true},
-		{"pointer", func(d *ir.Diagnostic) { d.Provenance.Pointer = "/b" }, true},
-		{"node", func(d *ir.Diagnostic) { d.Provenance.Node = "t/x/B" }, true},
-		{"writer", func(d *ir.Diagnostic) { d.Provenance.WrittenBy = 1 }, true},
-		{"inferred", func(d *ir.Diagnostic) { d.Provenance.Inferred = "group-path-prefix" }, true},
-		{"message", func(d *ir.Diagnostic) { d.Message = "other" }, false},
+		{"severity", func(diagnostic *ir.Diagnostic) { diagnostic.Severity = ir.SeverityError }, true},
+		{"code", func(diagnostic *ir.Diagnostic) { diagnostic.Code = "x/z" }, true},
+		{"source", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Source = 1 }, true},
+		{"pointer", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Pointer = "/b" }, true},
+		{"node", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Node = "type/x/B" }, true},
+		{"writer", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.WrittenBy = 1 }, true},
+		{"inferred", func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Inferred = "group-path-prefix" }, true},
+		{"message", func(diagnostic *ir.Diagnostic) { diagnostic.Message = "other" }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -595,13 +595,13 @@ func reorderedCollections(reversed bool, differ string) *ir.Document {
 		}
 		return v
 	}
-	p0, p1 := pair("p/x/a", second("properties", "p/x/b"))
+	p0, p1 := pair("property/x/a", second("properties", "property/x/b"))
 	pp0, pp1 := pair("^a", second("patterns", "^b"))
 	ex0, ex1 := pair("one", second("examples", "two"))
 	v0, v1 := pair("a", second("variables", "b"))
-	h0, h1 := pair("p/x/h1", second("headers", "p/x/h2"))
+	h0, h1 := pair("property/x/h1", second("headers", "property/x/h2"))
 	m0, m1 := pair("application/json", second("contents", "text/plain"))
-	lp0, lp1 := pair("param/x/a", second("link params", "param/x/b"))
+	lp0, lp1 := pair("parameter/x/a", second("link params", "parameter/x/b"))
 	cb0, cb1 := pair("onA", second("callbacks", "onB"))
 	su0, su1 := pair("auth/x/a", second("scheme uses", "auth/x/b"))
 	rc0, rc1 := pair("application/json", second("request content types", "text/plain"))
@@ -617,7 +617,7 @@ func reorderedCollections(reversed bool, differ string) *ir.Document {
 		return ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: code, To: code}}}
 	}
 	links := []ir.OperationLink{
-		{Name: ir.Naming{Source: "first"}, Params: []ir.LinkParam{{Param: ir.ParamID(lp0)}, {Param: ir.ParamID(lp1)}}},
+		{Name: ir.Naming{Source: "first"}, Params: []ir.LinkParam{{Param: ir.ParameterID(lp0)}, {Param: ir.ParameterID(lp1)}}},
 		{Name: ir.Naming{Source: second("links", "second")}},
 	}
 	responses := []ir.Response{{}, {Conditions: status("responses", 201)}}
@@ -631,7 +631,7 @@ func reorderedCollections(reversed bool, differ string) *ir.Document {
 	// The first response, at 200 in both orders, holds the collections a
 	// response holds, so the two responses are told apart by their status.
 	full := ir.Response{Conditions: status("", 200),
-		Headers: []ir.Header{{ID: ir.PropID(h0)}, {ID: ir.PropID(h1)}},
+		Headers: []ir.Header{{ID: ir.PropertyID(h0)}, {ID: ir.PropertyID(h1)}},
 		Links:   links,
 		Payload: &ir.Payload{Contents: []ir.Content{{MediaType: m0}, {MediaType: m1}}},
 	}
@@ -640,32 +640,32 @@ func reorderedCollections(reversed bool, differ string) *ir.Document {
 			responses[i] = full
 		}
 	}
-	op := func(id string) ir.Operation {
-		return ir.Operation{ID: ir.OpID(id), Responses: responses, Errors: errs,
+	operation := func(id string) ir.Operation {
+		return ir.Operation{ID: ir.OperationID(id), Responses: responses, Errors: errs,
 			Auth: []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ir.AuthID(su0)}, {Scheme: ir.AuthID(su1)}}}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				RequestContentTypes: []string{rc0, rc1},
 				Callbacks:           []ir.Callback{{Name: cb0}, {Name: cb1}},
 			}}},
 			Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{" + j0 + "," + j1 + "}")}},
 		}
 	}
-	ops := []ir.Operation{op("op/x/a"), op(second("operations", "op/x/b"))}
-	groups := []ir.OperationGroup{{ID: "g/x/a", Operations: ops}, {ID: ir.GroupID(second("groups", "g/x/b"))}}
+	operations := []ir.Operation{operation("operation/x/a"), operation(second("operations", "operation/x/b"))}
+	groups := []ir.OperationGroup{{ID: "operation-group/x/a", Operations: operations}, {ID: ir.GroupID(second("groups", "operation-group/x/b"))}}
 	if reversed {
-		slices.Reverse(ops)
+		slices.Reverse(operations)
 		slices.Reverse(groups)
 	}
 	return &ir.Document{
-		Types: ir.TypeRegistry{"t/x/A": &ir.Model{
-			ID:              "t/x/A",
-			Examples:        []ir.Example{{Name: ex0}, {Name: ex1}},
-			Properties:      []ir.Property{{ID: ir.PropID(p0)}, {ID: ir.PropID(p1)}},
-			AdditionalProps: &ir.AdditionalProps{Patterns: []ir.PatternProps{{Pattern: pp0}, {Pattern: pp1}}},
+		Types: ir.TypeRegistry{"type/x/A": &ir.Model{
+			ID:                   "type/x/A",
+			Examples:             []ir.Example{{Name: ex0}, {Name: ex1}},
+			Properties:           []ir.Property{{ID: ir.PropertyID(p0)}, {ID: ir.PropertyID(p1)}},
+			AdditionalProperties: &ir.AdditionalProperties{Patterns: []ir.PatternProperties{{Pattern: pp0}, {Pattern: pp1}}},
 		}},
 		Servers: map[ir.ServerID]ir.Server{"server/x/a": {ID: "server/x/a",
 			Variables: []ir.ServerVariable{{Name: v0}, {Name: v1}}}},
-		Services: []ir.Service{{ID: "s/x/S", Groups: groups}},
+		Services: []ir.Service{{ID: "service/x/S", Groups: groups}},
 	}
 }
 
@@ -700,25 +700,25 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 // an enum's members, is compared in order.
 func TestDiffOrderInvariants_ASequencesOrderIsCompared(t *testing.T) {
 	t.Parallel()
-	params := func(ids ...ir.ParamID) *ir.Document {
-		op := ir.Operation{ID: "op/x/get"}
+	params := func(ids ...ir.ParameterID) *ir.Document {
+		operation := ir.Operation{ID: "operation/x/get"}
 		for _, id := range ids {
-			op.Params = append(op.Params, ir.Parameter{ID: id})
+			operation.Params = append(operation.Params, ir.Parameter{ID: id})
 		}
-		return withOperation(op)
+		return withOperation(operation)
 	}
-	detail, ok := diffOrderInvariants(params("param/x/a", "param/x/b"), nil, params("param/x/b", "param/x/a"), nil)
+	detail, ok := diffOrderInvariants(params("parameter/x/a", "parameter/x/b"), nil, params("parameter/x/b", "parameter/x/a"), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "document depends on declaration order")
 
 	members := func(ids ...ir.EnumMemberID) *ir.Document {
-		e := &ir.Enum{ID: "t/x/E"}
+		enum := &ir.Enum{ID: "type/x/E"}
 		for _, id := range ids {
-			e.Members = append(e.Members, ir.EnumMember{ID: id})
+			enum.Members = append(enum.Members, ir.EnumMember{ID: id})
 		}
-		return &ir.Document{Types: ir.TypeRegistry{e.ID: e}}
+		return &ir.Document{Types: ir.TypeRegistry{enum.ID: enum}}
 	}
-	detail, ok = diffOrderInvariants(members("e/x/a", "e/x/b"), nil, members("e/x/b", "e/x/a"), nil)
+	detail, ok = diffOrderInvariants(members("enum-member/x/a", "enum-member/x/b"), nil, members("enum-member/x/b", "enum-member/x/a"), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "document depends on declaration order")
 }
@@ -729,9 +729,9 @@ func TestDiffOrderInvariants_ASequencesOrderIsCompared(t *testing.T) {
 func TestDiffOrderInvariants_RawBytesAreNotJSON(t *testing.T) {
 	t.Parallel()
 	bytesOf := func(b string) *ir.Document {
-		v := ir.Value{Kind: ir.ValueBytes, Bytes: []byte(b)}
-		return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A",
-			Properties: []ir.Property{{ID: "p/x/a", Default: &v}}}}}
+		value := ir.Value{Kind: ir.ValueBytes, Bytes: []byte(b)}
+		return &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A",
+			Properties: []ir.Property{{ID: "property/x/a", Default: &value}}}}}
 	}
 	detail, ok := diffOrderInvariants(bytesOf("\x00not json"), nil, bytesOf("\x00not json"), nil)
 	assert.True(t, ok, detail)
@@ -769,10 +769,10 @@ func TestDiffOrderInvariants_ARawValueForgivesMemberOrderAlone(t *testing.T) {
 // is no JSON, and an element of a sorted collection that holds one.
 func TestDiffOrderInvariants_ADocumentThatWillNotEncodeIsAFinding(t *testing.T) {
 	t.Parallel()
-	inProperty := &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Properties: []ir.Property{
-		{ID: "p/x/a", Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{invalid")}}},
+	inProperty := &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A", Properties: []ir.Property{
+		{ID: "property/x/a", Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{invalid")}}},
 	}}}}
-	model := &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A"}}}
+	model := &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A"}}}
 	for _, tc := range []struct {
 		name          string
 		first, second *ir.Document
@@ -794,11 +794,11 @@ func TestDiffOrderInvariants_ADocumentThatWillNotEncodeIsAFinding(t *testing.T) 
 // numbers builds an object value whose members are numbers, in the order
 // given: name, value, name, value.
 func numbers(pairs ...string) ir.Value {
-	v := ir.Value{Kind: ir.ValueObject}
+	value := ir.Value{Kind: ir.ValueObject}
 	for i := 0; i+1 < len(pairs); i += 2 {
-		v.Object = append(v.Object, ir.Field{Name: pairs[i], Value: ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal(pairs[i+1])}})
+		value.Object = append(value.Object, ir.Field{Name: pairs[i], Value: ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(pairs[i+1])}})
 	}
-	return v
+	return value
 }
 
 // objectValuedModel is a model whose property default and unnamed examples hold
@@ -814,10 +814,10 @@ func objectValuedModel(reversed bool, defaultX string) *ir.Document {
 		first, second = numbers("y", "4", "x", "1"), numbers("y", "3", "x", "2")
 		nested = ir.Value{Kind: ir.ValueList, List: []ir.Value{numbers("b", "2", "a", "1")}}
 	}
-	return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{
-		ID:         "t/x/A",
+	return &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{
+		ID:         "type/x/A",
 		Examples:   []ir.Example{{Value: &first}, {Value: &second}, {Value: &nested}},
-		Properties: []ir.Property{{ID: "p/x/a", WireName: "a", Default: &def}},
+		Properties: []ir.Property{{ID: "property/x/a", WireName: "a", Default: &def}},
 	}}}
 }
 
@@ -849,7 +849,7 @@ func TestDiffOrderInvariants_NamedExamplesCompareAsAMultiset(t *testing.T) {
 	one, two := ir.Example{Name: "one"}, ir.Example{Name: "two"}
 	unnamedA, unnamedB := ir.Example{Summary: "a"}, ir.Example{Summary: "b"}
 	withExamples := func(examples ...ir.Example) *ir.Document {
-		return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Examples: examples}}}
+		return &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A", Examples: examples}}}
 	}
 	for _, tc := range []struct {
 		name string
@@ -1041,12 +1041,12 @@ func TestReencodeMappings_AStreamOfNoDocuments(t *testing.T) {
 func TestCheck_OrderDependentOutcome(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
 	swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
-		id := ir.TypeID("t/x/AsWritten")
+		id := ir.TypeID("type/x/AsWritten")
 		if string(data) != src {
-			id = "t/x/Reversed"
+			id = "type/x/Reversed"
 		}
 		path, _ := ir.IDPath(ir.IDKindType, string(id))
-		m := &ir.Model{
+		model := &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
@@ -1057,13 +1057,13 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			IDSpaces:  spaces,
 			Sources:   sources,
 			Services:  services,
-			Types:     ir.TypeRegistry{m.ID: m},
+			Types:     ir.TypeRegistry{model.ID: model},
 		}, nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte(src))
-	assert.Equal(t, OutcomeOrderDependent, r.Outcome, "detail: %s", r.Detail)
-	assert.Contains(t, r.Detail, "declaration order")
+	result := Check(context.Background(), "spec", []byte(src))
+	assert.Equal(t, OutcomeOrderDependent, result.Outcome, "detail: %s", result.Detail)
+	assert.Contains(t, result.Detail, "declaration order")
 }
 
 // TestMaxReverseDepth_ReachesEveryAdmittedDocument holds the rewrite's bound
@@ -1093,11 +1093,11 @@ func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
 // properties are still sorted. Handed in opts instead, the second
 // json.WithMarshalers replaces orderFree, which is why it is a parameter.
 func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Properties: []ir.Property{
-		{ID: "p/x/b", Type: ir.TypeRef{Target: "t/x/old"}}, {ID: "p/x/a"},
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/A": &ir.Model{ID: "type/x/A", Properties: []ir.Property{
+		{ID: "property/x/b", Type: ir.TypeRef{Target: "type/x/old"}}, {ID: "property/x/a"},
 	}}}}
-	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
-		if r.Target != "t/x/old" {
+	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, typeRef ir.TypeRef) error {
+		if typeRef.Target != "type/x/old" {
 			return errors.ErrUnsupported
 		}
 		return enc.WriteToken(jsontext.String("renamed"))
@@ -1106,11 +1106,11 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 	joined, err := encodeComparable(doc, sortedArray, renamed)
 	require.NoError(t, err)
 	assert.Contains(t, string(joined), `"type":"renamed"`, "more reaches an element orderFree writes")
-	assert.Less(t, bytes.Index(joined, []byte("p/x/a")), bytes.Index(joined, []byte("p/x/b")), "orderFree still sorts")
+	assert.Less(t, bytes.Index(joined, []byte("property/x/a")), bytes.Index(joined, []byte("property/x/b")), "orderFree still sorts")
 
 	replaced, err := encodeComparable(doc, sortedArray, nil, json.WithMarshalers(renamed))
 	require.NoError(t, err)
 	assert.Contains(t, string(replaced), `"type":"renamed"`)
-	assert.Greater(t, bytes.Index(replaced, []byte("p/x/a")), bytes.Index(replaced, []byte("p/x/b")),
+	assert.Greater(t, bytes.Index(replaced, []byte("property/x/a")), bytes.Index(replaced, []byte("property/x/b")),
 		"a second json.WithMarshalers replaces orderFree")
 }

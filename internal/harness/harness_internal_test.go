@@ -52,8 +52,8 @@ func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
 	sources, services, spaces := tables()
 	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: spaces, Sources: sources, Services: services, Types: ir.TypeRegistry{
-		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
-		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
+		ir.TypeID("type/x/\xff"): &ir.Any{ID: "type/x/\xff", Name: named},
+		ir.TypeID("type/x/\xfe"): &ir.Any{ID: "type/x/\xfe", Name: named},
 	}}
 }
 
@@ -67,7 +67,7 @@ func cyclicDoc() *ir.Document {
 	list[0] = ir.Value{Kind: ir.ValueList, List: list}
 	example := ir.Value{Kind: ir.ValueList, List: list}
 	doc := soundDoc()
-	doc.Types["t/x/Model"].Common().Examples = []ir.Example{{Value: &example}}
+	doc.Types["type/x/Model"].Common().Examples = []ir.Example{{Value: &example}}
 	return doc
 }
 
@@ -77,8 +77,8 @@ func cyclicDoc() *ir.Document {
 // violations and round-trips through JSON cleanly, so the oracles reach the step
 // under test.
 func soundDoc() *ir.Document {
-	m := &ir.Model{
-		ID:   "t/x/Model",
+	model := &ir.Model{
+		ID:   "type/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}
 	sources, services, spaces := tables()
@@ -87,7 +87,7 @@ func soundDoc() *ir.Document {
 		IDSpaces:  spaces,
 		Sources:   sources,
 		Services:  services,
-		Types:     ir.TypeRegistry{m.ID: m},
+		Types:     ir.TypeRegistry{model.ID: model},
 	}
 }
 
@@ -101,7 +101,7 @@ func TestRoundTrips_UnmarshalError(t *testing.T) {
 	// A nil TypeDef marshals to `null`; the registry decoder then reads an empty
 	// kind tag and rejects it as unknown, so marshal succeeds but the reverse
 	// fails.
-	doc := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("t/x/nil"): nil}}
+	doc := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("type/x/nil"): nil}}
 	detail, ok := roundTrips(doc)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "unmarshal:")
@@ -203,9 +203,9 @@ func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
 		return nil, nil, errors.New("compile boom")
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeError, r.Outcome)
-	assert.Contains(t, r.Detail, "compile boom")
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeError, result.Outcome)
+	assert.Contains(t, result.Detail, "compile boom")
 }
 
 func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
@@ -213,9 +213,9 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 		panic("compiler exploded")
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomePanic, r.Outcome)
-	assert.Contains(t, r.Detail, "compiler exploded")
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomePanic, result.Outcome)
+	assert.Contains(t, result.Detail, "compiler exploded")
 }
 
 // TestCheck_APanicsDetailIsOneBoundedLine pins that a panic of any size and
@@ -227,12 +227,12 @@ func TestCheck_APanicsDetailIsOneBoundedLine(t *testing.T) {
 		panic(huge)
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
+	result := Check(context.Background(), "spec", []byte("x"))
 
-	assert.Equal(t, OutcomePanic, r.Outcome)
-	assert.True(t, strings.HasPrefix(r.Detail, "panic: the oracle exploded here; the oracle exploded here"), r.Detail)
-	assert.NotContains(t, r.Detail, "\n")
-	assert.Less(t, len(r.Detail), len(huge)/4, "the bound cut the value")
+	assert.Equal(t, OutcomePanic, result.Outcome)
+	assert.True(t, strings.HasPrefix(result.Detail, "panic: the oracle exploded here; the oracle exploded here"), result.Detail)
+	assert.NotContains(t, result.Detail, "\n")
+	assert.Less(t, len(result.Detail), len(huge)/4, "the bound cut the value")
 }
 
 // TestCheck_ARaisedAgainPanicKeepsItsSite pins panicDetail: a compiler's panic
@@ -243,11 +243,11 @@ func TestCheck_ARaisedAgainPanicKeepsItsSite(t *testing.T) {
 		panic("lowering exploded")
 	}})
 
-	r := Check(context.Background(), "spec", []byte(stubSource))
+	result := Check(context.Background(), "spec", []byte(stubSource))
 
-	assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
-	assert.True(t, strings.HasPrefix(r.Detail, "panic: lowering exploded (at "), r.Detail)
-	assert.NotContains(t, r.Detail, "reraise", "the site is where the compiler panicked")
+	assert.Equal(t, OutcomePanic, result.Outcome, result.Detail)
+	assert.True(t, strings.HasPrefix(result.Detail, "panic: lowering exploded (at "), result.Detail)
+	assert.NotContains(t, result.Detail, "reraise", "the site is where the compiler panicked")
 }
 
 // panicsInDetect is a compiler whose recognition panics.
@@ -267,11 +267,11 @@ func TestCheck_ARegisteredCompilersPanicIsAPanicOutcome(t *testing.T) {
 			panic("lowering exploded")
 		}})
 
-		r := Check(context.Background(), "spec", []byte(stubSource))
+		result := Check(context.Background(), "spec", []byte(stubSource))
 
-		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
-		assert.Contains(t, r.Detail, "lowering exploded")
-		assert.Contains(t, r.Detail, "(at ", "the panic's site comes with it")
+		assert.Equal(t, OutcomePanic, result.Outcome, result.Detail)
+		assert.Contains(t, result.Detail, "lowering exploded")
+		assert.Contains(t, result.Detail, "(at ", "the panic's site comes with it")
 	})
 	t.Run("in the recompile", func(t *testing.T) {
 		compiles := 0
@@ -283,19 +283,19 @@ func TestCheck_ARegisteredCompilersPanicIsAPanicOutcome(t *testing.T) {
 			return stubDocument(sources, false), nil, nil
 		}})
 
-		r := Check(context.Background(), "spec", []byte(stubSource))
+		result := Check(context.Background(), "spec", []byte(stubSource))
 
-		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
-		assert.Contains(t, r.Detail, "recompile exploded")
+		assert.Equal(t, OutcomePanic, result.Outcome, result.Detail)
+		assert.Contains(t, result.Detail, "recompile exploded")
 		assert.Equal(t, 2, compiles, "the first compile passed every oracle before it")
 	})
 	t.Run("in recognition", func(t *testing.T) {
 		withCompilers(t, panicsInDetect{})
 
-		r := Check(context.Background(), "spec", []byte(stubSource))
+		result := Check(context.Background(), "spec", []byte(stubSource))
 
-		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
-		assert.Contains(t, r.Detail, "recognition exploded")
+		assert.Equal(t, OutcomePanic, result.Outcome, result.Detail)
+		assert.Contains(t, result.Detail, "recognition exploded")
 	})
 }
 
@@ -317,12 +317,12 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// A registry key that disagrees with the node ID is a structural violation.
 		return &ir.Document{Types: ir.TypeRegistry{
-			ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"},
+			ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"},
 		}}, nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeViolations, r.Outcome)
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, result.Outcome)
 }
 
 // TestCheck_ViolationsComeBeforeTheSpecsErrors pins the order of the two: a
@@ -333,7 +333,7 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 	refused := []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "the spec is wrong",
 		ir.Provenance{Source: ir.NoSource})}
-	misKeyed := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}}
+	misKeyed := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}}
 	for _, tc := range []struct {
 		name   string
 		doc    *ir.Document
@@ -341,7 +341,7 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 		want   Outcome
 		detail string
 	}{
-		{"a broken document beside an error", misKeyed, refused, OutcomeViolations, "t/x/Key"},
+		{"a broken document beside an error", misKeyed, refused, OutcomeViolations, "type/x/Key"},
 		{"a refusal", nil, refused, OutcomeErrorDiag, "stub/refused"},
 		{"no document and no error", nil, nil, OutcomeViolations, "ir/nil-document"},
 	} {
@@ -350,10 +350,10 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 				return tc.doc, tc.diags, nil
 			})
 
-			r := Check(context.Background(), "spec", []byte("x"))
+			result := Check(context.Background(), "spec", []byte("x"))
 
-			assert.Equal(t, tc.want, r.Outcome, r.Detail)
-			assert.Contains(t, r.Detail, tc.detail)
+			assert.Equal(t, tc.want, result.Outcome, result.Detail)
+			assert.Contains(t, result.Detail, tc.detail)
 		})
 	}
 }
@@ -364,7 +364,7 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 // the violations it is, naming the stage, rather than as an error.
 func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
 	misKeyed := func(own *ir.Document) *ir.Document {
-		own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+		own.Types = ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}
 		return own
 	}
 	for _, tc := range []struct {
@@ -384,11 +384,11 @@ func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
 			}
 			withPasses(t, tc.passes...)
 
-			r := Check(context.Background(), tc.spec, []byte(tc.data))
+			result := Check(context.Background(), tc.spec, []byte(tc.data))
 
-			assert.Equal(t, OutcomeViolations, r.Outcome, r.Detail)
-			assert.True(t, strings.HasPrefix(r.Detail, tc.stage), r.Detail)
-			assert.Contains(t, r.Detail, "t/x/Key")
+			assert.Equal(t, OutcomeViolations, result.Outcome, result.Detail)
+			assert.True(t, strings.HasPrefix(result.Detail, tc.stage), result.Detail)
+			assert.Contains(t, result.Detail, "type/x/Key")
 		})
 	}
 }
@@ -405,9 +405,9 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 	})
 	roundTrip = func(*ir.Document) (string, bool) { return "forced round-trip failure", false }
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeRoundtrip, r.Outcome)
-	assert.Equal(t, "forced round-trip failure", r.Detail)
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeRoundtrip, result.Outcome)
+	assert.Equal(t, "forced round-trip failure", result.Detail)
 }
 
 // TestCheck_InvalidRawValueIsAViolationNotARoundTrip pins the reordering the
@@ -420,9 +420,9 @@ func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
 		return badExtDoc(), nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeViolations, r.Outcome)
-	assert.Contains(t, r.Detail, "ir/invalid-raw-value")
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, result.Outcome)
+	assert.Contains(t, result.Detail, "ir/invalid-raw-value")
 }
 
 // TestCheck_InvalidUTF8IsAViolationNotARoundTrip pins the reordering checkUTF8
@@ -435,14 +435,14 @@ func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
 		return dupKeyDoc(), nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeViolations, r.Outcome)
-	assert.Contains(t, r.Detail, "ir/invalid-utf8")
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, result.Outcome)
+	assert.Contains(t, result.Detail, "ir/invalid-utf8")
 
 	vs := irverify.Verify(dupKeyDoc())
 	codes := make([]string, 0, len(vs))
-	for _, v := range vs {
-		codes = append(codes, v.Code)
+	for _, violation := range vs {
+		codes = append(codes, violation.Code)
 	}
 	assert.Equal(t, []string{"ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8"}, codes,
 		"each ill-formed ID, as registry key and as node ID, is all Verify reports")
@@ -458,9 +458,9 @@ func TestCheck_CyclicStructureIsAViolationNotARoundTrip(t *testing.T) {
 		return cyclicDoc(), nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeViolations, r.Outcome)
-	assert.Contains(t, r.Detail, "ir/cyclic-structure")
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, result.Outcome)
+	assert.Contains(t, result.Detail, "ir/cyclic-structure")
 
 	detail, ok := roundTrips(cyclicDoc())
 	assert.False(t, ok)
@@ -478,8 +478,8 @@ func TestCheck_NondeterministicOutcome(t *testing.T) {
 		return &ir.Document{Name: "SecondCompile"}, nil, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
-	assert.Equal(t, OutcomeNondeterministic, r.Outcome)
+	result := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeNondeterministic, result.Outcome)
 }
 
 // stubDocument is a sound document for the one source, naming the first key of
@@ -491,7 +491,7 @@ func stubDocument(sources []compilers.Source, byFirstKey bool) *ir.Document {
 	}}
 	if byFirstKey {
 		key, _, _ := strings.Cut(string(sources[0].Data), ":")
-		id := ir.TypeID("t/x/" + key)
+		id := ir.TypeID("type/x/" + key)
 		doc.Types = ir.TypeRegistry{id: &ir.Model{ID: id, Name: ir.Naming{Source: key, Canonical: key}}}
 	}
 	return doc
@@ -564,9 +564,9 @@ func TestCheck_CompileFaultsAreErrorOutcomes(t *testing.T) {
 				cancel()
 			}
 
-			r := Check(ctx, "spec", []byte(stubSource))
-			assert.Equal(t, OutcomeError, r.Outcome, r.Detail)
-			assert.Contains(t, r.Detail, tc.want)
+			result := Check(ctx, "spec", []byte(stubSource))
+			assert.Equal(t, OutcomeError, result.Outcome, result.Detail)
+			assert.Contains(t, result.Detail, tc.want)
 		})
 	}
 }
@@ -588,10 +588,10 @@ func TestCheck_AFindingOnTheDocumentAloneIsRead(t *testing.T) {
 		return doc, nil, nil
 	}})
 
-	r := Check(context.Background(), "spec", []byte(stubSource))
+	result := Check(context.Background(), "spec", []byte(stubSource))
 
-	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
-	assert.Contains(t, r.Detail, "stub/broken")
+	assert.Equal(t, OutcomeErrorDiag, result.Outcome, result.Detail)
+	assert.Contains(t, result.Detail, "stub/broken")
 }
 
 // reporting is an analysis that reports one error on every document.
@@ -610,10 +610,10 @@ func (reporting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Di
 func TestCheck_RunsTheSweepsPasses(t *testing.T) {
 	withPasses(t, reporting{})
 
-	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+	result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
-	assert.Equal(t, "stub/reported: every document", r.Detail)
+	assert.Equal(t, OutcomeErrorDiag, result.Outcome, result.Detail)
+	assert.Equal(t, "stub/reported: every document", result.Detail)
 }
 
 // splitRoot and splitLeaf are a spec split across two files: the root names a

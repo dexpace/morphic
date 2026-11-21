@@ -65,17 +65,17 @@ func TestMessage_JSONContract(t *testing.T) {
 			Name:    populatedNaming(),
 			Payload: ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 			Headers: &headers,
-			CorrelationID: &ir.PropPath{
+			CorrelationID: &ir.PropertyPath{
 				In:       "header",
-				Segments: []ir.PropID{"p/correlationId"},
+				Segments: []ir.PropertyID{"property/correlationId"},
 			},
 			ContentType: "application/json",
 			Tags:        []string{"users", "events"},
 			Docs:        populatedDocs(),
 			Deprecation: populatedDeprecation(),
 			Examples: []ir.Example{
-				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}, Headers: &ir.Value{Kind: ir.ValueString, Str: "h1"}},
-				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, Str: "v2"}},
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}, Headers: &ir.Value{Kind: ir.ValueString, String: "h1"}},
+				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, String: "v2"}},
 			},
 			Bindings: map[string]ir.RawConfig{
 				"kafka": {"key": ir.RawValue(`"userId"`)},
@@ -89,7 +89,7 @@ func TestMessage_JSONContract(t *testing.T) {
 // Bindings must marshal with keys in sorted order on every run.
 func TestMessage_BindingsDeterministic(t *testing.T) {
 	t.Parallel()
-	msg := ir.Message{Bindings: outOfOrderProtocolBindings()}
-	got := assertDeterministicMarshal(t, msg)
+	message := ir.Message{Bindings: outOfOrderProtocolBindings()}
+	got := assertDeterministicMarshal(t, message)
 	assert.Contains(t, got, sortedProtocolBindingsJSON)
 }

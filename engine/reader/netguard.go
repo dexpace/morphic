@@ -285,19 +285,19 @@ func guardedClient(client *http.Client, reach compilers.AddressSpace,
 	case !ok:
 		return client, nil, nil
 	}
-	g := &guard{reach: reach, classify: classify, resolver: resolver}
+	guardValue := &guard{reach: reach, classify: classify, resolver: resolver}
 	clone := tr.Clone()
 	// No connection outlives its read, so none dialled for one read, judged
 	// under its reach, carries another.
 	clone.DisableKeepAlives = true
-	clone.DialContext = g.dial
+	clone.DialContext = guardValue.dial
 	if clone.Proxy != nil {
-		clone.Proxy = g.proxy(clone.Proxy)
+		clone.Proxy = guardValue.proxy(clone.Proxy)
 	}
 	guarded := *client
 	guarded.Transport = clone
 	guarded.CheckRedirect = redirects(client.CheckRedirect)
-	return &guarded, g, nil
+	return &guarded, guardValue, nil
 }
 
 // hookable returns the transport a guard can hook for rt: for nil,

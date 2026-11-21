@@ -179,12 +179,12 @@ func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
 		var out []string
 		stack := []*yaml.Node{doc}
 		for len(stack) > 0 {
-			n := stack[len(stack)-1]
+			node := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			if n.Anchor != "" {
-				out = append(out, n.Anchor)
+			if node.Anchor != "" {
+				out = append(out, node.Anchor)
 			}
-			stack = append(stack, n.Content...)
+			stack = append(stack, node.Content...)
 		}
 		return out
 	}
@@ -197,14 +197,14 @@ func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
 	assert.Same(t, doc.Content[0].Content[1], alias.Alias)
 }
 
-// TestScalarNode_BuildsABareScalar covers both builders, StrNode being the
+// TestScalarNode_BuildsABareScalar covers both builders, StringNode being the
 // string-tagged case of ScalarNode.
 func TestScalarNode_BuildsABareScalar(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "7"},
 		openapitest.ScalarNode("!!int", "7"))
 	assert.Equal(t, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "x"},
-		openapitest.StrNode("x"))
+		openapitest.StringNode("x"))
 }
 
 // TestInlineProbeBody_WritesEveryKeywordTheProbeAssertsOn keeps the constant
@@ -242,6 +242,6 @@ func TestNestedMerges_WritesOneMergePerLevel(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "{k: v}", openapitest.NestedMerges(0, "{k: v}"))
 	assert.Equal(t, "{<<: {<<: {k: v}}}", openapitest.NestedMerges(2, "{k: v}"))
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &n), "it parses")
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &node), "it parses")
 }

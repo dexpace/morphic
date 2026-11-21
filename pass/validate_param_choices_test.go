@@ -13,12 +13,12 @@ import (
 )
 
 // choiceBetween is a choice of two variants, each naming one parameter.
-func choiceBetween(first, second ir.ParamID) ir.ParamChoice {
+func choiceBetween(first, second ir.ParameterID) ir.ParamChoice {
 	return ir.ParamChoice{
 		Name: ir.Naming{Source: "which", Canonical: "which"},
 		Variants: []ir.ParamVariant{
-			{Name: ir.Naming{Source: "first", Canonical: "first"}, Params: []ir.ParamID{first}},
-			{Name: ir.Naming{Source: "second", Canonical: "second"}, Params: []ir.ParamID{second}},
+			{Name: ir.Naming{Source: "first", Canonical: "first"}, Params: []ir.ParameterID{first}},
+			{Name: ir.Naming{Source: "second", Canonical: "second"}, Params: []ir.ParameterID{second}},
 		},
 	}
 }
@@ -31,8 +31,8 @@ func choiceBetween(first, second ir.ParamID) ir.ParamChoice {
 func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 	t.Parallel()
 	const (
-		a, b  = ir.ParamID("param/x/get/a/query"), ir.ParamID("param/x/get/b/query")
-		other = ir.ParamID("param/x/post/id/query")
+		a, b  = ir.ParameterID("parameter/x/get/a/query"), ir.ParameterID("parameter/x/get/b/query")
+		other = ir.ParameterID("parameter/x/post/id/query")
 	)
 	for _, tc := range []struct {
 		name   string
@@ -41,21 +41,21 @@ func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 	}{
 		{"its own parameters", choiceBetween(a, b), nil},
 		{"the other operation's parameter in the second variant", choiceBetween(a, other),
-			[]string{"op/x/get/paramChoices/0/variants/1"}},
+			[]string{"operation/x/get/paramChoices/0/variants/1"}},
 		{"the other operation's parameter in the first variant", choiceBetween(other, b),
-			[]string{"op/x/get/paramChoices/0/variants/0"}},
+			[]string{"operation/x/get/paramChoices/0/variants/0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			get := paramBindingOp("op/x/get",
+			get := paramBindingOperation("operation/x/get",
 				ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}}, ir.Parameter{ID: b, Name: ir.Naming{Source: "b"}})
 			get.ParamChoices = []ir.ParamChoice{tc.choice}
-			post := paramBindingOp("op/x/post", ir.Parameter{ID: other, Name: ir.Naming{Source: "id"}})
+			post := paramBindingOperation("operation/x/post", ir.Parameter{ID: other, Name: ir.Naming{Source: "id"}})
 
 			diags := validated(t, docWithOperations(get, post))
 			assert.Equal(t, tc.want, mismatchesAt(diags))
-			for _, d := range withCode(diags, "pass/param-binding-mismatch") {
-				assert.Equal(t, ir.SeverityError, d.Severity, d.Message)
+			for _, diagnostic := range withCode(diags, "pass/param-binding-mismatch") {
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity, diagnostic.Message)
 			}
 		})
 	}
@@ -66,11 +66,11 @@ func TestValidate_ParamChoiceNamesItsOwnOperation(t *testing.T) {
 // this check's, as a binding does.
 func TestValidate_ParamChoiceNamingNoParameterIsDangling(t *testing.T) {
 	t.Parallel()
-	const a = ir.ParamID("param/x/get/a/query")
-	get := paramBindingOp("op/x/get", ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}})
-	get.ParamChoices = []ir.ParamChoice{choiceBetween(a, "param/x/get/ghost/query")}
+	const a = ir.ParameterID("parameter/x/get/a/query")
+	get := paramBindingOperation("operation/x/get", ir.Parameter{ID: a, Name: ir.Naming{Source: "a"}})
+	get.ParamChoices = []ir.ParamChoice{choiceBetween(a, "parameter/x/get/ghost/query")}
 
 	diags := validated(t, docWithOperation(get))
-	require.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
+	require.Equal(t, 1, countCode(t, diags, "ir/dangling-parameter-ref"))
 	assert.Empty(t, mismatchesAt(diags), "the dangling walk owns an ID nothing declares")
 }

@@ -46,13 +46,13 @@ func TestKindPrefixes_MatchTheIdentityClasses(t *testing.T) {
 // the process.
 func TestCheckEmptyRefs_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/pet": &ir.Model{ID: "t/pet", Discriminator: &ir.Discriminator{
+		"type/pet": &ir.Model{ID: "type/pet", Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
-			Mapping:      map[string]ir.TypeID{"cat": "t/cat", "dog": "t/dog", "fox": "t/fox"},
+			Mapping:      map[string]ir.TypeID{"cat": "type/cat", "dog": "type/dog", "fox": "type/fox"},
 		}},
-		"t/zoo": &ir.Model{ID: "t/zoo", Discriminator: &ir.Discriminator{
+		"type/zoo": &ir.Model{ID: "type/zoo", Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
-			Mapping:      map[string]ir.TypeID{"pet": "t/pet"},
+			Mapping:      map[string]ir.TypeID{"pet": "type/pet"},
 		}},
 	}}
 	check := checkEmptyRefs(doc)

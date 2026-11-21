@@ -39,11 +39,11 @@ func nestedSource(firstA bool, param string) string {
 
 // nestedParam is a parameter of an object schema of forty properties.
 func nestedParam() string {
-	props := make([]string, 40)
-	for i := range props {
-		props[i] = fmt.Sprintf("p%d: {type: string}", i)
+	properties := make([]string, 40)
+	for i := range properties {
+		properties[i] = fmt.Sprintf("p%d: {type: string}", i)
 	}
-	return "{name: p, in: query, schema: {type: object, properties: {" + strings.Join(props, ", ") + "}}}"
+	return "{name: p, in: query, schema: {type: object, properties: {" + strings.Join(properties, ", ") + "}}}"
 }
 
 // nestedLimits is the node budget the container and its content cost together
@@ -83,9 +83,9 @@ func TestCompile_AFindingOnAnObjectReachedTwiceIsReportedOnceAtItsLeastSite(t *t
 			_, diags := compileText(t, "spec.yaml", nestedSource(firstA, "{name: p, in: query, explode: 7}"), openapi.Options{})
 
 			var explode []string
-			for _, d := range byCode(diags, typeMismatch) {
-				if strings.HasSuffix(string(d.Provenance.Pointer), "/explode") {
-					explode = append(explode, string(d.Provenance.Pointer))
+			for _, diagnostic := range byCode(diags, typeMismatch) {
+				if strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/explode") {
+					explode = append(explode, string(diagnostic.Provenance.Pointer))
 				}
 			}
 			assert.Equal(t, []string{"/x-lib/item/get/parameters/0/explode"}, explode, "%+v", diags)
@@ -166,18 +166,18 @@ func TestCompile_AFaultingTargetCostsOnlyItsReference(t *testing.T) {
 
 	require.NotNil(t, doc, "%+v", diags)
 	var errs int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			errs++
 		}
 	}
 	assert.Positive(t, errs, "the broken reference is reported: %+v", diags)
 	assert.Empty(t, byCode(diags, diag.UnresolvedRef), "no reference is reported lost to a fault: %+v", diags)
 	byID := map[string]ir.Operation{}
-	for _, op := range allOperations(doc) {
-		byID[string(op.ID)] = op
+	for _, operation := range allOperations(doc) {
+		byID[string(operation.ID)] = operation
 	}
-	a, b := byID["op/openapi/paths/~1a/get"], byID["op/openapi/paths/~1b/get"]
+	a, b := byID["operation/openapi/paths/~1a/get"], byID["operation/openapi/paths/~1b/get"]
 	assert.Empty(t, a.Params, "the faulting parameter lowers to none")
 	require.Len(t, b.Params, 1, "/b keeps the parameter it references")
 	assert.Equal(t, "p", b.Params[0].Name.Source)
@@ -193,8 +193,8 @@ func TestCompile_AMediaTypeWhoseRefIsNullIsAFindingAndNotAFault(t *testing.T) {
 	_, diags := compileText(t, "media.yaml", brokenMediaType, openapi.Options{})
 
 	var errs int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			errs++
 		}
 	}

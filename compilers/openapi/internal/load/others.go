@@ -13,26 +13,27 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
 // Other is a document the compile read beside the source because a reference
-// named it: where Document.Sources records it, how the IDs of what it declares
-// name it, and the minor it is read at, which is the one it declares, or the
-// source's where it declares none the table covers.
+// named it: where LoadedOpenAPIDocument.Sources records it, how the IDs of what
+// it declares name it, and the minor it is read at, which is the one it
+// declares, or the source's where it declares none the table covers.
 type Other struct {
-	// Index is its position in Document.Sources.
+	// Index is its position in LoadedOpenAPIDocument.Sources.
 	Index int
 	// Label is its location as the source's directory reaches it, which
 	// qualifies the IDs of what it declares (ids.In).
 	Label string
-	// Info is its Document.Sources entry, whose Format names the minor.
+	// Info is its LoadedOpenAPIDocument.Sources entry, whose Format names the
+	// minor.
 	Info ir.SourceInfo
 	// Rows is what the table says at the minor in the dialect its
 	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
@@ -45,25 +46,25 @@ type Other struct {
 }
 
 // Others is every document a reference reached beside the source, in the order
-// Document.Sources lists them, the names a reference reads each by, and where
-// each one's trees write a node (see tree).
+// LoadedOpenAPIDocument.Sources lists them, the names a reference reads each
+// by, and where each one's trees write a node (see tree).
 type Others struct {
 	list   []Other
 	byName map[string]int
 	trees  []provenance.Tree
-	// found is what reading each document found in its own entry: a stream
-	// past its first document, and a YAML version it declares and is not read
-	// as. repeats is each key one of its mappings writes twice
-	// (oas.CheckRepeatedKeys), reported unless a reached object's check reports
-	// it first (unreportedRepeats).
+	// found is what reading each document found in its own entry: a stream past
+	// its first document, and a YAML version it declares and is not read as.
+	// repeats is each key one of its mappings writes twice
+	// (specrules.CheckRepeatedKeys), reported unless a reached object's check
+	// reports it first (unreportedRepeats).
 	found, repeats []ir.Diagnostic
 }
 
 // tree returns where a node of the document a reference reads by name is
 // placed, as the source's tree places its own: in that document's
-// Document.Sources entry, at the node's line and column, and at its pointer in
-// whichever of the document's trees holds it. It returns false for a document
-// the compile did not read beside the source.
+// LoadedOpenAPIDocument.Sources entry, at the node's line and column, and at
+// its pointer in whichever of the document's trees holds it. It returns false
+// for a document the compile did not read beside the source.
 func (o Others) tree(name string) (provenance.Tree, bool) {
 	i, ok := o.index(name)
 	if !ok {
@@ -72,11 +73,12 @@ func (o Others) tree(name string) (provenance.Tree, bool) {
 	return o.trees[i], true
 }
 
-// List returns the documents, in the order Document.Sources lists them.
+// List returns the documents, in the order LoadedOpenAPIDocument.Sources lists
+// them.
 func (o Others) List() []Other { return slices.Clone(o.list) }
 
-// At returns the document at index in Document.Sources, and false for an
-// index no document of o is at.
+// At returns the document at index in LoadedOpenAPIDocument.Sources, and false
+// for an index no document of o is at.
 func (o Others) At(index int) (Other, bool) {
 	if len(o.list) == 0 {
 		return Other{}, false
@@ -105,25 +107,25 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.Document.Unreached). Such a document lowers nothing and is no input
-// of the result.
-func unreachedKeys(table *bind.Table) map[string]bool {
+// in (reftable.ReferencedDocument.Unreached). Such a document lowers nothing
+// and is no input of the result.
+func unreachedKeys(table *reftable.ReferenceTargetTable) map[string]bool {
 	unused := map[string]bool{}
-	for id := range bind.DocID(table.Documents()) {
-		if d := table.Document(id); d.Unreached {
-			unused[d.Name] = true
+	for id := range reftable.DocID(table.Documents()) {
+		if referencedDocument := table.Document(id); referencedDocument.Unreached {
+			unused[referencedDocument.Name] = true
 		}
 	}
 	return unused
 }
 
 // newOthers lists the documents read prepares beside the source, the first at
-// Document.Sources index first, but those under the keys unused holds. They are
-// ordered by label, not as they were read, so the order no declaration order
-// changes; two names one label reaches, a file spelled two ways, are one
-// document, as RFC 3986 reads a path. Each is read at the minor it declares,
-// one declaring none the table covers at the source's (dialects), and in the
-// dialect its jsonSchemaDialect names.
+// LoadedOpenAPIDocument.Sources index first, but those under the keys unused
+// holds. They are ordered by label, not as they were read, so the order no
+// declaration order changes; two names one label reaches, a file spelled two
+// ways, are one document, as RFC 3986 reads a path. Each is read at the minor
+// it declares, one declaring none the table covers at the source's (dialects),
+// and in the dialect its jsonSchemaDialect names.
 func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
@@ -135,32 +137,32 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		label, _ := read.self.labelOf(key)
 		byLabel[label] = append(byLabel[label], key)
 	}
-	o := Others{byName: map[string]int{}}
+	others := Others{byName: map[string]int{}}
 	cancelled := false
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
 		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
 		version, minor, rows := source.of(declared, dialect)
-		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
+		others.list = append(others.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: read.self.shownPathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
 		tree := provenance.Tree{Doc: provenance.Doc{Source: first + i}, Pointers: pointersIn(ctx, read.trees, keys)}
-		o.trees = append(o.trees, tree)
+		others.trees = append(others.trees, tree)
 		doc := read.read[keys[0]]
-		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
+		others.found = slices.Concat(others.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
 		// Once ctx is done no document is read on, so a cancel costs one ask.
 		if root := read.trees[keys[0]]; !cancelled && ctx.Err() == nil {
-			o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
+			others.repeats = append(others.repeats, specrules.CheckRepeatedKeys(ctx, root, version, specrules.Options{
 				Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
 		} else {
 			cancelled = true
 		}
 		for _, key := range keys {
-			o.byName[key] = i
+			others.byName[key] = i
 		}
 	}
-	return o
+	return others
 }
 
 // pointersIn returns scan.Pointers over the trees read prepared under keys, all
@@ -176,10 +178,10 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 			finds = append(finds, scan.Pointers(ctx, tree))
 		}
 	}
-	return func(n *yaml.Node) (jsontext.Pointer, bool) {
+	return func(node *yaml.Node) (jsontext.Pointer, bool) {
 		for _, find := range finds {
-			if p, held := find(n); held {
-				return p, true
+			if pointer, held := find(node); held {
+				return pointer, true
 			}
 		}
 		return "", false
@@ -191,7 +193,7 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 // between its segments whatever the system, or its cleaned path where no
 // relative path reaches it, as from a relative directory to an absolute path,
 // which nothing relates without the working directory; a URL as key spells
-// it. A file URI names a file (resolve.Places.FileOf), so the file is
+// it. A file URI names a file (componentlookup.Places.FileOf), so the file is
 // one label however a reference spells it. relative reports the first.
 func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	file, ok := s.places.FileOf(key)
@@ -207,14 +209,14 @@ func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	return filepath.ToSlash(clean), false
 }
 
-// shownPathOf is the path Document.Sources records for the document read
-// under key: a URL's as spelled, and a file's as the path the caller handed
-// names the source, so a source named relatively lists the documents beside it
-// relatively too, wherever its Location lies. That is its label joined to the
-// handed path's directory, keeping the dot segments a label climbing out of
-// that directory starts with, since a link may place the directory elsewhere
-// than cleaning them away would. A file no relative path reaches from the
-// source is its path as read (fileNamed).
+// shownPathOf is the path LoadedOpenAPIDocument.Sources records for the
+// document read under key: a URL's as spelled, and a file's as the path the
+// caller handed names the source, so a source named relatively lists the
+// documents beside it relatively too, wherever its Location lies. That is its
+// label joined to the handed path's directory, keeping the dot segments a label
+// climbing out of that directory starts with, since a link may place the
+// directory elsewhere than cleaning them away would. A file no relative path
+// reaches from the source is its path as read (fileNamed).
 func (s sourceDocument) shownPathOf(key string) string {
 	label, relative := s.labelOf(key)
 	dir, local := filepath.Dir(s.handed), filepath.FromSlash(label)

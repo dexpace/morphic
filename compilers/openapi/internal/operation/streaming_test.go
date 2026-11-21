@@ -47,12 +47,12 @@ func eventStreamSpec(version, mediaType string) string {
 }
 
 // firstResponseContent returns the operation's single success-response content.
-func firstResponseContent(t *testing.T, op ir.Operation) ir.Content {
+func firstResponseContent(t *testing.T, operation ir.Operation) ir.Content {
 	t.Helper()
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	require.NotEmpty(t, op.Responses[0].Payload.Contents)
-	return op.Responses[0].Payload.Contents[0]
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	require.NotEmpty(t, operation.Responses[0].Payload.Contents)
+	return operation.Responses[0].Payload.Contents[0]
 }
 
 // TestStreaming_ResponseMediaTypeImpliesServerStream is the probe from
@@ -67,19 +67,19 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 			t.Run(version+" "+mediaType, func(t *testing.T) {
 				t.Parallel()
 				doc, _ := streamingSpec(t, eventStreamSpec(version, mediaType), openapi.Options{})
-				op := openapitest.FindOp(t, doc, "getEvents")
+				operation := openapitest.FindOperation(t, doc, "getEvents")
 
-				assert.Equal(t, ir.StreamingServer, op.Streaming)
-				require.NotNil(t, op.ResponseStream, "a streaming media type populates the response direction")
-				assert.Nil(t, op.RequestStream, "nothing streams towards the server")
+				assert.Equal(t, ir.StreamingServer, operation.Streaming)
+				require.NotNil(t, operation.ResponseStream, "a streaming media type populates the response direction")
+				assert.Nil(t, operation.RequestStream, "nothing streams towards the server")
 
-				content := firstResponseContent(t, op)
+				content := firstResponseContent(t, operation)
 				assert.Equal(t, &ir.ContentStream{Inferred: "streaming-inference"}, content.Stream,
 					"the content says it streams, and that a guess says so")
-				require.NotNil(t, op.ResponseStream.Events, "the frame schema is the stream element type")
-				assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
+				require.NotNil(t, operation.ResponseStream.Events, "the frame schema is the stream element type")
+				assert.Empty(t, cmp.Diff(content.Type, *operation.ResponseStream.Events))
 				assert.Equal(t, mediaType, content.MediaType, "the media type is still kept as declared")
-				assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred,
+				assert.Equal(t, ir.Inferred("streaming-inference"), operation.Provenance.Inferred,
 					"classifying a media type is a heuristic and says so")
 			})
 		}
@@ -92,9 +92,9 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 func TestStreaming_MediaTypeParametersDoNotDefeatTheMatch(t *testing.T) {
 	t.Parallel()
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "text/event-stream; charset=utf-8"), openapi.Options{})
-	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Equal(t, ir.StreamingServer, op.Streaming)
-	assert.NotNil(t, op.ResponseStream)
+	operation := openapitest.FindOperation(t, doc, "getEvents")
+	assert.Equal(t, ir.StreamingServer, operation.Streaming)
+	assert.NotNil(t, operation.ResponseStream)
 }
 
 // TestStreaming_RequestMediaTypeImpliesClientStream pins the other direction,
@@ -109,7 +109,7 @@ func TestStreaming_RequestMediaTypeImpliesClientStream(t *testing.T) {
 		wantResponse bool
 	}{
 		{"client only", "application/json", ir.StreamingClient, false},
-		{"both directions", "text/event-stream", ir.StreamingBidi, true},
+		{"both directions", "text/event-stream", ir.StreamingBidirectional, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,14 +129,14 @@ func TestStreaming_RequestMediaTypeImpliesClientStream(t *testing.T) {
               schema: {type: object, properties: {msg: {type: string}}}
 `)
 			doc, _ := streamingSpec(t, spec, openapi.Options{})
-			op := openapitest.FindOp(t, doc, "ingest")
-			assert.Equal(t, tc.want, op.Streaming)
-			assert.Equal(t, tc.wantResponse, op.ResponseStream != nil, "response direction")
-			require.NotNil(t, op.RequestStream, "the request body's media type streams")
-			require.NotNil(t, op.RequestStream.Events)
-			require.NotNil(t, op.Request)
-			assert.Empty(t, cmp.Diff(op.Request.Contents[0].Type, *op.RequestStream.Events))
-			assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred,
+			operation := openapitest.FindOperation(t, doc, "ingest")
+			assert.Equal(t, tc.want, operation.Streaming)
+			assert.Equal(t, tc.wantResponse, operation.ResponseStream != nil, "response direction")
+			require.NotNil(t, operation.RequestStream, "the request body's media type streams")
+			require.NotNil(t, operation.RequestStream.Events)
+			require.NotNil(t, operation.Request)
+			assert.Empty(t, cmp.Diff(operation.Request.Contents[0].Type, *operation.RequestStream.Events))
+			assert.Equal(t, ir.Inferred("streaming-inference"), operation.Provenance.Inferred,
 				"the request's guess marks the operation, whatever the response does")
 		})
 	}
@@ -160,16 +160,16 @@ func TestStreaming_ItemSchemaDeclaresTheStream(t *testing.T) {
               itemSchema: {type: object, properties: {msg: {type: string}}}
 `)
 	doc, _ := streamingSpec(t, spec, openapi.Options{})
-	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Equal(t, ir.StreamingServer, op.Streaming)
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Events)
+	operation := openapitest.FindOperation(t, doc, "getEvents")
+	assert.Equal(t, ir.StreamingServer, operation.Streaming)
+	require.NotNil(t, operation.ResponseStream)
+	require.NotNil(t, operation.ResponseStream.Events)
 
-	content := firstResponseContent(t, op)
+	content := firstResponseContent(t, operation)
 	require.NotNil(t, content.Item)
-	assert.Empty(t, cmp.Diff(*content.Item, *op.ResponseStream.Events),
+	assert.Empty(t, cmp.Diff(*content.Item, *operation.ResponseStream.Events),
 		"the declared item schema is the element type, not the media type's own schema")
-	assert.Empty(t, op.Provenance.Inferred, "a declared stream is not a heuristic")
+	assert.Empty(t, operation.Provenance.Inferred, "a declared stream is not a heuristic")
 }
 
 // TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed pins the one
@@ -200,14 +200,14 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
               schema: {type: object, properties: {d: {type: string}}}
 `)
 	doc, diags := streamingSpec(t, spec, openapi.Options{})
-	op := openapitest.FindOp(t, doc, "exchange")
-	assert.Equal(t, ir.StreamingBidi, op.Streaming)
-	require.NotNil(t, op.RequestStream)
-	require.NotNil(t, op.ResponseStream)
-	assert.Nil(t, op.RequestStream.Events, "two candidate element types, so none is elected")
-	assert.Nil(t, op.ResponseStream.Events, "two candidate element types, so none is elected")
-	require.NotNil(t, op.Request)
-	assert.Len(t, op.Request.Contents, 2, "every content is still kept")
+	operation := openapitest.FindOperation(t, doc, "exchange")
+	assert.Equal(t, ir.StreamingBidirectional, operation.Streaming)
+	require.NotNil(t, operation.RequestStream)
+	require.NotNil(t, operation.ResponseStream)
+	assert.Nil(t, operation.RequestStream.Events, "two candidate element types, so none is elected")
+	assert.Nil(t, operation.ResponseStream.Events, "two candidate element types, so none is elected")
+	require.NotNil(t, operation.Request)
+	assert.Len(t, operation.Request.Contents, 2, "every content is still kept")
 
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"one report per direction; got %+v", diags)
@@ -227,9 +227,9 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
 	t.Parallel()
 	const (
-		event = ir.TypeID("t/openapi/components/schemas/Event")
-		pairs = ir.TypeID("t/anon/paths/~1s/get/responses/200/content/application~1jsonl/schema")
-		named = ir.TypeID("t/openapi/components/schemas/Named")
+		event = ir.TypeID("type/openapi/components/schemas/Event")
+		pairs = ir.TypeID("type/anonymous/paths/~1s/get/responses/200/content/application~1jsonl/schema")
+		named = ir.TypeID("type/openapi/components/schemas/Named")
 	)
 	for _, tc := range []struct {
 		name, schema string
@@ -240,7 +240,7 @@ func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
 		{"a list behind an alias a $ref's sibling hoists", `{$ref: '#/components/schemas/Events', description: d}`, ir.TypeRef{Target: event}},
 		{"a list behind two aliases", `{$ref: '#/components/schemas/Again', description: d}`, ir.TypeRef{Target: event}},
 		{"a nullable list, whose frames are not null", `{type: [array, "null"], items: {$ref: '#/components/schemas/Event'}}`, ir.TypeRef{Target: event}},
-		{"a list of nullable items, whose frames are", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "t/openapi/components/schemas/Maybe", Nullable: true}},
+		{"a list of nullable items, whose frames are", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "type/openapi/components/schemas/Maybe", Nullable: true}},
 		{"a tuple, whose frames differ by position", `{type: array, prefixItems: [{type: string}, {type: integer}], items: false}`, ir.TypeRef{Target: pairs}},
 		{"a model, the frame itself", `{$ref: '#/components/schemas/Event'}`, ir.TypeRef{Target: event}},
 		{"a name for another name", `{$ref: '#/components/schemas/Named'}`, ir.TypeRef{Target: named}},
@@ -264,10 +264,10 @@ components:
     Events: {type: array, items: {$ref: '#/components/schemas/Event'}}
     Again: {$ref: '#/components/schemas/Events', description: again}
 `), openapi.Options{})
-			op := openapitest.FindOp(t, doc, "s")
-			require.NotNil(t, op.ResponseStream)
-			require.NotNil(t, op.ResponseStream.Events)
-			assert.Equal(t, tc.want, *op.ResponseStream.Events)
+			operation := openapitest.FindOperation(t, doc, "s")
+			require.NotNil(t, operation.ResponseStream)
+			require.NotNil(t, operation.ResponseStream.Events)
+			assert.Equal(t, tc.want, *operation.ResponseStream.Events)
 		})
 	}
 }
@@ -287,10 +287,10 @@ func TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds(t *testing.T) {
             application/jsonl:
               itemSchema: {type: array, items: {type: string}}
 `), openapi.Options{})
-	op := openapitest.FindOp(t, doc, "s")
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Events)
-	assert.IsType(t, &ir.List{}, doc.Types[op.ResponseStream.Events.Target])
+	operation := openapitest.FindOperation(t, doc, "s")
+	require.NotNil(t, operation.ResponseStream)
+	require.NotNil(t, operation.ResponseStream.Events)
+	assert.IsType(t, &ir.List{}, doc.Types[operation.ResponseStream.Events.Target])
 }
 
 // TestStreaming_ContentsCompareByTheirFrames holds the election to what each frame
@@ -329,15 +329,15 @@ components:
     A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
 `), openapi.Options{})
-			op := openapitest.FindOp(t, doc, "s")
-			require.NotNil(t, op.ResponseStream, "the direction streams either way")
+			operation := openapitest.FindOperation(t, doc, "s")
+			require.NotNil(t, operation.ResponseStream, "the direction streams either way")
 			if tc.wantElected {
-				require.NotNil(t, op.ResponseStream.Events)
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A"), op.ResponseStream.Events.Target)
+				require.NotNil(t, operation.ResponseStream.Events)
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/A"), operation.ResponseStream.Events.Target)
 				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1s/get/responses"))
 				return
 			}
-			assert.Nil(t, op.ResponseStream.Events)
+			assert.Nil(t, operation.ResponseStream.Events)
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1s/get/responses"))
 		})
 	}
@@ -378,7 +378,7 @@ func TestStreaming_AnItemSchemaOnOneDocumentIsReported(t *testing.T) {
             `+tc.mediaType+`:
               itemSchema: {type: string}
 `), tc.opts)
-			require.NotNil(t, openapitest.FindOp(t, doc, "s").ResponseStream, "it lowers as declared")
+			require.NotNil(t, openapitest.FindOperation(t, doc, "s").ResponseStream, "it lowers as declared")
 			assert.Equal(t, tc.want, openapitest.CountDiagsAt(diags, diag.ItemSchemaOnDocument, ir.SeverityWarning))
 			if tc.want > 0 {
 				at := "/paths/~1s/get/responses/200/content/" + strings.ReplaceAll(tc.mediaType, "/", "~1") + "/itemSchema"
@@ -404,11 +404,11 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
       responses: {"204": {description: ok}}
 `))
 	assert.Empty(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.RequestStream)
-	require.NotNil(t, op.RequestStream.Events, "both contents stream bytes, so the element is named")
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/bytes"}, *op.RequestStream.Events)
-	assert.NotEqual(t, op.Request.Contents[0].Type, op.Request.Contents[1].Type)
+	operation := openapitest.FirstOperation(t, svc)
+	require.NotNil(t, operation.RequestStream)
+	require.NotNil(t, operation.RequestStream.Events, "both contents stream bytes, so the element is named")
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/bytes"}, *operation.RequestStream.Events)
+	assert.NotEqual(t, operation.Request.Contents[0].Type, operation.Request.Contents[1].Type)
 }
 
 // TestStreaming_OrdinaryContentDoesNotStream is the negative half: without a
@@ -418,12 +418,12 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
 func TestStreaming_OrdinaryContentDoesNotStream(t *testing.T) {
 	t.Parallel()
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "application/json"), openapi.Options{})
-	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Nil(t, firstResponseContent(t, op).Stream)
-	assert.Empty(t, string(op.Streaming))
-	assert.Nil(t, op.RequestStream)
-	assert.Nil(t, op.ResponseStream)
-	assert.Empty(t, op.Provenance.Inferred)
+	operation := openapitest.FindOperation(t, doc, "getEvents")
+	assert.Nil(t, firstResponseContent(t, operation).Stream)
+	assert.Empty(t, string(operation.Streaming))
+	assert.Nil(t, operation.RequestStream)
+	assert.Nil(t, operation.ResponseStream)
+	assert.Empty(t, operation.Provenance.Inferred)
 }
 
 // TestStreaming_ContentOrderDoesNotChooseAnElement is the two-order oracle for
@@ -450,8 +450,8 @@ func TestStreaming_ContentOrderDoesNotChooseAnElement(t *testing.T) {
 	forward, _ := streamingSpec(t, spec("text/event-stream", "application/x-ndjson"), openapi.Options{})
 	reverse, _ := streamingSpec(t, spec("application/x-ndjson", "text/event-stream"), openapi.Options{})
 
-	first := openapitest.FindOp(t, forward, "getEvents")
-	second := openapitest.FindOp(t, reverse, "getEvents")
+	first := openapitest.FindOperation(t, forward, "getEvents")
+	second := openapitest.FindOperation(t, reverse, "getEvents")
 	assert.Equal(t, first.Streaming, second.Streaming)
 	assert.Empty(t, cmp.Diff(first.RequestStream, second.RequestStream))
 	assert.Empty(t, cmp.Diff(first.ResponseStream, second.ResponseStream),
@@ -466,8 +466,8 @@ func TestStreaming_MarkerListsEveryHeuristicThatApplied(t *testing.T) {
 	t.Parallel()
 	byPrefix := openapi.Options{Grouping: openapi.GroupByPathPrefix}
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "text/event-stream"), byPrefix)
-	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference"), op.Provenance.Inferred)
+	operation := openapitest.FindOperation(t, doc, "getEvents")
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference"), operation.Provenance.Inferred)
 }
 
 // TestStreaming_MarkerListKeepsAPromotionBesideBoth extends the pin above to a
@@ -491,12 +491,12 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
               schema: {type: object, properties: {msg: {type: string}}}
 `)
 	doc, _ := streamingSpec(t, src, openapi.Options{Grouping: openapi.GroupByPathPrefix})
-	op := openapitest.FindOp(t, doc, "getEvents")
+	operation := openapitest.FindOperation(t, doc, "getEvents")
 
-	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference,extension-promotion"), op.Provenance.Inferred)
-	require.NotNil(t, op.Deprecation)
-	assert.Equal(t, "why", op.Deprecation.Message)
-	assert.Equal(t, ir.StabilityBeta, op.Stability)
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference,extension-promotion"), operation.Provenance.Inferred)
+	require.NotNil(t, operation.Deprecation)
+	assert.Equal(t, "why", operation.Deprecation.Message)
+	assert.Equal(t, ir.StabilityBeta, operation.Stability)
 }
 
 // streamsByMediaType maps each content of payload, by its media type, to what
@@ -563,23 +563,23 @@ func TestStreaming_EachContentSaysWhetherItStreams(t *testing.T) {
 		mode   ir.StreamingMode
 	}{
 		{"the default policy", openapi.Options{}, "text/event-stream",
-			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidi},
+			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidirectional},
 		{"a policy naming JSON", openapi.Options{StreamingInference: openapi.StreamingInference{MediaTypes: []string{"application/json"}}},
-			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidi},
+			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidirectional},
 		{"a disabled policy", openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}, "text/event-stream",
 			map[string]string{"text/event-stream": "", "application/json": ""}, ir.StreamingNone},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := streamingSpec(t, mixedStreamSpec(tc.stream, "application/json"), tc.opts)
-			op := openapitest.FindOp(t, doc, "tail")
-			assert.Equal(t, tc.want, streamsByMediaType(t, op.Request), "the request")
-			assert.Equal(t, tc.want, streamsByMediaType(t, op.Responses[0].Payload), "the success response")
-			require.Len(t, op.Errors, 1)
-			assert.Equal(t, tc.want, streamsByMediaType(t, op.Errors[0].Payload), "the error response")
-			require.NotNil(t, op.Default)
-			assert.Equal(t, tc.want, streamsByMediaType(t, op.Default.Payload), "the default")
-			assert.Equal(t, tc.mode, op.Streaming)
+			operation := openapitest.FindOperation(t, doc, "tail")
+			assert.Equal(t, tc.want, streamsByMediaType(t, operation.Request), "the request")
+			assert.Equal(t, tc.want, streamsByMediaType(t, operation.Responses[0].Payload), "the success response")
+			require.Len(t, operation.Errors, 1)
+			assert.Equal(t, tc.want, streamsByMediaType(t, operation.Errors[0].Payload), "the error response")
+			require.NotNil(t, operation.Default)
+			assert.Equal(t, tc.want, streamsByMediaType(t, operation.Default.Payload), "the default")
+			assert.Equal(t, tc.mode, operation.Streaming)
 		})
 	}
 }
@@ -591,7 +591,7 @@ func TestStreaming_EachContentStreamsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	forward, _ := streamingSpec(t, mixedStreamSpec("text/event-stream", "application/json"), openapi.Options{})
 	reverse, _ := streamingSpec(t, mixedStreamSpec("application/json", "text/event-stream"), openapi.Options{})
-	first, second := openapitest.FindOp(t, forward, "tail"), openapitest.FindOp(t, reverse, "tail")
+	first, second := openapitest.FindOperation(t, forward, "tail"), openapitest.FindOperation(t, reverse, "tail")
 	for name, payloads := range map[string][2]*ir.Payload{
 		"the request":          {first.Request, second.Request},
 		"the success response": {first.Responses[0].Payload, second.Responses[0].Payload},
@@ -634,14 +634,14 @@ func TestStreaming_AnItemSchemaDeclaresItsContentAStream(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := streamingSpec(t, spec, tc.opts)
-			op := openapitest.FindOp(t, doc, "s")
+			operation := openapitest.FindOperation(t, doc, "s")
 			assert.Equal(t, map[string]string{
 				"text/event-stream":           "declared",
 				"application/vnd.acme.frames": "declared",
 				"application/x-ndjson":        tc.ndjson,
-			}, streamsByMediaType(t, op.Responses[0].Payload))
-			assert.Equal(t, ir.StreamingServer, op.Streaming)
-			assert.Equal(t, tc.inferred, op.Provenance.Inferred)
+			}, streamsByMediaType(t, operation.Responses[0].Payload))
+			assert.Equal(t, ir.StreamingServer, operation.Streaming)
+			assert.Equal(t, tc.inferred, operation.Provenance.Inferred)
 		})
 	}
 }
@@ -678,11 +678,11 @@ webhooks:
           text/event-stream: {schema: {type: string}}
       responses: {"204": {description: ok}}
 `, openapi.Options{})
-	deliver := openapitest.FindOp(t, doc, "deliver")
+	deliver := openapitest.FindOperation(t, doc, "deliver")
 	assert.Equal(t, map[string]string{"application/json": "", "application/x-ndjson": "streaming-inference"},
 		streamsByMediaType(t, deliver.Responses[0].Payload))
 	assert.Equal(t, ir.StreamingServer, deliver.Streaming)
-	ping := openapitest.FindOp(t, doc, "onPing")
+	ping := openapitest.FindOperation(t, doc, "onPing")
 	assert.Equal(t, map[string]string{"text/event-stream": "streaming-inference"}, streamsByMediaType(t, ping.Request))
 	assert.Equal(t, ir.StreamingClient, ping.Streaming)
 }
@@ -709,7 +709,7 @@ components:
   mediaTypes:
     Frames: {schema: {type: object, properties: {a: {type: string}}}}
 `, openapi.Options{})
-	op := openapitest.FindOp(t, doc, "s")
+	operation := openapitest.FindOperation(t, doc, "s")
 	assert.Equal(t, map[string]string{"text/event-stream": "streaming-inference", "application/json": ""},
-		streamsByMediaType(t, op.Responses[0].Payload))
+		streamsByMediaType(t, operation.Responses[0].Payload))
 }

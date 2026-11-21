@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AllOfDisjointConjuncts",
         "canonical": "all_of_disjoint_conjuncts"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Inline": {
+    "type/openapi/components/schemas/Inline": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Inline",
+      "id": "type/openapi/components/schemas/Inline",
       "name": {
         "source": "Inline",
         "canonical": "inline"
@@ -84,16 +84,16 @@
         "pointer": "/components/schemas/Inline"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Obj",
+        "target": "type/openapi/components/schemas/Obj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/List": {
+    "type/openapi/components/schemas/List": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/List",
+      "id": "type/openapi/components/schemas/List",
       "name": {
         "source": "List",
         "canonical": "list"
@@ -105,14 +105,14 @@
         "source": 0,
         "pointer": "/components/schemas/List"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/NullableObj": {
+    "type/openapi/components/schemas/NullableObj": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NullableObj",
+      "id": "type/openapi/components/schemas/NullableObj",
       "name": {
         "source": "NullableObj",
         "canonical": "nullable_obj"
@@ -126,21 +126,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NullableObj/properties/a",
+          "id": "property/openapi/components/schemas/NullableObj/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -157,9 +157,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/NullableStr": {
+    "type/openapi/components/schemas/NullableStr": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/NullableStr",
+      "id": "type/openapi/components/schemas/NullableStr",
       "name": {
         "source": "NullableStr",
         "canonical": "nullable_str"
@@ -172,13 +172,13 @@
         "pointer": "/components/schemas/NullableStr"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": true
       }
     },
-    "t/openapi/components/schemas/Obj": {
+    "type/openapi/components/schemas/Obj": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Obj",
+      "id": "type/openapi/components/schemas/Obj",
       "name": {
         "source": "Obj",
         "canonical": "obj"
@@ -192,21 +192,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Obj/properties/a",
+          "id": "property/openapi/components/schemas/Obj/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -223,9 +223,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/OwnType": {
+    "type/openapi/components/schemas/OwnType": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/OwnType",
+      "id": "type/openapi/components/schemas/OwnType",
       "name": {
         "source": "OwnType",
         "canonical": "own_type"
@@ -251,9 +251,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/SharedNull": {
+    "type/openapi/components/schemas/SharedNull": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/SharedNull",
+      "id": "type/openapi/components/schemas/SharedNull",
       "name": {
         "source": "SharedNull",
         "canonical": "shared_null"
@@ -276,16 +276,16 @@
         "pointer": "/components/schemas/SharedNull"
       },
       "base": {
-        "target": "t/openapi/components/schemas/NullableObj",
+        "target": "type/openapi/components/schemas/NullableObj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Str": {
+    "type/openapi/components/schemas/Str": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/Str",
+      "id": "type/openapi/components/schemas/Str",
       "name": {
         "source": "Str",
         "canonical": "str"
@@ -298,13 +298,13 @@
         "pointer": "/components/schemas/Str"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/TwoRefs": {
+    "type/openapi/components/schemas/TwoRefs": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TwoRefs",
+      "id": "type/openapi/components/schemas/TwoRefs",
       "name": {
         "source": "TwoRefs",
         "canonical": "two_refs"
@@ -327,16 +327,16 @@
         "pointer": "/components/schemas/TwoRefs"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Obj",
+        "target": "type/openapi/components/schemas/Obj",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -344,7 +344,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -23,7 +23,7 @@ IR bug (INV9), not a compiler change.
 | `Model` (Base/Implements/Mixins) | `WireID` order; over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](decorators.md)) | — |
 | `Model` whose `Base` is no model, not a decorator | over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
-| `AdditionalProps` / `Additional` | pattern channel |
+| `AdditionalProperties` / `Additional` | pattern channel |
 | `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
 | `Enum` open/closed/flags | member `WireName`; each member's wire form, compared as JSON compares values ([a member on the wire](enums.md#a-member-on-the-wire)) |
 | `List`/`MapT`/`Tuple` | packed/expanded |
@@ -45,5 +45,5 @@ IR bug (INV9), not a compiler change.
 | `ErrorCase{Fault, Retryable}` | status→kind map; an error's raw body |
 | `Response` beside the primary (`OpPlan.Others`) | the status; the body as it arrived |
 | `Auth` OR-of-ANDs | — |
-| `Value{Num BigVal, Ctor, Ref, symbol}` | — |
+| `Value{Number BigVal, Constructor, Ref, symbol}` | — |
 | `Naming{Canonical}` | `WireName`/`WireID` never cased |

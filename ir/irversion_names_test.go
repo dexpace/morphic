@@ -175,14 +175,14 @@ func hintsOf(doc *ir.Document) []string {
 func TestHintsOf_ListsEveryHintInItsPlace(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/a": &ir.Model{ID: "t/a", Name: ir.Naming{Hint: "a_hint"}, Properties: []ir.Property{
-			{ID: "p/a", Name: ir.Naming{Source: "x", Canonical: "x"}},
-			{ID: "p/b", Name: ir.Naming{Hint: "b_hint"}},
+		"type/a": &ir.Model{ID: "type/a", Name: ir.Naming{Hint: "a_hint"}, Properties: []ir.Property{
+			{ID: "property/a", Name: ir.Naming{Source: "x", Canonical: "x"}},
+			{ID: "property/b", Name: ir.Naming{Hint: "b_hint"}},
 		}},
 	}}
 	assert.Equal(t, []string{
-		"doc.Types[t/a].Name a_hint",
-		"doc.Types[t/a].Properties[1].Name b_hint",
+		"document.Types[type/a].Name a_hint",
+		"document.Types[type/a].Properties[1].Name b_hint",
 	}, hintsOf(doc))
 }
 

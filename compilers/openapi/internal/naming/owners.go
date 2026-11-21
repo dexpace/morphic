@@ -9,23 +9,24 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // componentSchemaTokens is the length of /components/schemas/<name>, the
 // pointer a component schema's walk is rooted at.
 const componentSchemaTokens = 3
 
-// owner returns the hint of the object p belongs to and how many of p's
-// tokens lead to its schema, kinds being how the grammar reads the way to p
-// (bind.Table.Kinds): the schema whose structure holds p
-// (structureRoot), named for what holds it there (ownerOf) or, where that
-// schema is a document's root, for the document (Document). A structure
-// nothing names an owner of, such as one only a $ref reaches under an x- key,
-// is named from its pointer alone (pointerOwner).
-func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int, string) {
+// owner returns the hint of the object documentPointer belongs to and how many
+// of documentPointer's tokens lead to its schema, kinds being how the grammar
+// reads the way to documentPointer (reftable.ReferenceTargetTable.Kinds): the
+// schema whose structure holds documentPointer (structureRoot), named for what
+// holds it there (ownerOf) or, where that schema is a document's root, for the
+// document (Document). A structure nothing names an owner of, such as one only
+// a $ref reaches under an x- key, is named from its pointer alone
+// (pointerOwner).
+func (n *Namer) owner(documentPointer reftable.DocumentPointer, tokens []string, kinds []reftable.Kind) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)
 	}
@@ -34,9 +35,9 @@ func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int,
 	case !ok:
 		return pointerOwner(tokens)
 	case root == 0:
-		return 0, n.Document(p.Doc)
+		return 0, n.Document(documentPointer.Doc)
 	}
-	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
+	if hint, ok := n.ownerOf(documentPointer.Doc, tokens, kinds, root-1); ok {
 		return root, hint
 	}
 	return pointerOwner(tokens)
@@ -49,10 +50,10 @@ func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int,
 // a reference reads inside a schema's raw YAML, such as a parameter kept
 // under its x- key, so starts a structure of its own. ok is false where no
 // schema is on the way.
-func structureRoot(kinds []bind.Kind) (int, bool) {
+func structureRoot(kinds []reftable.Kind) (int, bool) {
 	root := -1
-	for i, k := range kinds {
-		if k == bind.KindSchema {
+	for i, kind := range kinds {
+		if kind == reftable.KindSchema {
 			root = i
 		}
 	}
@@ -60,20 +61,20 @@ func structureRoot(kinds []bind.Kind) (int, bool) {
 		return 0, false
 	}
 	for i := root - 1; i >= 0 && inStructure(kinds[i]); i-- {
-		if kinds[i] == bind.KindSchema {
+		if kinds[i] == reftable.KindSchema {
 			root = i
 		}
 	}
 	return root, true
 }
 
-// inStructure reports whether a position of kind k can lie inside a schema's
+// inStructure reports whether a position of kind kind can lie inside a schema's
 // structure: a schema, or a map or a list of them, a list being
-// bind.KindOther. That kind covers objects such as a path item too, but each
-// holds a schema only through an owner, which ends a structure as raw YAML
+// reftable.KindOther. That kind covers objects such as a path item too, but
+// each holds a schema only through an owner, which ends a structure as raw YAML
 // does.
-func inStructure(k bind.Kind) bool {
-	return k == bind.KindSchema || k == bind.KindSchemaMap || k == bind.KindOther
+func inStructure(kind reftable.Kind) bool {
+	return kind == reftable.KindSchema || kind == reftable.KindSchemaMap || kind == reftable.KindOther
 }
 
 // Document is the hint what is declared at the root of the document doc is
@@ -81,7 +82,7 @@ func inStructure(k bind.Kind) bool {
 // '/' (refHint), as a $ref spelling the document suggests it. A schema there
 // is named so, as is a Security Scheme Object a requirement key lands on. doc
 // is one the table holds, as only a reference the table read lands there.
-func (n *Namer) Document(doc bind.DocID) string {
+func (n *Namer) Document(doc reftable.DocID) string {
 	return refHint(n.table.Document(doc).Name)
 }
 
@@ -90,16 +91,16 @@ func (n *Namer) Document(doc bind.DocID) string {
 // content a media type's schema or itemSchema belongs to, or the key of the
 // components/mediaTypes entry declaring it, a parameter's name and a header's
 // key. ok is false for a schema nothing names an owner of.
-func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i int) (string, bool) {
+func (n *Namer) ownerOf(doc reftable.DocID, tokens []string, kinds []reftable.Kind, i int) (string, bool) {
 	holder := pointerOf(tokens[:i])
 	switch kinds[i] {
-	case bind.KindSchemaMap:
-		return tokens[i], i > 0 && kinds[i-1] == bind.KindComponents
-	case bind.KindParameter:
+	case reftable.KindSchemaMap:
+		return tokens[i], i > 0 && kinds[i-1] == reftable.KindComponents
+	case reftable.KindParameter:
 		return n.parameterName(doc, holder), true
-	case bind.KindHeader:
+	case reftable.KindHeader:
 		return ids.DeclarationHint(holder, holder.LastToken()), true
-	case bind.KindMediaType:
+	case reftable.KindMediaType:
 		hint, ok := n.mediaTypeOwner(doc, holder, kinds[:i])
 		if ok && tokens[i] == "itemSchema" {
 			return compile.SubHint(hint, "item"), true
@@ -115,7 +116,7 @@ func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i in
 // the empty key included, as a component schema keyed "" is named, and any
 // other is keyed under its owner's content, holder being
 // <owner>/content/<media type> (contentOwner).
-func (n *Namer) mediaTypeOwner(doc bind.DocID, holder jsontext.Pointer, kinds []bind.Kind) (string, bool) {
+func (n *Namer) mediaTypeOwner(doc reftable.DocID, holder jsontext.Pointer, kinds []reftable.Kind) (string, bool) {
 	if section, name, ok := ids.ComponentKey(holder); ok && section == "mediaTypes" {
 		return name, true
 	}
@@ -125,19 +126,19 @@ func (n *Namer) mediaTypeOwner(doc bind.DocID, holder jsontext.Pointer, kinds []
 	return n.contentOwner(doc, holder.Parent().Parent(), kinds[len(kinds)-2])
 }
 
-// contentOwner returns the hint of the object at at, of kind k, whose content
-// a media type's schema is: a request body (requestBodyName), a response by
-// its component key, else "response", a parameter by its name and a header by
-// its key.
-func (n *Namer) contentOwner(doc bind.DocID, at jsontext.Pointer, k bind.Kind) (string, bool) {
-	switch k {
-	case bind.KindRequestBody:
+// contentOwner returns the hint of the object at at, of kind kind, whose
+// content a media type's schema is: a request body (requestBodyName), a
+// response by its component key, else "response", a parameter by its name and a
+// header by its key.
+func (n *Namer) contentOwner(doc reftable.DocID, at jsontext.Pointer, kind reftable.Kind) (string, bool) {
+	switch kind {
+	case reftable.KindRequestBody:
 		return n.requestBodyName(doc, at), true
-	case bind.KindResponse:
+	case reftable.KindResponse:
 		return ids.DeclarationHint(at, "response"), true
-	case bind.KindParameter:
+	case reftable.KindParameter:
 		return n.parameterName(doc, at), true
-	case bind.KindHeader:
+	case reftable.KindHeader:
 		return ids.DeclarationHint(at, at.LastToken()), true
 	default:
 		return "", false
@@ -152,7 +153,7 @@ const elsewhereBody = "request"
 // component's key, else `<operationId>_request` for the operation it is
 // written in, else elsewhereBody. It is a function of where the body is
 // written, never of which operation mounts it (GitHub #433, #107).
-func (n *Namer) requestBodyName(doc bind.DocID, at jsontext.Pointer) string {
+func (n *Namer) requestBodyName(doc reftable.DocID, at jsontext.Pointer) string {
 	if id := n.text(doc, at.Parent(), "operationId"); id != "" {
 		return ids.DeclarationHint(at, id+"_request")
 	}
@@ -160,27 +161,27 @@ func (n *Namer) requestBodyName(doc bind.DocID, at jsontext.Pointer) string {
 }
 
 // parameterName is the name the parameter written at at declares.
-func (n *Namer) parameterName(doc bind.DocID, at jsontext.Pointer) string {
+func (n *Namer) parameterName(doc reftable.DocID, at jsontext.Pointer) string {
 	return n.text(doc, at, "name")
 }
 
 // text returns the scalar the mapping written at at holds under field, as the
 // parser reads a string field (scalarText).
-func (n *Namer) text(doc bind.DocID, at jsontext.Pointer, field string) string {
+func (n *Namer) text(doc reftable.DocID, at jsontext.Pointer, field string) string {
 	return scalarText(nodeview.Child(n.node(doc, at), field))
 }
 
-// scalarText returns the text of v as the parser's model reads a string field:
-// a string, a number or a boolean as written, and nothing for null, a node
-// that is no scalar, or a scalar under any other tag, such as !!binary or a
-// local one (docs/parser-library.md#undecoded-scalar).
-func scalarText(v *yaml.Node) string {
-	if v == nil || v.Kind != yaml.ScalarNode {
+// scalarText returns the text of node as the parser's model reads a string
+// field: a string, a number or a boolean as written, and nothing for null, a
+// node that is no scalar, or a scalar under any other tag, such as !!binary or
+// a local one (docs/parser-library.md#undecoded-scalar).
+func scalarText(node *yaml.Node) string {
+	if node == nil || node.Kind != yaml.ScalarNode {
 		return ""
 	}
-	switch v.ShortTag() {
+	switch node.ShortTag() {
 	case "!!str", "!!int", "!!float", "!!bool":
-		return v.Value
+		return node.Value
 	default:
 		return ""
 	}

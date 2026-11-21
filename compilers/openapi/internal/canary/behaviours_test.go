@@ -96,12 +96,12 @@ func refTo(sectionName, name, target string) string {
 
 // revisit returns the message a canary fails with: the entry whose record the
 // library no longer meets, and the start of what the library did instead.
-func revisit(t *testing.T, r result) string {
+func revisit(t *testing.T, resultValue result) string {
 	t.Helper()
 	key := strings.Split(t.Name(), "/")[1]
-	seen := r.report
-	if r.outcome != "" {
-		seen = fmt.Sprintf("the child %s: %s\n%.1500s", r.outcome, r.report, r.output)
+	seen := resultValue.report
+	if resultValue.outcome != "" {
+		seen = fmt.Sprintf("the child %s: %s\n%.1500s", resultValue.outcome, resultValue.report, resultValue.output)
 	}
 	return fmt.Sprintf("the library no longer behaves as docs/parser-library.md#%s records: "+
 		"re-read the entry and the code it names\n%s", key, seen)

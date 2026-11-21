@@ -32,39 +32,39 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	}
 	return withoutTypes(doc, slices.Sorted(maps.Keys(uses))), json.JoinMarshalers(
 		json.MarshalToFunc(func(enc *jsontext.Encoder, id ir.TypeID) error {
-			u, ok := uses[id]
+			use, ok := uses[id]
 			if !ok {
 				return errors.ErrUnsupported
 			}
-			return enc.WriteToken(jsontext.String(string(u.target)))
+			return enc.WriteToken(jsontext.String(string(use.target)))
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
-			u, ok := uses[r.Target]
+		json.MarshalToFunc(func(enc *jsontext.Encoder, typeRef ir.TypeRef) error {
+			use, ok := uses[typeRef.Target]
 			if !ok {
 				return errors.ErrUnsupported
 			}
-			r.Target = u.target
-			return json.MarshalEncode(enc, foldedRef{Ref: plainRef(r), Use: u.notes.written()})
+			typeRef.Target = use.target
+			return json.MarshalEncode(enc, foldedRef{Ref: plainRef(typeRef), Use: use.notes.written()})
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
-			c := carried[plainProperty]{Carrier: plainProperty(p)}
-			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+		json.MarshalToFunc(func(enc *jsontext.Encoder, property ir.Property) error {
+			carriedValue := carried[plainProperty]{Carrier: plainProperty(property)}
+			return carriedValue.write(enc, uses, slots{ref: &carriedValue.Carrier.Type, docs: &carriedValue.Carrier.Docs, deprecation: &carriedValue.Carrier.Deprecation,
+				examples: &carriedValue.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
-			c := carried[plainHeader]{Carrier: plainHeader(h)}
-			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+		json.MarshalToFunc(func(enc *jsontext.Encoder, header ir.Header) error {
+			carriedValue := carried[plainHeader]{Carrier: plainHeader(header)}
+			return carriedValue.write(enc, uses, slots{ref: &carriedValue.Carrier.Type, docs: &carriedValue.Carrier.Docs, deprecation: &carriedValue.Carrier.Deprecation,
+				examples: &carriedValue.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
-			c := carried[plainParameter]{Carrier: plainParameter(p)}
-			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: true})
+		json.MarshalToFunc(func(enc *jsontext.Encoder, parameter ir.Parameter) error {
+			carriedValue := carried[plainParameter]{Carrier: plainParameter(parameter)}
+			return carriedValue.write(enc, uses, slots{ref: &carriedValue.Carrier.Type, docs: &carriedValue.Carrier.Docs, deprecation: &carriedValue.Carrier.Deprecation,
+				examples: &carriedValue.Carrier.Examples, takesFallbackAnnotations: true})
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
-			c := carried[plainVariant]{Carrier: plainVariant(v)}
-			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
-				examples: &c.Carrier.Examples, lends: false})
+		json.MarshalToFunc(func(enc *jsontext.Encoder, variant ir.Variant) error {
+			carriedValue := carried[plainVariant]{Carrier: plainVariant(variant)}
+			return carriedValue.write(enc, uses, slots{ref: &carriedValue.Carrier.Type, docs: &carriedValue.Carrier.Docs, deprecation: &carriedValue.Carrier.Deprecation,
+				examples: &carriedValue.Carrier.Examples, takesFallbackAnnotations: false})
 		}),
 	)
 }
@@ -74,11 +74,11 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 // the fold's marshalers' to rewrite. An ID doc holds no type at, which the
 // editor refuses, is the harness's mistake, and a panic.
 func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
-	e := ir.NewEditor(doc)
+	editor := ir.NewEditor(doc)
 	for _, id := range ids {
-		e.RemoveType(id)
+		editor.RemoveType(id)
 	}
-	own, refused := e.Finish()
+	own, refused := editor.Finish()
 	if len(refused) > 0 {
 		panic(fmt.Sprintf("harness: leave the decorators out: %s", refused[0].Message))
 	}
@@ -86,14 +86,14 @@ func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
 }
 
 // use is what a decorator stands for: the first type along its Base chain that
-// is no decorator, the chain's annotations, merged nearest first, and lent, the
-// Docs and Deprecation of that type, which a property, parameter or header
-// takes after the chain's, as a reference to the type lends them
-// (docs/ir/annotations.md#what-a-reference-carries-down).
+// is no decorator, the chain's annotations, merged nearest first, and
+// fallbackAnnotations, the Docs and Deprecation of that type, which a property,
+// parameter or header takes after the chain's, as a reference to the type lends
+// them (docs/ir/annotations.md#what-a-reference-carries-down).
 type use struct {
-	target ir.TypeID
-	notes  annotations
-	lent   annotations
+	target              ir.TypeID
+	notes               annotations
+	fallbackAnnotations annotations
 }
 
 // decoratorUses returns, for each decorator of types, what it stands for. A
@@ -105,8 +105,8 @@ func decoratorUses(types ir.TypeRegistry) map[ir.TypeID]use {
 		if _, ok := ir.Decorated(td); !ok {
 			continue
 		}
-		if u, ok := chainOf(types, id); ok {
-			uses[id] = u
+		if use, ok := chainOf(types, id); ok {
+			uses[id] = use
 		}
 	}
 	return uses
@@ -122,7 +122,7 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	for range len(types) + 1 {
 		base, ok := ir.Decorated(types[at])
 		if !ok {
-			return use{target: at, notes: notes, lent: lentBy(types[at])}, true
+			return use{target: at, notes: notes, fallbackAnnotations: annotationsAUseFallsBackTo(types[at])}, true
 		}
 		notes = notes.then(notesOf(types[at].Common()))
 		at = base.Target
@@ -130,15 +130,16 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	return use{}, false
 }
 
-// lentBy returns the annotations td lends a carrier naming it: its Docs and
-// Deprecation, and none of a type the registry does not hold. Its Examples
-// describe the type and stay on it (docs/compilers/openapi.md#schema-examples).
-func lentBy(td ir.TypeDef) annotations {
+// annotationsAUseFallsBackTo returns the annotations td lends a carrier naming
+// it: its Docs and Deprecation, and none of a type the registry does not hold.
+// Its Examples describe the type and stay on it
+// (docs/compilers/openapi.md#schema-examples).
+func annotationsAUseFallsBackTo(td ir.TypeDef) annotations {
 	if td == nil {
 		return annotations{}
 	}
-	c := td.Common()
-	return annotations{docs: c.Docs, deprecation: c.Deprecation}
+	typeCommon := td.Common()
+	return annotations{docs: typeCommon.Docs, deprecation: typeCommon.Deprecation}
 }
 
 // annotations are the fields a decorator shares with a use site, merged along
@@ -153,22 +154,22 @@ type annotations struct {
 	unmodeled    map[string][]ir.UnmodeledEntry
 }
 
-// notesOf returns the annotations a decorator's c holds. Its Name and its
-// Provenance go with the node the fold leaves out, so which spelling marks a
-// decorator Inferred is not compared.
-func notesOf(c *ir.TypeCommon) annotations {
-	return annotations{docs: c.Docs, deprecation: c.Deprecation, examples: c.Examples, availability: c.Availability,
-		unmodeled: entryLists(c.Unmodeled)}
+// notesOf returns the annotations a decorator's typeCommon holds. Its Name and
+// its Provenance go with the node the fold leaves out, so which spelling marks
+// a decorator Inferred is not compared.
+func notesOf(typeCommon *ir.TypeCommon) annotations {
+	return annotations{docs: typeCommon.Docs, deprecation: typeCommon.Deprecation, examples: typeCommon.Examples, availability: typeCommon.Availability,
+		unmodeled: entryLists(typeCommon.Unmodeled)}
 }
 
-// entryLists returns u's entries as one-entry lists, by name.
-func entryLists(u ir.Unmodeled) map[string][]ir.UnmodeledEntry {
-	if len(u) == 0 {
+// entryLists returns unmodeled's entries as one-entry lists, by name.
+func entryLists(unmodeled ir.Unmodeled) map[string][]ir.UnmodeledEntry {
+	if len(unmodeled) == 0 {
 		return nil
 	}
-	out := make(map[string][]ir.UnmodeledEntry, len(u))
-	for name, e := range u {
-		out[name] = []ir.UnmodeledEntry{e}
+	out := make(map[string][]ir.UnmodeledEntry, len(unmodeled))
+	for name, unmodeledEntry := range unmodeled {
+		out[name] = []ir.UnmodeledEntry{unmodeledEntry}
 	}
 	return out
 }
@@ -232,12 +233,12 @@ func mergeDeprecation(a, b *ir.Deprecation) *ir.Deprecation {
 // written is a as a reference's use member writes it, nil where a holds
 // nothing: a decorator setting no annotation is a bare reference.
 func (a annotations) written() *useMember {
-	u := useMember{Docs: a.docs, Deprecation: a.deprecation, Examples: a.examples, Availability: a.availability,
+	useMemberValue := useMember{Docs: a.docs, Deprecation: a.deprecation, Examples: a.examples, Availability: a.availability,
 		Unmodeled: a.unmodeledMember()}
-	if reflect.ValueOf(u).IsZero() {
+	if reflect.ValueOf(useMemberValue).IsZero() {
 		return nil
 	}
-	return &u
+	return &useMemberValue
 }
 
 // unmodeledMember is a's Unmodeled as written: an entry by name, as ir.Unmodeled
@@ -303,11 +304,11 @@ type keptBeside struct {
 // and say whether the carrier takes what the chain's type lends: a union
 // variant takes none of it, as the compiler gives a variant none.
 type slots struct {
-	ref         *ir.TypeRef
-	docs        *ir.Docs
-	deprecation **ir.Deprecation
-	examples    *[]ir.Example
-	lends       bool
+	ref                      *ir.TypeRef
+	docs                     *ir.Docs
+	deprecation              **ir.Deprecation
+	examples                 *[]ir.Example
+	takesFallbackAnnotations bool
 }
 
 // write writes c with the chain its reference names folded in as the
@@ -318,20 +319,20 @@ type slots struct {
 // the three its list and steps.md's CollapseAliases row name, Docs,
 // Deprecation and Examples, the carrier's own first and what the chain's type
 // lends last. It declines a carrier naming no decorator.
-func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slots) error {
-	u, ok := uses[s.ref.Target]
+func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, slotsValue slots) error {
+	useValue, ok := uses[slotsValue.ref.Target]
 	if !ok {
 		return errors.ErrUnsupported
 	}
-	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples}
-	merged := own.then(u.notes)
-	if s.lends {
-		merged = merged.then(u.lent)
+	own := annotations{docs: *slotsValue.docs, deprecation: *slotsValue.deprecation, examples: *slotsValue.examples}
+	merged := own.then(useValue.notes)
+	if slotsValue.takesFallbackAnnotations {
+		merged = merged.then(useValue.fallbackAnnotations)
 	}
-	s.ref.Target = u.target
-	*s.docs, *s.deprecation, *s.examples = merged.docs, merged.deprecation, merged.examples
-	if u.notes.availability != nil || len(u.notes.unmodeled) > 0 {
-		c.Decorator = &keptBeside{Availability: u.notes.availability, Unmodeled: u.notes.unmodeledMember()}
+	slotsValue.ref.Target = useValue.target
+	*slotsValue.docs, *slotsValue.deprecation, *slotsValue.examples = merged.docs, merged.deprecation, merged.examples
+	if useValue.notes.availability != nil || len(useValue.notes.unmodeled) > 0 {
+		c.Decorator = &keptBeside{Availability: useValue.notes.availability, Unmodeled: useValue.notes.unmodeledMember()}
 	}
 	return json.MarshalEncode(enc, c)
 }

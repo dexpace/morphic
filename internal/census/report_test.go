@@ -35,12 +35,12 @@ func TestReport_ListsEveryFactOfTheUniverseWhateverIsCounted(t *testing.T) {
 func TestReport_IsDeterministicAndOrdersValuesByValue(t *testing.T) {
 	t.Parallel()
 	build := func() string {
-		c := census.New(fixtureUniverse(t))
-		require.NoError(t, c.AddAny(&fixture.Root{
+		factCensus := census.New(fixtureUniverse(t))
+		require.NoError(t, factCensus.AddAny(&fixture.Root{
 			Color:  "green",
 			Labels: map[string]fixture.Level{"a": 5, "b": -5, "c": 1000},
 		}))
-		return c.Report()
+		return factCensus.Report()
 	}
 	first, second := build(), build()
 	if diff := cmp.Diff(first, second); diff != "" {

@@ -100,10 +100,10 @@ func TestKindInference_AnInferredCollectionKeepsItsMemberTypes(t *testing.T) {
 				doc, _ := compileKindInference(t, "members", admissionSpec(version, "", schemas...), false)
 				list, ok := kindNode(t, doc, componentID("Elements")).(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimString), list.Elem.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), list.ElementType.Target)
 				mapped, ok := kindNode(t, doc, componentID("AddlOnly")).(*ir.MapT)
 				require.True(t, ok)
-				assert.Equal(t, prim(ir.PrimString), mapped.Value.Target)
+				assert.Equal(t, primitive(ir.PrimitiveString), mapped.Value.Target)
 			})
 		})
 	}
@@ -117,8 +117,8 @@ func TestKindInference_AnInlineCollectionIsMarkedAtItsPosition(t *testing.T) {
 	holder := "Holder: {type: object, properties: {it: {items: {type: string}}, " +
 		"ad: {additionalProperties: {type: string}}}}"
 	want := map[ir.TypeID]ir.TypeKind{
-		"t/anon/components/schemas/Holder/properties/it": ir.KindList,
-		"t/anon/components/schemas/Holder/properties/ad": ir.KindMap,
+		"type/anonymous/components/schemas/Holder/properties/it": ir.KindList,
+		"type/anonymous/components/schemas/Holder/properties/ad": ir.KindMap,
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
@@ -150,8 +150,8 @@ func unionShapeOf(t *testing.T, doc *ir.Document, id ir.TypeID) unionShape {
 	union, ok := kindNode(t, doc, id).(*ir.Union)
 	require.True(t, ok, "%s is a union", id)
 	shape := unionShape{exclusive: union.Exclusive}
-	for _, v := range union.Variants {
-		shape.variants = append(shape.variants, v.Name.Hint+":"+string(kindNode(t, doc, v.Type.Target).Kind()))
+	for _, variant := range union.Variants {
+		shape.variants = append(shape.variants, variant.Name.Hint+":"+string(kindNode(t, doc, variant.Type.Target).Kind()))
 	}
 	return shape
 }
@@ -226,8 +226,8 @@ func TestKindInference_EachVariantOfATwoKindUnionIsMarked(t *testing.T) {
 		union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 		require.True(t, ok, name)
 		require.Len(t, union.Variants, 2, name)
-		for _, v := range union.Variants {
-			assert.Equal(t, marked, markedKindInference(kindNode(t, doc, v.Type.Target)), "%s: %s", name, v.Type.Target)
+		for _, variant := range union.Variants {
+			assert.Equal(t, marked, markedKindInference(kindNode(t, doc, variant.Type.Target)), "%s: %s", name, variant.Type.Target)
 		}
 	}
 }
@@ -251,8 +251,8 @@ func TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder(t *testing.T) {
 				nodeWithoutNames(t, arrayFirst, componentID("Both")))
 			union, ok := kindNode(t, objectFirst, componentID("Both")).(*ir.Union)
 			require.True(t, ok)
-			for _, v := range union.Variants {
-				assert.Equal(t, nodeWithoutNames(t, objectFirst, v.Type.Target), nodeWithoutNames(t, arrayFirst, v.Type.Target))
+			for _, variant := range union.Variants {
+				assert.Equal(t, nodeWithoutNames(t, objectFirst, variant.Type.Target), nodeWithoutNames(t, arrayFirst, variant.Type.Target))
 			}
 			assert.Equal(t, kindFindings(objectDiags), kindFindings(arrayDiags))
 		})
@@ -262,8 +262,8 @@ func TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder(t *testing.T) {
 // kindFindings lists each finding's code and pointer, sorted.
 func kindFindings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -376,16 +376,16 @@ func TestKindInference_AKindReadThroughAnInferredBranchIsMarked(t *testing.T) {
 		for _, name := range []string{"ByRef", "ByDynamicRef"} {
 			variants := distributedOver(t, on, componentID(name))
 			require.Len(t, variants, 1, name)
-			for _, m := range variants {
-				assert.Equal(t, ir.AdditionalClosed, m.Additional, name)
-				assert.True(t, markedKindInference(m), "%s: its branch is an object only as the policy reads it", name)
+			for _, model := range variants {
+				assert.Equal(t, ir.AdditionalClosed, model.Additional, name)
+				assert.True(t, markedKindInference(model), "%s: its branch is an object only as the policy reads it", name)
 			}
 		}
 		for _, name := range []string{"Inline", "ByRef", "ByDynamicRef"} {
 			scalar, ok := kindNode(t, off, componentID(name)).(*ir.Scalar)
 			require.True(t, ok, name)
 			require.NotNil(t, scalar.Base, name)
-			assert.Equal(t, prim(ir.PrimAny), scalar.Base.Target, name)
+			assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, name)
 		}
 	})
 }
@@ -414,8 +414,8 @@ func TestKindInference_AVariantComposedOverAnInferredBodyIsMarked(t *testing.T) 
 			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 			require.True(t, ok, name)
 			require.Len(t, union.Variants, len(marked), name)
-			for i, v := range union.Variants {
-				variant := kindNode(t, doc, v.Type.Target)
+			for i, irVariant := range union.Variants {
+				variant := kindNode(t, doc, irVariant.Type.Target)
 				assert.Equal(t, ir.KindModel, variant.Kind(), "%s variant %d", name, i)
 				assert.Equal(t, marked[i], markedKindInference(variant), "%s variant %d", name, i)
 			}

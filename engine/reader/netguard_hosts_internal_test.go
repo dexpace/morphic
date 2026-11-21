@@ -123,14 +123,14 @@ func TestDisk_ANameIsJudgedByTheAddressEachDialResolvesItTo(t *testing.T) {
 		"localhost":        {{a("127.0.0.4")}},
 	}}
 	served := netip.AddrPortFrom(loop, port)
-	d := Disk{resolver: dns.resolver(), classify: func(ap netip.AddrPort) compilers.AddressSpace {
+	disk := Disk{resolver: dns.resolver(), classify: func(ap netip.AddrPort) compilers.AddressSpace {
 		if ap == served {
 			return compilers.SpacePublic
 		}
 		return spaceOf(ap.Addr())
 	}}
 	read := func(host string) (compilers.DocumentRead, error) {
-		return d.ReadDocument(t.Context(), compilers.DocumentRequest{
+		return disk.ReadDocument(t.Context(), compilers.DocumentRequest{
 			Location: "http://" + net.JoinHostPort(host, srv.portString(t)) + "/x", Reach: compilers.SpacePublic,
 		})
 	}
@@ -279,10 +279,10 @@ func TestTextSpace_ReadsANumberNoAddressSpellsAsLocal(t *testing.T) {
 // resolved.
 func TestGuard_AnAddressItCannotReadIsRefusedToABoundedRead(t *testing.T) {
 	t.Parallel()
-	g := &guard{reach: compilers.SpacePublic}
-	require.ErrorIs(t, g.control(t.Context(), "tcp", "not-an-address", nil), compilers.ErrAddressSpace)
-	g.reach = compilers.SpaceUnstated
-	assert.NoError(t, g.control(t.Context(), "tcp", "not-an-address", nil))
+	guardValue := &guard{reach: compilers.SpacePublic}
+	require.ErrorIs(t, guardValue.control(t.Context(), "tcp", "not-an-address", nil), compilers.ErrAddressSpace)
+	guardValue.reach = compilers.SpaceUnstated
+	assert.NoError(t, guardValue.control(t.Context(), "tcp", "not-an-address", nil))
 }
 
 // unicodeHosts are hosts net/http maps by IDNA before it uses them, each to
@@ -301,15 +301,15 @@ var unicodeHosts = []string{
 // resolving to public addresses alone reaches the proxy.
 func TestDisk_AReadThroughAProxyRanksWhatTheProxyWouldDial(t *testing.T) {
 	t.Parallel()
-	d, proxy := proxied(t)
+	disk, proxy := proxied(t)
 	a := netip.MustParseAddr
-	d.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
+	disk.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
 		"private.example": {{a("10.0.0.5")}},
 		"mixed.example":   {{a("93.184.216.34"), a("10.0.0.5")}},
 		"public.example":  {{a("93.184.216.34"), a("8.8.8.8")}},
 	}}).resolver()
 	read := func(host string) (compilers.DocumentRead, error) {
-		return d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
+		return disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
 	}
 	for _, host := range append([]string{"private.example", "mixed.example", "10.0.0.5"}, unicodeHosts...) {
 		_, err := read(host)
@@ -324,7 +324,7 @@ func TestDisk_AReadThroughAProxyRanksWhatTheProxyWouldDial(t *testing.T) {
 	assert.Equal(t, "proxied", string(got.Data))
 	assert.EqualValues(t, 1, proxy.requests.Load())
 
-	got, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://gone.example/x"})
+	got, err = disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://gone.example/x"})
 	require.NoError(t, err, "an unbounded read needs no answer of the resolver")
 	assert.Equal(t, compilers.DocumentRead{Data: []byte("proxied")}, got, "and states neither space nor bound")
 }
@@ -336,9 +336,9 @@ func TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled(t *testing.T) {
 	t.Parallel()
 	srv := newProbeServer(t, false, nil)
 	dns := &fakeDNS{answers: map[string][][]netip.Addr{"localhost": {{netip.MustParseAddr("127.0.0.1")}}}}
-	d := Disk{resolver: dns.resolver()}
+	disk := Disk{resolver: dns.resolver()}
 	for _, host := range unicodeHosts {
-		_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{
+		_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{
 			Location: "http://" + net.JoinHostPort(host, srv.portString(t)) + "/x", Reach: compilers.SpacePublic,
 		})
 		require.Error(t, err, host)
@@ -353,15 +353,15 @@ func TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled(t *testing.T) {
 // anyone; and with no proxy set the read dials the host, judged there.
 func TestDisk_AReadKeepsTheRouteItsTransportChose(t *testing.T) {
 	t.Parallel()
-	d, proxy := proxied(t)
+	disk, proxy := proxied(t)
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x"})
+	got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x"})
 	require.NoError(t, err)
 	assert.Equal(t, "proxied", string(got.Data), "the proxy the transport chose was asked")
 	assert.Equal(t, compilers.SpacePrivate, got.Space)
 	assert.EqualValues(t, 1, proxy.requests.Load())
 
-	_, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x", Reach: compilers.SpacePublic})
+	_, err = disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x", Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
 	assert.EqualValues(t, 1, proxy.requests.Load(), "the bounded read asked nothing")
 
@@ -409,16 +409,16 @@ var numericHosts = []string{"0177.0.0.1", "0x7f.1", "2130706433", "127.1", "1347
 // resolver here reads none of them as an address.
 func TestDisk_ABoundedReadThroughAProxyAdmitsALiteralOrADNSNameAlone(t *testing.T) {
 	t.Parallel()
-	d, proxy := proxied(t)
-	bounded := func(d Disk, host string) (compilers.DocumentRead, error) {
-		return d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
+	disk, proxy := proxied(t)
+	bounded := func(diskValue Disk, host string) (compilers.DocumentRead, error) {
+		return diskValue.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
 	}
 	for _, host := range append(numericHosts, "10.0.0.5", "a_b.example", "-a.example", ".", strings.Repeat("a.", 127)+"aa") {
-		_, err := bounded(d, host)
+		_, err := bounded(disk, host)
 		require.ErrorIs(t, err, compilers.ErrAddressSpace, host)
 	}
 	assert.Zero(t, proxy.requests.Load(), "the proxy saw nothing")
-	got, err := bounded(d, "93.184.216.34")
+	got, err := bounded(disk, "93.184.216.34")
 	require.NoError(t, err)
 	assert.Equal(t, "proxied", string(got.Data))
 	assert.EqualValues(t, 1, proxy.requests.Load())
@@ -446,7 +446,7 @@ func TestDisk_AReadRefusedOneAddressOfANameFailsAsRefused(t *testing.T) {
 	dns := &fakeDNS{answers: map[string][][]netip.Addr{
 		"mixed.example": {{served.Addr(), netip.MustParseAddr("127.0.0.2")}},
 	}}
-	d := Disk{Client: &http.Client{Timeout: 300 * time.Millisecond}, resolver: dns.resolver(),
+	disk := Disk{Client: &http.Client{Timeout: 300 * time.Millisecond}, resolver: dns.resolver(),
 		classify: func(ap netip.AddrPort) compilers.AddressSpace {
 			if ap == served {
 				return compilers.SpacePrivate
@@ -455,11 +455,11 @@ func TestDisk_AReadRefusedOneAddressOfANameFailsAsRefused(t *testing.T) {
 		}}
 	at := "http://mixed.example:" + srv.portString(t) + "/x"
 
-	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at, Reach: compilers.SpacePublic})
+	_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at, Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
 	assert.Zero(t, srv.requests.Load(), "the refused address was asked nothing")
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at})
+	got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at})
 	require.NoError(t, err)
 	assert.Equal(t, compilers.SpacePrivate, got.Space)
 }
@@ -493,15 +493,15 @@ func TestSpaceOf_RanksEveryPrivatePrefixPrivate(t *testing.T) {
 func TestGuard_AFailureAfterARefusedAddressCarriesTheRefusal(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("connect: connection refused")
-	g := &guard{}
-	assert.Same(t, refused, g.failed(refused), "no address was refused")
+	guardValue := &guard{}
+	assert.Same(t, refused, guardValue.failed(refused), "no address was refused")
 	past := &compilers.AddressSpaceError{Address: "10.0.0.5:80", Space: compilers.SpacePrivate}
-	g.refused.Store(past)
-	got := g.failed(refused)
+	guardValue.refused.Store(past)
+	got := guardValue.failed(refused)
 	require.ErrorIs(t, got, refused)
 	refusal, ok := errors.AsType[*compilers.AddressSpaceError](got)
 	require.True(t, ok)
 	assert.Same(t, past, refusal, "the refusal names the address refused")
-	assert.Same(t, past, g.failed(past), "a refusal passes as it is")
+	assert.Same(t, past, guardValue.failed(past), "a refusal passes as it is")
 	assert.Same(t, refused, (*guard)(nil).failed(refused), "an unjudged read's failure passes as it is")
 }

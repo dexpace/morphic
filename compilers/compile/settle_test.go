@@ -25,12 +25,12 @@ func (f settleFunc) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnost
 func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
 	var runs []string
 	for _, name := range []string{"first", "second"} {
 		types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 			runs = append(runs, name)
-			reg["t/x"].Common().Docs.Description += name
+			reg["type/x"].Common().Docs.Description += name
 			return []ir.Diagnostic{{Code: name}}
 		}))
 	}
@@ -41,7 +41,7 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	require.Len(t, diags, 2)
 	assert.Equal(t, "first", diags[0].Code)
 	assert.Equal(t, "second", diags[1].Code)
-	td, ok := types.Node("t/x")
+	td, ok := types.Node("type/x")
 	require.True(t, ok)
 	assert.Equal(t, "firstsecond", td.Common().Docs.Description, "a settlement rewrites the registry the document holds")
 	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
@@ -49,39 +49,39 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 }
 
 // TestTypes_SettleTakesEveryCompletionFirst pins the order a settlement relies
-// on to read a node finished: one Complete queued runs before every one Defer
-// queued, even one deferred before it, so a settlement that reads the node, or
-// rewrites it, meets what the completion made of it. Each kind keeps the order
-// queued.
+// on to read a node finished: one QueueSettlementBeforeDeferredOnes queued runs
+// before every one Defer queued, even one deferred before it, so a settlement
+// that reads the node, or rewrites it, meets what the completion made of it.
+// Each kind keeps the order queued.
 func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
 	var runs []string
 	read := func(name string) compile.Settlement {
 		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
-			runs = append(runs, name+" read "+reg["t/x"].Common().Docs.Description)
+			runs = append(runs, name+" read "+reg["type/x"].Common().Docs.Description)
 			return []ir.Diagnostic{{Code: name}}
 		})
 	}
 	complete := func(name string) compile.Settlement {
 		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 			runs = append(runs, name)
-			reg["t/x"].Common().Docs.Description += name
+			reg["type/x"].Common().Docs.Description += name
 			return []ir.Diagnostic{{Code: name}}
 		})
 	}
 	types.Defer(read("r1"))
-	types.Complete(complete("c1"))
+	types.QueueSettlementBeforeDeferredOnes(complete("c1"))
 	types.Defer(read("r2"))
-	types.Complete(complete("c2"))
+	types.QueueSettlementBeforeDeferredOnes(complete("c2"))
 
 	diags := types.Settle(t.Context())
 
 	assert.Equal(t, []string{"c1", "c2", "r1 read c1c2", "r2 read c1c2"}, runs)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	assert.Equal(t, []string{"c1", "c2", "r1", "r2"}, codes, "diagnostics follow the order settled")
 	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
@@ -95,17 +95,17 @@ func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 func TestTypes_FinishReportsEveryRefusalWithTheRegistry(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
 	types.Register("", &ir.Any{})
 	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
-		reg["t/x"].Common().Docs.Description = "settled"
+		reg["type/x"].Common().Docs.Description = "settled"
 		return []ir.Diagnostic{{Code: "settled"}}
 	}))
 
 	reg, diags := types.Finish(t.Context())
 
-	require.Contains(t, reg, ir.TypeID("t/x"))
-	assert.Equal(t, "settled", reg["t/x"].Common().Docs.Description, "the registry comes back settled")
+	require.Contains(t, reg, ir.TypeID("type/x"))
+	assert.Equal(t, "settled", reg["type/x"].Common().Docs.Description, "the registry comes back settled")
 	require.Len(t, diags, 2)
 	assert.Equal(t, ir.Diagnostic{Code: "settled"}, diags[0], "what settling reported comes first")
 	refusal := diags[1]
@@ -156,26 +156,26 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
-// TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements
-// Defer and Complete refuse rather than drop: one queued after Settle ran,
-// which no later Settle is promised to take, and a nil one, which cannot be
-// taken.
+// TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements Defer
+// and QueueSettlementBeforeDeferredOnes refuse rather than drop: one queued
+// after Settle ran, which no later Settle is promised to take, and a nil one,
+// which cannot be taken.
 func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
-		queue func(types *compile.Types, s compile.Settlement)
+		queue func(types *compile.Types, settlement compile.Settlement)
 	}{
-		{"after settling", func(types *compile.Types, s compile.Settlement) {
+		{"after settling", func(types *compile.Types, settlement compile.Settlement) {
 			types.Settle(t.Context())
-			types.Defer(s)
+			types.Defer(settlement)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
-		{"completion after settling", func(types *compile.Types, s compile.Settlement) {
+		{"completion after settling", func(types *compile.Types, settlement compile.Settlement) {
 			types.Settle(t.Context())
-			types.Complete(s)
+			types.QueueSettlementBeforeDeferredOnes(settlement)
 		}},
-		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.Complete(nil) }},
+		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.QueueSettlementBeforeDeferredOnes(nil) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -197,12 +197,12 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	types.Promise("/a", func() []ir.Diagnostic {
-		types.Intern("/a", "t/anon/a", func() ir.TypeDef { return &ir.Model{ID: "t/anon/a"} })
+	types.ReserveNodeAtCoordinate("/a", func() []ir.Diagnostic {
+		types.Intern("/a", "type/anonymous/a", func() ir.TypeDef { return &ir.Model{ID: "type/anonymous/a"} })
 		return []ir.Diagnostic{{Code: "built"}}
 	})
 	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
-		if _, built := reg["t/anon/a"]; !built {
+		if _, built := reg["type/anonymous/a"]; !built {
 			return []ir.Diagnostic{{Code: "unbuilt"}}
 		}
 		return []ir.Diagnostic{{Code: "settled"}}
@@ -225,22 +225,22 @@ func TestTypes_SettlementMayRegisterWhatItMints(t *testing.T) {
 		refused int
 	}{
 		{"registered", func(types *compile.Types, _ ir.TypeRegistry) {
-			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+			types.Register("type/minted/a", &ir.Model{ID: "type/minted/a"})
 		}, 0},
 		{"registered twice", func(types *compile.Types, _ ir.TypeRegistry) {
-			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
-			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+			types.Register("type/minted/a", &ir.Model{ID: "type/minted/a"})
+			types.Register("type/minted/a", &ir.Model{ID: "type/minted/a"})
 		}, 0},
 		{"registered, and another written past it", func(types *compile.Types, reg ir.TypeRegistry) {
-			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
-			reg["t/minted/b"] = &ir.Model{ID: "t/minted/b"}
+			types.Register("type/minted/a", &ir.Model{ID: "type/minted/a"})
+			reg["type/minted/b"] = &ir.Model{ID: "type/minted/b"}
 		}, 1},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			types := compile.NewTypes()
-			types.Intern("/p", "t/source/x", func() ir.TypeDef { return &ir.Model{ID: "t/source/x"} })
-			types.Complete(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			types.Intern("/p", "type/source/x", func() ir.TypeDef { return &ir.Model{ID: "type/source/x"} })
+			types.QueueSettlementBeforeDeferredOnes(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 				c.settle(types, reg)
 				return nil
 			}))
@@ -248,7 +248,7 @@ func TestTypes_SettlementMayRegisterWhatItMints(t *testing.T) {
 			types.Settle(t.Context())
 
 			assert.Len(t, types.Violations(), c.refused)
-			_, ok := types.Node("t/minted/a")
+			_, ok := types.Node("type/minted/a")
 			assert.True(t, ok, "the registered node stands")
 		})
 	}
@@ -267,16 +267,16 @@ func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 		want    string
 		present bool // t/other is registered after it ran
 	}{
-		{"adds", false, func(reg ir.TypeRegistry) { reg["t/other"] = &ir.Model{ID: "t/other"} }, "from 1 to 2 nodes", true},
-		{"removes", true, func(reg ir.TypeRegistry) { delete(reg, "t/other") }, "from 2 to 1 nodes", false},
+		{"adds", false, func(reg ir.TypeRegistry) { reg["type/other"] = &ir.Model{ID: "type/other"} }, "from 1 to 2 nodes", true},
+		{"removes", true, func(reg ir.TypeRegistry) { delete(reg, "type/other") }, "from 2 to 1 nodes", false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			types := compile.NewTypes()
-			types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+			types.Intern("/p", "type/x", func() ir.TypeDef { return &ir.Model{ID: "type/x"} })
 			if c.seeded {
-				types.Register("t/other", &ir.Model{ID: "t/other"})
+				types.Register("type/other", &ir.Model{ID: "type/other"})
 			}
 			types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 				c.write(reg)
@@ -287,7 +287,7 @@ func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 
 			require.Len(t, types.Violations(), 1)
 			assert.Contains(t, types.Violations()[0], c.want)
-			_, present := types.Node("t/other")
+			_, present := types.Node("type/other")
 			assert.Equal(t, c.present, present, "what the settlement did is left standing")
 		})
 	}

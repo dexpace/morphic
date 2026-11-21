@@ -12,10 +12,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // readAside parses text into its first document's mapping.
@@ -27,9 +27,9 @@ func readAside(t *testing.T, text string) *yaml.Node {
 }
 
 // marshalled is what the tree encodes to.
-func marshalled(t *testing.T, n *yaml.Node) string {
+func marshalled(t *testing.T, node *yaml.Node) string {
 	t.Helper()
-	out, err := yaml.Marshal(n)
+	out, err := yaml.Marshal(node)
 	require.NoError(t, err)
 	return string(out)
 }
@@ -69,12 +69,12 @@ func TestAside_RestoreLeavesTheTreeAsWritten(t *testing.T) {
 func TestAside_AMappingHiddenTwiceIsRestoredToTheFirstReading(t *testing.T) {
 	t.Parallel()
 	root := readAside(t, "m: {a: 1, b: 2, c: 3}\n")
-	m := root.Content[1]
+	node := root.Content[1]
 	before := marshalled(t, root)
 	a := aside{}
 
-	a.hide(m, func(key, _ *yaml.Node) bool { return key.Value == "a" })
-	a.hide(m, func(key, _ *yaml.Node) bool { return key.Value == "b" })
+	a.hide(node, func(key, _ *yaml.Node) bool { return key.Value == "a" })
+	a.hide(node, func(key, _ *yaml.Node) bool { return key.Value == "b" })
 	assert.Equal(t, "m: {c: 3}\n", marshalled(t, root))
 
 	a.restore()
@@ -216,8 +216,8 @@ func TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain(t *testing.
 func TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild(t *testing.T) {
 	t.Parallel()
 	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a:\n    get:\n      parameters: [{$ref: '#/x-p'}]\nx-p: {$ref: ~}\n")
-	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
-		bind.Config{Self: "spec.yaml"})
+	table := reftable.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		reftable.Config{Self: "spec.yaml"})
 	require.NotEmpty(t, table.ObjectLandings())
 
 	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})
@@ -246,8 +246,8 @@ func TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, d.Code+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		got = append(got, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{
 		"openapi/validation/validation-type-mismatch /paths/~1a",
@@ -264,7 +264,7 @@ func TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside(t *testing.T) {
 // is not mapped.
 func TestMapped_PutsAURLUnderTheLongestPrefix(t *testing.T) {
 	t.Parallel()
-	s := sourceDocument{path: "/r/spec.yaml", mappings: []Mapping{
+	sourceDocumentValue := sourceDocument{path: "/r/spec.yaml", mappings: []Mapping{
 		{Prefix: "https://e.test/x/", Location: "lib"},
 		{Prefix: "https://e.test/x/y/", Location: "https://mirror.test/m/"},
 		{Prefix: "https://e.test/abs/", Location: "/srv/abs"},
@@ -274,7 +274,7 @@ func TestMapped_PutsAURLUnderTheLongestPrefix(t *testing.T) {
 		"https://e.test/x/y/c%2F.yaml": "https://mirror.test/m/c%2F.yaml",
 		"https://e.test/abs/d/e.yaml":  "/srv/abs/d/e.yaml",
 	} {
-		got, mapped, err := s.mapped(named)
+		got, mapped, err := sourceDocumentValue.mapped(named)
 		require.NoError(t, err, named)
 		assert.True(t, mapped, named)
 		assert.Equal(t, want, got, named)
@@ -283,11 +283,11 @@ func TestMapped_PutsAURLUnderTheLongestPrefix(t *testing.T) {
 		"https://e.test/x/a%2F..%2Fb.yaml": `"a/../b.yaml"`,
 		"https://e.test/x/a%zz.yaml":       `"a%zz.yaml"`,
 	} {
-		_, mapped, err := s.mapped(named)
+		_, mapped, err := sourceDocumentValue.mapped(named)
 		assert.True(t, mapped, named)
 		assert.ErrorContains(t, err, "the segment "+segment+" holds an escaped separator")
 	}
-	_, mapped, err := s.mapped("https://e.test/z/b.yaml")
+	_, mapped, err := sourceDocumentValue.mapped("https://e.test/z/b.yaml")
 	assert.False(t, mapped)
 	assert.NoError(t, err)
 }
@@ -314,9 +314,9 @@ func TestLoad_AMappedURLNamingNoLocationIsRefusedUnread(t *testing.T) {
 
 		require.NoError(t, err)
 		var got []string
-		for _, d := range diags {
-			if d.Code == "openapi/unresolved-ref" {
-				got = append(got, d.Message)
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/unresolved-ref" {
+				got = append(got, diagnostic.Message)
 			}
 		}
 		if tc.want == "" {

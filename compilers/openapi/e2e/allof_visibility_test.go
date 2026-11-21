@@ -96,11 +96,11 @@ var wantReadOnlyVisibility = ir.Visibility{
 func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compileAnnotationSpec(t, name, spec)
-	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	model, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing must own a Model node")
-	p, ok := propByWire(m, "id")
+	property, ok := propertyByWire(model, "id")
 	require.True(t, ok, "Thing must carry a merged \"id\" property")
-	return p.Visibility, diags
+	return property.Visibility, diags
 }
 
 // TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives is the issue's own
@@ -138,16 +138,17 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 
 // TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict covers
 // one entry readOnly and the other writeOnly, which intersect to the empty
-// set. That is recorded as None, the IR's shape for "invisible everywhere", not
-// as a conflicting-redeclaration: unlike an incompatible-type redeclaration,
-// nothing is arbitrarily discarded. The document is still warned, under a code
-// of its own, that "id" is left in a shape no request or response can carry.
+// set. That is recorded as InvisibleInEveryLifecycle, the IR's shape for
+// "invisible everywhere", not as a conflicting-redeclaration: unlike an
+// incompatible-type redeclaration, nothing is arbitrarily discarded. The
+// document is still warned, under a code of its own, that "id" is left in a
+// shape no request or response can carry.
 func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *testing.T) {
 	t.Parallel()
 	got, diags := thingIDVisibility(t, "allof-visibility-disjoint", allOfVisibilityDisjointSpec)
 
 	assertNoErrorDiags(t, diags)
-	assert.Equal(t, ir.Visibility{None: true}, got)
+	assert.Equal(t, ir.Visibility{InvisibleInEveryLifecycle: true}, got)
 	assert.True(t, openapitest.HasDiag(diags, diag.DisjointVisibility),
 		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),

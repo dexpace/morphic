@@ -36,28 +36,28 @@ type promotionCarrier struct {
 // of being covered by a neighbour.
 func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarrier {
 	t.Helper()
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	header := op.Responses[0].Headers[0]
-	require.Len(t, op.Params, 1)
-	param := op.Params[0]
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
+	require.Len(t, operation.Params, 1)
+	param := operation.Params[0]
 
 	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
-	prop, ok := propByWire(model, "p")
+	property, ok := propertyByWire(model, "p")
 	require.True(t, ok)
 
 	scheme, ok := doc.Auth["auth/openapi/components/securitySchemes/k"]
 	require.True(t, ok)
 
 	return map[string]promotionCarrier{
-		"operation":   {op.Deprecation, op.Provenance, op.Unmodeled},
+		"operation":   {operation.Deprecation, operation.Provenance, operation.Unmodeled},
 		"parameter":   {param.Deprecation, param.Provenance, param.Unmodeled},
 		"header":      {header.Deprecation, header.Provenance, header.Unmodeled},
 		"type":        {model.Deprecation, model.Provenance, model.Unmodeled},
-		"property":    {prop.Deprecation, prop.Provenance, prop.Unmodeled},
+		"property":    {property.Deprecation, property.Provenance, property.Unmodeled},
 		"auth scheme": {scheme.Deprecation, scheme.Provenance, scheme.Unmodeled},
 	}
 }
@@ -86,17 +86,17 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 			"%s promotion does not reclassify what it read", name)
 	}
 
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
-	assert.Equal(t, "1.2.0", op.Deprecation.Since)
-	assert.Equal(t, "2026-08-01", op.Deprecation.RemovalDate,
+	assert.Equal(t, "1.2.0", operation.Deprecation.Since)
+	assert.Equal(t, "2026-08-01", operation.Deprecation.RemovalDate,
 		"x-sunset is a date, so it reaches the date field")
-	assert.Empty(t, op.Deprecation.RemovalVersion,
+	assert.Empty(t, operation.Deprecation.RemovalVersion,
 		"a sunset date does not land in the field a consumer reads as a version")
 
-	require.Len(t, op.Params, 1)
-	require.NotNil(t, op.Params[0].Deprecation)
-	assert.Equal(t, "2027-01-15", op.Params[0].Deprecation.RemovalDate,
+	require.Len(t, operation.Params, 1)
+	require.NotNil(t, operation.Params[0].Deprecation)
+	assert.Equal(t, "2027-01-15", operation.Params[0].Deprecation.RemovalDate,
 		"the parameter's own x-sunset reaches its own removal date, not the operation's")
 
 	assertEnumOpenness(t, doc)
@@ -110,26 +110,26 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // path that stops reading the key fails on its own row.
 func assertKeyDeprecates(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	op, ok := opByName(doc, "keyDeprecates")
+	operation, ok := operationByName(doc, "keyDeprecates")
 	require.True(t, ok)
-	param, ok := openapitest.ParamBySource(op, "byKey")
+	param, ok := openapitest.ParamBySource(operation, "byKey")
 	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	header, ok := headerByWire(op.Responses[0].Headers, "X-By-Key")
+	require.Len(t, operation.Responses, 1)
+	header, ok := headerByWire(operation.Responses[0].Headers, "X-By-Key")
 	require.True(t, ok)
 	model, ok := doc.Types[componentID("ByKey")].(*ir.Model)
 	require.True(t, ok)
-	prop, ok := propByWire(model, "p")
+	property, ok := propertyByWire(model, "p")
 	require.True(t, ok)
 	scheme, ok := doc.Auth["auth/openapi/components/securitySchemes/byKey"]
 	require.True(t, ok)
 
 	for name, carrier := range map[string]promotionCarrier{
-		"operation":   {op.Deprecation, op.Provenance, op.Unmodeled},
+		"operation":   {operation.Deprecation, operation.Provenance, operation.Unmodeled},
 		"parameter":   {param.Deprecation, param.Provenance, param.Unmodeled},
 		"header":      {header.Deprecation, header.Provenance, header.Unmodeled},
 		"type":        {model.Deprecation, model.Provenance, model.Unmodeled},
-		"property":    {prop.Deprecation, prop.Provenance, prop.Unmodeled},
+		"property":    {property.Deprecation, property.Provenance, property.Unmodeled},
 		"auth scheme": {scheme.Deprecation, scheme.Provenance, scheme.Unmodeled},
 	} {
 		require.NotNil(t, carrier.deprecation, "%s: the key is the only statement", name)
@@ -144,8 +144,8 @@ func assertKeyDeprecates(t *testing.T, doc *ir.Document) {
 func assertMemberKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, tc := range []struct {
-		op   string
-		want ir.Deprecation
+		operation string
+		want      ir.Deprecation
 	}{
 		{"messageKey", ir.Deprecation{Message: "use getY instead", RemovalDate: "2030-06-01"}},
 		{"objectKey", ir.Deprecation{Message: "goes away", RemovalDate: "2030-01-01"}},
@@ -153,10 +153,10 @@ func assertMemberKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		{"numberForAMember", ir.Deprecation{}},
 		{"firstKeyWins", ir.Deprecation{Message: "the first key"}},
 	} {
-		op, ok := opByName(doc, tc.op)
-		require.True(t, ok, tc.op)
-		require.NotNil(t, op.Deprecation, tc.op)
-		assert.Equal(t, tc.want, *op.Deprecation, tc.op)
+		operation, ok := operationByName(doc, tc.operation)
+		require.True(t, ok, tc.operation)
+		require.NotNil(t, operation.Deprecation, tc.operation)
+		assert.Equal(t, tc.want, *operation.Deprecation, tc.operation)
 	}
 	info := []ir.Severity{ir.SeverityInfo}
 	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/paths/~1members/post/x-cfDeprecation"),
@@ -206,10 +206,10 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		{"MixedFixed", true, ""},
 		{"NotAnEnum", true, ""},
 	} {
-		u, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
+		union, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
 		require.True(t, ok, "%s lowers to a union", tc.schema)
-		assert.Equal(t, tc.closed, u.Closed, "%s openness", tc.schema)
-		assert.Equal(t, tc.inferred, u.Provenance.Inferred, "%s heuristic marker", tc.schema)
+		assert.Equal(t, tc.closed, union.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, union.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
 	for _, schema := range []string{"Size", "Shade"} {
@@ -228,7 +228,7 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 // meaning something else by the key.
 func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	live, ok := opByName(doc, "getY")
+	live, ok := operationByName(doc, "getY")
 	require.True(t, ok)
 	assert.Nil(t, live.Deprecation, "the operation is not deprecated")
 	assert.Contains(t, live.Unmodeled, "openapi:x-deprecated-reason")
@@ -236,7 +236,7 @@ func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 
 	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
-	numeric, ok := propByWire(model, "n")
+	numeric, ok := propertyByWire(model, "n")
 	require.True(t, ok)
 	require.NotNil(t, numeric.Deprecation)
 	assert.Empty(t, numeric.Deprecation.Message, "a non-string value fills no field")
@@ -246,10 +246,10 @@ func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"declining a value the policy cannot read is reported; got %+v", diags)
 }
 
-// deprecatedOpSpec is one deprecated operation carrying the two extensions the
-// default mapping reads, for the tests that vary the policy rather than the
-// document.
-const deprecatedOpSpec = `openapi: 3.1.0
+// deprecatedOperationSpec is one deprecated operation carrying the two
+// extensions the default mapping reads, for the tests that vary the policy
+// rather than the document.
+const deprecatedOperationSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /x:
@@ -268,14 +268,14 @@ paths:
 // and the document compiles to exactly what it did before promotion existed.
 func TestPromotion_DisabledKeepsExtensionsAndNothingElse(t *testing.T) {
 	t.Parallel()
-	doc := compileClean(t, deprecatedOpSpec,
+	doc := compileClean(t, deprecatedOperationSpec,
 		openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
-	require.NotNil(t, op.Deprecation)
-	assert.Empty(t, op.Deprecation.Message)
-	assert.Empty(t, op.Provenance.Inferred)
-	assert.Contains(t, op.Unmodeled, "openapi:x-deprecated-reason")
+	require.NotNil(t, operation.Deprecation)
+	assert.Empty(t, operation.Deprecation.Message)
+	assert.Empty(t, operation.Provenance.Inferred)
+	assert.Contains(t, operation.Unmodeled, "openapi:x-deprecated-reason")
 }
 
 // TestPromotion_TargetsReplaceTheDefaults pins that a stated mapping is the
@@ -289,13 +289,13 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 			openapi.TargetDeprecationRemovalVersion: {{Key: "x-gone-in"}},
 		},
 	}}
-	doc := compileClean(t, deprecatedOpSpec, own)
-	op, ok := opByName(doc, "getX")
+	doc := compileClean(t, deprecatedOperationSpec, own)
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
-	require.NotNil(t, op.Deprecation)
-	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion, "the caller's key is read")
-	assert.Empty(t, op.Deprecation.Message, "a default the caller replaced is not read")
-	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+	require.NotNil(t, operation.Deprecation)
+	assert.Equal(t, "9.0.0", operation.Deprecation.RemovalVersion, "the caller's key is read")
+	assert.Empty(t, operation.Deprecation.Message, "a default the caller replaced is not read")
+	assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 }
 
 // TestPromotion_AMappedKeyOpensAUnion pins the compiler applying the union
@@ -335,14 +335,14 @@ components:
 			doc := compileClean(t, spec, tc.opts)
 
 			for name, open := range tc.open {
-				u, ok := doc.Types[componentID(name)].(*ir.Union)
+				union, ok := doc.Types[componentID(name)].(*ir.Union)
 				require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
-				assert.Equal(t, !open, u.Closed, name)
+				assert.Equal(t, !open, union.Closed, name)
 				var guess ir.Inferred
 				if open {
 					guess = "extension-promotion"
 				}
-				assert.Equal(t, guess, u.Provenance.Inferred, name)
+				assert.Equal(t, guess, union.Provenance.Inferred, name)
 			}
 		})
 	}
@@ -371,16 +371,16 @@ components:
 	}})
 
 	for _, name := range []string{"UnionKey", "Conflict"} {
-		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		union, ok := doc.Types[componentID(name)].(*ir.Union)
 		require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
-		assert.True(t, u.Closed, "%s stays closed", name)
-		assert.Empty(t, u.Provenance.Inferred, name)
+		assert.True(t, union.Closed, "%s stays closed", name)
+		assert.Empty(t, union.Provenance.Inferred, name)
 	}
 
 	var lost []string
-	for _, d := range doc.Diagnostics {
-		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
-			lost = append(lost, d.Message)
+	for _, diagnostic := range doc.Diagnostics {
+		if diagnostic.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
+			lost = append(lost, diagnostic.Message)
 		}
 	}
 	assert.Len(t, lost, 1, "x-b, losing to x-a, is reported once: %q", lost)
@@ -431,17 +431,17 @@ var defaultTargetRead = map[openapi.ExtensionTarget]struct {
 	openapi.TargetDeprecation: {"deprecated", func(_ *ir.Document, _, plain ir.Operation) string {
 		return filledWhen(plain.Deprecation != nil)
 	}},
-	openapi.TargetDeprecationMessage: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
-		return op.Deprecation.Message
+	openapi.TargetDeprecationMessage: {"filled", func(_ *ir.Document, operation, _ ir.Operation) string {
+		return operation.Deprecation.Message
 	}},
-	openapi.TargetDeprecationSince: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
-		return op.Deprecation.Since
+	openapi.TargetDeprecationSince: {"filled", func(_ *ir.Document, operation, _ ir.Operation) string {
+		return operation.Deprecation.Since
 	}},
-	openapi.TargetDeprecationRemovalVersion: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
-		return op.Deprecation.RemovalVersion
+	openapi.TargetDeprecationRemovalVersion: {"filled", func(_ *ir.Document, operation, _ ir.Operation) string {
+		return operation.Deprecation.RemovalVersion
 	}},
-	openapi.TargetDeprecationRemovalDate: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
-		return op.Deprecation.RemovalDate
+	openapi.TargetDeprecationRemovalDate: {"filled", func(_ *ir.Document, operation, _ ir.Operation) string {
+		return operation.Deprecation.RemovalDate
 	}},
 	openapi.TargetEnumOpen: {"filled", func(doc *ir.Document, _, _ ir.Operation) string {
 		enum, ok := doc.Types[componentID("E")].(*ir.Enum)
@@ -487,9 +487,9 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 					[]compilers.Source{{Path: "spec.yaml", Data: []byte(defaultKeySpec(src, read.value))}},
 					compilers.Options{FormatOptions: openapi.Options{}})
 				require.NoError(t, err)
-				deprecated, ok := opByName(doc, "getX")
+				deprecated, ok := operationByName(doc, "getX")
 				require.True(t, ok)
-				plain, ok := opByName(doc, "putX")
+				plain, ok := operationByName(doc, "putX")
 				require.True(t, ok)
 				require.NotNil(t, deprecated.Deprecation)
 
@@ -553,10 +553,10 @@ paths:
 					},
 				}}})
 			require.NoError(t, err)
-			op, ok := opByName(doc, "getX")
+			operation, ok := operationByName(doc, "getX")
 			require.True(t, ok)
-			require.NotNil(t, op.Deprecation)
-			assert.Equal(t, tc.want, op.Deprecation.Message)
+			require.NotNil(t, operation.Deprecation)
+			assert.Equal(t, tc.want, operation.Deprecation.Message)
 			assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", tc.loser))
 			assert.Len(t, diags, 1)
 		})
@@ -624,11 +624,11 @@ paths:
           description: ok
 `
 	doc := compileClean(t, spec, both)
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
-	require.NotNil(t, op.Deprecation)
-	assert.Equal(t, "2026-08-01", op.Deprecation.RemovalDate)
-	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion,
+	require.NotNil(t, operation.Deprecation)
+	assert.Equal(t, "2026-08-01", operation.Deprecation.RemovalDate)
+	assert.Equal(t, "9.0.0", operation.Deprecation.RemovalVersion,
 		"both facts survive; neither overwrites the other")
 }
 
@@ -675,9 +675,9 @@ components:
 		}}})
 	require.NoError(t, err)
 
-	getOld, ok := opByName(doc, "getOld")
+	getOld, ok := operationByName(doc, "getOld")
 	require.True(t, ok)
-	getNew, ok := opByName(doc, "getNew")
+	getNew, ok := operationByName(doc, "getNew")
 	require.True(t, ok)
 	require.NotNil(t, getOld.Deprecation)
 	assert.Equal(t, []ir.EntityRef{{Operation: getNew.ID}}, getOld.Deprecation.ReplacedBy)
@@ -685,7 +685,7 @@ components:
 	assert.Equal(t, []ir.EntityRef{{Param: getOld.Params[1].ID}}, getOld.Params[0].Deprecation.ReplacedBy)
 	assert.Equal(t, []ir.EntityRef{{Type: componentID("New")}}, doc.Types[componentID("Old")].Common().Deprecation.ReplacedBy)
 
-	getGone, ok := opByName(doc, "getGone")
+	getGone, ok := operationByName(doc, "getGone")
 	require.True(t, ok)
 	assert.Empty(t, getGone.Deprecation.ReplacedBy, "a list naming one entity that does not exist fills nothing")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/paths/~1gone/get/x-replaced-by"))
@@ -761,9 +761,9 @@ paths:
 			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{FormatOptions: opts})
 		require.NoError(t, err)
 		var pointers []string
-		for _, d := range diags {
-			if d.Code == "openapi/unread-extension" {
-				pointers = append(pointers, string(d.Provenance.Pointer))
+		for _, diagnostic := range diags {
+			if diagnostic.Code == "openapi/unread-extension" {
+				pointers = append(pointers, string(diagnostic.Provenance.Pointer))
 			}
 		}
 		return pointers

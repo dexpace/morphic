@@ -97,7 +97,7 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 // TestVerify_ACleanComponentCostsNothing holds all Verify does to costing
 // nothing for a value it finds clean, including what irtest.AllocatingVisits
 // never measures: a check's first meeting with a value, and its report once
-// the walk is over. A check keeping a path per PropID it meets, or spelling
+// the walk is over. A check keeping a path per PropertyID it meets, or spelling
 // every declaration's path to report a few, passes the test above. Twice the
 // components must cost less than one allocation more per component added, the
 // walk's growth aside; a map or a log a check keeps grows in steps. It is not
@@ -207,17 +207,17 @@ paths:
 // kinds uncorpusedUnmodeled writes to.
 func unmodeledKeys(doc *ir.Document) []string {
 	var keys []string
-	collect := func(p ir.Unmodeled) {
-		keys = slices.AppendSeq(keys, maps.Keys(p))
+	collect := func(unmodeled ir.Unmodeled) {
+		keys = slices.AppendSeq(keys, maps.Keys(unmodeled))
 	}
 	for _, svc := range doc.Services {
-		for _, g := range svc.Groups {
-			for _, op := range g.Operations {
-				collect(op.Unmodeled)
-				for _, p := range op.Params {
-					collect(p.Unmodeled)
+		for _, operationGroup := range svc.Groups {
+			for _, operation := range operationGroup.Operations {
+				collect(operation.Unmodeled)
+				for _, parameter := range operation.Params {
+					collect(parameter.Unmodeled)
 				}
-				for _, ec := range op.Errors {
+				for _, ec := range operation.Errors {
 					collect(ec.Unmodeled)
 				}
 			}

@@ -26,8 +26,8 @@ type builder struct {
 }
 
 // mint registers node at pointer, its parts brought where brought says and
-// placed as the field is (folding.assembled; Walk.Mint), or in a dry run names
-// nothing.
+// placed as the field is (folding.assembled; FieldDeclarationContext.Mint), or
+// in a dry run names nothing.
 func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
 	if b.dry {
 		return ""
@@ -47,8 +47,8 @@ func (b *builder) meetNode(base member, partners []member, pointer jsontext.Poin
 	all := append([]member{base}, partners...)
 	nodes := make([]ir.TypeDef, len(all))
 	reg := registry{b.f.g.resolve}
-	for k, m := range all {
-		td, ok := reg.resolve(m.ref.Target)
+	for k, member := range all {
+		td, ok := reg.resolve(member.ref.Target)
 		if !ok {
 			b.failed = true
 			return base.ref.Target
@@ -94,11 +94,11 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 		return &out, narrowest && len(out.Members) > 0
 	case *ir.List:
 		out := *n
-		out.Elem = b.settle(membersOf(all, nodes, func(l *ir.List) ir.TypeRef { return l.Elem }), pointer+"/items", depth)
+		out.ElementType = b.settle(membersOf(all, nodes, func(list *ir.List) ir.TypeRef { return list.ElementType }), pointer+"/items", depth)
 		return &out, sameKind[*ir.List](nodes)
 	case *ir.MapT:
 		out := *n
-		out.Value = b.settle(membersOf(all, nodes, func(m *ir.MapT) ir.TypeRef { return m.Value }), pointer+"/additionalProperties", depth)
+		out.Value = b.settle(membersOf(all, nodes, func(mapT *ir.MapT) ir.TypeRef { return mapT.Value }), pointer+"/additionalProperties", depth)
 		return &out, sameKind[*ir.MapT](nodes)
 	case *ir.Tuple:
 		return b.tuple(n, all, nodes, pointer, depth)
@@ -110,29 +110,29 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 // tuple is build for a tuple: each position, and what may follow the last,
 // built from all the tuples' (settle), which meet only at one length and one
 // presence of what follows (typeJudge.tuples).
-func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer jsontext.Pointer, depth int) (ir.TypeDef, bool) {
-	if !shapedAs(n, nodes) {
+func (b *builder) tuple(tuple *ir.Tuple, all []member, nodes []ir.TypeDef, pointer jsontext.Pointer, depth int) (ir.TypeDef, bool) {
+	if !shapedAs(tuple, nodes) {
 		return nil, false
 	}
-	out := *n
-	out.Elems = make([]ir.TypeRef, len(n.Elems))
-	for i := range n.Elems {
+	out := *tuple
+	out.ElementTypes = make([]ir.TypeRef, len(tuple.ElementTypes))
+	for i := range tuple.ElementTypes {
 		at := pointer + jsontext.Pointer(fmt.Sprintf("/prefixItems/%d", i))
-		out.Elems[i] = b.settle(membersOf(all, nodes, func(t *ir.Tuple) ir.TypeRef { return t.Elems[i] }), at, depth)
+		out.ElementTypes[i] = b.settle(membersOf(all, nodes, func(irTuple *ir.Tuple) ir.TypeRef { return irTuple.ElementTypes[i] }), at, depth)
 	}
-	if n.Rest != nil {
-		rest := b.settle(membersOf(all, nodes, func(t *ir.Tuple) ir.TypeRef { return *t.Rest }), pointer+"/items", depth)
+	if tuple.Rest != nil {
+		rest := b.settle(membersOf(all, nodes, func(irTuple *ir.Tuple) ir.TypeRef { return *irTuple.Rest }), pointer+"/items", depth)
 		out.Rest = &rest
 	}
 	return &out, true
 }
 
-// shapedAs reports whether every node is a tuple of n's length, and admits what
-// follows its last position where n does.
-func shapedAs(n *ir.Tuple, nodes []ir.TypeDef) bool {
+// shapedAs reports whether every node is a tuple of tuple's length, and admits
+// what follows its last position where tuple does.
+func shapedAs(tuple *ir.Tuple, nodes []ir.TypeDef) bool {
 	for _, td := range nodes {
-		t, ok := td.(*ir.Tuple)
-		if !ok || len(t.Elems) != len(n.Elems) || (t.Rest == nil) != (n.Rest == nil) {
+		irTuple, ok := td.(*ir.Tuple)
+		if !ok || len(irTuple.ElementTypes) != len(tuple.ElementTypes) || (irTuple.Rest == nil) != (tuple.Rest == nil) {
 			return false
 		}
 	}
@@ -162,16 +162,16 @@ func membersOf[T ir.TypeDef](all []member, nodes []ir.TypeDef, of func(T) ir.Typ
 func sharedBy(ms []ir.EnumMember, others []ir.TypeDef) []ir.EnumMember {
 	indexes := make([]memberIndex, len(others))
 	for k, td := range others {
-		e, ok := td.(*ir.Enum)
+		enum, ok := td.(*ir.Enum)
 		if !ok {
 			return nil
 		}
-		indexes[k] = indexMembers(e.Members)
+		indexes[k] = indexMembers(enum.Members)
 	}
 	out := make([]ir.EnumMember, 0, len(ms))
-	for _, m := range ms {
-		if heldByAll(indexes, m.Value) {
-			out = append(out, m)
+	for _, enumMember := range ms {
+		if heldByAll(indexes, enumMember.Value) {
+			out = append(out, enumMember)
 		}
 	}
 	if len(out) == len(ms) {
@@ -180,10 +180,10 @@ func sharedBy(ms []ir.EnumMember, others []ir.TypeDef) []ir.EnumMember {
 	return out
 }
 
-// heldByAll reports whether each enum indexes indexed holds v.
-func heldByAll(indexes []memberIndex, v ir.Value) bool {
-	for _, x := range indexes {
-		if _, held := x.find(v); !held {
+// heldByAll reports whether each enum indexes indexed holds value.
+func heldByAll(indexes []memberIndex, value ir.Value) bool {
+	for _, memberIndex := range indexes {
+		if _, held := memberIndex.find(value); !held {
 			return false
 		}
 	}
@@ -197,23 +197,23 @@ func heldByAll(indexes []memberIndex, v ir.Value) bool {
 // rest. ms are judged in declaration order, as a field's own types are, so a
 // tie goes to the later and what they compose is listed as they are written.
 func (b *builder) settle(ms []member, pointer jsontext.Pointer, depth int) ir.TypeRef {
-	ms = slices.SortedStableFunc(slices.Values(ms), func(x, y member) int { return cmp.Compare(x.decl, y.decl) })
-	p := b.f.g.judgePosition(b.f.decls, ms, depth+1)
+	ms = slices.SortedStableFunc(slices.Values(ms), func(memberValue, otherMember member) int { return cmp.Compare(memberValue.decl, otherMember.decl) })
+	position := b.f.g.judgePosition(b.f.decls, ms, depth+1)
 	all := func(int) bool { return true }
 	var target ir.TypeID
-	if len(p.conjuncts) > 0 {
-		target = b.compose(p.conjuncts, pointer)
+	if len(position.conjuncts) > 0 {
+		target = b.compose(position.conjuncts, pointer)
 	} else {
 		for k := range ms {
-			if !p.holds(p.winner, k) {
+			if !position.holds(position.winner, k) {
 				b.failed = true
-				return ms[p.winner].ref
+				return ms[position.winner].ref
 			}
 		}
-		base, partners := p.meeting(all)
+		base, partners := position.meeting(all)
 		target = b.meetNode(base, partners, pointer, depth+1)
 	}
-	ref := p.null(registry{b.f.g.resolve}, all, depth+1)
+	ref := position.null(registry{b.f.g.resolve}, all, depth+1)
 	ref.Target = target
 	return ref
 }
@@ -238,24 +238,25 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	for k, td := range nodes[1:] {
 		others[k] = *td.Common()
 	}
-	c := built.Common()
-	*c = adopt(*c, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
-	if l, ok := built.(*ir.List); ok && l.Encoding == nil {
-		b.adoptEncoding(l, all, nodes)
+	typeCommon := built.Common()
+	*typeCommon = adopt(*typeCommon, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
+	if list, ok := built.(*ir.List); ok && list.Encoding == nil {
+		b.adoptEncoding(list, all, nodes)
 	}
 	return built
 }
 
-// adoptEncoding sets on l, a list giving no encoding, the first one nodes[1:]
-// give, reporting each later list giving another as adopt reports a field.
-func (b *builder) adoptEncoding(l *ir.List, all []member, nodes []ir.TypeDef) {
+// adoptEncoding sets on list, a list giving no encoding, the first one
+// nodes[1:] give, reporting each later list giving another as adopt reports a
+// field.
+func (b *builder) adoptEncoding(list *ir.List, all []member, nodes []ir.TypeDef) {
 	for k, td := range nodes[1:] {
 		other, ok := td.(*ir.List)
 		switch {
 		case !ok || other.Encoding == nil:
-		case l.Encoding == nil:
-			l.Encoding = other.Encoding
-		case !reflect.DeepEqual(l.Encoding, other.Encoding):
+		case list.Encoding == nil:
+			list.Encoding = other.Encoding
+		case !reflect.DeepEqual(list.Encoding, other.Encoding):
 			b.differ(all[k+1].decl, "encoding")
 		}
 	}

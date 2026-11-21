@@ -28,13 +28,13 @@ import (
 func Recognize(ctx context.Context, srcIndex int, data []byte, maxBytes, maxNodes budget.Limit,
 ) (compilers.Recognition, []ir.Diagnostic, bool) {
 	atSource := ir.Provenance{Source: srcIndex}
-	if d, over := load.OverByteBudget(atSource, data, maxBytes); over {
-		return compilers.Recognition{}, []ir.Diagnostic{d}, false
+	if diagnostic, over := load.OverByteBudget(atSource, data, maxBytes); over {
+		return compilers.Recognition{}, []ir.Diagnostic{diagnostic}, false
 	}
 
 	probe, parsed, err := sniff(ctx, data, maxNodes)
-	if d, past := load.OverNodeBudget(atSource, err); past {
-		return compilers.Recognition{}, []ir.Diagnostic{d}, false
+	if diagnostic, past := load.OverNodeBudget(atSource, err); past {
+		return compilers.Recognition{}, []ir.Diagnostic{diagnostic}, false
 	}
 	switch {
 	case ctx.Err() != nil:

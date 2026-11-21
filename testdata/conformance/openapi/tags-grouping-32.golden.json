@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "TagsGrouping32",
         "canonical": "tags_grouping_32"
@@ -52,7 +52,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/catalog",
+          "id": "operation-group/tags/catalog",
           "name": {
             "source": "catalog",
             "canonical": "catalog"
@@ -62,7 +62,7 @@
           },
           "groups": [
             {
-              "id": "g/tags/books",
+              "id": "operation-group/tags/books",
               "name": {
                 "source": "books",
                 "canonical": "books"
@@ -72,7 +72,7 @@
               },
               "operations": [
                 {
-                  "id": "op/openapi/paths/~1books/get",
+                  "id": "operation/openapi/paths/~1books/get",
                   "name": {
                     "source": "listBooks",
                     "canonical": "list_books"
@@ -120,7 +120,7 @@
               ]
             },
             {
-              "id": "g/tags/magazines",
+              "id": "operation-group/tags/magazines",
               "name": {
                 "source": "magazines",
                 "canonical": "magazines"
@@ -128,7 +128,7 @@
               "docs": {},
               "operations": [
                 {
-                  "id": "op/openapi/paths/~1magazines/get",
+                  "id": "operation/openapi/paths/~1magazines/get",
                   "name": {
                     "source": "listMagazines",
                     "canonical": "list_magazines"
@@ -177,7 +177,7 @@
           ],
           "operations": [
             {
-              "id": "op/openapi/paths/~1catalog/get",
+              "id": "operation/openapi/paths/~1catalog/get",
               "name": {
                 "source": "showCatalog",
                 "canonical": "show_catalog"

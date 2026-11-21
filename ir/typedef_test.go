@@ -23,12 +23,12 @@ var allKinds = []ir.TypeKind{
 
 func TestTypeDef_KindDispatchIsComplete(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td, ok := ir.NewTypeDef(k)
-			require.True(t, ok, "no concrete type registered for kind %q", k)
-			assert.Equal(t, k, td.Kind())
+			td, ok := ir.NewTypeDef(typeKind)
+			require.True(t, ok, "no concrete type registered for kind %q", typeKind)
+			assert.Equal(t, typeKind, td.Kind())
 			require.NotNil(t, td.Common())
 		})
 	}
@@ -82,7 +82,7 @@ func TestTypeCommon_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.TypeCommon{},
 		`{"id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0}}`,
 		ir.TypeCommon{
-			ID:               "t/openapi/components/schemas/User",
+			ID:               "type/openapi/components/schemas/User",
 			Name:             populatedNaming(),
 			Namespace:        []string{"com", "example"},
 			Anonymous:        true,
@@ -96,13 +96,13 @@ func TestTypeCommon_JSONContract(t *testing.T) {
 			MediaTypeHint:    "application/json",
 			XML:              populatedXMLHints(),
 			Examples: []ir.Example{
-				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, String: "v1"}},
 			},
 			Instantiation: &ir.TemplateInstantiation{
 				Template: "Page",
 				Args: []ir.TemplateArg{
-					{Type: &ir.TypeRef{Target: "t/item"}},
-					{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
+					{Type: &ir.TypeRef{Target: "type/item"}},
+					{Value: &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("10")}},
 				},
 			},
 			Unmodeled:  populatedUnmodeled(),
@@ -153,15 +153,15 @@ func TestTypeDef_ZeroValueShapeWithKindTag(t *testing.T) {
 // shared-singleton mutant.
 func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td, ok := ir.NewTypeDef(k)
-			require.True(t, ok, "no concrete type registered for kind %q", k)
-			td.Common().ID = "t/y"
+			td, ok := ir.NewTypeDef(typeKind)
+			require.True(t, ok, "no concrete type registered for kind %q", typeKind)
+			td.Common().ID = "type/y"
 			raw, err := json.Marshal(td)
 			require.NoError(t, err)
-			assert.Contains(t, string(raw), `"id":"t/y"`)
+			assert.Contains(t, string(raw), `"id":"type/y"`)
 		})
 	}
 }
@@ -174,8 +174,8 @@ func TestTemplateInstantiation_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.TemplateInstantiation{}, `{}`, ir.TemplateInstantiation{
 		Template: "Page",
 		Args: []ir.TemplateArg{
-			{Type: &ir.TypeRef{Target: "t/item"}},
-			{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
+			{Type: &ir.TypeRef{Target: "type/item"}},
+			{Value: &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("10")}},
 		},
 	})
 }
@@ -192,8 +192,8 @@ func TestTemplateArg_ZeroValueShape(t *testing.T) {
 func TestTemplateArg_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	tests := map[string]ir.TemplateArg{
-		"type":  {Type: &ir.TypeRef{Target: "t/item"}},
-		"value": {Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
+		"type":  {Type: &ir.TypeRef{Target: "type/item"}},
+		"value": {Value: &ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("10")}},
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {

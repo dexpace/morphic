@@ -14,15 +14,15 @@ import (
 )
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
+	raw, ok := model.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 	assertEveryObjectKeepsItsExtensions(t, doc)
-	assertRawPreservedBinary(t, m)
+	assertRawPreservedBinary(t, model)
 }
 
 // assertEveryObjectKeepsItsExtensions holds the whole contract, not the
@@ -38,18 +38,18 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sites := unmodeledSites(doc)
 	for _, tc := range []struct{ object, key, want, carrier string }{
-		{"openapi root", "openapi:x-audience", `"public"`, "doc.Unmodeled"},
-		{"info", "openapi:info/x-mark", `"XINFO"`, "doc.Unmodeled"},
-		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "doc.Unmodeled"},
-		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "doc.Unmodeled"},
-		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "doc.Unmodeled"},
-		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "doc.Unmodeled"},
-		{"tag", "openapi:x-mark", `"XTAG"`, "doc.TagDefs[0].Unmodeled"},
-		{"tag externalDocs", "openapi:externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
-		{"the group a tag forms", "openapi:x-mark", `"XTAG"`, "doc.Services[0].Groups[0].Unmodeled"},
-		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
-		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
-		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
+		{"openapi root", "openapi:x-audience", `"public"`, "document.Unmodeled"},
+		{"info", "openapi:info/x-mark", `"XINFO"`, "document.Unmodeled"},
+		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "document.Unmodeled"},
+		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "document.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "document.Unmodeled"},
+		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "document.Unmodeled"},
+		{"tag", "openapi:x-mark", `"XTAG"`, "document.TagDefs[0].Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "document.TagDefs[0].Unmodeled"},
+		{"the group a tag forms", "openapi:x-mark", `"XTAG"`, "document.Services[0].Groups[0].Unmodeled"},
+		{"server", "openapi:x-mark", `"XSERVER"`, "document.Servers[server/openapi/servers/0].Unmodeled"},
+		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "document.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
+		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "document.Services[0].Unmodeled"},
 		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Operations[0].Unmodeled"},
 		{"operation", "openapi:x-internal", `true`, ".Operations[0].Unmodeled"},
 		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`,
@@ -64,17 +64,17 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 		{"error response", "openapi:x-mark", `"XERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:x-mark", `"XHEADER"`, ".Headers[0].Unmodeled"},
 		{"callback", "openapi:callbacks/onEvent/x-mark", `"XCALLBACK"`, ".Bindings.HTTP[0].Unmodeled"},
-		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		{"schema externalDocs", "openapi:externalDocs/x-mark", `"XSCHEMAEXTERNALDOCS"`,
-			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		{"discriminator", "openapi:discriminator/x-mark", `"XDISCRIMINATOR"`,
-			"doc.Types[t/openapi/components/schemas/D].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/D].Unmodeled"},
 		{"security scheme", "openapi:x-mark", `"XSECURITYSCHEME"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
 		{"oauth flows", "openapi:flows/x-mark", `"XOAUTHFLOWS"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
 		{"oauth flow", "openapi:x-mark", `"XOAUTHFLOW"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 	} {
 		site, found := findUnmodeled(sitesOn(sites, tc.carrier), tc.key, tc.want)
 		if !found {
@@ -131,15 +131,15 @@ func carrierNarrows(sites []unmodeledSite, carrier string) bool {
 // The block-form row carries the line breaks with it, because they are part of
 // what the source wrote; base64.StdEncoding skips them, so a consumer resolving
 // the tag reads the same bytes the decode used to store.
-func assertRawPreservedBinary(t *testing.T, m *ir.Model) {
+func assertRawPreservedBinary(t *testing.T, model *ir.Model) {
 	t.Helper()
 	for _, tc := range []struct{ key, want string }{
 		{"openapi:x-blob", `"aGVsbG8="`},
 		{"openapi:x-raw", `"/w=="`},
 		{"openapi:x-wrapped", `"aGVs\nbG8=\n"`},
 	} {
-		entry, found := m.Unmodeled[tc.key]
-		require.True(t, found, "%s is preserved; got %v", tc.key, m.Unmodeled)
+		entry, found := model.Unmodeled[tc.key]
+		require.True(t, found, "%s is preserved; got %v", tc.key, model.Unmodeled)
 		assert.Equal(t, tc.want, string(entry.Value),
 			"%s keeps its base64 text, not the bytes it names", tc.key)
 	}
@@ -150,27 +150,27 @@ func assertRawPreservedBinary(t *testing.T, m *ir.Model) {
 // and x-* on a node of its own, while a position declaring nothing still
 // resolves straight to the shared primitive.
 func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	elem := assertAnnotatedScalar(t, doc, "t/anon/components/schemas/Codes/items", 3)
-	require.NotNil(t, elem.XML)
-	assert.Equal(t, "Code", elem.XML.Name)
-	assert.Contains(t, elem.Unmodeled, "openapi:x-facet")
+	element := assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/Codes/items", 3)
+	require.NotNil(t, element.XML)
+	assert.Equal(t, "Code", element.XML.Name)
+	assert.Contains(t, element.Unmodeled, "openapi:x-facet")
 
-	assertAnnotatedScalar(t, doc, "t/anon/components/schemas/CodeIndex/additionalProperties", 64)
+	assertAnnotatedScalar(t, doc, "type/anonymous/components/schemas/CodeIndex/additionalProperties", 64)
 	assertAnnotatedScalar(t, doc,
-		"t/anon/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
+		"type/anonymous/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
 
 	bare, ok := doc.Types[componentID("Bare")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), bare.Elem.Target,
+	assert.Equal(t, ir.TypeID("type/primitive/string"), bare.ElementType.Target,
 		"an element declaring nothing must not grow a node of its own")
 
-	op, ok := opByName(doc, "listCodes")
+	operation, ok := operationByName(doc, "listCodes")
 	require.True(t, ok)
-	require.Len(t, op.Params, 1)
-	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Unmodeled, 4)
-	require.Len(t, op.Responses[0].Headers, 1)
-	h := op.Responses[0].Headers[0]
-	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Unmodeled, 64)
+	require.Len(t, operation.Params, 1)
+	assertCarriedAnnotations(t, operation.Params[0].Docs, operation.Params[0].Constraints, operation.Params[0].Unmodeled, 4)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
+	assertCarriedAnnotations(t, header.Docs, header.Constraints, header.Unmodeled, 64)
 }
 
 // assertAnnotatedScalar requires the node at id to be a Scalar carrying a
@@ -188,11 +188,11 @@ func assertAnnotatedScalar(t *testing.T, doc *ir.Document, id ir.TypeID, maxLeng
 
 // assertCarriedAnnotations requires a parameter's or header's own carrier to
 // hold what its schema declared.
-func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Unmodeled, maxLength int64) {
+func assertCarriedAnnotations(t *testing.T, docs ir.Docs, constraints *ir.Constraints, unmodeled ir.Unmodeled, maxLength int64) {
 	t.Helper()
 	assert.NotEmpty(t, docs.Description)
-	require.NotNil(t, c)
-	require.NotNil(t, c.MaxLength)
-	assert.Equal(t, maxLength, *c.MaxLength)
-	assert.NotEmpty(t, p, "the schema's x-* rides on the carrier too")
+	require.NotNil(t, constraints)
+	require.NotNil(t, constraints.MaxLength)
+	assert.Equal(t, maxLength, *constraints.MaxLength)
+	assert.NotEmpty(t, unmodeled, "the schema's x-* rides on the carrier too")
 }

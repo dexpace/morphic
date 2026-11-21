@@ -25,19 +25,19 @@ import (
 func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const items = "'#/components/schemas/L/items'"
-	const prop = "'#/components/schemas/L/properties/p'"
+	const property = "'#/components/schemas/L/properties/p'"
 	for _, tc := range []struct {
 		name, user, owner string
 		// base is what O aliases, or empty where O is no alias.
 		base ir.TypeID
 	}{
-		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "t/anon/components/schemas/L/items"},
+		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "type/anonymous/components/schemas/L/items"},
 		{"a closed tuple's items", "{$ref: " + items + "}", "{type: array, prefixItems: [{type: string}], items: false}",
-			"t/anon/components/schemas/L/items"},
-		{"a true property", "{$ref: " + prop + "}", "{type: object, properties: {p: true}}",
-			"t/anon/components/schemas/L/properties/p"},
-		{"a property the parser reads as false", "{$ref: " + prop + "}", "{type: object, properties: {p: just text}}",
-			"t/anon/components/schemas/L/properties/p"},
+			"type/anonymous/components/schemas/L/items"},
+		{"a true property", "{$ref: " + property + "}", "{type: object, properties: {p: true}}",
+			"type/anonymous/components/schemas/L/properties/p"},
+		{"a property the parser reads as false", "{$ref: " + property + "}", "{type: object, properties: {p: just text}}",
+			"type/anonymous/components/schemas/L/properties/p"},
 		{"a union branch and a mapping value", "{type: object, properties: {k: {type: string}}, " +
 			"discriminator: {propertyName: k, mapping: {f: " + items + "}}, oneOf: [{$ref: " + items + "}]}",
 			"{type: array, items: false}", ""},
@@ -50,8 +50,8 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
 			require.NoError(t, err, tc.name)
-			for _, d := range diags {
-				assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %s", tc.name, d.Message)
+			for _, diagnostic := range diags {
+				assert.NotEqual(t, "openapi/unresolved-ref", diagnostic.Code, "%s: %s", tc.name, diagnostic.Message)
 			}
 			types = append(types, doc.Types)
 		}
@@ -59,10 +59,10 @@ func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 		if tc.base == "" {
 			continue
 		}
-		o, ok := types[0]["t/openapi/components/schemas/O"].(*ir.Scalar)
+		scalar, ok := types[0]["type/openapi/components/schemas/O"].(*ir.Scalar)
 		require.True(t, ok, tc.name)
-		require.NotNil(t, o.Base, tc.name)
-		assert.Equal(t, tc.base, o.Base.Target, tc.name)
+		require.NotNil(t, scalar.Base, tc.name)
+		assert.Equal(t, tc.base, scalar.Base.Target, tc.name)
 		assert.Contains(t, types[0], tc.base, tc.name)
 	}
 }

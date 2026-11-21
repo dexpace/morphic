@@ -1229,3 +1229,38 @@ it sees. Changes made together in one bump are listed together under it.
     weighs one `$ref` alone, every other conjunct naming no kind and stating no value set, format or
     `items`, is the use of its target it is within those bounds; with a second conjunct the election
     weighs, it still composes.
+- **0.72.0** — names only: members, ID kinds, ID namespaces and values are spelled out, and nothing
+  means anything it did not. A consumer pinned to 0.71.0 refuses the document; one that read the old
+  spellings finds none of them. By what a consumer meets:
+  - **ID kinds** ([identity](./identity.md)): `t`, `p`, `e`, `g`, `s`, `op`, `param`, `chan` and
+    `msg` are `type`, `property`, `enum-member`, `operation-group`, `service`, `operation`,
+    `parameter`, `channel` and `message`, in every ID and as the keys of `idSpaces`. The namespaces
+    `prim` and `anon` are `primitive` and `anonymous`, so `t/prim/string` is
+    `type/primitive/string`.
+  - **Enum member keys** ([enums](./enums.md#member-identity)): a member's value is tagged by the
+    name of its kind, `string:`, `symbol:`, `number:`, `bool:`, `bytes:` and `null:`, where one
+    letter tagged it.
+  - **Members**: `Value.str`, `num` and `ctor` are `string`, `number` and `constructor`;
+    `List.elem` is `elementType` and `Tuple.elems` `elementTypes`; `Primitive.prim` is
+    `primitiveKind`; `Model.additionalProps` is `additionalProperties`; `Constraints.minProps` and
+    `maxProps` are `minProperties` and `maxProperties`; `Discriminator.index` is
+    `tupleElementIndex`; `PartEncoding.multi` and `filename` are `repeatsPerArrayItem` and
+    `hasFilename`; `ResourceInfo.instanceOps` and `collectionOps` are `instanceOperations` and
+    `collectionOperations`; `Response.statusCodeProp` is `statusCodeProperty`; and
+    `Visibility.none` is `invisibleInEveryLifecycle`.
+  - **Values**: the value kinds `ref`, `ctor`, `inf` and `neginf` are `reference`, `constructor`,
+    `infinity` and `negative-infinity`, and the streaming mode `bidi` is `bidirectional`.
+  - **Go names**: `OpID`, `PropID` and `ParamID` are `OperationID`, `PropertyID` and
+    `ParameterID`, `PrimKind` and its constants are `PrimitiveKind` and `Primitive…`,
+    `AdditionalProps` and `PatternProps` are `AdditionalProperties` and `PatternProperties`,
+    `ExposedProps` is `ExposedProperties`, `OpBindings` and `PropPath` are `OperationBindings` and
+    `PropertyPath`, and `MsgDirection` is `MessageDirection`.
+  - **Locations**: a walk path opens with `document.`, where it opened with `doc.`, as an
+    `irverify` violation and a census line spell it, and a finding about the whole document, as a
+    pass's collision between two of its types, is at the node `document`, where it was at `doc`,
+    so a triage rule naming the node `doc` matches nothing. Every name an emitter renders is the
+    name it was: the names pin's hash moves only because the paths locating each name spell the new
+    ID kinds.
+  - **Correlation keys** ([derived facts](./derived-facts.md#correlation-keys)): a key spells a
+    group's ID and an enum member's value tag as the IR now does, so `irfacts.CorrelationVersion`
+    moves to 5, and a key stored under 4 matches none derived under 5.

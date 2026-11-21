@@ -55,14 +55,14 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 
 	allowed, allowedDiags := compiled(true)
 	openapitest.RequireNoErrorDiags(t, allowedDiags)
-	getA := opByPath(t, allowed, "GET", "/a")
+	getA := operationByPath(t, allowed, "GET", "/a")
 	require.Len(t, getA.Params, 1, "the reference beside the $ref follows into the second file")
 	assert.Equal(t, "extSibling", getA.Params[0].Name.Source)
 
 	refused, refusedDiags := compiled(false)
 	assert.Equal(t, []string{"/paths/~1a/get/parameters/0"}, unresolvedAt(refusedDiags),
 		"without the option the sibling's external reference is reported once, where it is written")
-	refusedA := opByPath(t, refused, "GET", "/a")
+	refusedA := operationByPath(t, refused, "GET", "/a")
 	assert.Empty(t, refusedA.Params, "and no unresolved parameter reaches the IR")
 }
 
@@ -122,11 +122,11 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	postB, getA := opByPath(t, doc, "POST", "/a"), opByPath(t, doc, "GET", "/a")
+	postB, getA := operationByPath(t, doc, "POST", "/a"), operationByPath(t, doc, "GET", "/a")
 	referent := paramNamed(t, getA, "inl")
 	assert.Equal(t, paramNamed(t, postB, "inl").Type, referent.Type,
 		"the referent's parameter binds the same type on either side's operation")
-	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/S"), referent.Type.Target,
+	assert.NotEqual(t, ir.TypeID("type/openapi/components/schemas/S"), referent.Type.Target,
 		"and never the source's S")
 	assert.Equal(t, jsontext.Pointer("/components/parameters/P"), paramNamed(t, postB, "mainP").Provenance.Pointer,
 		"the use site's parameter keeps its declaration's pointer on the referent's operation")
@@ -134,15 +134,15 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 		"and the use site's operation reads its own references in the source")
 }
 
-// paramNamed returns op's parameter whose source name is name.
-func paramNamed(t *testing.T, op ir.Operation, name string) ir.Parameter {
+// paramNamed returns operation's parameter whose source name is name.
+func paramNamed(t *testing.T, operation ir.Operation, name string) ir.Parameter {
 	t.Helper()
-	for _, p := range op.Params {
-		if p.Name.Source == name {
-			return p
+	for _, parameter := range operation.Params {
+		if parameter.Name.Source == name {
+			return parameter
 		}
 	}
-	require.Failf(t, "parameter not found", "%s has no parameter %q", op.Name.Source, name)
+	require.Failf(t, "parameter not found", "%s has no parameter %q", operation.Name.Source, name)
 	return ir.Parameter{}
 }
 
@@ -159,7 +159,7 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	doc, diags := parseFull(t, pathItemRefKindsSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	getA := opByPath(t, doc, "GET", "/a")
+	getA := operationByPath(t, doc, "GET", "/a")
 	require.Len(t, getA.Params, 1, "a $ref'd parameter beside the $ref resolves")
 	assert.Equal(t, "refParam", getA.Params[0].Name.Source)
 	require.NotNil(t, getA.Request, "a $ref'd request body resolves")
@@ -185,26 +185,26 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/links/RefL"), created.Links[0].Provenance.Pointer,
 		"the link is declared where its $ref ends")
 
-	cbPost := openapitest.FindOp(t, doc, "cbPost")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
+	cbPost := openapitest.FindOperation(t, doc, "cbPost")
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
 		"a $ref'd callback resolves, and its operation mounts under the operation beside the $ref")
 	require.Len(t, getA.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{cbPost.ID}, getA.Bindings.HTTP[0].Callbacks[0].Operations)
+	assert.Equal(t, []ir.OperationID{cbPost.ID}, getA.Bindings.HTTP[0].Callbacks[0].Operations)
 }
 
 // responseByStatus returns the single success response an operation declares for
 // code, requiring it to be there rather than indexing into a list that a second
 // response would have made ambiguous.
-func responseByStatus(t *testing.T, op ir.Operation, code int) ir.Response {
+func responseByStatus(t *testing.T, operation ir.Operation, code int) ir.Response {
 	t.Helper()
-	for _, r := range op.Responses {
-		for _, sc := range r.Conditions.StatusCodes {
+	for _, response := range operation.Responses {
+		for _, sc := range response.Conditions.StatusCodes {
 			if sc.From == code && sc.To == code {
-				return r
+				return response
 			}
 		}
 	}
-	t.Fatalf("operation %s declares no response for status %d", op.ID, code)
+	t.Fatalf("operation %s declares no response for status %d", operation.ID, code)
 	return ir.Response{}
 }
 
@@ -328,9 +328,9 @@ func TestPathItemRefSiblings_UnresolvedIsReported(t *testing.T) {
 // order they were reported.
 func unresolvedAt(diags []ir.Diagnostic) []string {
 	var at []string
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			at = append(at, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
+			at = append(at, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	return at
@@ -361,12 +361,12 @@ func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) 
 		"declared once": {
 			target:  "openapi: 3.1.0\ninfo: {title: Target, version: \"1\"}\npaths:\n  /b:" + item,
 			ref:     "./target.yaml#/paths/~1b",
-			refType: ids.In("target.yaml").AnonType("/paths/~1b/parameters/0/schema"),
+			refType: ids.In("target.yaml").AnonymousType("/paths/~1b/parameters/0/schema"),
 		},
 		"a key written twice": {
 			target:  "B: {}\nB:" + strings.ReplaceAll(item, "\n    ", "\n  "),
 			ref:     "./target.yaml#/B",
-			refType: ids.In("target.yaml").AnonType("/B/parameters/0/schema"),
+			refType: ids.In("target.yaml").AnonymousType("/B/parameters/0/schema"),
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -389,9 +389,9 @@ paths:
 			require.NotNil(t, doc)
 			assert.Empty(t, irverify.Verify(doc))
 
-			for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
-				assert.Equal(t, ids.Document{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
-				assert.Equal(t, tc.refType, paramNamed(t, op, "refP").Type.Target,
+			for _, operation := range []ir.Operation{operationByPath(t, doc, "GET", "/a"), operationByPath(t, doc, "POST", "/a")} {
+				assert.Equal(t, ids.DocumentIDNamespace{}.AnonymousType("/paths/~1a/parameters/0/schema"), paramNamed(t, operation, "useP").Type.Target)
+				assert.Equal(t, tc.refType, paramNamed(t, operation, "refP").Type.Target,
 					"the referent's parameter keeps its own schema, not the use site's at the same index")
 			}
 			message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
@@ -448,8 +448,8 @@ paths:
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
 
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), opByPath(t, doc, "PUT", "/a").Provenance.Pointer, tc.name)
-		assert.Equal(t, jsontext.Pointer("/paths/~1x/put"), opByPath(t, doc, "PUT", "/x").Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), operationByPath(t, doc, "PUT", "/a").Provenance.Pointer, tc.name)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/put"), operationByPath(t, doc, "PUT", "/x").Provenance.Pointer,
 			"%s: the alias declares at its own path", tc.name)
 	}
 }
@@ -529,11 +529,11 @@ func TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder(t *
 		besideRefChain+besideRefPaths+components)
 
 	for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
-		own := openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "getA").Request)
+		own := openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "getA").Request)
 		body, ok := doc.Types[own].(*ir.Model)
 		require.True(t, ok, name)
 		assert.Equal(t, "near", body.Properties[0].WireName, "%s: /a keeps its own body", name)
-		assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+		assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "postC").Request),
 			"%s: /c takes the same one", name)
 		assert.NotContains(t, doc.Unmodeled, "openapi:components/requestBodies/X", "%s: X is reached", name)
 	}
@@ -571,11 +571,11 @@ func TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare(t *testin
 				besideRefChain + besideRefPaths + "  /z: *a\n" + components)
 
 			for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
-				own := openapitest.BodyTarget(t, opByPath(t, doc, tc.method, tc.mount).Request)
+				own := openapitest.BodyTarget(t, operationByPath(t, doc, tc.method, tc.mount).Request)
 				body, ok := doc.Types[own].(*ir.Model)
 				require.True(t, ok, "%s %s", ref, name)
 				assert.Equal(t, tc.wire, body.Properties[0].WireName, "%s %s: %s keeps its own body", ref, name, tc.mount)
-				assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+				assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "postC").Request),
 					"%s %s: /c takes the same one", ref, name)
 			}
 			assert.Empty(t, cmp.Diff(first.Types, second.Types), "%s: the registry does not depend on the order", ref)
@@ -609,7 +609,7 @@ components:
 	// takes.
 	wires := func(method string) func(*ir.Document) string {
 		return func(doc *ir.Document) string {
-			body, ok := doc.Types[openapitest.BodyTarget(t, opByPath(t, doc, method, "/c").Request)].(*ir.Model)
+			body, ok := doc.Types[openapitest.BodyTarget(t, operationByPath(t, doc, method, "/c").Request)].(*ir.Model)
 			if !ok {
 				return ""
 			}
@@ -634,8 +634,8 @@ components:
     X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
 `, "near", func(doc *ir.Document) string {
 			var base *ir.TypeRef // the use X owns: the Model over an object
-			if x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model); ok {
-				base = x.Base
+			if model, ok := doc.Types["type/openapi/components/schemas/X"].(*ir.Model); ok {
+				base = model.Base
 			}
 			if base == nil {
 				return ""
@@ -650,7 +650,7 @@ components:
     post:
       parameters: [{$ref: '#/paths/~1a/parameters/0'}]
       responses: {"200": {description: OK}}
-`, "near", func(doc *ir.Document) string { return opByPath(t, doc, "POST", "/c").Params[0].Name.Source }},
+`, "near", func(doc *ir.Document) string { return operationByPath(t, doc, "POST", "/c").Params[0].Name.Source }},
 		{"mapping value", "  /c:\n    post:\n" +
 			strings.Replace(discriminated, "%s", "'#/paths/~1a/get/requestBody/content/application~1json/schema'", 1),
 			"near", func(doc *ir.Document) string {
@@ -726,28 +726,28 @@ components:
 
 	const at = "/paths/~1a/get/requestBody/content/application~1json/schema"
 	assert.Empty(t, errorsAt(diags))
-	y, ok := doc.Types[ir.TypeID("t/anon"+at+"/$defs/Y")].(*ir.Model)
+	model, ok := doc.Types[ir.TypeID("type/anonymous"+at+"/$defs/Y")].(*ir.Model)
 	require.True(t, ok, "/a's own definition is hoisted where /a writes it")
-	assert.Equal(t, "near", y.Properties[1].WireName)
+	assert.Equal(t, "near", model.Properties[1].WireName)
 	assert.True(t, mapsTag(doc, "y"))
 }
 
 // mapsTag reports whether a discriminator anywhere in doc maps tag.
 func mapsTag(doc *ir.Document, tag string) bool {
 	for _, td := range doc.Types {
-		var d *ir.Discriminator
+		var discriminator *ir.Discriminator
 		switch n := td.(type) {
 		case *ir.Union:
-			d = n.Discriminator
+			discriminator = n.Discriminator
 		case *ir.Model:
-			d = n.Discriminator
+			discriminator = n.Discriminator
 		default:
 			continue
 		}
-		if d == nil {
+		if discriminator == nil {
 			continue
 		}
-		if _, mapped := d.Mapping[tag]; mapped {
+		if _, mapped := discriminator.Mapping[tag]; mapped {
 			return true
 		}
 	}
@@ -758,9 +758,9 @@ func mapsTag(doc *ir.Document, tag string) bool {
 // position.
 func errorsAt(diags []ir.Diagnostic) map[jsontext.Pointer][]string {
 	out := map[jsontext.Pointer][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError && d.Code == diag.UnresolvedRef {
-			out[d.Provenance.Pointer] = append(out[d.Provenance.Pointer], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError && diagnostic.Code == diag.UnresolvedRef {
+			out[diagnostic.Provenance.Pointer] = append(out[diagnostic.Provenance.Pointer], diagnostic.Message)
 		}
 	}
 	return out
@@ -794,7 +794,7 @@ paths:
 	require.NotNil(t, doc)
 
 	assert.Empty(t, errorsAt(diags))
-	body, ok := doc.Types[openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request)].(*ir.Model)
+	body, ok := doc.Types[openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "postC").Request)].(*ir.Model)
 	require.True(t, ok, "/c lowers the other document's body")
 	assert.Equal(t, "ext", body.Properties[0].WireName)
 }

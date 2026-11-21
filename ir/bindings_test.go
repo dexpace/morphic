@@ -13,21 +13,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestOpBindings_JSONContract pins OpBindings' omitempty contract — every
-// protocol binding is a pointer or slice that is nil when the operation does
-// not speak that protocol, so the zero value (no bindings at all) marshals to
-// an empty object — and that an OpBindings carrying every protocol binding
-// simultaneously — legal per the source comment ("a Smithy service exposed
-// over both HTTP and RPC") — round-trips.
-func TestOpBindings_JSONContract(t *testing.T) {
+// TestOperationBindings_JSONContract pins OperationBindings' omitempty contract
+// — every protocol binding is a pointer or slice that is nil when the operation
+// does not speak that protocol, so the zero value (no bindings at all) marshals
+// to an empty object — and that an OperationBindings carrying every protocol
+// binding simultaneously — legal per the source comment ("a Smithy service
+// exposed over both HTTP and RPC") — round-trips.
+func TestOperationBindings_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.OpBindings{}, `{}`, ir.OpBindings{
+	assertJSONContract(t, ir.OperationBindings{}, `{}`, ir.OperationBindings{
 		HTTP: []ir.HTTPBinding{
 			{Method: "GET", URITemplate: "/users"},
 			{Method: "POST", URITemplate: "/users", SharedRoute: true},
 		},
 		RPC:     &ir.RPCBinding{System: "grpc", FullMethod: "/pkg.Service/Method"},
-		Message: &ir.MessageBinding{Channel: "c/x", Direction: ir.MsgDirectionSend},
+		Message: &ir.MessageBinding{Channel: "c/x", Direction: ir.MessageDirectionSend},
 		GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"users", "list"}},
 		OTP:     &ir.OTPBinding{Behaviour: "gen_server", Kind: "call"},
 	})
@@ -55,7 +55,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 				{Param: "filter", Location: ir.HTTPLocationQuery, WireName: "filter", Style: "form"},
 			},
 			RequestContentTypes:      []string{"application/json", "application/merge-patch+json"},
-			ResponseBodyPath:         &ir.PropPath{Segments: []ir.PropID{"p/result"}},
+			ResponseBodyPath:         &ir.PropertyPath{Segments: []ir.PropertyID{"property/result"}},
 			SuccessStatus:            map[int]int{0: 200, 1: 202},
 			Compression:              &ir.RequestCompression{Encodings: []string{"gzip", "br"}},
 			ChecksumRequired:         true,
@@ -64,7 +64,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			WebhookName:              "newPet",
 			PathDocs:                 ir.Docs{Summary: "the path", Description: "every operation on it"},
 			Callbacks: []ir.Callback{
-				{Name: "onEvent", Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
+				{Name: "onEvent", Expression: "$request.body#/callbackUrl", Operations: []ir.OperationID{"operation/callback"}},
 			},
 			Unmodeled: populatedUnmodeled(),
 		})
@@ -117,8 +117,8 @@ func TestHTTPInbound_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := declaredConstsOfType(t, "HTTPInbound")
 	require.NotEmpty(t, declared, "the ir sources must declare HTTPInbound constants")
-	for _, c := range declared {
-		assert.True(t, ir.HTTPInbound(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
+	for _, declaredConst := range declared {
+		assert.True(t, ir.HTTPInbound(declaredConst.Value).Valid(), "declared kind %q must be Valid", declaredConst.Value)
 	}
 	assert.True(t, ir.HTTPInbound("").Valid(), "a request the client sends")
 }
@@ -157,7 +157,7 @@ func TestHTTPParamBinding_JSONContract(t *testing.T) {
 
 	assertJSONContract(t, ir.HTTPParamBinding{}, `{"allowReserved":false,"allowEmptyValue":false}`, ir.HTTPParamBinding{
 		Param:           "book",
-		ParamPath:       []ir.PropID{"p/book", "p/name"},
+		ParamPath:       []ir.PropertyID{"property/book", "property/name"},
 		Location:        ir.HTTPLocationQuery,
 		WireName:        "book.name",
 		Style:           "deepObject",
@@ -167,7 +167,7 @@ func TestHTTPParamBinding_JSONContract(t *testing.T) {
 		PathPattern:     "shelves/*/books/*",
 		Prefix:          new("x-"),
 		ContentType:     "application/json",
-		BodyPath:        []ir.PropID{"p/body", "p/nested"},
+		BodyPath:        []ir.PropertyID{"property/body", "property/nested"},
 	})
 }
 
@@ -178,7 +178,7 @@ func TestCallback_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Callback{}, `{}`, ir.Callback{
 		Name:       "onEvent",
 		Expression: "$request.body#/callbackUrl",
-		Operations: []ir.OpID{"op/onEvent", "op/onError"},
+		Operations: []ir.OperationID{"operation/onEvent", "operation/onError"},
 	})
 }
 
@@ -189,7 +189,7 @@ func TestRPCBinding_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.RPCBinding{}, `{}`, ir.RPCBinding{
 		System:           "grpc",
 		FullMethod:       "/pkg.Service/Method",
-		InputType:        &ir.TypeRef{Target: "t/request", Nullable: false},
+		InputType:        &ir.TypeRef{Target: "type/request", Nullable: false},
 		ParamStructure:   "by_position",
 		IdempotencyLevel: "idempotent",
 		Unmodeled:        populatedUnmodeled(),
@@ -203,11 +203,11 @@ func TestMessageBinding_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.MessageBinding{}, `{}`, ir.MessageBinding{
 		Channel:   "c/orders",
-		Direction: ir.MsgDirectionReceive,
+		Direction: ir.MessageDirectionReceive,
 		Messages:  []ir.MessageID{"m/OrderPlaced", "m/OrderCancelled"},
 		Reply: &ir.Reply{
 			Channel:  new(ir.ChannelID("c/reply")),
-			Address:  &ir.PropPath{In: "header", Segments: []ir.PropID{"p/replyTo"}},
+			Address:  &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
 			Messages: []ir.MessageID{"m/OrderConfirmed"},
 			Docs:     populatedDocs(),
 		},
@@ -228,13 +228,13 @@ func TestMessageBinding_BindingsDeterministic(t *testing.T) {
 	assert.Contains(t, got, sortedProtocolBindingsJSON)
 }
 
-// TestMsgDirection_Constants pins the on-disk spelling of both MsgDirection
-// values.
-func TestMsgDirection_Constants(t *testing.T) {
+// TestMessageDirection_Constants pins the on-disk spelling of both
+// MessageDirection values.
+func TestMessageDirection_Constants(t *testing.T) {
 	t.Parallel()
-	assertConstantSpellings(t, map[ir.MsgDirection]string{
-		ir.MsgDirectionSend:    "send",
-		ir.MsgDirectionReceive: "receive",
+	assertConstantSpellings(t, map[ir.MessageDirection]string{
+		ir.MessageDirectionSend:    "send",
+		ir.MessageDirectionReceive: "receive",
 	}, "unspecified")
 }
 
@@ -247,7 +247,7 @@ func TestReply_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Reply{}, `{"docs":{}}`, ir.Reply{
 		Channel:  new(ir.ChannelID("c/reply")),
-		Address:  &ir.PropPath{In: "header", Segments: []ir.PropID{"p/replyTo"}},
+		Address:  &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{"property/replyTo"}},
 		Messages: []ir.MessageID{"m/Reply1", "m/Reply2"},
 		Docs:     populatedDocs(),
 	})
@@ -274,7 +274,7 @@ func TestOTPBinding_JSONContract(t *testing.T) {
 		Behaviour:  "gen_server",
 		Kind:       "call",
 		Process:    "c/otp/worker",
-		RequestTag: &ir.Value{Kind: ir.ValueSymbol, Str: "get"},
+		RequestTag: &ir.Value{Kind: ir.ValueSymbol, String: "get"},
 		Unmodeled:  populatedUnmodeled(),
 	})
 }

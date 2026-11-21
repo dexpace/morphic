@@ -46,11 +46,11 @@ func TestStreaming_PolicyDisabledLeavesOnlyWhatIsDeclared(t *testing.T) {
 	off := openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}
 
 	doc := compileClean(t, eventStreamSpec("text/event-stream"), off)
-	op, ok := opByName(doc, "getEvents")
+	operation, ok := operationByName(doc, "getEvents")
 	require.True(t, ok)
-	assert.Empty(t, string(op.Streaming), "the media-type reading is off")
-	assert.Nil(t, op.ResponseStream)
-	assert.Empty(t, op.Provenance.Inferred)
+	assert.Empty(t, string(operation.Streaming), "the media-type reading is off")
+	assert.Nil(t, operation.ResponseStream)
+	assert.Empty(t, operation.Provenance.Inferred)
 
 	declared := `openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -66,10 +66,10 @@ paths:
               itemSchema: {type: object, properties: {msg: {type: string}}}
 `
 	doc = compileClean(t, declared, off)
-	op, ok = opByName(doc, "getEvents")
+	operation, ok = operationByName(doc, "getEvents")
 	require.True(t, ok)
-	assert.Equal(t, ir.StreamingServer, op.Streaming, "disabling a heuristic does not disable a declaration")
-	assert.NotNil(t, op.ResponseStream)
+	assert.Equal(t, ir.StreamingServer, operation.Streaming, "disabling a heuristic does not disable a declaration")
+	assert.NotNil(t, operation.ResponseStream)
 }
 
 // TestStreaming_PolicyMediaTypesReplaceTheDefaults pins that a stated list is
@@ -92,9 +92,9 @@ func TestStreaming_PolicyMediaTypesReplaceTheDefaults(t *testing.T) {
 		t.Run(tc.mediaType, func(t *testing.T) {
 			t.Parallel()
 			doc := compileClean(t, eventStreamSpec(tc.mediaType), own)
-			op, ok := opByName(doc, "getEvents")
+			operation, ok := operationByName(doc, "getEvents")
 			require.True(t, ok)
-			assert.Equal(t, tc.want, op.Streaming)
+			assert.Equal(t, tc.want, operation.Streaming)
 		})
 	}
 }
@@ -110,9 +110,9 @@ func TestStreaming_DefaultMediaTypesAreTheOnesApplied(t *testing.T) {
 	require.NotEmpty(t, defaults, "an empty list would make this vacuous")
 	for _, mediaType := range defaults {
 		doc := compileClean(t, eventStreamSpec(mediaType), openapi.Options{})
-		op, ok := opByName(doc, "getEvents")
+		operation, ok := operationByName(doc, "getEvents")
 		require.True(t, ok)
-		assert.Equal(t, ir.StreamingServer, op.Streaming, "default media type %q does not stream", mediaType)
+		assert.Equal(t, ir.StreamingServer, operation.Streaming, "default media type %q does not stream", mediaType)
 	}
 }
 
@@ -120,15 +120,15 @@ func TestStreaming_DefaultMediaTypesAreTheOnesApplied(t *testing.T) {
 // streams only by naming a media type — the version the IR carried no streaming
 // signal for at all (GitHub #250).
 func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "streamEvents")
+	operation, ok := operationByName(doc, "streamEvents")
 	require.True(t, ok)
-	assert.Equal(t, ir.StreamingServer, op.Streaming)
-	require.NotNil(t, op.ResponseStream)
-	require.NotNil(t, op.ResponseStream.Events)
-	content := firstContent(t, op)
-	assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
+	assert.Equal(t, ir.StreamingServer, operation.Streaming)
+	require.NotNil(t, operation.ResponseStream)
+	require.NotNil(t, operation.ResponseStream.Events)
+	content := firstContent(t, operation)
+	assert.Empty(t, cmp.Diff(content.Type, *operation.ResponseStream.Events))
 	assert.Equal(t, "text/event-stream", content.MediaType, "the media type itself is still kept as declared")
-	assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-inference"), operation.Provenance.Inferred)
 }
 
 // assertStreamingMedia31 is the corpus row for what assertStreamingMedia30 leaves
@@ -141,9 +141,9 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // the count alone would pass the first and fail the second, and content
 // negotiation over a single frame is the commoner shape of the two.
 func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	both, ok := opByName(doc, "ingestRows")
+	both, ok := operationByName(doc, "ingestRows")
 	require.True(t, ok)
-	assert.Equal(t, ir.StreamingBidi, both.Streaming)
+	assert.Equal(t, ir.StreamingBidirectional, both.Streaming)
 	require.NotNil(t, both.RequestStream)
 	require.NotNil(t, both.RequestStream.Events)
 	require.NotNil(t, both.Request)
@@ -152,16 +152,16 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.NotNil(t, both.ResponseStream.Events, "a charset parameter does not defeat the match")
 	assert.Equal(t, ir.Inferred("streaming-inference"), both.Provenance.Inferred)
 
-	upload, ok := opByName(doc, "uploadRows")
+	upload, ok := operationByName(doc, "uploadRows")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingClient, upload.Streaming, "only the request streams")
 	require.NotNil(t, upload.RequestStream)
 	require.NotNil(t, upload.RequestStream.Events)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
 	assert.Nil(t, upload.ResponseStream, "a 204 has nothing to stream back")
 	assert.Equal(t, ir.Inferred("streaming-inference"), upload.Provenance.Inferred)
 
-	either, ok := opByName(doc, "streamEither")
+	either, ok := operationByName(doc, "streamEither")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingServer, either.Streaming)
 	require.NotNil(t, either.ResponseStream)
@@ -171,32 +171,32 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.True(t, openapitest.HasDiag(diags, "openapi/degraded-construct"),
 		"the unelected element type is reported; got %+v", diags)
 
-	feed, ok := opByName(doc, "streamFeed")
+	feed, ok := operationByName(doc, "streamFeed")
 	require.True(t, ok)
 	require.NotNil(t, feed.ResponseStream)
 	require.NotNil(t, feed.ResponseStream.Events, "a list and its element name one frame")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), feed.ResponseStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), feed.ResponseStream.Events.Target)
 	require.NotNil(t, feed.Responses[0].Payload)
 	listBody := feed.Responses[0].Payload.Contents[0].Type.Target
 	assert.IsType(t, &ir.List{}, doc.Types[listBody], "the content keeps the whole body's type")
 
-	negotiated, ok := opByName(doc, "streamNegotiated")
+	negotiated, ok := operationByName(doc, "streamNegotiated")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingServer, negotiated.Streaming)
 	require.NotNil(t, negotiated.ResponseStream)
 	require.NotNil(t, negotiated.ResponseStream.Events,
 		"two contents naming one element type elect it: there is nothing to choose between")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"),
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"),
 		negotiated.ResponseStream.Events.Target)
 	require.NotNil(t, negotiated.Responses[0].Payload)
 	assert.Len(t, negotiated.Responses[0].Payload.Contents, 2,
 		"and both media types are still kept, as they are for the unelected case")
 
-	sequence, ok := opByName(doc, "streamSequence")
+	sequence, ok := operationByName(doc, "streamSequence")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingServer, sequence.Streaming, "application/json-seq is a sequence")
 
-	suffix, ok := opByName(doc, "uploadSequence")
+	suffix, ok := operationByName(doc, "uploadSequence")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingClient, suffix.Streaming, "and so is whatever carries its suffix")
 
@@ -208,7 +208,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 // are marked, though the operation's stream summarizes neither.
 func assertTailMetrics(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	metrics, ok := opByName(doc, "tailMetrics")
+	metrics, ok := operationByName(doc, "tailMetrics")
 	require.True(t, ok)
 	guessed := &ir.ContentStream{Inferred: "streaming-inference"}
 	require.Len(t, metrics.Responses, 1)
@@ -227,5 +227,5 @@ func assertTailMetrics(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, ir.StreamingServer, metrics.Streaming)
 	require.NotNil(t, metrics.ResponseStream)
 	require.NotNil(t, metrics.ResponseStream.Events, "only the success response's stream is elected from")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), metrics.ResponseStream.Events.Target)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Frame"), metrics.ResponseStream.Events.Target)
 }

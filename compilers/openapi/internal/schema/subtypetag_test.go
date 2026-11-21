@@ -71,10 +71,10 @@ func TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists(t *testing.T
 			t.Parallel()
 			for _, doc := range taggedOrders(t, c.base, c.rest) {
 				for name, tag := range c.want {
-					m, ok := typeByName(doc, name).(*ir.Model)
+					model, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-					assert.Equal(t, tag, m.DiscriminatorValue, name)
-					assert.Empty(t, m.Provenance.Inferred, name)
+					assert.Equal(t, tag, model.DiscriminatorValue, name)
+					assert.Empty(t, model.Provenance.Inferred, name)
 				}
 			}
 		})
@@ -98,15 +98,15 @@ func TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose(t *testing.T) {
 		"    Drawn: {allOf: [{$ref: '#/components/schemas/Shape'}, {properties: {pen: {type: string}}}]}\n"
 	for _, doc := range taggedOrders(t, shape, rest) {
 		for name, tag := range map[string]string{"Circle": "circle", "Square": "square", "Drawn": ""} {
-			m, ok := typeByName(doc, name).(*ir.Model)
+			model, ok := typeByName(doc, name).(*ir.Model)
 			require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-			assert.Equal(t, tag, m.DiscriminatorValue, name)
+			assert.Equal(t, tag, model.DiscriminatorValue, name)
 		}
-		u, ok := typeByName(doc, "Shape").(*ir.Union)
+		union, ok := typeByName(doc, "Shape").(*ir.Union)
 		require.True(t, ok, "Shape lowers to a union; got %T", typeByName(doc, "Shape"))
-		require.NotNil(t, u.Discriminator)
+		require.NotNil(t, union.Discriminator)
 		assert.Equal(t, map[string]ir.TypeID{"circle": componentID("Circle"), "square": componentID("Square")},
-			u.Discriminator.Mapping)
+			union.Discriminator.Mapping)
 	}
 }
 
@@ -135,9 +135,9 @@ components:
 `)
 		openapitest.RequireNoErrorDiags(t, diags)
 		for name, tag := range map[string]string{"Cat": "Cat", "Bird": ""} {
-			m, ok := doc.Types[ir.TypeID("t/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
 			require.True(t, ok, "%s lowers to a model", name)
-			assert.Equal(t, tag, m.DiscriminatorValue, name)
+			assert.Equal(t, tag, model.DiscriminatorValue, name)
 		}
 	}
 }
@@ -163,10 +163,11 @@ func breeds(tabby, siamese string) string {
 		"    Siamese: {type: object, properties: " + siamese + "}\n"
 }
 
-// petSubtype declares a subtype of Pet named name, adding the properties props.
-func petSubtype(name, props string) string {
+// petSubtype declares a subtype of Pet named name, adding the properties
+// properties.
+func petSubtype(name, properties string) string {
 	return "    " + name + ":\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
-		"        - {type: object, properties: " + props + "}\n"
+		"        - {type: object, properties: " + properties + "}\n"
 }
 
 // TestDiscriminatorInference_ReadsTheTagASubtypeAdmits pins the policy's
@@ -180,78 +181,78 @@ func petSubtype(name, props string) string {
 // one string carry it both.
 func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 	t.Parallel()
-	str := petBase("{type: string}")
+	stringSchema := petBase("{type: string}")
 	cases := []struct {
 		name, base, rest string
 		want             map[string]string // subtype -> its tag, "" for none
 		report           string            // what Cat's report says it admits; "" for none
 	}{
-		{"its own const", str, petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
-		{"an enum of one", str, petSubtype("Cat", "{kind: {enum: [cat]}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
-		{"through an alias", str, petSubtype("Cat", "{kind: {$ref: '#/components/schemas/Tag'}}") +
+		{"its own const", stringSchema, petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
+		{"an enum of one", stringSchema, petSubtype("Cat", "{kind: {enum: [cat]}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
+		{"through an alias", stringSchema, petSubtype("Cat", "{kind: {$ref: '#/components/schemas/Tag'}}") +
 			"    Tag: {$ref: '#/components/schemas/Tagged'}\n    Tagged: {const: cat}\n",
 			map[string]string{"Cat": "cat"}, `only "cat"`},
-		{"null beside it", str, petSubtype("Cat", "{kind: {enum: [cat, null]}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
+		{"null beside it", stringSchema, petSubtype("Cat", "{kind: {enum: [cat, null]}}"), map[string]string{"Cat": "cat"}, `only "cat"`},
 		{"the base's, shared", petBase("{type: string, enum: [cat]}"), petSubtype("Cat", "{meow: {type: boolean}}") +
 			petSubtype("Lion", "{roar: {type: boolean}}"), map[string]string{"Cat": "cat", "Lion": "cat"}, `only "cat"`},
 		{"the base's, redeclared a string", petBase("{type: string, enum: [cat]}"), petSubtype("Cat", "{kind: {type: string}}"),
 			map[string]string{"Cat": "cat"}, `only "cat"`},
 		{"declarations meeting", petBase("{type: string, enum: [cat, dog]}"), petSubtype("Cat", "{kind: {enum: [cat, kitty]}}"),
 			map[string]string{"Cat": "cat"}, `only "cat"`},
-		{"several", str, petSubtype("Cat", "{kind: {enum: [kitty, cat, tom, lion]}}"), map[string]string{"Cat": ""},
+		{"several", stringSchema, petSubtype("Cat", "{kind: {enum: [kitty, cat, tom, lion]}}"), map[string]string{"Cat": ""},
 			`only "cat", "kitty", "lion" and 1 more; no tag its instances carry routes to it, so it carries none`},
-		{"a union of values", str, petSubtype("Cat", "{kind: {oneOf: [{const: cat}]}}"), map[string]string{"Cat": "cat"},
+		{"a union of values", stringSchema, petSubtype("Cat", "{kind: {oneOf: [{const: cat}]}}"), map[string]string{"Cat": "cat"},
 			`only "cat"`},
-		{"a union of values in turn", str, petSubtype("Cat", "{kind: {anyOf: [{anyOf: [{const: cat}]}, {enum: [kitty]}]}}"),
+		{"a union of values in turn", stringSchema, petSubtype("Cat", "{kind: {anyOf: [{anyOf: [{const: cat}]}, {enum: [kitty]}]}}"),
 			map[string]string{"Cat": ""}, `only "cat", "kitty"`},
-		{"a union of values and a string", str, petSubtype("Cat", "{kind: {anyOf: [{const: cat}, {type: string}]}}"),
+		{"a union of values and a string", stringSchema, petSubtype("Cat", "{kind: {anyOf: [{const: cat}, {type: string}]}}"),
 			map[string]string{"Cat": "Cat"}, ""},
 		{"none", petBase("{type: string, enum: [dog]}"), petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": ""},
 			"no string; no tag its instances carry routes to it"},
-		{"a union it composes", str, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{kind: {const: siamese}}"),
+		{"a union it composes", stringSchema, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{kind: {const: siamese}}"),
 			map[string]string{"Cat": ""}, `only "siamese", "tabby"`},
-		{"a union it composes, pinning one", str, breedsCat("Breeds") + breeds("{kind: {enum: [tabby]}}", "{kind: {const: tabby}}"),
+		{"a union it composes, pinning one", stringSchema, breedsCat("Breeds") + breeds("{kind: {enum: [tabby]}}", "{kind: {const: tabby}}"),
 			map[string]string{"Cat": "tabby"}, `only "tabby"`},
-		{"a union it composes, met with another", str, breedsCat("Breeds") + "        - $ref: '#/components/schemas/Kinds'\n" +
+		{"a union it composes, met with another", stringSchema, breedsCat("Breeds") + "        - $ref: '#/components/schemas/Kinds'\n" +
 			"    Tabby: {type: object, properties: {kind: {enum: [tabby, cat]}}}\n" +
 			"    Siamese: {type: object, properties: {kind: {const: siamese}}}\n" +
 			"    Breeds: {oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]}\n" +
 			"    Kinds: {type: object, properties: {kind: {enum: [tabby, siamese, lion]}}}\n",
 			map[string]string{"Cat": ""}, `only "siamese", "tabby"`},
-		{"a union it composes through an alias", str, breedsCat("Bred") +
+		{"a union it composes through an alias", stringSchema, breedsCat("Bred") +
 			"    Bred: {$ref: '#/components/schemas/Breeds', description: bred}\n" +
 			breeds("{kind: {const: tabby}}", "{kind: {const: siamese}}"),
 			map[string]string{"Cat": ""}, `only "siamese", "tabby"`},
-		{"a union it composes, a variant composing one", str, breedsCat("Breeds") +
+		{"a union it composes, a variant composing one", stringSchema, breedsCat("Breeds") +
 			"    Breeds: {oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]}\n" +
 			"    Tabby: {allOf: [{$ref: '#/components/schemas/Coats'}]}\n" +
 			"    Coats: {oneOf: [{type: object, properties: {kind: {const: tabby}}}, " +
 			"{type: object, properties: {kind: {const: ginger}}}]}\n" +
 			"    Siamese: {type: object, properties: {kind: {const: siamese}}}\n",
 			map[string]string{"Cat": ""}, `only "ginger", "siamese", "tabby"`},
-		{"a union it composes, a variant a union", str, breedsCat("Breeds") +
+		{"a union it composes, a variant a union", stringSchema, breedsCat("Breeds") +
 			"    Breeds: {oneOf: [{$ref: '#/components/schemas/Tabbies'}, {$ref: '#/components/schemas/Siamese'}]}\n" +
 			"    Tabbies: {anyOf: [{type: object, properties: {kind: {const: tabby}}}, " +
 			"{type: object, properties: {kind: {const: ginger}}}]}\n" +
 			"    Siamese: {type: object, properties: {kind: {const: siamese}}}\n",
 			map[string]string{"Cat": ""}, `only "ginger", "siamese", "tabby"`},
-		{"a union it composes, a variant pinning none", str, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{kind: {type: string}}"),
+		{"a union it composes, a variant pinning none", stringSchema, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{kind: {type: string}}"),
 			map[string]string{"Cat": "Cat"}, ""},
-		{"a union it composes, a variant declaring none", str, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{meow: {type: string}}"),
+		{"a union it composes, a variant declaring none", stringSchema, breedsCat("Breeds") + breeds("{kind: {const: tabby}}", "{meow: {type: string}}"),
 			map[string]string{"Cat": "Cat"}, ""},
-		{"a union beside its allOf, pinning one", str, "    Cat:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
+		{"a union beside its allOf, pinning one", stringSchema, "    Cat:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
 			"      oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]\n" +
 			breeds("{kind: {enum: [tabby]}}", "{kind: {const: tabby}}"), map[string]string{"Cat": "tabby"}, `only "tabby"`},
-		{"a union on an allOf entry", str, "    Cat:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
+		{"a union on an allOf entry", stringSchema, "    Cat:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
 			"        - oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]\n" +
 			breeds("{kind: {const: tabby}}", "{kind: {const: siamese}}"), map[string]string{"Cat": ""}, `only "siamese", "tabby"`},
-		{"its name among them", str, petSubtype("Cat", "{kind: {enum: [Cat, cat]}}"), map[string]string{"Cat": "Cat"}, ""},
-		{"its name", str, petSubtype("Cat", "{kind: {const: Cat}}"), map[string]string{"Cat": "Cat"}, ""},
+		{"its name among them", stringSchema, petSubtype("Cat", "{kind: {enum: [Cat, cat]}}"), map[string]string{"Cat": "Cat"}, ""},
+		{"its name", stringSchema, petSubtype("Cat", "{kind: {const: Cat}}"), map[string]string{"Cat": "Cat"}, ""},
 		{"a number", petBase("{}"), petSubtype("Cat", "{kind: {const: 1}}"), map[string]string{"Cat": "Cat"}, ""},
 		{"a mapping key", "    Pet:\n      type: object\n      properties: {kind: {type: string}}\n" +
 			"      discriminator: {propertyName: kind, mapping: {kitty: '#/components/schemas/Cat'}}\n",
 			petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": "kitty"}, ""},
-		{"a farther ancestor's tag", str + "    Rule:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
+		{"a farther ancestor's tag", stringSchema + "    Rule:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
 			"      discriminator: {propertyName: action}\n" +
 			"      oneOf: [{$ref: '#/components/schemas/Block'}, {$ref: '#/components/schemas/Log'}]\n",
 			pinnedRules + "    Cat: {allOf: [{$ref: '#/components/schemas/Rule'}, {properties: {kind: {const: cat}}}]}\n",
@@ -262,15 +263,15 @@ func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 			t.Parallel()
 			for _, doc := range taggedOrders(t, c.base, c.rest) {
 				for name, tag := range c.want {
-					m, ok := typeByName(doc, name).(*ir.Model)
+					model, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s lowers to a model; got %T", name, typeByName(doc, name))
-					assert.Equal(t, tag, m.DiscriminatorValue, name)
+					assert.Equal(t, tag, model.DiscriminatorValue, name)
 					if c.report == "" {
-						assert.Empty(t, m.Provenance.Inferred, name)
+						assert.Empty(t, model.Provenance.Inferred, name)
 						assert.False(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.InferredDiscriminator, "/components/schemas/"+name))
 						continue
 					}
-					assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, m.Provenance.Inferred, name)
+					assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, model.Provenance.Inferred, name)
 				}
 				if c.report != "" {
 					assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.InferredDiscriminator, ir.SeverityInfo,

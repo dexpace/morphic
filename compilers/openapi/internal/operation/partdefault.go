@@ -9,9 +9,9 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,14 +33,14 @@ const (
 // readContentEncoding reads whether schemas, a part's declarations, write
 // contentEncoding, each read through its $ref chain and a refinement to the
 // schema deciding it (schema.DecidingSchema), as the type lowering reads it.
-func readContentEncoding(c service.Ctx, schemas []*oas3.JSONSchema[oas3.Referenceable]) contentEncoding {
+func readContentEncoding(serviceContext service.Ctx, schemas []*oas3.JSONSchema[oas3.Referenceable]) contentEncoding {
 	writes, omits := false, false
 	for _, js := range schemas {
-		s := statementOf(c.Ctx, js)
-		if statement.Parsed(s) == nil {
+		statementSchema := statementOf(serviceContext.Ctx, js)
+		if statement.Parsed(statementSchema) == nil {
 			continue
 		}
-		if statement.Parsed(schema.DecidingSchema(c.Ctx, s)).GetContentEncoding() != "" {
+		if statement.Parsed(schema.DecidingSchema(serviceContext.Ctx, statementSchema)).GetContentEncoding() != "" {
 			writes = true
 		} else {
 			omits = true
@@ -64,13 +64,13 @@ func readContentEncoding(c service.Ctx, schemas []*oas3.JSONSchema[oas3.Referenc
 // are read once a run (partUnions.valuesOf), and a part declared once by a
 // union takes them as they are, a list it only reads.
 func partValues(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (values []ir.TypeRef, ok bool) {
-	for _, d := range decls {
-		u, isUnion := bodyNode(node, d.Type.Target).(*ir.Union)
-		if !isUnion || u == nil {
-			values = append(values, itemsOf(node, d.Type)...)
+	for _, property := range decls {
+		union, isUnion := bodyNode(node, property.Type.Target).(*ir.Union)
+		if !isUnion || union == nil {
+			values = append(values, itemsOf(node, property.Type)...)
 			continue
 		}
-		held, read := unions.valuesOf(node, u)
+		held, read := unions.valuesOf(node, union)
 		switch {
 		case !read:
 			return nil, false
@@ -87,7 +87,7 @@ func partValues(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), dec
 // declarations write of contentEncoding, and decl the one declaration of the
 // part. The run's store reads it once for every part so declared
 // (partUnions.partDefault).
-func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decl *ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
+func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, decl *ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
 	if types, ok := unions.partDefault(node, rules, decl, encodedBy); ok {
 		pe.ContentTypes = slices.Clone(types)
 	}
@@ -97,24 +97,24 @@ func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef
 // itemsOf returns the element types of ref where it stands for a list or a
 // tuple (elementsOf), and ref itself otherwise.
 func itemsOf(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) []ir.TypeRef {
-	if elems, isArray := elementsOf(bodyNode(node, ref.Target)); isArray {
-		return elems
+	if elements, isArray := elementsOf(bodyNode(node, ref.Target)); isArray {
+		return elements
 	}
 	return []ir.TypeRef{ref}
 }
 
 // elementsOf returns the element types of td where it is a list or a tuple, a
 // tuple's rest included.
-func elementsOf(td ir.TypeDef) (elems []ir.TypeRef, isArray bool) {
+func elementsOf(td ir.TypeDef) (elements []ir.TypeRef, isArray bool) {
 	switch t := td.(type) {
 	case *ir.List:
-		return []ir.TypeRef{t.Elem}, true
+		return []ir.TypeRef{t.ElementType}, true
 	case *ir.Tuple:
-		elems = append(elems, t.Elems...)
+		elements = append(elements, t.ElementTypes...)
 		if t.Rest != nil {
-			elems = append(elems, *t.Rest)
+			elements = append(elements, *t.Rest)
 		}
-		return elems, true
+		return elements, true
 	default:
 		return nil, false
 	}
@@ -132,21 +132,21 @@ const maxDefaultValues = 256
 // a null passed over, and none where two differ, a value takes none, or none
 // is left to read. encodedBy is what the part's declarations say of
 // contentEncoding.
-func defaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, values []ir.TypeRef, encodedBy contentEncoding) []string {
+func defaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, values []ir.TypeRef, encodedBy contentEncoding) []string {
 	pending := append([]ir.TypeRef(nil), values...)
 	taken := ""
 	for range maxDefaultValues {
 		if len(pending) == 0 {
 			break
 		}
-		r := readValue(unions, node, rules, pending[0], encodedBy)
-		pending = append(pending[1:], r.instead...)
+		valueReading := readValue(unions, node, rules, pending[0], encodedBy)
+		pending = append(pending[1:], valueReading.instead...)
 		switch {
-		case r.null || len(r.instead) > 0:
-		case r.contentType == "" || taken != "" && r.contentType != taken:
+		case valueReading.null || len(valueReading.instead) > 0:
+		case valueReading.contentType == "" || taken != "" && valueReading.contentType != taken:
 			return nil
 		default:
-			taken = r.contentType
+			taken = valueReading.contentType
 		}
 	}
 	if len(pending) > 0 || taken == "" {
@@ -168,7 +168,7 @@ type valueReading struct {
 // readValue reads the value of type ref as its default content type is keyed
 // (valueReading), through the alias scalars on its chain, noting the encoding
 // the first scalar naming one names, and bounded by maxBodyAliasHops.
-func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, ref ir.TypeRef, encodedBy contentEncoding) valueReading {
+func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, ref ir.TypeRef, encodedBy contentEncoding) valueReading {
 	encoding := ""
 	id := ref.Target
 	for range maxBodyAliasHops {
@@ -176,11 +176,11 @@ func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rule
 		if !found {
 			return valueReading{}
 		}
-		if s, alias := td.(*ir.Scalar); alias && s != nil && s.Base != nil {
-			if encoding == "" && s.Encoding != nil {
-				encoding = s.Encoding.Name
+		if scalar, alias := td.(*ir.Scalar); alias && scalar != nil && scalar.Base != nil {
+			if encoding == "" && scalar.Encoding != nil {
+				encoding = scalar.Encoding.Name
 			}
-			id = s.Base.Target
+			id = scalar.Base.Target
 			continue
 		}
 		return readNode(unions, node, rules, td, encoding, encodedBy)
@@ -192,22 +192,22 @@ func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rule
 // the one a scalar on the chain names: a primitive, an enum and a literal by
 // their primitive (primitiveCase), a model and a map as objects, an array
 // inside an array by its row or else its items, and a union by its members.
-func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
-	if elems, isArray := elementsOf(td); isArray {
-		if ct, ok := rules.ContentType(oas.DefaultNestedArray); ok {
+func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
+	if elements, isArray := elementsOf(td); isArray {
+		if ct, ok := rules.ContentType(specrules.DefaultNestedArray); ok {
 			return valueReading{contentType: ct}
 		}
-		return valueReading{instead: elems}
+		return valueReading{instead: elements}
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:
-		return byCase(rules, primitiveCase(t.Prim, encoding, encodedBy))
+		return byCase(rules, primitiveCase(t.PrimitiveKind, encoding, encodedBy))
 	case *ir.Enum:
 		return byCase(rules, primitiveCase(t.ValueType, encoding, encodedBy))
 	case *ir.Literal:
 		return readLiteral(rules, t, encoding, encodedBy)
 	case *ir.Model, *ir.MapT:
-		return byCase(rules, oas.DefaultObject)
+		return byCase(rules, specrules.DefaultObject)
 	case *ir.Union:
 		if members, ok := unions.membersOf(node, t); ok && len(members) > 0 {
 			return valueReading{instead: members}
@@ -220,22 +220,23 @@ func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules
 
 // readLiteral reads a literal by its primitive, or, where it has none, by its
 // value: null takes no content type, and an object one as an object does.
-func readLiteral(rules oas.EncodingRules, l *ir.Literal, encoding string, encodedBy contentEncoding) valueReading {
+func readLiteral(rules specrules.EncodingRules, literal *ir.Literal, encoding string, encodedBy contentEncoding) valueReading {
 	switch {
-	case l.ValueType != "":
-		return byCase(rules, primitiveCase(l.ValueType, encoding, encodedBy))
-	case l.Value.Kind == ir.ValueNull:
+	case literal.ValueType != "":
+		return byCase(rules, primitiveCase(literal.ValueType, encoding, encodedBy))
+	case literal.Value.Kind == ir.ValueNull:
 		return valueReading{null: true}
-	case l.Value.Kind == ir.ValueObject:
-		return byCase(rules, oas.DefaultObject)
+	case literal.Value.Kind == ir.ValueObject:
+		return byCase(rules, specrules.DefaultObject)
 	default:
 		return valueReading{}
 	}
 }
 
-// byCase reads the content type rules give case k, none for the zero case.
-func byCase(rules oas.EncodingRules, k oas.DefaultCase) valueReading {
-	ct, _ := rules.ContentType(k)
+// byCase reads the content type rules give case defaultCase, none for the zero
+// case.
+func byCase(rules specrules.EncodingRules, defaultCase specrules.DefaultCase) valueReading {
+	ct, _ := rules.ContentType(defaultCase)
 	return valueReading{contentType: ct}
 }
 
@@ -244,32 +245,32 @@ func byCase(rules oas.EncodingRules, k oas.DefaultCase) valueReading {
 // table gives a row of its own, where `base64url` takes a string's.
 const byteFormatEncoding = "base64"
 
-// primitiveCase is the case OpenAPI's table keys a value of primitive kind p
-// by, encoding being the one a scalar over it names: bytes no scalar
-// re-encodes are raw binary, bytes base64 re-encodes a string of format byte,
-// bytes another encoding re-encodes, as base64url does, any other string, and
-// strings are keyed by whether they write contentEncoding (encodedCase). The
-// zero case, which has no row, is a kind of none.
-func primitiveCase(p ir.PrimKind, encoding string, encodedBy contentEncoding) oas.DefaultCase {
-	switch p {
-	case ir.PrimAny:
-		return oas.DefaultUntyped
-	case ir.PrimBytes:
+// primitiveCase is the case OpenAPI's table keys a value of primitive kind
+// primitiveKind by, encoding being the one a scalar over it names: bytes no
+// scalar re-encodes are raw binary, bytes base64 re-encodes a string of format
+// byte, bytes another encoding re-encodes, as base64url does, any other string,
+// and strings are keyed by whether they write contentEncoding (encodedCase).
+// The zero case, which has no row, is a kind of none.
+func primitiveCase(primitiveKind ir.PrimitiveKind, encoding string, encodedBy contentEncoding) specrules.DefaultCase {
+	switch primitiveKind {
+	case ir.PrimitiveAny:
+		return specrules.DefaultUntyped
+	case ir.PrimitiveBytes:
 		switch encoding {
 		case "":
-			return oas.DefaultRawBinary
+			return specrules.DefaultRawBinary
 		case byteFormatEncoding:
-			return encodedCase(encodedBy, oas.DefaultByteFormat, oas.DefaultEncodedByteFormat)
+			return encodedCase(encodedBy, specrules.DefaultByteFormat, specrules.DefaultEncodedByteFormat)
 		default:
-			return encodedCase(encodedBy, oas.DefaultString, oas.DefaultContentEncoded)
+			return encodedCase(encodedBy, specrules.DefaultString, specrules.DefaultContentEncoded)
 		}
-	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
-		ir.PrimURL, ir.PrimUUID:
-		return encodedCase(encodedBy, oas.DefaultString, oas.DefaultContentEncoded)
-	case ir.PrimBool, ir.PrimInt8, ir.PrimInt16, ir.PrimInt32, ir.PrimInt64, ir.PrimUint8, ir.PrimUint16,
-		ir.PrimUint32, ir.PrimUint64, ir.PrimInteger, ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimNumber,
-		ir.PrimDecimal, ir.PrimDecimal128:
-		return oas.DefaultScalar
+	case ir.PrimitiveString, ir.PrimitiveDate, ir.PrimitiveTime, ir.PrimitiveDatetime, ir.PrimitiveDatetimeOffset, ir.PrimitiveDuration,
+		ir.PrimitiveURL, ir.PrimitiveUUID:
+		return encodedCase(encodedBy, specrules.DefaultString, specrules.DefaultContentEncoded)
+	case ir.PrimitiveBool, ir.PrimitiveInt8, ir.PrimitiveInt16, ir.PrimitiveInt32, ir.PrimitiveInt64, ir.PrimitiveUint8, ir.PrimitiveUint16,
+		ir.PrimitiveUint32, ir.PrimitiveUint64, ir.PrimitiveInteger, ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber,
+		ir.PrimitiveDecimal, ir.PrimitiveDecimal128:
+		return specrules.DefaultScalar
 	default:
 		return 0
 	}
@@ -278,7 +279,7 @@ func primitiveCase(p ir.PrimKind, encoding string, encodedBy contentEncoding) oa
 // encodedCase returns plain where a value's declarations write no
 // contentEncoding, written where each does, and the zero case, none, where
 // they disagree.
-func encodedCase(encodedBy contentEncoding, plain, written oas.DefaultCase) oas.DefaultCase {
+func encodedCase(encodedBy contentEncoding, plain, written specrules.DefaultCase) specrules.DefaultCase {
 	switch encodedBy {
 	case unencoded:
 		return plain

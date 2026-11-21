@@ -12,23 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestRun_ReadsTheFinishedDocumentOnce holds every step reading the finished
-// document to one whole.Document a run: a document whose link and
-// paginations those steps read is read through one, built once.
+// document to one compileddoc.CompiledDocumentView a run: a document whose link
+// and paginations those steps read is read through one, built once.
 func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("../../testdata/conformance/openapi/body-alias.yaml")
 	require.NoError(t, err)
 	built := 0
-	count := func(doc *ir.Document) *whole.Document {
+	count := func(doc *ir.Document) *compileddoc.CompiledDocumentView {
 		built++
-		return whole.New(doc)
+		return compileddoc.New(doc)
 	}
 
 	doc, diags, err := run(t.Context(), servicetest.Context(t, string(src), service.Policy{}), inferences{},
@@ -40,10 +40,10 @@ func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 }
 
 // TestRun_AppendsNothingAfterAFirstAsk holds every step reading the finished
-// document to the rule whole.Document keeps its indexes by: none appends a
-// property, parameter, binding or header after a first ask. What the run's
-// one reading answers, once the run returns, is compared with a fresh reading
-// of the document it returned, over the cases each such step reads.
+// document to the rule compileddoc.CompiledDocumentView keeps its indexes by:
+// none appends a property, parameter, binding or header after a first ask. What
+// the run's one reading answers, once the run returns, is compared with a fresh
+// reading of the document it returned, over the cases each such step reads.
 func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{
@@ -56,9 +56,9 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 			t.Parallel()
 			src, err := os.ReadFile("../../testdata/conformance/openapi/" + name + ".yaml")
 			require.NoError(t, err)
-			var kept *whole.Document
-			keep := func(doc *ir.Document) *whole.Document {
-				kept = whole.New(doc)
+			var kept *compileddoc.CompiledDocumentView
+			keep := func(doc *ir.Document) *compileddoc.CompiledDocumentView {
+				kept = compileddoc.New(doc)
 				return kept
 			}
 
@@ -66,7 +66,7 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 				compile.NewTypes(), keep)
 			require.NoError(t, err)
 			require.NotNil(t, kept)
-			assert.Empty(t, staleReadings(kept, whole.New(doc)))
+			assert.Empty(t, staleReadings(kept, compileddoc.New(doc)))
 		})
 	}
 }
@@ -74,52 +74,52 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 // staleReadings names each answer kept gives, of a parameter's placements, a
 // response's headers or a model's members, that fresh, a reading of the same
 // document made afresh, gives otherwise.
-func staleReadings(kept, fresh *whole.Document) []string {
+func staleReadings(kept, fresh *compileddoc.CompiledDocumentView) []string {
 	var stale []string
-	for _, op := range fresh.Ops {
-		for _, p := range op.Params {
-			if !slices.Equal(kept.Params(op).Placements(p.ID), fresh.Params(op).Placements(p.ID)) {
-				stale = append(stale, "placements of "+string(p.ID))
+	for _, operation := range fresh.Operations {
+		for _, parameter := range operation.Params {
+			if !slices.Equal(kept.Params(operation).Placements(parameter.ID), fresh.Params(operation).Placements(parameter.ID)) {
+				stale = append(stale, "placements of "+string(parameter.ID))
 			}
 		}
-		for key, headers := range responseHeaders(op) {
-			for _, h := range headers {
-				name := h.EffectiveWireName()
+		for key, headers := range responseHeaders(operation) {
+			for _, header := range headers {
+				name := header.EffectiveWireName()
 				if !slices.Equal(kept.Header(key, headers, name), fresh.Header(key, headers, name)) {
-					stale = append(stale, "header "+name+" of "+string(op.ID))
+					stale = append(stale, "header "+name+" of "+string(operation.ID))
 				}
 			}
 		}
 	}
 	for id := range fresh.Types {
-		if !slices.Equal(propIDs(kept.Members(id)), propIDs(fresh.Members(id))) {
+		if !slices.Equal(propertyIDs(kept.Members(id)), propertyIDs(fresh.Members(id))) {
 			stale = append(stale, "members of "+string(id))
 		}
 	}
 	return stale
 }
 
-// responseHeaders returns the headers of each response op holds, by the key a
-// step reads them under.
-func responseHeaders(op *ir.Operation) map[whole.ResponseKey][]ir.Header {
-	out := map[whole.ResponseKey][]ir.Header{}
-	for i := range op.Responses {
-		out[whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}] = op.Responses[i].Headers
+// responseHeaders returns the headers of each response operation holds, by the
+// key a step reads them under.
+func responseHeaders(operation *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
+	out := map[compileddoc.ResponseKey][]ir.Header{}
+	for i := range operation.Responses {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListResponses, Index: i}] = operation.Responses[i].Headers
 	}
-	for i := range op.Errors {
-		out[whole.ResponseKey{Op: op.ID, List: whole.ListErrors, Index: i}] = op.Errors[i].Headers
+	for i := range operation.Errors {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListErrors, Index: i}] = operation.Errors[i].Headers
 	}
-	if op.Default != nil {
-		out[whole.ResponseKey{Op: op.ID, List: whole.ListDefault}] = op.Default.Headers
+	if operation.Default != nil {
+		out[compileddoc.ResponseKey{Operation: operation.ID, List: compileddoc.ListDefault}] = operation.Default.Headers
 	}
 	return out
 }
 
-// propIDs returns the IDs of props, in order.
-func propIDs(props []*ir.Property) []ir.PropID {
-	ids := make([]ir.PropID, len(props))
-	for i, p := range props {
-		ids[i] = p.ID
+// propertyIDs returns the IDs of properties, in order.
+func propertyIDs(properties []*ir.Property) []ir.PropertyID {
+	ids := make([]ir.PropertyID, len(properties))
+	for i, property := range properties {
+		ids[i] = property.ID
 	}
 	return ids
 }

@@ -21,7 +21,7 @@ func checkVersions(doc *ir.Document) []Violation {
 	var vs []Violation
 	var first map[string]int
 	for i, label := range doc.Versions {
-		path := "doc.Versions[" + strconv.Itoa(i) + "]"
+		path := "document.Versions[" + strconv.Itoa(i) + "]"
 		if isBlankName(label) {
 			vs = append(vs, Violation{
 				Code: "ir/version-label-blank", Message: "version label is blank, so no order places it", Path: path,
@@ -95,11 +95,11 @@ func labelSites(a *ir.Availability) []labelSite {
 	if a.Deprecated != "" {
 		sites = append(sites, labelSite{".Deprecated", -1, a.Deprecated, ""})
 	}
-	for i, n := range a.RenamedFrom {
-		sites = append(sites, labelSite{".RenamedFrom", i, n.Version, ".Version"})
+	for i, versionedName := range a.RenamedFrom {
+		sites = append(sites, labelSite{".RenamedFrom", i, versionedName.Version, ".Version"})
 	}
-	for i, t := range a.TypeChangedFrom {
-		sites = append(sites, labelSite{".TypeChangedFrom", i, t.Version, ".Version"})
+	for i, versionedType := range a.TypeChangedFrom {
+		sites = append(sites, labelSite{".TypeChangedFrom", i, versionedType.Version, ".Version"})
 	}
 	for i, b := range a.RequiredChanged {
 		sites = append(sites, labelSite{".RequiredChanged", i, b.Version, ".Version"})

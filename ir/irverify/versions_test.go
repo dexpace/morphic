@@ -17,7 +17,7 @@ const (
 	labelUndeclared = "ir/version-label-undeclared"
 	outOfOrder      = "ir/availability-out-of-order"
 
-	modelAvailability = "doc.Types[t/x/M].Availability"
+	modelAvailability = "document.Types[type/x/M].Availability"
 )
 
 // versionedModel returns scenarioBase declaring versions v1 to v3, with the
@@ -25,7 +25,7 @@ const (
 func versionedModel(avail *ir.Availability) *ir.Document {
 	doc := scenarioBase()
 	doc.Versions = []string{"v1", "v2", "v3"}
-	doc.Types["t/x/M"].Common().Availability = avail
+	doc.Types["type/x/M"].Common().Availability = avail
 	return doc
 }
 
@@ -37,16 +37,16 @@ func TestVerify_VersionListIsHeldToItsLabels(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
 	doc.Versions = []string{"v1", "v1", "", ""}
-	assert.Equal(t, []string{"doc.Versions[1]"}, scenarioCodes(doc, labelRepeated), "a blank is no label to repeat")
-	assert.Equal(t, []string{"doc.Versions[2]", "doc.Versions[3]"}, scenarioCodes(doc, labelBlank))
+	assert.Equal(t, []string{"document.Versions[1]"}, scenarioCodes(doc, labelRepeated), "a blank is no label to repeat")
+	assert.Equal(t, []string{"document.Versions[2]", "document.Versions[3]"}, scenarioCodes(doc, labelBlank))
 
 	first := scenarioBase()
 	first.Versions = []string{"", "v1"}
-	assert.Equal(t, []string{"doc.Versions[0]"}, scenarioCodes(first, labelBlank), "the first entry is read too")
+	assert.Equal(t, []string{"document.Versions[0]"}, scenarioCodes(first, labelBlank), "the first entry is read too")
 
 	messages := map[string]string{}
-	for _, v := range verifyDeclared(doc) {
-		messages[v.Code] = v.Message
+	for _, violation := range verifyDeclared(doc) {
+		messages[violation.Code] = violation.Message
 	}
 	assert.Equal(t, `version label "v1" is listed here and at index 0`, messages[labelRepeated])
 	assert.Equal(t, "version label is blank, so no order places it", messages[labelBlank])
@@ -67,7 +67,7 @@ func TestVerify_AvailabilityLabelsAreDeclared(t *testing.T) {
 		Added:           []string{"v9"},
 		Deprecated:      "v7",
 		RenamedFrom:     []ir.VersionedName{{Version: "", Name: "b"}},
-		TypeChangedFrom: []ir.VersionedType{{Version: "v8", Type: ir.TypeRef{Target: "t/prim/string"}}},
+		TypeChangedFrom: []ir.VersionedType{{Version: "v8", Type: ir.TypeRef{Target: "type/primitive/string"}}},
 		RequiredChanged: []ir.VersionedBool{{Version: "v6"}},
 	})
 	assert.ElementsMatch(t, []string{
@@ -86,7 +86,7 @@ func TestVerify_AvailabilityLabelsAreDeclared(t *testing.T) {
 		Removed:         []string{"v2"},
 		Deprecated:      "",
 		RenamedFrom:     []ir.VersionedName{{Version: "v1", Name: "b"}},
-		TypeChangedFrom: []ir.VersionedType{{Version: "v2", Type: ir.TypeRef{Target: "t/prim/string"}}},
+		TypeChangedFrom: []ir.VersionedType{{Version: "v2", Type: ir.TypeRef{Target: "type/primitive/string"}}},
 		RequiredChanged: []ir.VersionedBool{{Version: "v3"}},
 	})
 	assert.Empty(t, scenarioCodes(valid, labelUndeclared), "every label declared, Deprecated empty")
@@ -100,9 +100,9 @@ func TestVerify_AvailabilityLabelMessage(t *testing.T) {
 	t.Parallel()
 	doc := versionedModel(&ir.Availability{Added: []string{"v9"}})
 	var got []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == labelUndeclared {
-			got = append(got, v.Message)
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == labelUndeclared {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{`version label "v9" is not one Document.Versions declares`}, got)
@@ -180,23 +180,25 @@ func TestVerify_EveryAvailabilityCarrierIsHeldToTheLabels(t *testing.T) {
 		place func(doc *ir.Document)
 		path  string
 	}{
-		{"type", func(d *ir.Document) { d.Types["t/x/M"].Common().Availability = avail() },
-			"doc.Types[t/x/M].Availability.Added[0]"},
-		{"property", func(d *ir.Document) { d.Types["t/x/M"].(*ir.Model).Properties[0].Availability = avail() },
-			"doc.Types[t/x/M].Properties[0].Availability.Added[0]"},
-		{"operation", func(d *ir.Document) { scenarioOperation(d).Availability = avail() },
-			scenarioOp + ".Availability.Added[0]"},
-		{"parameter", func(d *ir.Document) { scenarioOperation(d).Params[0].Availability = avail() },
-			scenarioOp + ".Params[0].Availability.Added[0]"},
-		{"enum member", func(d *ir.Document) { d.Types["t/x/E"].(*ir.Enum).Members[0].Availability = avail() },
-			"doc.Types[t/x/E].Members[0].Availability.Added[0]"},
-		{"variant", func(d *ir.Document) {
-			d.Types["t/x/U"] = &ir.Union{ID: "t/x/U", Name: named("u"), Variants: []ir.Variant{{
-				Name: named("a"), Type: ir.TypeRef{Target: "t/prim/string"}, Availability: avail(),
+		{"type", func(document *ir.Document) { document.Types["type/x/M"].Common().Availability = avail() },
+			"document.Types[type/x/M].Availability.Added[0]"},
+		{"property", func(document *ir.Document) {
+			document.Types["type/x/M"].(*ir.Model).Properties[0].Availability = avail()
+		},
+			"document.Types[type/x/M].Properties[0].Availability.Added[0]"},
+		{"operation", func(document *ir.Document) { scenarioOperation(document).Availability = avail() },
+			scenarioOperationPath + ".Availability.Added[0]"},
+		{"parameter", func(document *ir.Document) { scenarioOperation(document).Params[0].Availability = avail() },
+			scenarioOperationPath + ".Params[0].Availability.Added[0]"},
+		{"enum member", func(document *ir.Document) { document.Types["type/x/E"].(*ir.Enum).Members[0].Availability = avail() },
+			"document.Types[type/x/E].Members[0].Availability.Added[0]"},
+		{"variant", func(document *ir.Document) {
+			document.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{{
+				Name: named("a"), Type: ir.TypeRef{Target: "type/primitive/string"}, Availability: avail(),
 			}}}
-		}, "doc.Types[t/x/U].Variants[0].Availability.Added[0]"},
-		{"group", func(d *ir.Document) { d.Services[0].Groups[0].Availability = avail() },
-			"doc.Services[0].Groups[0].Availability.Added[0]"},
+		}, "document.Types[type/x/U].Variants[0].Availability.Added[0]"},
+		{"group", func(document *ir.Document) { document.Services[0].Groups[0].Availability = avail() },
+			"document.Services[0].Groups[0].Availability.Added[0]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -16,7 +16,7 @@ import (
 
 // streamingCtx builds a context carrying nothing but the streaming policy.
 func streamingCtx(policy service.StreamingInference) service.Ctx {
-	return service.New(0, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{StreamingInference: policy})
+	return service.New(0, &load.LoadedOpenAPIDocument{Doc: &soa.OpenAPI{}}, service.Policy{StreamingInference: policy})
 }
 
 // TestMediaTypeStreams_AnswersFromThePolicy pins every answer the policy gives,
@@ -87,8 +87,8 @@ func TestDefaultStreamingMediaTypes_AreAllRecognized(t *testing.T) {
 	t.Parallel()
 	defaults := service.DefaultStreamingMediaTypes()
 	require.NotEmpty(t, defaults, "an empty default list would make every case below vacuous")
-	c := streamingCtx(service.StreamingInference{})
+	serviceContext := streamingCtx(service.StreamingInference{})
 	for _, mediaType := range defaults {
-		assert.True(t, c.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
+		assert.True(t, serviceContext.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
 	}
 }

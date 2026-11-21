@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // TestBuildObjects_ModelsFieldsBesideAForeignPathItemRef pins the fields beside
@@ -46,9 +46,9 @@ paths:
 
 	a, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
-	r, ok := doc.Bindings.Reference(a)
+	reference, ok := doc.Bindings.Reference(a)
 	require.True(t, ok)
-	landing, ok := doc.Bindings.ObjectAt(r.Hop.Target, bind.RefPathItem).(*soa.ReferencedPathItem)
+	landing, ok := doc.Bindings.ObjectAt(reference.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
 	require.True(t, ok)
 	sib, ok := doc.Siblings.Of(landing)
 	require.True(t, ok, "the landing's fields are modelled")
@@ -90,9 +90,9 @@ paths:
 
 	a, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
-	r, ok := doc.Bindings.Reference(a)
+	reference, ok := doc.Bindings.Reference(a)
 	require.True(t, ok)
-	landing, ok := doc.Bindings.ObjectAt(r.Hop.Target, bind.RefPathItem).(*soa.ReferencedPathItem)
+	landing, ok := doc.Bindings.ObjectAt(reference.Hop.Target, reftable.RefPathItem).(*soa.ReferencedPathItem)
 	require.True(t, ok)
 	_, ok = doc.Siblings.Of(landing)
 	assert.True(t, ok, "the landing's fields are modelled")
@@ -107,8 +107,8 @@ func TestBuildObjects_AFaultBesideALandingsRefIsAFailedBuild(t *testing.T) {
 	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a: {$ref: '#/x-item'}\n"+
 		"  /b: {get: {responses: {'200': {description: ok}}}}\n"+
 		"x-item:\n  $ref: '#/paths/~1b'\n  parameters: [{$ref: ~}]\n")
-	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
-		bind.Config{Self: "spec.yaml"})
+	table := reftable.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		reftable.Config{Self: "spec.yaml"})
 
 	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})
 

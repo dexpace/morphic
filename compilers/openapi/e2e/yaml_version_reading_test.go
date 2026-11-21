@@ -99,23 +99,23 @@ func TestCompile_ADocumentDeclaringYAML11IsWarnedAtWhatItReadsOtherwise(t *testi
 
 	require.NotNil(t, doc)
 	got := map[string]string{}
-	for _, d := range byCode(diags, srVersionReading) {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Equal(t, 0, d.Provenance.Source)
-		got[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range byCode(diags, srVersionReading) {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Equal(t, 0, diagnostic.Provenance.Source)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 	}
 	assert.Equal(t, want, got, "none for 0X1F, abc, the quoted version, the key y or openapi: 3.1.0")
 
 	tree := irTree(t, doc)
 	defaults := map[string]map[string]any{
-		"m": {"kind": "number", "num": "644"},
-		"t": {"kind": "string", "str": "1:30"},
-		"o": {"kind": "number", "num": "15"},
-		"f": {"kind": "number", "num": "1e3"},
-		"h": {"kind": "string", "str": "0X1F"},
+		"m": {"kind": "number", "number": "644"},
+		"t": {"kind": "string", "string": "1:30"},
+		"o": {"kind": "number", "number": "15"},
+		"f": {"kind": "number", "number": "1e3"},
+		"h": {"kind": "string", "string": "0X1F"},
 	}
 	for name, d := range defaults {
-		p := findByID(tree, "p/openapi"+s+name)
+		p := findByID(tree, "property/openapi"+s+name)
 		require.NotNil(t, p, name)
 		assert.Equal(t, d, p["default"], name)
 	}
@@ -176,36 +176,36 @@ func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
 	doc, diags := compileText(t, "yaml11_scalars.yaml", string(readReproducer(t, "yaml11_scalars")), openapi.Options{})
 
 	require.NotNil(t, doc)
-	const props = "/components/schemas/S/properties/"
+	const properties = "/components/schemas/S/properties/"
 	want := map[string]bool{"/info/description": true, "/info/summary": true, "/info/termsOfService": true}
 	for _, p := range []string{"octal", "tagged", "coreOctal", "signedHex", "binary", "separated", "sexagesimal",
 		"exponent", "sexagesimalFloat", "separatedFloat"} {
-		want[props+p+"/default"] = true
+		want[properties+p+"/default"] = true
 	}
 	for i := range 16 {
 		want["/x-flags/"+strconv.Itoa(i)] = true
 	}
 	got := map[string]bool{}
-	for _, d := range diags {
-		assert.Equal(t, srVersionReading, d.Code, "%+v", d)
-		assert.False(t, got[string(d.Provenance.Pointer)], "one warning at %s", d.Provenance.Pointer)
-		got[string(d.Provenance.Pointer)] = true
+	for _, diagnostic := range diags {
+		assert.Equal(t, srVersionReading, diagnostic.Code, "%+v", diagnostic)
+		assert.False(t, got[string(diagnostic.Provenance.Pointer)], "one warning at %s", diagnostic.Provenance.Pointer)
+		got[string(diagnostic.Provenance.Pointer)] = true
 	}
 	assert.Equal(t, want, got, "a warning at each node YAML 1.1 reads otherwise, and none at the hex default")
 
 	tree := irTree(t, doc)
 	for name, value := range map[string]map[string]any{
-		"octal":     {"kind": "number", "num": "644"},
-		"tagged":    {"kind": "number", "num": "644"},
-		"coreOctal": {"kind": "number", "num": "15"},
-		"exponent":  {"kind": "number", "num": "1e3"},
-		"hex":       {"kind": "number", "num": "31"},
-		"binary":    {"kind": "string", "str": "0b1010"},
-		"separated": {"kind": "string", "str": "1_000"},
+		"octal":     {"kind": "number", "number": "644"},
+		"tagged":    {"kind": "number", "number": "644"},
+		"coreOctal": {"kind": "number", "number": "15"},
+		"exponent":  {"kind": "number", "number": "1e3"},
+		"hex":       {"kind": "number", "number": "31"},
+		"binary":    {"kind": "string", "string": "0b1010"},
+		"separated": {"kind": "string", "string": "1_000"},
 	} {
-		prop := findByID(tree, "p/openapi"+props+name)
-		require.NotNil(t, prop, name)
-		assert.Equal(t, value, prop["default"], name)
+		property := findByID(tree, "property/openapi"+properties+name)
+		require.NotNil(t, property, name)
+		assert.Equal(t, value, property["default"], name)
 	}
 	assert.Equal(t, "nel"+srNEL+"here", doc.Docs.Description, "the break is a character of the scalar")
 }

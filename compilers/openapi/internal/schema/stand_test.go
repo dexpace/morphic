@@ -28,14 +28,14 @@ func TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition(t *testing.T) 
 		alias, ok := typeByName(doc, name).(*ir.Scalar)
 		require.True(t, ok, "%s is the alias keeping the union, not %T", name, typeByName(doc, name))
 		require.NotNil(t, alias.Base)
-		assert.Equal(t, ir.TypeID("t/prim/string"), alias.Base.Target, name)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), alias.Base.Target, name)
 		assert.Equal(t, "d", alias.Docs.Description, name)
 		kept, held := alias.Unmodeled["openapi:oneOf"]
 		require.True(t, held, name)
 		assert.Equal(t, ir.ReasonValidationOnly, kept.Reason, name)
 		assert.Equal(t, at, string(kept.Provenance.Pointer), "%s: kept where it is written", name)
 	}
-	_, atEntry := doc.Types["t/anon/components/schemas/Entry/allOf/1"]
+	_, atEntry := doc.Types["type/anonymous/components/schemas/Entry/allOf/1"]
 	assert.False(t, atEntry, "nothing stands at the entry")
 }
 

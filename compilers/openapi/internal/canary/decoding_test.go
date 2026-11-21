@@ -116,20 +116,20 @@ func goroutinesStarted(ctx context.Context, input []byte) string {
 func aliasCycle(t *testing.T) {
 	t.Run("met while sampling", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "unmarshal", head+"x-a: &a [*a]\n")
-		require.Equal(t, overflowed, r.outcome, revisit(t, r))
-		assert.Contains(t, r.output, "getGlobalStringStyle", revisit(t, r))
+		result := probe(t, "unmarshal", head+"x-a: &a [*a]\n")
+		require.Equal(t, overflowed, result.outcome, revisit(t, result))
+		assert.Contains(t, result.output, "getGlobalStringStyle", revisit(t, result))
 	})
 	t.Run("through a schema", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "unmarshal", schemas("A: &a {type: object, properties: {p: *a}}"))
-		assert.Equal(t, exhausted, r.outcome, revisit(t, r))
+		result := probe(t, "unmarshal", schemas("A: &a {type: object, properties: {p: *a}}"))
+		assert.Equal(t, exhausted, result.outcome, revisit(t, result))
 	})
 	t.Run("in an extension, past the sample", func(t *testing.T) {
 		t.Parallel()
-		r := probe(t, "unmarshal", head+"x-a: &a {s: x, k: *a}\n")
-		require.Equal(t, returned, r.outcome, revisit(t, r))
-		assert.Equal(t, decoded, r.report, revisit(t, r))
+		result := probe(t, "unmarshal", head+"x-a: &a {s: x, k: *a}\n")
+		require.Equal(t, returned, result.outcome, revisit(t, result))
+		assert.Equal(t, decoded, result.report, revisit(t, result))
 	})
 }
 
@@ -228,11 +228,11 @@ func nestingCost(t *testing.T) {
 func nestedCost(t *testing.T, depth int) [2]uint64 {
 	t.Helper()
 	nested := strings.Repeat("{type: array, items: ", depth) + "{type: string}" + strings.Repeat("}", depth)
-	r := probe(t, "allocations", schemas("A: "+nested))
-	require.Equal(t, returned, r.outcome, revisit(t, r))
+	result := probe(t, "allocations", schemas("A: "+nested))
+	require.Equal(t, returned, result.outcome, revisit(t, result))
 	var cost [2]uint64
-	_, err := fmt.Sscanf(r.report, "%d %d", &cost[0], &cost[1])
-	require.NoError(t, err, revisit(t, r))
+	_, err := fmt.Sscanf(result.report, "%d %d", &cost[0], &cost[1])
+	require.NoError(t, err, revisit(t, result))
 	return cost
 }
 
@@ -273,8 +273,8 @@ func goroutinePerNode(t *testing.T) {
 		for i := range 20 {
 			keys = append(keys, fmt.Sprintf("k%02d: %d", i, i))
 		}
-		r := probe(t, "orders", schemas("A: {"+strings.Join(keys, ", ")+"}"), "GOMAXPROCS=4")
-		assert.Greater(t, childCount(t, r), 1, revisit(t, r))
+		result := probe(t, "orders", schemas("A: {"+strings.Join(keys, ", ")+"}"), "GOMAXPROCS=4")
+		assert.Greater(t, childCount(t, result), 1, revisit(t, result))
 	})
 	var entries, elements strings.Builder
 	for i := range nodeCount {
@@ -304,11 +304,11 @@ func goroutinePerNode(t *testing.T) {
 
 // childCount returns the count a child that returned reported, failing the
 // test on any other ending.
-func childCount(t *testing.T, r result) int {
+func childCount(t *testing.T, resultValue result) int {
 	t.Helper()
-	require.Equal(t, returned, r.outcome, revisit(t, r))
-	n, err := strconv.Atoi(r.report)
-	require.NoError(t, err, revisit(t, r))
+	require.Equal(t, returned, resultValue.outcome, revisit(t, resultValue))
+	n, err := strconv.Atoi(resultValue.report)
+	require.NoError(t, err, revisit(t, resultValue))
 	return n
 }
 
@@ -346,15 +346,15 @@ func taggedMappingPanic(t *testing.T) {
 			t.Parallel()
 			panics := 0
 			for range taggedTrials {
-				r := probe(t, "unmarshal", section(s, "A: !thing "+body))
-				switch r.outcome {
+				result := probe(t, "unmarshal", section(s, "A: !thing "+body))
+				switch result.outcome {
 				case panicked:
 					panics++
-					assert.Contains(t, r.report, "nil pointer dereference", revisit(t, r))
+					assert.Contains(t, result.report, "nil pointer dereference", revisit(t, result))
 				case returned:
-					assert.Contains(t, r.report, "got <nil>", revisit(t, r))
+					assert.Contains(t, result.report, "got <nil>", revisit(t, result))
 				default:
-					t.Error(revisit(t, r))
+					t.Error(revisit(t, result))
 				}
 			}
 			assert.NotZero(t, panics, "no trial panicked: %s", revisit(t, result{}))
@@ -363,9 +363,9 @@ func taggedMappingPanic(t *testing.T) {
 	for s, body := range untaggedSections {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, "unmarshal", section(s, "A: !thing "+body))
-			require.Equal(t, returned, r.outcome, revisit(t, r))
-			assert.Equal(t, decoded, r.report, revisit(t, r))
+			result := probe(t, "unmarshal", section(s, "A: !thing "+body))
+			require.Equal(t, returned, result.outcome, revisit(t, result))
+			assert.Equal(t, decoded, result.report, revisit(t, result))
 		})
 	}
 }
@@ -382,10 +382,10 @@ func recoverablePanic(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, tc.child, tc.input)
-			require.Equal(t, returned, r.outcome, revisit(t, r))
-			assert.True(t, strings.HasPrefix(r.report, recoveredMark), revisit(t, r))
-			assert.Contains(t, r.report, tc.message, revisit(t, r))
+			result := probe(t, tc.child, tc.input)
+			require.Equal(t, returned, result.outcome, revisit(t, result))
+			assert.True(t, strings.HasPrefix(result.report, recoveredMark), revisit(t, result))
+			assert.Contains(t, result.report, tc.message, revisit(t, result))
 		})
 	}
 }
@@ -678,9 +678,9 @@ func mergeKeyPredicate(t *testing.T) {
 		for _, tag := range tags {
 			for _, value := range values {
 				for _, style := range styles {
-					n := &yaml.Node{Kind: kind, Tag: tag, Value: value, Style: style}
-					want := yml.IsMergeKey(n)
-					assert.Equal(t, want, nodeview.IsMergeKey(n),
+					node := &yaml.Node{Kind: kind, Tag: tag, Value: value, Style: style}
+					want := yml.IsMergeKey(node)
+					assert.Equal(t, want, nodeview.IsMergeKey(node),
 						"kind %d tag %q value %q style %d: %s", kind, tag, value, style, revisit(t, result{}))
 					if want {
 						merging++
@@ -747,13 +747,13 @@ func scalarResolution(t *testing.T) {
 	for _, tc := range cases {
 		p, ok := s.GetSchema().GetProperties().Get(tc.literal)
 		require.True(t, ok, tc.literal)
-		n := p.GetSchema().GetDefault()
-		assert.Equal(t, tc.tag, n.ShortTag(), "%s: %s", tc.literal, revisit(t, result{}))
+		node := p.GetSchema().GetDefault()
+		assert.Equal(t, tc.tag, node.ShortTag(), "%s: %s", tc.literal, revisit(t, result{}))
 		if tc.tag != "!!int" {
 			continue
 		}
 		var number int64
-		require.NoError(t, n.Decode(&number), tc.literal)
+		require.NoError(t, node.Decode(&number), tc.literal)
 		assert.Equal(t, tc.number, number, "%s: %s", tc.literal, revisit(t, result{}))
 	}
 }

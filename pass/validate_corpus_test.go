@@ -43,9 +43,9 @@ func TestValidate_Corpus(t *testing.T) {
 			before, err := json.Marshal(doc)
 			require.NoError(t, err)
 
-			for _, d := range validatedOnce(t, doc) {
-				assert.NotEqual(t, ir.SeverityError, d.Severity,
-					"%s: unexpected validate error: %+v", filepath.Base(f), d)
+			for _, diagnostic := range validatedOnce(t, doc) {
+				assert.NotEqual(t, ir.SeverityError, diagnostic.Severity,
+					"%s: unexpected validate error: %+v", filepath.Base(f), diagnostic)
 			}
 
 			after, err := json.Marshal(doc)

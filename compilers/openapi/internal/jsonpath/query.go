@@ -111,6 +111,6 @@ func (q Query) Select(ctx context.Context, view *nodeview.View, root *yaml.Node,
 	if root == nil {
 		return nil, errors.New("jsonpath: the tree holds no value to query")
 	}
-	e := &evaluator{view: view, steps: steps, results: MaxResults, root: root}
-	return e.run(ctx, q.segments, Located{Node: root})
+	evaluatorValue := &evaluator{view: view, steps: steps, results: MaxResults, root: root}
+	return evaluatorValue.run(ctx, q.segments, Located{Node: root})
 }

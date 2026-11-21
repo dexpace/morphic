@@ -15,10 +15,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,26 +32,26 @@ const draft04 = "http://json-schema.org/draft-04/schema#"
 // jsonSchemaDialect chooses its rows at that minor.
 func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 	t.Parallel()
-	d := &dialects{spec: oas.Table(), version: "3.1.0", minor: "3.1"}
-	version, minor, r30 := d.of("3.0.3", "")
+	dialectsValue := &dialects{spec: specrules.Table(), version: "3.1.0", minor: "3.1"}
+	version, minor, r30 := dialectsValue.of("3.0.3", "")
 	assert.Equal(t, []string{"3.0.3", "3.0"}, []string{version, minor})
 	assert.True(t, r30.Schema.Defines("nullable"))
 	for _, declared := range []string{"", "3.3.0", "2.0"} {
-		version, minor, r := d.of(declared, "")
+		version, minor, rows := dialectsValue.of(declared, "")
 		assert.Equal(t, []string{"3.1.0", "3.1"}, []string{version, minor}, "%q", declared)
-		assert.False(t, r.Schema.Defines("nullable"), "%q", declared)
+		assert.False(t, rows.Schema.Defines("nullable"), "%q", declared)
 	}
 	// Identity, not equality: rows built twice would be equal, and the claim is
 	// that a minor's rows are built once.
-	if _, _, again := d.of("3.0.0", ""); again != r30 {
+	if _, _, again := dialectsValue.of("3.0.0", ""); again != r30 {
 		t.Error("a second document declaring 3.0 built the minor's rows again")
 	}
-	_, _, r04 := d.of("3.2.0", draft04)
-	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean), "a jsonSchemaDialect chooses the rows")
-	_, _, r04 = d.of("", draft04)
-	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean), "at the source's minor")
-	assert.True(t, d.at("3.1.0", "https://example.com/custom").unread)
-	assert.False(t, d.at("3.0.3", "https://example.com/custom").unread, "3.0 names no dialect")
+	_, _, r04 := dialectsValue.of("3.2.0", draft04)
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean), "a jsonSchemaDialect chooses the rows")
+	_, _, r04 = dialectsValue.of("", draft04)
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean), "at the source's minor")
+	assert.True(t, dialectsValue.at("3.1.0", "https://example.com/custom").unread)
+	assert.False(t, dialectsValue.at("3.0.3", "https://example.com/custom").unread, "3.0 names no dialect")
 }
 
 // TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn pins whose jsonSchemaDialect
@@ -60,9 +60,9 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 func TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn(t *testing.T) {
 	t.Parallel()
 	tree := func(src string) *yaml.Node {
-		var n yaml.Node
-		require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-		return &n
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &node))
+		return &node
 	}
 	assert.Equal(t, draft04, declaredDialect(tree("openapi: 3.1.0\njsonSchemaDialect: '"+draft04+"'\n")))
 	assert.Empty(t, declaredDialect(tree("jsonSchemaDialect: '"+draft04+"'\n")), "no OpenAPI Object")
@@ -109,10 +109,10 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 	require.NotNil(t, doc)
 
 	var unread []ir.Provenance
-	for _, d := range diags {
-		if d.Code == diag.UnreadDialect {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			unread = append(unread, ir.Provenance{Source: d.Provenance.Source, Pointer: d.Provenance.Pointer})
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnreadDialect {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			unread = append(unread, ir.Provenance{Source: diagnostic.Provenance.Source, Pointer: diagnostic.Provenance.Pointer})
 		}
 	}
 	other, ok := doc.Others.Named("/r/o.yaml")
@@ -131,30 +131,30 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 		}
 		return s.GetRootNode()
 	}
-	governed := func(n *yaml.Node) bool {
-		return doc.Dialects.Of(n).Takes("exclusiveMinimum", oas.Boolean)
+	governed := func(node *yaml.Node) bool {
+		return doc.Dialects.Of(node).Takes("exclusiveMinimum", specrules.Boolean)
 	}
 	assert.True(t, governed(node("T")))
 	assert.True(t, governed(node("T", "a")), "a subschema reads its root's")
 	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("V")), "a schema below no root naming one reads its document's")
 	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("R")), "a $schema naming no dialect chooses none")
-	_, root := doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"})
+	_, root := doc.Dialects.RootAt(reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/U"})
 	assert.True(t, root, "U names a dialect, if one it cannot read")
-	assert.True(t, doc.Dialects.Of(node("U")).Takes("exclusiveMinimum", oas.Number),
+	assert.True(t, doc.Dialects.Of(node("U")).Takes("exclusiveMinimum", specrules.Number),
 		"a dialect it cannot read reads as the minor's own")
 
 	table := doc.Bindings.Table()
-	var defs bind.DocID
-	for id := range bind.DocID(table.Documents()) {
+	var defs reftable.DocID
+	for id := range reftable.DocID(table.Documents()) {
 		if strings.HasSuffix(table.Document(id).Name, "defs.json") {
 			defs = id
 		}
 	}
 	require.NotZero(t, defs)
-	e := doc.Bindings.At(bind.Position{Doc: defs, Pointer: jsontext.Pointer("/definitions/E")})
+	e := doc.Bindings.At(reftable.DocumentPointer{Doc: defs, Pointer: jsontext.Pointer("/definitions/E")})
 	require.NotNil(t, e)
 	assert.True(t, governed(e.GetSchema().GetRootNode()), "a document of schemas names its dialect at its root")
-	assert.True(t, other.Rows.Schema.Takes("exclusiveMinimum", oas.Number), "o.yaml's own dialect is unread")
+	assert.True(t, other.Rows.Schema.Takes("exclusiveMinimum", specrules.Number), "o.yaml's own dialect is unread")
 }
 
 // TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds pins that a
@@ -183,10 +183,10 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 
 	table := doc.Bindings.Table()
 	node := func(name, file string) *yaml.Node {
-		for id := range bind.DocID(table.Documents()) {
+		for id := range reftable.DocID(table.Documents()) {
 			if strings.HasSuffix(table.Document(id).Name, file) {
 				at := jsontext.Pointer("/components/schemas").AppendToken(name)
-				s := doc.Bindings.At(bind.Position{Doc: id, Pointer: at})
+				s := doc.Bindings.At(reftable.DocumentPointer{Doc: id, Pointer: at})
 				require.NotNil(t, s, name)
 				return s.GetSchema().GetRootNode()
 			}
@@ -194,9 +194,9 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 		require.FailNow(t, "no document", file)
 		return nil
 	}
-	assert.True(t, doc.Dialects.Of(node("A", "a.yaml")).Takes("exclusiveMinimum", oas.Boolean),
+	assert.True(t, doc.Dialects.Of(node("A", "a.yaml")).Takes("exclusiveMinimum", specrules.Boolean),
 		"a.yaml's rows are not the source's")
-	assert.True(t, doc.Dialects.Of(node("N", "a.yaml")).Takes("exclusiveMinimum", oas.Number), "a root keeps its own")
+	assert.True(t, doc.Dialects.Of(node("N", "a.yaml")).Takes("exclusiveMinimum", specrules.Number), "a root keeps its own")
 	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("B", "b.yaml")), "b.yaml's rows are the source's")
 }
 
@@ -210,9 +210,9 @@ func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) (co
 }
 
 // TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce pins that a document
-// two references spell two ways, one Document.Sources entry and one name to
-// the binder (resolve.Locate), is warned of once: its `$schema` is one
-// finding, whichever spelling reached it.
+// two references spell two ways, one LoadedOpenAPIDocument.Sources entry and
+// one name to the binder (componentlookup.Locate), is warned of once: its
+// `$schema` is one finding, whichever spelling reached it.
 func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
@@ -223,9 +223,9 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 	require.Equal(t, 2, doc.Bindings.Table().Documents(), "the binder reads one name")
 	require.Len(t, doc.Others.List(), 1, "sanity: of one document")
 	var unread []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnreadDialect {
-			unread = append(unread, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnreadDialect {
+			unread = append(unread, diagnostic)
 		}
 	}
 	require.Len(t, unread, 1)
@@ -233,9 +233,9 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 }
 
 // TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds pins that a
-// document only a pass that did not stand read, which Document.Sources leaves
-// out, draws no warning: its `$schema` governs nothing the result holds, and
-// no entry would place the finding.
+// document only a pass that did not stand read, which
+// LoadedOpenAPIDocument.Sources leaves out, draws no warning: its `$schema`
+// governs nothing the result holds, and no entry would place the finding.
 func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	t.Parallel()
 	reader := documentsReader{
@@ -249,9 +249,9 @@ func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	require.NoError(t, err)
 	table := doc.Bindings.Table()
 	unreached := false
-	for id := range bind.DocID(table.Documents()) {
-		d := table.Document(id)
-		unreached = unreached || d.Unreached && len(d.Dialects) == 1
+	for id := range reftable.DocID(table.Documents()) {
+		referencedDocument := table.Document(id)
+		unreached = unreached || referencedDocument.Unreached && len(referencedDocument.Dialects) == 1
 	}
 	require.True(t, unreached, "sanity: a.yaml is read, named, and left out")
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
@@ -273,7 +273,7 @@ func TestReadDialects_ANestedRootGovernsItsOwnTree(t *testing.T) {
 	tSchema := doc.Doc.Components.GetSchemas().GetOrZero("T").GetSchema()
 	a := tSchema.GetProperties().GetOrZero("a").GetSchema()
 	boolean := func(s interface{ GetRootNode() *yaml.Node }) bool {
-		return doc.Dialects.Of(s.GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
+		return doc.Dialects.Of(s.GetRootNode()).Takes("exclusiveMinimum", specrules.Boolean)
 	}
 	assert.True(t, boolean(a), "the embedded root reads its own")
 	assert.True(t, boolean(a.GetProperties().GetOrZero("x").GetSchema()), "and what it holds")
@@ -297,8 +297,8 @@ func TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor(t *testing.T) {
 		"  schemas:\n    A: {$ref: 'same.yaml#/components/schemas/S'}\n    B: {$ref: 'other.yaml#/components/schemas/S'}\n",
 		Options{})
 	rows := map[string]Rows{}
-	for _, o := range doc.Others.List() {
-		rows[o.Label] = o.Rows
+	for _, other := range doc.Others.List() {
+		rows[other.Label] = other.Rows
 	}
 	require.Len(t, rows, 2, "both documents are read")
 	if rows["same.yaml"] != doc.Rows {
@@ -324,11 +324,11 @@ func TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect(t *testing.T) {
 		"components:\n  schemas:\n    A: {$ref: 'named.yaml#/components/schemas/S'}\n"+
 		"    B: {$ref: 'none.yaml#/components/schemas/S'}\n", Options{})
 	rows := map[string]Rows{}
-	for _, o := range doc.Others.List() {
-		rows[o.Label] = o.Rows
+	for _, other := range doc.Others.List() {
+		rows[other.Label] = other.Rows
 	}
 	require.Len(t, rows, 2, "both documents are read")
-	assert.True(t, doc.Rows.Schema.Takes("exclusiveMinimum", oas.Boolean), "the source's rows are draft 4's")
+	assert.True(t, doc.Rows.Schema.Takes("exclusiveMinimum", specrules.Boolean), "the source's rows are draft 4's")
 	if rows["named.yaml"] != doc.Rows {
 		t.Error("the source's rows were built apart from those of a document naming its dialect")
 	}

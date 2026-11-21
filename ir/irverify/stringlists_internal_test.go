@@ -38,9 +38,9 @@ func stringListFieldKeys(t *testing.T) map[string]bool {
 	t.Helper()
 	stringList := types.NewSlice(types.Typ[types.String])
 	found := map[string]bool{}
-	for _, f := range declaredFields(t) {
-		if types.Identical(f.field.Type(), stringList) {
-			found[f.key()] = true
+	for _, declaredField := range declaredFields(t) {
+		if types.Identical(declaredField.field.Type(), stringList) {
+			found[declaredField.key()] = true
 		}
 	}
 	return found
@@ -71,7 +71,7 @@ func TestCheckStringLists_VisitingCostsNoAllocation(t *testing.T) {
 		entries = append(entries, "entry"+strconv.Itoa(i))
 	}
 	doc := &ir.Document{
-		Types: ir.TypeRegistry{"t/x/M": &ir.Model{ID: "t/x/M", Namespace: entries}},
+		Types: ir.TypeRegistry{"type/x/M": &ir.Model{ID: "type/x/M", Namespace: entries}},
 		Auth: map[ir.AuthID]ir.AuthScheme{"auth/x/S": {ID: "auth/x/S", Flows: []ir.OAuthFlow{
 			{TokenEndpointAuthMethods: entries},
 		}}},

@@ -31,15 +31,15 @@ func TestElection_AUnionTyingWithTheWordsIsThePrincipal(t *testing.T) {
 			})
 			requireErrorsAndWarnings(t, diags, nil)
 			assert.Zero(t, degradedInfosAt(diags, "N"))
-			p := requireModelOf(t, doc, "N").Properties[0]
-			u, ok := kindNode(t, doc, p.Type.Target).(*ir.Union)
+			property := requireModelOf(t, doc, "N").Properties[0]
+			irUnion, ok := kindNode(t, doc, property.Type.Target).(*ir.Union)
 			require.True(t, ok, "the property names the union")
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/N/properties/p"), p.Type.Target, "standing at the property")
-			require.NotNil(t, u.Constraints)
-			require.NotNil(t, u.Constraints.MinLength)
-			assert.EqualValues(t, 1, *u.Constraints.MinLength)
-			assert.Nil(t, p.Constraints, "the property holds no bound the union does")
-			assert.Empty(t, p.Unmodeled)
+			assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/N/properties/p"), property.Type.Target, "standing at the property")
+			require.NotNil(t, irUnion.Constraints)
+			require.NotNil(t, irUnion.Constraints.MinLength)
+			assert.EqualValues(t, 1, *irUnion.Constraints.MinLength)
+			assert.Nil(t, property.Constraints, "the property holds no bound the union does")
+			assert.Empty(t, property.Unmodeled)
 
 			beside, besideDiags := compileAnnotationSpec(t, "beside",
 				admissionSpec(version, "", simple, "B: {type: string, minLength: 1, allOf: ["+union+"]}"))
@@ -72,7 +72,7 @@ func TestElection_ASchemaWrittenTwiceIsOneConjunct(t *testing.T) {
 			assert.Zero(t, degradedInfosAt(diags, "Refs"))
 
 			doc, diags = withoutEntryIndices(t, version, func(swapped bool) []string {
-				return pairSchemas(swapped, "Unions", oneStrInt, oneStrInt, "")
+				return pairSchemas(swapped, "Unions", oneStringInt, oneStringInt, "")
 			})
 			requireErrorsAndWarnings(t, diags, nil)
 			union := electedUnion(doc, "Unions")
@@ -116,9 +116,9 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 		name, a, b string
 		elected    ir.TypeKind
 		kept       map[string]ir.UnmodeledReason
-		// prim is the primitive a position electing neither is, where elected
-		// is a primitive.
-		prim ir.PrimKind
+		// primitive is the primitive a position electing neither is, where
+		// elected is a primitive.
+		primitive ir.PrimitiveKind
 	}{
 		{"Content", "{type: string}", "{type: string, contentEncoding: base64}", ir.KindScalar, nil, ""},
 		{"Tuple", "{type: array}", "{type: array, prefixItems: [{type: string}]}", ir.KindTuple, nil, ""},
@@ -129,13 +129,13 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 			"{type: string, contentMediaType: application/json}", ir.KindPrimitive, map[string]ir.UnmodeledReason{
 				"openapi:contentEncoding": ir.ReasonNoIRHome, "openapi:contentMediaType": ir.ReasonNoIRHome,
 				"openapi:type": ir.ReasonDegradedLowering,
-			}, ir.PrimString},
+			}, ir.PrimitiveString},
 		{"DisagreeingContent", "{type: string, contentMediaType: application/json}",
 			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
-			ir.PrimString},
+			ir.PrimitiveString},
 		{"DisagreeingTuple", "{type: array, prefixItems: [{type: string}]}",
 			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
-			ir.PrimAny},
+			ir.PrimitiveAny},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -149,7 +149,7 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 				alias, ok := use.(*ir.Scalar)
 				require.True(t, ok)
 				require.NotNil(t, alias.Base)
-				assert.Equal(t, prim(tc.prim), alias.Base.Target, "neither is elected")
+				assert.Equal(t, primitive(tc.primitive), alias.Base.Target, "neither is elected")
 			} else {
 				assert.Equal(t, tc.elected, use.Kind(), "the principal's node is the position's")
 			}
@@ -177,7 +177,7 @@ func TestElection_ValueSetsAlikeGoByTheirText(t *testing.T) {
 			enum, ok := kindNode(t, doc, componentID("Sets")).(*ir.Enum)
 			require.True(t, ok, "the value set stands at the position")
 			require.Len(t, enum.Members, 2)
-			assert.Equal(t, "b", enum.Members[0].Value.Str, "the entry writing the description is the least text")
+			assert.Equal(t, "b", enum.Members[0].Value.String, "the entry writing the description is the least text")
 			assert.Zero(t, degradedInfosAt(diags, "Sets"))
 		})
 	}
@@ -203,26 +203,26 @@ func TestElection_TwoOneOfUnionsBesideABodyDistributeNeither(t *testing.T) {
 // a parameter and two properties use it.
 func TestElection_APositionUsedTwiceElectsAsOnce(t *testing.T) {
 	t.Parallel()
-	const str = "{$ref: '#/components/schemas/Str'}"
+	const stringReference = "{$ref: '#/components/schemas/Str'}"
 	rows := []string{
-		"{allOf: [" + anyNumBool + ", " + oneStrInt + "]}",
-		"{allOf: [" + oneStrInt + ", " + oneIntBool + "]}",
-		"{allOf: [{oneOf: [" + str + "]}, {type: string, minLength: 1}]}",
-		"{allOf: [" + str + ", " + str + "]}",
-		"{allOf: [" + oneStrInt + ", " + oneStrInt + "]}",
+		"{allOf: [" + anyNumberBool + ", " + oneStringInt + "]}",
+		"{allOf: [" + oneStringInt + ", " + oneIntBool + "]}",
+		"{allOf: [{oneOf: [" + stringReference + "]}, {type: string, minLength: 1}]}",
+		"{allOf: [" + stringReference + ", " + stringReference + "]}",
+		"{allOf: [" + oneStringInt + ", " + oneStringInt + "]}",
 		"{allOf: [{type: string, format: email}, {type: string, format: hostname}]}",
 		"{allOf: [{type: string}, {type: string, contentEncoding: base64}]}",
 		"{allOf: [{enum: [a, b]}, {enum: [b, a], description: d}]}",
 		"{" + objBody + ", allOf: [{" + anyObjBranches + "}, {" + oneObjBranches + "}]}",
 	}
-	op := func(name, param string) string {
+	operation := func(name, param string) string {
 		return "  /" + name + ":\n    get:\n      operationId: " + name + "\n" + param +
 			"      responses: {'200': {$ref: '#/components/responses/R'}}\n"
 	}
 	spec := func(version, row string, twice bool) string {
-		paths, holder := "paths:\n"+op("a", ""), "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}}}"
+		paths, holder := "paths:\n"+operation("a", ""), "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}}}"
 		if twice {
-			paths += op("b", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/X'}}]\n")
+			paths += operation("b", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/X'}}]\n")
 			holder = "Holder: {type: object, properties: {p: {$ref: '#/components/schemas/X'}, q: {$ref: '#/components/schemas/X'}}}"
 		}
 		return admissionSpec(version, paths, "Str: {type: string}", "X: "+row, holder) +

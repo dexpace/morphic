@@ -14,7 +14,7 @@ import (
 
 // numericValue is a number-kinded ir.Value carrying the literal as written.
 func numericValue(literal string) ir.Value {
-	return ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal(literal)}
+	return ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal(literal)}
 }
 
 // bigValCarriers builds one document per field in the IR that carries a
@@ -23,45 +23,45 @@ func numericValue(literal string) ir.Value {
 // carrier, so each is planted and asserted separately rather than all at once.
 func bigValCarriers(literal string) map[string]*ir.Document {
 	prov := ir.Provenance{Source: ir.NoSource}
-	scalar := func(c *ir.Constraints) *ir.Document {
-		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-			ID:          "t/x/S",
+	scalar := func(constraints *ir.Constraints) *ir.Document {
+		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+			ID:          "type/x/S",
 			Name:        named("s"),
 			Provenance:  prov,
-			Constraints: c,
+			Constraints: constraints,
 		}}}
 	}
-	valued := func(v ir.Value) *ir.Document {
-		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-			ID:         "t/x/L",
+	valued := func(value ir.Value) *ir.Document {
+		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/L": &ir.Literal{
+			ID:         "type/x/L",
 			Name:       named("l"),
 			Provenance: prov,
-			Value:      v,
+			Value:      value,
 		}}}
 	}
-	property := func(p ir.Property) *ir.Document {
-		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-			ID:         "t/x/M",
+	property := func(property ir.Property) *ir.Document {
+		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+			ID:         "type/x/M",
 			Name:       named("m"),
 			Provenance: prov,
-			Properties: []ir.Property{p},
+			Properties: []ir.Property{property},
 		}}}
 	}
-	prop := ir.Property{ID: "p/x/M/f", Name: named("f"), Provenance: prov}
-	prop.Type = ir.TypeRef{Target: "t/x/M"}
+	irProperty := ir.Property{ID: "property/x/M/f", Name: named("f"), Provenance: prov}
+	irProperty.Type = ir.TypeRef{Target: "type/x/M"}
 
-	withDefault, withBound := prop, prop
+	withDefault, withBound := irProperty, irProperty
 	def := numericValue(literal)
 	withDefault.Default = &def
 	withBound.Constraints = &ir.Constraints{Max: new(ir.BigVal(literal))}
 
 	return map[string]*ir.Document{
-		"doc.Types[t/x/S].Constraints.Min":               scalar(&ir.Constraints{Min: new(ir.BigVal(literal))}),
-		"doc.Types[t/x/S].Constraints.Max":               scalar(&ir.Constraints{Max: new(ir.BigVal(literal))}),
-		"doc.Types[t/x/S].Constraints.MultipleOf":        scalar(&ir.Constraints{MultipleOf: new(ir.BigVal(literal))}),
-		"doc.Types[t/x/L].Value.Num":                     valued(numericValue(literal)),
-		"doc.Types[t/x/M].Properties[0].Default.Num":     property(withDefault),
-		"doc.Types[t/x/M].Properties[0].Constraints.Max": property(withBound),
+		"document.Types[type/x/S].Constraints.Min":               scalar(&ir.Constraints{Min: new(ir.BigVal(literal))}),
+		"document.Types[type/x/S].Constraints.Max":               scalar(&ir.Constraints{Max: new(ir.BigVal(literal))}),
+		"document.Types[type/x/S].Constraints.MultipleOf":        scalar(&ir.Constraints{MultipleOf: new(ir.BigVal(literal))}),
+		"document.Types[type/x/L].Value.Number":                  valued(numericValue(literal)),
+		"document.Types[type/x/M].Properties[0].Default.Number":  property(withDefault),
+		"document.Types[type/x/M].Properties[0].Constraints.Max": property(withBound),
 	}
 }
 
@@ -140,24 +140,25 @@ func TestVerify_CanonicalBigValIsClean(t *testing.T) {
 	}
 }
 
-// TestVerify_UnusedNumIsNotABound pins the one distinction the walk has to draw.
-// Value.Num is not a pointer and is the zero string on every Value that is not a
-// number — most of the values a document holds — so an empty one there says the
-// field is unused. A bound is carried by pointer and is present because
-// something set it, so an empty one there is a bound that constrains nothing.
-func TestVerify_UnusedNumIsNotABound(t *testing.T) {
+// TestVerify_UnusedNumberIsNotABound pins the one distinction the walk has to
+// draw. Value.Number is not a pointer and is the zero string on every Value
+// that is not a number — most of the values a document holds — so an empty one
+// there says the field is unused. A bound is carried by pointer and is present
+// because something set it, so an empty one there is a bound that constrains
+// nothing.
+func TestVerify_UnusedNumberIsNotABound(t *testing.T) {
 	t.Parallel()
 	prov := ir.Provenance{Source: ir.NoSource}
-	unused := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-		ID:         "t/x/L",
+	unused := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/L": &ir.Literal{
+		ID:         "type/x/L",
 		Name:       named("l"),
 		Provenance: prov,
-		Value:      ir.Value{Kind: ir.ValueString, Str: "not a number"},
+		Value:      ir.Value{Kind: ir.ValueString, String: "not a number"},
 	}}}
 	assert.Empty(t, verifyDeclared(unused), "a non-numeric Value carries no literal to check")
 
-	empty := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		ID:          "t/x/S",
+	empty := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+		ID:          "type/x/S",
 		Name:        named("s"),
 		Provenance:  prov,
 		Constraints: &ir.Constraints{Min: new(ir.BigVal(""))},
@@ -165,7 +166,7 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 	got := verifyDeclared(empty)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/bigval-not-numeric", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/S].Constraints.Min", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/S].Constraints.Min", got[0].Path)
 }
 
 // TestVerify_AbsentBoundIsClean holds the other side of that distinction: a nil
@@ -173,8 +174,8 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 // literal would report every document in the corpus.
 func TestVerify_AbsentBoundIsClean(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		ID:          "t/x/S",
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+		ID:          "type/x/S",
 		Name:        named("s"),
 		Provenance:  ir.Provenance{Source: ir.NoSource},
 		Constraints: &ir.Constraints{Pattern: "^[a-z]+$"},

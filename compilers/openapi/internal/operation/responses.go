@@ -15,11 +15,11 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -33,15 +33,16 @@ const (
 	statusKeyLen = 3
 )
 
-// lowerResponses lowers an operation's responses onto op
+// lowerResponses lowers an operation's responses onto operation
 // (docs/ir/responses.md): each status below 400, or a key naming no status, to
 // Responses and each from 400 to Errors, in source order, as RFC 9110 classes
 // them, and the default, which answers every status the others leave and so
-// states neither class, to Default. opDeclPtr is the operation's own
+// states neither class, to Default. operationDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107). Each
-// response's links go to w's, which resolves them once the service is whole.
-func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+// response's links go to loweringState's, which resolves them once the service
+// is whole.
+func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation, src *soa.Operation, operationDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -57,16 +58,16 @@ func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation,
 		// map. Sited at the component it named no operation, and the second
 		// operation to make the same mistake lost its warning to the first,
 		// since the diagnostic stream dedups on full identity.
-		entry := opDeclPtr + ids.Ptr("responses", code)
-		r, rc, rptr := service.Declared[soa.Response](c, rr, entry)
+		entry := operationDeclPtr + ids.Ptr("responses", code)
+		r, rc, rptr := service.Declared[soa.Response](serviceContext, rr, entry)
 		if r == nil {
 			continue
 		}
-		beside, besideDiags := service.Beside[soa.Response](c, rr, entry, true)
+		beside, besideDiags := service.Beside[soa.Response](serviceContext, rr, entry, true)
 		diags = append(diags, besideDiags...)
 		rng, named := statusRange(code)
 		if !named {
-			diags = append(diags, invalidStatusKeyDiag(c, code, entry))
+			diags = append(diags, invalidStatusKeyDiag(serviceContext, code, entry))
 		} else {
 			byRange[rng] = append(byRange[rng], code)
 		}
@@ -77,51 +78,51 @@ func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation,
 		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, drafts, ecDiags := lowerErrorCase(rc, w, r, code, rng, rptr, rr)
+			ec, drafts, ecDiags := lowerErrorCase(rc, loweringState, r, code, rng, rptr, rr)
 			ec.Unmodeled = annotation.MergeUnmodeled(ec.Unmodeled, beside)
 			diags = append(diags, ecDiags...)
-			w.links.add(op.ID, responseSlot{list: whole.ListErrors, index: len(op.Errors)}, drafts)
-			op.Errors = append(op.Errors, ec)
+			loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListErrors, index: len(operation.Errors)}, drafts)
+			operation.Errors = append(operation.Errors, ec)
 		} else {
-			resp, drafts, respDiags := lowerResponse(rc, w, r, code, statusConditions(rng, named), rptr, rr)
+			resp, drafts, respDiags := lowerResponse(rc, loweringState, r, code, statusConditions(rng, named), rptr, rr)
 			resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 			diags = append(diags, respDiags...)
-			w.links.add(op.ID, responseSlot{list: whole.ListResponses, index: len(op.Responses)}, drafts)
-			op.Responses = append(op.Responses, resp)
+			loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListResponses, index: len(operation.Responses)}, drafts)
+			operation.Responses = append(operation.Responses, resp)
 		}
 	}
-	diags = append(diags, lowerDefaultResponse(c, w, op, resps, opDeclPtr)...)
-	return append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
+	diags = append(diags, lowerDefaultResponse(serviceContext, loweringState, operation, resps, operationDeclPtr)...)
+	return append(diags, duplicateStatusKeyDiags(serviceContext, byRange, operationDeclPtr+ids.Ptr("responses"))...)
 }
 
 // lowerDefaultResponse lowers the responses map's default, if it declares one,
-// to op.Default, whose conditions are the catch-all. OpenAPI says it answers
-// every status no other key names, which takes in successes and failures alike
-// (docs/ir/responses.md), so the compiler classes it as neither: whether it is
-// the success response, an error, or both is a reading of the API, which the
-// plan makes under its policy.
-func lowerDefaultResponse(c service.Ctx, w walk, op *ir.Operation,
-	resps *soa.Responses, opDeclPtr jsontext.Pointer,
+// to operation.Default, whose conditions are the catch-all. OpenAPI says it
+// answers every status no other key names, which takes in successes and
+// failures alike (docs/ir/responses.md), so the compiler classes it as neither:
+// whether it is the success response, an error, or both is a reading of the
+// API, which the plan makes under its policy.
+func lowerDefaultResponse(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation,
+	resps *soa.Responses, operationDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
-	use := opDeclPtr + ids.Ptr("responses", defaultResponseKey)
-	def, dc, dptr := service.Declared[soa.Response](c, resps.GetDefault(), use)
+	use := operationDeclPtr + ids.Ptr("responses", defaultResponseKey)
+	def, dc, dptr := service.Declared[soa.Response](serviceContext, resps.GetDefault(), use)
 	if def == nil {
 		return nil
 	}
-	resp, drafts, diags := lowerResponse(dc, w, def, defaultResponseKey,
+	resp, drafts, diags := lowerResponse(dc, loweringState, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
-	beside, besideDiags := service.Beside[soa.Response](c, resps.GetDefault(), use, true)
+	beside, besideDiags := service.Beside[soa.Response](serviceContext, resps.GetDefault(), use, true)
 	resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 	diags = append(diags, besideDiags...)
-	op.Default = &resp
-	w.links.add(op.ID, responseSlot{list: whole.ListDefault}, drafts)
+	operation.Default = &resp
+	loweringState.links.add(operation.ID, responseSlot{list: compileddoc.ListDefault}, drafts)
 	return diags
 }
 
 // duplicateStatusKeyDiags reports each status range more than one responses-map
 // key resolved to, at the map itself. Ranges are visited in order and the keys
 // of each sorted, so the same map reads the same however it was written.
-func duplicateStatusKeyDiags(c service.Ctx, byRange map[ir.StatusRange][]string, mapPtr jsontext.Pointer) []ir.Diagnostic {
+func duplicateStatusKeyDiags(serviceContext service.Ctx, byRange map[ir.StatusRange][]string, mapPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ranges := slices.SortedFunc(maps.Keys(byRange), func(a, b ir.StatusRange) int {
 		return cmp.Or(cmp.Compare(a.From, b.From), cmp.Compare(a.To, b.To))
@@ -132,7 +133,7 @@ func duplicateStatusKeyDiags(c service.Ctx, byRange map[ir.StatusRange][]string,
 			continue
 		}
 		slices.Sort(keys)
-		diags = append(diags, duplicateStatusKeyDiag(c, keys, mapPtr))
+		diags = append(diags, duplicateStatusKeyDiag(serviceContext, keys, mapPtr))
 	}
 	return diags
 }
@@ -144,8 +145,8 @@ func duplicateStatusKeyDiags(c service.Ctx, byRange map[ir.StatusRange][]string,
 // status (see statusConditions). ref is the entry the document wrote there,
 // which carries the summary and description a Reference Object may put beside
 // its $ref.
-func lowerResponse(c service.Ctx, w walk, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
+func lowerResponse(serviceContext service.Ctx, loweringState operationLoweringState, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(serviceContext, loweringState, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
 		Conditions: conds,
@@ -178,26 +179,26 @@ type responseParts struct {
 // error interns its body once, so two naming fallbacks would rename it when
 // paths are reordered. The use-site docs fold over ref, the entry written here,
 // must agree across classes for the same reason (GitHub #610).
-func lowerResponseParts(c service.Ctx, w walk, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
-	headers, diags := lowerHeaders(c, w, r.GetHeaders(), rptr)
-	payload, payloadDiags := lowerPayload(c, w, r.GetContent(), rptr)
+func lowerResponseParts(serviceContext service.Ctx, loweringState operationLoweringState, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
+	headers, diags := lowerHeaders(serviceContext, loweringState, r.GetHeaders(), rptr)
+	payload, payloadDiags := lowerPayload(serviceContext, loweringState, r.GetContent(), rptr)
 	diags = append(diags, payloadDiags...)
 	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
-	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
+	summary, taken, summaryDiags := responseSummary(serviceContext, &parts.unmodeled, r, rptr)
 	diags = append(diags, summaryDiags...)
-	parts.docs = resolve.UseDocs[soa.Response](c.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
-	links, linkDiags := draftLinks(c, r, rptr)
+	parts.docs = componentlookup.UseDocs[soa.Response](serviceContext.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	links, linkDiags := draftLinks(serviceContext, r, rptr)
 	parts.links = links
 	diags = append(diags, linkDiags...)
-	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr, taken...)...)
+	return parts, append(diags, preserveResponseExtras(serviceContext, &parts.unmodeled, r, rptr, taken...)...)
 }
 
 // responseSummary reads the summary OpenAPI 3.2 gives a Response Object, which
 // the parser's model names no member for (GitHub #615), and returns the keys it
 // read for the census to leave alone. It reads at every version, as load
 // reports the key below 3.2 (diag.LaterVersionConstruct).
-func responseSummary(c service.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
-	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.Place(), rptr, "")
+func responseSummary(serviceContext service.Ctx, unmodeled *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
+	summary, read, diags := annotation.TakeString(unmodeled, r.GetRootNode(), "summary", nil, serviceContext.Place(), rptr, "")
 	if !read {
 		return "", nil, diags
 	}
@@ -208,10 +209,10 @@ func responseSummary(c service.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsont
 // on its node: its x-* extensions, and the undefined keys other than taken
 // (responseSummary's). One helper serves ir.Response and ir.ErrorCase, so
 // neither keeps a construct the other drops (GitHub #275).
-func preserveResponseExtras(c service.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
-	ext, diags := annotation.ExtensionsFrom(r.GetExtensions(), c.Place(), rptr)
-	*p = annotation.MergeUnmodeled(*p, ext)
-	return append(diags, annotation.UnknownKeysIn(p, r, c.Place(), rptr, taken...)...)
+func preserveResponseExtras(serviceContext service.Ctx, unmodeled *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
+	ext, diags := annotation.ExtensionsFrom(r.GetExtensions(), serviceContext.Place(), rptr)
+	*unmodeled = annotation.MergeUnmodeled(*unmodeled, ext)
+	return append(diags, annotation.UnknownKeysIn(unmodeled, r, serviceContext.Place(), rptr, taken...)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
@@ -238,8 +239,8 @@ func responseName(code string) ir.Naming {
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX"); ref is the entry written
 // here.
-func lowerErrorCase(c service.Ctx, w walk, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
+func lowerErrorCase(serviceContext service.Ctx, loweringState operationLoweringState, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(serviceContext, loweringState, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
@@ -319,8 +320,8 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 // document still compiles to IR worth having. It also keeps an input carrying
 // one in reach of FuzzCompile, which skips an input that draws an error and so
 // would hold none of its oracles to the case that provokes it.
-func invalidStatusKeyDiag(c service.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
+func invalidStatusKeyDiag(serviceContext service.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
+	return serviceContext.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+
 			"the response is kept with no status condition", code, defaultResponseKey)
 }
@@ -333,29 +334,29 @@ func invalidStatusKeyDiag(c service.Ctx, code string, entry jsontext.Pointer) ir
 // the entries answer to one status and cannot be told apart by name or
 // condition. It is sited at the map and names all the keys, so the report reads
 // the same from either spelling of the map.
-func duplicateStatusKeyDiag(c service.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
+func duplicateStatusKeyDiag(serviceContext service.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
 	quoted := make([]string, len(keys))
 	for i, k := range keys {
 		quoted[i] = strconv.Quote(k)
 	}
-	return c.DiagAt(ir.SeverityWarning, diag.DuplicateStatusKey, mapPtr,
+	return serviceContext.DiagAt(ir.SeverityWarning, diag.DuplicateStatusKey, mapPtr,
 		"response keys %s name one status range; all are kept, "+
 			"and they reach the IR with the same name and condition", strings.Join(quoted, ", "))
 }
 
 // isErrorRange reports whether a status range denotes an error: from 400, the
 // client and server error classes of RFC 9110 §15.5 and §15.6.
-func isErrorRange(r ir.StatusRange) bool { return r.From >= 400 }
+func isErrorRange(statusRange ir.StatusRange) bool { return statusRange.From >= 400 }
 
 // faultFor classifies a status range as RFC 9110 classes it: a 4xx status is a
 // client error and a 5xx one a server error, the status code's own meaning
 // rather than a reading of the API (docs/ir/responses.md). Any other range,
 // which no ErrorCase holds, is neither.
-func faultFor(r ir.StatusRange) string {
+func faultFor(statusRange ir.StatusRange) string {
 	switch {
-	case r.From >= 400 && r.From <= 499:
+	case statusRange.From >= 400 && statusRange.From <= 499:
 		return "client"
-	case r.From >= 500 && r.From <= 599:
+	case statusRange.From >= 500 && statusRange.From <= 599:
 		return "server"
 	default:
 		return ""

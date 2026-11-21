@@ -9,10 +9,10 @@ import (
 )
 
 // Lookalikes builds each from name.
-func Lookalikes(name string) (ir.TypeRegistry, ir.OpID, compile.Space, ir.Naming) {
+func Lookalikes(name string) (ir.TypeRegistry, ir.OperationID, compile.Space, ir.Naming) {
 	reg := ir.TypeRegistry{}
 	reg[name] = 1
 	n := ir.Naming{Canonical: name}
 	n.Hint = name
-	return reg, ir.OpID(name), compile.Space(name + "x"), n
+	return reg, ir.OperationID(name), compile.Space(name + "x"), n
 }

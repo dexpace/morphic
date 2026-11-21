@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,22 +24,22 @@ import (
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 // The Union stands where st says, and each variant, which no source pointer
-// names, under it at /type/<i>, built from what the Union reads beside s.
-func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
+// names, under it at /type/<i>, built from what the Union reads beside schema.
+func lowerUnion(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, list typeArray,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	types := list.types
 	at := st.pointer(pointer)
-	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		list.voices = st.voices(c, s, pointer)
-		list.held = st.heldWhole(c, pointer)
+	id := internNode(loweringContext, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		list.foldedEntries = st.foldedEntries(loweringContext, schema, pointer)
+		list.held = st.heldWhole(loweringContext, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet, _ *principalKept) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := at + ids.Ptr("type", strconv.Itoa(i))
-			vid, shared, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list, collect)
+			vid, shared, vDiags := lowerTypeVariant(loweringContext, ts, depth, schema, vptr, st, list, collect)
 			read |= shared
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
@@ -62,83 +62,84 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // object or array variant's build writes, where the kind-inference policy read
 // the types (lowerTypeList).
 type typeArray struct {
-	types  []statement.Kind
-	voices []annotation.Voice
-	mark   finisher
+	types         []statement.JSONSchemaTypeName
+	foldedEntries []annotation.FoldedAllOfEntry
+	mark          finisher
 	// held says the position keeps the principal writing the list whole, so a
 	// variant keeps none of its bounds verbatim (stand.held).
 	held bool
 }
 
-// lowerTypeVariant lowers the variant of s's type array that st names, at
-// pointer, as lowerTyped lowers st alone, but for what applies to another listed
-// type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator, which no $ref or mapping can name it by: the union keeps it.
-// A variant reads, of s and list's voices, the value bounds of the kinds of
-// st the position admits (boundKinds), an array one the collection bounds. A
-// scalar one holding them, the format or the content vocabulary is its own
-// Scalar, else the shared primitive, returning what it read; fin finishes one
-// built.
-func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
+// lowerTypeVariant lowers the variant of schema's type array that st names, at
+// pointer, as lowerTyped lowers st alone, but for what applies to another
+// listed type (docs/compilers/openapi.md#type-arrays). An object variant holds
+// no discriminator, which no $ref or mapping can name it by: the union keeps
+// it. A variant reads, of schema and list's folded entries, the value bounds
+// of the kinds of st the position admits (boundKinds), an array one the
+// collection bounds. A scalar one holding them, the format or the content
+// vocabulary is its own Scalar, else the shared primitive, returning what it
+// read; fin finishes one built.
+func lowerTypeVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, st statement.JSONSchemaTypeName,
 	list typeArray, fin finisher,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
-	takes := typeKinds(st) & boundKinds(c, s)
+	takes := typeKinds(st) & boundKinds(loweringContext, schema)
 	switch st {
 	case statement.KindObject:
-		id, diags := lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark.then(fin))
+		id, diags := lowerModel(loweringContext, ts, depth, schema, pointer, false /* discriminated */, takes, list.mark.then(fin))
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, pointer, list.voices, list.mark.then(fin))
+		id, diags := lowerArray(loweringContext, ts, depth, schema, pointer, pointer, list.foldedEntries, list.mark.then(fin))
 		return id, 0, diags
 	default:
-		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
-		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
-			return ts.PrimID(shape.base), shape.read, nil
+		shape := scalarShapeOf(schema, st, variantFormat(schema, st, list.types))
+		if shape.shared && !statesBounds(loweringContext, schema, list.foldedEntries, pointer, takes) {
+			return ts.PrimitiveID(shape.base), shape.read, nil
 		}
-		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin, stand{held: list.held})
+		id, diags := hoistScalar(loweringContext, ts, depth, schema, shape, takes, list.foldedEntries, pointer, fin, stand{held: list.held})
 		return id, 0, diags
 	}
 }
 
-// variantFormat returns the format s writes, for its type array's variant of
-// type st among types: the format where it pairs with st, or with no listed
+// variantFormat returns the format schema writes, for its type array's variant
+// of type st among types: the format where it pairs with st, or with no listed
 // type, since nothing then says which type it describes, and a format validates
 // only the instances of the types it is defined for (JSON Schema Validation
 // 2020-12 §7.1); none where it pairs with another listed type.
-func variantFormat(s *statement.Schema, st statement.Kind, types []statement.Kind) string {
-	format := writtenFormat(s)
+func variantFormat(schema *statement.Schema, st statement.JSONSchemaTypeName, types []statement.JSONSchemaTypeName) string {
+	format := writtenFormat(schema)
 	if format == "" || pairs(st, format) {
 		return format
 	}
-	if slices.ContainsFunc(types, func(t statement.Kind) bool { return pairs(t, format) }) {
+	if slices.ContainsFunc(types, func(jsonSchemaTypeName statement.JSONSchemaTypeName) bool { return pairs(jsonSchemaTypeName, format) }) {
 		return ""
 	}
 	return format
 }
 
-// pairs reports whether format pairs with st: spelling.Lookup lists the
-// pairing, or spelling.LookupEncoded does, as it does byte beside a string.
-func pairs(st statement.Kind, format string) bool {
+// pairs reports whether format pairs with st: typeformat.Lookup lists the
+// pairing, or typeformat.LookupEncoded does, as it does byte beside a string.
+func pairs(st statement.JSONSchemaTypeName, format string) bool {
 	key := string(st) + "/" + format
-	_, listed := spelling.Lookup(key)
-	_, encoded := spelling.LookupEncoded(key)
+	_, listed := typeformat.Lookup(key)
+	_, encoded := typeformat.LookupEncoded(key)
 	return listed || encoded
 }
 
-// statesBounds reports whether s or one of voices, read at pointer, writes a
-// value bound a reader of the kinds takes holds: one ConstraintsOf reads into a
-// field or keeps, as an empty pattern or a keyword written null is not. It reads
-// apart from the node, so what it reads is reported where hoistScalar reads it.
-func statesBounds(c lowering.Ctx, s *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) bool {
+// statesBounds reports whether schema or one of foldedEntries, read at
+// pointer, writes a value bound a reader of the kinds takes holds: one
+// ConstraintsOf reads into a field or keeps, as an empty pattern or a keyword
+// written null is not. It reads apart from the node, so what it reads is
+// reported where hoistScalar reads it.
+func statesBounds(loweringContext lowering.Ctx, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry, pointer jsontext.Pointer, takes kindSet) bool {
 	var kept ir.Unmodeled
-	cons, _ := ConstraintsOf(c, &kept, s, voices, pointer, takes)
+	cons, _ := ConstraintsOf(loweringContext, &kept, schema, foldedEntries, pointer, takes)
 	return cons != nil || len(kept) > 0
 }
 
 // typesDisjoint reports whether no instance has two of types. A type listed
 // twice overlaps itself, and JSON's types are otherwise disjoint but for one
 // pair: every integer is a number.
-func typesDisjoint(types []statement.Kind) bool {
+func typesDisjoint(types []statement.JSONSchemaTypeName) bool {
 	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
 		return false
 	}

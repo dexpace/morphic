@@ -36,16 +36,16 @@ components:
 }
 
 // undecidedTargets returns what the component C, the property p and the
-// parameter q lowered to, C as what its alias is a use of.
+// parameter parameter lowered to, C as what its alias is a use of.
 func undecidedTargets(t *testing.T, doc *ir.Document) []ir.TypeRef {
 	t.Helper()
-	q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+	parameter, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, doc.Services[0]), "q")
 	require.True(t, ok)
-	c := typeByName(doc, "C")
-	if sc, isScalar := c.(*ir.Scalar); isScalar && sc.Base != nil {
-		return []ir.TypeRef{*sc.Base, propertyOf(t, doc, "Holder", "p").Type, q.Type}
+	typeDef := typeByName(doc, "C")
+	if sc, isScalar := typeDef.(*ir.Scalar); isScalar && sc.Base != nil {
+		return []ir.TypeRef{*sc.Base, propertyOf(t, doc, "Holder", "p").Type, parameter.Type}
 	}
-	return []ir.TypeRef{{Target: c.Common().ID}, propertyOf(t, doc, "Holder", "p").Type, q.Type}
+	return []ir.TypeRef{{Target: typeDef.Common().ID}, propertyOf(t, doc, "Holder", "p").Type, parameter.Type}
 }
 
 // TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit pins an allOf
@@ -56,18 +56,18 @@ func undecidedTargets(t *testing.T, doc *ir.Document) []ir.TypeRef {
 func TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		a, b string
-		prim ir.PrimKind
+		a, b      string
+		primitive ir.PrimitiveKind
 	}{
-		"two formats":                   {"{type: string, format: email}", "{type: string, format: uuid}", ir.PrimString},
-		"two overlapping enums":         {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimString},
-		"two type lists sharing a kind": {"{type: [string, integer]}", "{type: [string, boolean]}", ir.PrimString},
-		"two integer formats":           {"{type: integer, format: int32}", "{type: integer, format: uint32}", ir.PrimInteger},
-		"two sets of fractions":         {"{enum: [1.5, 2.5]}", "{enum: [2.5, 3.5]}", ir.PrimNumber},
+		"two formats":                   {"{type: string, format: email}", "{type: string, format: uuid}", ir.PrimitiveString},
+		"two overlapping enums":         {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimitiveString},
+		"two type lists sharing a kind": {"{type: [string, integer]}", "{type: [string, boolean]}", ir.PrimitiveString},
+		"two integer formats":           {"{type: integer, format: int32}", "{type: integer, format: uint32}", ir.PrimitiveInteger},
+		"two sets of fractions":         {"{enum: [1.5, 2.5]}", "{enum: [2.5, 3.5]}", ir.PrimitiveNumber},
 		"two type lists sharing a flag": {"{type: [boolean, string], format: a}", "{type: [boolean, integer], format: b}",
-			ir.PrimBool},
-		"two enums sharing a flag alone": {"{enum: [true, a]}", "{enum: [true, b]}", ir.PrimBool},
-		"two enums sharing an integer":   {"{enum: [1, true, x]}", "{enum: [1, false, y]}", ir.PrimInteger},
+			ir.PrimitiveBool},
+		"two enums sharing a flag alone": {"{enum: [true, a]}", "{enum: [true, b]}", ir.PrimitiveBool},
+		"two enums sharing an integer":   {"{enum: [1, true, x]}", "{enum: [1, false, y]}", ir.PrimitiveInteger},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -75,7 +75,7 @@ func TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit(t *testing.T) 
 				doc, diags := parseFull(t, undecidedSpec(order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
 				for _, ref := range undecidedTargets(t, doc) {
-					assert.Equal(t, ir.PrimTypeID(tc.prim), ref.Target, "%v", order)
+					assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), ref.Target, "%v", order)
 				}
 				kept := typeByName(doc, "C").Common().Unmodeled
 				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(kept), "%v", order)
@@ -102,14 +102,14 @@ func TestRefinementUndecided_SeveralSharedKindsAreTheirUnion(t *testing.T) {
 			for _, order := range [][2]string{tc, {tc[1], tc[0]}} {
 				doc, diags := parseFull(t, undecidedSpec(order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
-				u, ok := typeByName(doc, "C").(*ir.Union)
+				union, ok := typeByName(doc, "C").(*ir.Union)
 				require.True(t, ok, "%v: got %T", order, typeByName(doc, "C"))
 				var variants []ir.TypeID
-				for _, v := range u.Variants {
-					variants = append(variants, v.Type.Target)
+				for _, variant := range union.Variants {
+					variants = append(variants, variant.Type.Target)
 				}
-				assert.Equal(t, []ir.TypeID{ir.PrimTypeID(ir.PrimString), ir.PrimTypeID(ir.PrimInteger)}, variants, "%v", order)
-				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(u.Unmodeled), "%v", order)
+				assert.Equal(t, []ir.TypeID{ir.PrimitiveTypeID(ir.PrimitiveString), ir.PrimitiveTypeID(ir.PrimitiveInteger)}, variants, "%v", order)
+				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, unmodeledKeys(union.Unmodeled), "%v", order)
 			}
 		})
 	}
@@ -124,8 +124,8 @@ func TestRefinementUndecided_ANullTheEntriesAllAdmitStays(t *testing.T) {
 		"        both: {allOf: [{type: [string, 'null'], format: email}, {type: [string, 'null'], format: uuid}]}\n"+
 		"        one: {allOf: [{type: [string, 'null'], format: email}, {type: string, format: uuid}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString), Nullable: true}, propertyOf(t, doc, "Holder", "both").Type)
-	assert.Equal(t, ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}, propertyOf(t, doc, "Holder", "one").Type)
+	assert.Equal(t, ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString), Nullable: true}, propertyOf(t, doc, "Holder", "both").Type)
+	assert.Equal(t, ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}, propertyOf(t, doc, "Holder", "one").Type)
 }
 
 // TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged pins what is no
@@ -137,7 +137,7 @@ func TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged(t *testing.T) 
 		doc, diags := parseFull(t, undecidedSpec(order[0], order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
 		for _, ref := range undecidedTargets(t, doc) {
-			assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), ref.Target, "%v", order)
+			assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), ref.Target, "%v", order)
 		}
 	}
 	for _, order := range [][2]string{{"{type: string}", "{type: integer}"}, {"{type: integer}", "{type: string}"}} {
@@ -146,7 +146,7 @@ func TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged(t *testing.T) 
 		_, model := typeByName(doc, "C").(*ir.Model)
 		assert.True(t, model, "%v", order)
 		warned := slices.ContainsFunc(diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/C"),
-			func(d ir.Diagnostic) bool { return d.Severity == ir.SeverityWarning })
+			func(diagnostic ir.Diagnostic) bool { return diagnostic.Severity == ir.SeverityWarning })
 		assert.True(t, warned, "%v", order)
 	}
 }

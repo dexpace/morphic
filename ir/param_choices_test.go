@@ -20,31 +20,31 @@ import (
 // of one choice appears in no other, and the declaration order of the
 // parameters differs from the order the choices list them in.
 func paramChoicesOperation() ir.Operation {
-	const prefix = "param/openapi/paths/~1resources/get/parameters/"
-	id := func(name string) ir.ParamID { return ir.ParamID(prefix + name + "/query") }
+	const prefix = "parameter/openapi/paths/~1resources/get/parameters/"
+	id := func(name string) ir.ParameterID { return ir.ParameterID(prefix + name + "/query") }
 	named := func(source string) ir.Naming { return ir.Naming{Source: source, Canonical: source} }
 	params := make([]ir.Parameter, 0, 5)
 	for _, name := range []string{"parent_id", "parent_slug", "parent_external_id", "before", "after"} {
 		params = append(params, ir.Parameter{ID: id(name), Name: named(name)})
 	}
 	return ir.Operation{
-		ID:     "op/openapi/paths/~1resources/get",
+		ID:     "operation/openapi/paths/~1resources/get",
 		Name:   named("listResources"),
 		Params: params,
 		ParamChoices: []ir.ParamChoice{
 			{
 				Name: named("cursor"),
 				Variants: []ir.ParamVariant{
-					{Name: named("backward"), Params: []ir.ParamID{id("before")}},
-					{Name: named("forward"), Params: []ir.ParamID{id("after")}},
+					{Name: named("backward"), Params: []ir.ParameterID{id("before")}},
+					{Name: named("forward"), Params: []ir.ParameterID{id("after")}},
 				},
 			},
 			{
 				Name:     named("parent"),
 				Required: true,
 				Variants: []ir.ParamVariant{
-					{Name: named("by_external_id"), Params: []ir.ParamID{id("parent_slug"), id("parent_external_id")}},
-					{Name: named("by_id"), Params: []ir.ParamID{id("parent_id")}},
+					{Name: named("by_external_id"), Params: []ir.ParameterID{id("parent_slug"), id("parent_external_id")}},
+					{Name: named("by_id"), Params: []ir.ParameterID{id("parent_id")}},
 				},
 			},
 		},
@@ -61,7 +61,7 @@ func TestOperation_ParamChoicesEncodeUnderTheirOwnKeys(t *testing.T) {
 	raw, err := json.Marshal(paramChoicesOperation().ParamChoices)
 	require.NoError(t, err)
 
-	const prefix = "param/openapi/paths/~1resources/get/parameters/"
+	const prefix = "parameter/openapi/paths/~1resources/get/parameters/"
 	want := `[` +
 		`{"name":{"source":"cursor","canonical":"cursor"},"required":false,"variants":[` +
 		`{"name":{"source":"backward","canonical":"backward"},"params":["` + prefix + `before/query"]},` +
@@ -78,14 +78,14 @@ func TestOperation_ParamChoicesEncodeUnderTheirOwnKeys(t *testing.T) {
 // none reads as it did before the field existed.
 func TestOperation_ParamChoicesAreOmittedWhenNoneAreStated(t *testing.T) {
 	t.Parallel()
-	op := paramChoicesOperation()
-	op.ParamChoices = nil
-	raw, err := json.Marshal(op)
+	operation := paramChoicesOperation()
+	operation.ParamChoices = nil
+	raw, err := json.Marshal(operation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "paramChoices")
 
-	op.ParamChoices = []ir.ParamChoice{}
-	raw, err = json.Marshal(op)
+	operation.ParamChoices = []ir.ParamChoice{}
+	raw, err = json.Marshal(operation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "paramChoices", "an empty list states no more than a nil one")
 }
@@ -101,9 +101,9 @@ func TestDocument_ParamChoicesRoundTripThroughTheDocumentCodec(t *testing.T) {
 		Name:      "choices",
 		Version:   "1",
 		Services: []ir.Service{{
-			ID:     "s/openapi/s",
+			ID:     "service/openapi/s",
 			Name:   ir.Naming{Source: "s", Canonical: "s"},
-			Groups: []ir.OperationGroup{{ID: "g/openapi/g", Operations: []ir.Operation{paramChoicesOperation()}}},
+			Groups: []ir.OperationGroup{{ID: "operation-group/openapi/g", Operations: []ir.Operation{paramChoicesOperation()}}},
 		}},
 	}
 	raw, err := json.Marshal(&want, json.Deterministic(true))

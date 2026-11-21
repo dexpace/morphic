@@ -26,7 +26,7 @@ type Step interface {
 
 type Ctx struct {
     Doc     *ir.Document        // read-only source of un-lowered facts
-    Facts   *irfacts.Index      // read-only derived facts, the engine's one index (../contract/emitter.md)
+    Facts   *irfacts.DocumentFacts      // read-only derived facts, the engine's one index (../contract/emitter.md)
     Plan    *plan.Plan          // read-only shared decisions
     Types   typemap.Table       // the merged type table (../contract/type-table.md), built from Options
     Policy  policy.Resolved      // read-only SDK runtime policy, resolved per operation
@@ -38,7 +38,7 @@ type Ctx struct {
                                  // (naming.md); nil on a first run
     Snapshot string              // read-only: the version label of the snapshot Doc is;
                                  // "" = unsliced
-    Samples map[emitter.TargetKey]map[ir.OpID][]emitter.Sample // read-only, a docs target's: the
+    Samples map[emitter.TargetKey]map[ir.OperationID][]emitter.Sample // read-only, a docs target's: the
                                  // samples of the targets its options name (../docs-and-mock.md)
     Routes  map[string]emitter.RouteTable // read-only, a cross-version target's: every
                                  // snapshot's routes (../docs-and-mock.md#routes-and-links)

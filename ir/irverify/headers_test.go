@@ -19,17 +19,17 @@ var prefixHeaderCodes = []string{"ir/prefix-header-not-map", "ir/prefix-header-w
 // map, an anonymous model decorating it, a model, two anonymous models
 // decorating each other, and a nil entry.
 func prefixHeaderTypes() ir.TypeRegistry {
-	str := ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}
+	stringType := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveString)}
 	decorates := func(id, base ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: true, Base: &ir.TypeRef{Target: base}}
 	}
-	types := ir.TypeRegistry{"t/x/Nil": (*ir.Model)(nil)}
+	types := ir.TypeRegistry{"type/x/Nil": (*ir.Model)(nil)}
 	for _, td := range []ir.TypeDef{
-		&ir.MapT{ID: "t/x/Meta", Name: named("meta"), Value: str},
-		decorates("t/x/Meta/decorated", "t/x/Meta"),
-		&ir.Model{ID: "t/x/Name", Name: named("name")},
-		decorates("t/x/loop/a", "t/x/loop/b"),
-		decorates("t/x/loop/b", "t/x/loop/a"),
+		&ir.MapT{ID: "type/x/Meta", Name: named("meta"), Value: stringType},
+		decorates("type/x/Meta/decorated", "type/x/Meta"),
+		&ir.Model{ID: "type/x/Name", Name: named("name")},
+		decorates("type/x/loop/a", "type/x/loop/b"),
+		decorates("type/x/loop/b", "type/x/loop/a"),
 	} {
 		types[td.Common().ID] = td
 	}
@@ -37,15 +37,15 @@ func prefixHeaderTypes() ir.TypeRegistry {
 }
 
 // prefixHeaderViolations returns the paths checkPrefixHeaders reports for a
-// response declaring h, each prefixed by its code.
-func prefixHeaderViolations(h ir.Header) []string {
-	doc := opDoc(ir.Operation{ID: "op/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{h}}}})
+// response declaring header, each prefixed by its code.
+func prefixHeaderViolations(header ir.Header) []string {
+	doc := singleOperationDocument(ir.Operation{ID: "operation/x/S/op", Responses: []ir.Response{{Headers: []ir.Header{header}}}})
 	doc.Types = prefixHeaderTypes()
 	var got []string
-	for _, v := range irverify.Verify(doc) {
+	for _, violation := range irverify.Verify(doc) {
 		for _, code := range prefixHeaderCodes {
-			if v.Code == code {
-				got = append(got, code+" "+v.Path)
+			if violation.Code == code {
+				got = append(got, code+" "+violation.Path)
 			}
 		}
 	}
@@ -58,28 +58,28 @@ func prefixHeaderViolations(h ir.Header) []string {
 // one to the checks that own them (docs/ir/responses.md#prefix-headers).
 func TestVerify_AHeaderUnderAPrefixIsAMapOfNoName(t *testing.T) {
 	t.Parallel()
-	const at = "doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]"
+	const at = "document.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]"
 	header := func(target ir.TypeID, wire string, prefix *string) ir.Header {
-		return ir.Header{ID: "p/x/h", Name: named("meta"), WireName: wire, Type: ir.TypeRef{Target: target}, Prefix: prefix}
+		return ir.Header{ID: "property/x/h", Name: named("meta"), WireName: wire, Type: ir.TypeRef{Target: target}, Prefix: prefix}
 	}
 	for _, tc := range []struct {
 		name string
 		h    ir.Header
 		want []string
 	}{
-		{"a map under a prefix", header("t/x/Meta", "", new("X-Meta-")), nil},
-		{"a map under the empty prefix", header("t/x/Meta", "", new("")), nil},
-		{"a decorated map", header("t/x/Meta/decorated", "", new("X-Meta-")), nil},
-		{"a dangling type", header("t/x/Missing", "", new("X-Meta-")), nil},
-		{"a nil type", header("t/x/Nil", "", new("X-Meta-")), nil},
-		{"one field of a model", header("t/x/Name", "X-Name", nil), nil},
-		{"a model under a prefix", header("t/x/Name", "", new("X-Meta-")),
+		{"a map under a prefix", header("type/x/Meta", "", new("X-Meta-")), nil},
+		{"a map under the empty prefix", header("type/x/Meta", "", new("")), nil},
+		{"a decorated map", header("type/x/Meta/decorated", "", new("X-Meta-")), nil},
+		{"a dangling type", header("type/x/Missing", "", new("X-Meta-")), nil},
+		{"a nil type", header("type/x/Nil", "", new("X-Meta-")), nil},
+		{"one field of a model", header("type/x/Name", "X-Name", nil), nil},
+		{"a model under a prefix", header("type/x/Name", "", new("X-Meta-")),
 			[]string{"ir/prefix-header-not-map " + at + ".Type"}},
-		{"a cycle of decorators", header("t/x/loop/a", "", new("")),
+		{"a cycle of decorators", header("type/x/loop/a", "", new("")),
 			[]string{"ir/prefix-header-not-map " + at + ".Type"}},
-		{"a wire name beside the prefix", header("t/x/Meta", "X-Meta-", new("X-Meta-")),
+		{"a wire name beside the prefix", header("type/x/Meta", "X-Meta-", new("X-Meta-")),
 			[]string{"ir/prefix-header-wire-name " + at + ".WireName"}},
-		{"both", header("t/x/Name", "X-Meta-", new("")), []string{
+		{"both", header("type/x/Name", "X-Meta-", new("")), []string{
 			"ir/prefix-header-not-map " + at + ".Type", "ir/prefix-header-wire-name " + at + ".WireName",
 		}},
 	} {
@@ -96,21 +96,21 @@ func TestVerify_AHeaderUnderAPrefixIsAMapOfNoName(t *testing.T) {
 func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 	t.Parallel()
 	bad := func() []ir.Header {
-		return []ir.Header{{ID: "p/x/h", Name: named("meta"), Type: ir.TypeRef{Target: "t/x/Name"}, Prefix: new("")}}
+		return []ir.Header{{ID: "property/x/h", Name: named("meta"), Type: ir.TypeRef{Target: "type/x/Name"}, Prefix: new("")}}
 	}
 	parts := func() *ir.Payload {
 		return &ir.Payload{Contents: []ir.Content{{
-			MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "t/x/Name"},
+			MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "type/x/Name"},
 			ItemEncoding: &ir.PartEncoding{Headers: bad()},
-			Encoding:     map[ir.PropID]ir.PartEncoding{"p/x/part": {Headers: bad()}},
-			CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{"t/x/Name": {
+			Encoding:     map[ir.PropertyID]ir.PartEncoding{"property/x/part": {Headers: bad()}},
+			CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{"type/x/Name": {
 				Value:    &ir.PartEncoding{Headers: bad()},
 				Patterns: map[string]ir.PartEncoding{"^a": {Headers: bad()}},
 			}},
 		}}}
 	}
-	doc := opDoc(ir.Operation{
-		ID: "op/x/S/op", Request: parts(),
+	doc := singleOperationDocument(ir.Operation{
+		ID: "operation/x/S/op", Request: parts(),
 		Responses: []ir.Response{{Headers: bad(), Payload: parts()}},
 		Default:   &ir.Response{Headers: bad(), Payload: parts()},
 		Errors:    []ir.ErrorCase{{Headers: bad(), Payload: parts()}},
@@ -119,18 +119,18 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 	doc.Messages = map[ir.MessageID]ir.Message{"m/x": {ID: "m/x", Name: named("m"), Payload: *parts()}}
 	doc.Types = prefixHeaderTypes()
 
-	const op = "doc.Services[0].Groups[0].Operations[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
 	payloads := []string{
-		op + ".Request", op + ".Responses[0].Payload", op + ".Default.Payload", op + ".Errors[0].Payload",
-		"doc.Services[0].CommonErrors[0].Payload", "doc.Messages[m/x].Payload",
+		operationPath + ".Request", operationPath + ".Responses[0].Payload", operationPath + ".Default.Payload", operationPath + ".Errors[0].Payload",
+		"document.Services[0].CommonErrors[0].Payload", "document.Messages[m/x].Payload",
 	}
-	holders := []string{op + ".Responses[0]", op + ".Default", op + ".Errors[0]", "doc.Services[0].CommonErrors[0]"}
+	holders := []string{operationPath + ".Responses[0]", operationPath + ".Default", operationPath + ".Errors[0]", "document.Services[0].CommonErrors[0]"}
 	want := make([]string, 0, 4*len(payloads)+len(holders))
 	for _, payload := range payloads {
 		want = append(want, payload+".Contents[0].ItemEncoding.Headers[0].Type",
-			payload+".Contents[0].Encoding[p/x/part].Headers[0].Type",
-			payload+".Contents[0].CatchAllEncoding[t/x/Name].Value.Headers[0].Type",
-			payload+".Contents[0].CatchAllEncoding[t/x/Name].Patterns[^a].Headers[0].Type")
+			payload+".Contents[0].Encoding[property/x/part].Headers[0].Type",
+			payload+".Contents[0].CatchAllEncoding[type/x/Name].Value.Headers[0].Type",
+			payload+".Contents[0].CatchAllEncoding[type/x/Name].Patterns[^a].Headers[0].Type")
 	}
 	for _, holder := range holders {
 		want = append(want, holder+".Headers[0].Type")

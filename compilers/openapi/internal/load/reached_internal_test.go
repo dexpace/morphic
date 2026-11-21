@@ -16,12 +16,12 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,7 +41,7 @@ func externalDir(t *testing.T, files map[string]string) string {
 
 // loadExternal loads root as root.yaml in dir, with external references
 // allowed, and requires it to load.
-func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir.Diagnostic) {
+func loadExternal(t *testing.T, dir, root string, opts Options) (*LoadedOpenAPIDocument, []ir.Diagnostic) {
 	t.Helper()
 	opts.Reader = reader.Disk{}
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, opts)
@@ -61,7 +61,7 @@ func TestLandingTargets(t *testing.T) {
 	t.Parallel()
 	mapping := &yaml.Node{Kind: yaml.MappingNode}
 	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
-	written := map[bind.Position]*yaml.Node{
+	written := map[reftable.DocumentPointer]*yaml.Node{
 		{Pointer: "/x-lib/A"}:                         mapping,
 		{Doc: 1, Pointer: "/B"}:                       mapping,
 		{Doc: 1, Pointer: "/F"}:                       mapping,
@@ -72,34 +72,34 @@ func TestLandingTargets(t *testing.T) {
 		{Pointer: "/x-lib/U/additionalItems"}:         mapping,
 		{Doc: 1, Pointer: "/x-lib/T/additionalItems"}: five,
 	}
-	got := landingTargets([]bind.Landing{
-		{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml", Site: bind.Position{Pointer: "/s"}, Reached: true},
-		{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml", Site: bind.Position{Pointer: "/t"}, Reached: true},
-		{At: bind.Position{Doc: 1, Pointer: "/F"}, Name: "other.yaml", Site: bind.Position{Doc: 1, Pointer: "/u"},
+	got := landingTargets([]reftable.Landing{
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/A"}, Name: "spec.yaml", Site: reftable.DocumentPointer{Pointer: "/s"}, Reached: true},
+		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/B"}, Name: "other.yaml", Site: reftable.DocumentPointer{Pointer: "/t"}, Reached: true},
+		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/F"}, Name: "other.yaml", Site: reftable.DocumentPointer{Doc: 1, Pointer: "/u"},
 			Reached: true},
-		{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"},
-		{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true},
-		{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true},
-		{At: bind.Position{Pointer: "/x-lib/G"}, Name: "spec.yaml", Site: bind.Position{Pointer: "/g"}, Reached: true},
-		{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true},
-		{At: bind.Position{Pointer: "/x-lib/U/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/U"}, Reached: true},
-		{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
+		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/C"}, Name: "other.yaml"},
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/D"}, Reached: true},
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/E"}, Reached: true},
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/G"}, Name: "spec.yaml", Site: reftable.DocumentPointer{Pointer: "/g"}, Reached: true},
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/T/additionalItems"}, Site: reftable.DocumentPointer{Pointer: "/x-lib/T"}, Reached: true},
+		{At: reftable.DocumentPointer{Pointer: "/x-lib/U/additionalItems"}, Site: reftable.DocumentPointer{Pointer: "/x-lib/U"}, Reached: true},
+		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, Site: reftable.DocumentPointer{Pointer: "/x-lib/T"},
 			Reached: true},
-	}, func(p bind.Position) *yaml.Node { return written[p] })
+	}, func(documentPointer reftable.DocumentPointer) *yaml.Node { return written[documentPointer] })
 
 	require.Len(t, got, 6)
-	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/s"}, at: bind.Position{Pointer: "/x-lib/A"},
-		kind: oas.Schema, node: mapping, doc: "spec.yaml"}, got[0])
+	assert.Equal(t, reachedTarget{site: reftable.DocumentPointer{Pointer: "/s"}, at: reftable.DocumentPointer{Pointer: "/x-lib/A"},
+		kind: specrules.Schema, node: mapping, doc: "spec.yaml"}, got[0])
 	assert.True(t, got[0].inSource())
-	assert.Equal(t, bind.Position{Pointer: "/t"}, got[1].site, "a $ref the source writes places it")
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/B"}, got[1].at, "read where it lands, in that document")
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/t"}, got[1].site, "a $ref the source writes places it")
+	assert.Equal(t, reftable.DocumentPointer{Doc: 1, Pointer: "/B"}, got[1].at, "read where it lands, in that document")
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource())
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/u"}, got[2].site, "a $ref only another document writes places it")
-	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/g"}, at: bind.Position{Pointer: "/x-lib/G"},
-		kind: oas.Schema, node: five, doc: "spec.yaml"}, got[3], "a number is no schema, which the check reports")
-	assert.Equal(t, bind.Position{Pointer: "/x-lib/U/additionalItems"}, got[4].at, "a tuple's rest written as a mapping")
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, got[5].at,
+	assert.Equal(t, reftable.DocumentPointer{Doc: 1, Pointer: "/u"}, got[2].site, "a $ref only another document writes places it")
+	assert.Equal(t, reachedTarget{site: reftable.DocumentPointer{Pointer: "/g"}, at: reftable.DocumentPointer{Pointer: "/x-lib/G"},
+		kind: specrules.Schema, node: five, doc: "spec.yaml"}, got[3], "a number is no schema, which the check reports")
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/U/additionalItems"}, got[4].at, "a tuple's rest written as a mapping")
+	assert.Equal(t, reftable.DocumentPointer{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, got[5].at,
 		"another document's position is no rest of the tuple its site writes")
 }
 
@@ -110,20 +110,20 @@ func TestLandingTargets(t *testing.T) {
 func TestObjectTargets(t *testing.T) {
 	t.Parallel()
 	param := &yaml.Node{Kind: yaml.MappingNode}
-	written := map[bind.Position]*yaml.Node{{Pointer: "/x-params/q"}: param, {Doc: 1, Pointer: "/q"}: param}
-	got := objectTargets([]bind.ObjectLanding{
-		{At: bind.Position{Pointer: "/x-params/q"}, Kind: bind.RefParameter, Name: "spec.yaml",
-			Site: bind.Position{Pointer: "/p"}, Reached: true},
-		{At: bind.Position{Doc: 1, Pointer: "/q"}, Kind: bind.RefHeader, Name: "other.yaml",
-			Site: bind.Position{Doc: 1, Pointer: "/h"}, Reached: true},
-		{At: bind.Position{Pointer: "/x-params/unreached"}, Kind: bind.RefParameter, Name: "spec.yaml"},
-		{At: bind.Position{Pointer: "/x-params/gone"}, Kind: bind.RefParameter, Name: "spec.yaml", Reached: true},
-	}, func(p bind.Position) *yaml.Node { return written[p] })
+	written := map[reftable.DocumentPointer]*yaml.Node{{Pointer: "/x-params/q"}: param, {Doc: 1, Pointer: "/q"}: param}
+	got := objectTargets([]reftable.ObjectLanding{
+		{At: reftable.DocumentPointer{Pointer: "/x-params/q"}, Kind: reftable.RefParameter, Name: "spec.yaml",
+			Site: reftable.DocumentPointer{Pointer: "/p"}, Reached: true},
+		{At: reftable.DocumentPointer{Doc: 1, Pointer: "/q"}, Kind: reftable.RefHeader, Name: "other.yaml",
+			Site: reftable.DocumentPointer{Doc: 1, Pointer: "/h"}, Reached: true},
+		{At: reftable.DocumentPointer{Pointer: "/x-params/unreached"}, Kind: reftable.RefParameter, Name: "spec.yaml"},
+		{At: reftable.DocumentPointer{Pointer: "/x-params/gone"}, Kind: reftable.RefParameter, Name: "spec.yaml", Reached: true},
+	}, func(documentPointer reftable.DocumentPointer) *yaml.Node { return written[documentPointer] })
 
 	assert.Equal(t, []reachedTarget{
-		{site: bind.Position{Pointer: "/p"}, at: bind.Position{Pointer: "/x-params/q"}, kind: oas.Parameter, node: param,
+		{site: reftable.DocumentPointer{Pointer: "/p"}, at: reftable.DocumentPointer{Pointer: "/x-params/q"}, kind: specrules.Parameter, node: param,
 			doc: "spec.yaml"},
-		{site: bind.Position{Doc: 1, Pointer: "/h"}, at: bind.Position{Doc: 1, Pointer: "/q"}, kind: oas.Header,
+		{site: reftable.DocumentPointer{Doc: 1, Pointer: "/h"}, at: reftable.DocumentPointer{Doc: 1, Pointer: "/q"}, kind: specrules.Header,
 			node: param, doc: "other.yaml"},
 	}, got)
 }
@@ -132,11 +132,11 @@ func TestObjectTargets(t *testing.T) {
 // reference object can stand for is held to the rule table as that kind.
 func TestObjectKinds_NamesTheRuleTablesKindOfEach(t *testing.T) {
 	t.Parallel()
-	want := map[bind.RefKind]oas.Kind{
-		bind.RefPathItem: oas.PathItem, bind.RefParameter: oas.Parameter, bind.RefHeader: oas.Header,
-		bind.RefRequestBody: oas.RequestBody, bind.RefResponse: oas.Response, bind.RefCallback: oas.Callback,
-		bind.RefExample: oas.Example, bind.RefLink: oas.Link, bind.RefSecurityScheme: oas.SecurityScheme,
-		bind.RefMediaType: oas.MediaType,
+	want := map[reftable.RefKind]specrules.Kind{
+		reftable.RefPathItem: specrules.PathItem, reftable.RefParameter: specrules.Parameter, reftable.RefHeader: specrules.Header,
+		reftable.RefRequestBody: specrules.RequestBody, reftable.RefResponse: specrules.Response, reftable.RefCallback: specrules.Callback,
+		reftable.RefExample: specrules.Example, reftable.RefLink: specrules.Link, reftable.RefSecurityScheme: specrules.SecurityScheme,
+		reftable.RefMediaType: specrules.MediaType,
 	}
 	assert.Equal(t, want, objectKinds)
 }
@@ -147,17 +147,18 @@ func TestObjectKinds_NamesTheRuleTablesKindOfEach(t *testing.T) {
 func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-a: &a 5\nx-b: *a\n")
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
+	table := reftable.Bind(t.Context(), root, reftable.Config{Self: "spec.yaml"})
 	view := nodeview.New()
-	five := writtenIn(view, table, bind.Position{Pointer: "/x-b"})
+	five := writtenIn(view, table, reftable.DocumentPointer{Pointer: "/x-b"})
 	require.NotNil(t, five)
 	assert.Equal(t, "5", five.Value, "the alias's anchor")
-	assert.Nil(t, writtenIn(view, table, bind.Position{Pointer: "/x-c/d"}), "nothing is written there")
+	assert.Nil(t, writtenIn(view, table, reftable.DocumentPointer{Pointer: "/x-c/d"}), "nothing is written there")
 }
 
 // TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
 // external reference names is reported: under its own rule and severity, in
-// that document's Document.Sources entry, at the node it is about (GitHub #537,
+// that document's LoadedOpenAPIDocument.Sources entry, at the node it is about
+// (GitHub #537,
 // #1030). Findings come in the table's order: an object's missing fields, then
 // the fields it holds.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
@@ -205,29 +206,29 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	var node yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("{name: p}"), &node))
 	targets := map[objectKey]reachedTarget{
-		{node: node.Content[0], kind: oas.Parameter}: {site: bind.Position{Pointer: "/x"}, kind: oas.Parameter,
+		{node: node.Content[0], kind: specrules.Parameter}: {site: reftable.DocumentPointer{Pointer: "/x"}, kind: specrules.Parameter,
 			node: node.Content[0], doc: "other.yaml"},
 	}
 	sites := places{}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: specrules.NewChecker()})
 	assert.Empty(t, stopped.checkAll(cancelled, sites, targets, comparePositionsForTest))
 	assert.Empty(t, stopped.seen, "no target was read")
 
-	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: specrules.NewChecker()})
 	assert.NotEmpty(t, live.checkAll(t.Context(), sites, targets, comparePositionsForTest), "a parameter with no `in` is found wanting")
 	assert.NotEmpty(t, live.seen)
 }
 
 // comparePositionsForTest orders positions by document, then pointer, as a
 // table orders positions of one document.
-func comparePositionsForTest(p, q bind.Position) int {
-	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
+func comparePositionsForTest(documentPointer, reftableDocumentPointer reftable.DocumentPointer) int {
+	if c := cmp.Compare(documentPointer.Doc, reftableDocumentPointer.Doc); c != 0 {
 		return c
 	}
-	return cmp.Compare(p.Pointer, q.Pointer)
+	return cmp.Compare(documentPointer.Pointer, reftableDocumentPointer.Pointer)
 }
 
 // TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows pins a value
@@ -242,9 +243,9 @@ func TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows(t *testing.T)
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: []byte(src)}, Options{})
 	require.NoError(t, err)
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == diag.ExclusiveBoundForm {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ExclusiveBoundForm {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Equal(t, []jsontext.Pointer{"/x-defs/A/exclusiveMinimum"}, at)
@@ -264,8 +265,8 @@ func TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt(t *testing.T) {
 	var current phase
 	inReach := 0
 	opts := Options{
-		entered: func(p phase) { current = p },
-		judging: func(kind oas.Kind, node *yaml.Node) {
+		entered: func(phaseValue phase) { current = phaseValue },
+		judging: func(kind specrules.Kind, node *yaml.Node) {
 			reads[objectKey{node: nodeview.Deref(node), kind: kind}]++
 			if current == phaseReach {
 				inReach++
@@ -278,12 +279,12 @@ func TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
 	require.NotEmpty(t, reads, "the parameter under x-lib is judged")
-	kinds := map[oas.Kind]bool{}
+	kinds := map[specrules.Kind]bool{}
 	for key, n := range reads {
 		assert.Equal(t, 1, n, "%v at line %d is read once", key.kind, key.node.Line)
 		kinds[key.kind] = true
 	}
-	assert.True(t, kinds[oas.Parameter], "the parameter is among what is read: %v", kinds)
+	assert.True(t, kinds[specrules.Parameter], "the parameter is among what is read: %v", kinds)
 	assert.Zero(t, inReach, "nothing is judged once the findings are reported")
 	assert.Equal(t, 3, countErrorsAt(diags, "openapi/validation/validation-type-mismatch"), "%+v", diags)
 }
@@ -310,7 +311,7 @@ func TestLoad_AnObjectInsideAnotherTargetIsReadOnceInEitherOrder(t *testing.T) {
 			t.Parallel()
 			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n" + paths + item
 			reads := map[objectKey]int{}
-			opts := Options{judging: func(kind oas.Kind, node *yaml.Node) {
+			opts := Options{judging: func(kind specrules.Kind, node *yaml.Node) {
 				reads[objectKey{node: nodeview.Deref(node), kind: kind}]++
 			}}
 

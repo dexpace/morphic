@@ -33,7 +33,7 @@ type conjunctAtom struct {
 	written *statement.Statement
 	// union is the branch set of a union read as one conjunct (unionAtoms),
 	// whose null is any branch's.
-	union []statement.Sub
+	union []statement.Subschema
 	cut   bool
 	// null marks an atom whose own read admits null, which admits holds
 	// apart from (electedAtom), so it admits a value whatever st reads.
@@ -43,40 +43,41 @@ type conjunctAtom struct {
 // noValue is how a disjoint report names a conjunct admitting no value at all.
 const noValue = "no value"
 
-// disjointNames names what each conjunct of comp, the allOf s writes, states
-// where they share no value: what their kinds leave (disjointAtoms), else,
-// where those share a kind, what the election found apart (conjunctsApart).
-func disjointNames(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
-	if names := disjointAtoms(c, s, conjunctAtoms(c, s, comp)); len(names) > 0 {
+// disjointNames names what each conjunct of comp, the allOf schema writes,
+// states where they share no value: what their kinds leave (disjointAtoms),
+// else, where those share a kind, what the election found apart
+// (conjunctsApart).
+func disjointNames(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) []string {
+	if names := disjointAtoms(loweringContext, schema, conjunctAtoms(loweringContext, schema, comp)); len(names) > 0 {
 		return names
 	}
-	return conjunctsApart(c, s)
+	return conjunctsApart(loweringContext, schema)
 }
 
-// conjunctsApart names what each conjunct of the allOf s writes states where
-// the election reads them sharing no value though their kinds share one, as
-// two enums sharing no member do: a value set by its member count
-// (decision.apart). A null they share (nullShared) is a value, so it names
-// none there.
-func conjunctsApart(c lowering.Ctx, s *statement.Schema) []string {
-	names := decisionOf(c, s).apart
+// conjunctsApart names what each conjunct of the allOf schema writes states
+// where the election reads them sharing no value though their kinds share one,
+// as two enums sharing no member do: a value set by its member count
+// (decision.apart). A null they share (nullShared) is a value, so it names none
+// there.
+func conjunctsApart(loweringContext lowering.Ctx, schema *statement.Schema) []string {
+	names := decisionOf(loweringContext, schema).apart
 	if len(names) == 0 {
 		return nil
 	}
-	if nullShared(c, s) {
+	if nullShared(loweringContext, schema) {
 		return nil
 	}
 	return names
 }
 
-// apartNames names what each conjunct of s, read as the election reads them,
-// states where their reads share no value at all, the null included, joint
-// being what they admit together: a value set by its member count, any other
-// conjunct by the kinds and formats it admits, one admitting every kind left
-// out, listed by what each states, so no order written orders them. It names
-// none where a conjunct admits no value by itself, which its own schema
+// apartNames names what each conjunct of schema, read as the election reads
+// them, states where their reads share no value at all, the null included,
+// joint being what they admit together: a value set by its member count, any
+// other conjunct by the kinds and formats it admits, one admitting every kind
+// left out, listed by what each states, so no order written orders them. It
+// names none where a conjunct admits no value by itself, which its own schema
 // reports where it is written, or fewer than two are named.
-func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct, joint admitted) []string {
+func apartNames(schema *statement.Schema, comp allOfComposition, conjuncts []conjunct, joint admitted) []string {
 	if joint.reachable() {
 		return nil
 	}
@@ -86,7 +87,7 @@ func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct
 			return nil
 		}
 		if word := readWords(cj.read); word != "" {
-			names = append(names, conjunctName(s, comp, cj)+": "+word)
+			names = append(names, conjunctName(schema, comp, cj)+": "+word)
 		}
 	}
 	if len(names) < 2 {
@@ -104,15 +105,15 @@ func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct
 // allOf s writes, as conjunctAtoms names one: the keywords beside the allOf by
 // the value set or the type they write, an entry by its path, a $ref written
 // beside other keys by its own.
-func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) string {
+func conjunctName(schema *statement.Schema, comp allOfComposition, cj conjunct) string {
 	switch {
 	case cj.entry != nil && cj.entry.split:
 		return comp.entryPath(cj.entry.pointer) + "/$ref"
 	case cj.entry != nil:
 		return comp.entryPath(cj.entry.pointer)
-	case s.Const() != nil:
+	case schema.Const() != nil:
 		return "const"
-	case enumWritten(s):
+	case enumWritten(schema):
 		return "enum"
 	default:
 		return "type"
@@ -130,8 +131,8 @@ func readWords(read admitted) string {
 		return "1 value"
 	}
 	formats := make([]string, 0, len(read.forms))
-	for _, f := range read.forms {
-		formats = append(formats, f.spelled)
+	for _, scalarForm := range read.forms {
+		formats = append(formats, scalarForm.spelled)
 	}
 	kinds := read.kinds &^ kindNull
 	switch {
@@ -146,25 +147,25 @@ func readWords(read admitted) string {
 	}
 }
 
-// contradictionShape describes what the refinement r of s, whose conjuncts
-// share no value, lowered as, for diagDisjointConjuncts: the value set elected
-// before them, else the union an inline principal writes, else what the
-// keywords beside the allOf write, a family or a type, else the top type,
-// where they write neither.
-func contradictionShape(r refinement, s *statement.Schema) string {
-	if won := electedSet(r, s); won != "" {
+// contradictionShape describes what the refinement refinementValue of schema,
+// whose conjuncts share no value, lowered as, for diagDisjointConjuncts: the
+// value set elected before them, else the union an inline principal writes,
+// else what the keywords beside the allOf write, a family or a type, else the
+// top type, where they write neither.
+func contradictionShape(refinementValue refinement, schema *statement.Schema) string {
+	if won := electedSet(refinementValue, schema); won != "" {
 		return "the " + won + " it lowered as"
 	}
-	if r.principal != nil && r.principal.schema.Ref == nil && declaresUnion(r.principal.schema.Schema) {
+	if refinementValue.principal != nil && refinementValue.principal.schema.Ref == nil && declaresUnion(refinementValue.principal.schema.Schema) {
 		return unionShape
 	}
-	if kinds := declaredInstanceTypes(s); kinds != anyInstance {
+	if kinds := declaredInstanceTypes(schema); kinds != anyInstance {
 		return "the " + instanceWords(kinds) + " it lowered as"
 	}
 	return "the top type it lowered as"
 }
 
-// disjointAtoms names what each of atoms, the conjuncts of the allOf s
+// disjointAtoms names what each of atoms, the conjuncts of the allOf schema
 // writes, admits where they share no value, and returns nil where they share
 // one (docs/compilers/openapi.md#allof-disjoint-conjuncts), a null among them
 // where every conjunct may admit it (nullShared). A read cut short decides nothing,
@@ -172,7 +173,7 @@ func contradictionShape(r refinement, s *statement.Schema) string {
 // leaves the report to it. One conjunct contradicts nothing, so a lone
 // `type: "null"` beside what takes its null away draws nil too, but one
 // admitting nothing by itself is named, as nothing else reports it.
-func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []string {
+func disjointAtoms(loweringContext lowering.Ctx, schema *statement.Schema, atoms []conjunctAtom) []string {
 	joint := anyInstance
 	for _, a := range atoms {
 		if a.cut {
@@ -183,18 +184,18 @@ func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []
 	if joint != 0 {
 		return nil
 	}
-	if nullShared(c, s) {
+	if nullShared(loweringContext, schema) {
 		return nil
 	}
 	var names []string
 	void := false
 	for _, a := range atoms {
 		switch {
-		case !empty(c, a):
+		case !empty(loweringContext, a):
 			if a.admits != anyInstance {
 				names = append(names, a.name+": "+instanceWords(a.admits))
 			}
-		case a.written != nil && toldWhereWritten(c, a.written):
+		case a.written != nil && toldWhereWritten(loweringContext, a.written):
 			return nil
 		default:
 			names, void = append(names, a.name+": "+noValue), true
@@ -214,36 +215,36 @@ func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []
 // as cut, an inline entry writing two unions as the one it elects and the
 // other, and a $ref entry writing keywords that narrow what it admits as the
 // reference and the keywords beside it.
-func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
+func conjunctAtoms(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) []conjunctAtom {
 	out := make([]conjunctAtom, 0, 4+len(comp.entries))
-	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
-	if set, ok := valueSetAtom(c, s); ok {
+	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(schema), words: schema})
+	if set, ok := valueSetAtom(loweringContext, schema); ok {
 		out = append(out, set)
 	}
-	if unionAside(c, s) || declaresUnion(s) && !unionBranchesDeclareShape(c, s) {
-		choice := s.ChoiceKeywords()
-		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
-		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
-	} else if passed, key := passedOver(c, s, s); passed != nil {
-		out = append(out, unionAtoms(c, key, passed)...)
+	if unionAside(loweringContext, schema) || declaresUnion(schema) && !unionBranchesDeclareShape(loweringContext, schema) {
+		choice := schema.ChoiceKeywords()
+		out = append(out, unionAtoms(loweringContext, "oneOf", choice.OneOf)...)
+		out = append(out, unionAtoms(loweringContext, "anyOf", choice.AnyOf)...)
+	} else if passed, key := passedOver(loweringContext, schema, schema); passed != nil {
+		out = append(out, unionAtoms(loweringContext, key, passed)...)
 	}
-	for _, e := range comp.entries {
-		name := comp.entryPath(e.pointer)
-		r := admissionOf(c, e.schema)
-		ref, _ := declaredOf(c, e.schema)
-		passed, key := passedOver(c, s, e.schema.Schema)
+	for _, entry := range comp.entries {
+		name := comp.entryPath(entry.pointer)
+		admission := admissionOf(loweringContext, entry.schema)
+		ref, _ := declaredOf(loweringContext, entry.schema)
+		passed, key := passedOver(loweringContext, schema, entry.schema.Schema)
 		switch {
-		case e.wrapper:
-			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
-		case e.split:
-			out = append(out, conjunctAtom{name: name + "/$ref", admits: r.admits, st: e.schema, cut: r.cut, written: ref})
-		case passed != nil && e.schema.Ref == nil:
-			out = append(out, electedAtom(c, s, e, name, ref))
-			out = append(out, unionAtoms(c, name+"/"+key, passed)...)
+		case entry.wrapper:
+			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(entry.schema.Schema), words: entry.schema.Schema})
+		case entry.split:
+			out = append(out, conjunctAtom{name: name + "/$ref", admits: admission.admits, st: entry.schema, cut: admission.cut, written: ref})
+		case passed != nil && entry.schema.Ref == nil:
+			out = append(out, electedAtom(loweringContext, schema, entry, name, ref))
+			out = append(out, unionAtoms(loweringContext, name+"/"+key, passed)...)
 		default:
-			a := conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped, written: ref}
-			if e.schema.Truth.ReadsFalse() {
-				a.written = e.schema
+			a := conjunctAtom{name: name, admits: admission.admits, st: entry.schema, cut: admission.cut || entry.capped, written: ref}
+			if entry.schema.Truth.ReadsFalse() {
+				a.written = entry.schema
 			}
 			out = append(out, a)
 		}
@@ -257,45 +258,46 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 // its `type`, its set and each union it writes, a set holding no value its own
 // type admits saying so where it is written (valueSetAtom), as the dispatch of
 // competing keywords lowers it there (setElected).
-func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctAtom {
-	atoms := conjunctAtoms(c, s, r.comp)
-	e, ok := valueSetPrincipal(r)
+func refinedAtoms(loweringContext lowering.Ctx, schema *statement.Schema, refinementValue refinement) []conjunctAtom {
+	atoms := conjunctAtoms(loweringContext, schema, refinementValue.comp)
+	entry, ok := valueSetPrincipal(refinementValue)
 	if !ok {
 		return atoms
 	}
-	at := slices.IndexFunc(atoms, func(a conjunctAtom) bool { return a.st == e.schema })
+	at := slices.IndexFunc(atoms, func(a conjunctAtom) bool { return a.st == entry.schema })
 	if at < 0 || atoms[at].admits != 0 {
 		return atoms
 	}
-	name, bs := atoms[at].name, e.schema.Schema
+	name, bs := atoms[at].name, entry.schema.Schema
 	own := []conjunctAtom{{name: name + "/type", admits: declaredInstanceTypes(bs), words: bs}}
-	if set, written := valueSetAtom(c, bs); written {
+	if set, written := valueSetAtom(loweringContext, bs); written {
 		set.name = name + "/" + set.name
 		own = append(own, set)
 	}
 	choice := bs.ChoiceKeywords()
-	own = append(own, unionAtoms(c, name+"/oneOf", choice.OneOf)...)
-	own = append(own, unionAtoms(c, name+"/anyOf", choice.AnyOf)...)
+	own = append(own, unionAtoms(loweringContext, name+"/oneOf", choice.OneOf)...)
+	own = append(own, unionAtoms(loweringContext, name+"/anyOf", choice.AnyOf)...)
 	return slices.Concat(atoms[:at], own, atoms[at+1:])
 }
 
-// valueSetAtom returns the enum or the const s writes beside its allOf as a
-// conjunct, as one an entry writes is (docs/compilers/openapi.md#allof-refinement):
-// the kinds its members leave, null aside (valueKinds), its read cut where no
-// reading converts them, and false where s writes neither. It is written at s,
-// whose report that the set holds no value its type admits leaves this report
-// none to make (toldWhereWritten).
-func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
-	name, members := "enum", s.Enum()
+// valueSetAtom returns the enum or the const schema writes beside its allOf as
+// a conjunct, as one an entry writes is
+// (docs/compilers/openapi.md#allof-refinement): the kinds its members leave,
+// null aside (valueKinds), its read cut where no reading converts them, and
+// false where schema writes neither. It is written at schema, whose report that
+// the set holds no value its type admits leaves this report none to make
+// (toldWhereWritten).
+func valueSetAtom(loweringContext lowering.Ctx, schema *statement.Schema) (conjunctAtom, bool) {
+	name, members := "enum", schema.Enum()
 	switch {
-	case enumWritten(s):
-	case s.Const() != nil:
-		name, members = "const", []*yaml.Node{s.Const()}
+	case enumWritten(schema):
+	case schema.Const() != nil:
+		name, members = "const", []*yaml.Node{schema.Const()}
 	default:
 		return conjunctAtom{}, false
 	}
-	unread := memberSetOf(c, valueSetOf{s, name}, members).unread
-	return conjunctAtom{name: name, admits: valueKinds(c, s), words: s, written: c.Statements().Read(s), cut: unread}, true
+	unread := memberSetOf(loweringContext, valueSetOf{schema, name}, members).unread
+	return conjunctAtom{name: name, admits: valueKinds(loweringContext, schema), words: schema, written: loweringContext.Statements().Read(schema), cut: unread}, true
 }
 
 // toldWhereWritten reports whether st, written apart from the allOf naming it
@@ -307,22 +309,22 @@ func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
 // shares no kind with a body that is no Model (keepsUnionApartFromBody). A $ref
 // to a schema admitting no value is read through, up to maxAdmissionReads
 // hops; nothing else is reported elsewhere.
-func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
+func toldWhereWritten(loweringContext lowering.Ctx, st *statement.Statement) bool {
 	for range maxAdmissionReads {
 		switch {
 		case st.Truth.ReadsFalse():
 			return true
 		case st.Truth != statement.Stated:
 			return false
-		case (enumWritten(st.Schema) || st.Const() != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
+		case (enumWritten(st.Schema) || st.Const() != nil) && declaredInstanceTypes(st.Schema)&valueKinds(loweringContext, st.Schema) == 0:
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
-			return conjunctsShareNothing(c, st.Schema)
-		case st.Ref == nil && (keepsDeadUnion(c, st.Schema) || keepsUnionApartFromBody(c, st.Schema)):
+			return conjunctsShareNothing(loweringContext, st.Schema)
+		case st.Ref == nil && (keepsDeadUnion(loweringContext, st.Schema) || keepsUnionApartFromBody(loweringContext, st.Schema)):
 			return true
 		}
-		next, _ := declaredOf(c, st)
-		if next == nil || !empty(c, conjunctAtom{admits: admissionOf(c, next).admits, st: next}) {
+		next, _ := declaredOf(loweringContext, st)
+		if next == nil || !empty(loweringContext, conjunctAtom{admits: admissionOf(loweringContext, next).admits, st: next}) {
 			return false
 		}
 		st = next
@@ -330,83 +332,86 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 	return false
 }
 
-// conjunctsShareNothing reports whether the conjuncts of the allOf s writes,
-// read as a disjoint report reads them, share no kind. A read cut short admits
-// more than the schema does, never less, so it never makes them share nothing.
-func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
-	at, _ := siteOf(s)
+// conjunctsShareNothing reports whether the conjuncts of the allOf schema
+// writes, read as a disjoint report reads them, share no kind. A read cut short
+// admits more than the schema does, never less, so it never makes them share
+// nothing.
+func conjunctsShareNothing(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	at, _ := siteOf(schema)
 	joint := anyInstance
-	for _, a := range conjunctAtoms(c, s, allOfEntries(c, s, at.Pointer)) {
+	for _, a := range conjunctAtoms(loweringContext, schema, allOfEntries(loweringContext, schema, at.Pointer)) {
 		joint &= a.admits
 	}
 	return joint == 0
 }
 
-// electedAtom is the inline entry e of s's allOf, named name, writing two
-// unions, as a conjunct beside the one it passes over: its own keywords and
-// the union it elects.
-func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfEntry, name string, ref *statement.Statement) conjunctAtom {
-	w := newAdmissionReader(c)
-	elected, _, _ := unionBranches(c, s, e.schema.Schema)
-	read := w.written(e.schema.Schema, w.nullable).and(w.union(elected))
-	return conjunctAtom{name: name, admits: read.kinds &^ kindNull, null: read.kinds&kindNull != 0, st: e.schema,
-		cut: w.incomplete() || e.capped, written: ref}
+// electedAtom is the inline entry allOfEntryValue of schema's allOf, named
+// name, writing two unions, as a conjunct beside the one it passes over: its
+// own keywords and the union it elects.
+func electedAtom(loweringContext lowering.Ctx, schema *statement.Schema, allOfEntryValue allOfEntry, name string, ref *statement.Statement) conjunctAtom {
+	admissionReader := newAdmissionReader(loweringContext)
+	elected, _, _ := unionBranches(loweringContext, schema, allOfEntryValue.schema.Schema)
+	read := admissionReader.written(allOfEntryValue.schema.Schema, admissionReader.nullable).and(admissionReader.union(elected))
+	return conjunctAtom{name: name, admits: read.kinds &^ kindNull, null: read.kinds&kindNull != 0, st: allOfEntryValue.schema,
+		cut: admissionReader.incomplete() || allOfEntryValue.capped, written: ref}
 }
 
 // unionAtoms returns the union keyword names, written beside an allOf with
 // branches, as one conjunct admitting what any branch does, and none where it
 // writes none.
-func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Sub) []conjunctAtom {
+func unionAtoms(loweringContext lowering.Ctx, keyword string, branches []statement.Subschema) []conjunctAtom {
 	if len(branches) == 0 {
 		return nil
 	}
 	atom := conjunctAtom{name: keyword, union: branches}
 	for _, b := range branches {
-		r := admissionOf(c, c.Statements().Sub(b))
-		atom.admits |= r.admits
-		atom.cut = atom.cut || r.cut
+		admission := admissionOf(loweringContext, loweringContext.Statements().Subschema(b))
+		atom.admits |= admission.admits
+		atom.cut = atom.cut || admission.cut
 	}
 	return []conjunctAtom{atom}
 }
 
-// nullShared reports whether the conjuncts of the allOf s writes may share a
-// null: each may admit it wherever the IR holds it, as mayAdmitNull reads it,
+// nullShared reports whether the conjuncts of the allOf schema writes may share
+// a null: each may admit it wherever the IR holds it, as mayAdmitNull reads it,
 // so one keeping it out, a union none of whose branches admits it among them,
 // leaves none to share. Where the read passes the walk's budget, which
 // conjuncts it reached would follow their order, so each is read on its own:
 // one that keeps null out within its own budget decides, and otherwise they
 // share it.
-func nullShared(c lowering.Ctx, s *statement.Schema) bool {
-	n := newNulls(c)
-	n.variants = true
-	if r := n.conjunct(c.Statements().Read(s), nullSite{}); !n.conjuncts.Exhausted() {
-		return r.admits(c)
+func nullShared(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	nullsValue := newNulls(loweringContext)
+	nullsValue.variants = true
+	if nullReading := nullsValue.conjunct(loweringContext.Statements().Read(schema), nullSite{}); !nullsValue.conjuncts.Exhausted() {
+		return nullReading.admits(loweringContext)
 	}
-	keepsOut := func(read func(n *nulls) nullReading) bool {
-		n := newNulls(c)
-		n.variants = true
-		return read(&n).forbids(c) && !n.conjuncts.Exhausted()
+	keepsOut := func(read func(otherNulls *nulls) nullReading) bool {
+		anotherNulls := newNulls(loweringContext)
+		anotherNulls.variants = true
+		return read(&anotherNulls).forbids(loweringContext) && !anotherNulls.conjuncts.Exhausted()
 	}
-	if keepsOut(func(n *nulls) nullReading { return n.own(s) }) {
+	if keepsOut(func(otherNulls *nulls) nullReading { return otherNulls.own(schema) }) {
 		return false
 	}
-	return !slices.ContainsFunc(conjunctsIn(c, s), func(b *statement.Statement) bool {
-		return keepsOut(func(n *nulls) nullReading { return n.conjunct(b, nullSite{}) })
+	return !slices.ContainsFunc(conjunctsIn(loweringContext, schema), func(b *statement.Statement) bool {
+		return keepsOut(func(otherNulls *nulls) nullReading { return otherNulls.conjunct(b, nullSite{}) })
 	})
 }
 
 // empty reports whether a admits no value by itself, the null included as
 // nulls reads it, which makes it its own schema's to report rather than the
 // allOf's.
-func empty(c lowering.Ctx, a conjunctAtom) bool {
+func empty(loweringContext lowering.Ctx, a conjunctAtom) bool {
 	if a.admits != 0 || a.null {
 		return false
 	}
 	switch {
 	case a.st != nil:
-		return !mayAdmitNull(c, a.st, nil)
+		return !mayAdmitNull(loweringContext, a.st, nil)
 	case a.union != nil:
-		return !slices.ContainsFunc(a.union, func(b statement.Sub) bool { return mayAdmitNull(c, c.Statements().Sub(b), nil) })
+		return !slices.ContainsFunc(a.union, func(b statement.Subschema) bool {
+			return mayAdmitNull(loweringContext, loweringContext.Statements().Subschema(b), nil)
+		})
 	default:
 		return typeNullVerdict(a.words) != nullAdmitted
 	}
@@ -415,11 +420,11 @@ func empty(c lowering.Ctx, a conjunctAtom) bool {
 // diagDisjointConjuncts is the one report an allOf whose conjuncts share no
 // value draws, at the schema that writes them, which lowered to shape: a
 // composition, or the value set an election passed it over for.
-func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) []ir.Diagnostic {
+func diagDisjointConjuncts(loweringContext lowering.Ctx, comp allOfComposition, shape string) []ir.Diagnostic {
 	if len(comp.disjoint) == 0 {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
+	return []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
 		"the conjuncts of %s share no value (%s), so no instance satisfies this schema, which %s cannot state",
 		comp.subject(), strings.Join(comp.disjoint, ", "), shape)}
 }
@@ -431,15 +436,15 @@ const composedShape = "a composition"
 // standing alone lowers to, for diagDisjointConjuncts.
 const unionShape = "the union it lowered as"
 
-// diagUnionsShareNothing is the warning s, written at pointer and writing a
-// oneOf and an anyOf, draws where the two share no value (pairApart), a
-// null only where both may admit it, as the same two on its allOf's entries
-// draw (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
+// diagUnionsShareNothing is the warning schema, written at pointer and writing
+// a oneOf and an anyOf, draws where the two share no value (pairApart), a null
+// only where both may admit it, as the same two on its allOf's entries draw
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
 // keyword, and the position lowered as shape.
-func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
+func diagUnionsShareNothing(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
 	comp := allOfComposition{pointer: pointer}
-	comp.disjoint = pairApart(c, s)
-	return diagDisjointConjuncts(c, comp, shape)
+	comp.disjoint = pairApart(loweringContext, schema)
+	return diagDisjointConjuncts(loweringContext, comp, shape)
 }
 
 // keywordRank orders the keywords a disjoint report names a conjunct by: the
@@ -472,23 +477,23 @@ func splitConjunctName(name string) (string, string) {
 // pairApartOf keys what pairApart read of a position.
 type pairApartOf struct{ s *statement.Schema }
 
-// pairApart names the oneOf and the anyOf written for the position s, beside
-// its allOf or on its inline entries at any depth, where they share no value
-// as an admissionReader reads them, value sets included and a null only where
-// both admit it: each by where it is written and what it admits, nothing
+// pairApart names the oneOf and the anyOf written for the position schema,
+// beside its allOf or on its inline entries at any depth, where they share no
+// value as an admissionReader reads them, value sets included and a null only
+// where both admit it: each by where it is written and what it admits, nothing
 // being noValue, in the order every report names them (compareConjunctNames).
-// It is nil where they share one, the read is cut short, or no pair is
-// written. Read once a run, so every spelling reads one answer
+// It is nil where they share one, the read is cut short, or no pair is written.
+// Read once a run, so every spelling reads one answer
 // (docs/compilers/openapi.md#competing-keywords).
-func pairApart(c lowering.Ctx, s *statement.Schema) []string {
-	return pairReadingOf(c, s).apart
+func pairApart(loweringContext lowering.Ctx, schema *statement.Schema) []string {
+	return pairReadingOf(loweringContext, schema).apart
 }
 
 // pairNullAlone reports whether the oneOf and the anyOf written for the
-// position s, read as pairApart reads them, admit null and nothing else
+// position schema, read as pairApart reads them, admit null and nothing else
 // together, neither admitting null alone by itself.
-func pairNullAlone(c lowering.Ctx, s *statement.Schema) bool {
-	return pairReadingOf(c, s).nullAlone
+func pairNullAlone(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	return pairReadingOf(loweringContext, schema).nullAlone
 }
 
 // pairReading is what a position's oneOf and anyOf admit together: named
@@ -499,29 +504,29 @@ type pairReading struct {
 }
 
 // pairReadingOf reads the pair pairApart describes, once a run.
-func pairReadingOf(c lowering.Ctx, s *statement.Schema) pairReading {
-	return lowering.Remembered(c, pairApartOf{s}, func() pairReading {
-		comp := allOfEntries(c, s, "")
-		if !writesUnionPair(s, comp) {
+func pairReadingOf(loweringContext lowering.Ctx, schema *statement.Schema) pairReading {
+	return lowering.ReadOncePerRun(loweringContext, pairApartOf{schema}, func() pairReading {
+		comp := allOfEntries(loweringContext, schema, "")
+		if !writesUnionPair(schema, comp) {
 			return pairReading{}
 		}
-		w := newAdmissionReader(c)
-		w.nullable = definesNullableAt(c, c.Statements().Read(s))
-		p := pairReads{joint: admitted{kinds: kindAny}}
-		p.read(&w, "", s)
-		for _, e := range comp.entries {
-			if e.schema.Ref == nil && declaresUnion(e.schema.Schema) {
-				p.read(&w, comp.entryPath(e.pointer), e.schema.Schema)
+		admissionReader := newAdmissionReader(loweringContext)
+		admissionReader.nullable = definesNullableAt(loweringContext, loweringContext.Statements().Read(schema))
+		pairReadsValue := pairReads{joint: admitted{kinds: kindAny}}
+		pairReadsValue.read(&admissionReader, "", schema)
+		for _, entry := range comp.entries {
+			if entry.schema.Ref == nil && declaresUnion(entry.schema.Schema) {
+				pairReadsValue.read(&admissionReader, comp.entryPath(entry.pointer), entry.schema.Schema)
 			}
 		}
-		if w.incomplete() {
+		if admissionReader.incomplete() {
 			return pairReading{}
 		}
-		if p.joint.reachable() || len(p.names) < 2 {
-			return pairReading{nullAlone: p.joint.reachable() && p.joint.kinds == kindNull && !p.nullUnion}
+		if pairReadsValue.joint.reachable() || len(pairReadsValue.names) < 2 {
+			return pairReading{nullAlone: pairReadsValue.joint.reachable() && pairReadsValue.joint.kinds == kindNull && !pairReadsValue.nullUnion}
 		}
-		slices.SortFunc(p.names, compareConjunctNames)
-		return pairReading{apart: p.names}
+		slices.SortFunc(pairReadsValue.names, compareConjunctNames)
+		return pairReading{apart: pairReadsValue.names}
 	})
 }
 
@@ -534,15 +539,15 @@ type pairReads struct {
 	nullUnion bool
 }
 
-// read adds the oneOf and the anyOf x writes, at the path at from the
-// position, as w reads each.
-func (p *pairReads) read(w *admissionReader, at string, x *statement.Schema) {
-	choice := x.ChoiceKeywords()
-	for key, branches := range map[string][]statement.Sub{"oneOf": choice.OneOf, "anyOf": choice.AnyOf} {
+// read adds the oneOf and the anyOf schema writes, at the path at from the
+// position, as admissionReaderValue reads each.
+func (p *pairReads) read(admissionReaderValue *admissionReader, at string, schema *statement.Schema) {
+	choice := schema.ChoiceKeywords()
+	for key, branches := range map[string][]statement.Subschema{"oneOf": choice.OneOf, "anyOf": choice.AnyOf} {
 		if len(branches) == 0 {
 			continue
 		}
-		read := w.union(branches)
+		read := admissionReaderValue.union(branches)
 		p.joint = p.joint.and(read)
 		p.nullUnion = p.nullUnion || read.reachable() && read.kinds == kindNull
 		word := readWords(read)

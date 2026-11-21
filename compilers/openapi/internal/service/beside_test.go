@@ -38,10 +38,10 @@ components:
 // besideParams returns the context of besideSpec and the parameters of GET /a.
 func besideParams(t *testing.T) (service.Ctx, []*soa.ReferencedParameter) {
 	t.Helper()
-	c := servicetest.Context(t, besideSpec, service.Policy{})
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext := servicetest.Context(t, besideSpec, service.Policy{})
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
-	return c, a.GetObject().Get().GetParameters()
+	return serviceContext, a.GetObject().Get().GetParameters()
 }
 
 // TestBeside_KeysTheUseAndEachAlias holds what a chain writes beside its $ref
@@ -51,21 +51,21 @@ func besideParams(t *testing.T) (service.Ctx, []*soa.ReferencedParameter) {
 // it does not.
 func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 	t.Parallel()
-	c, params := besideParams(t)
+	serviceContext, params := besideParams(t)
 
-	got, diags := service.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", true)
+	got, diags := service.Beside[soa.Parameter](serviceContext, params[0], "/paths/~1a/get/parameters/0", true)
 	assert.Equal(t, []string{"openapi:reference/0/required", "openapi:reference/0/x-note"}, slices.Sorted(maps.Keys(got)))
 	assert.Equal(t, `"kept"`, string(got["openapi:reference/0/x-note"].Value))
 	assert.Equal(t, "/paths/~1a/get/parameters/0/x-note", string(got["openapi:reference/0/x-note"].Provenance.Pointer))
 	assert.Empty(t, diags, "the table reports a key no object defines; the census keeps it and says nothing")
 
-	got, diags = service.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", false)
+	got, diags = service.Beside[soa.Parameter](serviceContext, params[0], "/paths/~1a/get/parameters/0", false)
 	assert.Contains(t, got, "openapi:reference/0/summary", "a use with no docs to hold it keeps its summary")
 	require.Len(t, diags, 1)
 	assert.Equal(t, "openapi/unhomed-construct", diags[0].Code)
 	assert.Equal(t, "/paths/~1a/get/parameters/0/summary", string(diags[0].Provenance.Pointer))
 
-	got, _ = service.Beside[soa.Parameter](c, params[3], "/paths/~1a/get/parameters/3", true)
+	got, _ = service.Beside[soa.Parameter](serviceContext, params[3], "/paths/~1a/get/parameters/3", true)
 	assert.Equal(t, []string{"openapi:reference/0/x-use", "openapi:reference/1/x-alias"}, slices.Sorted(maps.Keys(got)),
 		"the use and the alias each write their own entry")
 	assert.Equal(t, "/components/parameters/Alias/x-alias",
@@ -75,13 +75,13 @@ func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 // TestBeside_ABareReferenceCostsNothing holds a $ref that writes nothing beside
 // it, and an inline entry, to no map, no finding and no allocation.
 func TestBeside_ABareReferenceCostsNothing(t *testing.T) {
-	c, params := besideParams(t)
+	serviceContext, params := besideParams(t)
 	for name, i := range map[string]int{"a bare $ref": 1, "an inline entry": 2} {
-		got, diags := service.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
+		got, diags := service.Beside[soa.Parameter](serviceContext, params[i], "/paths/~1a/get/parameters/x", true)
 		assert.Nil(t, got, name)
 		assert.Empty(t, diags, name)
 		assert.Zero(t, testing.AllocsPerRun(10, func() {
-			_, _ = service.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
+			_, _ = service.Beside[soa.Parameter](serviceContext, params[i], "/paths/~1a/get/parameters/x", true)
 		}), name)
 	}
 }

@@ -23,10 +23,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -80,9 +80,9 @@ components:
 		Line, Column  int
 	}
 	diags := make([]placed, 0, len(got.diags))
-	for _, d := range got.diags {
-		diags = append(diags, placed{d.Code, string(d.Provenance.Pointer), d.Provenance.Position.Line, d.Provenance.Position.Column})
-		assert.Equal(t, 4, d.Provenance.Source)
+	for _, diagnostic := range got.diags {
+		diags = append(diags, placed{diagnostic.Code, string(diagnostic.Provenance.Pointer), diagnostic.Provenance.Position.Line, diagnostic.Provenance.Position.Column})
+		assert.Equal(t, 4, diagnostic.Provenance.Source)
 	}
 	assert.Empty(t, cmp.Diff([]placed{
 		{diag.Validation + "/validation-required-field", "/info", 2, 7},
@@ -106,20 +106,20 @@ components:
     R: {$ref: '#/components/parameters/P'}
 `)
 	top := nodeAt(t, root, "components", "parameters")
-	p := nodeAt(t, top, "P")
+	node := nodeAt(t, top, "P")
 
 	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
-	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
-	assert.False(t, got.seen[objectKey{node: p, kind: oas.Header}], "and not as another kind")
-	assert.False(t, got.seen[objectKey{node: nodeAt(t, top, "R"), kind: oas.Parameter}], "a reference object is no parameter")
+	assert.True(t, got.seen[objectKey{node: node, kind: specrules.Parameter}], "the parameter, once however it is reached")
+	assert.False(t, got.seen[objectKey{node: node, kind: specrules.Header}], "and not as another kind")
+	assert.False(t, got.seen[objectKey{node: nodeAt(t, top, "R"), kind: specrules.Parameter}], "a reference object is no parameter")
 }
 
-// nodeAt returns the node at the keys below n, which must hold them.
-func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
+// nodeAt returns the node at the keys below node, which must hold them.
+func nodeAt(t *testing.T, node *yaml.Node, keys ...string) *yaml.Node {
 	t.Helper()
-	cur := n
+	cur := node
 	if cur.Kind == yaml.DocumentNode {
 		cur = cur.Content[0]
 	}
@@ -148,8 +148,8 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]int{}
-	for _, d := range diags {
-		got[d.Provenance.Pointer] = d.Provenance.WrittenBy
+	for _, diagnostic := range diags {
+		got[diagnostic.Provenance.Pointer] = diagnostic.Provenance.WrittenBy
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/info": 0, "/info/description": 1}, got,
 		"the missing version is the source's to answer for, the description the overlay's, which wrote it")
@@ -210,7 +210,7 @@ func TestLoad_WhatAnAliasMountsIsReportedOnce(t *testing.T) {
 // reported as an error.
 func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, scan.MaxNesting, oas.MaxDepth)
+	assert.Equal(t, scan.MaxNesting, specrules.MaxDepth)
 
 	const depth = 600
 	schema := strings.Repeat("{type: array, items: ", depth) + "{type: bogus}" + strings.Repeat("}", depth)
@@ -220,10 +220,10 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	require.NoError(t, err)
 	bottom := jsontext.Pointer("/components/schemas/A" + strings.Repeat("/items", depth) + "/type")
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
-		if d.Code == diag.Validation+"/validation-allowed-values" {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.BudgetExceeded, diagnostic.Code, "%+v", diagnostic)
+		if diagnostic.Code == diag.Validation+"/validation-allowed-values" {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Equal(t, []jsontext.Pointer{bottom}, at)
@@ -273,10 +273,10 @@ func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
 			_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
 			require.NoError(t, err)
 			refused, unresolved := false, false
-			for _, g := range diags {
-				refused = refused || g.Provenance.Pointer == jsontext.Pointer("/components/schemas/A/"+d.keyword) &&
-					g.Severity == ir.SeverityError
-				unresolved = unresolved || g.Code == diag.UnresolvedRef
+			for _, diagnostic := range diags {
+				refused = refused || diagnostic.Provenance.Pointer == jsontext.Pointer("/components/schemas/A/"+d.keyword) &&
+					diagnostic.Severity == ir.SeverityError
+				unresolved = unresolved || diagnostic.Code == diag.UnresolvedRef
 			}
 			want := slices.Contains(strings.Fields(d.refuses), name)
 			assert.Equal(t, want, refused, "%s %q in %q: %+v", d.keyword, name, d.dialect, diags)
@@ -338,8 +338,8 @@ paths:
 	for _, spec := range []string{aliasedOperationID, repeatedOperationID, duplicateParameter} {
 		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{})
 		require.NoError(t, err)
-		for _, d := range diags {
-			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "no finding of the table: %+v", d)
+		for _, diagnostic := range diags {
+			assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation+"/"), "no finding of the table: %+v", diagnostic)
 		}
 	}
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}, Options{})
@@ -466,7 +466,7 @@ func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
 			continue
 		}
 		version := declaredVersion(&root)
-		if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+		if minor, ok := specrules.ParseMinor(version); !ok || minor == specrules.V30 {
 			continue
 		}
 		checked++
@@ -484,20 +484,22 @@ func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
 func judgedSchemas(t *testing.T, root *yaml.Node, version string, deferred bool) ([]ir.Diagnostic, map[objectKey]bool) {
 	t.Helper()
 	seen := map[objectKey]bool{}
-	var pending []oas.Pending
-	opts := oas.Options{
-		Locate: walkedFrom(root, func(n *yaml.Node) ir.Provenance {
-			return ir.Provenance{Position: ir.Position{Line: n.Line, Column: n.Column}}
+	var pending []specrules.Pending
+	opts := specrules.Options{
+		Locate: walkedFrom(root, func(node *yaml.Node) ir.Provenance {
+			return ir.Provenance{Position: ir.Position{Line: node.Line, Column: node.Column}}
 		}),
 		ReadAt: true,
-		Seen:   func(k oas.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: k}] = true },
+		Seen: func(kind specrules.Kind, node *yaml.Node) {
+			seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
+		},
 	}
-	checker := oas.NewChecker()
+	checker := specrules.NewChecker()
 	if !deferred {
 		return checker.Check(t.Context(), root, version, opts), seen
 	}
 	later := opts
-	later.Later = func(p oas.Pending) { pending = append(pending, p) }
+	later.Later = func(specrulesPending specrules.Pending) { pending = append(pending, specrulesPending) }
 	diags := checker.Check(t.Context(), root, version, later)
 	return append(diags, checker.CheckPending(t.Context(), pending, version, opts)...), seen
 }

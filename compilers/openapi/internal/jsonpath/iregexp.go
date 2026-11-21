@@ -152,20 +152,20 @@ func (t *translator) top() *frame { return &t.frames[len(t.frames)-1] }
 // atomOf counts an atom of size instructions, which a quantifier may follow,
 // and reports whether the program is still within maxProgram.
 func (t *translator) atomOf(size int) bool {
-	f := t.top()
-	f.branch += size
-	f.last = size
+	frame := t.top()
+	frame.branch += size
+	frame.last = size
 	t.atom = true
-	return f.branch <= maxProgram
+	return frame.branch <= maxProgram
 }
 
 // repeat counts the last atom repeated copies times, with a split each, and
 // reports whether the program is still within maxProgram. A *, + or ? holds
 // one copy and one split.
 func (t *translator) repeat(copies int) bool {
-	f := t.top()
-	f.branch += f.last*(copies-1) + copies
-	return f.branch <= maxProgram
+	frame := t.top()
+	frame.branch += frame.last*(copies-1) + copies
+	return frame.branch <= maxProgram
 }
 
 // translate returns what pattern reads as in Go's syntax, and false for a
@@ -175,20 +175,20 @@ func translate(pattern string) (translation, bool) {
 	if len(pattern) > maxPatternBytes || !utf8.ValidString(pattern) {
 		return translation{}, false
 	}
-	t := &translator{src: pattern, frames: []frame{{}}}
-	for t.pos < len(t.src) {
-		if !t.next() {
+	translatorValue := &translator{src: pattern, frames: []frame{{}}}
+	for translatorValue.pos < len(translatorValue.src) {
+		if !translatorValue.next() {
 			return translation{}, false
 		}
 	}
-	if len(t.frames) != 1 {
+	if len(translatorValue.frames) != 1 {
 		return translation{}, false
 	}
-	t.anchors.settle()
-	tr := translation{source: t.out.String(), size: t.top().done + t.top().branch,
-		anchored: readAsAnchors(t.caret, t.dollar)}
-	if !t.anchors.alive {
-		tr.empty = t.anchors.none
+	translatorValue.anchors.settle()
+	tr := translation{source: translatorValue.out.String(), size: translatorValue.top().done + translatorValue.top().branch,
+		anchored: readAsAnchors(translatorValue.caret, translatorValue.dollar)}
+	if !translatorValue.anchors.alive {
+		tr.empty = translatorValue.anchors.none
 	}
 	return tr, true
 }
@@ -214,8 +214,8 @@ func (t *translator) next() bool {
 	case ')':
 		return t.closeGroup()
 	case '|':
-		f := t.top()
-		f.done, f.branch, f.last = f.done+f.branch+1, 0, 0
+		frame := t.top()
+		frame.done, frame.branch, frame.last = frame.done+frame.branch+1, 0, 0
 		t.out.WriteByte('|')
 		t.atom = false
 	case '*', '+', '?':
@@ -251,8 +251,8 @@ func (t *translator) closeGroup() bool {
 	if len(t.frames) == 1 {
 		return false
 	}
-	f := t.top()
-	size := f.done + f.branch + 1
+	frame := t.top()
+	size := frame.done + frame.branch + 1
 	t.frames = t.frames[:len(t.frames)-1]
 	t.out.WriteByte(')')
 	return t.atomOf(size)

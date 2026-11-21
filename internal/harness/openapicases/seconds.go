@@ -20,7 +20,7 @@ type second struct {
 	name string
 	// own returns what a second of no row writes on t at v, and false where it
 	// says nothing of t.
-	own func(t target, v version) (written, bool)
+	own func(targetValue target, versionValue version) (written, bool)
 	// restates is true of a second saying what t's body says already, so
 	// inline, writing that body, writes nothing more.
 	restates bool
@@ -53,38 +53,38 @@ func seconds() []second {
 	}
 }
 
-// typeOf returns the type t's body writes, and false for a target writing
-// none.
-func typeOf(t target) (any, bool) {
-	i := slices.IndexFunc(t.body, func(m member) bool { return m.name == "type" })
+// typeOf returns the type targetValue's body writes, and false for a target
+// writing none.
+func typeOf(targetValue target) (any, bool) {
+	i := slices.IndexFunc(targetValue.body, func(memberValue member) bool { return memberValue.name == "type" })
 	if i < 0 {
 		return nil, false
 	}
-	return t.body[i].value, true
+	return targetValue.body[i].value, true
 }
 
-// targetType restates t's type beside the construct.
-func targetType(t target, _ version) (written, bool) {
-	typ, ok := typeOf(t)
+// targetType restates targetValue's type beside the construct.
+func targetType(targetValue target, _ version) (written, bool) {
+	typ, ok := typeOf(targetValue)
 	return written{members: object{{"type", typ}}}, ok
 }
 
-// typeNull is from 3.1 the spelling of a nullable t, its type and "null";
-// before it a type is one name, and the nullable second says it.
-func typeNull(t target, v version) (written, bool) {
-	typ, ok := typeOf(t)
-	if !ok || !v.dialect {
+// typeNull is from 3.1 the spelling of a nullable targetValue, its type and
+// "null"; before it a type is one name, and the nullable second says it.
+func typeNull(targetValue target, versionValue version) (written, bool) {
+	typ, ok := typeOf(targetValue)
+	if !ok || !versionValue.dialect {
 		return written{}, false
 	}
 	return written{members: object{{"type", []any{typ, "null"}}}}, true
 }
 
 // secondRef is an allOf entry naming, by a second $ref, a schema saying what
-// t says, so the use holds every instance t does. It follows the target's
-// reference in every spelling (written.entries).
-func secondRef(t target, _ version) (written, bool) {
+// targetValue says, so the use holds every instance targetValue does. It
+// follows the target's reference in every spelling (written.entries).
+func secondRef(targetValue target, _ version) (written, bool) {
 	ref := object{{"$ref", "#/components/schemas/" + secondSchema}}
-	return written{entries: []any{ref}, components: object{{secondSchema, t.body}}}, true
+	return written{entries: []any{ref}, components: object{{secondSchema, targetValue.body}}}, true
 }
 
 // written is what a second writes beside a construct, or a case in one unit:
@@ -106,8 +106,8 @@ type written struct {
 // names returns the members' names, and allOf where w writes entries.
 func (w written) names() []string {
 	out := make([]string, 0, len(w.members)+1)
-	for _, m := range w.members {
-		out = append(out, m.name)
+	for _, member := range w.members {
+		out = append(out, member.name)
 	}
 	if len(w.entries) > 0 {
 		out = append(out, "allOf")
@@ -115,27 +115,27 @@ func (w written) names() []string {
 	return out
 }
 
-// secondAt returns what the second at index j of the second axis writes on t
-// at v, and false where it writes nothing there: at a version or a target like
-// another, whose findings beside a second repeat that one's, as they do with
-// none; where its row is not said of t or v lacks it; where own says nothing
-// of t.
-func (c cases) secondAt(j int, v version, t target) (written, bool) {
+// secondAt returns what the second at index j of the second axis writes on
+// targetValue at versionValue, and false where it writes nothing there: at a
+// version or a target like another, whose findings beside a second repeat that
+// one's, as they do with none; where its row is not said of targetValue or
+// versionValue lacks it; where own says nothing of targetValue.
+func (c cases) secondAt(j int, versionValue version, targetValue target) (written, bool) {
 	sec := c.seconds[j]
-	if sec.name != none && (v.like != "" || narrowed(t.name) != "") {
+	if sec.name != none && (versionValue.like != "" || narrowed(targetValue.name) != "") {
 		return written{}, false
 	}
 	out := written{row: c.rowOf(j)}
 	switch {
 	case out.row >= 0:
-		k := c.constructs[out.row]
-		if !k.span.holds(v) || !k.saidOf(t) {
+		construct := c.constructs[out.row]
+		if !construct.span.holds(versionValue) || !construct.saidOf(targetValue) {
 			return written{}, false
 		}
-		out.members, out.components, out.stays = k.values(t, v)[0], k.components, k.stays
+		out.members, out.components, out.stays = construct.values(targetValue, versionValue)[0], construct.components, construct.stays
 	case sec.own != nil:
 		var ok bool
-		if out, ok = sec.own(t, v); !ok {
+		if out, ok = sec.own(targetValue, versionValue); !ok {
 			return written{}, false
 		}
 		out.row = -1
@@ -144,12 +144,12 @@ func (c cases) secondAt(j int, v version, t target) (written, bool) {
 	return out, true
 }
 
-// fits reports whether the case at can write sec, its second, beside first,
-// its construct's members, on t: not beside a construct the second excludes,
-// nor writing a keyword first writes; and at inline neither restating t's
-// body nor, as a row's value, replacing a member of it, so that the merged
-// document would no longer say which keyword is the second.
-func (c cases) fits(at []int, sec written, first object, t target) bool {
+// fits reports whether the case at can write sec, its second, beside first, its
+// construct's members, on targetValue: not beside a construct the second
+// excludes, nor writing a keyword first writes; and at inline neither restating
+// targetValue's body nor, as a row's value, replacing a member of it, so that
+// the merged document would no longer say which keyword is the second.
+func (c cases) fits(at []int, sec written, first object, targetValue target) bool {
 	if at[2] > 0 {
 		if _, excluded := c.seconds[at[3]].excludes[c.constructs[(at[2]-1)/2].keyword]; excluded {
 			return false
@@ -161,7 +161,7 @@ func (c cases) fits(at []int, sec written, first object, t target) bool {
 	if c.spellings[at[5]] != inline {
 		return true
 	}
-	replaces := slices.ContainsFunc(sec.members, func(m member) bool { return slices.ContainsFunc(t.body, sameName(m)) })
+	replaces := slices.ContainsFunc(sec.members, func(memberValue member) bool { return slices.ContainsFunc(targetValue.body, sameName(memberValue)) })
 	return !c.seconds[at[3]].restates && (sec.row < 0 || !replaces)
 }
 
@@ -174,15 +174,17 @@ func (c cases) rowOf(j int) int {
 	if sec.name == none || sec.own != nil {
 		return -1
 	}
-	i := slices.IndexFunc(c.constructs, func(k construct) bool { return k.keyword == sec.name })
+	i := slices.IndexFunc(c.constructs, func(constructValue construct) bool { return constructValue.keyword == sec.name })
 	if i < 0 {
 		panic(fmt.Sprintf("openapicases: second construct %q names no construct row and writes nothing", sec.name))
 	}
 	return i
 }
 
-// sameName returns the predicate of a member named as m is.
-func sameName(m member) func(member) bool { return named(m.name) }
+// sameName returns the predicate of a member named as memberValue is.
+func sameName(memberValue member) func(member) bool { return named(memberValue.name) }
 
 // named returns the predicate of a member named name.
-func named(name string) func(member) bool { return func(n member) bool { return n.name == name } }
+func named(name string) func(member) bool {
+	return func(memberValue member) bool { return memberValue.name == name }
+}

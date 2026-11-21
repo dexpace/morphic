@@ -13,13 +13,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,10 +42,10 @@ const (
 )
 
 // enter is the check a load makes before each phase: the test seam is told of
-// p, then ctx is asked.
-func (o Options) enter(ctx context.Context, p phase) error {
+// phaseValue, then ctx is asked.
+func (o Options) enter(ctx context.Context, phaseValue phase) error {
 	if o.entered != nil {
-		o.entered(p)
+		o.entered(phaseValue)
 	}
 	return ctx.Err()
 }
@@ -54,7 +54,7 @@ func (o Options) enter(ctx context.Context, p phase) error {
 // refusal to lower, carried in early.
 type step struct {
 	phase phase
-	run   func(l *loading, ctx context.Context) (refused bool, err error)
+	run   func(loadingValue *loading, ctx context.Context) (refused bool, err error)
 }
 
 // steps returns the phases build runs after the parse, in order.
@@ -79,7 +79,7 @@ type loading struct {
 	src      compilers.Source
 	opts     Options
 	// read is the source as doctree read it, and root its tree.
-	read doctree.Document
+	read doctree.ParsedYAMLDocument
 	root *yaml.Node
 	// places is where the files the compile names lie, one answer for each
 	// directory however often a read asks.
@@ -112,7 +112,7 @@ type loading struct {
 	reader    *external
 	bound     bound
 	// named is the rows each schema of the documents is read with.
-	named dialect.Table
+	named dialect.SchemaDialectRows
 	// sites places a finding at a reference site, or a position of the
 	// bindings, in whichever document writes it.
 	sites places
@@ -256,7 +256,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // judgeLate judges the Schema Objects the bindings give a dialect
 // (judgeSchemas) with the anchors readyForModel cleared named again, since
 // whether another place may read a node is read off them
-// (oas.Options.Judged), and turns what that leaves refused (turnRefused),
+// (specrules.Options.Judged), and turns what that leaves refused (turnRefused),
 // reporting whether it turned any.
 func (l *loading) judgeLate(ctx context.Context) bool {
 	for _, a := range l.anchors {
@@ -273,7 +273,7 @@ func (l *loading) judgeLate(ctx context.Context) bool {
 // what the load places and lowers by: the other documents a reference read,
 // where a finding is placed, and the dialect each schema is read in, with
 // what that reading could not read.
-func (l *loading) readTable(ctx context.Context) (*bind.Table, []ir.Diagnostic) {
+func (l *loading) readTable(ctx context.Context) (*reftable.ReferenceTargetTable, []ir.Diagnostic) {
 	table := bindTable(ctx, l.doc, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	l.bound.others = Others{}
 	if l.reader != nil {
@@ -311,16 +311,16 @@ func (l *loading) reread(ctx context.Context) error {
 // judgments and the source's left it (settle): what they refuse and no reading
 // accepts is turned, and the shapes the model faults on are set aside. It
 // returns the context's error where that cut the judging short.
-func (l *loading) judgeLandings(ctx context.Context, table *bind.Table) error {
+func (l *loading) judgeLandings(ctx context.Context, table *reftable.ReferenceTargetTable) error {
 	var (
-		j   judgment
-		cut error
+		judgmentValue judgment
+		cut           error
 	)
 	l.aside.whileWritten(func() {
-		l.reached, j, cut = judgeReached(ctx, l.sites, table, l.doc, l.opts, l.self, l.bound.others, l.named)
-		turnRefused(j)
+		l.reached, judgmentValue, cut = judgeReached(ctx, l.sites, table, l.doc, l.opts, l.self, l.bound.others, l.named)
+		turnRefused(judgmentValue)
 	})
-	setAside(j, &l.aside)
+	setAside(judgmentValue, &l.aside)
 	return cut
 }
 
@@ -343,13 +343,13 @@ func unreportedRepeats(repeats, reached []ir.Diagnostic) []ir.Diagnostic {
 		pointer jsontext.Pointer
 	}
 	said := make(map[place]bool, len(reached))
-	for _, d := range reached {
-		said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] = true
+	for _, diagnostic := range reached {
+		said[place{diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer}] = true
 	}
 	var out []ir.Diagnostic
-	for _, d := range repeats {
-		if !said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] {
-			out = append(out, d)
+	for _, diagnostic := range repeats {
+		if !said[place{diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer}] {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -363,9 +363,9 @@ func (l *loading) checkSource(ctx context.Context) (bool, error) {
 
 // document assembles the loaded Document from the phases, and what they
 // reported in the order the load lists it.
-func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
+func (l *loading) document(hash string) (*LoadedOpenAPIDocument, []ir.Diagnostic) {
 	diags := slices.Concat(l.early, l.sibFaults, l.judged.diags, l.resolved, l.checked)
-	return &Document{
+	return &LoadedOpenAPIDocument{
 		Doc:      l.doc,
 		Location: l.self.path,
 		Places:   l.places,

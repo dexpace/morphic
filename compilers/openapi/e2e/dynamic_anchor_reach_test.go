@@ -23,22 +23,22 @@ const dynListOther = "List:\n  $id: https://example.com/list\n  type: array\n  i
 
 // dynListItems is where that reference is, and the anchor it expands to.
 const (
-	dynListItems  = ir.TypeID("t/anon@other.yaml/List/items")
-	dynListAnchor = ir.TypeID("t/anon@other.yaml/List/$defs/items")
+	dynListItems  = ir.TypeID("type/anonymous@other.yaml/List/items")
+	dynListAnchor = ir.TypeID("type/anonymous@other.yaml/List/$defs/items")
 	dynListPoint  = "/List/items/$dynamicRef"
 )
 
-// dynStrList declares the same name in the source and reaches the List.
-const dynStrList = "    StrList:\n      $id: https://example.com/strlist\n      $ref: 'list'\n" +
+// dynStringList declares the same name in the source and reaches the List.
+const dynStringList = "    StrList:\n      $id: https://example.com/strlist\n      $ref: 'list'\n" +
 	"      $defs:\n        items:\n          $dynamicAnchor: items\n          type: string\n"
 
 // dynKeptIn returns the infos at pointer of the source table's entry source,
 // the document naming it.
 func dynKeptIn(diags []ir.Diagnostic, source int) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" && d.Provenance.Source == source && string(d.Provenance.Pointer) == dynListPoint {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Provenance.Source == source && string(diagnostic.Provenance.Pointer) == dynListPoint {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -51,8 +51,8 @@ func dynKeptIn(diags []ir.Diagnostic, source int) []ir.Diagnostic {
 func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) {
 	t.Parallel()
 	plain := "    Plain: {$ref: 'other.yaml#/List'}\n"
-	for name, schemas := range map[string]string{"StrList first": dynStrList + plain,
-		"Plain first": plain + dynStrList} {
+	for name, schemas := range map[string]string{"StrList first": dynStringList + plain,
+		"Plain first": plain + dynStringList} {
 		dir := t.TempDir()
 		layout(t, dir, map[string]string{"main.yaml": dynHead + schemas, "other.yaml": dynListOther})
 		doc, diags := compileDir(t, dir, openapi.Options{})
@@ -62,7 +62,7 @@ func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 		items, ok := doc.Types[dynListItems].(*ir.Scalar)
 		require.True(t, ok, "%s: %v", name, doc.Types[dynListItems])
 		require.NotNil(t, items.Base, name)
-		assert.Equal(t, ir.TypeID("t/prim/any"), items.Base.Target, name)
+		assert.Equal(t, ir.TypeID("type/primitive/any"), items.Base.Target, name)
 		entry := unmodeledEntry(t, items.Unmodeled, "openapi:$dynamicRef")
 		assert.JSONEq(t, `"#items"`, string(entry.Value), name)
 		assert.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), name)
@@ -81,8 +81,8 @@ func TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 // nothing, so the reference expands to the anchor beside it.
 func TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands(t *testing.T) {
 	t.Parallel()
-	notReaching := strings.Replace(dynStrList, "      $ref: 'list'\n", "", 1)
-	require.NotEqual(t, dynStrList, notReaching)
+	notReaching := strings.Replace(dynStringList, "      $ref: 'list'\n", "", 1)
+	require.NotEqual(t, dynStringList, notReaching)
 	plain := "    Plain: {$ref: 'other.yaml#/List'}\n"
 	for name, schemas := range map[string]string{"declaration removed": plain,
 		"declaration reaches nothing": notReaching + plain} {
@@ -106,9 +106,9 @@ func TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands(t *testing.T) 
 // pointer of the source table's entry source.
 func diagsAtSource(diags []ir.Diagnostic, code, pointer string, source int) []ir.Severity {
 	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Source == source && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Provenance.Source == source && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic.Severity)
 		}
 	}
 	return out
@@ -145,8 +145,8 @@ func TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept(t *testing.T) {
 	require.Empty(t, byCode(diags, "openapi/budget-exceeded"), "%d findings", len(diags))
 	require.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), "a name two documents declare is kept")
 	kept := 0
-	for _, d := range byCode(diags, "openapi/degraded-construct") {
-		if strings.HasSuffix(string(d.Provenance.Pointer), "/$dynamicRef") && strings.Contains(d.Message, "another document") {
+	for _, diagnostic := range byCode(diags, "openapi/degraded-construct") {
+		if strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$dynamicRef") && strings.Contains(diagnostic.Message, "another document") {
 			kept++
 		}
 	}
@@ -164,8 +164,8 @@ func TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, exceeded[0].Severity)
 	assert.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"), "a reference past the budget is never expanded")
 	var unread int
-	for _, d := range byCode(diags, "openapi/degraded-construct") {
-		if strings.Contains(d.Message, "not read whole") {
+	for _, diagnostic := range byCode(diags, "openapi/degraded-construct") {
+		if strings.Contains(diagnostic.Message, "not read whole") {
 			unread++
 		}
 	}

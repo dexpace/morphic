@@ -46,11 +46,11 @@ func Citations(root, doc, citedAs string) ([]Citation, error) {
 		if rel == doc {
 			patterns = append(patterns, selfLink)
 		}
-		for _, c := range texts {
+		for _, comment := range texts {
 			for _, p := range patterns {
-				for _, m := range p.FindAllStringSubmatchIndex(c.Text, -1) {
-					line := c.Line + strings.Count(c.Text[:m[0]], "\n")
-					out = append(out, Citation{Path: rel, Line: line, Key: c.Text[m[2]:m[3]]})
+				for _, m := range p.FindAllStringSubmatchIndex(comment.Text, -1) {
+					line := comment.Line + strings.Count(comment.Text[:m[0]], "\n")
+					out = append(out, Citation{Path: rel, Line: line, Key: comment.Text[m[2]:m[3]]})
 				}
 			}
 		}

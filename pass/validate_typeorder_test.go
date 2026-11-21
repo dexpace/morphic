@@ -22,15 +22,15 @@ type registryCase struct {
 // registryCases are the families that range the type registry through
 // liveTypeIDs, each with the type that draws one finding.
 func registryCases() []registryCase {
-	str := ir.TypeRef{Target: "t/prim/string"}
+	stringType := ir.TypeRef{Target: "type/primitive/string"}
 	return []registryCase{
 		{
 			name: "checkDiscriminators", code: "pass/discriminator-missing-variant",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Union{
 					ID:            id,
-					Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
-					Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"a": "t/none"}},
+					Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
+					Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"a": "type/none"}},
 				}
 			},
 			at: func(id ir.TypeID) string { return string(id) },
@@ -38,16 +38,16 @@ func registryCases() []registryCase {
 		{
 			name: "checkRepeatedVariants", code: "pass/inclusive-union-redundant-variant",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
-				return &ir.Union{ID: id, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
+				return &ir.Union{ID: id, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}, {Type: ir.TypeRef{Target: "type/m"}}}}
 			},
 			at: func(id ir.TypeID) string { return string(id) + "/variants/1" },
 		},
 		{
 			name: "checkDuplicateMemberIDs", code: "pass/duplicate-enum-member-id",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
-				return &ir.Enum{ID: id, ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{
-					{ID: "e/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-					{ID: "e/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+				return &ir.Enum{ID: id, ValueType: ir.PrimitiveString, Closed: true, Members: []ir.EnumMember{
+					{ID: "enum-member/a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
+					{ID: "enum-member/a", Value: ir.Value{Kind: ir.ValueString, String: "a"}},
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) + "/members/1" },
@@ -56,8 +56,8 @@ func registryCases() []registryCase {
 			name: "checkDuplicateWireNames", code: "pass/duplicate-wire-name",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Model{ID: id, Properties: []ir.Property{
-					{ID: ir.PropID("p/" + id + "/a"), WireName: "a", Type: str},
-					{ID: ir.PropID("p/" + id + "/b"), WireName: "a", Type: str},
+					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: stringType},
+					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "a", Type: stringType},
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) },
@@ -66,8 +66,8 @@ func registryCases() []registryCase {
 			name: "checkAmbiguousAliases", code: "pass/ambiguous-alias",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Model{ID: id, Properties: []ir.Property{
-					{ID: ir.PropID("p/" + id + "/a"), WireName: "a", Type: str, Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"b"}}},
-					{ID: ir.PropID("p/" + id + "/b"), WireName: "b", Type: str, Name: ir.Naming{Source: "b", Canonical: "b"}},
+					{ID: ir.PropertyID("property/" + id + "/a"), WireName: "a", Type: stringType, Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{"b"}}},
+					{ID: ir.PropertyID("property/" + id + "/b"), WireName: "b", Type: stringType, Name: ir.Naming{Source: "b", Canonical: "b"}},
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) + "/properties/0" },
@@ -90,11 +90,11 @@ func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			for _, id := range []ir.TypeID{"t/z", "t/b", "t/q", "t/c", "t/m2"} {
+			for _, id := range []ir.TypeID{"type/z", "type/b", "type/q", "type/c", "type/m2"} {
 				doc.Types[id] = tc.typeOf(id)
 			}
 			want := pointers(withCode(validated(t, doc), tc.code))
-			require.Equal(t, []string{tc.at("t/b"), tc.at("t/c"), tc.at("t/m2"), tc.at("t/q"), tc.at("t/z")}, want)
+			require.Equal(t, []string{tc.at("type/b"), tc.at("type/c"), tc.at("type/m2"), tc.at("type/q"), tc.at("type/z")}, want)
 		})
 	}
 }

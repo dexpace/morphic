@@ -31,19 +31,19 @@ webhooks:
 	openapitest.RequireNoErrorDiags(t, diags)
 	var group ir.OperationGroup
 	found := false
-	for _, g := range svc.Groups {
-		if g.Name.Hint == "webhooks" {
-			group, found = g, true
+	for _, operationGroup := range svc.Groups {
+		if operationGroup.Name.Hint == "webhooks" {
+			group, found = operationGroup, true
 		}
 	}
 	require.True(t, found, "webhook operations land in the webhooks group")
 	require.Len(t, group.Operations, 1)
-	op := group.Operations[0]
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
-	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
-	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
+	operation := group.Operations[0]
+	assert.Equal(t, ir.OperationID("operation/openapi/webhooks/newPet/post"), operation.ID)
+	require.Len(t, operation.Bindings.HTTP, 1)
+	assert.Equal(t, ir.HTTPInboundWebhook, operation.Bindings.HTTP[0].Inbound)
+	assert.Equal(t, "newPet", operation.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, operation.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 }
 
 // TestWebhooks_KeyIsTheEventName lowers a webhooks-map key as the event's name
@@ -55,16 +55,16 @@ func TestWebhooks_KeyIsTheEventName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, key, operationID string
-		wantID                 ir.OpID
+		wantID                 ir.OperationID
 		wantName               ir.Naming
 	}{
 		{"braces, with an operationId", "{tenant}.created", "tenantCreated",
-			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
+			"operation/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
 		{"braces, named by the key", "{tenant}.created", "",
-			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
+			"operation/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
 		{"pointer escapes, named by the key", "a/b~c", "",
-			"op/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
-		{"the empty key", "", "", "op/openapi/webhooks//post", ir.Naming{Hint: "post"}},
+			"operation/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
+		{"the empty key", "", "", "operation/openapi/webhooks//post", ir.Naming{Hint: "post"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -82,13 +82,13 @@ webhooks:
 `
 			svc, diags := lowerServiceSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := webhookOperation(t, svc)
-			assert.Equal(t, tc.wantID, op.ID, "the mount pointer, not the event name, identifies the operation")
-			assert.Equal(t, tc.wantName, op.Name)
-			require.Len(t, op.Bindings.HTTP, 1)
-			assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
-			assert.Equal(t, tc.key, op.Bindings.HTTP[0].WebhookName, "the key, verbatim")
-			assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
+			operation := webhookOperation(t, svc)
+			assert.Equal(t, tc.wantID, operation.ID, "the mount pointer, not the event name, identifies the operation")
+			assert.Equal(t, tc.wantName, operation.Name)
+			require.Len(t, operation.Bindings.HTTP, 1)
+			assert.Equal(t, ir.HTTPInboundWebhook, operation.Bindings.HTTP[0].Inbound)
+			assert.Equal(t, tc.key, operation.Bindings.HTTP[0].WebhookName, "the key, verbatim")
+			assert.Empty(t, operation.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
 		})
 	}
 }
@@ -96,7 +96,7 @@ webhooks:
 // webhookOperation returns the one operation of svc's webhooks group.
 func webhookOperation(t *testing.T, svc ir.Service) ir.Operation {
 	t.Helper()
-	i := slices.IndexFunc(svc.Groups, func(g ir.OperationGroup) bool { return g.ID == ids.WebhookGroup() })
+	i := slices.IndexFunc(svc.Groups, func(operationGroup ir.OperationGroup) bool { return operationGroup.ID == ids.WebhookGroup() })
 	require.GreaterOrEqual(t, i, 0, "the service has a webhooks group")
 	require.Len(t, svc.Groups[i].Operations, 1, "the webhooks group holds exactly one operation")
 	return svc.Groups[i].Operations[0]
@@ -127,14 +127,14 @@ webhooks:
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	assert.Equal(t, "webhooks", group.Name.Hint)
-	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(operation ir.Operation) string { return operation.Name.Source })
 	hook, ok := byName["onNewPet"]
 	require.True(t, ok)
 	ack, ok := byName["ackPost"]
 	require.True(t, ok, "the callback operation joins the webhook in its group")
 	require.Len(t, hook.Bindings.HTTP, 1)
 	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
+	assert.Equal(t, []ir.OperationID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
 	require.Len(t, ack.Bindings.HTTP, 1)
 	assert.Equal(t, ir.HTTPInboundCallback, ack.Bindings.HTTP[0].Inbound, "a callback is not a webhook, though a webhook declares it")
 	assert.Empty(t, ack.Bindings.HTTP[0].WebhookName, "the webhook's name stays on the webhook")
@@ -159,7 +159,7 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(operation ir.Operation) string { return operation.Name.Source })
 	sub, ok := byName["sub"]
 	require.True(t, ok)
 	cb, ok := byName["cbPost"]

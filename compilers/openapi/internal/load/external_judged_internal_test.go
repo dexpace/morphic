@@ -13,8 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -47,11 +47,11 @@ func (r *scriptedReader) asked(location string) []compilers.AddressSpace {
 	return out
 }
 
-// externalWithin reads through r beside a source at self, charging each
-// document it reads to documents.
-func externalWithin(r compilers.DocumentReader, self string, documents budget.Limit) *external {
-	src := sourceDocument{path: self, judged: judgment{checker: oas.NewChecker()}}
-	return newExternal(Options{Reader: r}, newExternalReads(src, documents), &aside{})
+// externalWithin reads through documentReader beside a source at self, charging
+// each document it reads to documents.
+func externalWithin(documentReader compilers.DocumentReader, self string, documents budget.Limit) *external {
+	src := sourceDocument{path: self, judged: judgment{checker: specrules.NewChecker()}}
+	return newExternal(Options{Reader: documentReader}, newExternalReads(src, documents), &aside{})
 }
 
 const (
@@ -66,7 +66,7 @@ const (
 // that reach, refuses the reference, though the read itself succeeded.
 func TestExternal_AStatedBoundPastTheReachRefusesTheReference(t *testing.T) {
 	t.Parallel()
-	r := &scriptedReader{answer: func(req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	scriptedReaderValue := &scriptedReader{answer: func(req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 		switch {
 		case req.Location == judgedA && req.Reach != compilers.SpaceUnstated:
 			return compilers.DocumentRead{Data: []byte("X: {type: string}\n"), Space: compilers.SpacePublic, Bound: compilers.SpacePrivate}, nil
@@ -75,16 +75,16 @@ func TestExternal_AStatedBoundPastTheReachRefusesTheReference(t *testing.T) {
 		}
 		return compilers.DocumentRead{Data: []byte("Y: {type: string}\n"), Space: compilers.SpacePublic, Bound: compilers.SpacePublic}, nil
 	}}
-	e := externalWithin(r, "spec.yaml", budget.Unbounded())
-	_, err := e.document(t.Context(), judgedA, "spec.yaml")
+	external := externalWithin(scriptedReaderValue, "spec.yaml", budget.Unbounded())
+	_, err := external.document(t.Context(), judgedA, "spec.yaml")
 	require.NoError(t, err, "the source reads it as far as it likes")
-	_, err = e.document(t.Context(), judgedB, "spec.yaml")
+	_, err = external.document(t.Context(), judgedB, "spec.yaml")
 	require.NoError(t, err)
 
-	_, err = e.document(t.Context(), judgedA, judgedB)
+	_, err = external.document(t.Context(), judgedA, judgedB)
 
 	barredWith(t, err, "it is at a private address, which a reference in a document read from a public one does not reach")
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, r.asked(judgedA),
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, scriptedReaderValue.asked(judgedA),
 		"the judging read was made at the asker's reach")
 }
 
@@ -94,7 +94,7 @@ func TestExternal_AStatedBoundPastTheReachRefusesTheReference(t *testing.T) {
 // address refusal alone, judged by what the first read stated, unread.
 func TestExternal_AnUnparsableDocumentAtAPrivateAddressIsRefusedToAPublicAsker(t *testing.T) {
 	t.Parallel()
-	r := &scriptedReader{answer: func(req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	scriptedReaderValue := &scriptedReader{answer: func(req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 		if req.Location == judgedC {
 			if req.Reach != compilers.SpaceUnstated && req.Reach < compilers.SpacePrivate {
 				return compilers.DocumentRead{}, &compilers.AddressSpaceError{Address: req.Location, Space: compilers.SpacePrivate}
@@ -103,18 +103,18 @@ func TestExternal_AnUnparsableDocumentAtAPrivateAddressIsRefusedToAPublicAsker(t
 		}
 		return compilers.DocumentRead{Data: []byte("Y: {type: string}\n"), Space: compilers.SpacePublic, Bound: compilers.SpacePublic}, nil
 	}}
-	e := externalWithin(r, "spec.yaml", budget.Unbounded())
-	_, err := e.document(t.Context(), judgedC, "spec.yaml")
+	external := externalWithin(scriptedReaderValue, "spec.yaml", budget.Unbounded())
+	_, err := external.document(t.Context(), judgedC, "spec.yaml")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not parse", "the first asker is told why it failed")
-	_, err = e.document(t.Context(), judgedB, "spec.yaml")
+	_, err = external.document(t.Context(), judgedB, "spec.yaml")
 	require.NoError(t, err)
 
-	_, err = e.document(t.Context(), judgedC, judgedB)
+	_, err = external.document(t.Context(), judgedC, judgedB)
 
 	barredWith(t, err, "it is at a private address, which a reference in a document read from a public one does not reach")
 	assert.NotContains(t, err.Error(), "parse", "the public asker is not told how the document fails")
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated}, r.asked(judgedC),
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated}, scriptedReaderValue.asked(judgedC),
 		"the stated bound judged it, with no read made for the asker")
 }
 
@@ -130,22 +130,22 @@ func TestExternal_ADocumentRefusedToOneAskerAndReadByAnotherIsChargedOnce(t *tes
 		asPublic, asFileErr error
 	}
 	read := func(limit budget.Limit) asked {
-		e := externalWithin(spacedReads(), self, limit)
-		_, asPublic := e.document(t.Context(), reachPriv, self)
-		_, asFile := e.document(t.Context(), reachPriv, "spec.yaml")
-		return asked{e: e, asPublic: asPublic, asFileErr: asFile}
+		external := externalWithin(spacedReads(), self, limit)
+		_, asPublic := external.document(t.Context(), reachPriv, self)
+		_, asFile := external.document(t.Context(), reachPriv, "spec.yaml")
+		return asked{e: external, asPublic: asPublic, asFileErr: asFile}
 	}
 
 	got := read(budget.AtMost(1))
-	e := got.e
+	externalValue := got.e
 	barredWith(t, got.asPublic, "private address")
 	require.NoError(t, got.asFileErr, "the second ask is the same document, already charged")
-	assert.Equal(t, 1, e.read.documents.Spent())
-	assert.Empty(t, e.read.exhausted(provenance.Doc{Source: ir.NoSource}), "a budget of one is not crossed by one document")
+	assert.Equal(t, 1, externalValue.read.documents.Spent())
+	assert.Empty(t, externalValue.read.exhausted(provenance.Doc{Source: ir.NoSource}), "a budget of one is not crossed by one document")
 
 	got = read(budget.AtMost(0))
-	e = got.e
+	externalValue = got.e
 	require.Error(t, got.asPublic)
 	assert.Contains(t, got.asPublic.Error(), "past the 0-document budget")
-	assert.NotEmpty(t, e.read.exhausted(provenance.Doc{Source: ir.NoSource}), "a budget of none is crossed by one")
+	assert.NotEmpty(t, externalValue.read.exhausted(provenance.Doc{Source: ir.NoSource}), "a budget of none is crossed by one")
 }

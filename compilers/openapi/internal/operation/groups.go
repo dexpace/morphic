@@ -26,8 +26,8 @@ import (
 // Parent and Kind are recorded as declared (OpenAPI 3.2's tag hierarchy and tag
 // role, both dropped until GitHub #613). Reading a role out of Kind is grouping
 // policy rather than a property of the document, so it is not interpreted here.
-func lowerTagDefs(c service.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
-	tags := c.Doc.GetTags()
+func lowerTagDefs(serviceContext service.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
+	tags := serviceContext.Doc.GetTags()
 	if len(tags) == 0 {
 		return nil, nil
 	}
@@ -37,7 +37,7 @@ func lowerTagDefs(c service.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
 		if t == nil {
 			continue
 		}
-		kept, keptDiags := tagKeys(c, t, ids.Ptr("tags", strconv.Itoa(i)))
+		kept, keptDiags := tagKeys(serviceContext, t, ids.Ptr("tags", strconv.Itoa(i)))
 		diags = append(diags, keptDiags...)
 		defs = append(defs, ir.TagDef{
 			Name:      t.GetName(),
@@ -53,21 +53,21 @@ func lowerTagDefs(c service.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
 // tagKeys returns what the tag t, written at ptr, writes that its TagDef has
 // no field for: its x-* and undeclared keys unscoped, and its externalDocs
 // object's under externalDocs (docs/ir/unmodeled.md#carriers).
-func tagKeys(c service.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	kept, diags := annotation.ExtensionsFrom(t.GetExtensions(), c.Place(), ptr)
-	diags = append(diags, annotation.UnknownKeysIn(&kept, t, c.Place(), ptr)...)
+func tagKeys(serviceContext service.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+	kept, diags := annotation.ExtensionsFrom(t.GetExtensions(), serviceContext.Place(), ptr)
+	diags = append(diags, annotation.UnknownKeysIn(&kept, t, serviceContext.Place(), ptr)...)
 	ed, edPtr := t.GetExternalDocs(), ptr+ids.Ptr("externalDocs")
-	edExt, edDiags := annotation.ExtensionsUnder(ed.GetExtensions(), c.Place(), edPtr, "externalDocs")
+	edExt, edDiags := annotation.ExtensionsUnder(ed.GetExtensions(), serviceContext.Place(), edPtr, "externalDocs")
 	kept = annotation.MergeUnmodeled(kept, edExt)
 	diags = append(diags, edDiags...)
-	return kept, append(diags, annotation.UnknownKeysUnder(&kept, ed, c.Place(), edPtr, "externalDocs")...)
+	return kept, append(diags, annotation.UnknownKeysUnder(&kept, ed, serviceContext.Place(), edPtr, "externalDocs")...)
 }
 
 // tagGroups gives each group a declared tag forms the vendor extensions of the
 // tag's first declaration and the tier they state, recorded in its Inferred,
 // and reports a tier stated on a tag that forms no group, and a deprecation
 // stated on any, which fill nothing (docs/compilers/openapi.md#tag-groups).
-func tagGroups(p promotion.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
+func tagGroups(promoter promotion.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
 	first := map[ir.GroupID]int{}
 	for i := range slices.Backward(defs) {
 		first[ids.TagGroup(defs[i].Name)] = i
@@ -79,33 +79,33 @@ func tagGroups(p promotion.Promoter, groups []ir.OperationGroup, defs []ir.TagDe
 		stack = append(stack, &groups[i])
 	}
 	for len(stack) > 0 {
-		g := stack[len(stack)-1]
+		operationGroup := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		for i := range g.Groups {
-			stack = append(stack, &g.Groups[i])
+		for i := range operationGroup.Groups {
+			stack = append(stack, &operationGroup.Groups[i])
 		}
-		i, declared := first[g.ID]
+		i, declared := first[operationGroup.ID]
 		if !declared {
 			continue
 		}
 		formed[defs[i].Name] = true
-		g.Unmodeled = annotation.MergeUnmodeled(g.Unmodeled, vendorExtensions(defs[i].Unmodeled))
-		diags = append(diags, promotion.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
+		operationGroup.Unmodeled = annotation.MergeUnmodeled(operationGroup.Unmodeled, vendorExtensions(defs[i].Unmodeled))
+		diags = append(diags, promotion.GroupStability(promoter, operationGroup.Unmodeled, &operationGroup.Stability, &operationGroup.Inferred)...)
 	}
 	for _, def := range defs {
 		if !formed[def.Name] {
-			diags = append(diags, promotion.UnformedTier(p, def.Name, def.Unmodeled)...)
+			diags = append(diags, promotion.UnformedTier(promoter, def.Name, def.Unmodeled)...)
 		}
-		diags = append(diags, promotion.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
+		diags = append(diags, promotion.UnheldDeprecation(promoter, def.Name, formed[def.Name], def.Unmodeled)...)
 	}
 	return diags
 }
 
-// vendorExtensions returns the entries of u kept as the tag's own vendor
-// extensions, unscoped: its externalDocs object's stay on the tag alone.
-func vendorExtensions(u ir.Unmodeled) ir.Unmodeled {
+// vendorExtensions returns the entries of unmodeled kept as the tag's own
+// vendor extensions, unscoped: its externalDocs object's stay on the tag alone.
+func vendorExtensions(unmodeled ir.Unmodeled) ir.Unmodeled {
 	var out ir.Unmodeled
-	for key, entry := range u {
+	for key, entry := range unmodeled {
 		if entry.Reason == ir.ReasonVendorExtension && !strings.Contains(strings.TrimPrefix(key, "openapi:"), "/") {
 			if out == nil {
 				out = ir.Unmodeled{}
@@ -118,11 +118,11 @@ func vendorExtensions(u ir.Unmodeled) ir.Unmodeled {
 
 // tagDocsFrom maps a Tag's summary, description, and externalDocs onto Docs.
 func tagDocsFrom(t *soa.Tag) ir.Docs {
-	d := ir.Docs{Summary: t.GetSummary(), Description: t.GetDescription()}
+	docs := ir.Docs{Summary: t.GetSummary(), Description: t.GetDescription()}
 	if ed := t.GetExternalDocs(); ed != nil {
-		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
+		docs.ExternalDocs = append(docs.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
-	return d
+	return docs
 }
 
 // filing is where an operation is filed: the groups it nests in, outermost
@@ -137,20 +137,20 @@ type filing struct {
 }
 
 // filingFor resolves where the active strategy files src, declared at decl in
-// c's document and mounted at path. A group is resolved by identity: its ID is
-// its key here and in the IR, so two operations share a group exactly when they
-// share an ID. GroupByExtension files src by the first path its extension
-// states, or by GroupingExtension.Fallback where it states none, and names a
-// remount for each other path it or its aliases state, whichever strategy files
-// it (docs/compilers/openapi.md#extension-groups).
-func (g *serviceGroups) filingFor(c service.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
-	if c.Grouping != service.GroupByExtension {
-		return g.filingBy(c.Grouping, src, path)
+// serviceContext's document and mounted at path. A group is resolved by
+// identity: its ID is its key here and in the IR, so two operations share a
+// group exactly when they share an ID. GroupByExtension files src by the first
+// path its extension states, or by GroupingExtension.Fallback where it states
+// none, and names a remount for each other path it or its aliases state,
+// whichever strategy files it (docs/compilers/openapi.md#extension-groups).
+func (g *serviceGroups) filingFor(serviceContext service.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
+	if serviceContext.Grouping != service.GroupByExtension {
+		return g.filingBy(serviceContext.Grouping, src, path)
 	}
-	paths, aliases, diags := extensionPaths(c, src, decl)
+	paths, aliases, diags := extensionPaths(serviceContext, src, decl)
 	var filed filing
 	if len(paths) == 0 {
-		filed = g.filingBy(c.GroupingExtension.Fallback, src, path)
+		filed = g.filingBy(serviceContext.GroupingExtension.Fallback, src, path)
 	} else {
 		filed = filing{levels: extensionLevels(paths[0]), inferred: service.GroupExtensionHeuristic}
 		paths = paths[1:]
@@ -188,13 +188,13 @@ func (g *serviceGroups) filingBy(strategy service.GroupingStrategy, src *soa.Ope
 // none. A value stating no path is reported at its key, as the document means
 // something else by it, and read as if the key were absent. A value that does
 // not serialize is absent here, as applyOperationAnnotations reports it.
-func extensionPaths(c service.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
-	ext := c.GroupingExtension
-	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values(ext.Keys(c.Grouping)))
+func extensionPaths(serviceContext service.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
+	ext := serviceContext.GroupingExtension
+	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values(ext.Keys(serviceContext.Grouping)))
 	if entry, ok := written["openapi:"+ext.Key]; ok {
 		var fits bool
 		if paths, fits = ext.Paths(entry.Value); !fits {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
+			diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
 				"extension %q names no group path of at most %d segments, none empty, written as text whose dots "+
 					"separate them or as a list of such text, so the operation is grouped as if it were absent",
 				ext.Key, service.MaxGroupPathDepth))
@@ -203,7 +203,7 @@ func extensionPaths(c service.Ctx, src *soa.Operation, decl jsontext.Pointer) (p
 	if entry, ok := written["openapi:"+ext.Aliases]; ok {
 		var fits bool
 		if aliases, fits = ext.AliasPaths(entry.Value); !fits {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Aliases),
+			diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Aliases),
 				"extension %q is no list of aliases, each an object stating group paths under %q as that key "+
 					"states them, so none of its paths gets a group", ext.Aliases, ext.Key))
 		}
@@ -361,12 +361,12 @@ func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.Op
 func (g *serviceGroups) place(levels []groupLevel) *ir.OperationGroup {
 	var grp *ir.OperationGroup
 	var parent ir.GroupID
-	for _, l := range levels {
-		if _, seen := g.byID[l.id]; !seen && parent != "" {
-			g.parentOf[l.id] = parent
+	for _, groupLevel := range levels {
+		if _, seen := g.byID[groupLevel.id]; !seen && parent != "" {
+			g.parentOf[groupLevel.id] = parent
 		}
-		grp = g.group(l.id, func() ir.OperationGroup { return ir.OperationGroup{Name: l.name, Docs: l.docs} })
-		parent = l.id
+		grp = g.group(groupLevel.id, func() ir.OperationGroup { return ir.OperationGroup{Name: groupLevel.name, Docs: groupLevel.docs} })
+		parent = groupLevel.id
 	}
 	return grp
 }

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NullableKeyword30",
         "canonical": "nullable_keyword_30"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Holder/properties/listed": {
+    "type/anonymous/components/schemas/Holder/properties/listed": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Holder/properties/listed",
+      "id": "type/anonymous/components/schemas/Holder/properties/listed",
       "name": {
         "hint": "listed"
       },
@@ -75,26 +75,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Holder/properties/listed/s:red",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/listed/string:red",
           "name": {
             "source": "red",
             "canonical": "red"
           },
           "value": {
             "kind": "string",
-            "str": "red"
+            "string": "red"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Holder/properties/listed/s:green",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/listed/string:green",
           "name": {
             "source": "green",
             "canonical": "green"
           },
           "value": {
             "kind": "string",
-            "str": "green"
+            "string": "green"
           },
           "docs": {}
         }
@@ -102,9 +102,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Holder/properties/typedComposed": {
+    "type/anonymous/components/schemas/Holder/properties/typedComposed": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Holder/properties/typedComposed",
+      "id": "type/anonymous/components/schemas/Holder/properties/typedComposed",
       "name": {
         "hint": "typed_composed"
       },
@@ -116,16 +116,16 @@
         "pointer": "/components/schemas/Holder/properties/typedComposed"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Holder/properties/unlisted": {
+    "type/anonymous/components/schemas/Holder/properties/unlisted": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Holder/properties/unlisted",
+      "id": "type/anonymous/components/schemas/Holder/properties/unlisted",
       "name": {
         "hint": "unlisted"
       },
@@ -139,26 +139,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Holder/properties/unlisted/s:red",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/unlisted/string:red",
           "name": {
             "source": "red",
             "canonical": "red"
           },
           "value": {
             "kind": "string",
-            "str": "red"
+            "string": "red"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Holder/properties/unlisted/s:green",
+          "id": "enum-member/anonymous/components/schemas/Holder/properties/unlisted/string:green",
           "name": {
             "source": "green",
             "canonical": "green"
           },
           "value": {
             "kind": "string",
-            "str": "green"
+            "string": "green"
           },
           "docs": {}
         }
@@ -166,9 +166,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -182,21 +182,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/typed",
+          "id": "property/openapi/components/schemas/Holder/properties/typed",
           "name": {
             "source": "typed",
             "canonical": "typed"
           },
           "wireName": "typed",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -209,14 +209,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/untyped",
+          "id": "property/openapi/components/schemas/Holder/properties/untyped",
           "name": {
             "source": "untyped",
             "canonical": "untyped"
           },
           "wireName": "untyped",
           "type": {
-            "target": "t/prim/any",
+            "target": "type/primitive/any",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -224,7 +224,7 @@
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -237,14 +237,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/composed",
+          "id": "property/openapi/components/schemas/Holder/properties/composed",
           "name": {
             "source": "composed",
             "canonical": "composed"
           },
           "wireName": "composed",
           "type": {
-            "target": "t/openapi/components/schemas/Pet",
+            "target": "type/openapi/components/schemas/Pet",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -252,7 +252,7 @@
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -265,14 +265,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/unlisted",
+          "id": "property/openapi/components/schemas/Holder/properties/unlisted",
           "name": {
             "source": "unlisted",
             "canonical": "unlisted"
           },
           "wireName": "unlisted",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/unlisted",
+            "target": "type/anonymous/components/schemas/Holder/properties/unlisted",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -280,7 +280,7 @@
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -293,21 +293,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/listed",
+          "id": "property/openapi/components/schemas/Holder/properties/listed",
           "name": {
             "source": "listed",
             "canonical": "listed"
           },
           "wireName": "listed",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/listed",
+            "target": "type/anonymous/components/schemas/Holder/properties/listed",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -320,14 +320,14 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/typedComposed",
+          "id": "property/openapi/components/schemas/Holder/properties/typedComposed",
           "name": {
             "source": "typedComposed",
             "canonical": "typed_composed"
           },
           "wireName": "typedComposed",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/typedComposed",
+            "target": "type/anonymous/components/schemas/Holder/properties/typedComposed",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -335,7 +335,7 @@
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -352,9 +352,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -368,21 +368,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/name",
+          "id": "property/openapi/components/schemas/Pet/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -399,9 +399,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -409,11 +409,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -421,7 +421,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

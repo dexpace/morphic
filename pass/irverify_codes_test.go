@@ -19,30 +19,30 @@ import (
 // bound once, which the cases below plant a value irverify refuses on.
 func verifyOnlyBase() *ir.Document {
 	name := func(s string) ir.Naming { return ir.Naming{Source: s, Canonical: s} }
-	prim := &ir.Primitive{ID: "t/prim/string", Name: name("string"), Prim: ir.PrimString}
-	prim.Provenance = ir.Provenance{Source: ir.NoSource}
+	primitive := &ir.Primitive{ID: "type/primitive/string", Name: name("string"), PrimitiveKind: ir.PrimitiveString}
+	primitive.Provenance = ir.Provenance{Source: ir.NoSource}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		IDSpaces: map[string][]string{
-			"t": {"x"}, "op": {"x"}, "s": {"x"}, "g": {"x"}, "p": {"x"}, "param": {"x"}, "e": {"x"},
+			"type": {"x"}, "operation": {"x"}, "service": {"x"}, "operation-group": {"x"}, "property": {"x"}, "parameter": {"x"}, "enum-member": {"x"},
 		},
 		Types: ir.TypeRegistry{
-			prim.ID: prim,
-			"t/x/M": &ir.Model{ID: "t/x/M", Name: name("m"), Properties: []ir.Property{
-				{ID: "p/x/M/a", Name: name("a"), Type: ir.TypeRef{Target: "t/prim/string"}},
+			primitive.ID: primitive,
+			"type/x/M": &ir.Model{ID: "type/x/M", Name: name("m"), Properties: []ir.Property{
+				{ID: "property/x/M/a", Name: name("a"), Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
-			"t/x/E": &ir.Enum{ID: "t/x/E", Name: name("e"), ValueType: ir.PrimString, Members: []ir.EnumMember{
-				{ID: "e/x/E/s:a", Name: name("a"), Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+			"type/x/E": &ir.Enum{ID: "type/x/E", Name: name("e"), ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+				{ID: "enum-member/x/E/string:a", Name: name("a"), Value: ir.Value{Kind: ir.ValueString, String: "a"}},
 			}},
 		},
-		Services: []ir.Service{{ID: "s/x/S", Name: name("s"), Groups: []ir.OperationGroup{{
-			ID: "g/x/G", Name: name("g"),
+		Services: []ir.Service{{ID: "service/x/S", Name: name("s"), Groups: []ir.OperationGroup{{
+			ID: "operation-group/x/G", Name: name("g"),
 			Operations: []ir.Operation{{
-				ID: "op/x/o", Name: name("o"),
-				Params: []ir.Parameter{{ID: "param/x/o/q", Name: name("q"), Type: ir.TypeRef{Target: "t/prim/string"}}},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ID: "operation/x/o", Name: name("o"),
+				Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: name("q"), Type: ir.TypeRef{Target: "type/primitive/string"}}},
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 					Method: "GET", URITemplate: "/o",
-					ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/o/q", Location: ir.HTTPLocationQuery}},
+					ParamBindings: []ir.HTTPParamBinding{{Param: "parameter/x/o/q", Location: ir.HTTPLocationQuery}},
 				}}},
 			}},
 		}}}},
@@ -55,8 +55,8 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 	diags, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	slices.Sort(codes)
 	return codes
@@ -68,49 +68,49 @@ func validateCodes(t *testing.T, doc *ir.Document) []string {
 // and the code is irverify's.
 func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 	t.Parallel()
-	model := func(d *ir.Document) *ir.Model { return d.Types["t/x/M"].(*ir.Model) }
-	op := func(d *ir.Document) *ir.Operation { return &d.Services[0].Groups[0].Operations[0] }
+	model := func(document *ir.Document) *ir.Model { return document.Types["type/x/M"].(*ir.Model) }
+	operation := func(document *ir.Document) *ir.Operation { return &document.Services[0].Groups[0].Operations[0] }
 	channel := ir.Naming{Source: "c", Canonical: "c"}
 	for _, tc := range []struct {
 		name string
 		code string
-		plan func(d *ir.Document)
+		plan func(document *ir.Document)
 	}{
-		{"additional mode", "ir/unknown-additional-mode", func(d *ir.Document) { model(d).Additional = "bogus" }},
-		{"presence", "ir/unknown-presence-kind", func(d *ir.Document) { model(d).Properties[0].Presence = "bogus" }},
-		{"http location", "ir/unknown-http-location", func(d *ir.Document) {
-			op(d).Bindings.HTTP[0].ParamBindings[0].Location = ""
+		{"additional mode", "ir/unknown-additional-mode", func(document *ir.Document) { model(document).Additional = "bogus" }},
+		{"presence", "ir/unknown-presence-kind", func(document *ir.Document) { model(document).Properties[0].Presence = "bogus" }},
+		{"http location", "ir/unknown-http-location", func(document *ir.Document) {
+			operation(document).Bindings.HTTP[0].ParamBindings[0].Location = ""
 		}},
-		{"idempotency kind", "ir/unknown-idempotency-kind", func(d *ir.Document) { op(d).Idempotency.Kind = "bogus" }},
-		{"page strategy", "ir/unknown-page-strategy", func(d *ir.Document) {
-			op(d).Pagination = &ir.Pagination{Strategy: "bogus"}
+		{"idempotency kind", "ir/unknown-idempotency-kind", func(document *ir.Document) { operation(document).Idempotency.Kind = "bogus" }},
+		{"page strategy", "ir/unknown-page-strategy", func(document *ir.Document) {
+			operation(document).Pagination = &ir.Pagination{Strategy: "bogus"}
 		}},
-		{"message direction", "ir/unknown-message-direction", func(d *ir.Document) {
-			d.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: channel}}
-			d.IDSpaces[ir.IDKindChannel] = []string{"x"}
-			op(d).Bindings.Message = &ir.MessageBinding{Channel: "chan/x/c", Direction: "bogus"}
+		{"message direction", "ir/unknown-message-direction", func(document *ir.Document) {
+			document.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Name: channel}}
+			document.IDSpaces[ir.IDKindChannel] = []string{"x"}
+			operation(document).Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: "bogus"}
 		}},
-		{"severity", "ir/unknown-severity", func(d *ir.Document) {
-			d.Diagnostics = []ir.Diagnostic{{
+		{"severity", "ir/unknown-severity", func(document *ir.Document) {
+			document.Diagnostics = []ir.Diagnostic{{
 				Severity: "bogus", Code: "x/y", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource},
 			}}
 		}},
-		{"blank version", "ir/version-label-blank", func(d *ir.Document) { d.Versions = []string{"v1", ""} }},
-		{"repeated version", "ir/version-label-repeated", func(d *ir.Document) { d.Versions = []string{"v1", "v1"} }},
-		{"undeclared version", "ir/version-label-undeclared", func(d *ir.Document) {
-			d.Versions = []string{"v1"}
-			model(d).Availability = &ir.Availability{Added: []string{"v9"}}
+		{"blank version", "ir/version-label-blank", func(document *ir.Document) { document.Versions = []string{"v1", ""} }},
+		{"repeated version", "ir/version-label-repeated", func(document *ir.Document) { document.Versions = []string{"v1", "v1"} }},
+		{"undeclared version", "ir/version-label-undeclared", func(document *ir.Document) {
+			document.Versions = []string{"v1"}
+			model(document).Availability = &ir.Availability{Added: []string{"v9"}}
 		}},
-		{"availability order", "ir/availability-out-of-order", func(d *ir.Document) {
-			d.Versions = []string{"v1", "v2"}
-			model(d).Availability = &ir.Availability{Added: []string{"v2", "v1"}}
+		{"availability order", "ir/availability-out-of-order", func(document *ir.Document) {
+			document.Versions = []string{"v1", "v2"}
+			model(document).Availability = &ir.Availability{Added: []string{"v2", "v1"}}
 		}},
-		{"primitive source", "ir/prim-names-source", func(d *ir.Document) {
-			d.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
-			d.Types["t/prim/string"].Common().Provenance = ir.Provenance{Source: 0}
+		{"primitive source", "ir/primitive-names-source", func(document *ir.Document) {
+			document.Sources = []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml"}}
+			document.Types["type/primitive/string"].Common().Provenance = ir.Provenance{Source: 0}
 		}},
-		{"enum member kind", "ir/enum-member-kind", func(d *ir.Document) {
-			d.Types["t/x/E"].(*ir.Enum).ValueType = ir.PrimInteger
+		{"enum member kind", "ir/enum-member-kind", func(document *ir.Document) {
+			document.Types["type/x/E"].(*ir.Enum).ValueType = ir.PrimitiveInteger
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,8 +120,8 @@ func TestValidate_StaysSilentOnWhatIrverifyHolds(t *testing.T) {
 
 			violations := irverify.Verify(planted)
 			codes := make([]string, 0, len(violations))
-			for _, v := range violations {
-				codes = append(codes, v.Code)
+			for _, violation := range violations {
+				codes = append(codes, violation.Code)
 			}
 			require.Contains(t, codes, tc.code, "the plant is one irverify refuses")
 			assert.Equal(t, validateCodes(t, verifyOnlyBase()), validateCodes(t, planted),

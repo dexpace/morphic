@@ -21,11 +21,11 @@ import (
 func TestValidate_AParameterNoBindingPlacesIsUnbound(t *testing.T) {
 	t.Parallel()
 	const unbound, mismatch = "pass/param-unbound", "pass/param-binding-mismatch"
-	param := ir.Parameter{ID: "param/x/op/q", Name: ir.Naming{Source: "q"}}
+	param := ir.Parameter{ID: "parameter/x/op/q", Name: ir.Naming{Source: "q"}}
 
-	op := paramBindingOp("op", param)
-	op.Bindings.HTTP[0].ParamBindings = nil
-	diags := validated(t, docWithOperation(op))
+	operation := paramBindingOperation("op", param)
+	operation.Bindings.HTTP[0].ParamBindings = nil
+	diags := validated(t, docWithOperation(operation))
 
 	require.Len(t, withCode(diags, unbound), 1)
 	got := withCode(diags, unbound)[0]
@@ -34,7 +34,7 @@ func TestValidate_AParameterNoBindingPlacesIsUnbound(t *testing.T) {
 	assert.Equal(t, `parameter "q" on op/bindings/http/0 is not bound to any HTTP location`, got.Message)
 	assert.Empty(t, withCode(diags, mismatch), "an unplaced parameter draws no mismatch")
 
-	placed := validated(t, docWithOperation(paramBindingOp("op", param)))
+	placed := validated(t, docWithOperation(paramBindingOperation("op", param)))
 	assert.Empty(t, withCode(placed, unbound))
 	assert.Empty(t, withCode(placed, mismatch))
 }
@@ -44,10 +44,10 @@ func TestValidate_AParameterNoBindingPlacesIsUnbound(t *testing.T) {
 // always has, and no unbound warning, since the parameter is placed.
 func TestValidate_AParameterPlacedTwiceIsAMismatchAndNotUnbound(t *testing.T) {
 	t.Parallel()
-	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/q", Name: ir.Naming{Source: "q"}})
-	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings, op.Bindings.HTTP[0].ParamBindings[0])
+	operation := paramBindingOperation("op", ir.Parameter{ID: "parameter/x/op/q", Name: ir.Naming{Source: "q"}})
+	operation.Bindings.HTTP[0].ParamBindings = append(operation.Bindings.HTTP[0].ParamBindings, operation.Bindings.HTTP[0].ParamBindings[0])
 
-	diags := validated(t, docWithOperation(op))
+	diags := validated(t, docWithOperation(operation))
 
 	require.Len(t, withCode(diags, "pass/param-binding-mismatch"), 1)
 	got := withCode(diags, "pass/param-binding-mismatch")[0]

@@ -33,9 +33,9 @@ func hintOnly(hint string) *ir.Document {
 // carries the schema stamp for the same reason the model carries an ID keyed to
 // itself: a document missing either has a violation of its own, and a fixture
 // about naming must contribute none.
-func modelNamed(n ir.Naming) *ir.Document {
-	m := &ir.Model{ID: "t/x/M", Name: n}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+func modelNamed(naming ir.Naming) *ir.Document {
+	model := &ir.Model{ID: "type/x/M", Name: naming}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 }
 
 func TestVerify_NeutralCanonicalIsClean(t *testing.T) {
@@ -240,18 +240,18 @@ func ok200() ir.ResponseConditions {
 
 // respondingDoc is a named service/group/operation chain holding one response,
 // so a fixture about the response itself contributes no violations of its own.
-func respondingDoc(r ir.Response) *ir.Document {
+func respondingDoc(response ir.Response) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID:   "s/x/S",
+		ID:   "service/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
-			ID:   "g/x/S/g",
+			ID:   "operation-group/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
-				ID:        "op/x/S/op",
+				ID:        "operation/x/S/op",
 				Name:      named("op"),
-				Responses: []ir.Response{r},
+				Responses: []ir.Response{response},
 			}},
 		}},
 	}}
@@ -264,13 +264,13 @@ func respondingDoc(r ir.Response) *ir.Document {
 func erroringDoc(ec ir.ErrorCase) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID:   "s/x/S",
+		ID:   "service/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
-			ID:   "g/x/S/g",
+			ID:   "operation-group/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
-				ID:     "op/x/S/op",
+				ID:     "operation/x/S/op",
 				Name:   named("op"),
 				Errors: []ir.ErrorCase{ec},
 			}},
@@ -289,7 +289,7 @@ func TestVerify_AbsentNameIsAViolation(t *testing.T) {
 	got := verifyDeclared(modelNamed(ir.Naming{}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/M].Name", got[0].Path)
 }
 
 // TestVerify_AnyOneChannelIsAName pins how little the presence rule asks for.
@@ -297,14 +297,14 @@ func TestVerify_AbsentNameIsAViolation(t *testing.T) {
 // checks and the compilers decide that — only that one of them is.
 func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 	t.Parallel()
-	for _, n := range []ir.Naming{
+	for _, naming := range []ir.Naming{
 		{Source: "user", Canonical: "user"},
 		{Canonical: "user"},         // a canonical carried without a source
 		{Hint: "connection_domain"}, // an anonymous type's generated name
 		{Source: "***"},             // a spelling with no word rune in it
 	} {
-		assert.NotContains(t, codesOf(verifyDeclared(modelNamed(n))), "ir/naming-absent",
-			"naming %+v names the entity", n)
+		assert.NotContains(t, codesOf(verifyDeclared(modelNamed(naming))), "ir/naming-absent",
+			"naming %+v names the entity", naming)
 	}
 }
 
@@ -312,10 +312,10 @@ func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 // the exemption says nothing about the rest of the document.
 func primitiveDoc() *ir.Document {
 	doc := validDoc()
-	doc.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
-		ID:         ir.PrimTypeID(ir.PrimString),
-		Prim:       ir.PrimString,
-		Provenance: ir.Provenance{Source: ir.NoSource},
+	doc.Types[ir.PrimitiveTypeID(ir.PrimitiveString)] = &ir.Primitive{
+		ID:            ir.PrimitiveTypeID(ir.PrimitiveString),
+		PrimitiveKind: ir.PrimitiveString,
+		Provenance:    ir.Provenance{Source: ir.NoSource},
 	}
 	return doc
 }
@@ -347,15 +347,15 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 		doc  *ir.Document
 		path string
 	}{
-		"server": {server, "doc.Servers[server/x/a].Name"},
+		"server": {server, "document.Servers[server/x/a].Name"},
 		"response": {respondingDoc(ir.Response{Conditions: ok200()}),
-			"doc.Services[0].Groups[0].Operations[0].Responses[0].Name"},
+			"document.Services[0].Groups[0].Operations[0].Responses[0].Name"},
 		// The error twin. ErrorCase.Name is Response.Name (GitHub #422), and the
 		// rule fired on one and not the other only because nothing walked here:
 		// skipping ErrorCase.Name in the reflection walk left the whole suite
 		// green, where skipping Response.Name reddens the row above.
 		"error case": {erroringDoc(ir.ErrorCase{Conditions: ok200()}),
-			"doc.Services[0].Groups[0].Operations[0].Errors[0].Name"},
+			"document.Services[0].Groups[0].Operations[0].Errors[0].Name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -379,11 +379,11 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
-	doc.Types["t/x/M"] = &ir.Model{ID: "t/x/M"}
+	doc.Types["type/x/M"] = &ir.Model{ID: "type/x/M"}
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1, "the model, and not the exempt primitive beside it")
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/M].Name", got[0].Path)
 }
 
 // TestVerify_PresenceReachesANamingNoNameFieldOwns pins that the rule holds
@@ -396,14 +396,14 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID:      "s/x/S",
+		ID:      "service/x/S",
 		Name:    named("s"),
-		Renames: map[ir.TypeID]ir.Naming{"t/x/Model": {}},
+		Renames: map[ir.TypeID]ir.Naming{"type/x/Model": {}},
 	}}
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
-	assert.Equal(t, "doc.Services[0].Renames[t/x/Model]", got[0].Path)
+	assert.Equal(t, "document.Services[0].Renames[type/x/Model]", got[0].Path)
 }
 
 // TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
@@ -428,9 +428,9 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 		path      string
 		wantTotal int
 	}{
-		{"source", ir.Naming{Source: ill, Canonical: ir.CanonicalWords(ill)}, "doc.Types[t/x/M].Name.Source", 1},
-		{"canonical", ir.Naming{Canonical: ill}, "doc.Types[t/x/M].Name.Canonical", 3},
-		{"hint", ir.Naming{Hint: ill}, "doc.Types[t/x/M].Name.Hint", 3},
+		{"source", ir.Naming{Source: ill, Canonical: ir.CanonicalWords(ill)}, "document.Types[type/x/M].Name.Source", 1},
+		{"canonical", ir.Naming{Canonical: ill}, "document.Types[type/x/M].Name.Canonical", 3},
+		{"hint", ir.Naming{Hint: ill}, "document.Types[type/x/M].Name.Hint", 3},
 	} {
 		t.Run(tc.channel, func(t *testing.T) {
 			t.Parallel()
@@ -447,14 +447,14 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
 
-			for _, v := range got {
-				assert.True(t, utf8.ValidString(v.Message),
-					"%s: message %q is valid UTF-8", v.Code, v.Message)
-				if v.Code == "ir/invalid-utf8" {
+			for _, violation := range got {
+				assert.True(t, utf8.ValidString(violation.Message),
+					"%s: message %q is valid UTF-8", violation.Code, violation.Message)
+				if violation.Code == "ir/invalid-utf8" {
 					continue // it quotes nothing, so there is no name to spell out
 				}
-				assert.Contains(t, v.Message, `\xe9`,
-					"%s: the quoted name carries the ill-formed byte as an escape", v.Code)
+				assert.Contains(t, violation.Message, `\xe9`,
+					"%s: the quoted name carries the ill-formed byte as an escape", violation.Code)
 			}
 		})
 	}

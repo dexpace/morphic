@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "GroupIdentity",
         "canonical": "group_identity"
@@ -52,7 +52,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/default",
+          "id": "operation-group/tags/default",
           "name": {
             "source": "default",
             "canonical": "default"
@@ -62,7 +62,7 @@
           },
           "operations": [
             {
-              "id": "op/openapi/paths/~1declared/get",
+              "id": "operation/openapi/paths/~1declared/get",
               "name": {
                 "source": "declared",
                 "canonical": "declared"
@@ -109,14 +109,14 @@
           ]
         },
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1untagged/get",
+              "id": "operation/openapi/paths/~1untagged/get",
               "name": {
                 "source": "untagged",
                 "canonical": "untagged"
@@ -160,7 +160,7 @@
           ]
         },
         {
-          "id": "g/tags/webhooks",
+          "id": "operation-group/tags/webhooks",
           "name": {
             "source": "webhooks",
             "canonical": "webhooks"
@@ -168,7 +168,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1named-like-the-webhook-group/get",
+              "id": "operation/openapi/paths/~1named-like-the-webhook-group/get",
               "name": {
                 "source": "namedLikeWebhooks",
                 "canonical": "named_like_webhooks"
@@ -215,7 +215,7 @@
           ]
         },
         {
-          "id": "g/tags/ghost",
+          "id": "operation-group/tags/ghost",
           "name": {
             "source": "ghost",
             "canonical": "ghost"
@@ -223,7 +223,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1undeclared/get",
+              "id": "operation/openapi/paths/~1undeclared/get",
               "name": {
                 "source": "undeclared",
                 "canonical": "undeclared"
@@ -270,7 +270,7 @@
           ]
         },
         {
-          "id": "g/tags/a~1b",
+          "id": "operation-group/tags/a~1b",
           "name": {
             "source": "a/b",
             "canonical": "a_b"
@@ -278,7 +278,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1slash/get",
+              "id": "operation/openapi/paths/~1slash/get",
               "name": {
                 "source": "slash",
                 "canonical": "slash"
@@ -325,7 +325,7 @@
           ]
         },
         {
-          "id": "g/tags/a~01b",
+          "id": "operation-group/tags/a~01b",
           "name": {
             "source": "a~1b",
             "canonical": "a_1_b"
@@ -333,7 +333,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1tilde/get",
+              "id": "operation/openapi/paths/~1tilde/get",
               "name": {
                 "source": "tilde",
                 "canonical": "tilde"
@@ -380,14 +380,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/onEvent/post",
+              "id": "operation/openapi/webhooks/onEvent/post",
               "name": {
                 "source": "onEvent",
                 "canonical": "on_event"

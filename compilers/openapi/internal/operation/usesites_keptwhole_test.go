@@ -22,13 +22,13 @@ import (
 func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "promoted_keys_in_a_branch_kept_whole"))
-	for _, d := range diags {
-		assert.Equal(t, "openapi/degraded-construct info", d.Code+" "+string(d.Severity), d.Message)
+	for _, diagnostic := range diags {
+		assert.Equal(t, "openapi/degraded-construct info", diagnostic.Code+" "+string(diagnostic.Severity), diagnostic.Message)
 	}
-	facts := opTree(t, doc, "facts")
-	params, headers := at(facts, "params"), at(facts, "responses", "0", "headers")
-	body := tree(t, doc.Types[ir.TypeID("t/anon/paths/~1facts/get/responses/200/content/application~1json/schema")])
-	properties := at(body, "properties")
+	facts := operationTree(t, doc, "facts")
+	params, headers := valueAtPath(facts, "params"), valueAtPath(facts, "responses", "0", "headers")
+	body := tree(t, doc.Types[ir.TypeID("type/anonymous/paths/~1facts/get/responses/200/content/application~1json/schema")])
+	properties := valueAtPath(body, "properties")
 	for _, c := range []struct {
 		name, scope, entry string
 		carrier            any
@@ -43,9 +43,9 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 		{"property ref_first", "", "allOf/1", namedItem(t, properties, "ref_first")},
 		{"property branch_first", "", "allOf/0", namedItem(t, properties, "branch_first")},
 	} {
-		assert.Equal(t, true, at(c.carrier, "secret"), c.name)
-		assert.Equal(t, "old", at(c.carrier, "deprecation", "message"), c.name)
-		held := entries(t, at(c.carrier, "unmodeled"))
+		assert.Equal(t, true, valueAtPath(c.carrier, "secret"), c.name)
+		assert.Equal(t, "old", valueAtPath(c.carrier, "deprecation", "message"), c.name)
+		held := entries(t, valueAtPath(c.carrier, "unmodeled"))
 		kept := make([]string, 0, len(held))
 		for key := range held {
 			kept = append(kept, key)
@@ -59,12 +59,12 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	}
 
 	for _, name := range []string{"pagesRefFirst", "pagesBranchFirst", "pagesContentRefFirst", "pagesContentBranchFirst"} {
-		op := opTree(t, doc, name)
-		if !assert.NotNil(t, at(op, "pagination"), name) {
+		operation := operationTree(t, doc, name)
+		if !assert.NotNil(t, valueAtPath(operation, "pagination"), name) {
 			continue
 		}
-		assert.Equal(t, "cursor", at(op, "pagination", "strategy"), name)
-		assert.Equal(t, at(namedItem(t, at(op, "params"), "cursor"), "id"), at(op, "pagination", "inputCursor", "param"), name)
-		assert.NotNil(t, at(op, "pagination", "nextCursor", "segments"), name)
+		assert.Equal(t, "cursor", valueAtPath(operation, "pagination", "strategy"), name)
+		assert.Equal(t, valueAtPath(namedItem(t, valueAtPath(operation, "params"), "cursor"), "id"), valueAtPath(operation, "pagination", "inputCursor", "param"), name)
+		assert.NotNil(t, valueAtPath(operation, "pagination", "nextCursor", "segments"), name)
 	}
 }

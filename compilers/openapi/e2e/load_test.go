@@ -23,10 +23,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -84,8 +84,8 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, tc.spec)
-			msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, tc.pointer)
-			assert.Contains(t, msg, `unresolved $ref "#/components/schemas/Ghost"`,
+			message := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, tc.pointer)
+			assert.Contains(t, message, `unresolved $ref "#/components/schemas/Ghost"`,
 				"the load phase's own report, with the resolver's reason")
 		})
 	}
@@ -124,9 +124,9 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		require.NoError(t, err)
 
 		var at []string
-		for _, d := range diags {
-			if d.Provenance.Pointer == "/components/schemas/A" {
-				at = append(at, d.Code)
+		for _, diagnostic := range diags {
+			if diagnostic.Provenance.Pointer == "/components/schemas/A" {
+				at = append(at, diagnostic.Code)
 			}
 		}
 		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering reports nothing for a member of the loop")
@@ -237,10 +237,10 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 		for _, order := range []string{site("/a") + site("/b"), site("/b") + site("/a")} {
 			_, diags := parseFull(t, openapitest.PathsSpec(order)+stringLib)
 			got := map[jsontext.Pointer]string{}
-			for _, d := range diags {
-				assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
-				assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
-				got[d.Provenance.Pointer] = d.Message
+			for _, diagnostic := range diags {
+				assert.Equal(t, diag.UnresolvedRef, diagnostic.Code, "%+v", diagnostic)
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
+				got[diagnostic.Provenance.Pointer] = diagnostic.Message
 			}
 			assert.Len(t, diags, len(want), "one finding at each $ref, none beside it: %+v", diags)
 			assert.Empty(t, cmp.Diff(want, got), "declared in the order %q", order)
@@ -326,10 +326,10 @@ func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *tes
 	require.NoError(t, err)
 
 	require.NotEmpty(t, diags)
-	for _, d := range diags {
+	for _, diagnostic := range diags {
 		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x-lib/B/minLength", Position: ir.Position{Line: 5, Column: 32}},
-			d.Provenance, "%+v", d)
-		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "%+v", d)
+			diagnostic.Provenance, "%+v", diagnostic)
+		assert.True(t, strings.HasPrefix(diagnostic.Code, diag.Validation+"/"), "%+v", diagnostic)
 	}
 }
 
@@ -356,9 +356,9 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	require.NotNil(t, doc)
 
 	var found []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.Validation+"/validation-required-field" {
-			found = append(found, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.Validation+"/validation-required-field" {
+			found = append(found, diagnostic)
 		}
 	}
 	require.Len(t, found, 1, "%+v", diags)
@@ -377,8 +377,8 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 func TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "no finding: %+v", d)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation), "no finding: %+v", diagnostic)
 	}
 }
 
@@ -412,13 +412,13 @@ func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
 	absolute, _ := compileAt(filepath.Join(dir, "root.yaml"))
 
 	assert.Len(t, relative.Sources, 2, "the spec and the one file it reads")
-	s := ids.In("inner/real.yaml").NamedType("/components/schemas/S")
+	typeID := ids.In("inner/real.yaml").NamedType("/components/schemas/S")
 	for _, name := range []string{"A", "B"} {
-		assert.Equal(t, s, useTarget(t, relative, name), "%s names the one S", name)
+		assert.Equal(t, typeID, useTarget(t, relative, name), "%s names the one S", name)
 	}
 	gone := 0
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
 			gone++
 		}
 	}
@@ -453,8 +453,8 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		reasons := make([]string, 0, len(diags))
-		for _, d := range diags {
-			reasons = append(reasons, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
+		for _, diagnostic := range diags {
+			reasons = append(reasons, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message[strings.LastIndex(diagnostic.Message, ": ")+2:])
 		}
 		return doc.Types, reasons
 	}
@@ -465,7 +465,7 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 		"/components/schemas/Abs: the $ref names it by an absolute path, which a read follows only when external references are allowed",
 		"/components/schemas/URI: it is named by a file URI, which a read follows only when external references are allowed",
 	}, reasons)
-	assert.Contains(t, types, ids.In("inner/real.yaml").AnonType("/X"), "the relative $ref is followed")
+	assert.Contains(t, types, ids.In("inner/real.yaml").AnonymousType("/X"), "the relative $ref is followed")
 	for _, run := range []struct{ cwd, path string }{
 		{link, "root.yaml"}, {dir, filepath.Join(dir, "root.yaml")}, {link, filepath.Join(link, "root.yaml")},
 	} {
@@ -504,8 +504,8 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 				require.NotNil(t, doc)
 
 				got := make([]string, 0, len(diags))
-				for _, d := range diags {
-					got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+				for _, diagnostic := range diags {
+					got = append(got, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 				}
 				slices.Sort(got)
 				assert.Equal(t, []string{
@@ -527,7 +527,7 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 // would read "foo:b.yaml" as a path against it. A file whose name holds a
 // colon, written "./foo:b.yaml", is read, the spec named relatively too,
 // where the parser library's join would make it that same "foo:b.yaml"
-// (resolve.Locate keeps the "./"). Both routes word the refusal alike.
+// (componentlookup.Locate keeps the "./"). Both routes word the refusal alike.
 func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -554,9 +554,9 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 			require.NotNil(t, doc)
 
 			got := make([]string, 0, len(diags))
-			for _, d := range diags {
-				got = append(got, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
-				assert.Contains(t, d.Message, ": the document it names could not be read: external document foo:b.yaml refused: ",
+			for _, diagnostic := range diags {
+				got = append(got, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message[strings.LastIndex(diagnostic.Message, ": ")+2:])
+				assert.Contains(t, diagnostic.Message, ": the document it names could not be read: external document foo:b.yaml refused: ",
 					"a schema's $ref and a parameter's word one refusal alike")
 			}
 			slices.Sort(got)
@@ -564,7 +564,7 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 				"%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
 			require.Len(t, doc.Sources, 2, "%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
 			assert.Equal(t, "foo:b.yaml", filepath.Base(doc.Sources[1].Path), "the file the dot segment names")
-			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonType("/B"), "the dot-segment $ref is followed")
+			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonymousType("/B"), "the dot-segment $ref is followed")
 		}
 	}
 }
@@ -579,7 +579,9 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 		"    Pet:\n      type: object\n      properties:\n        kind: {$ref: 'urn:example:kind'}\n" +
 		"        other: {$ref: 'urn:example:none'}\n    Kind: {$id: 'urn:example:kind', type: string}\n")
 	path := filepath.Join(t.TempDir(), "root.yaml")
-	component := func(name string) ir.TypeID { return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name)) }
+	component := func(name string) ir.TypeID {
+		return ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", name))
+	}
 	for _, allow := range []bool{false, true} {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
@@ -588,7 +590,7 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 
 		pet, ok := doc.Types[component("Pet")].(*ir.Model)
 		require.True(t, ok, "Pet is a Model")
-		kind, ok := propByWire(pet, "kind")
+		kind, ok := propertyByWire(pet, "kind")
 		require.True(t, ok, "Pet declares kind")
 		assert.Equal(t, component("Kind"), kind.Type.Target, "external references allowed: %v", allow)
 		assert.Equal(t, `unresolved $ref "urn:example:none": the document it names could not be read: `+
@@ -596,7 +598,7 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 			`and only http, https and file URLs are read`,
 			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError,
 				"/components/schemas/Pet/properties/other"))
-		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Severity != ir.SeverityError })
+		errs := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool { return diagnostic.Severity != ir.SeverityError })
 		assert.Len(t, errs, 1, "the identifier draws no refusal: %v", errs)
 	}
 }
@@ -627,12 +629,12 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 
-		pet, ok := doc.Types[ids.Document{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
+		pet, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
 		require.True(t, ok, "Pet is a Model")
-		tag, ok := propByWire(pet, "tag")
+		tag, ok := propertyByWire(pet, "tag")
 		require.True(t, ok, "Pet declares tag")
-		assert.Equal(t, ids.In("schemas/tag.json").AnonType("/T"), tag.Type.Target, "external references allowed: %v", allow)
-		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonType("/T"), ids.In("b.yaml").AnonType("/B")} {
+		assert.Equal(t, ids.In("schemas/tag.json").AnonymousType("/T"), tag.Type.Target, "external references allowed: %v", allow)
+		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonymousType("/T"), ids.In("b.yaml").AnonymousType("/B")} {
 			assert.NotContains(t, doc.Types, beside, "the file beside the source is never read")
 		}
 		unresolved := openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/S/properties/b")
@@ -684,17 +686,17 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, doc)
 			var got []string
-			for _, d := range diags {
-				got = append(got, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer)+": "+
-					d.Message[strings.LastIndex(d.Message, ": ")+2:])
+			for _, diagnostic := range diags {
+				got = append(got, filepath.Base(doc.Sources[diagnostic.Provenance.Source].Path)+"#"+string(diagnostic.Provenance.Pointer)+": "+
+					diagnostic.Message[strings.LastIndex(diagnostic.Message, ": ")+2:])
 			}
 			slices.Sort(got)
 			assert.Equal(t, []string{"abs.yaml#/Y: " + refused, "root.yaml#/paths/~1x/get/parameters/0: " + refused}, got,
 				"%v as %s", order, path)
-			w, ok := doc.Types[ids.In("rel.yaml").AnonType("/W")].(*ir.Scalar)
+			scalar, ok := doc.Types[ids.In("rel.yaml").AnonymousType("/W")].(*ir.Scalar)
 			require.True(t, ok, "%v as %s", order, path)
-			require.NotNil(t, w.Base)
-			assert.Equal(t, ids.In("b.yaml").AnonType("/B"), w.Base.Target, "the relative $ref is followed")
+			require.NotNil(t, scalar.Base)
+			assert.Equal(t, ids.In("b.yaml").AnonymousType("/B"), scalar.Base.Target, "the relative $ref is followed")
 			types = append(types, doc.Types)
 		}
 		assert.Empty(t, cmp.Diff(types[0], types[1]), "%v: the IDs do not depend on how the spec was named", order)
@@ -738,13 +740,13 @@ func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
-	pet := ids.In(srv.URL + "/schemas/pet.yaml").AnonType("/Pet")
+	pet := ids.In(srv.URL + "/schemas/pet.yaml").AnonymousType("/Pet")
 	assert.Contains(t, doc.Types, pet, "the schema the absolute path names, read from the host")
-	ops := doc.Services[0].Groups[0].Operations
-	require.Len(t, ops, 1)
-	names := make([]string, 0, len(ops[0].Params))
-	for _, p := range ops[0].Params {
-		names = append(names, p.Name.Source)
+	operations := doc.Services[0].Groups[0].Operations
+	require.Len(t, operations, 1)
+	names := make([]string, 0, len(operations[0].Params))
+	for _, parameter := range operations[0].Params {
+		names = append(names, parameter.Name.Source)
 	}
 	assert.Equal(t, []string{"p", "n"}, names, "each parameter the network-path reference and the absolute path name")
 }
@@ -907,7 +909,7 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 				}
 				if strings.Contains(tc.name, "file URI") {
 					require.Len(t, diags, 1, "%+v", diags)
-					assert.Contains(t, diags[0].Message, bind.OffNetwork, "a $self moves no fetched read onto a file")
+					assert.Contains(t, diags[0].Message, reftable.OffNetwork, "a $self moves no fetched read onto a file")
 					return
 				}
 				// The path the $self names is on the source's host, which this
@@ -926,13 +928,13 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	}
 }
 
-// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins
-// that a $ref naming a source read over the network names the source itself,
-// though the two spell its URL apart in ways RFC 3986 reads as one: a host in
-// upper case, an unreserved character percent-encoded, a dot segment. Nothing
-// is fetched, and the parameter is the source's own. Only the binder's own
-// comparison of the URLs (bind.resources.names) matches these spellings: the
-// table of documents read, keyed by name, matches none of them.
+// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins that
+// a $ref naming a source read over the network names the source itself, though
+// the two spell its URL apart in ways RFC 3986 reads as one: a host in upper
+// case, an unreserved character percent-encoded, a dot segment. Nothing is
+// fetched, and the parameter is the source's own. Only the binder's own
+// comparison of the URLs (reftable.resources.names) matches these spellings:
+// the table of documents read, keyed by name, matches none of them.
 func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -960,10 +962,10 @@ func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testi
 			require.NotNil(t, doc)
 
 			assert.Empty(t, rec.locations(), "the source is not fetched again")
-			op, ok := opByName(doc, "a")
+			operation, ok := operationByName(doc, "a")
 			require.True(t, ok)
-			require.Len(t, op.Params, 1)
-			assert.Equal(t, "own", op.Params[0].Name.Source, "the source's own parameter")
+			require.Len(t, operation.Params, 1)
+			assert.Equal(t, "own", operation.Params[0].Name.Source, "the source's own parameter")
 		})
 	}
 }
@@ -1000,9 +1002,9 @@ func compileOverTheNetwork(t *testing.T, version string, entries []networkEntry,
 		body := secretDoc
 		switch {
 		case r.URL.Path == "/v1/d/a.yaml" && hops > 1:
-			body = componentsOf(entries, func(e networkEntry) string { return "{$ref: 'b.yaml" + e.at() + "'}" })
+			body = componentsOf(entries, func(networkEntryValue networkEntry) string { return "{$ref: 'b.yaml" + networkEntryValue.at() + "'}" })
 		case r.URL.Path == "/v1/d/a.yaml", r.URL.Path == "/v1/d/b.yaml":
-			body = componentsOf(entries, func(e networkEntry) string { return e.value })
+			body = componentsOf(entries, func(networkEntryValue networkEntry) string { return networkEntryValue.value })
 		}
 		_, err := w.Write([]byte(body))
 		assert.NoError(t, err)
@@ -1010,7 +1012,7 @@ func compileOverTheNetwork(t *testing.T, version string, entries []networkEntry,
 	t.Cleanup(srv.Close)
 	api := srv.URL + "/v1/d/a.yaml"
 	root := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
-		componentsOf(entries, func(e networkEntry) string { return "{$ref: '" + api + e.at() + "'}" })
+		componentsOf(entries, func(networkEntryValue networkEntry) string { return "{$ref: '" + api + networkEntryValue.at() + "'}" })
 	rec := &recordingReader{inner: reader.Disk{}}
 	got, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(root)}},
@@ -1031,8 +1033,8 @@ func (e networkEntry) at() string { return "#/components/" + e.section + "/" + e
 // spells it, one key per section.
 func componentsOf(entries []networkEntry, value func(networkEntry) string) string {
 	bySection := map[string]string{}
-	for _, e := range entries {
-		bySection[e.section] += "    " + e.name + ": " + value(e) + "\n"
+	for _, networkEntry := range entries {
+		bySection[networkEntry.section] += "    " + networkEntry.name + ": " + value(networkEntry) + "\n"
 	}
 	out := "components:\n"
 	for _, section := range slices.Sorted(maps.Keys(bySection)) {
@@ -1054,9 +1056,9 @@ func assertNoLocalRead(t *testing.T, got networkCompile, other string, refused b
 		assert.Contains(t, []string{got.host, other}, u.Host, l)
 	}
 	var why []string
-	for _, d := range got.diags {
-		if d.Severity == ir.SeverityError {
-			why = append(why, d.Message)
+	for _, diagnostic := range got.diags {
+		if diagnostic.Severity == ir.SeverityError {
+			why = append(why, diagnostic.Message)
 		}
 	}
 	if !refused {
@@ -1065,7 +1067,7 @@ func assertNoLocalRead(t *testing.T, got networkCompile, other string, refused b
 	}
 	require.NotEmpty(t, why)
 	for _, w := range why {
-		assert.Contains(t, w, bind.OffNetwork, "the reference is refused where it is written")
+		assert.Contains(t, w, reftable.OffNetwork, "the reference is refused where it is written")
 	}
 }
 
@@ -1098,8 +1100,8 @@ func TestCompile_AFileNamedLikeAURLIsReadAsAFile(t *testing.T) {
 			require.NotNil(t, doc)
 
 			assert.Empty(t, diags, "located at %q, external references allowed: %v", location, allow)
-			assert.Contains(t, doc.Types, ids.In("file:x.yaml").AnonType("/F"))
-			assert.Contains(t, doc.Types, ids.In("http:h.yaml").AnonType("/H"))
+			assert.Contains(t, doc.Types, ids.In("file:x.yaml").AnonymousType("/F"))
+			assert.Contains(t, doc.Types, ids.In("http:h.yaml").AnonymousType("/H"))
 			require.Len(t, doc.Services[0].Groups[0].Operations, 1)
 			assert.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 2, "each parameter is read")
 		}

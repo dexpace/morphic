@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
@@ -15,15 +15,15 @@ import (
 // of its own.
 func checkDuplicateWireNames(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var names reuse.Map[string, bool]
+	var names scratchstate.Map[string, bool]
 	for _, id := range live {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
 		seen := names.Emptied()
-		for _, p := range m.Properties {
-			name := p.EffectiveWireName()
+		for _, property := range model.Properties {
+			name := property.EffectiveWireName()
 			if name == "" {
 				continue
 			}
@@ -50,10 +50,10 @@ func checkDuplicateWireNames(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 // (ir/naming-alias-duplicate, ir/naming-alias-redundant).
 func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var claims reuse.Map[string, int]
+	var claims scratchstate.Map[string, int]
 	for _, id := range live {
-		if m, ok := doc.Types[id].(*ir.Model); ok {
-			diags = append(diags, ambiguousAliases(id, m.Properties, &claims)...)
+		if model, ok := doc.Types[id].(*ir.Model); ok {
+			diags = append(diags, ambiguousAliases(id, model.Properties, &claims)...)
 		}
 	}
 	return diags
@@ -65,18 +65,18 @@ func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 // reported at the later one. Either way the alias is reported, since it is the
 // name a fix renames or removes, and the message names the sibling. The names
 // are read through claims.
-func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *reuse.Map[string, int]) []ir.Diagnostic {
+func ambiguousAliases(id ir.TypeID, properties []ir.Property, claims *scratchstate.Map[string, int]) []ir.Diagnostic {
 	claimant := claims.Emptied()
-	for i, p := range props {
-		if name := p.EffectiveWireName(); name != "" {
+	for i, property := range properties {
+		if name := property.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {
 				claimant[name] = i
 			}
 		}
 	}
 	var diags []ir.Diagnostic
-	for i, p := range props {
-		for _, alias := range p.Name.Aliases {
+	for i, property := range properties {
+		for _, alias := range property.Name.Aliases {
 			j, taken := claimant[alias]
 			switch {
 			case alias == "" || (taken && j == i):
@@ -86,7 +86,7 @@ func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *reuse.Map[strin
 			default:
 				diags = append(diags, diag(ir.SeverityError, "pass/ambiguous-alias",
 					fmt.Sprintf("alias %q of property %q is a name property %q also answers to",
-						alias, p.ID, props[j].ID),
+						alias, property.ID, properties[j].ID),
 					fmt.Sprintf("%s/properties/%d", id, i)))
 			}
 		}

@@ -22,14 +22,14 @@ import (
 func TestOracle_EachFindsAnOutcomeOfItsOwn(t *testing.T) {
 	t.Parallel()
 	seen := map[Outcome]Oracle{}
-	for _, o := range Oracles() {
-		outcome, ok := o.finds()
-		require.True(t, ok, "%s finds nothing", o)
-		assert.NotEqual(t, OutcomeOK, outcome, "%s finds ok", o)
+	for _, oracle := range Oracles() {
+		outcome, ok := oracle.finds()
+		require.True(t, ok, "%s finds nothing", oracle)
+		assert.NotEqual(t, OutcomeOK, outcome, "%s finds ok", oracle)
 		if other, dup := seen[outcome]; dup {
-			t.Errorf("%s and %s both find %s", other, o, outcome)
+			t.Errorf("%s and %s both find %s", other, oracle, outcome)
 		}
-		seen[outcome] = o
+		seen[outcome] = oracle
 	}
 	_, ok := Oracle("no-such-oracle").finds()
 	assert.False(t, ok)
@@ -83,11 +83,11 @@ func TestCheck_AnErrorDiagnosticStopsNoOracle(t *testing.T) {
 		return doc, errorDiag, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("x"))
+	result := Check(context.Background(), "spec", []byte("x"))
 
-	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
-	assert.Equal(t, "stub/broken: the spec is wrong", r.Detail)
-	assert.Equal(t, []Outcome{OutcomeErrorDiag, OutcomeNondeterministic}, foundIn(r))
+	assert.Equal(t, OutcomeErrorDiag, result.Outcome, result.Detail)
+	assert.Equal(t, "stub/broken: the spec is wrong", result.Detail)
+	assert.Equal(t, []Outcome{OutcomeErrorDiag, OutcomeNondeterministic}, foundIn(result))
 	assert.Greater(t, compiles, 2, "the oracles after determinism compiled the spec too")
 }
 
@@ -100,7 +100,7 @@ func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
 			ir.Provenance{Source: ir.NoSource})}, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
+	result := Check(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
 
 	assert.Equal(t, []Verdict{
 		passed(OracleNoPanic),
@@ -111,7 +111,7 @@ func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
 		declined(OracleIdempotence, DeclineNoDocument),
 		passed(OracleOrder),
 		declined(OracleSequenceOrder, DeclineNothingToPermute),
-	}, r.Verdicts)
+	}, result.Verdicts)
 }
 
 // TestCheck_ARefusedReencodingIsDeclined pins what the order oracle is told of
@@ -128,11 +128,11 @@ func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
 			ir.Provenance{Source: ir.NoSource})}, nil
 	})
 
-	r := Check(context.Background(), "spec", []byte(src))
+	result := Check(context.Background(), "spec", []byte(src))
 
-	require.Len(t, r.Verdicts, len(Oracles()))
-	assert.Equal(t, declined(OracleOrder, DeclineReencodingRefused), r.Verdicts[len(r.Verdicts)-2])
-	assert.Equal(t, declined(OracleSequenceOrder, DeclineNothingToPermute), r.Verdicts[len(r.Verdicts)-1],
+	require.Len(t, result.Verdicts, len(Oracles()))
+	assert.Equal(t, declined(OracleOrder, DeclineReencodingRefused), result.Verdicts[len(result.Verdicts)-2])
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineNothingToPermute), result.Verdicts[len(result.Verdicts)-1],
 		"the source holds no sequence to swap, so the oracle never compiles a rewrite of it")
 }
 
@@ -143,8 +143,8 @@ func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
 func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 	unreached := func(os ...Oracle) []Verdict {
 		vs := make([]Verdict, 0, len(os))
-		for _, o := range os {
-			vs = append(vs, declined(o, DeclineNotReached))
+		for _, oracle := range os {
+			vs = append(vs, declined(oracle, DeclineNotReached))
 		}
 		return vs
 	}
@@ -158,43 +158,43 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 			return soundDoc(), nil, nil
 		})
 
-		r := Check(context.Background(), "spec", []byte("x"))
+		result := Check(context.Background(), "spec", []byte("x"))
 
-		require.Len(t, r.Verdicts, len(Oracles()))
-		assert.Equal(t, OutcomePanic, r.Verdicts[0].Outcome)
-		assert.Equal(t, r.Verdicts[0].Detail, r.Detail)
+		require.Len(t, result.Verdicts, len(Oracles()))
+		assert.Equal(t, OutcomePanic, result.Verdicts[0].Outcome)
+		assert.Equal(t, result.Verdicts[0].Detail, result.Detail)
 		assert.Equal(t, []Verdict{passed(OracleInvariants), passed(OracleNoErrorDiagnostic), passed(OracleRoundTrip)},
-			r.Verdicts[1:4])
-		assert.Equal(t, unreached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
+			result.Verdicts[1:4])
+		assert.Equal(t, unreached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), result.Verdicts[4:])
 	})
 	t.Run("a Go error from the first compile", func(t *testing.T) {
 		swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			return nil, nil, errors.New("compile boom")
 		})
 
-		r := Check(context.Background(), "spec", []byte("x"))
+		result := Check(context.Background(), "spec", []byte("x"))
 
-		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, unreached(Oracles()[1:]...)...), r.Verdicts)
+		assert.Equal(t, OutcomeError, result.Outcome)
+		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, unreached(Oracles()[1:]...)...), result.Verdicts)
 	})
 	t.Run("a stage the verified run refuses", func(t *testing.T) {
 		withPasses(t, faulting{first: func(own *ir.Document) *ir.Document {
-			own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+			own.Types = ir.TypeRegistry{ir.TypeID("type/x/Key"): &ir.Any{ID: "type/x/Other"}}
 			return own
 		}})
 
-		r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+		result := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
-		require.Len(t, r.Verdicts, len(Oracles()))
-		assert.Equal(t, passed(OracleNoPanic), r.Verdicts[0])
-		assert.Equal(t, OutcomeViolations, r.Verdicts[1].Outcome, "the engine's refusal is the invariants oracle's")
-		assert.Equal(t, unreached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
+		require.Len(t, result.Verdicts, len(Oracles()))
+		assert.Equal(t, passed(OracleNoPanic), result.Verdicts[0])
+		assert.Equal(t, OutcomeViolations, result.Verdicts[1].Outcome, "the engine's refusal is the invariants oracle's")
+		assert.Equal(t, unreached(Oracles()[2:]...), result.Verdicts[2:], "the engine returns no document to ask of")
 	})
 	t.Run("a caller's mistake", func(t *testing.T) {
-		r := Check(context.Background(), "", []byte(testspec.Minimal))
+		result := Check(context.Background(), "", []byte(testspec.Minimal))
 
-		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, unreached(Oracles()...), r.Verdicts, "nothing ran, so not even no-panic asked")
+		assert.Equal(t, OutcomeError, result.Outcome)
+		assert.Equal(t, unreached(Oracles()...), result.Verdicts, "nothing ran, so not even no-panic asked")
 	})
 }
 
@@ -225,13 +225,13 @@ func TestDeterministic_ComparesARefusalsFindings(t *testing.T) {
 	}
 }
 
-// foundIn is what each oracle that found something in r found, in Check's
+// foundIn is what each oracle that found something in result found, in Check's
 // order.
-func foundIn(r Result) []Outcome {
+func foundIn(result Result) []Outcome {
 	var out []Outcome
-	for _, v := range r.Verdicts {
-		if v.Found() {
-			out = append(out, v.Outcome)
+	for _, verdict := range result.Verdicts {
+		if verdict.Found() {
+			out = append(out, verdict.Outcome)
 		}
 	}
 	return out

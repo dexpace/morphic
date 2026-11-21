@@ -21,15 +21,15 @@ type file struct {
 // misspelt field is reported rather than read as absent, and a file holding
 // no object, null among them.
 func Decode(data []byte) ([]Rule, error) {
-	var f *file
-	if err := json.Unmarshal(data, &f, json.RejectUnknownMembers(true)); err != nil {
+	var fileValue *file
+	if err := json.Unmarshal(data, &fileValue, json.RejectUnknownMembers(true)); err != nil {
 		return nil, fmt.Errorf("triage: %w", err)
 	}
-	if f == nil {
+	if fileValue == nil {
 		return nil, errors.New("triage: the file holds null, not an object listing rules")
 	}
-	if _, err := NewRuleset(f.Rules); err != nil {
+	if _, err := NewRuleset(fileValue.Rules); err != nil {
 		return nil, err
 	}
-	return f.Rules, nil
+	return fileValue.Rules, nil
 }

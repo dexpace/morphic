@@ -35,8 +35,8 @@ func keptOn(t *testing.T, doc *ir.Document, name string) map[string]string {
 	td := typeByName(doc, name)
 	require.NotNil(t, td, name)
 	out := map[string]string{}
-	for key, e := range td.Common().Unmodeled {
-		out[key] = string(e.Value) + " [" + string(e.Reason) + "]"
+	for key, unmodeledEntry := range td.Common().Unmodeled {
+		out[key] = string(unmodeledEntry.Value) + " [" + string(unmodeledEntry.Reason) + "]"
 	}
 	return out
 }
@@ -44,9 +44,9 @@ func keptOn(t *testing.T, doc *ir.Document, name string) map[string]string {
 // reportsAt returns the messages of the findings drawn at pointer.
 func reportsAt(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -191,7 +191,7 @@ func TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines(t *testing.
 			"    Alike: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}], dependencies: {a: [z]}}\n"+
 			"    Alone: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}]}\n"+
 			"    Model: {type: object, allOf: [{"+draft07+", dependencies: {a: [z]}}], dependencies: {b: [z]}}\n"))
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no value is refused its key")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryAlreadyClaimed), "no value is refused its key")
 
 	principal := keptOn(t, doc, "Principal")
 	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, principal["openapi:dependencies"])
@@ -228,7 +228,7 @@ func TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth(t *testing.T) {
 			"    List: {allOf: [{type: array, items: {type: string}, pattern: '^p$'}], pattern: '^b$'}\n"))
 	held := map[string]*ir.Constraints{
 		"Union":    doc.Types[componentID("Union")].(*ir.Union).Constraints,
-		"TypeList": doc.Types["t/anon/components/schemas/TypeList/type/0"].(*ir.Scalar).Constraints,
+		"TypeList": doc.Types["type/anonymous/components/schemas/TypeList/type/0"].(*ir.Scalar).Constraints,
 		"Scalar":   doc.Types[componentID("Scalar")].(*ir.Scalar).Constraints,
 		"Shared":   doc.Types[componentID("Shared")].(*ir.Scalar).Constraints,
 	}
@@ -302,8 +302,8 @@ func TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword(t *testing.T) 
 	for _, name := range []string{"Free", "Taken", "Shared"} {
 		at := "/components/schemas/" + name + "/allOf/0"
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at+"/x-q"), "%s: the value is refused at its keyword", name)
-		for _, msg := range reportsAt(diags, at) {
-			assert.NotContains(t, msg, "in no form at all", "%s: the entry is in the IR", name)
+		for _, message := range reportsAt(diags, at) {
+			assert.NotContains(t, message, "in no form at all", "%s: the entry is in the IR", name)
 		}
 	}
 	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the bound's own report and the extension held otherwise")
@@ -376,12 +376,12 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 	t.Helper()
 	td := typeByName(doc, name)
 	require.NotNil(t, td, name)
-	for key, e := range td.Common().Unmodeled {
+	for key, unmodeledEntry := range td.Common().Unmodeled {
 		switch {
-		case e.Reason == ir.ReasonVendorExtension:
+		case unmodeledEntry.Reason == ir.ReasonVendorExtension:
 		case strings.HasPrefix(key, "openapi:allOf/"):
 			var members map[string]jsontext.Value
-			require.NoError(t, json.Unmarshal(e.Value, &members), key)
+			require.NoError(t, json.Unmarshal(unmodeledEntry.Value, &members), key)
 			for member := range members {
 				kept = append(kept, "allOf:"+member)
 			}
@@ -390,19 +390,19 @@ func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name str
 		}
 	}
 	at := "/components/schemas/" + name
-	for _, d := range diags {
-		pointer := string(d.Provenance.Pointer)
-		if d.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(d.Message, "kept verbatim") {
+	for _, diagnostic := range diags {
+		pointer := string(diagnostic.Provenance.Pointer)
+		if diagnostic.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(diagnostic.Message, "kept verbatim") {
 			continue
 		}
-		switch before, _, apart := strings.Cut(d.Message, " otherwise than this inline entry"); {
+		switch before, _, apart := strings.Cut(diagnostic.Message, " otherwise than this inline entry"); {
 		case apart:
 			_, list, _ := strings.Cut(before, " write ")
 			for keyword := range strings.SplitSeq(list, ", ") {
 				said = append(said, "allOf:"+keyword)
 			}
-		case strings.Contains(d.Message, "which has no home for "):
-			_, list, _ := strings.Cut(d.Message, "which has no home for ")
+		case strings.Contains(diagnostic.Message, "which has no home for "):
+			_, list, _ := strings.Cut(diagnostic.Message, "which has no home for ")
 			list, _, _ = strings.Cut(list, " declared beside it")
 			said = append(said, strings.Split(list, ", ")...)
 		default:
@@ -457,8 +457,8 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 		if tc.failure == "" {
 			continue
 		}
-		failed := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == tc.failure && strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/"+tc.name+"/allOf/0")
+		failed := slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == tc.failure && strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/"+tc.name+"/allOf/0")
 		})
 		assert.True(t, failed, "%s: the failure is reported at the entry", tc.name)
 	}
@@ -548,12 +548,12 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }
 
-// TestPrincipalKept_AVoicesBuildKeepStaysThePositions pins what the build of
-// a principal's node keeps of the position's own keywords, read beside the
-// principal: a 3.0 exclusive modifier with no bound beside it. It is the
+// TestPrincipalKept_AFoldedEntriesBuildKeepStaysThePositions pins what the
+// build of a principal's node keeps of the position's own keywords, read beside
+// the principal: a 3.0 exclusive modifier with no bound beside it. It is the
 // position's, held back with nothing of the principal's, and one the principal
 // writes alike is kept once.
-func TestPrincipalKept_AVoicesBuildKeepStaysThePositions(t *testing.T) {
+func TestPrincipalKept_AFoldedEntriesBuildKeepStaysThePositions(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 		"    Beside: {allOf: [{type: number, format: fixed}], exclusiveMinimum: true}\n"+
@@ -639,8 +639,8 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	diags := assertKept(t, cases)
 	for _, tc := range cases {
 		at := "/components/schemas/" + tc.name
-		for _, msg := range slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/allOf/0")) {
-			assert.NotContains(t, msg, "another conjunct", "%s: no entry is kept whole for a keyword the position lowers from", tc.name)
+		for _, message := range slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/allOf/0")) {
+			assert.NotContains(t, message, "another conjunct", "%s: no entry is kept whole for a keyword the position lowers from", tc.name)
 		}
 		if tc.name != "Alike" && tc.name != "Whole" && tc.name != "WholeAround" {
 			assert.Len(t, reportsAt(diags, at+"/allOf/0/allOf/0"), 1, "%s: the principal's keyword is named once, at its entry", tc.name)
@@ -650,9 +650,9 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	require.Len(t, whole, 1)
 	assert.Contains(t, whole[0], "the entry (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
-			"what a whole wrapper holds is reported by it alone: %s", d.Message)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
+			"what a whole wrapper holds is reported by it alone: %s", diagnostic.Message)
 	}
 }
 
@@ -666,7 +666,7 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	wrap := func(inner, minimum string) string { return "{allOf: [" + inner + "], minimum: " + minimum + "}" }
-	str := func(minimum string) string { return "{type: string, minimum: " + minimum + "}" }
+	stringSchema := func(minimum string) string { return "{type: string, minimum: " + minimum + "}" }
 	at := func(level int) string { return "/allOf/0" + strings.Repeat("/allOf/0", level-1) }
 	n := func(m string) string { return m + " [degraded_lowering]" }
 	obj := func(m string) string { return `{"minimum":` + m + `} [degraded_lowering]` }
@@ -674,19 +674,19 @@ func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 		keptCase
 		silent []int // levels that report nothing: their value is kept by another's writing
 	}{
-		{keptCase{name: "Two", schema: wrap(wrap(str("802"), "802"), "801"),
+		{keptCase{name: "Two", schema: wrap(wrap(stringSchema("802"), "802"), "801"),
 			kept: map[string]string{"openapi:minimum": n("801"), "openapi:allOf/0": obj("802")}, atEntry: 1, atSelf: 1}, []int{2}},
-		{keptCase{name: "Skip", schema: wrap(wrap(wrap(str("5"), "6"), "5"), "1"),
+		{keptCase{name: "Skip", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "5"), "1"),
 			kept:    map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5"), "openapi:allOf/0/allOf/0": obj("6")},
 			atEntry: 1, atSelf: 1}, []int{3}},
-		{keptCase{name: "All", schema: wrap(wrap(wrap(str("5"), "5"), "5"), "1"),
+		{keptCase{name: "All", schema: wrap(wrap(wrap(stringSchema("5"), "5"), "5"), "1"),
 			kept: map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5")}, atEntry: 1, atSelf: 1}, []int{2, 3}},
-		{keptCase{name: "TwoInner", schema: wrap(wrap(str("802"), "801"), "802"),
+		{keptCase{name: "TwoInner", schema: wrap(wrap(stringSchema("802"), "801"), "802"),
 			kept: map[string]string{"openapi:minimum": n("802"), "openapi:allOf/0": obj("801")}, atEntry: 1}, nil},
-		{keptCase{name: "SkipInner", schema: wrap(wrap(wrap(str("5"), "6"), "7"), "5"),
+		{keptCase{name: "SkipInner", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "7"), "5"),
 			kept:    map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("7"), "openapi:allOf/0/allOf/0": obj("6")},
 			atEntry: 1}, nil},
-		{keptCase{name: "AllInner", schema: wrap(wrap(wrap(str("5"), "6"), "6"), "5"),
+		{keptCase{name: "AllInner", schema: wrap(wrap(wrap(stringSchema("5"), "6"), "6"), "5"),
 			kept: map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("6")}, atEntry: 1}, []int{2}},
 		{keptCase{name: "Foo", schema: "{allOf: [{allOf: [{type: string, foo: 2}], foo: 2}], foo: 1}",
 			kept: map[string]string{"openapi:foo": "1 [out_of_scope]", "openapi:allOf/0": `{"foo":2} [out_of_scope]`}, atEntry: 1}, []int{2}},
@@ -746,9 +746,9 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 		require.Len(t, kept, 1, "%s: kept once: %v", name, kept)
 		assert.Contains(t, kept, key, name)
 		said := 0
-		for _, d := range diags {
-			if strings.HasPrefix(string(d.Provenance.Pointer), at) && (d.Provenance.Pointer == jsontext.Pointer(at) ||
-				strings.HasPrefix(string(d.Provenance.Pointer), at+"/")) {
+		for _, diagnostic := range diags {
+			if strings.HasPrefix(string(diagnostic.Provenance.Pointer), at) && (diagnostic.Provenance.Pointer == jsontext.Pointer(at) ||
+				strings.HasPrefix(string(diagnostic.Provenance.Pointer), at+"/")) {
 				said++
 			}
 		}
@@ -794,9 +794,9 @@ func TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper(t *testing.T) {
 		assert.Equal(t, tc.kept, keptOn(t, doc, tc.name)[tc.key], tc.name)
 		assert.Equal(t, jsontext.Pointer(at+tc.at), typeByName(doc, tc.name).Common().Unmodeled[tc.key].Provenance.Pointer, tc.name)
 		var said []string
-		for _, d := range diags {
-			if strings.HasPrefix(string(d.Provenance.Pointer), at) && strings.Contains(d.Message, strings.TrimPrefix(tc.key, "openapi:")) {
-				said = append(said, string(d.Provenance.Pointer)+": "+d.Message)
+		for _, diagnostic := range diags {
+			if strings.HasPrefix(string(diagnostic.Provenance.Pointer), at) && strings.Contains(diagnostic.Message, strings.TrimPrefix(tc.key, "openapi:")) {
+				said = append(said, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 			}
 		}
 		assert.Len(t, said, 1, "%s: reported once: %v", tc.name, said)
@@ -845,8 +845,8 @@ func TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere(t *testing.T) {
 	}
 	said := func(name, keyword string) (n int) {
 		at := "/components/schemas/" + name
-		for _, d := range diags {
-			if p := string(d.Provenance.Pointer); (p == at || strings.HasPrefix(p, at+"/")) && strings.Contains(d.Message, keyword) {
+		for _, diagnostic := range diags {
+			if p := string(diagnostic.Provenance.Pointer); (p == at || strings.HasPrefix(p, at+"/")) && strings.Contains(diagnostic.Message, keyword) {
 				n++
 			}
 		}

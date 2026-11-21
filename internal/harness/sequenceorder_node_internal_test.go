@@ -23,9 +23,9 @@ import (
 func TestSequenceOrderInvariant_ATieIsHeldToTheNodeItsReportNames(t *testing.T) {
 	const tie = "/components/schemas/AB/allOf/1/properties/p"
 	type change func(doc *ir.Document)
-	retype := func(doc *ir.Document) { property(t, doc, "p").Type.Target = "t/prim/integer" }
+	retype := func(doc *ir.Document) { property(t, doc, "p").Type.Target = "type/primitive/integer" }
 	exemplify := func(doc *ir.Document) {
-		property(t, doc, "p").Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "x"}}}
+		property(t, doc, "p").Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, String: "x"}}}
 	}
 	other := func(doc *ir.Document) { property(t, doc, "alpha").Docs.Description = "reversed" }
 	tests := []struct {
@@ -40,8 +40,8 @@ func TestSequenceOrderInvariant_ATieIsHeldToTheNodeItsReportNames(t *testing.T) 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				p := property(t, doc, "p")
-				diags = append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", tie, string(p.ID)))
+				irProperty := property(t, doc, "p")
+				diags = append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", tie, string(irProperty.ID)))
 				if reversed {
 					tc.change(doc)
 				}
@@ -102,21 +102,21 @@ func TestSequenceOrderInvariant_AReportNamingItsNodePairsAtAnyDepth(t *testing.T
 // declaring q apart, and a union whose discriminator over p was inferred,
 // and another's declared.
 func settledDoc() *ir.Document {
-	member := func(id ir.PropID, wire, at string) ir.Property {
-		return ir.Property{ID: id, WireName: wire, Type: ir.TypeRef{Target: "t/prim/string"},
+	member := func(id ir.PropertyID, wire, at string) ir.Property {
+		return ir.Property{ID: id, WireName: wire, Type: ir.TypeRef{Target: "type/primitive/string"},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at)}}
 	}
 	discriminated := func(id ir.TypeID, inferred bool) *ir.Union {
-		return &ir.Union{ID: id, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/M"}}},
+		return &ir.Union{ID: id, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/M"}}},
 			Discriminator: &ir.Discriminator{PropertyName: "p", Inferred: inferred}}
 	}
 	return &ir.Document{Types: ir.TypeRegistry{
-		"t/AB":       &ir.Model{ID: "t/AB", Properties: []ir.Property{member("p/AB/p", "p", "/AB/p")}},
-		"t/M":        &ir.Model{ID: "t/M", Base: &ir.TypeRef{Target: "t/AB"}, Properties: []ir.Property{member("p/M/p", "p", "/M/allOf/properties/p")}},
-		"t/Q":        &ir.Model{ID: "t/Q", Properties: []ir.Property{member("p/Q/q", "q", "/Q/q")}},
-		"t/inferred": discriminated("t/inferred", true),
-		"t/declared": discriminated("t/declared", false),
-		"t/apart": &ir.Union{ID: "t/apart", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/Q"}}},
+		"type/AB":       &ir.Model{ID: "type/AB", Properties: []ir.Property{member("property/AB/p", "p", "/AB/p")}},
+		"type/M":        &ir.Model{ID: "type/M", Base: &ir.TypeRef{Target: "type/AB"}, Properties: []ir.Property{member("property/M/p", "p", "/M/allOf/properties/p")}},
+		"type/Q":        &ir.Model{ID: "type/Q", Properties: []ir.Property{member("property/Q/q", "q", "/Q/q")}},
+		"type/inferred": discriminated("type/inferred", true),
+		"type/declared": discriminated("type/declared", false),
+		"type/apart": &ir.Union{ID: "type/apart", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/Q"}}},
 			Discriminator: &ir.Discriminator{PropertyName: "q", Inferred: true}},
 	}}
 }
@@ -133,22 +133,22 @@ func TestSettledFrom_TiesWhatATiedMemberDecides(t *testing.T) {
 	t.Parallel()
 	doc := settledDoc()
 
-	got := settledFrom(tieSites{nodes: []string{"p/AB/p"}}, doc, nil)
+	got := settledFrom(tieSites{nodes: []string{"property/AB/p"}}, doc, nil)
 
-	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, got.nodes)
+	assert.Equal(t, []string{"property/AB/p", "property/M/p", "type/inferred"}, got.nodes)
 	assert.Equal(t, []string{"/AB/p", "/M/allOf/properties/p"}, got.members, "where the tied members stand")
 	assert.Empty(t, got.pointers, "no report moved")
-	assert.Equal(t, []string{"t/AB", "t/M"}, got.holders, "the models holding a tied member")
+	assert.Equal(t, []string{"type/AB", "type/M"}, got.holders, "the models holding a tied member")
 	bySite := settledFrom(tieSites{pointers: []string{"/AB"}}, doc, nil)
-	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, bySite.nodes,
+	assert.Equal(t, []string{"property/AB/p", "property/M/p", "type/inferred"}, bySite.nodes,
 		"a member declared beneath a tie site is tied, as a fold of inline declarations reports where they are")
 	atMember := settledFrom(tieSites{members: []string{"/AB/p"}}, doc, nil)
-	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, atMember.nodes, "a member declared where a tied member stands is tied")
+	assert.Equal(t, []string{"property/AB/p", "property/M/p", "type/inferred"}, atMember.nodes, "a member declared where a tied member stands is tied")
 	assert.Equal(t, tieSites{members: []string{"/AB"}}, settledFrom(tieSites{members: []string{"/AB"}}, doc, nil),
 		"a member declared beneath a tied member's pointer is written there in either order")
 	assert.Equal(t, tieSites{pointers: []string{"/x"}}, settledFrom(tieSites{pointers: []string{"/x"}}, doc, nil),
 		"a site no member is declared at ties none")
-	assert.Equal(t, tieSites{nodes: []string{"p/AB/p"}}, settledFrom(tieSites{nodes: []string{"p/AB/p"}}, nil, nil),
+	assert.Equal(t, tieSites{nodes: []string{"property/AB/p"}}, settledFrom(tieSites{nodes: []string{"property/AB/p"}}, nil, nil),
 		"a refused compile adds none")
 }
 
@@ -157,7 +157,7 @@ func TestSettledFrom_TiesWhatATiedMemberDecides(t *testing.T) {
 // holding it reads as one that does not, and without the tie it differs.
 func TestCanonicalForm_LeavesOutANodeATieMints(t *testing.T) {
 	t.Parallel()
-	minted := &ir.Model{ID: "t/composed/M/allOf/properties/p", Provenance: ir.Provenance{Pointer: "/M/allOf/properties/p"}}
+	minted := &ir.Model{ID: "type/composed/M/allOf/properties/p", Provenance: ir.Provenance{Pointer: "/M/allOf/properties/p"}}
 	with := settledDoc()
 	with.Types[minted.ID] = minted
 	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}}
@@ -183,10 +183,10 @@ func TestCanonicalForm_LeavesOutANodeATieMints(t *testing.T) {
 func TestCanonicalForm_LeavesOutBeneathATiedMemberOnlyWhatItsFoldMints(t *testing.T) {
 	t.Parallel()
 	const at = "/M/allOf/properties/p"
-	ties := tieSites{nodes: []string{"p/M/p"}, members: []string{at}}
+	ties := tieSites{nodes: []string{"property/M/p"}, members: []string{at}}
 	described := func(id ir.TypeID, pointer, description string) *ir.Document {
 		doc := settledDoc()
-		doc.Types[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: "t/prim/string"}, Docs: ir.Docs{Description: description},
+		doc.Types[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: "type/primitive/string"}, Docs: ir.Docs{Description: description},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)}}
 		return doc
 	}
@@ -195,13 +195,13 @@ func TestCanonicalForm_LeavesOutBeneathATiedMemberOnlyWhatItsFoldMints(t *testin
 		pointer  string
 		compared bool
 	}{
-		"written where the member stands":           {id: "t/anon/M/allOf/properties/p", pointer: at, compared: true},
-		"written beneath the member":                {id: "t/anon/M/allOf/properties/p/items", pointer: at + "/items", compared: true},
-		"minted where the member stands":            {id: "t/composed/M/allOf/properties/p", pointer: at},
-		"minted for its items":                      {id: "t/composed/M/allOf/properties/p/items", pointer: at + "/items"},
-		"minted for a tuple's position's map value": {id: "t/composed/x", pointer: at + "/prefixItems/2/additionalProperties"},
-		"minted beneath the member by another fold": {id: "t/composed/x", pointer: at + "/allOf/properties/x", compared: true},
-		"minted beside the member":                  {id: "t/composed/x", pointer: at + "q", compared: true},
+		"written where the member stands":           {id: "type/anonymous/M/allOf/properties/p", pointer: at, compared: true},
+		"written beneath the member":                {id: "type/anonymous/M/allOf/properties/p/items", pointer: at + "/items", compared: true},
+		"minted where the member stands":            {id: "type/composed/M/allOf/properties/p", pointer: at},
+		"minted for its items":                      {id: "type/composed/M/allOf/properties/p/items", pointer: at + "/items"},
+		"minted for a tuple's position's map value": {id: "type/composed/x", pointer: at + "/prefixItems/2/additionalProperties"},
+		"minted beneath the member by another fold": {id: "type/composed/x", pointer: at + "/allOf/properties/x", compared: true},
+		"minted beside the member":                  {id: "type/composed/x", pointer: at + "q", compared: true},
 	} {
 		a, err := canonicalForm(described(tc.id, tc.pointer, "one"), nil, ties)
 		require.NoError(t, err, name)
@@ -247,8 +247,8 @@ func TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt(t *testing.T) {
 func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 	t.Parallel()
 	retyped := settledDoc()
-	retyped.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/prim/integer"
-	ties := tieSites{nodes: []string{"p/M/p"}}
+	retyped.Types["type/M"].(*ir.Model).Properties[0].Type.Target = "type/primitive/integer"
+	ties := tieSites{nodes: []string{"property/M/p"}}
 
 	a, err := canonicalForm(settledDoc(), nil, ties)
 	require.NoError(t, err)
@@ -257,9 +257,9 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 	assert.Equal(t, a.document, b.document)
 	assert.Equal(t, a.shape, b.shape)
 
-	c, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"p/Q/q"}})
+	canonical, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"property/Q/q"}})
 	require.NoError(t, err)
-	assert.NotEqual(t, a.shape, c.shape, "a member no tie names is compared")
+	assert.NotEqual(t, a.shape, canonical.shape, "a member no tie names is compared")
 }
 
 // TestUntied_LeavesOutWhatATieDecided pins which reports one order alone makes
@@ -267,21 +267,21 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 // or beneath a tie site, says what a tie decided; any other is a difference.
 func TestUntied_LeavesOutWhatATieDecided(t *testing.T) {
 	t.Parallel()
-	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}, nodes: []string{"p/M/p"}, members: []string{"/N/q"}, holders: []string{"t/M"}}
+	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}, nodes: []string{"property/M/p"}, members: []string{"/N/q"}, holders: []string{"type/M"}}
 	rs := []report{
-		{key: "tied node", node: "p/M/p", pointer: "/elsewhere"},
-		{key: "holder", node: "t/M", pointer: "/elsewhere"},
+		{key: "tied node", node: "property/M/p", pointer: "/elsewhere"},
+		{key: "holder", node: "type/M", pointer: "/elsewhere"},
 		{key: "at a site", pointer: "/M/allOf/properties/p/items"},
 		{key: "beneath a tied member", pointer: "/N/q/items"},
-		{key: "another node", node: "t/Q", pointer: "/Q"},
+		{key: "another node", node: "type/Q", pointer: "/Q"},
 		{key: "beside a site", pointer: "/M/allOf/properties/pq"},
 	}
 
 	got := untied(rs, ties, nil)
 
 	keys := make([]string, 0, len(got))
-	for _, r := range got {
-		keys = append(keys, r.key)
+	for _, report := range got {
+		keys = append(keys, report.key)
 	}
 	assert.Equal(t, []string{"another node", "beside a site"}, keys)
 }
@@ -311,7 +311,7 @@ func TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds(t
 		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 			// Each compile names the node in its own coordinates: alpha's entry
 			// is first as written, beta's first reversed.
-			const node = "t/anon/components/schemas/AB/allOf/0/properties/r"
+			const node = "type/anonymous/components/schemas/AB/allOf/0/properties/r"
 			return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/node", "", node)), nil
 		})
 
@@ -328,14 +328,14 @@ func TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds(t
 // a difference, and otherwise the node as the form writes it, with no pointer.
 func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 	t.Parallel()
-	named := report{raw: diagnostic(ir.SeverityWarning, "x/node", "/a/allOf/0", "t/anon/a/allOf/0")}
+	named := report{raw: diagnostic(ir.SeverityWarning, "x/node", "/a/allOf/0", "type/anonymous/a/allOf/0")}
 	tells := func(id string) (string, bool) { return id + "#held", true }
 	fails := func(id string) (string, bool) { return id, false }
 
 	assert.Empty(t, nodeKey(report{raw: diagnostic(ir.SeverityWarning, "x/node", "/a", "")}, tells), "no node")
 	assert.Empty(t, nodeKey(named, fails), "a node no form tells")
 	want := named.raw
-	want.Provenance = ir.Provenance{Node: "t/anon/a/allOf/0#held"}
+	want.Provenance = ir.Provenance{Node: "type/anonymous/a/allOf/0#held"}
 	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
 }
 
@@ -347,18 +347,18 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t *testing.T) {
 	t.Parallel()
 	folded := map[string]func(*ir.Property){
-		"secret":     func(p *ir.Property) { p.Secret = true },
-		"visibility": func(p *ir.Property) { p.Visibility = ir.Visibility{None: true} },
+		"secret":     func(property *ir.Property) { property.Secret = true },
+		"visibility": func(property *ir.Property) { property.Visibility = ir.Visibility{InvisibleInEveryLifecycle: true} },
 	}
 	stated := map[string]func(*ir.Property){
-		"deprecation": func(p *ir.Property) { p.Deprecation = &ir.Deprecation{Message: "m"} },
-		"docs":        func(p *ir.Property) { p.Docs.Description = "d" },
-		"name":        func(p *ir.Property) { p.Name = ir.Naming{Source: "n", Canonical: "n"} },
-		"xml":         func(p *ir.Property) { p.XML = &ir.XMLHints{Name: "x"} },
+		"deprecation": func(property *ir.Property) { property.Deprecation = &ir.Deprecation{Message: "m"} },
+		"docs":        func(property *ir.Property) { property.Docs.Description = "d" },
+		"name":        func(property *ir.Property) { property.Name = ir.Naming{Source: "n", Canonical: "n"} },
+		"xml":         func(property *ir.Property) { property.XML = &ir.XMLHints{Name: "x"} },
 	}
 	compare := func(ties tieSites, change func(*ir.Property)) (document, shape bool) {
 		changed := settledDoc()
-		change(&changed.Types["t/M"].(*ir.Model).Properties[0])
+		change(&changed.Types["type/M"].(*ir.Model).Properties[0])
 		a, err := canonicalForm(settledDoc(), nil, ties)
 		require.NoError(t, err)
 		b, err := canonicalForm(changed, nil, ties)
@@ -366,12 +366,12 @@ func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t
 		return !slices.Equal(a.document, b.document), !slices.Equal(a.shape, b.shape)
 	}
 	sensitive := settledDoc()
-	sensitive.Types["t/S"] = &ir.Scalar{ID: "t/S", Base: &ir.TypeRef{Target: "t/prim/string"}, Sensitive: true}
-	sensitive.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/S"
+	sensitive.Types["type/S"] = &ir.Scalar{ID: "type/S", Base: &ir.TypeRef{Target: "type/primitive/string"}, Sensitive: true}
+	sensitive.Types["type/M"].(*ir.Model).Properties[0].Type.Target = "type/S"
 	for how, ties := range map[string]tieSites{
-		"by its ID":                 {nodes: []string{"p/M/p"}},
+		"by its ID":                 {nodes: []string{"property/M/p"}},
 		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
-		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
+		"by its ID where it stands": {nodes: []string{"property/M/p"}, members: []string{"/M/allOf/properties/p"}},
 	} {
 		a, err := canonicalForm(settledDoc(), nil, ties)
 		require.NoError(t, err)
@@ -387,7 +387,7 @@ func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t
 			document, shape := compare(ties, change)
 			assert.False(t, document, "%s, %s, no stated tie", how, name)
 			assert.False(t, shape, "%s, %s, no stated tie", how, name)
-			ties.stated = []string{"p/M/p"}
+			ties.stated = []string{"property/M/p"}
 			document, shape = compare(ties, change)
 			ties.stated = nil
 			assert.True(t, document, "%s, %s, a stated tie", how, name)
@@ -405,11 +405,11 @@ func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t
 func TestCanonicalForm_ComparesWhetherATiedMemberIsRequired(t *testing.T) {
 	t.Parallel()
 	required := settledDoc()
-	required.Types["t/M"].(*ir.Model).Properties[0].Required = true
+	required.Types["type/M"].(*ir.Model).Properties[0].Required = true
 	for name, ties := range map[string]tieSites{
-		"by its ID":                 {nodes: []string{"p/M/p"}},
+		"by its ID":                 {nodes: []string{"property/M/p"}},
 		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
-		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
+		"by its ID where it stands": {nodes: []string{"property/M/p"}, members: []string{"/M/allOf/properties/p"}},
 	} {
 		a, err := canonicalForm(settledDoc(), nil, ties)
 		require.NoError(t, err)
@@ -422,7 +422,7 @@ func TestCanonicalForm_ComparesWhetherATiedMemberIsRequired(t *testing.T) {
 
 	kept := func(value string) *ir.Document {
 		doc := settledDoc()
-		doc.Types["t/Q"].(*ir.Model).Unmodeled = ir.Unmodeled{"x:kept": {
+		doc.Types["type/Q"].(*ir.Model).Unmodeled = ir.Unmodeled{"bytes:kept": {
 			Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(value), Provenance: ir.Provenance{Pointer: "/M/allOf/properties/p/items"},
 		}}
 		return doc

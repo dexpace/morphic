@@ -22,16 +22,16 @@ func assertCatchAllEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	const schema = "/requestBody/content/multipart~1form-data/schema"
 	octet := `"contentTypes":["application/octet-stream"]`
 	for source, want := range map[string]string{
-		"putSnippet": `{"t/anon/paths/~1snippet/put` + schema + `":{"value":{` + octet +
-			`,"multi":true,"filename":true,"allowReserved":false}}}`,
-		"uploadAssets": `{"t/anon/paths/~1assets/post` + schema + `":{"value":{` + octet +
-			`,"multi":false,"filename":true,"allowReserved":false}}}`,
-		"mixed": `{"t/openapi/components/schemas/Files":{"patterns":{"^f_":{` + octet +
-			`,"multi":false,"filename":true,"allowReserved":false}}},` +
-			`"t/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],` +
-			`"multi":false,"filename":false,"allowReserved":false}}}`,
+		"putSnippet": `{"type/anonymous/paths/~1snippet/put` + schema + `":{"value":{` + octet +
+			`,"repeatsPerArrayItem":true,"hasFilename":true,"allowReserved":false}}}`,
+		"uploadAssets": `{"type/anonymous/paths/~1assets/post` + schema + `":{"value":{` + octet +
+			`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}}`,
+		"mixed": `{"type/openapi/components/schemas/Files":{"patterns":{"^f_":{` + octet +
+			`,"repeatsPerArrayItem":false,"hasFilename":true,"allowReserved":false}}},` +
+			`"type/openapi/components/schemas/Notes":{"value":{"contentTypes":["text/plain"],` +
+			`"repeatsPerArrayItem":false,"hasFilename":false,"allowReserved":false}}}`,
 	} {
-		got, err := json.Marshal(at(opTree(t, doc, source), "request", "contents", "0", "catchAllEncoding"),
+		got, err := json.Marshal(valueAtPath(operationTree(t, doc, source), "request", "contents", "0", "catchAllEncoding"),
 			json.Deterministic(true))
 		require.NoError(t, err)
 		assert.JSONEq(t, want, string(got), source)

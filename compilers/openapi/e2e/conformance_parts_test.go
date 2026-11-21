@@ -17,24 +17,25 @@ import (
 // partsOf returns a request content's part encodings by the name the last
 // token of each key spells, which is the part's name in these specs, and the
 // content.
-func partsOf(t *testing.T, doc *ir.Document, op string) (map[string]ir.PartEncoding, ir.Content) {
+func partsOf(t *testing.T, doc *ir.Document, operationName string) (map[string]ir.PartEncoding, ir.Content) {
 	t.Helper()
-	o, ok := opByName(doc, op)
-	require.True(t, ok, op)
-	content := requestContent(t, o)
+	operation, ok := operationByName(doc, operationName)
+	require.True(t, ok, operationName)
+	content := requestContent(t, operation)
 	out := make(map[string]ir.PartEncoding, len(content.Encoding))
 	for id, pe := range content.Encoding {
 		name := string(id[strings.LastIndex(string(id), "/")+1:])
-		require.NotContains(t, out, name, "%s: one entry per name", op)
+		require.NotContains(t, out, name, "%s: one entry per name", operationName)
 		out[name] = pe
 	}
 	return out, content
 }
 
 // partOf is a part encoding stating the content type ct, empty for none, and
-// the structural flags flags spells: "M" for Multi and "F" for Filename.
+// the structural flags flags spells: "M" for RepeatsPerArrayItem and "F" for
+// HasFilename.
 func partOf(ct, flags string) ir.PartEncoding {
-	pe := ir.PartEncoding{Multi: strings.Contains(flags, "M"), Filename: strings.Contains(flags, "F")}
+	pe := ir.PartEncoding{RepeatsPerArrayItem: strings.Contains(flags, "M"), HasFilename: strings.Contains(flags, "F")}
 	if ct != "" {
 		pe.ContentTypes = []string{ct}
 	}
@@ -65,7 +66,7 @@ func assertMultipartDefaults31(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 		"raw": partOf(octetStream, "F"), "tags": partOf(textPlain, "M"), "addresses": partOf(jsonType, "M"),
 		"labels": partOf(textPlain, "M"), "nullable": partOf(textPlain, ""),
 		"declared": partOf("application/xml", ""),
-		"arranged": {Style: "form", Explode: new(false), Multi: true},
+		"arranged": {Style: "form", Explode: new(false), RepeatsPerArrayItem: true},
 	}, upload)
 
 	form, _ := partsOf(t, doc, "form")
@@ -94,7 +95,7 @@ func assertMultipartDefaults30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	form, _ := partsOf(t, doc, "form")
 	assert.Equal(t, map[string]ir.PartEncoding{
-		"token": partOf(octetStream, ""), "tags": {Style: "form", Explode: new(false), Multi: true},
+		"token": partOf(octetStream, ""), "tags": {Style: "form", Explode: new(false), RepeatsPerArrayItem: true},
 	}, form)
 }
 
@@ -110,7 +111,7 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.UnknownEncodingKey, media+"/encoding/meta/encoding/ghost"))
 	assert.Empty(t, diagsAt(diags, diag.UnknownEncodingKey, media+"/encoding/meta/encoding/a"), "a names a property of meta")
 
-	stream, ok := opByName(doc, "stream")
+	stream, ok := operationByName(doc, "stream")
 	require.True(t, ok)
 	item := requestContent(t, stream).ItemEncoding
 	require.NotNil(t, item, "each item of a multipart stream is a part")
@@ -124,28 +125,28 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // narrowing a union. A name two branches declare is keyed under each, as each
 // declares it. No entry is kept whole.
 func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
-	for op, want := range map[string]map[string]ir.PartEncoding{
+	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, HasFilename: true}
+	for operation, want := range map[string]map[string]ir.PartEncoding{
 		"oneOf":      {"file": png, "url": partOf(textPlain, "")},
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
-		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
-		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-inference"}},
+		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, HasFilename: true}, "name": partOf(textPlain, "")},
+		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, HasFilename: true, Inferred: "binary-inference"}},
 		"narrowed":   {"file": png, "link": partOf(textPlain, ""), "note": partOf(textPlain, "")},
 	} {
-		parts, content := partsOf(t, doc, op)
-		assert.Equal(t, want, parts, op)
-		assert.Empty(t, content.Unmodeled, "%s: nothing is kept whole", op)
+		parts, content := partsOf(t, doc, operation)
+		assert.Equal(t, want, parts, operation)
+		assert.Empty(t, content.Unmodeled, "%s: nothing is kept whole", operation)
 	}
-	shared, ok := opByName(doc, "shared")
+	shared, ok := operationByName(doc, "shared")
 	require.True(t, ok)
-	const schema = "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/"
-	assert.Equal(t, map[ir.PropID]ir.PartEncoding{
+	const schema = "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/"
+	assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{
 		schema + "oneOf/0/properties/doc": partOf(octetStream, "F"),
 		schema + "oneOf/1/properties/doc": partOf(octetStream, "MF"),
 	}, requestContent(t, shared).Encoding)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "no entry draws an announcement: %s", d.Message)
-		assert.NotEqual(t, diag.UnknownEncodingKey, d.Code, "and no key names nothing: %s", d.Message)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "no entry draws an announcement: %s", diagnostic.Message)
+		assert.NotEqual(t, diag.UnknownEncodingKey, diagnostic.Code, "and no key names nothing: %s", diagnostic.Message)
 	}
 }
 
@@ -154,16 +155,16 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 // as out_of_scope with one info, beside load's warning that the field has no
 // effect there.
 func assertEncodingOutsideForm(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	for op, media := range map[string]string{
+	for operation, media := range map[string]string{
 		"json":  "/paths/~1json/post/requestBody/content/application~1json",
 		"bytes": "/paths/~1bytes/post/requestBody/content/application~1octet-stream",
 	} {
-		parts, content := partsOf(t, doc, op)
-		assert.Empty(t, parts, op)
-		require.Contains(t, content.Unmodeled, "openapi:encoding/f", op)
-		assert.Equal(t, ir.ReasonOutOfScope, content.Unmodeled["openapi:encoding/f"].Reason, op)
-		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, media+"/encoding/f"), op)
-		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/validation/validation-no-effect", media+"/encoding"), op)
+		parts, content := partsOf(t, doc, operation)
+		assert.Empty(t, parts, operation)
+		require.Contains(t, content.Unmodeled, "openapi:encoding/f", operation)
+		assert.Equal(t, ir.ReasonOutOfScope, content.Unmodeled["openapi:encoding/f"].Reason, operation)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, media+"/encoding/f"), operation)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/validation/validation-no-effect", media+"/encoding"), operation)
 	}
 	assert.Empty(t, diagsAt(diags, diag.UnknownEncodingKey, "/paths/~1json/post/requestBody/content/application~1json/encoding/f"),
 		"the field has no effect whatever its keys name")

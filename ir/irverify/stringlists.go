@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // stringListType is the field type stringLists classifies. ir.Lifecycle is an
@@ -108,7 +108,7 @@ func checkStringLists(doc *ir.Document) walkCheck {
 	fields := map[reflect.Type][]heldList{}
 	// Every held list is read through this one, so a list costs no map of its
 	// own however long it is.
-	var entries reuse.Map[string, int]
+	var entries scratchstate.Map[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct {
@@ -125,8 +125,8 @@ func checkStringLists(doc *ir.Document) walkCheck {
 				byType = heldListsOf(v.Type())
 				fields[v.Type()] = byType
 			}
-			for _, f := range byType {
-				vs = appendListViolations(vs, v.Field(f.index), at, f, &entries)
+			for _, heldList := range byType {
+				vs = appendListViolations(vs, v.Field(heldList.index), at, heldList, &entries)
 			}
 			return true
 		},
@@ -150,25 +150,25 @@ func heldListsOf(t reflect.Type) []heldList {
 	return out
 }
 
-// appendListViolations reports each entry of the held list f that breaks its
-// rule, at the entry itself; owner is where the struct holding it sits, and
-// entries is what the list is read through.
-func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, f heldList,
-	entries *reuse.Map[string, int],
+// appendListViolations reports each entry of the held list heldListValue that
+// breaks its rule, at the entry itself; owner is where the struct holding it
+// sits, and entries is what the list is read through.
+func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, heldListValue heldList,
+	entries *scratchstate.Map[string, int],
 ) []Violation {
 	first := entries.Emptied()
 	for i := range list.Len() {
 		entry := list.Index(i).String()
 		switch earlier, repeated := first[entry]; {
 		case isBlankName(entry):
-			vs = append(vs, blankEntry(f.rule, entryPath(owner, f, i)))
+			vs = append(vs, blankEntry(heldListValue.rule, entryPath(owner, heldListValue, i)))
 		case !utf8.ValidString(entry):
 			// checkUTF8 reports it.
-		case f.rule == listSet && repeated:
+		case heldListValue.rule == listSet && repeated:
 			vs = append(vs, Violation{
 				Code:    "ir/set-entry-duplicate",
 				Message: "set entry " + strconv.Quote(entry) + " is listed here and at index " + strconv.Itoa(earlier),
-				Path:    entryPath(owner, f, i),
+				Path:    entryPath(owner, heldListValue, i),
 			})
 		default:
 			first[entry] = i
@@ -177,10 +177,10 @@ func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath,
 	return vs
 }
 
-// entryPath spells entry i of the held list f of the struct at owner, as the walk
-// spells the entry itself.
-func entryPath(owner ir.WalkPath, f heldList, i int) string {
-	return owner.String() + "." + f.name + "[" + strconv.Itoa(i) + "]"
+// entryPath spells entry i of the held list heldListValue of the struct at
+// owner, as the walk spells the entry itself.
+func entryPath(owner ir.WalkPath, heldListValue heldList, i int) string {
+	return owner.String() + "." + heldListValue.name + "[" + strconv.Itoa(i) + "]"
 }
 
 // blankEntry is the violation a blank entry of a held list draws.

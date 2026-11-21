@@ -58,8 +58,8 @@ func deadWarnings(keyword string, branches []variantBranch) []wantFinding {
 // given, at the pointer given.
 func countFindings(diags []ir.Diagnostic, code string, severity ir.Severity, at jsontext.Pointer) int {
 	n := 0
-	for _, d := range diags {
-		if d.Code == code && d.Severity == severity && d.Provenance.Pointer == at {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Severity == severity && diagnostic.Provenance.Pointer == at {
 			n++
 		}
 	}

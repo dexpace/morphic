@@ -28,11 +28,11 @@ func indexViolations(doc *ir.Document) []Violation {
 // HTTP binding carrying the given SuccessStatus map.
 func docWithSuccessStatus(status map[int]int) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:        "op/x",
+			ID:        "operation/x",
 			Responses: []ir.Response{{}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 				Method: "GET", SuccessStatus: status,
 			}}},
 		}}}},
@@ -47,19 +47,19 @@ func TestCheckIndices_ResponseIndexOutOfRange(t *testing.T) {
 
 	got = indexViolations(docWithSuccessStatus(map[int]int{1: 202}))
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
 }
 
 // TestCheckIndices_ResponseIndexIsPlacedOnItsBinding holds the path to the
 // binding the key sits on: here only the second binding is out of range.
 func TestCheckIndices_ResponseIndexIsPlacedOnItsBinding(t *testing.T) {
 	doc := docWithSuccessStatus(map[int]int{0: 200})
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Bindings.HTTP = append(op.Bindings.HTTP, ir.HTTPBinding{Method: "POST", SuccessStatus: map[int]int{3: 201}})
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Bindings.HTTP = append(operation.Bindings.HTTP, ir.HTTPBinding{Method: "POST", SuccessStatus: map[int]int{3: 201}})
 
 	got := indexViolations(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[1].SuccessStatus[3]", got[0].Path)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[0].Bindings.HTTP[1].SuccessStatus[3]", got[0].Path)
 }
 
 func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
@@ -72,8 +72,8 @@ func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
 func TestVerify_ReportsOutOfRangeIndices(t *testing.T) {
 	found := Verify(docWithSuccessStatus(map[int]int{4: 200}))
 	codes := make([]string, 0, len(found))
-	for _, v := range found {
-		codes = append(codes, v.Code)
+	for _, violation := range found {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/response-index-out-of-range")
 }
@@ -97,7 +97,7 @@ var indexCarrierFields = []struct {
 }{
 	{operationType, "Responses", reflect.Slice, reflect.Invalid},
 	{operationType, "Bindings", reflect.Struct, reflect.Invalid},
-	{reflect.TypeFor[ir.OpBindings](), "HTTP", reflect.Slice, reflect.Struct},
+	{reflect.TypeFor[ir.OperationBindings](), "HTTP", reflect.Slice, reflect.Struct},
 	{reflect.TypeFor[ir.HTTPBinding](), "SuccessStatus", reflect.Map, reflect.Int},
 }
 
@@ -140,7 +140,7 @@ var integerFields = map[string]string{
 	// discriminator's own node: variants that are not tuples have no element list
 	// at all. Bounding it needs a rule for that case which docs/ir does not
 	// state, so it is left out rather than guessed at.
-	"Discriminator.Index": "tuple element position; addresses no one slice, see comment",
+	"Discriminator.TupleElementIndex": "tuple element position; addresses no one slice, see comment",
 
 	// The ir package's own traversal machinery, which is not IR data at all: the
 	// scan reaches every integer field the package declares, and classifying one
@@ -153,7 +153,7 @@ var integerFields = map[string]string{
 	"pathStep.kind":    "how a step reaches its value, an enumeration rather than a position",
 	"pathStep.n":       "the field, element or integer map key a step took, set by the walk as it took it, not IR data",
 	"pathStep.form":    "how a step holds the map key it took, an enumeration rather than a position",
-	"mapEntry.num":     "an integer map key the walk copied to order and spell it, not IR data",
+	"mapEntry.number":  "an integer map key the walk copied to order and spell it, not IR data",
 	"mapEntry.form":    "how an entry holds its map key, an enumeration rather than a position",
 	"valueWalk.all":    "the set of a walk's visitors, one bit each, not a position",
 	"valueWalk.limit":  "how many values a walk may show each visitor, a count",
@@ -175,7 +175,7 @@ var integerFields = map[string]string{
 		"that slice by the reader, not IR data",
 	"MemberReader.steps": "how much a member reader's walks have read, not a position",
 	"frame.next":         "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
-	"frame.num":          "the order a flattening met a model in, not a position in any IR slice",
+	"frame.number":       "the order a flattening met a model in, not a position in any IR slice",
 	"frame.low":          "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
 	"frame.since":        "how many models a flattening had finished, a length of its own list, not a position",
 	"narrowState.at":     "where a union sits in a narrowing walk's own list of variants to read, not a position in any IR slice",
@@ -198,25 +198,25 @@ var integerFields = map[string]string{
 	"refField.rule":       "what an empty ID means at a field, an enumeration rather than a position",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",
 
-	"DocRef.StartByte":      "byte offset into Docs.Description; bounds-checked by checkDocRefs",
-	"DocRef.EndByte":        "byte offset into Docs.Description; bounds-checked by checkDocRefs",
-	"Property.WireID":       "protobuf field number / thrift id, not a position",
-	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",
-	"StatusRange.From":      "HTTP status code",
-	"StatusRange.To":        "HTTP status code",
-	"WireIDRange.From":      "wire ID bound, not a position",
-	"WireIDRange.To":        "wire ID bound, not a position",
-	"Constraints.Precision": "digit count",
-	"Constraints.Scale":     "digit count",
-	"Constraints.MinLength": "length bound",
-	"Constraints.MaxLength": "length bound",
-	"Constraints.MinItems":  "length bound",
-	"Constraints.MaxItems":  "length bound",
-	"Constraints.MinProps":  "property-count bound",
-	"Constraints.MaxProps":  "property-count bound",
-	"Position.Line":         "line inside a source file, not a position in any IR slice",
-	"Position.Column":       "column inside a source file, not a position in any IR slice",
-	"Decimal.exp":           "power of ten the leading significant digit carries, not a position",
+	"DocRef.StartByte":          "byte offset into Docs.Description; bounds-checked by checkDocRefs",
+	"DocRef.EndByte":            "byte offset into Docs.Description; bounds-checked by checkDocRefs",
+	"Property.WireID":           "protobuf field number / thrift id, not a position",
+	"Variant.WireID":            "protobuf oneof field number or ordinal, not a position",
+	"StatusRange.From":          "HTTP status code",
+	"StatusRange.To":            "HTTP status code",
+	"WireIDRange.From":          "wire ID bound, not a position",
+	"WireIDRange.To":            "wire ID bound, not a position",
+	"Constraints.Precision":     "digit count",
+	"Constraints.Scale":         "digit count",
+	"Constraints.MinLength":     "length bound",
+	"Constraints.MaxLength":     "length bound",
+	"Constraints.MinItems":      "length bound",
+	"Constraints.MaxItems":      "length bound",
+	"Constraints.MinProperties": "property-count bound",
+	"Constraints.MaxProperties": "property-count bound",
+	"Position.Line":             "line inside a source file, not a position in any IR slice",
+	"Position.Column":           "column inside a source file, not a position in any IR slice",
+	"Decimal.exp":               "power of ten the leading significant digit carries, not a position",
 }
 
 // TestIntegerFields_AreAllClassified fails when ir declares an integer-typed
@@ -247,9 +247,9 @@ func TestIntegerFields_AreAllClassified(t *testing.T) {
 func declaredIntegerFields(t *testing.T) []string {
 	t.Helper()
 	var names []string
-	for _, f := range declaredFields(t) {
-		if mentionsInteger(t, f.field.Type(), 0) {
-			names = append(names, f.key())
+	for _, declaredField := range declaredFields(t) {
+		if mentionsInteger(t, declaredField.field.Type(), 0) {
+			names = append(names, declaredField.key())
 		}
 	}
 	return names
@@ -298,11 +298,11 @@ func isByte(typ types.Type) bool {
 // AllocsPerRun measures the process.
 func TestCheckIndices_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:        "op/x",
+			ID:        "operation/x",
 			Responses: []ir.Response{{}, {}, {}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 				{Method: "GET", SuccessStatus: map[int]int{0: 200, 1: 201, 2: 202}},
 				{Method: "PUT", SuccessStatus: map[int]int{2: 204}},
 			}},

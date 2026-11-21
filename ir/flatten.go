@@ -65,13 +65,13 @@ type PropertyDecl struct {
 // entry are read through alias scalars. The walk goes depth first, following a
 // model's Base, then Implements, then Mixins, and reads each model's own
 // properties after those of every model it composes that does not compose it
-// too: layout order. It reads the declarations [ExposedProps] reaches, one
+// too: layout order. It reads the declarations [ExposedProperties] reaches, one
 // member per wire name, a later declaration overriding an earlier one in its
 // place. A root naming no model has an empty shape; a cyclic composition is
 // read to its fixpoint. It writes nothing to types.
 func FlattenedProperties(types TypeRegistry, root TypeID) Flattening {
-	f := flattener{types: types}
-	return f.flatten(root)
+	flattenerValue := flattener{types: types}
+	return flattenerValue.flatten(root)
 }
 
 // What a flattener's met holds for a type that is not a model on the walk's
@@ -131,15 +131,15 @@ type member struct {
 
 // frame is a model the walk has met: the next of its composition entries to
 // follow, the number met gives it, its low-link as Tarjan's algorithm keeps
-// it, equal to num only for the first model of a component the walk met, and
+// it, equal to number only for the first model of a component the walk met, and
 // how many models were finished when it was met.
 type frame struct {
-	id    TypeID
-	m     *Model
-	next  int
-	num   int
-	low   int
-	since int
+	id     TypeID
+	m      *Model
+	next   int
+	number int
+	low    int
+	since  int
 }
 
 // flatten is [FlattenedProperties] over f's registry.
@@ -154,14 +154,14 @@ func (f *flattener) flatten(root TypeID) Flattening {
 // false where it names no model, which has no member to read.
 func (f *flattener) read(root TypeID) bool {
 	id := f.resolve(root)
-	m, ok := f.types[id].(*Model)
-	if !ok || m == nil {
+	model, ok := f.types[id].(*Model)
+	if !ok || model == nil {
 		return false
 	}
 	if f.narrow != nil {
 		f.narrow.root = id
 	}
-	f.walk(id, m)
+	f.walk(id, model)
 	return true
 }
 
@@ -171,10 +171,10 @@ func (f *flattener) read(root TypeID) bool {
 // read after every model it composes, unless that one composes it too; the
 // models of one component are read in the order they finished. Each model is
 // met once, so the walk follows at most every entry of the models it meets.
-func (f *flattener) walk(id TypeID, m *Model) {
+func (f *flattener) walk(id TypeID, model *Model) {
 	f.met = map[TypeID]int{}
 	f.index = map[string]int{}
-	stack := []frame{f.meet(id, m)}
+	stack := []frame{f.meet(id, model)}
 	for len(stack) > 0 {
 		f.steps++
 		top := &stack[len(stack)-1]
@@ -196,10 +196,10 @@ func (f *flattener) walk(id TypeID, m *Model) {
 }
 
 // meet numbers the model id names as the next the walk meets.
-func (f *flattener) meet(id TypeID, m *Model) frame {
-	num := len(f.met)
-	f.met[id] = num
-	return frame{id: id, m: m, num: num, low: num, since: len(f.finished)}
+func (f *flattener) meet(id TypeID, model *Model) frame {
+	number := len(f.met)
+	f.met[id] = number
+	return frame{id: id, m: model, number: number, low: number, since: len(f.finished)}
 }
 
 // finish records that the walk is done composing fr. When fr is the first
@@ -208,35 +208,35 @@ func (f *flattener) meet(id TypeID, m *Model) frame {
 // finished.
 func (f *flattener) finish(fr frame) {
 	f.finished = append(f.finished, fr)
-	if fr.low < fr.num {
+	if fr.low < fr.number {
 		return
 	}
-	if f.narrow != nil && fr.num == 0 {
+	if f.narrow != nil && fr.number == 0 {
 		f.narrow.readRoot(f.finished[fr.since:])
 	}
-	for _, c := range f.finished[fr.since:] {
-		f.met[c.id] = metRead
-		f.emit(c.id, c.m)
+	for _, frame := range f.finished[fr.since:] {
+		f.met[frame.id] = metRead
+		f.emit(frame.id, frame.m)
 	}
 	f.finished = f.finished[:fr.since]
 }
 
-// entry returns the target of m's i-th composition entry, counting its Base
+// entry returns the target of model's i-th composition entry, counting its Base
 // where it has one, then its Implements, then its Mixins, and false past the
 // last.
-func entry(m *Model, i int) (TypeID, bool) {
-	if m.Base != nil {
+func entry(model *Model, i int) (TypeID, bool) {
+	if model.Base != nil {
 		if i == 0 {
-			return m.Base.Target, true
+			return model.Base.Target, true
 		}
 		i--
 	}
-	if i < len(m.Implements) {
-		return m.Implements[i].Target, true
+	if i < len(model.Implements) {
+		return model.Implements[i].Target, true
 	}
-	i -= len(m.Implements)
-	if i < len(m.Mixins) {
-		return m.Mixins[i].Target, true
+	i -= len(model.Implements)
+	if i < len(model.Mixins) {
+		return model.Mixins[i].Target, true
 	}
 	return "", false
 }
@@ -256,8 +256,8 @@ func (f *flattener) parent(target TypeID, from *frame) (TypeID, *Model, bool) {
 	if f.narrow != nil {
 		target, id = f.substitute(target, id)
 	}
-	m, ok := f.types[id].(*Model)
-	if !ok || m == nil {
+	model, ok := f.types[id].(*Model)
+	if !ok || model == nil {
 		if _, marked := f.met[target]; !marked {
 			f.met[target] = metUnflattened
 			f.unflattened = append(f.unflattened, target)
@@ -267,12 +267,12 @@ func (f *flattener) parent(target TypeID, from *frame) (TypeID, *Model, bool) {
 		}
 		return "", nil, false
 	}
-	num, met := f.met[id]
+	number, met := f.met[id]
 	if !met {
-		return id, m, true
+		return id, model, true
 	}
-	if num != metRead {
-		from.low = min(from.low, num)
+	if number != metRead {
+		from.low = min(from.low, number)
 	}
 	return "", nil, false
 }
@@ -304,8 +304,8 @@ func (f *flattener) resolve(id TypeID) TypeID {
 		cur = base
 	}
 	if len(path) > 0 {
-		for _, s := range path {
-			f.aliasOf[s] = len(f.aliasEnds)
+		for _, typeID := range path {
+			f.aliasOf[typeID] = len(f.aliasEnds)
 		}
 		f.aliasEnds = append(f.aliasEnds, cur)
 	}
@@ -315,25 +315,25 @@ func (f *flattener) resolve(id TypeID) TypeID {
 // emit reads the model id names: each of its own properties, in source order,
 // as a declaration of its wire name, and each name its Requires lists. A
 // [MemberReader] walk reads the declaration of its one wire name alone.
-func (f *flattener) emit(id TypeID, m *Model) {
+func (f *flattener) emit(id TypeID, model *Model) {
 	if f.query != nil {
 		f.steps++
-		f.query.emit(id, m)
+		f.query.emit(id, model)
 		return
 	}
-	for i := range m.Properties {
+	for i := range model.Properties {
 		f.steps++
-		d := PropertyDecl{Owner: id, Property: &m.Properties[i]}
-		wire := d.Property.EffectiveWireName()
+		propertyDecl := PropertyDecl{Owner: id, Property: &model.Properties[i]}
+		wire := propertyDecl.Property.EffectiveWireName()
 		at, known := f.index[wire]
 		if !known {
 			at = len(f.members)
 			f.index[wire] = at
 			f.members = append(f.members, member{})
 		}
-		f.members[at].reads = append(f.members[at].reads, d)
+		f.members[at].reads = append(f.members[at].reads, propertyDecl)
 	}
-	for _, name := range m.Requires {
+	for _, name := range model.Requires {
 		f.steps++
 		if f.required[name] {
 			continue
@@ -369,21 +369,21 @@ func (f *flattener) result() Flattening {
 func (f *flattener) flat(mb member) FlatProperty {
 	last := taken(mb.reads)
 	fp := FlatProperty{PropertyDecl: last, Required: f.required[last.Property.EffectiveWireName()]}
-	var listed map[PropID]bool
-	for _, d := range mb.reads {
-		fp.Required = fp.Required || d.Property.Required
-		fp.Secret = fp.Secret || d.Property.Secret || f.sensitive(d.Property.Type.Target)
-		if d.Property.Deprecation != nil {
-			fp.Deprecation = d.Property.Deprecation
+	var listed map[PropertyID]bool
+	for _, propertyDecl := range mb.reads {
+		fp.Required = fp.Required || propertyDecl.Property.Required
+		fp.Secret = fp.Secret || propertyDecl.Property.Secret || f.sensitive(propertyDecl.Property.Type.Target)
+		if propertyDecl.Property.Deprecation != nil {
+			fp.Deprecation = propertyDecl.Property.Deprecation
 		}
-		if d.Property.ID == last.Property.ID || listed[d.Property.ID] {
+		if propertyDecl.Property.ID == last.Property.ID || listed[propertyDecl.Property.ID] {
 			continue
 		}
 		if listed == nil {
-			listed = map[PropID]bool{}
+			listed = map[PropertyID]bool{}
 		}
-		listed[d.Property.ID] = true
-		fp.Overridden = append(fp.Overridden, d)
+		listed[propertyDecl.Property.ID] = true
+		fp.Overridden = append(fp.Overridden, propertyDecl)
 	}
 	return fp
 }
@@ -441,8 +441,8 @@ func (f *flattener) sensitive(id TypeID) bool {
 		id = base.Target
 	}
 
-	for _, c := range chain {
-		f.sensitivity[c] = found
+	for _, typeID := range chain {
+		f.sensitivity[typeID] = found
 	}
 
 	return found

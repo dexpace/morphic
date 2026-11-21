@@ -48,7 +48,7 @@ const (
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
 // use deepens the dependence on the library's resolution, and when one falls
 // until the count here is lowered to match, so the map only shrinks (GitHub
-// #920). It is empty: the compiler binds every $ref itself (internal/bind), a
+// #920). It is empty: the compiler binds every $ref itself (internal/reftable), a
 // schema's and a reference object's, so no production package uses the
 // library's resolution, and any use is a new one.
 var resolutionBaseline = map[string]map[string]int{}
@@ -125,11 +125,11 @@ func (g libGraph) addFuncs(files []*ast.File, info *types.Info) {
 		if !ok {
 			continue
 		}
-		f := &libFunc{fn: fn, calls: map[string]bool{}, touches: map[string]bool{}, writes: map[string]bool{}}
+		libFuncValue := &libFunc{fn: fn, calls: map[string]bool{}, touches: map[string]bool{}, writes: map[string]bool{}}
 		for n := range ast.Preorder(fd.Body) {
-			f.read(n, info)
+			libFuncValue.read(n, info)
 		}
-		g[fn.FullName()] = f
+		g[fn.FullName()] = libFuncValue
 	}
 }
 
@@ -214,28 +214,28 @@ func typeKey(t types.Type) string {
 	return obj.Pkg().Path() + "." + obj.Name()
 }
 
-// resolutionAPI derives the library's resolution API from g: every exported
-// function or method that, through calls the type checker resolves, runs the
-// resolver, or touches a field of the schema's package that resolving a schema
-// writes. A non-schema reference's answer is read by GetObject, the accessor of
-// every parameter and response, and stays with the library (GitHub #920), so
-// only running its resolver counts; Walk reads no resolution state, and
+// resolutionAPI derives the library's resolution API from libGraphValue: every
+// exported function or method that, through calls the type checker resolves,
+// runs the resolver, or touches a field of the schema's package that resolving
+// a schema writes. A non-schema reference's answer is read by GetObject, the
+// accessor of every parameter and response, and stays with the library (GitHub #920),
+// so only running its resolver counts; Walk reads no resolution state, and
 // GetTarget and Validate reach it only through GetObject. Each member maps to
 // why it is one.
-func resolutionAPI(g libGraph, resolver, schemaResolve, schemaPkg string) map[string]string {
-	state := writtenFrom(g, schemaResolve, schemaPkg+".")
+func resolutionAPI(libGraphValue libGraph, resolver, schemaResolve, schemaPkg string) map[string]string {
+	state := writtenFrom(libGraphValue, schemaResolve, schemaPkg+".")
 	why := map[string]string{}
 	var queue []string
-	for _, name := range slices.Sorted(maps.Keys(g)) {
-		if reason := rootReason(name, g[name], resolver, state); reason != "" {
+	for _, name := range slices.Sorted(maps.Keys(libGraphValue)) {
+		if reason := rootReason(name, libGraphValue[name], resolver, state); reason != "" {
 			why[name] = reason
 			queue = append(queue, name)
 		}
 	}
 
 	callers := map[string][]string{}
-	for _, name := range slices.Sorted(maps.Keys(g)) {
-		for _, callee := range slices.Sorted(maps.Keys(g[name].calls)) {
+	for _, name := range slices.Sorted(maps.Keys(libGraphValue)) {
+		for _, callee := range slices.Sorted(maps.Keys(libGraphValue[name].calls)) {
 			callers[callee] = append(callers[callee], name)
 		}
 	}
@@ -252,28 +252,28 @@ func resolutionAPI(g libGraph, resolver, schemaResolve, schemaPkg string) map[st
 
 	// An exported method of an unexported type is callable too, promoted through
 	// a type that embeds it or through an interface.
-	maps.DeleteFunc(why, func(name, _ string) bool { return !g[name].fn.Exported() })
+	maps.DeleteFunc(why, func(name, _ string) bool { return !libGraphValue[name].fn.Exported() })
 	return why
 }
 
 // writtenFrom returns the fields under prefix that from, or anything it calls,
 // writes: the state resolving a schema leaves behind.
-func writtenFrom(g libGraph, from, prefix string) map[string]bool {
+func writtenFrom(libGraphValue libGraph, from, prefix string) map[string]bool {
 	written := map[string]bool{}
 	seen := map[string]bool{from: true}
 	queue := []string{from}
 	for len(queue) > 0 {
-		f, ok := g[queue[0]]
+		libFunc, ok := libGraphValue[queue[0]]
 		queue = queue[1:]
 		if !ok {
 			continue
 		}
-		for field := range f.writes {
+		for field := range libFunc.writes {
 			if strings.HasPrefix(field, prefix) {
 				written[field] = true
 			}
 		}
-		for callee := range f.calls {
+		for callee := range libFunc.calls {
 			if !seen[callee] {
 				seen[callee] = true
 				queue = append(queue, callee)
@@ -283,16 +283,16 @@ func writtenFrom(g libGraph, from, prefix string) map[string]bool {
 	return written
 }
 
-// rootReason says why f belongs to the API on its own account, or "" when it
-// does not: it is the resolver, calls it, or touches resolution state.
-func rootReason(name string, f *libFunc, resolver string, state map[string]bool) string {
+// rootReason says why libFuncValue belongs to the API on its own account, or ""
+// when it does not: it is the resolver, calls it, or touches resolution state.
+func rootReason(name string, libFuncValue *libFunc, resolver string, state map[string]bool) string {
 	switch {
 	case name == resolver:
 		return "is the resolver"
-	case f.calls[resolver]:
+	case libFuncValue.calls[resolver]:
 		return "runs the resolver"
 	}
-	for _, field := range slices.Sorted(maps.Keys(f.touches)) {
+	for _, field := range slices.Sorted(maps.Keys(libFuncValue.touches)) {
 		if state[field] {
 			return "touches " + field
 		}
@@ -324,29 +324,29 @@ func (m resolutionMember) has(iface *types.Interface) bool {
 
 // membersOf describes the API's members, refusing two that would share a short
 // name, since the baseline could not tell them apart.
-func membersOf(g libGraph, api map[string]string) ([]resolutionMember, error) {
+func membersOf(libGraphValue libGraph, api map[string]string) ([]resolutionMember, error) {
 	out := make([]resolutionMember, 0, len(api))
 	shorts := map[string]string{}
 	for _, full := range slices.Sorted(maps.Keys(api)) {
-		fn := g[full].fn
-		m := resolutionMember{full: full, name: fn.Name(), short: fn.Pkg().Name() + "."}
+		fn := libGraphValue[full].fn
+		resolutionMemberValue := resolutionMember{full: full, name: fn.Name(), short: fn.Pkg().Name() + "."}
 		if recv := fn.Signature().Recv(); recv != nil {
 			named, ok := derefNamed(recv.Type()).(*types.Named)
 			if !ok {
 				return nil, fmt.Errorf("%s has a receiver that is no named type", full)
 			}
-			m.short += named.Obj().Name() + "."
-			m.methods = map[string]bool{}
+			resolutionMemberValue.short += named.Obj().Name() + "."
+			resolutionMemberValue.methods = map[string]bool{}
 			for sel := range types.NewMethodSet(types.NewPointer(named)).Methods() {
-				m.methods[types.Id(sel.Obj().Pkg(), sel.Obj().Name())] = true
+				resolutionMemberValue.methods[types.Id(sel.Obj().Pkg(), sel.Obj().Name())] = true
 			}
 		}
-		m.short += m.name
-		if other, taken := shorts[m.short]; taken {
-			return nil, fmt.Errorf("%s and %s share the short name %s", full, other, m.short)
+		resolutionMemberValue.short += resolutionMemberValue.name
+		if other, taken := shorts[resolutionMemberValue.short]; taken {
+			return nil, fmt.Errorf("%s and %s share the short name %s", full, other, resolutionMemberValue.short)
 		}
-		shorts[m.short] = full
-		out = append(out, m)
+		shorts[resolutionMemberValue.short] = full
+		out = append(out, resolutionMemberValue)
 	}
 	return out, nil
 }
@@ -367,15 +367,15 @@ func deriveResolutionAPI() ([]resolutionMember, error) {
 		return nil, err
 	}
 
-	g := libGraph{}
+	libGraphValue := libGraph{}
 	var resolver, schema string
-	for _, p := range pkgs {
-		g.addFuncs(p.Syntax, p.Info)
-		switch p.Types.Path() {
+	for _, loadedPackage := range pkgs {
+		libGraphValue.addFuncs(loadedPackage.Syntax, loadedPackage.Info)
+		switch loadedPackage.Types.Path() {
 		case resolverPackage:
-			resolver, err = anchor(p, "", resolverName)
+			resolver, err = anchor(loadedPackage, "", resolverName)
 		case schemaPackage:
-			schema, err = anchor(p, schemaType, schemaResolve)
+			schema, err = anchor(loadedPackage, schemaType, schemaResolve)
 		}
 		if err != nil {
 			return nil, err
@@ -385,24 +385,24 @@ func deriveResolutionAPI() ([]resolutionMember, error) {
 		return nil, fmt.Errorf("%s and %s are not both among the library's packages", resolverPackage, schemaPackage)
 	}
 
-	api := resolutionAPI(g, resolver, schema, schemaPackage)
+	api := resolutionAPI(libGraphValue, resolver, schema, schemaPackage)
 	if _, ok := api[schema]; !ok {
 		return nil, fmt.Errorf("%s is not in the API derived from it", schema)
 	}
-	return membersOf(g, api)
+	return membersOf(libGraphValue, api)
 }
 
-// anchor returns the full name of the function name p declares, or of the
-// method name of the type typeName when that is not "".
-func anchor(p *decls.Package, typeName, name string) (string, error) {
+// anchor returns the full name of the function name loadedPackage declares, or
+// of the method name of the type typeName when that is not "".
+func anchor(loadedPackage *decls.Package, typeName, name string) (string, error) {
 	if typeName == "" {
-		fn, ok := p.Types.Scope().Lookup(name).(*types.Func)
+		fn, ok := loadedPackage.Types.Scope().Lookup(name).(*types.Func)
 		if !ok {
-			return "", fmt.Errorf("%s declares no function %s; re-derive the anchor", p.Types.Path(), name)
+			return "", fmt.Errorf("%s declares no function %s; re-derive the anchor", loadedPackage.Types.Path(), name)
 		}
 		return fn.FullName(), nil
 	}
-	named, err := p.Named(typeName)
+	named, err := loadedPackage.Named(typeName)
 	if err != nil {
 		return "", err
 	}
@@ -411,7 +411,7 @@ func anchor(p *decls.Package, typeName, name string) (string, error) {
 			return m.FullName(), nil
 		}
 	}
-	return "", fmt.Errorf("%s.%s has no method %s; re-derive the anchor", p.Types.Path(), typeName, name)
+	return "", fmt.Errorf("%s.%s has no method %s; re-derive the anchor", loadedPackage.Types.Path(), typeName, name)
 }
 
 // libraryPackages lists the library's packages the module's production code
@@ -438,33 +438,33 @@ func libraryPackages() ([]string, error) {
 	return slices.Compact(paths), nil
 }
 
-// resolutionUses returns where p uses each member, by short name. A use is any
-// identifier the type checker resolves to a member: a call, a method value or
-// expression, a method promoted through an embedded field. One resolved to an
-// interface's method, a constraint's included, counts toward each member of that
-// name whose type has a method of every name the interface declares, since the
-// call may reach it. A method reached by reflection names no identifier and is
-// not seen.
-func resolutionUses(p *decls.Package, members []resolutionMember) map[string][]token.Position {
+// resolutionUses returns where loadedPackage uses each member, by short name. A
+// use is any identifier the type checker resolves to a member: a call, a method
+// value or expression, a method promoted through an embedded field. One
+// resolved to an interface's method, a constraint's included, counts toward
+// each member of that name whose type has a method of every name the interface
+// declares, since the call may reach it. A method reached by reflection names
+// no identifier and is not seen.
+func resolutionUses(loadedPackage *decls.Package, members []resolutionMember) map[string][]token.Position {
 	byFull := map[string]resolutionMember{}
 	byName := map[string][]resolutionMember{}
-	for _, m := range members {
-		byFull[m.full] = m
-		byName[m.name] = append(byName[m.name], m)
+	for _, resolutionMember := range members {
+		byFull[resolutionMember.full] = resolutionMember
+		byName[resolutionMember.name] = append(byName[resolutionMember.name], resolutionMember)
 	}
 
 	uses := map[string][]token.Position{}
-	for id, obj := range p.Info.Uses {
+	for id, obj := range loadedPackage.Info.Uses {
 		fn, ok := obj.(*types.Func)
 		if !ok {
 			continue
 		}
 		reached := dispatchedTo(fn, byName[fn.Name()])
-		if m, ok := byFull[fn.Origin().FullName()]; ok {
-			reached = []resolutionMember{m}
+		if resolutionMemberValue, ok := byFull[fn.Origin().FullName()]; ok {
+			reached = []resolutionMember{resolutionMemberValue}
 		}
-		for _, m := range reached {
-			uses[m.short] = append(uses[m.short], p.Fset.Position(id.Pos()))
+		for _, resolutionMember := range reached {
+			uses[resolutionMember.short] = append(uses[resolutionMember.short], loadedPackage.Fset.Position(id.Pos()))
 		}
 	}
 	for _, at := range uses {
@@ -489,9 +489,9 @@ func dispatchedTo(fn *types.Func, candidates []resolutionMember) []resolutionMem
 		return nil
 	}
 	var out []resolutionMember
-	for _, m := range candidates {
-		if m.has(iface) {
-			out = append(out, m)
+	for _, resolutionMember := range candidates {
+		if resolutionMember.has(iface) {
+			out = append(out, resolutionMember)
 		}
 	}
 	return out
@@ -515,21 +515,21 @@ var resolutionRatchet = ratchet{
 	rise:   "each deepens the compiler's dependence on the library's reference resolution (GitHub #558)",
 }
 
-// baselineFindings compares sites, by package and key, with r's counts and
-// returns one message per difference, sorted: a rise names each site, a fall
-// asks for the table to be lowered.
-func baselineFindings(r ratchet, sites map[string]map[string][]string) []string {
+// baselineFindings compares sites, by package and key, with ratchetValue's
+// counts and returns one message per difference, sorted: a rise names each
+// site, a fall asks for the table to be lowered.
+func baselineFindings(ratchetValue ratchet, sites map[string]map[string][]string) []string {
 	var out []string
-	for _, pkg := range sortedUnion(sites, r.counts) {
-		for _, key := range sortedUnion(sites[pkg], r.counts[pkg]) {
-			got, want := len(sites[pkg][key]), r.counts[pkg][key]
+	for _, pkg := range sortedUnion(sites, ratchetValue.counts) {
+		for _, key := range sortedUnion(sites[pkg], ratchetValue.counts[pkg]) {
+			got, want := len(sites[pkg][key]), ratchetValue.counts[pkg][key]
 			switch {
 			case got > want:
 				out = append(out, fmt.Sprintf("%s: %d %s %s, over its baseline of %d; %s: %s",
-					pkg, got, r.what, key, want, r.rise, strings.Join(sites[pkg][key], ", ")))
+					pkg, got, ratchetValue.what, key, want, ratchetValue.rise, strings.Join(sites[pkg][key], ", ")))
 			case got < want:
 				out = append(out, fmt.Sprintf("%s: %d %s %s, under its baseline of %d; lower %s to match",
-					pkg, got, r.what, key, want, r.name))
+					pkg, got, ratchetValue.what, key, want, ratchetValue.name))
 			}
 		}
 	}
@@ -604,10 +604,10 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 	root := irtest.RepoRoot(t)
 	sites := map[string]map[string][]string{}
 	swept := false
-	for _, p := range pkgs {
-		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
+	for _, loadedPackage := range pkgs {
+		rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
 		swept = swept || rel == "compilers/openapi/internal/load"
-		for member, at := range resolutionUses(p, members) {
+		for member, at := range resolutionUses(loadedPackage, members) {
 			if sites[rel] == nil {
 				sites[rel] = map[string][]string{}
 			}
@@ -629,8 +629,8 @@ func TestResolutionAPI_IsTheReviewedSet(t *testing.T) {
 	members, err := libraryAPI()
 	require.NoError(t, err)
 	shorts := make([]string, len(members))
-	for i, m := range members {
-		shorts[i] = m.short
+	for i, resolutionMember := range members {
+		shorts[i] = resolutionMember.short
 	}
 	slices.Sort(shorts)
 	assert.Equal(t, reviewedMembers, shorts,
@@ -708,8 +708,8 @@ func TestResolutionAPI_DerivesThePlantedLibrarysMembers(t *testing.T) {
 	}
 	_, err = (&types.Config{}).Check("p", fset, []*ast.File{f}, info)
 	require.NoError(t, err)
-	g := libGraph{}
-	g.addFuncs([]*ast.File{f}, info)
+	libGraphValue := libGraph{}
+	libGraphValue.addFuncs([]*ast.File{f}, info)
 
 	assert.Equal(t, map[string]string{
 		"p.Resolve":           "is the resolver",
@@ -725,7 +725,7 @@ func TestResolutionAPI_DerivesThePlantedLibrarysMembers(t *testing.T) {
 		"p.Through":           "calls (*p.Schema).cached",
 		"p.Runs":              "calls p.helper",
 		"(*p.Doc).Promoted":   "touches p.Schema.cache",
-	}, resolutionAPI(g, "p.Resolve", "(*p.Schema).Resolve", "p"))
+	}, resolutionAPI(libGraphValue, "p.Resolve", "(*p.Schema).Resolve", "p"))
 }
 
 // plantedUses uses the API in every spelling a use takes, each line counted
@@ -810,7 +810,7 @@ func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 	} {
 		t.Run(plant.dir, func(t *testing.T) {
 			t.Parallel()
-			p := loadOverlaid(t, plant.dir, "zz_planted_resolution.go", plant.src)
+			loadedPackage := loadOverlaid(t, plant.dir, "zz_planted_resolution.go", plant.src)
 
 			const marker = "// counts "
 			var want []string
@@ -820,7 +820,7 @@ func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 				}
 			}
 			var got []string
-			for member, at := range resolutionUses(p, members) {
+			for member, at := range resolutionUses(loadedPackage, members) {
 				for _, pos := range at {
 					assert.Equal(t, "zz_planted_resolution.go", filepath.Base(pos.Filename))
 					got = append(got, fmt.Sprintf("%d %s", pos.Line, member))
@@ -837,14 +837,14 @@ func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 // each site, and a fall, to zero included, asks for the baseline to be lowered.
 func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 	t.Parallel()
-	r := ratchet{
+	ratchetValue := ratchet{
 		name:   "table",
 		counts: map[string]map[string]int{"held": {"lib.A": 2, "lib.B": 1}, "gone": {"lib.A": 1}},
 		what:   "uses of",
 		rise:   "why",
 	}
 
-	assert.Empty(t, baselineFindings(r, map[string]map[string][]string{
+	assert.Empty(t, baselineFindings(ratchetValue, map[string]map[string][]string{
 		"held": {"lib.A": {"x.go:1", "x.go:2"}, "lib.B": {"x.go:3"}}, "gone": {"lib.A": {"x.go:4"}},
 	}), "sites that match the baseline")
 
@@ -853,7 +853,7 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 		"held: 3 uses of lib.A, over its baseline of 2; why: x.go:1, x.go:2, x.go:5",
 		"held: 0 uses of lib.B, under its baseline of 1; lower table to match",
 		"new: 1 uses of lib.C, over its baseline of 0; why: x.go:7",
-	}, baselineFindings(r, map[string]map[string][]string{
+	}, baselineFindings(ratchetValue, map[string]map[string][]string{
 		"held": {"lib.A": {"x.go:1", "x.go:2", "x.go:5"}}, "new": {"lib.C": {"x.go:7"}},
 	}))
 }

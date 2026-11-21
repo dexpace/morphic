@@ -18,10 +18,10 @@ import (
 // is paid per node. It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckDocRefs_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/plain": &ir.Model{ID: "t/plain", Docs: ir.Docs{Description: "no references"}},
-		"t/refs": &ir.Model{ID: "t/refs", Docs: ir.Docs{
+		"type/plain": &ir.Model{ID: "type/plain", Docs: ir.Docs{Description: "no references"}},
+		"type/refs": &ir.Model{ID: "type/refs", Docs: ir.Docs{
 			Description: "see Pet",
-			Refs:        []ir.DocRef{{StartByte: 4, EndByte: 7, Type: "t/plain"}},
+			Refs:        []ir.DocRef{{StartByte: 4, EndByte: 7, Type: "type/plain"}},
 		}},
 	}}
 	check := checkDocRefs(doc)

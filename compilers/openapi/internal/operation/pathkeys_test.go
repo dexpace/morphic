@@ -41,33 +41,33 @@ func pathKeySpec(version, key string, params ...string) string {
 func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		key, ptr, msg string
-		params        []string
+		key, ptr, message string
+		params            []string
 	}{
 		{
 			key: "a/b c?x",
 			ptr: "/paths/a~1b c?x",
-			msg: `path key "a/b c?x" is not a valid path template: does not begin with "/"; ` +
+			message: `path key "a/b c?x" is not a valid path template: does not begin with "/"; ` +
 				`contains " ", which a path admits only percent-encoded; carries the query "?x"; ` +
 				`the key is used as written`,
 		},
 		{
 			key: "/foo/{param",
 			ptr: "/paths/~1foo~1{param",
-			msg: `path key "/foo/{param" is not a valid path template: has a brace that is not part ` +
+			message: `path key "/foo/{param" is not a valid path template: has a brace that is not part ` +
 				`of a "{name}" template expression; the key is used as written`,
 		},
 		{
 			key: "/users/{id}/issues/{id}",
 			ptr: "/paths/~1users~1{id}~1issues~1{id}",
-			msg: `path key "/users/{id}/issues/{id}" is not a valid path template: repeats "{id}"; ` +
+			message: `path key "/users/{id}/issues/{id}" is not a valid path template: repeats "{id}"; ` +
 				`the key is used as written`,
 			params: []string{"id"},
 		},
 		{
 			key: "/a\tb",
 			ptr: "/paths/~1a\tb",
-			msg: `path key "/a\tb" is not a valid path template: contains "\t", which a path ` +
+			message: `path key "/a\tb" is not a valid path template: contains "\t", which a path ` +
 				`admits only percent-encoded; the key is used as written`,
 		},
 	}
@@ -77,11 +77,11 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 			_, svc, diags := compileService(t, pathKeySpec("3.1.0", tc.key, tc.params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
-			assert.Equal(t, tc.msg, msg)
+			message := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
+			assert.Equal(t, tc.message, message)
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InvalidPathKey, ir.SeverityWarning),
 				"one diagnostic per key, not per defect")
-			assert.Equal(t, tc.key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate,
+			assert.Equal(t, tc.key, openapitest.FirstOperation(t, svc).Bindings.HTTP[0].URITemplate,
 				"the key reaches the IR verbatim")
 		})
 	}
@@ -101,7 +101,7 @@ func TestPathKeys_ValidKeysAreNotReported(t *testing.T) {
 			_, svc, diags := compileService(t, pathKeySpec("3.1.0", key, params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey), "%q is a path template; got %+v", key, diags)
-			assert.Equal(t, key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
+			assert.Equal(t, key, openapitest.FirstOperation(t, svc).Bindings.HTTP[0].URITemplate)
 		})
 	}
 }
@@ -117,9 +117,9 @@ func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 			t.Parallel()
 			_, _, diags := compileService(t, pathKeySpec(version, "/a//{id}/{id}", "id"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning,
+			message := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning,
 				"/paths/~1a~1~1{id}~1{id}")
-			assert.Contains(t, msg, `repeats "{id}"; has an empty segment ("//")`)
+			assert.Contains(t, message, `repeats "{id}"; has an empty segment ("//")`)
 		})
 	}
 }
@@ -157,17 +157,17 @@ func TestPathKeys_FragmentIsLeftOutOfTheTemplate(t *testing.T) {
 			t.Parallel()
 			_, svc, diags := compileService(t, pathKeySpec("3.1.0", tc.key))
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FirstOp(t, svc)
-			hb := op.Bindings.HTTP[0]
+			operation := openapitest.FirstOperation(t, svc)
+			hb := operation.Bindings.HTTP[0]
 			assert.Equal(t, tc.template, hb.URITemplate)
 			kept, ok := hb.Unmodeled["openapi:fragment"]
 			require.True(t, ok, "the binding keeps the fragment")
 			assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
 			assert.JSONEq(t, strconv.Quote(tc.fragment), string(kept.Value))
 			assert.Equal(t, ids.Ptr("paths", tc.key), kept.Provenance.Pointer, "at the key that writes it")
-			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, string(ids.Ptr("paths", tc.key)))
+			message := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, string(ids.Ptr("paths", tc.key)))
 			assert.Equal(t, "path key "+strconv.Quote(tc.key)+" is not a valid path template: "+tc.defects+
-				"; the URI template is the key less its fragment, which each operation's HTTP binding keeps", msg)
+				"; the URI template is the key less its fragment, which each operation's HTTP binding keeps", message)
 		})
 	}
 }
@@ -191,8 +191,8 @@ components: {pathItems: {}}
 	require.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/paths/a b"),
 		"the $ref must be the unresolved one this case is about; got %+v", diags)
 	for _, ptr := range []string{"/paths/a b", "/paths/c d", "/paths/e f"} {
-		msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, ptr)
-		assert.Contains(t, msg, `does not begin with "/"; contains " "`)
+		message := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, ptr)
+		assert.Contains(t, message, `does not begin with "/"; contains " "`)
 	}
 }
 
@@ -223,8 +223,8 @@ webhooks:
 
 	keys := map[string]bool{}
 	for _, grp := range svc.Groups {
-		for _, op := range grp.Operations {
-			for _, hb := range op.Bindings.HTTP {
+		for _, operation := range grp.Operations {
+			for _, hb := range operation.Bindings.HTTP {
 				keys[hb.URITemplate+hb.WebhookName] = true
 			}
 		}

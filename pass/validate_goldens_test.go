@@ -20,13 +20,13 @@ import (
 func onTheGoldens(t *testing.T, run func(doc *ir.Document) []ir.Diagnostic, keep func(ir.Diagnostic) bool) []string {
 	t.Helper()
 	var out []string
-	for _, d := range sweepDocuments(t) {
-		if d.name == "reachDocument" {
+	for _, sweepDocument := range sweepDocuments(t) {
+		if sweepDocument.name == "reachDocument" {
 			continue
 		}
-		for _, diag := range run(d.doc) {
+		for _, diag := range run(sweepDocument.doc) {
 			if keep(diag) {
-				out = append(out, strings.TrimPrefix(d.name, "../testdata/")+" @ "+diag.Provenance.Node+": "+diag.Message)
+				out = append(out, strings.TrimPrefix(sweepDocument.name, "../testdata/")+" @ "+diag.Provenance.Node+": "+diag.Message)
 			}
 		}
 	}
@@ -40,12 +40,12 @@ func validatesOnce(t *testing.T) func(doc *ir.Document) []ir.Diagnostic {
 
 // withTheCode keeps the findings of code.
 func withTheCode(code string) func(ir.Diagnostic) bool {
-	return func(d ir.Diagnostic) bool { return d.Code == code }
+	return func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == code }
 }
 
 const (
 	schemas      = "conformance/openapi/"
-	componentsOf = "p/openapi/components/schemas/"
+	componentsOf = "property/openapi/components/schemas/"
 )
 
 // TestValidate_BoundsFireOnTheGoldensWhereTheirSpecsContradictThemselves holds
@@ -77,7 +77,7 @@ func TestValidate_DefaultsFireOnTheGoldensWhereTheirTypeAdmitsNothingLikeThem(t 
 		schemas + "allof-redeclared-bounds.golden.json @ " + componentsOf + "DefaultPastItsOwnBound/allOf/0/properties/p: " +
 			"default lies outside the bounds declared for it",
 		schemas + "defaults.golden.json @ " + componentsOf + "S/properties/blob: " +
-			"default is bytes, and t/prim/string holds a string",
+			"default is bytes, and type/primitive/string holds a string",
 	}, got)
 }
 
@@ -97,8 +97,8 @@ func TestValidate_ACompositionCycleFiresOnTheGoldenWhoseModelExtendsItself(t *te
 	got := onTheGoldens(t, validatesOnce(t), withTheCode(cycleCode))
 
 	assert.Equal(t, []string{
-		schemas + "union-restated-branches.golden.json @ t/openapi/components/schemas/RenderSelf: composition never ends: " +
-			"base t/openapi/components/schemas/RenderSelf leads back into a cycle of bases and mixins",
+		schemas + "union-restated-branches.golden.json @ type/openapi/components/schemas/RenderSelf: composition never ends: " +
+			"base type/openapi/components/schemas/RenderSelf leads back into a cycle of bases and mixins",
 	}, got)
 }
 
@@ -113,17 +113,17 @@ func TestNames_HeaderCollisionsFireOnTheGoldenHoldingOneAndInheritedPropertiesOn
 		return diags
 	}
 	scope := func(word string) func(ir.Diagnostic) bool {
-		return func(d ir.Diagnostic) bool {
-			return d.Code == "pass/name-collision" && strings.Contains(d.Message, ", "+word)
+		return func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == "pass/name-collision" && strings.Contains(diagnostic.Message, ", "+word)
 		}
 	}
 
 	assert.Equal(t, []string{
-		schemas + "header-name-case.golden.json @ op/openapi/paths/~1traces/get: in operation op/openapi/paths/~1traces/get, " +
+		schemas + "header-name-case.golden.json @ operation/openapi/paths/~1traces/get: in operation operation/openapi/paths/~1traces/get, " +
 			`response "200", headers 0 ("x-rate") and 1 ("X-Rate") share the neutral name "x_rate", ` +
 			"so a target can tell them apart only by ID",
 	}, onTheGoldens(t, names, scope("response ")))
-	assert.Empty(t, onTheGoldens(t, names, func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "exposed propert") }))
+	assert.Empty(t, onTheGoldens(t, names, func(diagnostic ir.Diagnostic) bool { return strings.Contains(diagnostic.Message, "exposed propert") }))
 	assert.Empty(t, onTheGoldens(t, names, scope("error ")))
 	assert.Empty(t, onTheGoldens(t, names, scope("common error ")))
 	assert.Empty(t, onTheGoldens(t, names, scope("the default response")))

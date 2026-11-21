@@ -22,22 +22,22 @@ import (
 // one composed so far, so the positions beneath compose from it. Each step
 // consumes a token, bounding the walk.
 func steps(enclosing string, rest []string, title titler) (hint string, branch, titled bool) {
-	c := chain{base: enclosing}
+	chainValue := chain{base: enclosing}
 	if t := title.at(0, false); t != "" {
-		c, titled = chain{base: t}, true
+		chainValue, titled = chain{base: t}, true
 	}
 	for i := 0; i < len(rest); {
-		s := stepOf(c, rest[i:])
-		i += s.tokens
-		c, branch, titled = s.hint, s.branch, false
-		if s.keyed {
+		step := stepOf(chainValue, rest[i:])
+		i += step.tokens
+		chainValue, branch, titled = step.hint, step.branch, false
+		if step.keyed {
 			continue
 		}
-		if t := title.at(i, s.union); t != "" {
-			c, branch, titled = chain{base: t}, false, true
+		if t := title.at(i, step.union); t != "" {
+			chainValue, branch, titled = chain{base: t}, false, true
 		}
 	}
-	return compile.SubHints(c.base, c.parts...), branch, titled
+	return compile.SubHints(chainValue.base, chainValue.parts...), branch, titled
 }
 
 // titler returns the name the title of the position consumed tokens of a walk
@@ -174,11 +174,11 @@ func isDecimalIndex(s string) bool {
 // spelling no pointer — a whole-document URI, a $anchor, a fragment whose
 // bytes are not UTF-8 (GitHub #520) — suggests what refHint reads.
 func unresolvedName(ref string) string {
-	p := fragment.Pointer(ref)
-	if !strings.HasPrefix(string(p), "/") || !utf8.ValidString(string(p)) {
+	pointer := fragment.Pointer(ref)
+	if !strings.HasPrefix(string(pointer), "/") || !utf8.ValidString(string(pointer)) {
 		return refHint(ref)
 	}
-	tokens := slices.Collect(p.Tokens())
+	tokens := slices.Collect(pointer.Tokens())
 	start, hint := pointerOwner(tokens)
 	hint, _, _ = steps(hint, tokens[start:], nil)
 	return hint

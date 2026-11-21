@@ -44,12 +44,12 @@ func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 
 // forEachOperation is ForEachOperation within limit steps.
 func forEachOperation(limit int, doc *Document, fn func(Operation)) bool {
-	return groupsWithin(limit, doc, func(g OperationGroup, steps *stepLimit) {
-		for _, op := range g.Operations {
+	return groupsWithin(limit, doc, func(operationGroup OperationGroup, steps *stepLimit) {
+		for _, operation := range operationGroup.Operations {
 			if !steps.take() {
 				return
 			}
-			fn(op)
+			fn(operation)
 		}
 	})
 }
@@ -70,7 +70,7 @@ func ForEachGroup(doc *Document, fn func(OperationGroup)) (truncated bool) {
 
 // forEachGroup is ForEachGroup within limit steps.
 func forEachGroup(limit int, doc *Document, fn func(OperationGroup)) bool {
-	return groupsWithin(limit, doc, func(g OperationGroup, _ *stepLimit) { fn(g) })
+	return groupsWithin(limit, doc, func(operationGroup OperationGroup, _ *stepLimit) { fn(operationGroup) })
 }
 
 // groupsWithin calls fn for every group of doc ForEachGroup reaches within
@@ -80,11 +80,11 @@ func groupsWithin(limit int, doc *Document, fn func(OperationGroup, *stepLimit))
 	if doc == nil {
 		return false
 	}
-	w := groupWalk{steps: stepLimit{left: limit}, fn: fn}
+	groupWalkValue := groupWalk{steps: stepLimit{left: limit}, fn: fn}
 	for _, svc := range doc.Services {
-		w.groups(svc.Groups, 0)
+		groupWalkValue.groups(svc.Groups, 0)
 	}
-	return w.steps.cut
+	return groupWalkValue.steps.cut
 }
 
 // groupWalk is one walk of a document's groups: the steps it may still take,
@@ -110,12 +110,12 @@ func (w *groupWalk) groups(groups []OperationGroup, depth int) {
 	if !w.path.enter(&groups[0], len(groups)) {
 		return
 	}
-	for _, g := range groups {
+	for _, operationGroup := range groups {
 		if !w.steps.take() {
 			break
 		}
-		w.fn(g, &w.steps)
-		w.groups(g.Groups, depth+1)
+		w.fn(operationGroup, &w.steps)
+		w.groups(operationGroup.Groups, depth+1)
 	}
 	w.path.leave()
 }

@@ -36,97 +36,97 @@ type position struct {
 // Not read: Property.Args, which is GraphQL's, and a resource's properties,
 // which no compiler writes (#1413). A stop of ir.ForEachOperation is the one
 // Validate reports for each check that visits operations.
-func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropID, visit func(*position)) {
-	var p position
+func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, visit func(*position)) {
+	var positionValue position
 	for _, id := range live {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
-		for i := range m.Properties {
-			visit(propertyPosition(&p, &m.Properties[i], string(id)))
+		for i := range model.Properties {
+			visit(propertyPosition(&positionValue, &model.Properties[i], string(id)))
 		}
 	}
 	for i := range doc.Services {
 		for j := range doc.Services[i].CommonErrors {
-			headerPositions(&p, doc.Services[i].CommonErrors[j].Headers, string(doc.Services[i].ID), visit)
+			headerPositions(&positionValue, doc.Services[i].CommonErrors[j].Headers, string(doc.Services[i].ID), visit)
 		}
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) { operationPositions(&p, &op, keys, visit) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { operationPositions(&positionValue, &operation, keys, visit) })
 }
 
-// propertyPosition fills p from pr, a property of owner, which stands in for
-// the property's own ID where that is empty.
-func propertyPosition(p *position, pr *ir.Property, owner string) *position {
+// propertyPosition fills positionValue from pr, a property of owner, which
+// stands in for the property's own ID where that is empty.
+func propertyPosition(positionValue *position, pr *ir.Property, owner string) *position {
 	node := string(pr.ID)
 	if node == "" {
 		node = owner
 	}
-	*p = position{
+	*positionValue = position{
 		node: node, from: pr.Provenance, typ: pr.Type, own: pr.Constraints,
 		encoded: pr.Encoding != nil, def: pr.Default, examples: pr.Examples,
 	}
-	return p
+	return positionValue
 }
 
 // headerPositions visits each of headers, which belong to owner.
-func headerPositions(p *position, headers []ir.Header, owner string, visit func(*position)) {
+func headerPositions(positionValue *position, headers []ir.Header, owner string, visit func(*position)) {
 	for i := range headers {
-		visit(propertyPosition(p, &headers[i].Property, owner))
+		visit(propertyPosition(positionValue, &headers[i].Property, owner))
 	}
 }
 
-// operationPositions visits the positions of op.
-func operationPositions(p *position, op *ir.Operation, keys *[]ir.PropID, visit func(*position)) {
-	for i := range op.Params {
-		pm := &op.Params[i]
-		*p = position{
+// operationPositions visits the positions of operation.
+func operationPositions(positionValue *position, operation *ir.Operation, keys *[]ir.PropertyID, visit func(*position)) {
+	for i := range operation.Params {
+		pm := &operation.Params[i]
+		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
 			def: pm.Default, examples: pm.Examples,
 		}
-		visit(p)
+		visit(positionValue)
 	}
-	owner := string(op.ID)
-	for i := range op.Responses {
-		headerPositions(p, op.Responses[i].Headers, owner, visit)
+	owner := string(operation.ID)
+	for i := range operation.Responses {
+		headerPositions(positionValue, operation.Responses[i].Headers, owner, visit)
 	}
-	if op.Default != nil {
-		headerPositions(p, op.Default.Headers, owner, visit)
+	if operation.Default != nil {
+		headerPositions(positionValue, operation.Default.Headers, owner, visit)
 	}
-	for i := range op.Errors {
-		headerPositions(p, op.Errors[i].Headers, owner, visit)
+	for i := range operation.Errors {
+		headerPositions(positionValue, operation.Errors[i].Headers, owner, visit)
 	}
-	partPositions(p, op.Request, owner, keys, visit)
-	for i := range op.Responses {
-		partPositions(p, op.Responses[i].Payload, owner, keys, visit)
+	partPositions(positionValue, operation.Request, owner, keys, visit)
+	for i := range operation.Responses {
+		partPositions(positionValue, operation.Responses[i].Payload, owner, keys, visit)
 	}
-	if op.Default != nil {
-		partPositions(p, op.Default.Payload, owner, keys, visit)
+	if operation.Default != nil {
+		partPositions(positionValue, operation.Default.Payload, owner, keys, visit)
 	}
-	for i := range op.Errors {
-		partPositions(p, op.Errors[i].Payload, owner, keys, visit)
+	for i := range operation.Errors {
+		partPositions(positionValue, operation.Errors[i].Payload, owner, keys, visit)
 	}
 }
 
 // partPositions visits the headers of the parts of each content of payload: the
 // item's, then each part's, in the order of its sorted keys.
-func partPositions(p *position, payload *ir.Payload, owner string, keys *[]ir.PropID, visit func(*position)) {
+func partPositions(positionValue *position, payload *ir.Payload, owner string, keys *[]ir.PropertyID, visit func(*position)) {
 	if payload == nil {
 		return
 	}
 	for i := range payload.Contents {
-		c := &payload.Contents[i]
-		if c.ItemEncoding != nil {
-			headerPositions(p, c.ItemEncoding.Headers, owner, visit)
+		content := &payload.Contents[i]
+		if content.ItemEncoding != nil {
+			headerPositions(positionValue, content.ItemEncoding.Headers, owner, visit)
 		}
 		*keys = (*keys)[:0]
-		for k := range c.Encoding {
-			*keys = append(*keys, k)
+		for propertyID := range content.Encoding {
+			*keys = append(*keys, propertyID)
 		}
 		slices.Sort(*keys)
-		for _, k := range *keys {
-			part := c.Encoding[k]
-			headerPositions(p, part.Headers, owner, visit)
+		for _, propertyID := range *keys {
+			part := content.Encoding[propertyID]
+			headerPositions(positionValue, part.Headers, owner, visit)
 		}
 	}
 }

@@ -14,41 +14,41 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// legacy appends to found what YAML 1.1 reads otherwise in n, a node of a
+// legacy appends to found what YAML 1.1 reads otherwise in node, a node of a
 // document declaring YAML 1.1, before its text is restored: a plain value
 // scalar YAML 1.1's types read as another JSON value than the core schema does,
 // or one tagged !!int outright that both read as two integers (taggedInteger),
 // and a line-break character written raw in its text or in a comment attached
 // to it, which YAML 1.1 ends a line at. A key is text, so its reading is none.
-func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
-	if n.Kind == yaml.ScalarNode && (n.Style == 0 || taggedInteger(n)) && !s.keys[n] {
-		was, is := yaml11Reading(n.Value), coreReading(n)
-		long := len(n.Value) > maxReadText
+func (s *settler) legacy(found []Legacy, node *yaml.Node) []Legacy {
+	if node.Kind == yaml.ScalarNode && (node.Style == 0 || taggedInteger(node)) && !s.keys[node] {
+		was, is := yaml11Reading(node.Value), coreReading(node)
+		long := len(node.Value) > maxReadText
 		if long {
 			was, is = was.kindOnly(), is.kindOnly()
 		}
 		if !was.same(is) {
-			found = append(found, Legacy{Node: n, Was: was.String(), Is: is.String(), Kinds: long})
+			found = append(found, Legacy{Node: node, Was: was.String(), Is: is.String(), Kinds: long})
 		}
 	}
-	if c := s.respelling.breakIn(n.Value); c != 0 {
-		found = append(found, Legacy{Node: n, Break: c})
+	if c := s.respelling.breakIn(node.Value); c != 0 {
+		found = append(found, Legacy{Node: node, Break: c})
 	}
-	if c := s.respelling.breakIn(n.HeadComment + n.LineComment + n.FootComment); c != 0 {
-		found = append(found, Legacy{Node: n, Break: c, InComment: true})
+	if c := s.respelling.breakIn(node.HeadComment + node.LineComment + node.FootComment); c != 0 {
+		found = append(found, Legacy{Node: node, Break: c, InComment: true})
 	}
 	return found
 }
 
-// taggedInteger reports whether n is a scalar tagged !!int outright whose text
-// is an integer both of YAML 1.1's int and of the core schema, which may read it
-// as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2, which
-// value.NumericLiteral reads.
-func taggedInteger(n *yaml.Node) bool {
-	if n.Style&yaml.TaggedStyle == 0 || n.ShortTag() != "!!int" || !coreInt(n.Value) {
+// taggedInteger reports whether node is a scalar tagged !!int outright whose
+// text is an integer both of YAML 1.1's int and of the core schema, which may
+// read it as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2,
+// which value.NumericLiteral reads.
+func taggedInteger(node *yaml.Node) bool {
+	if node.Style&yaml.TaggedStyle == 0 || node.ShortTag() != "!!int" || !coreInt(node.Value) {
 		return false
 	}
-	_, ok := yaml11Integer(n.Value)
+	_, ok := yaml11Integer(node.Value)
 	return ok
 }
 
@@ -87,10 +87,11 @@ func (r reading) kindOnly() reading {
 	return reading{kind: asNumber, integer: r.integer && r.kind == asNumber, exp: valueless}
 }
 
-// same reports whether r and o are one JSON value, however each was read.
-func (r reading) same(o reading) bool {
-	r.integer, o.integer = false, false
-	return r == o
+// same reports whether r and readingValue are one JSON value, however each was
+// read.
+func (r reading) same(readingValue reading) bool {
+	r.integer, readingValue.integer = false, false
+	return r == readingValue
 }
 
 // String words r as a finding names a reading: "a string", "the integer 420".
@@ -156,23 +157,23 @@ func (r reading) decimal() string {
 // read as its text.
 const maxSpelledExp = 1000
 
-// coreReading reads n, a plain scalar the core schema has tagged (resolve), as
-// YAML 1.2 does.
-func coreReading(n *yaml.Node) reading {
-	switch n.ShortTag() {
+// coreReading reads node, a plain scalar the core schema has tagged (resolve),
+// as YAML 1.2 does.
+func coreReading(node *yaml.Node) reading {
+	switch node.ShortTag() {
 	case "!!null":
 		return reading{kind: asNull}
 	case "!!bool":
-		return reading{kind: asBool, text: strings.ToLower(n.Value)}
+		return reading{kind: asBool, text: strings.ToLower(node.Value)}
 	case "!!int":
-		return coreInteger(n.Value)
+		return coreInteger(node.Value)
 	case "!!float":
-		return coreNumber(n.Value)
+		return coreNumber(node.Value)
 	default:
 		// The parser tags a number past float64's range a string, and the
 		// compiler reads it as the number it spells (value.Classify).
-		if coreFloat(n.Value) {
-			return coreNumber(n.Value)
+		if coreFloat(node.Value) {
+			return coreNumber(node.Value)
 		}
 		return reading{kind: asString}
 	}
@@ -189,13 +190,13 @@ func coreNumber(text string) reading {
 
 // coreInteger reads text, an integer of the core schema (coreInt).
 func coreInteger(text string) reading {
-	c, _ := nodeview.ParseCoreInteger(text)
-	if c.Base == 10 {
-		r, _ := decimalOf(c.Negative, c.Digits)
-		r.integer = true
-		return r
+	nodeviewCoreInteger, _ := nodeview.ParseCoreInteger(text)
+	if nodeviewCoreInteger.Base == 10 {
+		reading, _ := decimalOf(nodeviewCoreInteger.Negative, nodeviewCoreInteger.Digits)
+		reading.integer = true
+		return reading
 	}
-	return integerOf(false, c.Digits, c.Base)
+	return integerOf(false, nodeviewCoreInteger.Digits, nodeviewCoreInteger.Base)
 }
 
 // yaml11Reading reads text, a plain scalar, by YAML 1.1's types: null, bool,
@@ -210,11 +211,11 @@ func yaml11Reading(text string) reading {
 	case "n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF":
 		return reading{kind: asBool, text: "false"}
 	}
-	if r, ok := yaml11Integer(text); ok {
-		return r
+	if reading, ok := yaml11Integer(text); ok {
+		return reading
 	}
-	if r, ok := yaml11Float(text); ok {
-		return r
+	if reading, ok := yaml11Float(text); ok {
+		return reading
 	}
 	return reading{kind: asString}
 }
@@ -244,8 +245,8 @@ func yaml11Integer(text string) (reading, bool) {
 // yaml11Float reads text as YAML 1.1's float: a decimal holding a point and a
 // digit, its exponent signed, a base-60 one, an infinity or NaN.
 func yaml11Float(text string) (reading, bool) {
-	if r, ok := special(text); ok {
-		return r, true
+	if reading, ok := special(text); ok {
+		return reading, true
 	}
 	neg, s := strings.HasPrefix(text, "-"), unsigned(text)
 	mantissa, exp, exponent := strings.Cut(strings.ReplaceAll(s, "e", "E"), "E")
@@ -293,11 +294,11 @@ func special(text string) (reading, bool) {
 
 // floatReading reads text, a float of the core schema (coreFloat).
 func floatReading(text string) reading {
-	if r, ok := special(text); ok {
-		return r
+	if reading, ok := special(text); ok {
+		return reading
 	}
-	r, _ := decimalOf(strings.HasPrefix(text, "-"), unsigned(text))
-	return r
+	readingValue, _ := decimalOf(strings.HasPrefix(text, "-"), unsigned(text))
+	return readingValue
 }
 
 // sexagesimal reads whole, colon-separated base-60 digits, and, for a float,
@@ -352,9 +353,9 @@ func integerOf(neg bool, text string, base int) reading {
 	if !ok {
 		v = new(big.Int)
 	}
-	r, _ := decimalOf(neg, v.String())
-	r.integer = true
-	return r
+	readingValue, _ := decimalOf(neg, v.String())
+	readingValue.integer = true
+	return readingValue
 }
 
 // decimalOf reads text, digits holding at most one point and then an exponent,

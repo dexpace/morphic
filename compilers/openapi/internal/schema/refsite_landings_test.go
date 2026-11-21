@@ -21,22 +21,23 @@ import (
 func lowerBoth(t *testing.T, src string) (plain, promised *ir.Document) {
 	t.Helper()
 	for _, promise := range []bool{false, true} {
-		l, _ := schema.LoweredFor(t, src)
-		l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+		lowerer, _ := schema.LoweredFor(t, src)
+		lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 		if promise {
-			schema.PromiseLandings(l.Ctx, l.Types)
-			promised = l.Document(t)
+			schema.ReserveNodesAtReferenceTargets(lowerer.Ctx, lowerer.Types)
+			promised = lowerer.Document(t)
 			continue
 		}
-		plain = l.Document(t)
+		plain = lowerer.Document(t)
 	}
 	return plain, promised
 }
 
-// TestPromiseLandings_BuildsNothingTwice pins that a document whose every $ref
-// a lowering has already resolved gains no node and loses none to promising its
-// landings: a position lowered once is the one node, not a second.
-func TestPromiseLandings_BuildsNothingTwice(t *testing.T) {
+// TestReserveNodesAtReferenceTargets_BuildsNothingTwice pins that a document
+// whose every $ref a lowering has already resolved gains no node and loses none
+// to promising its landings: a position lowered once is the one node, not a
+// second.
+func TestReserveNodesAtReferenceTargets_BuildsNothingTwice(t *testing.T) {
 	t.Parallel()
 	plain, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Owner: {type: object, properties: {name: {type: string}}}
     Alias: {$ref: '#/components/schemas/Owner', description: an owner}
@@ -53,11 +54,11 @@ func TestPromiseLandings_BuildsNothingTwice(t *testing.T) {
 	assert.NotEmpty(t, plain.Types)
 }
 
-// TestPromiseLandings_LowersWhatNothingElseReached pins the positions only a
-// kept keyword's $ref names, and a kept discriminator's mapping value: the
-// lowerings alone leave them out, and promising their landings adds each as the
-// one node, declared at its own pointer.
-func TestPromiseLandings_LowersWhatNothingElseReached(t *testing.T) {
+// TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached pins the
+// positions only a kept keyword's $ref names, and a kept discriminator's
+// mapping value: the lowerings alone leave them out, and promising their
+// landings adds each as the one node, declared at its own pointer.
+func TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached(t *testing.T) {
 	t.Parallel()
 	plain, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Kept:
       type: object
@@ -72,13 +73,13 @@ func TestPromiseLandings_LowersWhatNothingElseReached(t *testing.T) {
 `))
 
 	for _, id := range []ir.TypeID{
-		"t/anon/components/schemas/Kept/$defs/Sub",
-		"t/anon/components/schemas/Through/$defs/Mid",
-		"t/anon/components/schemas/Through/$defs/End",
+		"type/anonymous/components/schemas/Kept/$defs/Sub",
+		"type/anonymous/components/schemas/Through/$defs/Mid",
+		"type/anonymous/components/schemas/Through/$defs/End",
 	} {
 		assert.NotContains(t, plain.Types, id, "lowerings alone do not reach %s", id)
 		require.Contains(t, promised.Types, id, "promising reaches %s", id)
-		assert.Equal(t, string(id[len("t/anon"):]), string(promised.Types[id].Common().Provenance.Pointer))
+		assert.Equal(t, string(id[len("type/anonymous"):]), string(promised.Types[id].Common().Provenance.Pointer))
 	}
-	assert.Equal(t, "mid", promised.Types["t/anon/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
+	assert.Equal(t, "mid", promised.Types["type/anonymous/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
 }

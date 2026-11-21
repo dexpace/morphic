@@ -14,7 +14,7 @@ import (
 
 var (
 	httpBindingType = reflect.TypeFor[ir.HTTPBinding]()
-	opIDType        = reflect.TypeFor[ir.OpID]()
+	operationIDType = reflect.TypeFor[ir.OperationID]()
 )
 
 // webhookPath is operationPath and the two types between an Operation and its
@@ -22,7 +22,7 @@ var (
 // counts of both are pinned by TestEnumPath_ListsEveryCarrier.
 var webhookPath = func() map[reflect.Type]bool {
 	path := maps.Clone(operationPath)
-	path[reflect.TypeFor[ir.OpBindings]()] = true
+	path[reflect.TypeFor[ir.OperationBindings]()] = true
 	path[reflect.TypeFor[[]ir.HTTPBinding]()] = true
 	return path
 }()
@@ -93,25 +93,28 @@ func appendStrayRoute(vs []Violation, b ir.HTTPBinding, at ir.WalkPath) []Violat
 // reference checks. It spells a path only for those two, so a document with no
 // callbacks costs it nothing.
 func checkCallbacks(*ir.Document) walkCheck {
-	marked := map[ir.OpID]string{}
-	listed := map[ir.OpID]string{}
+	marked := map[ir.OperationID]string{}
+	listed := map[ir.OperationID]string{}
 	return walkCheck{
 		visit: func(v reflect.Value, path ir.WalkPath) bool {
-			if op, ok := reflect.TypeAssert[ir.Operation](v); ok {
-				noteCallbacks(&op, path, marked, listed)
+			if operation, ok := reflect.TypeAssert[ir.Operation](v); ok {
+				noteCallbacks(&operation, path, marked, listed)
 			}
 			return true
 		},
-		report: func(d declarations) []Violation { return callbackDisagreements(d, marked, listed) },
+		report: func(declarationsValue declarations) []Violation {
+			return callbackDisagreements(declarationsValue, marked, listed)
+		},
 	}
 }
 
-// noteCallbacks records where op, at path, is first marked a callback, and
-// where each operation its bindings list among their Callbacks is first listed.
-func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OpID]string) {
-	for i, b := range op.Bindings.HTTP {
-		if _, seen := marked[op.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
-			marked[op.ID] = path.String() + ".Bindings.HTTP"
+// noteCallbacks records where operation, at path, is first marked a callback,
+// and where each operation its bindings list among their Callbacks is first
+// listed.
+func noteCallbacks(operation *ir.Operation, path ir.WalkPath, marked, listed map[ir.OperationID]string) {
+	for i, b := range operation.Bindings.HTTP {
+		if _, seen := marked[operation.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
+			marked[operation.ID] = path.String() + ".Bindings.HTTP"
 		}
 		for j, cb := range b.Callbacks {
 			for k, id := range cb.Operations {
@@ -128,8 +131,8 @@ func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OpI
 // binding lists, then each listed operation the walk declared that is not
 // marked, each in byte order of its ID. A walk cut short read part of the
 // bindings, so it claims neither, and the cut is reported.
-func callbackDisagreements(d declarations, marked, listed map[ir.OpID]string) []Violation {
-	if d.truncated {
+func callbackDisagreements(declarationsValue declarations, marked, listed map[ir.OperationID]string) []Violation {
+	if declarationsValue.truncated {
 		return nil
 	}
 	var vs []Violation
@@ -145,10 +148,10 @@ func callbackDisagreements(d declarations, marked, listed map[ir.OpID]string) []
 	if len(listed) == len(marked) && len(vs) == 0 {
 		return vs
 	}
-	held := map[ir.OpID]bool{}
-	for _, decl := range d.list() {
-		if decl.Class == opIDType {
-			held[ir.OpID(decl.ID)] = true
+	held := map[ir.OperationID]bool{}
+	for _, decl := range declarationsValue.list() {
+		if decl.Class == operationIDType {
+			held[ir.OperationID(decl.ID)] = true
 		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(listed)) {

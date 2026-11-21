@@ -28,38 +28,38 @@ type settler struct {
 // settle walks doc's tree once (settler), setting doc.Nodes and doc.Legacy. The
 // walk is bounded by the tree, which the parser built from bytes in hand, each
 // node visited once and an alias as itself; it stops only for ctx.
-func settle(ctx context.Context, doc *Document, r respelling) error {
-	s := settler{respelling: r}
+func settle(ctx context.Context, doc *ParsedYAMLDocument, respellingValue respelling) error {
+	settlerValue := settler{respelling: respellingValue}
 	if doc.Directive != nil && doc.Directive.Minor == 1 {
-		s.keys = map[*yaml.Node]bool{}
+		settlerValue.keys = map[*yaml.Node]bool{}
 	}
-	out := nodeview.Walk{Nodes: math.MaxInt, Visit: s.visit}.Run(ctx, doc.Root)
+	out := nodeview.Walk{Nodes: math.MaxInt, Visit: settlerValue.visit}.Run(ctx, doc.Root)
 	if out.Cut {
 		return cmp.Or(ctx.Err(), errCut)
 	}
-	doc.Nodes, doc.Legacy = out.Visited, s.found
+	doc.Nodes, doc.Legacy = out.Visited, settlerValue.found
 	return nil
 }
 
-// visit settles n: it records what YAML 1.1 reads otherwise in it, restores
+// visit settles node: it records what YAML 1.1 reads otherwise in it, restores
 // its text, and resolves its children, which it alone knows to be keys or not.
-func (s *settler) visit(n *yaml.Node, _ int) nodeview.Step {
+func (s *settler) visit(node *yaml.Node, _ int) nodeview.Step {
 	if s.keys != nil {
-		s.found = s.legacy(s.found, n)
+		s.found = s.legacy(s.found, node)
 	}
-	s.respelling.restore(n)
-	for i, c := range n.Content {
-		key := n.Kind == yaml.MappingNode && i%2 == 0
+	s.respelling.restore(node)
+	for i, child := range node.Content {
+		key := node.Kind == yaml.MappingNode && i%2 == 0
 		if key && s.keys != nil {
-			s.keys[c] = true
+			s.keys[child] = true
 		}
-		resolve(c, key)
+		resolve(child, key)
 	}
 	return nodeview.Descend
 }
 
-// resolve tags the scalar n, when the parser left it plain, as YAML 1.2's core
-// schema reads it (docs/parser-library.md#scalar-resolution): a number the
+// resolve tags the scalar node, when the parser left it plain, as YAML 1.2's
+// core schema reads it (docs/parser-library.md#scalar-resolution): a number the
 // core schema does not spell is a string, and so are a date and a `<<` that is
 // no key (docs/parser-library.md#undecoded-scalar). A key keeps the parser's
 // tag but a date's. Its text is never changed.
@@ -67,24 +67,24 @@ func (s *settler) visit(n *yaml.Node, _ int) nodeview.Step {
 // A core integer the parser tags a float, 089 or one past 64 bits, keeps its
 // tag: the model decodes no field from an !!int it cannot hold. Its
 // integrality is its text's, and no reader may take it from the tag.
-func resolve(n *yaml.Node, key bool) {
-	if n == nil || n.Kind != yaml.ScalarNode || n.Style != 0 {
+func resolve(node *yaml.Node, key bool) {
+	if node == nil || node.Kind != yaml.ScalarNode || node.Style != 0 {
 		return
 	}
-	switch n.ShortTag() {
+	switch node.ShortTag() {
 	case "!!timestamp":
-		n.Tag = "!!str"
+		node.Tag = "!!str"
 	case "!!merge":
 		if !key {
-			n.Tag = "!!str"
+			node.Tag = "!!str"
 		}
 	case "!!int":
-		if !key && !coreInt(n.Value) {
-			n.Tag = "!!str"
+		if !key && !coreInt(node.Value) {
+			node.Tag = "!!str"
 		}
 	case "!!float":
-		if !key && !coreFloat(n.Value) {
-			n.Tag = "!!str"
+		if !key && !coreFloat(node.Value) {
+			node.Tag = "!!str"
 		}
 	}
 }

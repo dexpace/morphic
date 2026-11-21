@@ -21,16 +21,16 @@ import (
 func declaringDoc() *ir.Document {
 	return &ir.Document{
 		Types: ir.TypeRegistry{
-			"t/x/M": &ir.Model{ID: "t/x/M", Properties: []ir.Property{
-				{ID: "p/x/M/f", Type: ir.TypeRef{Target: "t/x/M"}},
+			"type/x/M": &ir.Model{ID: "type/x/M", Properties: []ir.Property{
+				{ID: "property/x/M/f", Type: ir.TypeRef{Target: "type/x/M"}},
 			}},
 		},
 		Channels: map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x"}},
 		Messages: map[ir.MessageID]ir.Message{"m/x": {ID: "m/x"}},
 		Auth:     map[ir.AuthID]ir.AuthScheme{"auth/x": {ID: "auth/x", Kind: ir.AuthKindAPIKey}},
 		Services: []ir.Service{{
-			ID:     "s/x",
-			Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{{ID: "op/x"}}}},
+			ID:     "service/x",
+			Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{{ID: "operation/x"}}}},
 		}},
 	}
 }
@@ -39,8 +39,8 @@ func declaringDoc() *ir.Document {
 // class without depending on walk order.
 func declaredBy(decls []declaredAt) map[string][]declaredAt {
 	out := map[string][]declaredAt{}
-	for _, d := range decls {
-		out[d.Class.Name()] = append(out[d.Class.Name()], d)
+	for _, declaredAt := range decls {
+		out[declaredAt.Class.Name()] = append(out[declaredAt.Class.Name()], declaredAt)
 	}
 	return out
 }
@@ -59,20 +59,20 @@ func TestIDDeclarations_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 
 	byClass := declaredBy(decls)
 	want := map[string]declaredAt{
-		"TypeID":    {IDDeclaration: ir.IDDeclaration{ID: "t/x/M"}, Path: "doc.Types[t/x/M]"},
-		"PropID":    {IDDeclaration: ir.IDDeclaration{ID: "p/x/M/f"}, Path: "doc.Types[t/x/M].Properties[0]"},
-		"ChannelID": {IDDeclaration: ir.IDDeclaration{ID: "c/x"}, Path: "doc.Channels[c/x]"},
-		"MessageID": {IDDeclaration: ir.IDDeclaration{ID: "m/x"}, Path: "doc.Messages[m/x]"},
-		"AuthID":    {IDDeclaration: ir.IDDeclaration{ID: "auth/x"}, Path: "doc.Auth[auth/x]"},
-		"ServiceID": {IDDeclaration: ir.IDDeclaration{ID: "s/x"}, Path: "doc.Services[0]"},
-		"GroupID":   {IDDeclaration: ir.IDDeclaration{ID: "g/x"}, Path: "doc.Services[0].Groups[0]"},
-		"OpID":      {IDDeclaration: ir.IDDeclaration{ID: "op/x"}, Path: "doc.Services[0].Groups[0].Operations[0]"},
+		"TypeID":      {IDDeclaration: ir.IDDeclaration{ID: "type/x/M"}, Path: "document.Types[type/x/M]"},
+		"PropertyID":  {IDDeclaration: ir.IDDeclaration{ID: "property/x/M/f"}, Path: "document.Types[type/x/M].Properties[0]"},
+		"ChannelID":   {IDDeclaration: ir.IDDeclaration{ID: "c/x"}, Path: "document.Channels[c/x]"},
+		"MessageID":   {IDDeclaration: ir.IDDeclaration{ID: "m/x"}, Path: "document.Messages[m/x]"},
+		"AuthID":      {IDDeclaration: ir.IDDeclaration{ID: "auth/x"}, Path: "document.Auth[auth/x]"},
+		"ServiceID":   {IDDeclaration: ir.IDDeclaration{ID: "service/x"}, Path: "document.Services[0]"},
+		"GroupID":     {IDDeclaration: ir.IDDeclaration{ID: "operation-group/x"}, Path: "document.Services[0].Groups[0]"},
+		"OperationID": {IDDeclaration: ir.IDDeclaration{ID: "operation/x"}, Path: "document.Services[0].Groups[0].Operations[0]"},
 	}
-	for class, w := range want {
+	for class, declaredAt := range want {
 		got := byClass[class]
 		require.Len(t, got, 1, "%s is declared by exactly one node", class)
-		assert.Equal(t, w.ID, got[0].ID, class)
-		assert.Equal(t, w.Path, got[0].Path, class)
+		assert.Equal(t, declaredAt.ID, got[0].ID, class)
+		assert.Equal(t, declaredAt.Path, got[0].Path, class)
 	}
 	assert.Len(t, byClass, len(want), "these are every ID class a node declares")
 }
@@ -106,11 +106,11 @@ func TestIDDeclarations_NilDocumentDeclaresNothing(t *testing.T) {
 // first two, an ID a struct declares and one it promotes, so a walk over a
 // Document cannot exercise the other clauses of the predicate.
 type (
-	idDeclarer    struct{ ID ir.OpID }
+	idDeclarer    struct{ ID ir.OperationID }
 	idPromoter    struct{ idDeclarer }
 	plainID       struct{ ID string }
 	noID          struct{ Name string }
-	pointerID     struct{ ID *ir.OpID }
+	pointerID     struct{ ID *ir.OperationID }
 	ID            string
 	embeddedID    struct{ ID }
 	otherDeclarer struct{ ID ir.TypeID }
@@ -128,7 +128,7 @@ type (
 		Name    string
 		Count   int
 		Ignored ir.TypeID
-		ID      ir.OpID
+		ID      ir.OperationID
 	}
 	promoterThenOwn struct {
 		idPromoter
@@ -153,10 +153,10 @@ func declaredShapes() []struct {
 		id       string
 		declares bool
 	}{
-		{"a named string ID the type declares", reflect.ValueOf(idDeclarer{ID: "op/a"}),
-			reflect.TypeFor[ir.OpID](), "op/a", true},
+		{"a named string ID the type declares", reflect.ValueOf(idDeclarer{ID: "operation/a"}),
+			reflect.TypeFor[ir.OperationID](), "operation/a", true},
 		{"an empty ID is still a declaration", reflect.ValueOf(idDeclarer{}),
-			reflect.TypeFor[ir.OpID](), "", true},
+			reflect.TypeFor[ir.OperationID](), "", true},
 		{"an ID reached only by promotion", reflect.ValueOf(idPromoter{}), nil, "", false},
 		{"a plain string named ID", reflect.ValueOf(plainID{ID: "x"}), nil, "", false},
 		{"no ID field", reflect.ValueOf(noID{Name: "x"}), nil, "", false},
@@ -165,19 +165,19 @@ func declaredShapes() []struct {
 		{"an embedded named string type called ID", reflect.ValueOf(embeddedID{ID: "e"}),
 			reflect.TypeFor[ID](), "e", true},
 		{"two promoted IDs", reflect.ValueOf(twoPromoters{}), nil, "", false},
-		{"a direct ID beside a promoted one", reflect.ValueOf(shadowing{ID: "t/x"}),
-			reflect.TypeFor[ir.TypeID](), "t/x", true},
+		{"a direct ID beside a promoted one", reflect.ValueOf(shadowing{ID: "type/x"}),
+			reflect.TypeFor[ir.TypeID](), "type/x", true},
 		{"an ID after other fields, an ID class among them",
-			reflect.ValueOf(lateDeclarer{Ignored: "t/x", ID: "op/late"}),
-			reflect.TypeFor[ir.OpID](), "op/late", true},
+			reflect.ValueOf(lateDeclarer{Ignored: "type/x", ID: "operation/late"}),
+			reflect.TypeFor[ir.OperationID](), "operation/late", true},
 		{"an ID after an embedded struct promoting another",
-			reflect.ValueOf(promoterThenOwn{ID: "g/own"}),
-			reflect.TypeFor[ir.GroupID](), "g/own", true},
-		{"a value that is no struct", reflect.ValueOf(ir.OpID("op/a")), nil, "", false},
+			reflect.ValueOf(promoterThenOwn{ID: "operation-group/own"}),
+			reflect.TypeFor[ir.GroupID](), "operation-group/own", true},
+		{"a value that is no struct", reflect.ValueOf(ir.OperationID("operation/a")), nil, "", false},
 		{"the zero Value", reflect.Value{}, nil, "", false},
-		{"a pointer to a struct", reflect.ValueOf(&idDeclarer{ID: "op/a"}), nil, "", false},
-		{"another value of a type read before", reflect.ValueOf(idDeclarer{ID: "op/b"}),
-			reflect.TypeFor[ir.OpID](), "op/b", true},
+		{"a pointer to a struct", reflect.ValueOf(&idDeclarer{ID: "operation/a"}), nil, "", false},
+		{"another value of a type read before", reflect.ValueOf(idDeclarer{ID: "operation/b"}),
+			reflect.TypeFor[ir.OperationID](), "operation/b", true},
 	}
 }
 
@@ -192,8 +192,8 @@ func TestIDReader_ClassifiesEachShape(t *testing.T) {
 	t.Parallel()
 	var shared ir.IDReader
 	for _, tc := range declaredShapes() {
-		for reader, r := range map[string]*ir.IDReader{"fresh": new(ir.IDReader), "shared": &shared} {
-			class, id, declares := r.DeclaredIDOf(tc.v)
+		for reader, idReader := range map[string]*ir.IDReader{"fresh": new(ir.IDReader), "shared": &shared} {
+			class, id, declares := idReader.DeclaredIDOf(tc.v)
 
 			assert.Equal(t, tc.declares, declares, "%s, %s reader", tc.name, reader)
 			assert.Equal(t, tc.class, class, "%s, %s reader", tc.name, reader)
@@ -210,7 +210,7 @@ func TestIDReader_ReadsEachStructTypeOnce(t *testing.T) {
 	t.Parallel()
 	doc := declaringDoc()
 	doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
-		ir.Operation{ID: "op/y"}, ir.Operation{ID: "op/z"})
+		ir.Operation{ID: "operation/y"}, ir.Operation{ID: "operation/z"})
 	structs, types := 0, map[reflect.Type]bool{}
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		if v.Kind() == reflect.Struct {
@@ -222,16 +222,16 @@ func TestIDReader_ReadsEachStructTypeOnce(t *testing.T) {
 	require.Greater(t, structs, len(types), "the document must repeat a struct type, or there is nothing to save")
 
 	reads := 0
-	r := ir.CountingIDReader(&reads)
-	var ops []string
+	idReader := ir.CountingIDReader(&reads)
+	var operations []string
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		if class, id, _ := r.DeclaredIDOf(v); class == reflect.TypeFor[ir.OpID]() {
-			ops = append(ops, id)
+		if class, id, _ := idReader.DeclaredIDOf(v); class == reflect.TypeFor[ir.OperationID]() {
+			operations = append(operations, id)
 		}
 		return true
 	}))
 	assert.Equal(t, len(types), reads)
-	assert.Equal(t, []string{"op/x", "op/y", "op/z"}, ops, "a type read once still answers for each value")
+	assert.Equal(t, []string{"operation/x", "operation/y", "operation/z"}, operations, "a type read once still answers for each value")
 }
 
 // TestDeclaredIDField_CostsNoAllocation holds the rule an IDReader remembers to
@@ -280,9 +280,9 @@ func TestIDDeclarations_AllocatesNothingPerDeclaration(t *testing.T) {
 // measures the process.
 func TestIDDeclarations_GrowsTheListGeometrically(t *testing.T) {
 	const declarations = 1 << 13
-	enum := &ir.Enum{ID: "t/e"}
+	enum := &ir.Enum{ID: "type/e"}
 	for i := range declarations {
-		enum.Members = append(enum.Members, ir.EnumMember{ID: ir.EnumMemberID("e/e/" + strconv.Itoa(i))})
+		enum.Members = append(enum.Members, ir.EnumMember{ID: ir.EnumMemberID("enum-member/e/" + strconv.Itoa(i))})
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{enum.ID: enum}}
 	declaring := testing.AllocsPerRun(3, func() {

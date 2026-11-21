@@ -39,19 +39,19 @@ func sampleDocument(t *testing.T) ir.Document {
 	}
 	types := ir.TypeRegistry{}
 	for _, entry := range []ir.TypeDef{
-		&ir.Primitive{Prim: "string"},
-		&ir.Scalar{Base: &ir.TypeRef{Target: "t/p/string"}},
+		&ir.Primitive{PrimitiveKind: "string"},
+		&ir.Scalar{Base: &ir.TypeRef{Target: "type/p/string"}},
 		&ir.Model{Additional: "closed"},
 		&ir.Union{Exclusive: true},
 		&ir.Enum{ValueType: "string", Closed: true},
-		&ir.List{Elem: ir.TypeRef{Target: "t/p/string"}},
-		&ir.MapT{Key: &ir.TypeRef{Target: "t/p/string"}, Value: ir.TypeRef{Target: "t/p/string"}},
-		&ir.Tuple{Elems: []ir.TypeRef{{Target: "t/p/string"}}},
-		&ir.Literal{Value: ir.Value{Kind: ir.ValueString, Str: "fixed"}},
+		&ir.List{ElementType: ir.TypeRef{Target: "type/p/string"}},
+		&ir.MapT{Key: &ir.TypeRef{Target: "type/p/string"}, Value: ir.TypeRef{Target: "type/p/string"}},
+		&ir.Tuple{ElementTypes: []ir.TypeRef{{Target: "type/p/string"}}},
+		&ir.Literal{Value: ir.Value{Kind: ir.ValueString, String: "fixed"}},
 		&ir.External{Identity: "erlang:pid"},
 		&ir.Any{},
 	} {
-		id, td := mk("t/k/"+string(entry.Kind()), entry)
+		id, td := mk("type/k/"+string(entry.Kind()), entry)
 		types[id] = td
 	}
 	return ir.Document{
@@ -73,8 +73,8 @@ func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	// An empty non-nil Auth ("explicitly public") must survive the JSON round
 	// trip distinct from nil ("inherit the service default"): nil omits the
 	// key entirely (omitzero), while an empty slice is still written as [].
-	op := ir.Operation{ID: "op/x", Auth: []ir.AuthRequirement{}}
-	raw, err := json.Marshal(op)
+	operation := ir.Operation{ID: "operation/x", Auth: []ir.AuthRequirement{}}
+	raw, err := json.Marshal(operation)
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"auth":[]`, "empty non-nil Auth serializes as []")
 
@@ -83,8 +83,8 @@ func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	require.NotNil(t, back.Auth, "empty Auth must not deserialize to nil")
 	assert.Empty(t, back.Auth)
 
-	var nilOp ir.Operation
-	rawNil, err := json.Marshal(nilOp)
+	var nilOperation ir.Operation
+	rawNil, err := json.Marshal(nilOperation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(rawNil), `"auth"`, "nil Auth omits the key rather than writing null")
 	var backNil ir.Operation
@@ -99,7 +99,7 @@ func TestDocument_MarshalIsDeterministic(t *testing.T) {
 
 func TestTypeRegistry_KindTagIsAdjacent(t *testing.T) {
 	t.Parallel()
-	raw, err := json.Marshal(&ir.Model{ID: "t/x"})
+	raw, err := json.Marshal(&ir.Model{ID: "type/x"})
 	require.NoError(t, err)
 	var probe struct {
 		Kind ir.TypeKind `json:"kind"`
@@ -107,13 +107,13 @@ func TestTypeRegistry_KindTagIsAdjacent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(raw, &probe))
 	assert.Equal(t, ir.KindModel, probe.Kind)
-	assert.Equal(t, ir.TypeID("t/x"), probe.ID)
+	assert.Equal(t, ir.TypeID("type/x"), probe.ID)
 }
 
 func TestTypeRegistry_UnmarshalRejectsUnknownKind(t *testing.T) {
 	t.Parallel()
 	var reg ir.TypeRegistry
-	err := json.Unmarshal([]byte(`{"t/x":{"kind":"bogus"}}`), &reg)
+	err := json.Unmarshal([]byte(`{"type/x":{"kind":"bogus"}}`), &reg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bogus")
 }
@@ -151,28 +151,28 @@ func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
 		},
 		{
 			name:    "entry_not_an_object",
-			data:    `{"t/x":123}`,
+			data:    `{"type/x":123}`,
 			wantSub: "reading kind tag:",
 		},
 		{
 			name:    "entry_has_no_kind_member",
-			data:    `{"t/x":{}}`,
+			data:    `{"type/x":{}}`,
 			wantSub: `no "kind" member`,
 		},
 		{
 			name:    "entry_kind_is_not_a_string",
-			data:    `{"t/x":{"kind":123}}`,
+			data:    `{"type/x":{"kind":123}}`,
 			wantSub: `"kind" is a JSON number, not a string`,
 		},
 		{
 			name:    "unknown_kind",
-			data:    `{"t/x":{"kind":"nope"}}`,
+			data:    `{"type/x":{"kind":"nope"}}`,
 			wantSub: `unknown kind "nope"`,
 		},
 		{
 			name:    "concrete_body_type_mismatch",
-			data:    `{"t/x":{"kind":"primitive","prim":123}}`,
-			wantSub: "t/x (primitive):",
+			data:    `{"type/x":{"kind":"primitive","primitiveKind":123}}`,
+			wantSub: "type/x (primitive):",
 		},
 	}
 	for _, tt := range tests {
@@ -215,7 +215,7 @@ func TestTypeRegistry_UnmarshalNullIsNoOp(t *testing.T) {
 
 	t.Run("populated_registry_is_untouched", func(t *testing.T) {
 		t.Parallel()
-		reg := ir.TypeRegistry{"t/x": &ir.Any{}}
+		reg := ir.TypeRegistry{"type/x": &ir.Any{}}
 		require.NoError(t, json.Unmarshal([]byte(`null`), &reg))
 		assert.Len(t, reg, 1, "a null decode must not clear an existing registry")
 	})
@@ -364,8 +364,8 @@ func TestDocument_UnmarshalRefusesMalformedInput(t *testing.T) {
 		},
 		{
 			name:    "unknown member inside a TypeDef body",
-			data:    versioned(`"types":{"t/x":{"kind":"primitive","prim":"string","bogus":1}}`),
-			wantSub: "ir: type t/x (primitive):",
+			data:    versioned(`"types":{"type/x":{"kind":"primitive","primitiveKind":"string","bogus":1}}`),
+			wantSub: "ir: type type/x (primitive):",
 		},
 		{
 			name:    "duplicate member name at document level",
@@ -374,8 +374,8 @@ func TestDocument_UnmarshalRefusesMalformedInput(t *testing.T) {
 		},
 		{
 			name:    "duplicate member name inside a TypeDef body",
-			data:    versioned(`"types":{"t/x":{"kind":"primitive","prim":"string","prim":"int32"}}`),
-			wantSub: `duplicate object member name "prim"`,
+			data:    versioned(`"types":{"type/x":{"kind":"primitive","primitiveKind":"string","primitiveKind":"int32"}}`),
+			wantSub: `duplicate object member name "primitiveKind"`,
 		},
 	}
 	for _, tt := range tests {
@@ -438,8 +438,8 @@ func TestDocument_UnmarshalRefusesInvalidUTF8(t *testing.T) {
 // members out of order, and an escape the canonical form drops.
 func unsortedTypesDoc() ir.Document {
 	types := ir.TypeRegistry{}
-	for _, id := range []ir.TypeID{"t/z", "t/a", "t/m"} {
-		types[id] = &ir.Primitive{ID: id, Prim: ir.PrimString}
+	for _, id := range []ir.TypeID{"type/z", "type/a", "type/m"} {
+		types[id] = &ir.Primitive{ID: id, PrimitiveKind: ir.PrimitiveString}
 	}
 	return ir.Document{IRVersion: ir.IRVersion, Name: "a<b>c&d\u2028e", Types: types,
 		IDSpaces: map[string][]string{ir.IDKindType: nil},
@@ -469,7 +469,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 		"\"name\":\"a<b>c&d\u2028e\"",                           // no HTML or JS escaping
 		`"value":{"z":12345678901234567890,"a":1.50,"s":"a/b"}`, // raw spellings and order kept, escapes minimal
 		`"bindings":{"kafka":{}}`,                               // a nil map is {}, never null
-		`"idSpaces":{"t":[]}`,                                   // a nil slice is [], never null
+		`"idSpaces":{"type":[]}`,                                // a nil slice is [], never null
 		`"source":0`,                                            // numbers are not stringified
 		`"docs":{}`,                                             // a zero struct is not dropped
 	} {
@@ -562,7 +562,7 @@ func TestDocument_MarshalSortsMapKeysWithoutBeingAsked(t *testing.T) {
 	raw, err := json.Marshal(&doc)
 	require.NoError(t, err)
 	got := string(raw)
-	aIdx, mIdx, zIdx := strings.Index(got, `"t/a"`), strings.Index(got, `"t/m"`), strings.Index(got, `"t/z"`)
+	aIdx, mIdx, zIdx := strings.Index(got, `"type/a"`), strings.Index(got, `"type/m"`), strings.Index(got, `"type/z"`)
 	require.True(t, aIdx >= 0 && mIdx >= 0 && zIdx >= 0, "all three type IDs must appear: %s", got)
 	assert.True(t, aIdx < mIdx && mIdx < zIdx, "Types must marshal in sorted-key order without Deterministic being asked for: %s", got)
 }
@@ -615,16 +615,16 @@ func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
 	doc := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {}}}
 	raw, err := json.Marshal(&doc)
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"idSpaces":{"t":[]}`)
+	assert.Contains(t, string(raw), `"idSpaces":{"type":[]}`)
 
 	var decoded ir.Document
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 	assert.Empty(t, cmp.Diff(doc, decoded))
 
-	nilType := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/A": nil}}
+	nilType := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/A": nil}}
 	raw, err = json.Marshal(&nilType)
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"types":{"t/x/A":null}`)
+	assert.Contains(t, string(raw), `"types":{"type/x/A":null}`)
 	assert.Error(t, json.Unmarshal(raw, &ir.Document{}), "null is a type with no kind")
 }
 
@@ -633,8 +633,8 @@ func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
 // it: json.go's unmarshalKinded compares the tag against its own constant.
 func TestTypeDef_UnmarshalRefusesForeignKindTag(t *testing.T) {
 	t.Parallel()
-	var m ir.Model
-	err := json.Unmarshal([]byte(`{"kind":"enum"}`), &m)
+	var model ir.Model
+	err := json.Unmarshal([]byte(`{"kind":"enum"}`), &model)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `model carries the kind tag "enum"`)
 }
@@ -644,12 +644,12 @@ func TestTypeDef_UnmarshalRefusesForeignKindTag(t *testing.T) {
 // map-ordered decode names either, so twenty runs would all agree only by chance.
 func TestTypeRegistry_UnmarshalNamesTheFirstBadEntryByID(t *testing.T) {
 	t.Parallel()
-	data := []byte(`{"t/b":{"kind":"nope"},"t/a":{"kind":"nope"}}`)
+	data := []byte(`{"type/b":{"kind":"nope"},"type/a":{"kind":"nope"}}`)
 	for range 20 {
 		var reg ir.TypeRegistry
 		err := json.Unmarshal(data, &reg)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "ir: type t/a:")
+		assert.ErrorContains(t, err, "ir: type type/a:")
 	}
 }
 
@@ -659,8 +659,8 @@ func TestTypeRegistry_UnmarshalNamesTheFirstBadEntryByID(t *testing.T) {
 // json.go's named rewrite.
 func TestTypeDef_UnknownMemberErrorNamesThePublicType(t *testing.T) {
 	t.Parallel()
-	var m ir.Model
-	err := json.Unmarshal([]byte(`{"kind":"model","bogus":1}`), &m, json.RejectUnknownMembers(true))
+	var model ir.Model
+	err := json.Unmarshal([]byte(`{"kind":"model","bogus":1}`), &model, json.RejectUnknownMembers(true))
 	require.Error(t, err)
 	serr, ok := errors.AsType[*json.SemanticError](err)
 	require.True(t, ok, "want a *json.SemanticError in the chain, got %T: %v", err, err)
@@ -700,12 +700,12 @@ func TestDocument_ForeignVersionIsQuotedBounded(t *testing.T) {
 func TestDocument_IDSpacesJSONContract(t *testing.T) {
 	t.Parallel()
 	declared := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{
-		ir.IDKindOp:    {"openapi"},
-		ir.IDKindGroup: {"default", "tags"},
+		ir.IDKindOperation: {"openapi"},
+		ir.IDKindGroup:     {"default", "tags"},
 	}}
 	raw, err := json.Marshal(declared)
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"idSpaces":{"g":["default","tags"],"op":["openapi"]}`)
+	assert.Contains(t, string(raw), `"idSpaces":{"operation":["openapi"],"operation-group":["default","tags"]}`)
 	assertRoundTrip(t, declared)
 
 	for name, doc := range map[string]ir.Document{

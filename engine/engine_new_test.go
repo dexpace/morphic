@@ -20,8 +20,8 @@ import (
 // passNames returns the names of passes, in order.
 func passNames(passes []pass.Pass) []string {
 	names := make([]string, 0, len(passes))
-	for _, p := range passes {
-		names = append(names, p.Name())
+	for _, passValue := range passes {
+		names = append(names, passValue.Name())
 	}
 	return names
 }
@@ -32,8 +32,8 @@ func passNames(passes []pass.Pass) []string {
 func TestNew_DefaultsToTheBuiltInCompilersAndPasses(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()
-	for _, c := range engine.Compilers() {
-		require.NoError(t, reg.Register(c))
+	for _, compiler := range engine.Compilers() {
+		require.NoError(t, reg.Register(compiler))
 	}
 
 	eng, err := engine.New()
@@ -140,8 +140,8 @@ func TestNew_RefusesWhatARunCouldNotAddress(t *testing.T) {
 // codesOf returns the codes of res's diagnostics, in order.
 func codesOf(res *engine.Result) []string {
 	codes := make([]string, 0, len(res.Diagnostics))
-	for _, d := range res.Diagnostics {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range res.Diagnostics {
+		codes = append(codes, diagnostic.Code)
 	}
 	return codes
 }

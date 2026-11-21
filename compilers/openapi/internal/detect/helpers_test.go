@@ -29,8 +29,8 @@ func codesOf(diags []ir.Diagnostic) []string {
 		return nil
 	}
 	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range diags {
+		codes = append(codes, diagnostic.Code)
 	}
 	return codes
 }

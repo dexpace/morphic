@@ -48,7 +48,7 @@ func TestElection_TwoShapelessUnionsSharingNullBesideABodyAreNotNamedApart(t *te
 	t.Parallel()
 	_, diags := compileAnnotationSpec(t, "shared", bothKeywordsSites[0].doc("3.1.0",
 		"{type: string, oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}", false))
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "(oneOf: null, anyOf: null)")
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "(oneOf: null, anyOf: null)")
 	}
 }

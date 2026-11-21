@@ -7,7 +7,7 @@
 // (harness.Summary). Each argument is a spec file or a directory, walked for
 // the files a registered compiler claims (harness.SpecFiles). With -cases, it
 // checks the schema cases instead (harness.CheckCases), reporting what the
-// records leave unexplained; with -at N, the case at index N, its sources and
-// verdicts. It exits 0 when nothing is reported, 1 when anything is (with -at,
-// any finding), and 2 on a usage or filesystem error.
+// records leave unexplained; with -case-index N, the case at index N, its
+// sources and verdicts. It exits 0 when nothing is reported, 1 when anything is
+// (with -case-index, any finding), and 2 on a usage or filesystem error.
 package main

@@ -47,18 +47,18 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
-	metaProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
-	enc, ok := content.Encoding[metaProp]
-	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
+	metaProperty := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
+	enc, ok := content.Encoding[metaProperty]
+	require.True(t, ok, "encoding keyed by the part property's PropertyID; got keys %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 	require.Len(t, enc.Headers, 1)
 	assert.Equal(t, "X-Part", enc.Headers[0].WireName)
 
-	fileProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
-	fileEnc, ok := content.Encoding[fileProp]
+	fileProperty := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
+	fileEnc, ok := content.Encoding[fileProperty]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
-	assert.True(t, fileEnc.Filename)
+	assert.True(t, fileEnc.HasFilename)
 }
 
 func TestContent_MultipartRefBodyKeepsEncoding(t *testing.T) {
@@ -86,18 +86,18 @@ components:
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
 
-	metaProp := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "meta"))
-	enc, ok := content.Encoding[metaProp]
-	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
+	metaProperty := ir.PropertyID("property/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "meta"))
+	enc, ok := content.Encoding[metaProperty]
+	require.True(t, ok, "encoding keyed by the resolved property's PropertyID; got %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 
-	fileProp := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "file"))
-	fileEnc, ok := content.Encoding[fileProp]
+	fileProperty := ir.PropertyID("property/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "file"))
+	fileEnc, ok := content.Encoding[fileProperty]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
-	assert.True(t, fileEnc.Filename)
+	assert.True(t, fileEnc.HasFilename)
 }
 
 // TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType holds a part
@@ -141,17 +141,17 @@ components:
   schemas:
 `+components))
 				openapitest.RequireNoErrorDiags(t, diags)
-				enc := multipartEncoding(t, openapitest.FirstOp(t, svc))
+				enc := multipartEncoding(t, openapitest.FirstOperation(t, svc))
 				model, ok := typeByName(doc, "T").(*ir.Model)
 				require.True(t, ok, "T lowers to a model")
 				require.Len(t, model.Properties, 1)
-				prop := model.Properties[0]
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Q"), prop.Type.Target,
+				property := model.Properties[0]
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Q"), property.Type.Target,
 					"the settled type of f is Q")
-				pe, ok := enc[prop.ID]
+				pe, ok := enc[property.ID]
 				require.True(t, ok, "the part is entered; got %v", enc)
-				assert.Equal(t, tc.filename, pe.Filename, "filename")
-				assert.Equal(t, tc.multi, pe.Multi, "multi")
+				assert.Equal(t, tc.filename, pe.HasFilename, "filename")
+				assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 			})
 		}
 	}
@@ -181,41 +181,41 @@ func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
 			t.Parallel()
 			doc, svc, diags := compileService(t, aliasedMultipartSpec(tc.mediaSchema))
 			openapitest.RequireNoErrorDiags(t, diags)
-			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 			form, isModel := typeByName(doc, "Form").(*ir.Model)
 			require.True(t, isModel, "the body model is the component at the end of the chain")
 
-			declared := openapitest.IndexBy(form.Properties, func(p ir.Property) ir.PropID { return p.ID })
+			declared := openapitest.IndexBy(form.Properties, func(property ir.Property) ir.PropertyID { return property.ID })
 			require.NotEmpty(t, content.Encoding, "an aliased multipart body still carries per-part encoding")
 			for key := range content.Encoding {
 				assert.Contains(t, declared, key,
 					"every encoding key addresses a property the aliased model declares")
 			}
 
-			byWire := openapitest.PropsByWire(form.Properties)
+			byWire := openapitest.PropertiesByWire(form.Properties)
 			enc, ok := content.Encoding[byWire["meta"].ID]
 			require.True(t, ok, "the declared encoding entry keys the aliased model's property")
 			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
-			assert.True(t, content.Encoding[byWire["file"].ID].Filename,
+			assert.True(t, content.Encoding[byWire["file"].ID].HasFilename,
 				"the binary part is still detected through the alias")
 		})
 	}
 }
 
-// TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing holds a
-// part the walk finds that no property of the body's lowered type holds, as
-// one declared beside a keyword lowering the body to no model, or on a union
-// branch lowering to none, to no Content.Encoding key, never a PropID derived
-// from its pointer that no node holds: its flags key nothing, and an entry
-// written for it is kept whole at openapi:encoding/<key>, with one info at the
-// entry, while a part a model holds stays keyed.
+// TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing holds a part
+// the walk finds that no property of the body's lowered type holds, as one
+// declared beside a keyword lowering the body to no model, or on a union branch
+// lowering to none, to no Content.Encoding key, never a PropertyID derived from
+// its pointer that no node holds: its flags key nothing, and an entry written
+// for it is kept whole at openapi:encoding/<key>, with one info at the entry,
+// while a part a model holds stays keyed.
 func TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing(t *testing.T) {
 	t.Parallel()
 	const component = "components:\n  schemas:\n    NotAModel: {enum: [x], properties: {file: {type: string, format: binary}}}\n"
 	mfd := requestMedia(multipartForm)
 	cases := []struct {
 		name, schema, encoding string
-		keyed                  map[ir.PropID][]string
+		keyed                  map[ir.PropertyID][]string
 	}{
 		{"beside an enum", "{enum: [x], properties: {file: {type: string, format: binary}}}", "{}", nil},
 		{"beside a const", "{const: x, properties: {file: {type: string, format: binary}}}", "{}", nil},
@@ -227,7 +227,7 @@ func TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing(t *testing
 			"on a union branch lowering to no model, with an entry",
 			"{oneOf: [{type: string, properties: {file: {type: string, format: binary}}}, {type: object, properties: {url: {type: string}}}]}",
 			"{file: " + pngSource + "}",
-			map[ir.PropID][]string{ir.PropID("p/openapi" + mfd + "/schema/oneOf/1/properties/url"): {"text/plain"}},
+			map[ir.PropertyID][]string{ir.PropertyID("property/openapi" + mfd + "/schema/oneOf/1/properties/url"): {"text/plain"}},
 		},
 	}
 	for _, tc := range cases {
@@ -238,7 +238,7 @@ func TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing(t *testing
 			content := formContent(t, svc, false)
 			want := tc.keyed
 			if want == nil {
-				want = map[ir.PropID][]string{}
+				want = map[ir.PropertyID][]string{}
 			}
 			assert.Equal(t, want, encodingTypes(content.Encoding), "a part no property holds keys nothing")
 			if tc.encoding == "{}" {
@@ -275,11 +275,11 @@ func TestContent_ArrayMultipartPartMulti(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
-	tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
-	enc, ok := content.Encoding[tagsProp]
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
+	tagsProperty := ir.PropertyID("property/openapi" + ids.Ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
+	enc, ok := content.Encoding[tagsProperty]
 	require.True(t, ok, "array part gets a synthesized PartEncoding; got keys %v", content.Encoding)
-	assert.True(t, enc.Multi, "array-typed part repeats per item")
+	assert.True(t, enc.RepeatsPerArrayItem, "array-typed part repeats per item")
 }
 
 // TestContent_MultipartEncodingVariants holds a body declaring no part to no
@@ -289,19 +289,19 @@ func TestContent_MultipartEncodingVariants(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, multipartVariantsSpec)
 	for _, name := range []string{"noSchema", "noProps"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.NotNil(t, op.Request, "%s has a request", name)
-		for _, c := range op.Request.Contents {
-			assert.Empty(t, c.Encoding, "%s multipart yields no per-part encoding", name)
+		irOperation := openapitest.FindOperation(t, doc, name)
+		require.NotNil(t, irOperation.Request, "%s has a request", name)
+		for _, content := range irOperation.Request.Contents {
+			assert.Empty(t, content.Encoding, "%s multipart yields no per-part encoding", name)
 		}
 	}
-	op := openapitest.FindOp(t, doc, "plainProps")
-	require.NotNil(t, op.Request)
+	foundOperation := openapitest.FindOperation(t, doc, "plainProps")
+	require.NotNil(t, foundOperation.Request)
 	media := string(ids.Ptr("paths", "/plainprops", "post", "requestBody", "content", "multipart/form-data"))
-	assert.Equal(t, map[ir.PropID]ir.PartEncoding{
-		partProp(media, "a"): {ContentTypes: []string{"text/plain"}},
-		partProp(media, "b"): {ContentTypes: []string{"text/plain"}},
-	}, op.Request.Contents[0].Encoding, "plain parts carry their default content type and nothing else")
+	assert.Equal(t, map[ir.PropertyID]ir.PartEncoding{
+		partProperty(media, "a"): {ContentTypes: []string{"text/plain"}},
+		partProperty(media, "b"): {ContentTypes: []string{"text/plain"}},
+	}, foundOperation.Request.Contents[0].Encoding, "plain parts carry their default content type and nothing else")
 }
 
 // TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the Mixins channel,
@@ -336,9 +336,9 @@ components:
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	enc := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 
-	want := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Extra", "properties", "note"))
+	want := ir.PropertyID("property/openapi" + ids.Ptr("components", "schemas", "Extra", "properties", "note"))
 	pe, ok := enc[want]
 	require.True(t, ok, "a mixin's part is keyed on the mixin that declares it; got %v", enc)
 	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
@@ -349,7 +349,7 @@ components:
 // declares for it (docs/compilers/openapi.md#allof-redeclared-property): one
 // key whichever the allOf lists last, with the flags read off the type the
 // member keeps, the later entry's, as no value is both, which is reported
-// where the declaration that lost is written. Both are files, so Filename
+// where the declaration that lost is written. Both are files, so HasFilename
 // shows nothing either way.
 func TestPartEncodings_KeyedOnTheMemberTheBodyDeclares(t *testing.T) {
 	t.Parallel()
@@ -386,16 +386,16 @@ components:
 `, tc.first, tc.second))
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			enc := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 
 			body := ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema")
-			want := ir.PropID("p/composed" + body + ids.Ptr("allOf", "properties", "file"))
+			want := ir.PropertyID("property/composed" + body + ids.Ptr("allOf", "properties", "file"))
 			require.Len(t, enc, 1, "one part is one entry: %v", enc)
 			pe, ok := enc[want]
 			require.True(t, ok, "the part is keyed on the member the body declares; got %v", enc)
 			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
-			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the type the member keeps")
-			assert.True(t, pe.Filename, "a file and a list of files are both files")
+			assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "the flags are read off the type the member keeps")
+			assert.True(t, pe.HasFilename, "a file and a list of files are both files")
 			lost := ids.Ptr("components", "schemas", tc.first, "properties", "file")
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.ConflictingRedecl, string(lost)),
 				"no value is both, which is reported where the declaration that lost is written")
@@ -425,7 +425,7 @@ func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	enc := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 	assert.Len(t, enc, 1, "one wire part is one encoding entry; got %v", enc)
 }
 
@@ -459,7 +459,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	body := openapitest.FindOp(t, doc, "upload").Request
+	body := openapitest.FindOperation(t, doc, "upload").Request
 	require.NotNil(t, body)
 	require.Len(t, body.Contents, 1)
 	content := body.Contents[0]
@@ -472,7 +472,7 @@ components:
 	// An allOf of the one $ref, saying nothing else, is the referenced model.
 	inherited, isModel := doc.Types[content.Type.Target].(*ir.Model)
 	require.True(t, isModel, "the multipart body is the referenced model")
-	want := openapitest.PropsByWire(inherited.Properties)["file"].ID
+	want := openapitest.PropertiesByWire(inherited.Properties)["file"].ID
 	require.NotEmpty(t, want, "the base declares the part this encoding names")
 
 	assert.Contains(t, content.Encoding, want,
@@ -480,10 +480,11 @@ components:
 	assert.Equal(t, []string{"image/png"}, content.Encoding[want].ContentTypes)
 }
 
-// TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
-// to the type the allOf merge settled on, not to whichever entry declared the
-// name first. The merge keeps the narrower declaration in either order, so a
-// flag read from the first declaration differs between the two orders.
+// TestPartEncoding_FlagsComeFromTheMergedType holds a part's
+// RepeatsPerArrayItem and HasFilename to the type the allOf merge settled on,
+// not to whichever entry declared the name first. The merge keeps the narrower
+// declaration in either order, so a flag read from the first declaration
+// differs between the two orders.
 func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 	t.Parallel()
 	const binary = `{type: string, format: binary}`
@@ -511,8 +512,8 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
 			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
-			assert.Equal(t, tc.filename, got[0].Filename, "filename")
-			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
+			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
 	}
 }
@@ -542,14 +543,14 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
 			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
-			assert.Equal(t, tc.filename, got[0].Filename, "filename")
-			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
+			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
 	}
 
 	pe := onlyPartEncoding(t, `{allOf: [{type: object, properties: {name: {type: string}, file: {description: d}}}, `+
 		`{type: object, properties: {file: {type: string, format: binary, enum: [a, b]}}}]}`)
-	assert.True(t, pe.Filename, "the second part collects its own redeclaration")
+	assert.True(t, pe.HasFilename, "the second part collects its own redeclaration")
 }
 
 // TestPartEncoding_AMergedUnionReadsThroughItsVariants holds a part whose
@@ -580,8 +581,8 @@ func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
 					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
 			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
-			assert.Equal(t, tc.filename, got[0].Filename, "filename")
-			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+			assert.Equal(t, tc.filename, got[0].HasFilename, "filename")
+			assert.Equal(t, tc.multi, got[0].RepeatsPerArrayItem, "multi")
 		})
 	}
 }
@@ -602,7 +603,7 @@ func TestPartEncoding_ADecidedTypeNeverFallsBack(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	enc := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 	require.Len(t, enc, 1)
 	for _, pe := range enc {
 		assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}}, pe,
@@ -629,8 +630,8 @@ func TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pe := onlyPartEncoding(t, `{type: object, properties: {file: `+tc.part+`}}`)
-			assert.Equal(t, tc.filename, pe.Filename, "filename")
-			assert.Equal(t, tc.multi, pe.Multi, "multi")
+			assert.Equal(t, tc.filename, pe.HasFilename, "filename")
+			assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 		})
 	}
 }
@@ -670,11 +671,11 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 			bodyPtr := ids.Ptr("paths", "/u", "post", "requestBody", "content", tc.media, "schema")
 			forward := nestedPartSpec(tc.n, tc.residue, tc.shape, tc.media, []string{"file", "meta"}, []string{"file", "meta"})
 			reversed := nestedPartSpec(tc.n, tc.residue, tc.shape, tc.media, []string{"meta", "file"}, []string{"meta", "file"})
-			var got [2]map[ir.PropID]ir.PartEncoding
+			var got [2]map[ir.PropertyID]ir.PartEncoding
 			for i, src := range []string{forward, reversed} {
 				_, svc, diags := compileService(t, src)
 				openapitest.RequireNoErrorDiags(t, diags)
-				content := openapitest.FirstOp(t, svc).Request.Contents[0]
+				content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 				got[i] = content.Encoding
 				if tc.capped {
 					assert.Equal(t, []string{"file", "meta"}, keptEncodingNames(content.Unmodeled),
@@ -683,12 +684,12 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 						assert.Equal(t, unkeyedMessage(part), openapitest.DiagMessageAt(t, diags,
 							diag.DegradedConstruct, ir.SeverityInfo, mediaPtr+"/encoding/"+part), "%s is announced", part)
 					}
-					msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, string(bodyPtr))
+					message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, string(bodyPtr))
 					assert.Equal(t, fmt.Sprintf("form body composition is nested past the flattening depth of %d, "+
-						"so a part reached only below it has no Content.Encoding key", statement.MaxFlattenDepth), msg,
+						"so a part reached only below it has no Content.Encoding key", statement.MaxFlattenDepth), message,
 						"a walk cut short by the bound says so")
 					if tc.shape == shapeBesideNote {
-						note := ir.PropID("p/openapi" + bodyPtr + ids.Ptr("properties", "note"))
+						note := ir.PropertyID("property/openapi" + bodyPtr + ids.Ptr("properties", "note"))
 						assert.Contains(t, got[i], note, "the part the body declares is keyed beside the cut")
 					}
 					continue
@@ -696,7 +697,7 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 				assert.Empty(t, keptEncodingNames(content.Unmodeled), "every entry names a part the walk reached")
 				prefix := string(bodyPtr) + strings.Repeat("/allOf/0", tc.n)
 				for _, part := range []string{"file", "meta"} {
-					id := ir.PropID("p/openapi" + jsontext.Pointer(prefix) + ids.Ptr("properties", part))
+					id := ir.PropertyID("property/openapi" + jsontext.Pointer(prefix) + ids.Ptr("properties", part))
 					assert.Contains(t, got[i], id, "the %s part is keyed on the property nested %d wrappers down", part, tc.n)
 				}
 			}
@@ -735,12 +736,12 @@ components:
 ` + comps.String())
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
 	assert.Equal(t, fmt.Sprintf("form body composition follows $refs and union branches past %d hops, "+
-		"so a part reached only beyond them has no Content.Encoding key", operation.MaxPartRefHops), msg,
+		"so a part reached only beyond them has no Content.Encoding key", operation.MaxPartRefHops), message,
 		"the bound is named at the body schema")
-	content := openapitest.FirstOp(t, svc).Request.Contents[0]
+	content := openapitest.FirstOperation(t, svc).Request.Contents[0]
 	assert.Empty(t, content.Encoding, "the part beyond it has no entry")
 	assert.Equal(t, []string{"file"}, keptEncodingNames(content.Unmodeled), "the entry written for it is kept whole")
 	assert.JSONEq(t, pngEntry, string(content.Unmodeled["openapi:encoding/file"].Value))
@@ -785,9 +786,9 @@ components:
 ` + comps.String())
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			got := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
-				id := ir.PropID("p/openapi/components/schemas/" + target + string(ids.Ptr("properties", part)))
+				id := ir.PropertyID("property/openapi/components/schemas/" + target + string(ids.Ptr("properties", part)))
 				assert.Contains(t, got, id, "the %s part is keyed at the target both paths reach", part)
 			}
 			assert.NotContains(t, diagMessages(diags), "follows $refs past",
@@ -845,9 +846,9 @@ components:
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			got := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
-				id := ir.PropID("p/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
+				id := ir.PropertyID("property/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
 				assert.Contains(t, got, id, "the %s part is keyed at the object both paths reach", part)
 			}
 			assert.NotContains(t, diagMessages(diags), "form body composition is nested past",
@@ -904,14 +905,14 @@ components:
 ` + tc.comps)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			got := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
-				id := ir.PropID("p/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
+				id := ir.PropertyID("property/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
 				assert.Contains(t, got, id, "the %s part is keyed at the object the shorter path reaches", part)
 			}
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 				"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
-			assert.Contains(t, msg, tc.bound, "the warning at the body schema claims a loss only for a part the cut alone reaches")
+			assert.Contains(t, message, tc.bound, "the warning at the body schema claims a loss only for a part the cut alone reaches")
 		})
 	}
 }
@@ -947,9 +948,9 @@ components:
       allOf: ` + tc.allOf + "\n")
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			got := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
-				id := ir.PropID("p/openapi/components/schemas/A" + ids.Ptr("properties", part))
+				id := ir.PropertyID("property/openapi/components/schemas/A" + ids.Ptr("properties", part))
 				assert.Contains(t, got, id, "the %s part is keyed at the target's own property", part)
 			}
 			assert.NotContains(t, diagMessages(diags), "form body composition",
@@ -1002,7 +1003,7 @@ components:
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	enc := openapitest.FirstOperation(t, svc).Request.Contents[0].Encoding
 	var found []ir.PartEncoding
 	for id, pe := range enc {
 		if strings.HasSuffix(string(id), "/properties/file") {
@@ -1025,15 +1026,15 @@ func nestedPartSpec(n int, residue bool, shape, media string, parts, encoding []
 		"file": "file: {contentType: image/png}",
 		"meta": "meta: {contentType: application/json}",
 	}
-	props := make([]string, 0, len(parts))
+	properties := make([]string, 0, len(parts))
 	encs := make([]string, 0, len(encoding))
 	for _, p := range parts {
-		props = append(props, partLine[p])
+		properties = append(properties, partLine[p])
 	}
 	for _, e := range encoding {
 		encs = append(encs, encLine[e])
 	}
-	schemaSrc := "{type: object, properties: {" + strings.Join(props, ", ") + "}}"
+	schemaSrc := "{type: object, properties: {" + strings.Join(properties, ", ") + "}}"
 	for range n {
 		wrapper := "{allOf: [" + schemaSrc + "]}"
 		if residue {
@@ -1073,8 +1074,8 @@ const (
 // diagMessages joins the messages of diags.
 func diagMessages(diags []ir.Diagnostic) string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Message)
 	}
 	return strings.Join(out, "\n")
 }
@@ -1164,9 +1165,10 @@ func requestMedia(mt string) string {
 	return string(ids.Ptr("paths", "/u", "post", "requestBody", "content", mt))
 }
 
-// partProp is the PropID of the property name of the schema at mediaPtr.
-func partProp(mediaPtr, name string) ir.PropID {
-	return ir.PropID("p/openapi" + mediaPtr + string(ids.Ptr("schema", "properties", name)))
+// partProperty is the PropertyID of the property name of the schema at
+// mediaPtr.
+func partProperty(mediaPtr, name string) ir.PropertyID {
+	return ir.PropertyID("property/openapi" + mediaPtr + string(ids.Ptr("schema", "properties", name)))
 }
 
 const (
@@ -1183,22 +1185,22 @@ const (
 // where response is set, of its first response.
 func formContent(t *testing.T, svc ir.Service, response bool) ir.Content {
 	t.Helper()
-	op := openapitest.FirstOp(t, svc)
+	irOperation := openapitest.FirstOperation(t, svc)
 	if response {
-		require.NotNil(t, op.Responses[0].Payload)
-		require.Len(t, op.Responses[0].Payload.Contents, 1)
-		return op.Responses[0].Payload.Contents[0]
+		require.NotNil(t, irOperation.Responses[0].Payload)
+		require.Len(t, irOperation.Responses[0].Payload.Contents, 1)
+		return irOperation.Responses[0].Payload.Contents[0]
 	}
-	require.Len(t, op.Request.Contents, 1)
-	return op.Request.Contents[0]
+	require.Len(t, irOperation.Request.Contents, 1)
+	return irOperation.Request.Contents[0]
 }
 
 // keptEncodingNames returns, sorted, what follows openapi:encoding/ in each
 // Unmodeled key under it: a kept entry's escaped key, or a part's own record
 // such as a/x-k.
-func keptEncodingNames(u ir.Unmodeled) []string {
+func keptEncodingNames(unmodeled ir.Unmodeled) []string {
 	var out []string
-	for key := range u {
+	for key := range unmodeled {
 		if rest, ok := strings.CutPrefix(key, "openapi:encoding/"); ok {
 			out = append(out, rest)
 		}
@@ -1209,8 +1211,8 @@ func keptEncodingNames(u ir.Unmodeled) []string {
 
 // encodingTypes projects a content's Encoding onto the content types of each
 // part, which is what the rows below say about a part that is keyed.
-func encodingTypes(enc map[ir.PropID]ir.PartEncoding) map[ir.PropID][]string {
-	out := make(map[ir.PropID][]string, len(enc))
+func encodingTypes(enc map[ir.PropertyID]ir.PartEncoding) map[ir.PropertyID][]string {
+	out := make(map[ir.PropertyID][]string, len(enc))
 	for id, pe := range enc {
 		out[id] = pe.ContentTypes
 	}
@@ -1235,7 +1237,7 @@ func TestPartEncodings_AnEntryNamingNoPartIsKeptWhole(t *testing.T) {
 		media    string
 		response bool
 		file     bool
-		keyed    map[ir.PropID][]string
+		keyed    map[ir.PropertyID][]string
 		kept     []unkeyedEntry
 		warns    []string
 		// open marks a body whose schema leaves a key undecided, a catch-all
@@ -1246,95 +1248,95 @@ func TestPartEncodings_AnEntryNamingNoPartIsKeptWhole(t *testing.T) {
 		{
 			name:  "a key beside a keyed part",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: string}}}", "{a: {contentType: text/plain}, ghost: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"text/plain"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name:  "a key differing from a part's name only in case",
 			doc:   formDoc("", multipartForm, fileForm, "{File: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "file"): {"application/octet-stream"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "file"): {"application/octet-stream"}},
 			kept: []unkeyedEntry{{name: "File", value: pngEntry}},
 		},
 		{
 			name:  "a binary string body",
 			doc:   formDoc("", multipartForm, "{type: string, format: binary}", "{file: "+pngSource+"}", ""),
-			media: mfd, file: true, keyed: map[ir.PropID][]string{},
+			media: mfd, file: true, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "a $ref to a binary string body",
 			doc:   formDoc("", multipartForm, "{$ref: '#/components/schemas/Bin'}", "{file: "+pngSource+"}", "components:\n  schemas:\n    Bin: {type: string, format: binary}\n"),
-			media: mfd, file: true, keyed: map[ir.PropID][]string{},
+			media: mfd, file: true, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "a url-encoded binary string body",
 			doc:   formDoc("", urlEncoded, "{type: string, format: binary}", "{file: "+pngSource+"}", ""),
-			media: requestMedia(urlEncoded), file: true, keyed: map[ir.PropID][]string{},
+			media: requestMedia(urlEncoded), file: true, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "a binary string body under a media type in mixed case with parameters",
 			doc:   formDoc("", "Multipart/Form-Data; boundary=x", "{type: string, format: binary}", "{file: "+pngSource+"}", ""),
-			media: requestMedia("Multipart/Form-Data; boundary=x"), file: true, keyed: map[ir.PropID][]string{},
+			media: requestMedia("Multipart/Form-Data; boundary=x"), file: true, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "a closed body",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: string}}, additionalProperties: false}", "{ghost: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"text/plain"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name:  "the name of a nested property",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: object, properties: {b: {type: string}}}}}", "{b: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"application/json"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"application/json"}},
 			kept: []unkeyedEntry{{name: "b", value: pngEntry}},
 		},
 		{
 			name:  "the golden spec's map body",
 			doc:   formDoc("", multipartForm, "{type: object, additionalProperties: {type: string, description: d}}", `{"*": {contentType: "*/*"}}`, ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			open: true,
 			kept: []unkeyedEntry{{name: "*", value: `{"contentType":"*/*"}`}},
 		},
 		{
 			name:  "properties beside a catch-all",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: string}}, additionalProperties: {type: string, format: binary}}", "{other: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"text/plain"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"text/plain"}},
 			open: true,
 			kept: []unkeyedEntry{{name: "other", value: pngEntry}},
 		},
 		{
 			name:  "patternProperties alone",
 			doc:   formDoc("", multipartForm, "{type: object, patternProperties: {'^f': {type: string}}}", "{foo: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			open: true,
 			kept: []unkeyedEntry{{name: "foo", value: pngEntry}},
 		},
 		{
 			name:  "an object declaring nothing",
 			doc:   formDoc("", multipartForm, "{type: object}", "{file: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "a schema declaring nothing",
 			doc:   formDoc("", multipartForm, "{}", "{file: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "no schema",
 			doc:   formDoc("", multipartForm, "", "{file: "+pngSource+"}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name: "a $dynamicRef body",
 			doc: formDoc("", multipartForm, "{$dynamicRef: '#form'}", "{file: "+pngSource+"}",
 				"components:\n  schemas:\n    F: {$dynamicAnchor: form, type: object, properties: {file: {type: string, format: binary}}}\n"),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			open: true,
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
@@ -1342,40 +1344,40 @@ func TestPartEncodings_AnEntryNamingNoPartIsKeptWhole(t *testing.T) {
 			name: "a $dynamicRef body naming no $dynamicAnchor, read as the $ref it spells",
 			doc: formDoc("", multipartForm, "{$dynamicRef: '#/components/schemas/F'}", "{file: "+pngSource+", ghost: "+pngSource+"}",
 				"components:\n  schemas:\n    F: "+fileForm+"\n"),
-			media: mfd, keyed: map[ir.PropID][]string{"p/openapi/components/schemas/F/properties/file": {"image/png"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{"property/openapi/components/schemas/F/properties/file": {"image/png"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name: "a $ref beside properties",
 			doc: formDoc("", multipartForm, "{$ref: '#/components/schemas/F', properties: {extra: {type: string, format: binary}}}",
 				"{extra: "+pngSource+", file: {contentType: image/gif}}", "components:\n  schemas:\n    F: "+fileForm+"\n"),
-			media: mfd, keyed: map[ir.PropID][]string{"p/openapi/components/schemas/F/properties/file": {"image/gif"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{"property/openapi/components/schemas/F/properties/file": {"image/gif"}},
 			open: true,
 			kept: []unkeyedEntry{{name: "extra", value: pngEntry}},
 		},
 		{
 			name:  "a url-encoded body",
 			doc:   formDoc("", urlEncoded, "{type: object, properties: {a: {type: string}}}", "{ghost: {style: form}}", ""),
-			media: requestMedia(urlEncoded), keyed: map[ir.PropID][]string{partProp(requestMedia(urlEncoded), "a"): {"text/plain"}},
+			media: requestMedia(urlEncoded), keyed: map[ir.PropertyID][]string{partProperty(requestMedia(urlEncoded), "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: `{"style":"form"}`}},
 		},
 		{
 			name:  "a media type written in mixed case with parameters",
 			doc:   formDoc("", "Multipart/Form-Data; boundary=x", "{type: object, properties: {a: {type: string}}}", "{ghost: "+pngSource+"}", ""),
-			media: requestMedia("Multipart/Form-Data; boundary=x"), keyed: map[ir.PropID][]string{partProp(requestMedia("Multipart/Form-Data; boundary=x"), "a"): {"text/plain"}},
+			media: requestMedia("Multipart/Form-Data; boundary=x"), keyed: map[ir.PropertyID][]string{partProperty(requestMedia("Multipart/Form-Data; boundary=x"), "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name:  "a 3.1 response, which load already warns about",
 			doc:   responseFormDoc("3.1.0", "multipart/mixed", "{type: object, properties: {a: {type: string}}}", "{ghost: "+pngSource+"}"),
-			media: mixedResponse, response: true, keyed: map[ir.PropID][]string{partProp(mixedResponse, "a"): {"text/plain"}},
+			media: mixedResponse, response: true, keyed: map[ir.PropertyID][]string{partProperty(mixedResponse, "a"): {"text/plain"}},
 			kept:  []unkeyedEntry{{name: "ghost", value: pngEntry}},
 			warns: []string{"openapi/validation/validation-no-effect"},
 		},
 		{
 			name:  "a 3.2 response",
 			doc:   responseFormDoc("3.2.0", "multipart/mixed", "{type: object, properties: {a: {type: string}}}", "{ghost: "+pngSource+"}"),
-			media: mixedResponse, response: true, keyed: map[ir.PropID][]string{partProp(mixedResponse, "a"): {"text/plain"}},
+			media: mixedResponse, response: true, keyed: map[ir.PropertyID][]string{partProperty(mixedResponse, "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
@@ -1393,7 +1395,7 @@ components:
           schema: {type: object, properties: {a: {type: string}}}
           encoding: {ghost: ` + pngSource + `}
 `),
-			media: "/components/requestBodies/Form/content/multipart~1form-data", keyed: map[ir.PropID][]string{partProp("/components/requestBodies/Form/content/multipart~1form-data", "a"): {"text/plain"}},
+			media: "/components/requestBodies/Form/content/multipart~1form-data", keyed: map[ir.PropertyID][]string{partProperty("/components/requestBodies/Form/content/multipart~1form-data", "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
@@ -1411,7 +1413,7 @@ components:
       schema: {type: object, properties: {a: {type: string}}}
       encoding: {ghost: `+pngSource+`}
 `),
-			media: "/components/mediaTypes/Form", keyed: map[ir.PropID][]string{partProp("/components/mediaTypes/Form", "a"): {"text/plain"}},
+			media: "/components/mediaTypes/Form", keyed: map[ir.PropertyID][]string{partProperty("/components/mediaTypes/Form", "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
@@ -1429,31 +1431,31 @@ components:
       schema: {type: string, format: binary}
       encoding: {file: `+pngSource+`}
 `),
-			media: "/components/mediaTypes/Bin", file: true, keyed: map[ir.PropID][]string{},
+			media: "/components/mediaTypes/Bin", file: true, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
 			name:  "keys holding a slash and a tilde, in an order that is not sorted",
 			doc:   formDoc("", multipartForm, "{type: object}", "{m~n: "+pngSource+", a/b: {contentType: text/plain}}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "m~n", esc: "m~0n", value: pngEntry}, {name: "a/b", esc: "a~1b", value: `{"contentType":"text/plain"}`}},
 		},
 		{
 			name:  "an entry declaring nothing",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: string}}}", "{ghost: {}}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"text/plain"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: `{}`}},
 		},
 		{
 			name:  "an entry merged in with <<",
 			doc:   formDoc("", multipartForm, "{type: object, properties: {a: {type: string}}}", "{<<: {ghost: "+pngSource+"}, a: {contentType: text/plain}}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{partProp(mfd, "a"): {"text/plain"}},
+			media: mfd, keyed: map[ir.PropertyID][]string{partProperty(mfd, "a"): {"text/plain"}},
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name:  "an entry that is an alias",
 			doc:   formDoc("", multipartForm, "{type: object}", "{first: &e "+pngSource+", second: *e}", ""),
-			media: mfd, keyed: map[ir.PropID][]string{},
+			media: mfd, keyed: map[ir.PropertyID][]string{},
 			kept: []unkeyedEntry{{name: "first", value: pngEntry}, {name: "second", value: pngEntry}},
 		},
 	}
@@ -1472,13 +1474,13 @@ components:
 				"the parts the walk finds are keyed, and an entry for no part keys nothing")
 			var wantNames []string
 			var wantPointers []jsontext.Pointer
-			for _, e := range tc.kept {
-				key := "openapi:encoding/" + e.token()
-				at := tc.media + "/encoding/" + e.token()
-				wantNames = append(wantNames, e.token())
+			for _, unkeyedEntry := range tc.kept {
+				key := "openapi:encoding/" + unkeyedEntry.token()
+				at := tc.media + "/encoding/" + unkeyedEntry.token()
+				wantNames = append(wantNames, unkeyedEntry.token())
 				wantPointers = append(wantPointers, jsontext.Pointer(at))
 				rec, ok := content.Unmodeled[key]
-				if !assert.True(t, ok, "%s is kept at %s; got %v", e.name, key, keptEncodingNames(content.Unmodeled)) {
+				if !assert.True(t, ok, "%s is kept at %s; got %v", unkeyedEntry.name, key, keptEncodingNames(content.Unmodeled)) {
 					continue
 				}
 				// An entry the walk decides names no property has no effect where it is
@@ -1488,19 +1490,19 @@ components:
 				if tc.open {
 					wantReason = ir.ReasonNoIRHome
 				}
-				assert.Equal(t, wantReason, rec.Reason, "%s: reason", e.name)
-				assert.JSONEq(t, e.value, string(rec.Value), "%s: kept as written", e.name)
-				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", e.name)
-				msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-				want := unkeyedMessage(e.name)
+				assert.Equal(t, wantReason, rec.Reason, "%s: reason", unkeyedEntry.name)
+				assert.JSONEq(t, unkeyedEntry.value, string(rec.Value), "%s: kept as written", unkeyedEntry.name)
+				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", unkeyedEntry.name)
+				message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
+				want := unkeyedMessage(unkeyedEntry.name)
 				if tc.file {
-					want = unkeyedFileMessage(e.name)
+					want = unkeyedFileMessage(unkeyedEntry.name)
 				}
-				assert.Equal(t, want, msg, "%s: the one announcement, naming the body's kind", e.name)
+				assert.Equal(t, want, message, "%s: the one announcement, naming the body's kind", unkeyedEntry.name)
 				if !tc.open {
 					wantPointers = append(wantPointers, jsontext.Pointer(at))
-					assert.Equal(t, unknownKeyMessage(e.name),
-						openapitest.DiagMessageAt(t, diags, diag.UnknownEncodingKey, ir.SeverityWarning, at), "%s: names no property", e.name)
+					assert.Equal(t, unknownKeyMessage(unkeyedEntry.name),
+						openapitest.DiagMessageAt(t, diags, diag.UnknownEncodingKey, ir.SeverityWarning, at), "%s: names no property", unkeyedEntry.name)
 				}
 			}
 			slices.Sort(wantNames)
@@ -1523,82 +1525,82 @@ components:
 func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 	t.Parallel()
 	mfd := requestMedia(multipartForm)
-	at := func(rest string) ir.PropID { return ir.PropID("p/openapi" + mfd + "/schema/" + rest) }
+	at := func(rest string) ir.PropertyID { return ir.PropertyID("property/openapi" + mfd + "/schema/" + rest) }
 	const comps = "components:\n  schemas:\n    F: " + fileForm + "\n    U: " + unionSource + "\n"
-	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
+	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, HasFilename: true}
 	url := ir.PartEncoding{ContentTypes: []string{"text/plain"}}
 	json := ir.PartEncoding{ContentTypes: []string{"application/json"}}
 	octet := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}}
-	octetFile := ir.PartEncoding{ContentTypes: octet.ContentTypes, Filename: true}
+	octetFile := ir.PartEncoding{ContentTypes: octet.ContentTypes, HasFilename: true}
 	xa := []ir.Header{{
-		ID: ir.PropID("p/openapi" + mfd + "/encoding/file/headers/X-A"), Name: ir.NamingFor("X-A"), WireName: "X-A",
-		Type: ir.TypeRef{Target: "t/prim/string"}, Provenance: ir.Provenance{Pointer: jsontext.Pointer(mfd + "/encoding/file/headers/X-A")},
+		ID: ir.PropertyID("property/openapi" + mfd + "/encoding/file/headers/X-A"), Name: ir.NamingFor("X-A"), WireName: "X-A",
+		Type: ir.TypeRef{Target: "type/primitive/string"}, Provenance: ir.Provenance{Pointer: jsontext.Pointer(mfd + "/encoding/file/headers/X-A")},
 	}}
 	cases := []struct {
 		name, schema, encoding string
-		want                   map[ir.PropID]ir.PartEncoding
+		want                   map[ir.PropertyID]ir.PartEncoding
 	}{
 		{"a oneOf body", unionSource, "{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): png, at("oneOf/1/properties/url"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): png, at("oneOf/1/properties/url"): url}},
 		{"an anyOf body", "{anyOf: " + strings.TrimPrefix(unionSource, "{oneOf: "), "{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{at("anyOf/0/properties/file"): png, at("anyOf/1/properties/url"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("anyOf/0/properties/file"): png, at("anyOf/1/properties/url"): url}},
 		{"a $ref to a oneOf", "{$ref: '#/components/schemas/U'}", "{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{
-				"p/openapi/components/schemas/U/oneOf/0/properties/file": png,
-				"p/openapi/components/schemas/U/oneOf/1/properties/url":  url,
+			map[ir.PropertyID]ir.PartEncoding{
+				"property/openapi/components/schemas/U/oneOf/0/properties/file": png,
+				"property/openapi/components/schemas/U/oneOf/1/properties/url":  url,
 			}},
 		{"a oneOf with a $ref branch", "{oneOf: [{$ref: '#/components/schemas/F'}, {type: object, properties: {url: {type: string}}}]}",
 			"{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{"p/openapi/components/schemas/F/properties/file": png, at("oneOf/1/properties/url"): url}},
+			map[ir.PropertyID]ir.PartEncoding{"property/openapi/components/schemas/F/properties/file": png, at("oneOf/1/properties/url"): url}},
 		{"a oneOf inside an allOf", "{allOf: [" + unionSource + "]}", "{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{at("allOf/0/oneOf/0/properties/file"): png, at("allOf/0/oneOf/1/properties/url"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("allOf/0/oneOf/0/properties/file"): png, at("allOf/0/oneOf/1/properties/url"): url}},
 		{"a oneOf beside properties",
 			"{type: object, properties: {meta: {type: string}}, oneOf: [{properties: {file: {type: string, format: binary}}}, {properties: {url: {type: string}}}]}",
 			"{file: " + pngSource + ", meta: {contentType: text/plain}}",
-			map[ir.PropID]ir.PartEncoding{
-				at("oneOf/0/properties/file"): png, at("oneOf/1/properties/url"): url, partProp(mfd, "meta"): url,
+			map[ir.PropertyID]ir.PartEncoding{
+				at("oneOf/0/properties/file"): png, at("oneOf/1/properties/url"): url, partProperty(mfd, "meta"): url,
 			}},
 		{"a union nested in a branch",
 			"{oneOf: [{oneOf: [" + fileForm + ", {type: object, properties: {b: {type: integer}}}]}, {type: object, properties: {url: {type: string}}}]}",
 			"{file: " + pngSource + "}",
-			map[ir.PropID]ir.PartEncoding{
+			map[ir.PropertyID]ir.PartEncoding{
 				at("oneOf/0/oneOf/0/properties/file"): png, at("oneOf/0/oneOf/1/properties/b"): url, at("oneOf/1/properties/url"): url,
 			}},
 		{"a name two branches declare, a file in one and a list in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: array, items: {type: string, format: binary}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): {
-				ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true,
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): {
+				ContentTypes: []string{"application/octet-stream"}, RepeatsPerArrayItem: true, HasFilename: true,
 			}}},
 		{"a name two branches declare, a file in one and text in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
 		{"a name two branches declare, a file in one and an enum in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string, enum: [a]}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
 		{"a name two branches declare, a file in one and an object in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, properties: {a: {type: string}}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
 		{"a name two branches declare, a file in one and a map in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, additionalProperties: {type: string}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
 		{"a name two branches declare, its entry applied to each",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: array, items: {type: string}}}}]}",
 			"{file: {contentType: image/png, headers: {X-A: {schema: {type: string}}}}}",
-			map[ir.PropID]ir.PartEncoding{
-				at("oneOf/0/properties/file"): {ContentTypes: []string{"image/png"}, Headers: xa, Filename: true},
+			map[ir.PropertyID]ir.PartEncoding{
+				at("oneOf/0/properties/file"): {ContentTypes: []string{"image/png"}, Headers: xa, HasFilename: true},
 				at("oneOf/1/properties/file"): {
-					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-inference",
+					ContentTypes: []string{"image/png"}, Headers: xa, RepeatsPerArrayItem: true, HasFilename: true, Inferred: "binary-inference",
 				},
 			}},
 		{"a name two branches declare, untyped in one and a string in the other",
 			"{oneOf: [{type: object, properties: {file: {description: bytes}}}, {type: object, properties: {file: {type: string}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
 		{"a name two branches declare, encoded in one and not in the other",
 			"{oneOf: [{type: object, properties: {b: {type: string, contentEncoding: base64}}}, {type: object, properties: {b: {type: string}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/b"): octet, at("oneOf/1/properties/b"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/b"): octet, at("oneOf/1/properties/b"): url}},
 		{"a name two branches declare, a constant list in one and a constant string in the other",
 			"{oneOf: [{type: object, properties: {t: {type: array, const: [a]}}}, {type: object, properties: {t: {type: string, const: x}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/t"): {Multi: true}, at("oneOf/1/properties/t"): url}},
+			map[ir.PropertyID]ir.PartEncoding{at("oneOf/0/properties/t"): {RepeatsPerArrayItem: true}, at("oneOf/1/properties/t"): url}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1636,19 +1638,19 @@ func TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder(t *testing.T) {
 	}
 	forward, forwardDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}")
 	reversed, reversedDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]}")
-	encodings := func(c ir.Content) map[ir.PropID][3]any {
-		out := map[ir.PropID][3]any{}
-		for id, pe := range c.Encoding {
-			out[id] = [3]any{pe.ContentTypes, pe.Multi, pe.Filename}
+	encodings := func(content ir.Content) map[ir.PropertyID][3]any {
+		out := map[ir.PropertyID][3]any{}
+		for id, pe := range content.Encoding {
+			out[id] = [3]any{pe.ContentTypes, pe.RepeatsPerArrayItem, pe.HasFilename}
 		}
 		return out
 	}
 	text, octet := []string{"text/plain"}, []string{"application/octet-stream"}
-	assert.Equal(t, map[ir.PropID][3]any{
-		"p/openapi/components/schemas/A/properties/file": {octet, false, true},
-		"p/openapi/components/schemas/A/properties/tags": {text, false, false},
-		"p/openapi/components/schemas/B/properties/file": {text, false, false},
-		"p/openapi/components/schemas/B/properties/tags": {text, true, false},
+	assert.Equal(t, map[ir.PropertyID][3]any{
+		"property/openapi/components/schemas/A/properties/file": {octet, false, true},
+		"property/openapi/components/schemas/A/properties/tags": {text, false, false},
+		"property/openapi/components/schemas/B/properties/file": {text, false, false},
+		"property/openapi/components/schemas/B/properties/tags": {text, true, false},
 	}, encodings(forward))
 	assert.Empty(t, cmp.Diff(forward.Encoding, reversed.Encoding), "the variants' order changes no entry (-forward +reversed)")
 	assert.Empty(t, cmp.Diff(forwardDiags, reversedDiags), "nor any diagnostic (-forward +reversed)")
@@ -1670,13 +1672,13 @@ func TestPartEncodings_AnUnreadNarrowingIsReported(t *testing.T) {
 		"{file: "+pngSource+"}", comps))
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := formContent(t, svc, false)
-	assert.Equal(t, []ir.PropID{ir.PropID("p/openapi" + mfd + "/schema/allOf/2/properties/note")}, slices.Collect(maps.Keys(content.Encoding)),
+	assert.Equal(t, []ir.PropertyID{ir.PropertyID("property/openapi" + mfd + "/schema/allOf/2/properties/note")}, slices.Collect(maps.Keys(content.Encoding)),
 		"the model's own part is keyed")
 	assert.Equal(t, []string{"file"}, keptEncodingNames(content.Unmodeled))
 	var warned []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			warned = append(warned, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning {
+			warned = append(warned, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	require.Len(t, warned, 1)
@@ -1688,7 +1690,7 @@ func TestPartEncodings_AnUnreadNarrowingIsReported(t *testing.T) {
 // leaves out of Content.Encoding: a row expecting it states that the part
 // keys nothing.
 func partEncodingIsEmpty(pe ir.PartEncoding) bool {
-	return len(pe.ContentTypes) == 0 && !pe.Multi && !pe.Filename
+	return len(pe.ContentTypes) == 0 && !pe.RepeatsPerArrayItem && !pe.HasFilename
 }
 
 // TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf holds each key of the
@@ -1713,11 +1715,11 @@ func TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf(t *testing.T) {
 				"{meta: {contentType: multipart/mixed, encoding: {a: {contentType: text/plain}, ghost: {}}}}", ""))
 			openapitest.RequireNoErrorDiags(t, diags)
 			var got []string
-			for _, d := range diags {
-				if d.Code == diag.UnknownEncodingKey {
-					got = append(got, string(d.Provenance.Pointer))
-					assert.Equal(t, ir.SeverityWarning, d.Severity)
-					assert.Contains(t, d.Message, "names no property the part's schema declares")
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnknownEncodingKey {
+					got = append(got, string(diagnostic.Provenance.Pointer))
+					assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+					assert.Contains(t, diagnostic.Message, "names no property the part's schema declares")
 				}
 			}
 			want := make([]string, 0, len(tc.warned))
@@ -1811,9 +1813,9 @@ func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 // diagPointersUnder returns the pointer of each of diags beneath prefix, in order.
 func diagPointersUnder(diags []ir.Diagnostic, prefix string) []jsontext.Pointer {
 	var out []jsontext.Pointer
-	for _, d := range diags {
-		if strings.HasPrefix(string(d.Provenance.Pointer), prefix) {
-			out = append(out, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(string(diagnostic.Provenance.Pointer), prefix) {
+			out = append(out, diagnostic.Provenance.Pointer)
 		}
 	}
 	return out
@@ -1848,15 +1850,15 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 					"{type: object, properties: {a: {type: string}}}", fmt.Sprintf(tc.encoding, key), ""))
 				want := []jsontext.Pointer{jsontext.Pointer(media + "/encoding/" + tc.reported(key))}
 				var got []jsontext.Pointer
-				for _, d := range diags {
-					if d.Severity == ir.SeverityError {
-						assert.Equal(t, mismatch, d.Code, "the only error is load's")
-						got = append(got, d.Provenance.Pointer)
+				for _, diagnostic := range diags {
+					if diagnostic.Severity == ir.SeverityError {
+						assert.Equal(t, mismatch, diagnostic.Code, "the only error is load's")
+						got = append(got, diagnostic.Provenance.Pointer)
 					}
 				}
 				assert.Equal(t, want, got, "one error for the entry that is no object")
 				assert.Empty(t, diagPointersUnder(slices.DeleteFunc(slices.Clone(diags),
-					func(d ir.Diagnostic) bool { return d.Code == mismatch }), media+"/encoding/"),
+					func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == mismatch }), media+"/encoding/"),
 					"the lowering adds no finding of its own")
 				assert.Empty(t, keptEncodingNames(formContent(t, svc, false).Unmodeled), "nothing is kept")
 			})
@@ -1889,7 +1891,7 @@ func TestPartEncodings_AContentTypeWrittenTakesNoDefault(t *testing.T) {
 	_, svc, diags := compileService(t, formDoc("", multipartForm,
 		"{type: object, properties: {a: {type: string}}}", `{a: {contentType: "", headers: {X-A: {schema: {type: string}}}}}`, ""))
 	openapitest.AssertHasCode(t, diags, "openapi/validation/validation-empty-value", ir.SeverityError)
-	pe, ok := formContent(t, svc, false).Encoding[partProp(requestMedia(multipartForm), "a")]
+	pe, ok := formContent(t, svc, false).Encoding[partProperty(requestMedia(multipartForm), "a")]
 	require.True(t, ok, "the part keeps its header")
 	assert.Empty(t, pe.ContentTypes)
 }
@@ -1923,9 +1925,9 @@ func TestPartEncodings_AUnionPastItsBoundIsReported(t *testing.T) {
 	}
 	_, svc, diags := compileService(t, formDoc("", multipartForm, "{oneOf: ["+strings.Join(branches, ", ")+"]}", "{}", ""))
 	openapitest.RequireNoErrorDiags(t, diags)
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, requestMedia(multipartForm)+"/schema")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, requestMedia(multipartForm)+"/schema")
 	assert.Equal(t, fmt.Sprintf("form body's type nests past %d unions, so a part only a union below them declares "+
-		"has no Content.Encoding key", operation.MaxPartUnions), msg)
+		"has no Content.Encoding key", operation.MaxPartUnions), message)
 	enc := formContent(t, svc, false).Encoding
 	assert.NotEmpty(t, enc, "the parts of the unions read are keyed")
 	assert.Less(t, len(enc), operation.MaxPartUnions+6, "and those past them are not")
@@ -1943,9 +1945,9 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		doc, diags := parseFull(t, src)
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]ir.Content{}
-		for _, g := range doc.Services[0].Groups {
-			for _, op := range g.Operations {
-				out[string(op.ID)] = op.Request.Contents[0]
+		for _, operationGroup := range doc.Services[0].Groups {
+			for _, irOperation := range operationGroup.Operations {
+				out[string(irOperation.ID)] = irOperation.Request.Contents[0]
 			}
 		}
 		return out
@@ -1958,7 +1960,7 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		reversed := contents(t, formDoc("", multipartForm, schemaSrc,
 			"{three: {}, two: {style: form}, a: {contentType: text/plain}, one: "+pngSource+"}", ""))
 		require.Len(t, forward, 1)
-		assert.Equal(t, []string{"one", "three", "two"}, keptEncodingNames(forward["op/openapi/paths/~1u/post"].Unmodeled))
+		assert.Equal(t, []string{"one", "three", "two"}, keptEncodingNames(forward["operation/openapi/paths/~1u/post"].Unmodeled))
 		assert.Empty(t, cmp.Diff(forward, reversed), "the order of the entries changes nothing (-forward +reversed)")
 	})
 	t.Run("paths", func(t *testing.T) {
@@ -2010,8 +2012,8 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		forward := contents(t, head+paths+"components:\n  schemas:\n"+u+a+b+c)
 		reversed := contents(t, head+"components:\n  schemas:\n"+c+b+a+u+paths)
 		require.Len(t, forward, 2)
-		assert.Len(t, forward["op/openapi/paths/~1u/post"].Encoding, 3, "doc is keyed under each variant, and meta")
-		assert.Equal(t, []string{"file"}, keptEncodingNames(forward["op/openapi/paths/~1v/post"].Unmodeled))
+		assert.Len(t, forward["operation/openapi/paths/~1u/post"].Encoding, 3, "doc is keyed under each variant, and meta")
+		assert.Equal(t, []string{"file"}, keptEncodingNames(forward["operation/openapi/paths/~1v/post"].Unmodeled))
 		assert.Empty(t, cmp.Diff(forward, reversed),
 			"whether a component lowers before its use changes nothing it settles (-forward +reversed)")
 	})
@@ -2069,15 +2071,15 @@ webhooks:
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	cases := []struct{ op, media string }{
+	cases := []struct{ operation, media string }{
 		{"callback", "/paths/~1u/post/callbacks/done/{$request.body#~1url}/post/requestBody/content/multipart~1form-data"},
 		{"webhook", "/webhooks/hook/post/requestBody/content/multipart~1form-data"},
 	}
 	for _, tc := range cases {
-		content := openapitest.FindOp(t, doc, tc.op).Request.Contents[0]
-		assert.Equal(t, []string{"ghost"}, keptEncodingNames(content.Unmodeled), tc.op)
+		content := openapitest.FindOperation(t, doc, tc.operation).Request.Contents[0]
+		assert.Equal(t, []string{"ghost"}, keptEncodingNames(content.Unmodeled), tc.operation)
 		assert.Equal(t, unkeyedMessage("ghost"), openapitest.DiagMessageAt(t, diags,
-			diag.DegradedConstruct, ir.SeverityInfo, tc.media+"/encoding/ghost"), tc.op)
+			diag.DegradedConstruct, ir.SeverityInfo, tc.media+"/encoding/ghost"), tc.operation)
 	}
 }
 
@@ -2100,10 +2102,10 @@ components:
       schema: {type: object, properties: {a: {type: string}}}
       encoding: {ghost: ` + pngSource + `}
 `
-	use := func(op, name string) string {
-		return "  /" + op + `:
+	use := func(operationName, name string) string {
+		return "  /" + operationName + `:
     post:
-      operationId: ` + op + `
+      operationId: ` + operationName + `
       requestBody:
         content:
           multipart/form-data: {$ref: 'other.yaml#/components/mediaTypes/` + name + `'}
@@ -2118,25 +2120,25 @@ components:
 		}
 		return filepath.Base(doc.Sources[source].Path)
 	}
-	cases := []struct{ op, name, at, message string }{
+	cases := []struct{ operation, name, at, message string }{
 		{"bin", "file", "/components/mediaTypes/Bin/encoding/file", unkeyedFileMessage("file")},
 		{"form", "ghost", "/components/mediaTypes/Form/encoding/ghost", unkeyedMessage("ghost")},
 	}
 	for _, tc := range cases {
-		content := openapitest.FindOp(t, doc, tc.op).Request.Contents[0]
+		content := openapitest.FindOperation(t, doc, tc.operation).Request.Contents[0]
 		rec, ok := content.Unmodeled["openapi:encoding/"+tc.name]
-		if !assert.True(t, ok, "%s: kept; got %v", tc.op, keptEncodingNames(content.Unmodeled)) {
+		if !assert.True(t, ok, "%s: kept; got %v", tc.operation, keptEncodingNames(content.Unmodeled)) {
 			continue
 		}
 		assert.Equal(t, "other.yaml "+tc.at, documentOf(rec.Provenance.Source)+" "+string(rec.Provenance.Pointer),
-			"%s: the record is placed where the entry is written", tc.op)
+			"%s: the record is placed where the entry is written", tc.operation)
 		var found []string
-		for _, d := range diags {
-			if string(d.Provenance.Pointer) == tc.at {
-				found = append(found, documentOf(d.Provenance.Source)+": "+d.Message)
+		for _, diagnostic := range diags {
+			if string(diagnostic.Provenance.Pointer) == tc.at {
+				found = append(found, documentOf(diagnostic.Provenance.Source)+": "+diagnostic.Message)
 			}
 		}
 		assert.Equal(t, []string{"other.yaml: " + tc.message, "other.yaml: " + unknownKeyMessage(tc.name)}, found,
-			"%s: one info and one warning, in the document writing the entry", tc.op)
+			"%s: one info and one warning, in the document writing the entry", tc.operation)
 	}
 }

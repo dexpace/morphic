@@ -84,26 +84,26 @@ func (p *parser) call(name string, start int) (operand, error) {
 	defer p.leave(nestCall)
 	p.pos++ // the parenthesis
 	p.blank()
-	c := &call{fn: fn}
+	callValue := &call{fn: fn}
 	for !p.eat(')') {
-		if len(c.args) > 0 && !p.eat(',') {
+		if len(callValue.args) > 0 && !p.eat(',') {
 			return operand{}, p.fail("an argument is followed by a comma or )")
 		}
 		p.blank()
-		arg, err := p.argument(fn, len(c.args))
+		arg, err := p.argument(fn, len(callValue.args))
 		if err != nil {
 			return operand{}, err
 		}
-		c.args = append(c.args, arg)
+		callValue.args = append(callValue.args, arg)
 		p.blank()
 	}
-	if len(c.args) != len(fn.params) {
+	if len(callValue.args) != len(fn.params) {
 		return operand{}, &SyntaxError{Offset: start, Reason: fmt.Sprintf("%s() takes %d arguments", name, len(fn.params))}
 	}
-	if note, found := c.compileLiteral(); found {
+	if note, found := callValue.compileLiteral(); found {
 		p.notes = append(p.notes, note)
 	}
-	return operand{kind: opCall, call: c}, nil
+	return operand{kind: operatorCall, call: callValue}, nil
 }
 
 // argument reads the argument at index i of a call of fn: a literal, a query,
@@ -120,13 +120,13 @@ func (p *parser) argument(fn function, i int) (operand, error) {
 		if err != nil {
 			return operand{}, err
 		}
-		arg = operand{kind: opLogical, logic: expr}
+		arg = operand{kind: operatorLogical, logic: expr}
 	} else {
-		op, err := p.operand()
+		operator, err := p.operand()
 		if err != nil {
 			return operand{}, err
 		}
-		if arg, err = p.argumentFrom(op, start); err != nil {
+		if arg, err = p.argumentFrom(operator, start); err != nil {
 			return operand{}, err
 		}
 	}
@@ -136,22 +136,22 @@ func (p *parser) argument(fn function, i int) (operand, error) {
 	return arg, nil
 }
 
-// argumentFrom returns op as an argument, or the logical expression it starts
-// where an operator follows it.
-func (p *parser) argumentFrom(op operand, start int) (operand, error) {
+// argumentFrom returns operator as an argument, or the logical expression it
+// starts where an operator follows it.
+func (p *parser) argumentFrom(operator operand, start int) (operand, error) {
 	save := p.pos
 	p.blank()
 	if c := p.peek(); c == 0 || !strings.ContainsRune("=!<>&|", rune(c)) {
 		p.pos = save
-		return op, nil
+		return operator, nil
 	}
 	p.pos = save
-	first, err := p.compareOrTest(op, start)
+	first, err := p.compareOrTest(operator, start)
 	if err != nil {
 		return operand{}, err
 	}
 	expr, err := p.continueLogical(first)
-	return operand{kind: opLogical, logic: expr}, err
+	return operand{kind: operatorLogical, logic: expr}, err
 }
 
 // fits reports whether arg is of type want: a ValueType parameter takes a
@@ -159,10 +159,10 @@ func (p *parser) argumentFrom(op operand, start int) (operand, error) {
 // a query or a call returning nodes.
 func fits(arg operand, want paramType) bool {
 	if want == typeValue {
-		return arg.kind == opLiteral || arg.kind == opQuery && arg.query.singular() ||
-			arg.kind == opCall && arg.call.fn.result == typeValue
+		return arg.kind == operatorLiteral || arg.kind == operatorQuery && arg.query.singular() ||
+			arg.kind == operatorCall && arg.call.fn.result == typeValue
 	}
-	return arg.kind == opQuery || arg.kind == opCall && arg.call.fn.result == typeNodes
+	return arg.kind == operatorQuery || arg.kind == operatorCall && arg.call.fn.result == typeNodes
 }
 
 // compileLiteral compiles the pattern of a match or search written as a
@@ -172,7 +172,7 @@ func fits(arg operand, want paramType) bool {
 // an anchor where RFC 9485's grammar reads a character. A literal that is no
 // string is no pattern.
 func (c *call) compileLiteral() (PatternNote, bool) {
-	if c.fn.result != typeLogical || c.args[1].kind != opLiteral {
+	if c.fn.result != typeLogical || c.args[1].kind != operatorLiteral {
 		return PatternNote{}, false
 	}
 	c.literal = true
@@ -220,20 +220,20 @@ func compileSource(tr translation) pattern {
 }
 
 // callValue evaluates a call whose result is a value.
-func (e *evaluator) callValue(ctx context.Context, c *call, at Located) (jsonValue, error) {
-	if c.fn.name == "length" {
-		v, err := e.valueOf(ctx, c.args[0], at)
+func (e *evaluator) callValue(ctx context.Context, callValue *call, at Located) (jsonValue, error) {
+	if callValue.fn.name == "length" {
+		jsonValueValue, err := e.valueOf(ctx, callValue.args[0], at)
 		if err != nil {
 			return jsonValue{}, err
 		}
-		return e.length(ctx, v)
+		return e.length(ctx, jsonValueValue)
 	}
-	nodes, err := e.nodesOf(ctx, c.args[0].query, at)
+	nodes, err := e.nodesOf(ctx, callValue.args[0].query, at)
 	e.release(len(nodes))
 	switch {
 	case err != nil:
 		return jsonValue{}, err
-	case c.fn.name == "count":
+	case callValue.fn.name == "count":
 		return jsonValue{kind: valueScalar, lit: countOf(len(nodes))}, nil
 	case len(nodes) == 1:
 		return jsonValue{kind: valueNode, node: nodes[0].Node}, nil
@@ -242,24 +242,24 @@ func (e *evaluator) callValue(ctx context.Context, c *call, at Located) (jsonVal
 	}
 }
 
-// length is the length of v: a string's characters, an array's elements or
-// an object's members, and Nothing for anything else.
-func (r *reader) length(ctx context.Context, v jsonValue) (jsonValue, error) {
+// length is the length of jsonValueValue: a string's characters, an array's
+// elements or an object's members, and Nothing for anything else.
+func (r *reader) length(ctx context.Context, jsonValueValue jsonValue) (jsonValue, error) {
 	switch {
-	case v.kind == valueNode && v.node.Kind == yaml.MappingNode:
-		pairs, err := r.members(ctx, v.node)
+	case jsonValueValue.kind == valueNode && jsonValueValue.node.Kind == yaml.MappingNode:
+		pairs, err := r.members(ctx, jsonValueValue.node)
 		return jsonValue{kind: valueScalar, lit: countOf(len(pairs))}, err
-	case v.kind == valueNode && v.node.Kind == yaml.SequenceNode:
-		return jsonValue{kind: valueScalar, lit: countOf(len(v.node.Content))}, nil
+	case jsonValueValue.kind == valueNode && jsonValueValue.node.Kind == yaml.SequenceNode:
+		return jsonValue{kind: valueScalar, lit: countOf(len(jsonValueValue.node.Content))}, nil
 	}
-	s, ok, err := r.asScalar(ctx, v)
-	if err != nil || !ok || s.kind != kindString {
+	scalar, ok, err := r.asScalar(ctx, jsonValueValue)
+	if err != nil || !ok || scalar.kind != kindString {
 		return jsonValue{}, err
 	}
-	if err := r.spend(ctx, s.size/compareBytes); err != nil {
+	if err := r.spend(ctx, scalar.size/compareBytes); err != nil {
 		return jsonValue{}, err
 	}
-	return jsonValue{kind: valueScalar, lit: countOf(utf8.RuneCountInString(s.text))}, nil
+	return jsonValue{kind: valueScalar, lit: countOf(utf8.RuneCountInString(scalar.text))}, nil
 }
 
 // callTruth evaluates a match or search: whether its first argument is a
@@ -268,41 +268,41 @@ func (r *reader) length(ctx context.Context, v jsonValue) (jsonValue, error) {
 // pattern's size, in steps, since the engine runs its program at the input's
 // end too, an empty input's included; a pattern read from the document is
 // charged its compiling too.
-func (e *evaluator) callTruth(ctx context.Context, c *call, at Located) (bool, error) {
-	input, err := e.stringOf(ctx, c.args[0], at)
+func (e *evaluator) callTruth(ctx context.Context, callValue *call, at Located) (bool, error) {
+	input, err := e.stringOf(ctx, callValue.args[0], at)
 	if err != nil || input == nil {
 		return false, err
 	}
-	p := c.pattern
-	if !c.literal {
-		text, err := e.stringOf(ctx, c.args[1], at)
+	pattern := callValue.pattern
+	if !callValue.literal {
+		text, err := e.stringOf(ctx, callValue.args[1], at)
 		if err != nil || text == nil {
 			return false, err
 		}
-		if p, err = e.compiled(ctx, *text, c.fn.name == "match"); err != nil {
+		if pattern, err = e.compiled(ctx, *text, callValue.fn.name == "match"); err != nil {
 			return false, err
 		}
 	}
-	if p.re == nil {
+	if pattern.re == nil {
 		return false, nil
 	}
-	if err := e.spend(ctx, (len(*input)+1)*p.weight); err != nil {
+	if err := e.spend(ctx, (len(*input)+1)*pattern.weight); err != nil {
 		return false, err
 	}
-	return p.re.MatchString(*input), nil
+	return pattern.re.MatchString(*input), nil
 }
 
-// stringOf evaluates o to the string it is, or nil where it is none.
-func (e *evaluator) stringOf(ctx context.Context, o operand, at Located) (*string, error) {
-	v, err := e.valueOf(ctx, o, at)
+// stringOf evaluates operandValue to the string it is, or nil where it is none.
+func (e *evaluator) stringOf(ctx context.Context, operandValue operand, at Located) (*string, error) {
+	jsonValue, err := e.valueOf(ctx, operandValue, at)
 	if err != nil {
 		return nil, err
 	}
-	s, ok, err := e.asScalar(ctx, v)
-	if err != nil || !ok || s.kind != kindString {
+	scalar, ok, err := e.asScalar(ctx, jsonValue)
+	if err != nil || !ok || scalar.kind != kindString {
 		return nil, err
 	}
-	return &s.text, nil
+	return &scalar.text, nil
 }
 
 // patternKey names a compiled pattern: its text, and whether match anchored it.
@@ -317,24 +317,24 @@ type patternKey struct {
 // builds. A pattern that is no I-Regexp, or is past a bound, holds no program.
 func (e *evaluator) compiled(ctx context.Context, text string, anchored bool) (pattern, error) {
 	key := patternKey{text: text, anchored: anchored}
-	if p, held := e.patterns[key]; held {
-		return p, nil
+	if pattern, held := e.patterns[key]; held {
+		return pattern, nil
 	}
 	if err := e.spend(ctx, len(text)); err != nil {
 		return pattern{}, err
 	}
-	var p pattern
+	var patternValue pattern
 	if tr, ok := patternSource(text, anchored); ok {
 		if err := e.spend(ctx, tr.size); err != nil {
 			return pattern{}, err
 		}
-		p = compileSource(tr)
+		patternValue = compileSource(tr)
 	}
 	if len(e.patterns) < maxPatterns {
 		if e.patterns == nil {
 			e.patterns = map[patternKey]pattern{}
 		}
-		e.patterns[key] = p
+		e.patterns[key] = patternValue
 	}
-	return p, nil
+	return patternValue, nil
 }

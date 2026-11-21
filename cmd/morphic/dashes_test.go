@@ -18,10 +18,10 @@ import (
 
 // TestRun_SingleDashLongFlagsAreRefused pins that a long flag typed with one
 // dash, as morphic's earlier flag package accepted, is refused with the
-// spelling to use. pflag would read "-opt=a=1" on compile as "-o pt=a=1",
-// dropping the option and writing a file named "pt=a=1" with exit 0. Not run
-// in parallel: each row moves into an empty directory of its own, which a
-// misread must not write to.
+// spelling to use. pflag would read "-compiler-option=a=1" on compile as "-o
+// pt=a=1", dropping the option and writing a file named "pt=a=1" with exit 0.
+// Not run in parallel: each row moves into an empty directory of its own, which
+// a misread must not write to.
 func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
@@ -31,12 +31,12 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 		reason string
 		help   string // the command the hint points at
 	}{
-		{"an option and its value joined", []string{"compile", spec, "-opt=a=1"},
-			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
-		{"an option and its separate value", []string{"compile", "-opt", "a=1", spec},
-			`write "--opt", not "-opt"`, "morphic compile"},
-		{"before the command it belongs to", []string{"-opt=a=1", "compile", spec},
-			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
+		{"an option and its value joined", []string{"compile", spec, "-compiler-option=a=1"},
+			`write "--compiler-option=a=1", not "-compiler-option=a=1"`, "morphic compile"},
+		{"an option and its separate value", []string{"compile", "-compiler-option", "a=1", spec},
+			`write "--compiler-option", not "-compiler-option"`, "morphic compile"},
+		{"before the command it belongs to", []string{"-compiler-option=a=1", "compile", spec},
+			`write "--compiler-option=a=1", not "-compiler-option=a=1"`, "morphic compile"},
 		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
 			`write "--help", not "-help"`, "morphic compile"},
 		{"the version flag", []string{"-version"}, `write "--version", not "-version"`, "morphic"},
@@ -204,17 +204,17 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 		args   []string
 		reason string
 	}{
-		// --explain refuses -o before anything is written, which shows -opt was
+		// --explain refuses -o before anything is written, which shows -compiler-option was
 		// read as -o's value.
-		{"the value of a short flag", []string{"compile", spec, "--explain", "", "-o", "-opt"},
+		{"the value of a short flag", []string{"compile", spec, "--explain", "", "-o", "-compiler-option"},
 			"--explain writes no document"},
 		{"the value of a long flag", []string{"compile", spec, "--fail-on", "-pretty"},
 			`invalid argument "-pretty" for "--fail-on" flag`},
-		{"an operand after --", []string{"compile", "--", "-opt"}, `read spec "-opt"`},
-		{"an argument of an unknown command", []string{"bogus", "-opt"}, `unknown command "bogus"`},
+		{"an operand after --", []string{"compile", "--", "-compiler-option"}, `read spec "-compiler-option"`},
+		{"an argument of an unknown command", []string{"bogus", "-compiler-option"}, `unknown command "bogus"`},
 		{"a root flag's one-dash spelling after an unknown command", []string{"bogus", "-version"},
 			`unknown command "bogus"`},
-		{"an argument after one pflag refuses", []string{"compile", spec, "--bogus", "-opt=a=1"},
+		{"an argument after one pflag refuses", []string{"compile", spec, "--bogus", "-compiler-option=a=1"},
 			"unknown flag: --bogus"},
 	}
 
@@ -231,15 +231,15 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 }
 
 // TestRun_AJoinedValueIsReadOnce pins that looking at the arguments before
-// cobra parses them sets nothing: an --opt value set twice is refused as a
-// repeated key, so a look that set it would fail this run.
+// cobra parses them sets nothing: an --compiler-option value set twice is
+// refused as a repeated key, so a look that set it would fail this run.
 func TestRun_AJoinedValueIsReadOnce(t *testing.T) {
 	t.Parallel()
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	require.Equal(t, 0, run(t.Context(), []string{"compile", spec, "--opt=grouping=path-prefix"}, &stdout, &stderr),
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec, "--compiler-option=grouping=path-prefix"}, &stdout, &stderr),
 		"stderr: %s", stderr.String())
 	assert.NotEmpty(t, stdout.String())
 }

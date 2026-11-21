@@ -25,12 +25,12 @@ func checkArgsOutsideGraphQL(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 	}
 	var diags []ir.Diagnostic
 	for _, id := range live {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		if !ok || reachable[id] {
 			continue
 		}
-		for i, p := range m.Properties {
-			if len(p.Args) == 0 {
+		for i, property := range model.Properties {
+			if len(property.Args) == 0 {
 				continue
 			}
 			diags = append(diags, diag(ir.SeverityError, "pass/args-outside-graphql",
@@ -53,9 +53,9 @@ func checkArgsOutsideGraphQL(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic
 func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
-	truncated := ir.ForEachOperation(doc, func(op ir.Operation) {
-		if op.Bindings.GraphQL != nil {
-			queue = appendTypeIDs(queue, op)
+	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if operation.Bindings.GraphQL != nil {
+			queue = appendTypeIDs(queue, operation)
 		}
 	})
 	for len(queue) > 0 {

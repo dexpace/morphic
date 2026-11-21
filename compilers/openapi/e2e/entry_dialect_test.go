@@ -41,17 +41,19 @@ var draftPrincipals = []draftPrincipal{
 // principal's own entry, on another entry after it and before it, and flat.
 // Each takes the resource keywords naming the dialect, the principal and the
 // keyword.
-var draftSpellings = map[string]func(resource string, p draftPrincipal, keyword string) string{
-	"own": func(r string, p draftPrincipal, k string) string {
-		return "{allOf: [{" + r + ", " + p.draft + ", " + k + "}, {description: d}]}"
+var draftSpellings = map[string]func(resource string, draftPrincipalValue draftPrincipal, keyword string) string{
+	"own": func(r string, draftPrincipalValue draftPrincipal, k string) string {
+		return "{allOf: [{" + r + ", " + draftPrincipalValue.draft + ", " + k + "}, {description: d}]}"
 	},
-	"entry": func(r string, p draftPrincipal, k string) string {
-		return "{allOf: [{" + p.twin + "}, {" + r + ", " + k + "}]}"
+	"entry": func(r string, draftPrincipalValue draftPrincipal, k string) string {
+		return "{allOf: [{" + draftPrincipalValue.twin + "}, {" + r + ", " + k + "}]}"
 	},
-	"entry first": func(r string, p draftPrincipal, k string) string {
-		return "{allOf: [{" + r + ", " + k + "}, {" + p.twin + "}]}"
+	"entry first": func(r string, draftPrincipalValue draftPrincipal, k string) string {
+		return "{allOf: [{" + r + ", " + k + "}, {" + draftPrincipalValue.twin + "}]}"
 	},
-	"flat": func(r string, p draftPrincipal, k string) string { return "{" + r + ", " + p.draft + ", " + k + "}" },
+	"flat": func(r string, draftPrincipalValue draftPrincipal, k string) string {
+		return "{" + r + ", " + draftPrincipalValue.draft + ", " + k + "}"
+	},
 }
 
 // draftCell is one schema of the grid: where it is declared and the value its
@@ -73,17 +75,17 @@ func TestEntryDialect_ADraftsDependenciesIsKeptAsFlat(t *testing.T) {
 	t.Parallel()
 	n := len(draftPrincipals) * len(draftSpellings) * 2
 	cells, lines := make([]draftCell, 0, n), make([]string, 0, n)
-	for i, p := range draftPrincipals {
+	for i, draftPrincipal := range draftPrincipals {
 		for _, spelling := range slices.Sorted(maps.Keys(draftSpellings)) {
 			for _, property := range []bool{false, true} {
 				name := fmt.Sprintf("K%d%s%t", i, strings.ReplaceAll(spelling, " ", ""), property)
 				value := "n" + strings.ToLower(name)
 				resource := "$id: 'https://example.com/" + value + "', $schema: " + draft07
-				schema := draftSpellings[spelling](resource, p, "dependencies: {"+value+": [b]}")
+				schema := draftSpellings[spelling](resource, draftPrincipal, "dependencies: {"+value+": [b]}")
 				if property {
 					schema = "{type: object, properties: {p: " + schema + "}}"
 				}
-				cells = append(cells, draftCell{component: name, spelling: spelling, value: value, kind: p, property: property})
+				cells = append(cells, draftCell{component: name, spelling: spelling, value: value, kind: draftPrincipal, property: property})
 				lines = append(lines, "    "+name+": "+schema)
 			}
 		}
@@ -123,26 +125,26 @@ func keptDependencies(t *testing.T, lines []string, cells []draftCell) map[strin
 	sites := unmodeledSites(doc)
 	out := make(map[string]keptDependency, len(cells))
 	for _, cell := range cells {
-		var k keptDependency
+		var keptDependencyValue keptDependency
 		owner := positionOwner(t, doc, cell)
 		for _, site := range sites {
 			if site.key != "openapi:dependencies" || !strings.Contains(string(site.entry.Value), `"`+cell.value+`"`) {
 				continue
 			}
 			where := "elsewhere " + site.path
-			if e, ok := owner["openapi:dependencies"]; ok && string(e.Value) == string(site.entry.Value) {
+			if unmodeledEntry, ok := owner["openapi:dependencies"]; ok && string(unmodeledEntry.Value) == string(site.entry.Value) {
 				where = "position"
 			}
-			k.kept = append(k.kept, where+" "+string(site.entry.Reason))
+			keptDependencyValue.kept = append(keptDependencyValue.kept, where+" "+string(site.entry.Reason))
 		}
 		at := "/components/schemas/" + cell.component
-		for _, d := range diags {
-			if d.Code == diag.ValidationOnlyKeyword && strings.HasPrefix(string(d.Provenance.Pointer), at) &&
-				strings.Contains(d.Message, `"dependencies"`) {
-				k.reported = true
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.ValidationOnlyKeyword && strings.HasPrefix(string(diagnostic.Provenance.Pointer), at) &&
+				strings.Contains(diagnostic.Message, `"dependencies"`) {
+				keptDependencyValue.reported = true
 			}
 		}
-		out[cell.component] = k
+		out[cell.component] = keptDependencyValue
 	}
 	return out
 }
@@ -155,12 +157,12 @@ func positionOwner(t *testing.T, doc *ir.Document, cell draftCell) ir.Unmodeled 
 	if !cell.property {
 		return doc.Types[componentID(cell.component)].Common().Unmodeled
 	}
-	m, ok := doc.Types[componentID(cell.component)].(*ir.Model)
+	model, ok := doc.Types[componentID(cell.component)].(*ir.Model)
 	require.True(t, ok, "%s is a model", cell.component)
-	p, ok := propByWire(m, "p")
+	property, ok := propertyByWire(model, "p")
 	require.True(t, ok)
-	if p.Type.Target == ir.TypeID("t/anon/components/schemas/"+cell.component+"/properties/p") {
-		return doc.Types[p.Type.Target].Common().Unmodeled
+	if property.Type.Target == ir.TypeID("type/anonymous/components/schemas/"+cell.component+"/properties/p") {
+		return doc.Types[property.Type.Target].Common().Unmodeled
 	}
-	return p.Unmodeled
+	return property.Unmodeled
 }

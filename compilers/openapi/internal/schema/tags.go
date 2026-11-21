@@ -22,26 +22,26 @@ import (
 const maxReportedTags = 3
 
 // deferUnionTags queues the discriminator-inference policy's reading of the
-// union n, u lowered at pointer, where the policy is on: for the discriminator
-// standing with it declaring no mapping, or for none at all
+// union union, unionAtValue lowered at pointer, where the policy is on: for the
+// discriminator standing with it declaring no mapping, or for none at all
 // (docs/compilers/openapi.md#discriminator-inference). It reads what each
 // variant's type says of its tag, which only a registry every node is interned
 // in answers in any declaration order, so it is a settlement. A mapping the
 // document declares is read as written, beside the routes it implies
-// (spellImplicitRoutes), so one of those its variant rejects stands (#1798).
-// A discriminator n cannot hold (tagLocated) leaves n untagged, so nothing is
-// read.
-func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, n *ir.Union, pointer jsontext.Pointer) {
-	if !c.DiscriminatorInference.Honours() {
+// (spellImplicitRoutes), so one of those its variant rejects stands (#1798). A
+// discriminator union cannot hold (tagLocated) leaves union untagged, so
+// nothing is read.
+func deferUnionTags(loweringContext lowering.Ctx, ts *compile.Types, unionAtValue unionAt, union *ir.Union, pointer jsontext.Pointer) {
+	if !loweringContext.DiscriminatorInference.Honours() {
 		return
 	}
-	if u.disc != nil && (len(u.disc.Mapping) > 0 || n.Discriminator == nil) {
+	if unionAtValue.disc != nil && (len(unionAtValue.disc.Mapping) > 0 || union.Discriminator == nil) {
 		return
 	}
-	tags := unionTags{c: c, id: n.ID, pointer: pointer}
-	if u.disc != nil {
-		tags.at = u.discAt + ids.Ptr("discriminator")
-		tags.implicit = implicitRoutes(c, u)
+	tags := unionTags{c: loweringContext, id: union.ID, pointer: pointer}
+	if unionAtValue.disc != nil {
+		tags.at = unionAtValue.discAt + ids.Ptr("discriminator")
+		tags.implicit = implicitRoutes(loweringContext, unionAtValue)
 	}
 	ts.Defer(tags)
 }
@@ -62,14 +62,14 @@ type unionTags struct {
 
 // Settle reads the union's tags, and writes them where the policy reads one.
 func (t unionTags) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
-	u, ok := reg[t.id].(*ir.Union)
-	if !ok || u == nil {
+	union, ok := reg[t.id].(*ir.Union)
+	if !ok || union == nil {
 		return t.invariant("is not registered as one")
 	}
 	if t.at != "" {
-		return t.mapDeclared(reg, u)
+		return t.mapDeclared(reg, union)
 	}
-	return t.inferUndeclared(reg, u)
+	return t.inferUndeclared(reg, union)
 }
 
 // invariant reports a union the settlement finds otherwise than its lowering
@@ -79,32 +79,32 @@ func (t unionTags) invariant(why string) []ir.Diagnostic {
 		"internal: union %q %s, so the discriminator inference deferred for it is not taken", t.id, why)}
 }
 
-// mapDeclared maps the declared discriminator of u by the strings each
+// mapDeclared maps the declared discriminator of union by the strings each
 // variant admits for its tag property, where every variant pins a set no
 // other shares and the implicit mapping does not route each by all it admits:
 // one rejecting the component name it routes by, one admitting another
 // string, or one naming no component. Where each admits that name alone, the
 // implicit mapping already says it.
-func (t unionTags) mapDeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic {
-	d := u.Discriminator
-	if d == nil {
+func (t unionTags) mapDeclared(reg ir.TypeRegistry, union *ir.Union) []ir.Diagnostic {
+	discriminator := union.Discriminator
+	if discriminator == nil {
 		return t.invariant("holds no discriminator, though its source declares one")
 	}
-	if len(t.implicit) != len(u.Variants) {
+	if len(t.implicit) != len(union.Variants) {
 		return t.invariant("has a variant no branch stands for")
 	}
-	r := readingsOf(t.c)
-	tags, ok := pinnedTags(reg, r, flattenVariants(reg, u.Variants), d.PropertyName, false /* required */)
+	tagReadings := readingsOf(t.c)
+	tags, ok := pinnedTags(reg, tagReadings, flattenVariants(reg, union.Variants), discriminator.PropertyName, false /* required */)
 	if !ok || routedByName(tags, t.implicit) {
 		return nil
 	}
-	d.Mapping = tagMapping(tags, u.Variants)
-	u.Provenance.Inferred = ir.JoinInferred(u.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
+	discriminator.Mapping = tagMapping(tags, union.Variants)
+	union.Provenance.Inferred = ir.JoinInferred(union.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
 	return []ir.Diagnostic{t.c.DiagAt(ir.SeverityInfo, diag.InferredDiscriminator, t.at,
 		"the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant only by the "+
 			"name of the component it names, not by what it admits for %q (%s); "+
 			"mapped by the values each admits, marked inferred",
-		d.PropertyName, disagreements(tags, t.implicit))}
+		discriminator.PropertyName, disagreements(tags, t.implicit))}
 }
 
 // routedByName reports whether the implicit mapping routes each variant by all
@@ -118,40 +118,40 @@ func routedByName(tags [][]string, implicit []implicitRoute) bool {
 	return true
 }
 
-// inferUndeclared gives u, a closed union of two or more variants declaring no
-// discriminator, the one its variants carry in all but name: the first property
-// of the first variant, in layout order, that every variant requires and pins
-// to a set no other shares. A payload then names its variant by that value, as
-// validation would find it. An open union may meet a variant carrying any tag.
-// The other variants are flattened once, and only where the first pins one,
-// each keyed by wire name, so a candidate costs the same however many members
-// a variant has.
-func (t unionTags) inferUndeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic {
-	if u.Discriminator != nil {
+// inferUndeclared gives union, a closed union of two or more variants declaring
+// no discriminator, the one its variants carry in all but name: the first
+// property of the first variant, in layout order, that every variant requires
+// and pins to a set no other shares. A payload then names its variant by that
+// value, as validation would find it. An open union may meet a variant carrying
+// any tag. The other variants are flattened once, and only where the first pins
+// one, each keyed by wire name, so a candidate costs the same however many
+// members a variant has.
+func (t unionTags) inferUndeclared(reg ir.TypeRegistry, union *ir.Union) []ir.Diagnostic {
+	if union.Discriminator != nil {
 		return t.invariant("holds a discriminator, though its source declares none")
 	}
-	if !u.Closed || len(u.Variants) < 2 ||
-		slices.ContainsFunc(u.Variants, func(v ir.Variant) bool { return v.Type.Nullable }) {
+	if !union.Closed || len(union.Variants) < 2 ||
+		slices.ContainsFunc(union.Variants, func(variant ir.Variant) bool { return variant.Type.Nullable }) {
 		return nil
 	}
-	r := readingsOf(t.c)
-	first := ir.FlattenedProperties(reg, u.Variants[0].Type.Target)
+	tagReadings := readingsOf(t.c)
+	first := ir.FlattenedProperties(reg, union.Variants[0].Type.Target)
 	var flats []variantFlat
-	for _, p := range first.Properties {
-		if !p.Required || !r.object(reg, first, p, true, p.Property.EffectiveWireName()).pins() {
+	for _, flatProperty := range first.Properties {
+		if !flatProperty.Required || !tagReadings.object(reg, first, flatProperty, true, flatProperty.Property.EffectiveWireName()).pins() {
 			continue
 		}
 		if flats == nil {
-			flats = flattenVariants(reg, u.Variants)
+			flats = flattenVariants(reg, union.Variants)
 		}
-		name := p.Property.EffectiveWireName()
-		tags, ok := pinnedTags(reg, r, flats, name, true /* required */)
+		name := flatProperty.Property.EffectiveWireName()
+		tags, ok := pinnedTags(reg, tagReadings, flats, name, true /* required */)
 		if !ok {
 			continue
 		}
-		u.Discriminator = &ir.Discriminator{PropertyName: name, Mapping: tagMapping(tags, u.Variants), Inferred: true}
-		u.WireTagged = true
-		u.Provenance.Inferred = ir.JoinInferred(u.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
+		union.Discriminator = &ir.Discriminator{PropertyName: name, Mapping: tagMapping(tags, union.Variants), Inferred: true}
+		union.WireTagged = true
+		union.Provenance.Inferred = ir.JoinInferred(union.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
 		return nil
 	}
 	return nil
@@ -168,11 +168,11 @@ type variantFlat struct {
 // variant order.
 func flattenVariants(reg ir.TypeRegistry, variants []ir.Variant) []variantFlat {
 	flats := make([]variantFlat, len(variants))
-	for i, v := range variants {
-		flat := ir.FlattenedProperties(reg, v.Type.Target)
+	for i, variant := range variants {
+		flat := ir.FlattenedProperties(reg, variant.Type.Target)
 		byName := make(map[string]ir.FlatProperty, len(flat.Properties))
-		for _, p := range flat.Properties {
-			byName[p.Property.EffectiveWireName()] = p
+		for _, flatProperty := range flat.Properties {
+			byName[flatProperty.Property.EffectiveWireName()] = flatProperty
 		}
 		flats[i] = variantFlat{flat: flat, byName: byName}
 	}
@@ -184,15 +184,15 @@ func flattenVariants(reg ir.TypeRegistry, variants []ir.Variant) []variantFlat {
 // one pins a set (tagSet.pins) and no two share a string: a mapping routes a
 // tag to one variant. Where required is set, each variant must require the
 // property too, as a tag no payload need carry names no variant.
-func pinnedTags(reg ir.TypeRegistry, r *tagReadings, flats []variantFlat, name string, required bool) ([][]string, bool) {
+func pinnedTags(reg ir.TypeRegistry, tagReadingsValue *tagReadings, flats []variantFlat, name string, required bool) ([][]string, bool) {
 	tags := make([][]string, 0, len(flats))
 	seen := map[string]bool{}
-	for _, v := range flats {
-		p, declared := v.byName[name]
-		if required && !p.Required {
+	for _, variantFlat := range flats {
+		flatProperty, declared := variantFlat.byName[name]
+		if required && !flatProperty.Required {
 			return nil, false
 		}
-		got := r.object(reg, v.flat, p, declared, name)
+		got := tagReadingsValue.object(reg, variantFlat.flat, flatProperty, declared, name)
 		if !got.pins() {
 			return nil, false
 		}

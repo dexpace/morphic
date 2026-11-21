@@ -43,14 +43,14 @@ type refPosition struct {
 	body string
 }
 
-const refOp = "paths:\n  /a:\n    get:\n      operationId: getA\n      responses: {\"200\": {description: ok}}\n"
+const refOperation = "paths:\n  /a:\n    get:\n      operationId: getA\n      responses: {\"200\": {description: ok}}\n"
 
 // refPositions is every position the compiler reads a Reference Object at, the
 // Path Item's own $ref among them.
 var refPositions = []refPosition{
 	{
 		name: "a path item under paths", pathItem: true, pointer: "/paths/~1p/$ref",
-		body: refOp + "@@  /p:\n@@    $ref:\n",
+		body: refOperation + "@@  /p:\n@@    $ref:\n",
 	},
 	{
 		name: "a path item under webhooks", since31: true, pathItem: true, pointer: "/webhooks/w/$ref",
@@ -122,7 +122,7 @@ var refPositions = []refPosition{
 	},
 	{
 		name: "a component link", pointer: "/components/links/P/$ref", kept: "openapi:components/links/P",
-		body: refOp + "components:\n  links:\n    Ok: {operationId: getA}\n@@    P:\n@@      $ref:\n",
+		body: refOperation + "components:\n  links:\n    Ok: {operationId: getA}\n@@    P:\n@@      $ref:\n",
 	},
 	{
 		name: "an inline callback", pointer: "/paths/~1a/post/callbacks/cb2/$ref",
@@ -144,9 +144,9 @@ var refPositions = []refPosition{
 // renderEmpty writes the position's document with its entry written as the
 // item {} in place of its $ref.
 func (p refPosition) renderEmpty(version string) string {
-	q := p
-	q.body = regexp.MustCompile(`:\n@@ *\$ref:\n`).ReplaceAllString(p.body, ": {}\n")
-	return q.render(version, "", false)
+	refPositionValue := p
+	refPositionValue.body = regexp.MustCompile(`:\n@@ *\$ref:\n`).ReplaceAllString(p.body, ": {}\n")
+	return refPositionValue.render(version, "", false)
 }
 
 // refSpellings are the three ways a $ref can be written null.
@@ -181,43 +181,43 @@ func (p refPosition) render(version, spelling string, leftOut bool) string {
 // the item is read for what it writes.
 func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 	t.Parallel()
-	for _, p := range refPositions {
+	for _, refPosition := range refPositions {
 		for _, version := range refVersions {
-			if p.since31 && version == "3.0.3" {
+			if refPosition.since31 && version == "3.0.3" {
 				continue
 			}
-			controlText := p.render(version, "", true)
-			if p.emptyItem {
-				controlText = p.renderEmpty(version)
+			controlText := refPosition.render(version, "", true)
+			if refPosition.emptyItem {
+				controlText = refPosition.renderEmpty(version)
 			}
 			control, controlDiags := compileText(t, "spec.yaml", controlText, openapi.Options{})
-			require.NotNil(t, control, "%s on %s", p.name, version)
-			require.Empty(t, controlDiags, "the document without the entry is valid: %s on %s: %+v", p.name, version, controlDiags)
+			require.NotNil(t, control, "%s on %s", refPosition.name, version)
+			require.Empty(t, controlDiags, "the document without the entry is valid: %s on %s: %+v", refPosition.name, version, controlDiags)
 			want := jsonOf(t, control)
-			if p.emptyItem {
+			if refPosition.emptyItem {
 				// A component kept verbatim shows the null $ref the source wrote.
 				want = strings.Replace(want, `"value":{}`, `"value":{"$ref":null}`, 1)
 			}
 
 			for _, spelling := range refSpellings {
-				t.Run(p.name+" on "+version+" spelled $ref:"+spelling, func(t *testing.T) {
+				t.Run(refPosition.name+" on "+version+" spelled $ref:"+spelling, func(t *testing.T) {
 					t.Parallel()
-					doc, diags := compileText(t, "spec.yaml", p.render(version, spelling, false), openapi.Options{})
+					doc, diags := compileText(t, "spec.yaml", refPosition.render(version, spelling, false), openapi.Options{})
 
 					require.NotNil(t, doc, "the source is read, not refused: %+v", diags)
 					require.Len(t, diags, 1, "one finding, at the node: %+v", diags)
 					assert.Equal(t, typeMismatch, diags[0].Code)
-					assert.Equal(t, p.pointer, string(diags[0].Provenance.Pointer))
-					if p.pathItem && spelling != "" {
+					assert.Equal(t, refPosition.pointer, string(diags[0].Provenance.Pointer))
+					if refPosition.pathItem && spelling != "" {
 						assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 						assert.Contains(t, diags[0].Message, "it is null, which is read as the field left out")
 					}
-					if !p.pathItem {
+					if !refPosition.pathItem {
 						assert.Equal(t, ir.SeverityError, diags[0].Severity)
 					}
-					if p.kept != "" {
-						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[p.kept].Value), "a verbatim copy shows the source")
-						delete(doc.Unmodeled, p.kept)
+					if refPosition.kept != "" {
+						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[refPosition.kept].Value), "a verbatim copy shows the source")
+						delete(doc.Unmodeled, refPosition.kept)
 					}
 					assert.Equal(t, want, jsonOf(t, doc), "the entry is left out, or for an item kept, read as {}")
 				})
@@ -242,10 +242,10 @@ func TestCompile_AParameterBesideANullRefLowers(t *testing.T) {
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, typeMismatch, diags[0].Code)
 	assert.Equal(t, "/paths/~1a/get/parameters/0/$ref", string(diags[0].Provenance.Pointer))
-	ops := allOperations(doc)
-	require.Len(t, ops, 1)
-	require.Len(t, ops[0].Params, 1, "the neighbour lowers, the entry is left out")
-	assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+	operations := allOperations(doc)
+	require.Len(t, operations, 1)
+	require.Len(t, operations[0].Params, 1, "the neighbour lowers, the entry is left out")
+	assert.Equal(t, "ok", operations[0].Params[0].Name.Source)
 }
 
 // TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField holds a Path Item
@@ -265,15 +265,15 @@ func TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField(t *testing.T) {
 
 	require.NotNil(t, doc, "%+v", diags)
 	names := map[string]bool{}
-	for _, op := range allOperations(doc) {
-		names[op.Name.Source] = true
+	for _, operation := range allOperations(doc) {
+		names[operation.Name.Source] = true
 	}
 	assert.Equal(t, map[string]bool{"b": true, "c": true, "d": true}, names)
 
 	got := map[string]ir.Severity{}
-	for _, d := range diags {
-		assert.Equal(t, typeMismatch, d.Code, "only the $ref is reported: %+v", d)
-		got[string(d.Provenance.Pointer)] = d.Severity
+	for _, diagnostic := range diags {
+		assert.Equal(t, typeMismatch, diagnostic.Code, "only the $ref is reported: %+v", diagnostic)
+		got[string(diagnostic.Provenance.Pointer)] = diagnostic.Severity
 	}
 	assert.Equal(t, map[string]ir.Severity{
 		"/paths/~1b/$ref": ir.SeverityError,
@@ -283,10 +283,10 @@ func TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField(t *testing.T) {
 	assert.Empty(t, byCode(diags, diag.UnknownObjectKey), "$ref is a declared key of the item")
 }
 
-// additionalOps is a 3.2 document writing extra at its root, before its paths,
-// whose path item writes an additionalOperations entry entry, beside LINK,
-// which is well formed.
-func additionalOps(extra, entry string) string {
+// additionalOperations is a 3.2 document writing extra at its root, before its
+// paths, whose path item writes an additionalOperations entry entry, beside
+// LINK, which is well formed.
+func additionalOperations(extra, entry string) string {
 	return "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n" + extra +
 		"paths:\n  /a:\n    get: {responses: {\"200\": {description: ok}}}\n" +
 		"    additionalOperations:\n" + entry +
@@ -318,11 +318,11 @@ func TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			control, controlDiags := compileText(t, "control.yaml", additionalOps(tc.extra, ""), openapi.Options{})
+			control, controlDiags := compileText(t, "control.yaml", additionalOperations(tc.extra, ""), openapi.Options{})
 			require.NotNil(t, control)
 			require.Empty(t, controlDiags)
 			assert.Len(t, allOperations(control), 2, "get and LINK")
-			doc, diags := compileText(t, "spec.yaml", additionalOps(tc.extra, tc.entry), openapi.Options{})
+			doc, diags := compileText(t, "spec.yaml", additionalOperations(tc.extra, tc.entry), openapi.Options{})
 
 			require.NotNil(t, doc, "the source is read, not refused: %+v", diags)
 			require.Len(t, diags, 1, "%+v", diags)
@@ -352,13 +352,13 @@ func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 
 		require.NotNil(t, doc, "$ref:%s: %+v", spelling, diags)
 		require.NotEmpty(t, diags)
-		for _, d := range diags {
-			assert.Equal(t, typeMismatch, d.Code, "%+v", d)
-			assert.True(t, strings.HasSuffix(string(d.Provenance.Pointer), "/$ref"), "%+v", d)
+		for _, diagnostic := range diags {
+			assert.Equal(t, typeMismatch, diagnostic.Code, "%+v", diagnostic)
+			assert.True(t, strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$ref"), "%+v", diagnostic)
 		}
-		ops := allOperations(doc)
-		require.Len(t, ops, 1)
-		require.Len(t, ops[0].Params, 1, "the entry is left out, the neighbour lowers")
+		operations := allOperations(doc)
+		require.Len(t, operations, 1)
+		require.Len(t, operations[0].Params, 1, "the entry is left out, the neighbour lowers")
 	}
 }
 
@@ -401,8 +401,8 @@ const reachedItem = "item:\n  get:\n    parameters:\n      - {$ref: ~}\n      - 
 func TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		spec, at string
-		ops      []string
+		spec, at   string
+		operations []string
 	}{
 		"a null $ref under an x- key": {
 			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n" +
@@ -426,11 +426,11 @@ func TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths(t *testing.T) 
 			assert.Equal(t, typeMismatch, diags[0].Code)
 			assert.Equal(t, tc.at, string(diags[0].Provenance.Pointer))
 			var methods []string
-			for _, op := range allOperations(doc) {
-				methods = append(methods, op.Bindings.HTTP[0].Method)
+			for _, operation := range allOperations(doc) {
+				methods = append(methods, operation.Bindings.HTTP[0].Method)
 			}
-			assert.ElementsMatch(t, tc.ops, methods, "the path item lowers what it writes")
-			if len(tc.ops) == 1 {
+			assert.ElementsMatch(t, tc.operations, methods, "the path item lowers what it writes")
+			if len(tc.operations) == 1 {
 				params := allOperations(doc)[0].Params
 				require.Len(t, params, 1, "the entry is left out")
 				assert.Equal(t, "ok", params[0].Name.Source)
@@ -449,10 +449,10 @@ func TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths(t *testing.T) 
 		assert.Equal(t, typeMismatch, diags[0].Code)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "in the other document's entry")
 		assert.Equal(t, "/item/get/parameters/0/$ref", string(diags[0].Provenance.Pointer))
-		ops := allOperations(doc)
-		require.Len(t, ops, 1, "the path item lowers")
-		require.Len(t, ops[0].Params, 1, "the entry is left out")
-		assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+		operations := allOperations(doc)
+		require.Len(t, operations, 1, "the path item lowers")
+		require.Len(t, operations[0].Params, 1, "the entry is left out")
+		assert.Equal(t, "ok", operations[0].Params[0].Name.Source)
 	})
 }
 
@@ -476,10 +476,10 @@ func TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut(t *testing.T
 			require.Len(t, diags, 1, "one finding, at the $ref: %+v", diags)
 			assert.Equal(t, typeMismatch, diags[0].Code)
 			assert.Equal(t, "/x-b/$ref", string(diags[0].Provenance.Pointer))
-			ops := allOperations(doc)
-			require.Len(t, ops, 1)
-			require.Len(t, ops[0].Params, 1, "the entry is left out")
-			assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+			operations := allOperations(doc)
+			require.Len(t, operations, 1)
+			require.Len(t, operations[0].Params, 1, "the entry is left out")
+			assert.Equal(t, "ok", operations[0].Params[0].Name.Source)
 		})
 	}
 }

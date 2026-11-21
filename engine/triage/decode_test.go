@@ -21,13 +21,13 @@ func TestDecode_ReadsEachMemberOfARule(t *testing.T) {
 	rules, err := triage.Decode([]byte(`{"rules": [
 		{"code": "openapi/unresolved-security-scheme", "severity": "warning", "reason": "named by the gateway"},
 		{"code": "openapi/degraded-construct", "pointer": "/components/schemas/A/readOnly", "accept": true, "reason": "known"},
-		{"code": "pass/name-collision", "node": "s/openapi/0", "severity": "info", "reason": "two tags"}
+		{"code": "pass/name-collision", "node": "service/openapi/0", "severity": "info", "reason": "two tags"}
 	]}`))
 	require.NoError(t, err)
 	assert.Equal(t, []triage.Rule{
 		{Code: "openapi/unresolved-security-scheme", Severity: ir.SeverityWarning, Reason: "named by the gateway"},
 		{Code: "openapi/degraded-construct", Pointer: "/components/schemas/A/readOnly", Accept: true, Reason: "known"},
-		{Code: "pass/name-collision", Node: "s/openapi/0", Severity: ir.SeverityInfo, Reason: "two tags"},
+		{Code: "pass/name-collision", Node: "service/openapi/0", Severity: ir.SeverityInfo, Reason: "two tags"},
 	}, rules)
 }
 

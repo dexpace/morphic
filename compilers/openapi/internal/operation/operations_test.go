@@ -41,15 +41,15 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	ops := map[string]ir.Operation{}
-	for _, g := range svc.Groups {
-		for _, op := range g.Operations {
-			ops[op.Name.Source] = op
+	operations := map[string]ir.Operation{}
+	for _, operationGroup := range svc.Groups {
+		for _, irOperation := range operationGroup.Operations {
+			operations[irOperation.Name.Source] = irOperation
 		}
 	}
-	require.NotNil(t, ops["open"].Auth, "security: [] must be the empty non-nil slice")
-	assert.Empty(t, ops["open"].Auth)
-	assert.Nil(t, ops["inherits"].Auth, "absent security inherits the service default")
+	require.NotNil(t, operations["open"].Auth, "security: [] must be the empty non-nil slice")
+	assert.Empty(t, operations["open"].Auth)
+	assert.Nil(t, operations["inherits"].Auth, "absent security inherits the service default")
 }
 
 func TestOperation_NoOperationIdHint(t *testing.T) {
@@ -60,12 +60,12 @@ func TestOperation_NoOperationIdHint(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
-	assert.Equal(t, "get_ping", op.Name.Hint, "the hint is canonicalized, not the raw method and template")
+	irOperation := openapitest.FirstOperation(t, svc)
+	assert.Empty(t, irOperation.Name.Source, "no operationId leaves an empty source name")
+	assert.Equal(t, "get_ping", irOperation.Name.Hint, "the hint is canonicalized, not the raw method and template")
 }
 
-const opsSpec = `openapi: 3.1.0
+const operationsSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 servers:
   - url: https://api.example.com
@@ -118,13 +118,13 @@ components:
 
 func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, opsSpec)
+	doc, diags := parseFull(t, operationsSpec)
 
 	// All eight HTTP methods lowered.
 	methods := map[string]bool{}
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			for _, hb := range op.Bindings.HTTP {
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, irOperation := range operationGroup.Operations {
+			for _, hb := range irOperation.Bindings.HTTP {
 				methods[hb.Method] = true
 			}
 		}
@@ -133,7 +133,7 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 		assert.True(t, methods[m], "method %s lowered", m)
 	}
 
-	getA := openapitest.FindOp(t, doc, "getA")
+	getA := openapitest.FindOperation(t, doc, "getA")
 	assert.NotEmpty(t, getA.Unmodeled, "op x-* extension")
 	assert.NotEmpty(t, getA.Docs.ExternalDocs, "op externalDocs")
 	assert.Len(t, getA.Servers, 1, "the path item's servers are named on its operation")
@@ -154,14 +154,14 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 	assert.NotEmpty(t, doc.TagDefs[0].Docs.ExternalDocs, "declared tag externalDocs")
 
 	// Callback operation registered alongside its parent.
-	assert.NotEmpty(t, openapitest.FindOp(t, doc, "cbPost").ID)
+	assert.NotEmpty(t, openapitest.FindOperation(t, doc, "cbPost").ID)
 	_ = diags
 }
 
 func TestOperations_NoResponses(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, opsSpec)
-	trace := openapitest.FindOp(t, doc, "traceA")
+	doc, _ := parseFull(t, operationsSpec)
+	trace := openapitest.FindOperation(t, doc, "traceA")
 	assert.Empty(t, trace.Responses)
 	assert.Empty(t, trace.Errors)
 }
@@ -267,10 +267,10 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 		checked += check("type", string(id), td.Common().Provenance.Pointer)
 	}
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
-	for _, op := range operationsOf(doc) {
-		checked += check("operation", string(op.ID), op.Provenance.Pointer)
-		for _, h := range headersOf(op) {
-			checked += check("header", h.WireName, h.Provenance.Pointer)
+	for _, irOperation := range operationsOf(doc) {
+		checked += check("operation", string(irOperation.ID), irOperation.Provenance.Pointer)
+		for _, header := range headersOf(irOperation) {
+			checked += check("header", header.WireName, header.Provenance.Pointer)
 		}
 	}
 	assert.Positive(t, checked, "the spec must exercise at least one pointer worth checking")
@@ -280,8 +280,8 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 func operationsOf(doc *ir.Document) []ir.Operation {
 	var out []ir.Operation
 	for _, svc := range doc.Services {
-		for _, g := range svc.Groups {
-			out = append(out, g.Operations...)
+		for _, operationGroup := range svc.Groups {
+			out = append(out, operationGroup.Operations...)
 		}
 	}
 	return out
@@ -289,16 +289,16 @@ func operationsOf(doc *ir.Document) []ir.Operation {
 
 // headersOf collects an operation's Headers from both places they live:
 // response headers, and the per-part headers of a multipart encoding.
-func headersOf(op ir.Operation) []ir.Header {
+func headersOf(irOperation ir.Operation) []ir.Header {
 	var out []ir.Header
-	for _, resp := range op.Responses {
+	for _, resp := range irOperation.Responses {
 		out = append(out, resp.Headers...)
 	}
-	if op.Request == nil {
+	if irOperation.Request == nil {
 		return out
 	}
-	for _, c := range op.Request.Contents {
-		for _, pe := range c.Encoding {
+	for _, content := range irOperation.Request.Contents {
+		for _, pe := range content.Encoding {
 			out = append(out, pe.Headers...)
 		}
 	}
@@ -393,8 +393,8 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
 
 	seen := map[string]int{}
-	for _, d := range diags {
-		seen[string(d.Severity)+"|"+d.Code+"|"+string(d.Provenance.Pointer)+"|"+d.Message]++
+	for _, diagnostic := range diags {
+		seen[string(diagnostic.Severity)+"|"+diagnostic.Code+"|"+string(diagnostic.Provenance.Pointer)+"|"+diagnostic.Message]++
 	}
 	for key, n := range seen {
 		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
@@ -408,13 +408,13 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	// two values rather than one aliased pointer: lowering it at its declaration
 	// de-duplicates the diagnostics, not the field.
 	for _, name := range []string{"postA", "postB"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.NotNil(t, op.Request, "%s has a body", name)
-		require.NotNil(t, op.Request.Required, "%s: OpenAPI states body optionality", name)
-		assert.False(t, *op.Request.Required, "%s: the component declares required: false", name)
+		irOperation := openapitest.FindOperation(t, doc, name)
+		require.NotNil(t, irOperation.Request, "%s has a body", name)
+		require.NotNil(t, irOperation.Request.Required, "%s: OpenAPI states body optionality", name)
+		assert.False(t, *irOperation.Request.Required, "%s: the component declares required: false", name)
 	}
-	assert.NotSame(t, openapitest.FindOp(t, doc, "postA").Request.Required,
-		openapitest.FindOp(t, doc, "postB").Request.Required,
+	assert.NotSame(t, openapitest.FindOperation(t, doc, "postA").Request.Required,
+		openapitest.FindOperation(t, doc, "postB").Request.Required,
 		"each use site owns its flag, so an emitter mutating one cannot reach the other")
 }
 
@@ -423,11 +423,11 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	var acc compile.Diags
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
-	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
+	acc.Append(serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	require.Len(t, acc.List(), 2, "the repeat is dropped, the distinct message is not")
 	assert.Equal(t, "first", acc.List()[0].Message)
 	assert.Equal(t, "second", acc.List()[1].Message)
@@ -451,16 +451,16 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 	doc, diags := parseFull(t, spec)
 
 	var announced bool
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
-			strings.Contains(d.Message, "x-bad") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning &&
+			strings.Contains(diagnostic.Message, "x-bad") {
 			announced = true
 		}
 	}
 	assert.True(t, announced,
 		"the unserializable extension is named in a warning, not merely some warning: %+v", diags)
-	op := doc.Services[0].Groups[0].Operations[0]
-	assert.Empty(t, op.Unmodeled, "and is dropped rather than stored half-converted")
+	irOperation := doc.Services[0].Groups[0].Operations[0]
+	assert.Empty(t, irOperation.Unmodeled, "and is dropped rather than stored half-converted")
 }
 
 // ghostRefsSpec references non-existent components everywhere so every
@@ -526,8 +526,8 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	require.Len(t, diags, len(wantRefs),
 		"one report per ghost reference, not a second added by a lowering resolver: %+v", diags)
 	for pointer, ref := range wantRefs {
-		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, pointer)
-		assert.Contains(t, msg, fmt.Sprintf("unresolved $ref %q", ref), "names the reference that failed")
+		message := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, pointer)
+		assert.Contains(t, message, fmt.Sprintf("unresolved $ref %q", ref), "names the reference that failed")
 	}
 
 	// What each skip has to do is contribute nothing — not an empty stand-in.
@@ -536,17 +536,17 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	// every other test in this repo, while putting a path the document does not
 	// declare into the IR.
 	require.Len(t, doc.Services[0].Groups, 1, "the ghost webhook adds no group of its own")
-	ops := doc.Services[0].Groups[0].Operations
-	require.Len(t, ops, 1,
+	operations := doc.Services[0].Groups[0].Operations
+	require.Len(t, operations, 1,
 		"only the one declared operation survives: the ghost path item, the ghost webhook, the "+
 			"ghost callback and the callback's ghost path item each contribute none")
-	op := ops[0]
-	assert.Equal(t, "getA", op.Name.Source)
-	assert.Empty(t, op.Params, "the ghost parameter is skipped, not lowered as a nameless one")
-	assert.Nil(t, op.Request, "as is the ghost request body")
+	irOperation := operations[0]
+	assert.Equal(t, "getA", irOperation.Name.Source)
+	assert.Empty(t, irOperation.Params, "the ghost parameter is skipped, not lowered as a nameless one")
+	assert.Nil(t, irOperation.Request, "as is the ghost request body")
 
-	require.Len(t, op.Responses, 1, "the ghost response is skipped; the inline 201 is not")
-	resp := op.Responses[0]
+	require.Len(t, irOperation.Responses, 1, "the ghost response is skipped; the inline 201 is not")
+	resp := irOperation.Responses[0]
 	assert.Empty(t, resp.Headers, "the ghost header is skipped")
 	require.NotNil(t, resp.Payload)
 	require.Len(t, resp.Payload.Contents, 1)
@@ -565,8 +565,8 @@ func TestOperation_DeprecatedIsCarried(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.NotNil(t, openapitest.FindOp(t, doc, "getA").Deprecation, "the declared flag is carried")
-	assert.Nil(t, openapitest.FindOp(t, doc, "postA").Deprecation, "and an operation that declares none has none")
+	assert.NotNil(t, openapitest.FindOperation(t, doc, "getA").Deprecation, "the declared flag is carried")
+	assert.Nil(t, openapitest.FindOperation(t, doc, "postA").Deprecation, "and an operation that declares none has none")
 }
 
 // operationServersSpec declares `servers` at both levels OpenAPI allows, on an
@@ -615,9 +615,9 @@ func serversNamed(t *testing.T, doc *ir.Document, serverIDs []ir.ServerID) []str
 	t.Helper()
 	urls := make([]string, 0, len(serverIDs))
 	for _, id := range serverIDs {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, "%s names no registered server", id)
-		urls = append(urls, s.URLTemplate)
+		urls = append(urls, server.URLTemplate)
 	}
 	return urls
 }
@@ -636,7 +636,7 @@ func TestOperations_OwnServersOverrideThePathItems(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "no servers list is degraded: %+v", diags)
 
-	for _, tc := range []struct{ op, own, ownAt, overridden, overriddenAt string }{
+	for _, tc := range []struct{ operation, own, ownAt, overridden, overriddenAt string }{
 		{"postBoth",
 			"https://operation.example", "/paths/~1both/post/servers/0",
 			"https://pathitem.example", "/paths/~1both/servers/0"},
@@ -649,18 +649,18 @@ func TestOperations_OwnServersOverrideThePathItems(t *testing.T) {
 			"https://cb-pathitem.example",
 			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/servers/0"},
 	} {
-		op := openapitest.FindOp(t, doc, tc.op)
-		assert.Equal(t, []string{tc.own}, serversNamed(t, doc, op.Servers),
-			"%s is sent to its own servers, not its path item's", tc.op)
-		assert.Equal(t, jsontext.Pointer(tc.ownAt), doc.Servers[op.Servers[0]].Provenance.Pointer)
+		irOperation := openapitest.FindOperation(t, doc, tc.operation)
+		assert.Equal(t, []string{tc.own}, serversNamed(t, doc, irOperation.Servers),
+			"%s is sent to its own servers, not its path item's", tc.operation)
+		assert.Equal(t, jsontext.Pointer(tc.ownAt), doc.Servers[irOperation.Servers[0]].Provenance.Pointer)
 
 		overridden := ir.ServerID("server/openapi" + tc.overriddenAt)
-		require.Contains(t, doc.Servers, overridden, "%s's path item list is registered though overridden", tc.op)
+		require.Contains(t, doc.Servers, overridden, "%s's path item list is registered though overridden", tc.operation)
 		assert.Equal(t, tc.overridden, doc.Servers[overridden].URLTemplate)
 		assert.Equal(t, jsontext.Pointer(tc.overriddenAt), doc.Servers[overridden].Provenance.Pointer,
 			"each server keeps the coordinate of the object that declared it")
-		assert.NotContains(t, op.Unmodeled, "openapi:servers", "neither level is kept verbatim")
-		assert.NotContains(t, op.Unmodeled, "openapi:operationServers")
+		assert.NotContains(t, irOperation.Unmodeled, "openapi:servers", "neither level is kept verbatim")
+		assert.NotContains(t, irOperation.Unmodeled, "openapi:operationServers")
 	}
 }
 
@@ -687,11 +687,11 @@ func TestOperations_ServersEachLevelAlone(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.Equal(t, []string{"https://only.example"},
-		serversNamed(t, doc, openapitest.FindOp(t, doc, "getOperationOnly").Servers))
+		serversNamed(t, doc, openapitest.FindOperation(t, doc, "getOperationOnly").Servers))
 	assert.Equal(t, []string{"https://pathonly.example"},
-		serversNamed(t, doc, openapitest.FindOp(t, doc, "getPathItemOnly").Servers),
+		serversNamed(t, doc, openapitest.FindOperation(t, doc, "getPathItemOnly").Servers),
 		"an operation declaring none of its own is sent to its path item's")
-	assert.Nil(t, openapitest.FindOp(t, doc, "getNeither").Servers,
+	assert.Nil(t, openapitest.FindOperation(t, doc, "getNeither").Servers,
 		"an operation neither level scopes names none, so its service's apply")
 	assert.Equal(t, []string{"/"}, serversNamed(t, doc, doc.Services[0].Servers),
 		"and the service is served at the root OpenAPI supplies for a document declaring none")
@@ -721,16 +721,16 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags)
 
-	for op, want := range map[string][]string{
+	for operationName, want := range map[string][]string{
 		"emptyItem": nil, "emptyOperation": {"https://path.example"}, "emptyBoth": nil,
 	} {
-		got := openapitest.FindOp(t, doc, op)
+		got := openapitest.FindOperation(t, doc, operationName)
 		if want == nil {
-			assert.Nil(t, got.Servers, "%s names none, so its service's apply", op)
+			assert.Nil(t, got.Servers, "%s names none, so its service's apply", operationName)
 		} else {
-			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", op)
+			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", operationName)
 		}
-		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", op)
+		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", operationName)
 	}
 	assert.Equal(t, []string{"https://root.example"}, serversNamed(t, doc, doc.Services[0].Servers))
 }
@@ -762,9 +762,9 @@ webhooks:
     post: {operationId: stated, responses: {"200": {description: ok}}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Nil(t, openapitest.FindOp(t, doc, "onEvent").Servers)
-	assert.Nil(t, openapitest.FindOp(t, doc, "created").Servers)
-	assert.Equal(t, []string{"https://receiver.example"}, serversNamed(t, doc, openapitest.FindOp(t, doc, "stated").Servers))
+	assert.Nil(t, openapitest.FindOperation(t, doc, "onEvent").Servers)
+	assert.Nil(t, openapitest.FindOperation(t, doc, "created").Servers)
+	assert.Equal(t, []string{"https://receiver.example"}, serversNamed(t, doc, openapitest.FindOperation(t, doc, "stated").Servers))
 	assert.Equal(t, []string{"https://api.example"}, serversNamed(t, doc, doc.Services[0].Servers))
 }
 
@@ -778,7 +778,7 @@ func TestOperations_PathItemServersAreEachOperationsOwn(t *testing.T) {
     put: {operationId: putX, responses: {"200": {description: ok}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	get, put := openapitest.FindOp(t, doc, "getX"), openapitest.FindOp(t, doc, "putX")
+	get, put := openapitest.FindOperation(t, doc, "getX"), openapitest.FindOperation(t, doc, "putX")
 	require.Equal(t, []ir.ServerID{"server/openapi/paths/~1x/servers/0"}, put.Servers)
 	require.Equal(t, put.Servers, get.Servers, "both name the one declaration")
 
@@ -818,9 +818,9 @@ func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	op := openapitest.FindOp(t, doc, "getX")
-	assert.Equal(t, []string{"https://operation.example"}, serversNamed(t, doc, op.Servers))
-	assert.Contains(t, op.Unmodeled, "openapi:x-vendor", "and the extensions survive beside them")
+	irOperation := openapitest.FindOperation(t, doc, "getX")
+	assert.Equal(t, []string{"https://operation.example"}, serversNamed(t, doc, irOperation.Servers))
+	assert.Contains(t, irOperation.Unmodeled, "openapi:x-vendor", "and the extensions survive beside them")
 }
 
 // TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate covers the
@@ -848,7 +848,7 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	const want = ir.TypeID("t/anon/components/responses/My-Resp/content/application~1json/schema")
+	const want = ir.TypeID("type/anonymous/components/responses/My-Resp/content/application~1json/schema")
 	assert.Contains(t, doc.Types, want,
 		"the response body is hoisted at the coordinate the component declares")
 	for id := range doc.Types {
@@ -872,10 +872,10 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
-	declared, _ := auth.LowerSecuritySchemes(c)
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
 
-	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
+	lowered, _ := operation.LowerService(t.Context(), serviceContext, compile.NewTypes(), declared)
 
 	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, slices.Sorted(maps.Keys(declared)), "the declared schemes alone")
 	assert.Equal(t, []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("ghost")}, slices.Sorted(maps.Keys(lowered.Auth)),
@@ -928,22 +928,22 @@ components:
 `)
 	want := []string{"a", "", "b", "A", " "}
 	for _, name := range []string{"inline", "callback", "hook"} {
-		assert.Equal(t, want, openapitest.FindOp(t, doc, name).Tags, name)
+		assert.Equal(t, want, openapitest.FindOperation(t, doc, name).Tags, name)
 	}
-	byID := map[ir.OpID]ir.Operation{}
-	ir.ForEachOperation(doc, func(op ir.Operation) { byID[op.ID] = op })
-	for _, mount := range []ir.OpID{"op/openapi/paths/~1once/get", "op/openapi/paths/~1twice/get"} {
-		op, ok := byID[mount]
+	byID := map[ir.OperationID]ir.Operation{}
+	ir.ForEachOperation(doc, func(irOperation ir.Operation) { byID[irOperation.ID] = irOperation })
+	for _, mount := range []ir.OperationID{"operation/openapi/paths/~1once/get", "operation/openapi/paths/~1twice/get"} {
+		irOperation, ok := byID[mount]
 		require.True(t, ok, "a mount of the path item lowers: %s", mount)
-		assert.Equal(t, want, op.Tags, mount)
+		assert.Equal(t, want, irOperation.Tags, mount)
 	}
-	assert.Equal(t, []string{"b", "a", "B"}, openapitest.FindOp(t, doc, "clean").Tags, "a list repeating nothing")
+	assert.Equal(t, []string{"b", "a", "B"}, openapitest.FindOperation(t, doc, "clean").Tags, "a list repeating nothing")
 
 	var got []string
-	for _, d := range diags {
-		if d.Code == diag.RepeatedEntry {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			got = append(got, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 		}
 	}
 	slices.Sort(got)
@@ -976,6 +976,6 @@ paths:
       tags: [`+strings.Join(written, ", ")+`, t5]
       responses: {"200": {description: ok}}
 `)
-	assert.Equal(t, written, openapitest.FindOp(t, doc, "x").Tags)
+	assert.Equal(t, written, openapitest.FindOperation(t, doc, "x").Tags)
 	assert.Equal(t, []jsontext.Pointer{"/paths/~1x/get/tags/17"}, openapitest.PointersOf(diags, diag.RepeatedEntry))
 }

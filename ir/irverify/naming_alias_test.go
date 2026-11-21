@@ -98,7 +98,7 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 			got := aliasViolations(t, "ok", alias)
 			require.Len(t, got, 1, "one violation for the one blank entry")
 			assert.Equal(t, "ir/naming-alias-blank", got[0].Code)
-			assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[1]", got[0].Path,
+			assert.Equal(t, "document.Types[type/x/M].Name.Aliases[1]", got[0].Path,
 				"the violation names the offending entry, not just the naming")
 		})
 	}
@@ -165,7 +165,7 @@ func TestVerify_IllFormedAliasIsAViolation(t *testing.T) {
 	got := aliasViolations(t, "ok", ill)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/invalid-utf8", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[1]", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/M].Name.Aliases[1]", got[0].Path)
 	assert.NotContains(t, got[0].Message, ill, "the report does not repeat the bad bytes")
 }
 
@@ -185,10 +185,10 @@ func TestVerify_DuplicateIllFormedAliasIsNotFlaggedTwice(t *testing.T) {
 
 	got := aliasViolations(t, ill, ill)
 	require.Len(t, got, 2, "one per occurrence, from checkUTF8 alone")
-	for i, v := range got {
-		assert.Equal(t, "ir/invalid-utf8", v.Code)
-		assert.Equal(t, fmt.Sprintf("doc.Types[t/x/M].Name.Aliases[%d]", i), v.Path)
-		assert.NotContains(t, v.Message, ill, "the report does not repeat the bad bytes")
+	for i, violation := range got {
+		assert.Equal(t, "ir/invalid-utf8", violation.Code)
+		assert.Equal(t, fmt.Sprintf("document.Types[type/x/M].Name.Aliases[%d]", i), violation.Path)
+		assert.NotContains(t, violation.Message, ill, "the report does not repeat the bad bytes")
 	}
 }
 
@@ -201,7 +201,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 	got := aliasViolations(t, "dup", "other", "dup")
 	require.Len(t, got, 1, "the repeat is reported, not the first occurrence")
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[2]", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/M].Name.Aliases[2]", got[0].Path)
 	assert.Equal(t, `alias "dup" is listed here and at index 0`, got[0].Message)
 }
 
@@ -215,7 +215,7 @@ func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User"}}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[0]", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/M].Name.Aliases[0]", got[0].Path)
 	assert.Equal(t, `alias "User" is the entity's own source name, so it matches nothing more`,
 		got[0].Message)
 }
@@ -226,13 +226,13 @@ func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 // one of them is not redundant with anything a reader would match.
 func TestVerify_AliasMatchingDerivedChannelsIsClean(t *testing.T) {
 	t.Parallel()
-	for channel, n := range map[string]ir.Naming{
+	for channel, naming := range map[string]ir.Naming{
 		"canonical": {Source: "User", Canonical: "user", Aliases: []string{"user"}},
 		"hint":      {Hint: "user", Aliases: []string{"user"}},
 	} {
 		t.Run(channel, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, verifyDeclared(modelNamed(n)))
+			assert.Empty(t, verifyDeclared(modelNamed(naming)))
 		})
 	}
 }
@@ -254,8 +254,8 @@ func TestVerify_RepeatedBlankAliasReportsEachAsBlank(t *testing.T) {
 			t.Parallel()
 			got := aliasViolations(t, alias, alias)
 			require.Len(t, got, 2)
-			for _, v := range got {
-				assert.Equal(t, "ir/naming-alias-blank", v.Code)
+			for _, violation := range got {
+				assert.Equal(t, "ir/naming-alias-blank", violation.Code)
 			}
 		})
 	}
@@ -271,9 +271,9 @@ func TestVerify_RepeatedSourceAliasReportsEachAsRedundant(t *testing.T) {
 	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User", "User"}}))
 	require.Len(t, got, 2)
-	for i, v := range got {
-		assert.Equal(t, "ir/naming-alias-redundant", v.Code)
-		assert.Equal(t, fmt.Sprintf("doc.Types[t/x/M].Name.Aliases[%d]", i), v.Path)
+	for i, violation := range got {
+		assert.Equal(t, "ir/naming-alias-redundant", violation.Code)
+		assert.Equal(t, fmt.Sprintf("document.Types[type/x/M].Name.Aliases[%d]", i), violation.Path)
 	}
 }
 
@@ -288,12 +288,12 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 	// Keyed rather than indexed: Verify sorts by (Code, Path), so asserting
 	// positionally would pin the sort order rather than what was reported.
 	byCode := map[string]string{}
-	for _, v := range got {
-		byCode[v.Code] = v.Path
+	for _, violation := range got {
+		byCode[violation.Code] = violation.Path
 	}
 	assert.Equal(t, map[string]string{
-		"ir/naming-alias-blank":     "doc.Types[t/x/M].Name.Aliases[2]",
-		"ir/naming-alias-duplicate": "doc.Types[t/x/M].Name.Aliases[4]",
+		"ir/naming-alias-blank":     "document.Types[type/x/M].Name.Aliases[2]",
+		"ir/naming-alias-duplicate": "document.Types[type/x/M].Name.Aliases[4]",
 	}, byCode)
 }
 
@@ -313,24 +313,24 @@ func TestVerify_AliasClaimedByAnotherEntityIsClean(t *testing.T) {
 		return ir.Naming{Source: source, Canonical: source, Aliases: []string{shared}}
 	}
 	declared := ir.Naming{Source: shared, Canonical: ir.CanonicalWords(shared)}
-	property := func(id ir.PropID, n ir.Naming) ir.Property {
-		return ir.Property{ID: id, Name: n, Type: ir.TypeRef{Target: "t/x/A"}}
+	property := func(id ir.PropertyID, naming ir.Naming) ir.Property {
+		return ir.Property{ID: id, Name: naming, Type: ir.TypeRef{Target: "type/x/A"}}
 	}
 
 	for name, types := range map[string]ir.TypeRegistry{
 		"alias on two types": {
-			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
-			"t/x/B": &ir.Model{ID: "t/x/B", Name: aliased("b")},
+			"type/x/A": &ir.Model{ID: "type/x/A", Name: aliased("a")},
+			"type/x/B": &ir.Model{ID: "type/x/B", Name: aliased("b")},
 		},
 		"alias naming another type": {
-			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
-			"t/x/B": &ir.Model{ID: "t/x/B", Name: declared},
+			"type/x/A": &ir.Model{ID: "type/x/A", Name: aliased("a")},
+			"type/x/B": &ir.Model{ID: "type/x/B", Name: declared},
 		},
 		"alias naming a sibling property": {
-			"t/x/A": &ir.Model{ID: "t/x/A", Name: ir.Naming{Source: "a", Canonical: "a"},
+			"type/x/A": &ir.Model{ID: "type/x/A", Name: ir.Naming{Source: "a", Canonical: "a"},
 				Properties: []ir.Property{
-					property("p/x/A/b", aliased("b")),
-					property("p/x/A/c", declared),
+					property("property/x/A/b", aliased("b")),
+					property("property/x/A/c", declared),
 				}},
 		},
 	} {
@@ -375,8 +375,8 @@ func TestVerify_AliasPathIsSpelledAsTheWalkWould(t *testing.T) {
 	got := aliasViolations(t, make([]string, size)...)
 	require.Len(t, got, size)
 	paths := make([]string, len(got))
-	for i, v := range got {
-		paths[i] = v.Path
+	for i, violation := range got {
+		paths[i] = violation.Path
 	}
 	want := make([]string, 0, size)
 	for _, alias := range aliases {

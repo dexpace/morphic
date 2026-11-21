@@ -16,17 +16,17 @@ import (
 // numeric literal in canonical form at nothing, whatever its parts: it asks
 // ir.NewBigVal for the canonical form, which hands such a literal back as it
 // is, where rendering the canonical form to compare costs a string per
-// literal. Both carriers are reached, a Value's Num and a bound held by
+// literal. Both carriers are reached, a Value's Number and a bound held by
 // pointer. It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckBigVals_VisitingCostsNoAllocation(t *testing.T) {
-	bound := func(s ir.BigVal) *ir.BigVal { return &s }
-	nums := []ir.BigVal{"0", "-0", "42", "-1.5", "2.5E-3", "1e+10", "12345678901234567890.12345678901234567890"}
-	values := make([]ir.Value, 0, len(nums))
-	for _, num := range nums {
-		values = append(values, ir.Value{Kind: ir.ValueNumber, Num: num})
+	bound := func(bigVal ir.BigVal) *ir.BigVal { return &bigVal }
+	numbers := []ir.BigVal{"0", "-0", "42", "-1.5", "2.5E-3", "1e+10", "12345678901234567890.12345678901234567890"}
+	values := make([]ir.Value, 0, len(numbers))
+	for _, number := range numbers {
+		values = append(values, ir.Value{Kind: ir.ValueNumber, Number: number})
 	}
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		ID:          "t/x/S",
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+		ID:          "type/x/S",
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: values}}},
 		Constraints: &ir.Constraints{Min: bound("-0.5"), Max: bound("1e400"), MultipleOf: bound("0.25")},
 	}}}

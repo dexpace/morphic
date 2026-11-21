@@ -23,7 +23,7 @@ import (
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
 	unrestricted := ir.Visibility{}
-	invisible := ir.Visibility{None: true}
+	invisible := ir.Visibility{InvisibleInEveryLifecycle: true}
 
 	tests := []struct {
 		name     string
@@ -56,9 +56,9 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			// readOnly admits {read, delete, query}; writeOnly admits
 			// {create, update} — disjoint sets whose intersection is empty,
 			// meaning the field can satisfy no lifecycle both entries
-			// admit. None is the IR's existing shape for "visible in no
-			// lifecycle" (TypeSpec @invisible), so the empty intersection is
-			// recorded exactly rather than read as unrestricted.
+			// admit. InvisibleInEveryLifecycle is the IR's existing shape for
+			// "visible in no lifecycle" (TypeSpec @invisible), so the empty
+			// intersection is recorded exactly rather than read as unrestricted.
 			name: "disjoint restrictions intersect to invisible",
 			dst:  readOnlyVisibility, src: writeOnlyVisibility,
 			want: invisible,
@@ -118,5 +118,5 @@ func TestMergeVisibility_ReorderedEntriesAgree(t *testing.T) {
 	assert.Equal(t, forward, reversed, "allOf entry order must not reach the merged Only")
 	assert.ElementsMatch(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleQuery}, forward.Only,
 		"the merge is still the intersection, whichever order it is spelled in")
-	assert.False(t, forward.None, "a non-empty intersection is a restriction, not invisibility")
+	assert.False(t, forward.InvisibleInEveryLifecycle, "a non-empty intersection is a restriction, not invisibility")
 }

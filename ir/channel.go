@@ -53,7 +53,7 @@ type Message struct {
 	// Emitters compute flat lists per docs/ir/models.md#the-flattening.
 	Headers *TypeRef `json:"headers,omitzero"`
 	// CorrelationID locates the correlation value: In: "header" | "" (payload).
-	CorrelationID *PropPath `json:"correlationID,omitzero"`
+	CorrelationID *PropertyPath `json:"correlationID,omitzero"`
 	// ContentType is the message content type.
 	ContentType string `json:"contentType,omitempty"`
 	// Tags are the message's tag memberships.

@@ -19,19 +19,19 @@ import (
 // integerFields test is what notices it.
 func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		for i, b := range op.Bindings.HTTP {
-			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(op.Responses), op.ID, i)
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		for i, b := range operation.Bindings.HTTP {
+			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(operation.Responses), operation.ID, i)
 		}
 	})
 	return diags
 }
 
 // appendSuccessStatusDiags appends to dst a diagnostic per SuccessStatus key of
-// HTTP binding i of operation op that addresses none of the declared responses,
-// in ascending key order so map iteration cannot reach the output. Only the
-// keys reported are sorted, and only their location spelled.
-func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, op ir.OpID, i int) []ir.Diagnostic {
+// HTTP binding i of operation operation that addresses none of the declared
+// responses, in ascending key order so map iteration cannot reach the output.
+// Only the keys reported are sorted, and only their location spelled.
+func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, operation ir.OperationID, i int) []ir.Diagnostic {
 	var outside []int
 	for index := range status {
 		if index < 0 || index >= declared {
@@ -42,7 +42,7 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 		return dst
 	}
 	slices.Sort(outside)
-	where := fmt.Sprintf("%s/bindings/http/%d", op, i)
+	where := fmt.Sprintf("%s/bindings/http/%d", operation, i)
 	for _, index := range outside {
 		at := fmt.Sprintf("%s/successStatus/%d", where, index)
 		dst = append(dst, diag(ir.SeverityError, "ir/response-index-out-of-range",

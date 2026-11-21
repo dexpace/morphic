@@ -21,7 +21,7 @@ import (
 func TestSeconds_EachNamesARowOrWritesItsOwn(t *testing.T) {
 	rows := constructs()
 	for _, sec := range seconds()[1:] {
-		named := slices.ContainsFunc(rows, func(k construct) bool { return k.keyword == sec.name })
+		named := slices.ContainsFunc(rows, func(constructValue construct) bool { return constructValue.keyword == sec.name })
 		assert.NotEqual(t, named, sec.own != nil, sec.name)
 	}
 	assert.Equal(t, none, seconds()[0].name)
@@ -33,7 +33,7 @@ func TestSeconds_EachNamesARowOrWritesItsOwn(t *testing.T) {
 // target's in every spelling, and nowhere it would not say a keyword of its
 // own.
 func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
-	c, ok := New().(cases)
+	casesValue, ok := New().(cases)
 	require.True(t, ok)
 	for _, tc := range []struct{ name, use string }{
 		{"3.0.3/string/minLength/description/component/beside",
@@ -77,7 +77,7 @@ func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
 		{"3.0.3/object/minProperties/properties/component/inline", ""}, // replacing a member of the body
 		{"3.0.3/string/none/description/component/beside", ""},         // the row's own case
 	} {
-		doc, ok := c.Write(caseAt(t, c, strings.Split(tc.name, "/")...))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, strings.Split(tc.name, "/")...))
 		if tc.use == "" {
 			assert.False(t, ok, tc.name)
 			continue
@@ -102,11 +102,11 @@ func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
 // and writing nothing of its own to a panic, which CheckCase reports, rather
 // than a case written without it.
 func TestWrite_PanicsOnASecondOfNoRow(t *testing.T) {
-	c, ok := New().(cases)
+	casesValue, ok := New().(cases)
 	require.True(t, ok)
-	c.seconds = []second{{name: none}, {name: "unwritten"}}
+	casesValue.seconds = []second{{name: none}, {name: "unwritten"}}
 	assert.PanicsWithValue(t, `openapicases: second construct "unwritten" names no construct row and writes nothing`,
-		func() { c.Write([]int{0, 1, 1, 1, 0, 1}) })
+		func() { casesValue.Write([]int{0, 1, 1, 1, 0, 1}) })
 }
 
 // TestWrite_NamesTheTwoPartsOfAUnit pins the parts a case writing a construct
@@ -114,17 +114,17 @@ func TestWrite_PanicsOnASecondOfNoRow(t *testing.T) {
 // which for a second named as a construct row is that row's case. A case
 // writing one keyword, or naming no partner, names none.
 func TestWrite_NamesTheTwoPartsOfAUnit(t *testing.T) {
-	c, ok := New().(cases)
+	casesValue, ok := New().(cases)
 	require.True(t, ok)
 	parts := func(names ...string) [][]int {
-		doc, ok := c.Write(caseAt(t, c, names...))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, names...))
 		require.True(t, ok, "%v", names)
 		if doc.Equal == nil {
 			return nil
 		}
 		return doc.Equal.Parts
 	}
-	at := func(name string) []int { return caseAt(t, c, strings.Split(name, "/")...) }
+	at := func(name string) []int { return caseAt(t, casesValue, strings.Split(name, "/")...) }
 	assert.Equal(t, [][]int{at("3.0.3/string/minLength/none/items/entry"), at("3.0.3/string/description/none/items/entry")},
 		parts("3.0.3", "string", "minLength", "description", "items", "entry"))
 	assert.Equal(t, [][]int{at("3.1.0/string/minLength/none/items/beside"), at("3.1.0/string/none/typeNull/items/beside")},
@@ -138,10 +138,10 @@ func TestWrite_NamesTheTwoPartsOfAUnit(t *testing.T) {
 // options a case compiles under: a type admitting null turns the
 // nullable-inference policy off, in every spelling, and nothing else does.
 func TestWrite_ATypeAdmittingNullCompilesWithoutTheNullablePolicy(t *testing.T) {
-	c, ok := New().(cases)
+	casesValue, ok := New().(cases)
 	require.True(t, ok)
 	for _, s := range []string{"inline", "beside", "wrap", "entry", "besideEntry"} {
-		doc, ok := c.Write(caseAt(t, c, "3.1.0", "string", "minLength", "typeNull", "property", s))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, "3.1.0", "string", "minLength", "typeNull", "property", s))
 		require.True(t, ok, s)
 		assert.Equal(t, map[string]string{"nullable-inference": "false"}, doc.Options, s)
 	}
@@ -151,7 +151,7 @@ func TestWrite_ATypeAdmittingNullCompilesWithoutTheNullablePolicy(t *testing.T) 
 		{"3.0.3", "object", "nullable", "properties", "property", "entry"},
 		{"3.1.0", "union", "type", "none", "property", "beside"},
 	} {
-		doc, ok := c.Write(caseAt(t, c, names...))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, names...))
 		require.True(t, ok, "%v", names)
 		assert.Nil(t, doc.Options, "%v", names)
 	}

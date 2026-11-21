@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "PaginationFlag",
         "canonical": "pagination_flag"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1changes/get",
+              "id": "operation/openapi/paths/~1changes/get",
               "name": {
                 "source": "listChanges",
                 "canonical": "list_changes"
@@ -67,13 +67,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1changes/get/parameters/cursor/query",
+                  "id": "parameter/openapi/paths/~1changes/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -102,7 +102,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -118,23 +118,23 @@
                 "strategy": "cursor",
                 "inferred": true,
                 "inputCursor": {
-                  "param": "param/openapi/paths/~1changes/get/parameters/cursor/query"
+                  "param": "parameter/openapi/paths/~1changes/get/parameters/cursor/query"
                 },
                 "items": {
                   "segments": [
-                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
+                    "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
                   ]
                 },
                 "nextCursor": {
                   "segments": [
-                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
-                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor"
+                    "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+                    "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor"
                   ]
                 },
                 "hasMore": {
                   "segments": [
-                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
-                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more"
+                    "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+                    "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more"
                   ]
                 },
                 "stop": [
@@ -149,7 +149,7 @@
                     "uriTemplate": "/changes",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1changes/get/parameters/cursor/query",
+                        "param": "parameter/openapi/paths/~1changes/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -180,9 +180,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -195,21 +195,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+          "id": "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
           "name": {
             "source": "result",
             "canonical": "result"
           },
           "wireName": "result",
           "type": {
-            "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+            "target": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -222,21 +222,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+          "id": "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
           "name": {
             "source": "result_info",
             "canonical": "result_info"
           },
           "wireName": "result_info",
           "type": {
-            "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+            "target": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -253,9 +253,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result": {
+    "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result": {
       "kind": "list",
-      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+      "id": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
       "name": {
         "hint": "result"
       },
@@ -266,14 +266,14 @@
         "source": 0,
         "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info": {
+    "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info": {
       "kind": "model",
-      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+      "id": "type/anonymous/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
       "name": {
         "hint": "result_info"
       },
@@ -286,21 +286,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor",
+          "id": "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor",
           "name": {
             "source": "next_cursor",
             "canonical": "next_cursor"
           },
           "wireName": "next_cursor",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -315,21 +315,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more",
+          "id": "property/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more",
           "name": {
             "source": "has_more",
             "canonical": "has_more"
           },
           "wireName": "has_more",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -348,9 +348,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -358,11 +358,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -370,7 +370,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

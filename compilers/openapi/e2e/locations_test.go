@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -105,9 +105,9 @@ func TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing(t *testing.T)
 						openapi.Options{AllowExternalRefs: allow, Locations: []openapi.Location{{Prefix: mapped, Location: location}}}, rec)
 
 					var mine []ir.Diagnostic
-					for _, d := range unresolvedRefs(diags) {
-						if d.Provenance.Pointer == "/components/schemas/p" {
-							mine = append(mine, d)
+					for _, diagnostic := range unresolvedRefs(diags) {
+						if diagnostic.Provenance.Pointer == "/components/schemas/p" {
+							mine = append(mine, diagnostic)
 						}
 					}
 					require.Len(t, mine, 1, "%+v", diags)
@@ -142,7 +142,7 @@ func TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames(t *testing.T
 				assert.Equal(t, filepath.Join(root, "x", "b.yaml"), filepath.Clean(loc), "never the parent's b.yaml")
 			}
 			assert.NotEmpty(t, rec.locations())
-			assert.Equal(t, ir.TypeID("t/prim/string"), typeTarget(t, doc, useTarget(t, doc, "p")))
+			assert.Equal(t, ir.TypeID("type/primitive/string"), typeTarget(t, doc, useTarget(t, doc, "p")))
 		})
 	}
 }
@@ -173,7 +173,7 @@ func TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile(t *testing.T) 
 	bad := unresolvedRefs(diags)
 	require.Len(t, bad, 1, "%+v", diags)
 	assert.Equal(t, 1, bad[0].Provenance.Source, "in net.yaml's entry")
-	assert.Contains(t, bad[0].Message, bind.OffNetwork)
+	assert.Contains(t, bad[0].Message, reftable.OffNetwork)
 	assert.Equal(t, []string{srv.URL + "/net.yaml"}, rec.locations(), "b.yaml is not read")
 }
 

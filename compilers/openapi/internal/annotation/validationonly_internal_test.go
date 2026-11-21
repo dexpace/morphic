@@ -235,7 +235,7 @@ func TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside(t *t
 func TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert(t *testing.T) {
 	t.Parallel()
 	const (
-		props = "unevaluatedProperties beside additionalProperties applies to no property, " +
+		properties = "unevaluatedProperties beside additionalProperties applies to no property, " +
 			"since additionalProperties evaluates each one it would"
 		items = "unevaluatedItems beside items applies to no element, since items evaluates each one it would"
 		plain = `validation-only keyword "unevaluated" kept verbatim under Unmodeled`
@@ -244,16 +244,16 @@ func TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert(t *tes
 		"unevaluatedProperties: false\n": plain,
 		"properties: {a: {}}\npatternProperties: {'^x': {}}\nunevaluatedProperties: false\n":     plain,
 		"prefixItems: [{}]\ncontains: {}\nunevaluatedItems: false\n":                             plain,
-		"additionalProperties: true\nunevaluatedProperties: false\n":                             props + "; both kept verbatim under Unmodeled",
+		"additionalProperties: true\nunevaluatedProperties: false\n":                             properties + "; both kept verbatim under Unmodeled",
 		"items: true\nunevaluatedItems: false\n":                                                 items + "; both kept verbatim under Unmodeled",
-		"additionalProperties: true\nunevaluatedProperties: false\nunevaluatedItems: false\n":    props + "; " + plain,
+		"additionalProperties: true\nunevaluatedProperties: false\nunevaluatedItems: false\n":    properties + "; " + plain,
 		"unevaluatedProperties: false\nitems: true\nunevaluatedItems: false\n":                   items + "; " + plain,
-		"additionalProperties: {}\nunevaluatedProperties: {}\nitems: {}\nunevaluatedItems: {}\n": props + "; " + items + "; " + plain,
+		"additionalProperties: {}\nunevaluatedProperties: {}\nitems: {}\nunevaluatedItems: {}\n": properties + "; " + items + "; " + plain,
 	} {
 		got, diags := validationOnlyAt(standaloneSchema(schemaFromYAML(t, body)), "/S", sourced(0), Dialect{}, true, false)
 		require.Contains(t, got, "openapi:unevaluated", "%s", body)
 		// contains is an entry of its own, reported first.
-		diags = slices.DeleteFunc(diags, func(d ir.Diagnostic) bool { return strings.Contains(d.Message, `"contains"`) })
+		diags = slices.DeleteFunc(diags, func(diagnostic ir.Diagnostic) bool { return strings.Contains(diagnostic.Message, `"contains"`) })
 		require.Len(t, diags, 1, "one report for the one entry: %s", body)
 		assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
 		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "an inert keyword is valid JSON Schema")
@@ -284,8 +284,8 @@ func TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword(t *testi
 
 // unevaluatedClosed is unevaluatedRaw for a 2020-12 schema whose node holds a
 // false unevaluatedProperties as its closure, as a combining reader takes one.
-func unevaluatedClosed(s *statement.Schema) (ir.RawValue, []string, error) {
-	return unevaluatedRaw(s, unevaluatedKept(s, true, Dialect{}))
+func unevaluatedClosed(schema *statement.Schema) (ir.RawValue, []string, error) {
+	return unevaluatedRaw(schema, unevaluatedKept(schema, true, Dialect{}))
 }
 
 // TestJSONObject_PropagatesAQuoteFailure covers jsonObject's one failure mode:
@@ -333,8 +333,8 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		assert.NotEmpty(t, entry.Value, "%s must carry bytes", key)
 	}
 	announced := make([]string, 0, len(diags))
-	for _, d := range diags {
-		announced = append(announced, d.Message)
+	for _, diagnostic := range diags {
+		announced = append(announced, diagnostic.Message)
 	}
 	labels := []string{
 		"not", "if/then/else", "dependentSchemas", "dependentRequired", "propertyNames", "contains", "unevaluated",
@@ -376,8 +376,8 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	assert.NotContains(t, got, "openapi:not")
 	assert.NotContains(t, got, "openapi:contains")
 	require.GreaterOrEqual(t, len(diags), 2)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityError, d.Severity, "an unconvertible keyword is an error")
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity, "an unconvertible keyword is an error")
 	}
 }
 
@@ -460,9 +460,9 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 			assert.Equal(t, want, entry.Provenance, "%s: %s", name, key)
 		}
 		require.Len(t, diags, 4, "%s: one announcement per entry kept", name)
-		for _, d := range diags {
-			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, d.Provenance,
-				"%s: a note is attributed by the schema alone: %s", name, d.Message)
+		for _, diagnostic := range diags {
+			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, diagnostic.Provenance,
+				"%s: a note is attributed by the schema alone: %s", name, diagnostic.Message)
 		}
 	}
 }
@@ -489,9 +489,9 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 
 		assert.Empty(t, got, "%s: an entry that will not render is not kept", name)
 		require.Len(t, diags, 2, name)
-		for _, d := range diags {
-			assert.Equal(t, ir.SeverityError, d.Severity, "%s: %s", name, d.Message)
-			assert.Equal(t, ir.Provenance{Pointer: "/S", WrittenBy: tc.want}, d.Provenance, "%s: %s", name, d.Message)
+		for _, diagnostic := range diags {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%s: %s", name, diagnostic.Message)
+			assert.Equal(t, ir.Provenance{Pointer: "/S", WrittenBy: tc.want}, diagnostic.Provenance, "%s: %s", name, diagnostic.Message)
 		}
 	}
 }

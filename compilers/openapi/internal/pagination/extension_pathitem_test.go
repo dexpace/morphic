@@ -30,14 +30,14 @@ func TestPromote_TrueReadsThePathItemFirst(t *testing.T) {
 	require.NoError(t, err)
 	doc, diags := compile(t, string(src), openapi.Options{})
 
-	list := openapitest.FindOp(t, doc, "listDogs")
+	list := openapitest.FindOperation(t, doc, "listDogs")
 	require.NotNil(t, list.Pagination, "the path item's statement fills the operation that wrote true")
 	got, err := json.Marshal(list.Pagination, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"strategy":"cursor","inferred":true,`+
-		`"inputCursor":{"param":"param/openapi/paths/~1dogs/get/parameters/cursor/query"},`+
-		`"items":{"segments":["p/openapi/components/schemas/Page/properties/rows"]},`+
-		`"nextCursor":{"segments":["p/openapi/components/schemas/Page/properties/nxt"]}}`, string(got))
+		`"inputCursor":{"param":"parameter/openapi/paths/~1dogs/get/parameters/cursor/query"},`+
+		`"items":{"segments":["property/openapi/components/schemas/Page/properties/rows"]},`+
+		`"nextCursor":{"segments":["property/openapi/components/schemas/Page/properties/nxt"]}}`, string(got))
 	assert.Equal(t, "extension-promotion", string(list.Provenance.Inferred))
 	assert.Empty(t, openapitest.PointersOf(diags, diag.UnpromotedExtension),
 		"a statement read from the path item draws no finding")
@@ -53,13 +53,13 @@ func TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot(t *testing.T)
 	require.NoError(t, err)
 	doc, diags := compile(t, string(src), openapi.Options{})
 
-	purge := openapitest.FindOp(t, doc, "purgeDogs")
+	purge := openapitest.FindOperation(t, doc, "purgeDogs")
 	assert.Nil(t, purge.Pagination)
 	assert.NotContains(t, string(purge.Provenance.Inferred), "extension-promotion")
 	assert.Contains(t, purge.Unmodeled, "openapi:pathItem/x-fern-pagination")
-	for _, d := range diags {
-		if d.Code == diag.UnpromotedExtension {
-			assert.NotContains(t, string(d.Provenance.Pointer), "/delete", "no finding names purgeDogs")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnpromotedExtension {
+			assert.NotContains(t, string(diagnostic.Provenance.Pointer), "/delete", "no finding names purgeDogs")
 		}
 	}
 }

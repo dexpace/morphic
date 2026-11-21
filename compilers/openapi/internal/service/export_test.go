@@ -8,8 +8,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -18,10 +18,10 @@ import (
 type Expansion = expansion
 
 // NewExpansion exposes newExpansion.
-func NewExpansion(l budget.Limit) *Expansion { return newExpansion(l) }
+func NewExpansion(limit budget.Limit) *Expansion { return newExpansion(limit) }
 
 // Admit exposes admit.
-func (e *expansion) Admit(at bind.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
+func (e *expansion) Admit(at reftable.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
 	return e.admit(at, end, hops...)
 }
 
@@ -34,10 +34,12 @@ func (e *expansion) Spent() int { return e.spent.Spent() }
 // Weighed counts the declarations weighed so far, once for each reading.
 func (e *expansion) Weighed() int { return len(e.weights) }
 
-// WeightOf exposes weightOf.
-func WeightOf(root *yaml.Node, at bind.Reading, within budget.Limit) int {
-	return weightOf(root, at, within)
+// ReferenceExpansionSize exposes referenceExpansionSize.
+func ReferenceExpansionSize(root *yaml.Node, at reftable.Reading, within budget.Limit) int {
+	return referenceExpansionSize(root, at, within)
 }
 
 // ReadingOf exposes readingOf.
-func ReadingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading { return readingOf(c, usePtr) }
+func ReadingOf(serviceContext Ctx, usePtr jsontext.Pointer) reftable.Reading {
+	return readingOf(serviceContext, usePtr)
+}

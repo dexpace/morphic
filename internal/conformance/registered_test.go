@@ -33,15 +33,15 @@ func TestConformance_EveryRegisteredFormatIsHeldToItsColumn(t *testing.T) {
 	names := formatNames(eng.Formats())
 	require.NotEmpty(t, names, "engine.New compiles no format, so no column is held to anything")
 
-	m := readMatrix(t)
+	matrix := readMatrix(t)
 	for _, format := range names {
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
-			at := m.columnsKeyed(format)
+			at := matrix.columnsKeyed(format)
 			require.Len(t, at, 1, "engine.New registers a compiler for %q, so ir-spec-matrix.md needs exactly "+
 				"one format column whose header ends in `%s` as its one code span, and has %d", format, format, len(at))
 			text, specs := readCorpus(t, format)
-			for _, p := range witnessProblems(m, at[0], format, text, specs) {
+			for _, p := range witnessProblems(matrix, at[0], format, text, specs) {
 				t.Error(p)
 			}
 		})
@@ -52,8 +52,8 @@ func TestConformance_EveryRegisteredFormatIsHeldToItsColumn(t *testing.T) {
 // keyed by its name, and one name serves every version of it.
 func formatNames(formats []compilers.SourceFormat) []string {
 	names := make([]string, 0, len(formats))
-	for _, f := range formats {
-		names = append(names, f.Name)
+	for _, sourceFormat := range formats {
+		names = append(names, sourceFormat.Name)
 	}
 	slices.Sort(names)
 	return slices.Compact(names)

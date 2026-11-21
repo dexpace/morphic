@@ -44,10 +44,10 @@ func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 	if len(regs) == 0 {
 		return nil, nil // the framework, or a package reaching no ir
 	}
-	c := registryCheck{l: l, pass: pass, regs: regs, settled: settlements(pass), ways: l.ways(pass.Pkg.Path())}
+	registryCheckValue := registryCheck{l: l, pass: pass, regs: regs, settled: settlements(pass), ways: l.ways(pass.Pkg.Path())}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
-			c.node(n)
+			registryCheckValue.node(n)
 		}
 	}
 	return nil, nil
@@ -77,11 +77,11 @@ func (l layout) registriesHeld(pkg *types.Package) []registryType {
 	st, _ := doc.Type().Underlying().(*types.Struct) // ir declares Document a struct
 	var regs []registryType
 	for f := range st.Fields() {
-		r, isReg := registryOf(f.Type())
-		if !isReg || !r.types && l.within(path, "compilers") {
+		registryType, isReg := registryOf(f.Type())
+		if !isReg || !registryType.types && l.within(path, "compilers") {
 			continue
 		}
-		regs = append(regs, r)
+		regs = append(regs, registryType)
 	}
 	return regs
 }
@@ -97,13 +97,13 @@ func registryOf(t types.Type) (registryType, bool) {
 	if !named || !isString(key) {
 		return registryType{}, false
 	}
-	r := registryType{core: m, noun: strings.ToLower(strings.TrimSuffix(key.Obj().Name(), "ID"))}
-	r.types = r.noun == "type"
-	r.writers = "ir and the compilers"
-	if r.types {
-		r.writers = "ir and compilers/compile"
+	registryTypeValue := registryType{core: m, noun: strings.ToLower(strings.TrimSuffix(key.Obj().Name(), "ID"))}
+	registryTypeValue.types = registryTypeValue.noun == "type"
+	registryTypeValue.writers = "ir and the compilers"
+	if registryTypeValue.types {
+		registryTypeValue.writers = "ir and compilers/compile"
 	}
-	return r, true
+	return registryTypeValue, true
 }
 
 // isString reports whether t's underlying type is string.
@@ -146,15 +146,15 @@ func (l layout) ways(path string) ways {
 // qualifier spells a type of package ir as ir spells it to its importers.
 func qualifier(p *types.Package) string { return p.Name() }
 
-// built reports r built at pos.
-func (c registryCheck) built(pos token.Pos, r registryType) {
-	c.pass.Reportf(pos, "builds %s registry (a map from %s to %s) outside %s; %s", r.named(),
-		types.TypeString(r.core.Key(), qualifier), types.TypeString(r.core.Elem(), qualifier), r.writers, c.ways.built)
+// built reports registryTypeValue built at pos.
+func (c registryCheck) built(pos token.Pos, registryTypeValue registryType) {
+	c.pass.Reportf(pos, "builds %s registry (a map from %s to %s) outside %s; %s", registryTypeValue.named(),
+		types.TypeString(registryTypeValue.core.Key(), qualifier), types.TypeString(registryTypeValue.core.Elem(), qualifier), registryTypeValue.writers, c.ways.built)
 }
 
-// written reports r written at pos.
-func (c registryCheck) written(pos token.Pos, r registryType) {
-	c.pass.Reportf(pos, "writes %s registry outside %s; %s", r.named(), r.writers, c.ways.written)
+// written reports registryTypeValue written at pos.
+func (c registryCheck) written(pos token.Pos, registryTypeValue registryType) {
+	c.pass.Reportf(pos, "writes %s registry outside %s; %s", registryTypeValue.named(), registryTypeValue.writers, c.ways.written)
 }
 
 // named is r's noun with its article.
@@ -176,10 +176,10 @@ func (c registryCheck) registry(t types.Type) (registryType, bool) {
 		return registryType{}, false
 	}
 	key, generic := m.Key().(*types.TypeParam)
-	for _, r := range c.regs {
-		if !generic && types.Identical(m, r.core) ||
-			generic && types.Identical(m.Elem(), r.core.Elem()) && satisfies(r.core.Key(), key) {
-			return r, true
+	for _, registryType := range c.regs {
+		if !generic && types.Identical(m, registryType.core) ||
+			generic && types.Identical(m.Elem(), registryType.core.Elem()) && satisfies(registryType.core.Key(), key) {
+			return registryType, true
 		}
 	}
 	return registryType{}, false
@@ -188,8 +188,8 @@ func (c registryCheck) registry(t types.Type) (registryType, bool) {
 func (c registryCheck) node(n ast.Node) {
 	switch n := n.(type) {
 	case *ast.CompositeLit:
-		if r, ok := c.registry(c.pass.TypesInfo.TypeOf(n)); ok {
-			c.built(n.Pos(), r)
+		if registryType, ok := c.registry(c.pass.TypesInfo.TypeOf(n)); ok {
+			c.built(n.Pos(), registryType)
 		}
 	case *ast.CallExpr:
 		if fn, isBuiltin := typeutil.Callee(c.pass.TypesInfo, n).(*types.Builtin); isBuiltin {
@@ -216,15 +216,15 @@ func (c registryCheck) target(e ast.Expr) {
 	if !ok {
 		return
 	}
-	r, isReg := c.registry(c.pass.TypesInfo.TypeOf(ix.X))
+	registryType, isReg := c.registry(c.pass.TypesInfo.TypeOf(ix.X))
 	if !isReg {
 		return
 	}
 	id, _ := ast.Unparen(ix.X).(*ast.Ident) // nil, naming no parameter, when ix.X is no identifier
 	bound, settled := c.settled.params[c.pass.TypesInfo.Uses[id]]
 	switch {
-	case !settled || !r.types:
-		c.written(ix.Pos(), r)
+	case !settled || !registryType.types:
+		c.written(ix.Pos(), registryType)
 	case !bound:
 		c.pass.Reportf(ix.Pos(), reboundMessage)
 	case c.settled.inClosure(ix.Pos()):
@@ -241,13 +241,13 @@ func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 	default:
 		return
 	}
-	r, isReg := c.registry(c.pass.TypesInfo.TypeOf(call.Args[0]))
+	registryType, isReg := c.registry(c.pass.TypesInfo.TypeOf(call.Args[0]))
 	switch {
 	case !isReg:
 	case name == "make":
-		c.built(call.Pos(), r)
+		c.built(call.Pos(), registryType)
 	default:
-		c.written(call.Pos(), r)
+		c.written(call.Pos(), registryType)
 	}
 }
 
@@ -265,20 +265,20 @@ func (c registryCheck) instance(id *ast.Ident) {
 	generic := c.pass.TypesInfo.Uses[id]
 	path := generic.Pkg().Path() // a generic is always declared in a package
 	sig, isFunc := inst.Type.(*types.Signature)
-	if r, isReg := c.registry(inst.TypeArgs.At(0)); isReg && path == "maps" && mapsWriter(generic.Name()) {
-		c.written(id.Pos(), r) // each writes the map its first type argument is
+	if registryType, isReg := c.registry(inst.TypeArgs.At(0)); isReg && path == "maps" && mapsWriter(generic.Name()) {
+		c.written(id.Pos(), registryType) // each writes the map its first type argument is
 		return
 	}
 	if c.l.framework(path) {
 		return // trusted, as its functions are
 	}
-	if r, isReg := c.anyRegistry(sig, isFunc); isReg {
-		c.built(id.Pos(), r) // maps.Clone and maps.Collect among them
+	if registryType, isReg := c.anyRegistry(sig, isFunc); isReg {
+		c.built(id.Pos(), registryType) // maps.Clone and maps.Collect among them
 		return
 	}
-	if r, isReg := c.registryArgs(inst.TypeArgs); isReg && c.l.inModule(path) {
+	if registryType, isReg := c.registryArgs(inst.TypeArgs); isReg && c.l.inModule(path) {
 		c.pass.Reportf(id.Pos(), "instantiates a generic with %s registry or %s, whose registry writes this rule "+
-			"cannot read; keep registry writes in %s", r.named(), types.TypeString(r.core.Elem(), qualifier), r.writers)
+			"cannot read; keep registry writes in %s", registryType.named(), types.TypeString(registryType.core.Elem(), qualifier), registryType.writers)
 	}
 }
 
@@ -300,8 +300,8 @@ func (c registryCheck) anyRegistry(sig *types.Signature, isFunc bool) (registryT
 		return registryType{}, false
 	}
 	for v := range sig.Results().Variables() {
-		if r, isReg := c.registry(v.Type()); isReg {
-			return r, true
+		if registryType, isReg := c.registry(v.Type()); isReg {
+			return registryType, true
 		}
 	}
 	return registryType{}, false
@@ -311,12 +311,12 @@ func (c registryCheck) anyRegistry(sig *types.Signature, isFunc bool) (registryT
 // is.
 func (c registryCheck) registryArgs(args *types.TypeList) (registryType, bool) {
 	for t := range args.Types() {
-		if r, isReg := c.registry(t); isReg {
-			return r, true
+		if registryType, isReg := c.registry(t); isReg {
+			return registryType, true
 		}
-		for _, r := range c.regs {
-			if types.Identical(t, r.core.Elem()) {
-				return r, true
+		for _, registryType := range c.regs {
+			if types.Identical(t, registryType.core.Elem()) {
+				return registryType, true
 			}
 		}
 	}

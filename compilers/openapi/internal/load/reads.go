@@ -11,11 +11,11 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +29,7 @@ type externalReads struct {
 	trees map[string]*yaml.Node
 	data  map[string][]byte
 	// read is what reading each prepared document found beside its tree.
-	read map[string]doctree.Document
+	read map[string]doctree.ParsedYAMLDocument
 	// answers holds each document's read by the key it was read under, and
 	// documents charges each read to the document budget.
 	answers   map[string]*reading
@@ -40,7 +40,7 @@ type externalReads struct {
 // reads are held to documents, the document budget.
 func newExternalReads(self sourceDocument, documents budget.Limit) *externalReads {
 	return &externalReads{self: self, trees: map[string]*yaml.Node{}, data: map[string][]byte{},
-		read:    map[string]doctree.Document{},
+		read:    map[string]doctree.ParsedYAMLDocument{},
 		answers: map[string]*reading{}, documents: budget.New(documents)}
 }
 
@@ -82,12 +82,13 @@ type reading struct {
 }
 
 // once returns the answer the document under key got when it was read, as an
-// asker bounded by reach is answered. The first read of the compile, charged
-// to the document budget, reads it with read, and refuses it unread past the
+// asker bounded by reach is answered. The first read of the compile, charged to
+// the document budget, reads it with read, and refuses it unread past the
 // budget; every later ask gets the same answer, so a document is read and
 // charged once however many references name it. A read refused to its asker
-// alone (bind.BarredError) is no answer: an asker the refusal covers, bounded
-// no wider, is refused again unread, for its own reach, and a wider one reads.
+// alone (reftable.BarredError) is no answer: an asker the refusal covers,
+// bounded no wider, is refused again unread, for its own reach, and a wider one
+// reads.
 func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
 	rd := r.reading(key)
 	rd.mu.Lock()
@@ -109,7 +110,7 @@ func (r *externalReads) once(key string, reach compilers.AddressSpace, read func
 		}
 	}
 	a := read()
-	if barred := (*bind.BarredError)(nil); errors.As(a.err, &barred) {
+	if barred := (*reftable.BarredError)(nil); errors.As(a.err, &barred) {
 		rd.done, rd.barred, rd.barredAt = false, a.refusal, reach
 		return a
 	}
@@ -215,7 +216,7 @@ func (r *externalReads) exhausted(place provenance.Doc) []ir.Diagnostic {
 }
 
 // recordTree notes a document prepared under key from data.
-func (r *externalReads) recordTree(key string, doc doctree.Document, data []byte) {
+func (r *externalReads) recordTree(key string, doc doctree.ParsedYAMLDocument, data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.trees[key], r.read[key] = doc.Root, doc
@@ -224,7 +225,7 @@ func (r *externalReads) recordTree(key string, doc doctree.Document, data []byte
 
 // preparedFor returns the tree prepared for the document name names, or false
 // for none. A URL is named as it is located, one spelling for every way a
-// reference writes it (resolve.Locate), so it is read under that name.
+// reference writes it (componentlookup.Locate), so it is read under that name.
 func (r *externalReads) preparedFor(name string) (*yaml.Node, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

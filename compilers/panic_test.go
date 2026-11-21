@@ -28,9 +28,9 @@ type breaker struct {
 }
 
 func newBreaker(at string, value any) *breaker {
-	s := keeping()
-	s.marker = "alpha"
-	return &breaker{scripted: s, at: at, value: value, asked: map[string]int{}}
+	scripted := keeping()
+	scripted.marker = "alpha"
+	return &breaker{scripted: scripted, at: at, value: value, asked: map[string]int{}}
 }
 
 // enter counts a call of method and panics if it is the one to break.
@@ -203,7 +203,7 @@ func TestRegistry_FormatsAreAskedOnce(t *testing.T) {
 func TestRegistry_DetectNamesTheFormatsItRegisteredNotTheOnesItIsToldNow(t *testing.T) {
 	t.Parallel()
 	b := newBreaker("none", nil)
-	b.declines = []ir.Diagnostic{at(0, ir.SeverityWarning)} // a decline with no error is a breach
+	b.declines = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)} // a decline with no error is a breach
 	reg := registryOf(t, b)
 	b.formats[0] = beta
 
@@ -251,9 +251,9 @@ func TestDetectionCompile_APanicIsAContractError(t *testing.T) {
 
 func TestDetectionCompile_ARuntimePanicIsAContractError(t *testing.T) {
 	t.Parallel()
-	c := &runtimePanicker{}
+	runtimePanickerValue := &runtimePanicker{}
 
-	_, err := detected(c, nil).Compile(t.Context())
+	_, err := detected(runtimePanickerValue, nil).Compile(t.Context())
 
 	require.ErrorIs(t, err, compilers.ErrContract)
 	var rerr runtime.Error

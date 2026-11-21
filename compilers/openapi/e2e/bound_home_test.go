@@ -52,45 +52,51 @@ var positions = []position{
 	{
 		name: "property",
 		spec: func(version string, rows []homeRow, schemas []string) string {
-			props := make([]string, 0, len(rows))
-			for _, r := range rows {
-				props = append(props, r.name+": "+r.schema)
+			properties := make([]string, 0, len(rows))
+			for _, homeRow := range rows {
+				properties = append(properties, homeRow.name+": "+homeRow.schema)
 			}
-			holder := "Holder: {type: object, properties: {" + strings.Join(props, ", ") + "}}"
+			holder := "Holder: {type: object, properties: {" + strings.Join(properties, ", ") + "}}"
 			// Between the shared schemas, so the reversed order puts it on the
 			// other side of each.
 			return admissionSpec(version, "", slices.Concat(schemas[:1], []string{holder}, schemas[1:])...)
 		},
-		carrierID: func(r homeRow) string { return "p/openapi/components/schemas/Holder/properties/" + r.name },
-		schemaAt:  func(_ int, r homeRow) string { return holderPropertiesAt + r.name },
+		carrierID: func(homeRowValue homeRow) string {
+			return "property/openapi/components/schemas/Holder/properties/" + homeRowValue.name
+		},
+		schemaAt: func(_ int, homeRowValue homeRow) string { return holderPropertiesAt + homeRowValue.name },
 	},
 	{
 		name: "parameter",
 		spec: func(version string, rows []homeRow, schemas []string) string {
 			var b strings.Builder
 			b.WriteString("paths:\n  /a:\n    get:\n      parameters:\n")
-			for _, r := range rows {
-				fmt.Fprintf(&b, "        - {name: %s, in: query, schema: %s}\n", r.name, r.schema)
+			for _, homeRow := range rows {
+				fmt.Fprintf(&b, "        - {name: %s, in: query, schema: %s}\n", homeRow.name, homeRow.schema)
 			}
 			b.WriteString("      responses:\n        '200': {description: ok}\n")
 			return admissionSpec(version, b.String(), schemas...)
 		},
-		carrierID: func(r homeRow) string { return "param/openapi/paths/~1a/get/parameters/" + r.name + "/query" },
-		schemaAt:  func(i int, _ homeRow) string { return fmt.Sprintf("%s/parameters/%d/schema", boundOperationAt, i) },
+		carrierID: func(homeRowValue homeRow) string {
+			return "parameter/openapi/paths/~1a/get/parameters/" + homeRowValue.name + "/query"
+		},
+		schemaAt: func(i int, _ homeRow) string { return fmt.Sprintf("%s/parameters/%d/schema", boundOperationAt, i) },
 	},
 	{
 		name: "header",
 		spec: func(version string, rows []homeRow, schemas []string) string {
 			var b strings.Builder
 			b.WriteString("paths:\n  /a:\n    get:\n      responses:\n        '200':\n          description: ok\n          headers:\n")
-			for _, r := range rows {
-				fmt.Fprintf(&b, "            %s: {schema: %s}\n", r.name, r.schema)
+			for _, homeRow := range rows {
+				fmt.Fprintf(&b, "            %s: {schema: %s}\n", homeRow.name, homeRow.schema)
 			}
 			return admissionSpec(version, b.String(), schemas...)
 		},
-		carrierID: func(r homeRow) string { return "p/openapi/paths/~1a/get/responses/200/headers/" + r.name },
-		schemaAt: func(_ int, r homeRow) string {
-			return boundOperationAt + "/responses/200/headers/" + r.name + "/schema"
+		carrierID: func(homeRowValue homeRow) string {
+			return "property/openapi/paths/~1a/get/responses/200/headers/" + homeRowValue.name
+		},
+		schemaAt: func(_ int, homeRowValue homeRow) string {
+			return boundOperationAt + "/responses/200/headers/" + homeRowValue.name + "/schema"
 		},
 	},
 }
@@ -155,18 +161,18 @@ func (p placement) kindOf() string {
 
 // requireHome holds both sides of a row: the bounds on the carrier and the
 // bounds on its node, so a test cannot pass with a bound on both or on neither.
-func requireHome(t *testing.T, p placement, row homeRow) {
+func requireHome(t *testing.T, placementValue placement, row homeRow) {
 	t.Helper()
-	assert.Equal(t, row.kind, p.kindOf(), "the kind of the node %s names", p.typeID)
-	assert.Equal(t, row.carrier, heldBounds(p.carrier), "the bounds the carrier holds")
-	assert.Equal(t, row.node, heldBounds(p.node), "the bounds the node holds")
+	assert.Equal(t, row.kind, placementValue.kindOf(), "the kind of the node %s names", placementValue.typeID)
+	assert.Equal(t, row.carrier, heldBounds(placementValue.carrier), "the bounds the carrier holds")
+	assert.Equal(t, row.node, heldBounds(placementValue.node), "the bounds the node holds")
 }
 
 // requireNoNodeAt fails t where doc holds an anonymous type minted at pointer
 // or below it: a carrier over a reference owns no node.
 func requireNoNodeAt(t *testing.T, doc *ir.Document, pointer string) {
 	t.Helper()
-	prefix := "t/anon" + pointer
+	prefix := "type/anonymous" + pointer
 	for id := range doc.Types {
 		assert.False(t, id == ir.TypeID(prefix) || strings.HasPrefix(string(id), prefix+"/"),
 			"%s mints no node for a carrier over a reference", id)
@@ -180,10 +186,10 @@ func warningsOf(version string, pos position, rows []homeRow) []wantFinding {
 		return nil
 	}
 	var want []wantFinding
-	for i, r := range rows {
-		if r.sibling != "" {
+	for i, homeRow := range rows {
+		if homeRow.sibling != "" {
 			want = append(want, wantFinding{
-				code: diag.LaterVersionConstruct, pointer: pos.schemaAt(i, r) + "/" + r.sibling,
+				code: diag.LaterVersionConstruct, pointer: pos.schemaAt(i, homeRow) + "/" + homeRow.sibling,
 			})
 		}
 	}
@@ -221,8 +227,8 @@ func TestCompile_ACarrierOverAReferenceOrASharedPrimitiveKeepsItsBound(t *testin
 				inBothOrders(t, sharedSchemas, func(t *testing.T, schemas []string) {
 					doc, diags := compileAnnotationSpec(t, "keeps", pos.spec(version, keepRows, schemas))
 					for i, row := range keepRows {
-						p := placementOf(t, doc, pos.carrierID(row))
-						requireHome(t, p, row)
+						placement := placementOf(t, doc, pos.carrierID(row))
+						requireHome(t, placement, row)
 						requireNoNodeAt(t, doc, pos.schemaAt(i, row))
 					}
 					requireErrorsAndWarnings(t, diags, warningsOf(version, pos, keepRows))
@@ -245,11 +251,11 @@ func TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce(t *testing.T) {
 			inBothOrders(t, sharedSchemas, func(t *testing.T, schemas []string) {
 				pos := positions[0]
 				doc, diags := compileAnnotationSpec(t, "beside", pos.spec(version, []homeRow{row}, schemas))
-				p := placementOf(t, doc, pos.carrierID(row))
-				carrier, node := heldBounds(p.carrier), heldBounds(p.node)
+				placement := placementOf(t, doc, pos.carrierID(row))
+				carrier, node := heldBounds(placement.carrier), heldBounds(placement.node)
 				held := 0
 				for _, side := range []map[string]any{carrier, node} {
-					if v, ok := side["minProps"]; ok {
+					if v, ok := side["minProperties"]; ok {
 						assert.Equal(t, 2.0, v, "the bound as written")
 						held++
 					}
@@ -285,19 +291,19 @@ func TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds(t *testi
 				t.Parallel()
 				inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 					doc, _ := compileAnnotationSpec(t, "fold", admissionSpec(version, "", schemas...))
-					model, ok := doc.Types["t/openapi/components/schemas/LogRule"].(*ir.Model)
+					model, ok := doc.Types["type/openapi/components/schemas/LogRule"].(*ir.Model)
 					require.True(t, ok)
 					require.Len(t, model.Properties, 1)
-					prop := model.Properties[0]
-					require.NotNil(t, prop.Constraints, "the property keeps the folded bounds")
-					require.NotNil(t, prop.Constraints.MinProps)
-					require.NotNil(t, prop.Constraints.MaxProps)
-					assert.EqualValues(t, 1, *prop.Constraints.MinProps)
-					assert.EqualValues(t, 5, *prop.Constraints.MaxProps)
+					property := model.Properties[0]
+					require.NotNil(t, property.Constraints, "the property keeps the folded bounds")
+					require.NotNil(t, property.Constraints.MinProperties)
+					require.NotNil(t, property.Constraints.MaxProperties)
+					assert.EqualValues(t, 1, *property.Constraints.MinProperties)
+					assert.EqualValues(t, 5, *property.Constraints.MaxProperties)
 
-					composed, ok := doc.Types[prop.Type.Target].(*ir.Model)
+					composed, ok := doc.Types[property.Type.Target].(*ir.Model)
 					require.True(t, ok, "the property names a model")
-					assert.True(t, strings.HasPrefix(string(composed.ID), "t/composed/"),
+					assert.True(t, strings.HasPrefix(string(composed.ID), "type/composed/"),
 						"%s is the composed node", composed.ID)
 					assert.Nil(t, composed.Constraints, "the composed node holds none of them")
 				})
@@ -326,12 +332,12 @@ func TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant(t *testi
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileAnnotationSpec(t, "kind", admissionSpec(version, "", schemas...))
-				assert.Equal(t, []string{"t/openapi/components/schemas/Wide"}, boundHomes(t, doc, "minLength"),
+				assert.Equal(t, []string{"type/openapi/components/schemas/Wide"}, boundHomes(t, doc, "minLength"),
 					"the use of the top type alone holds the length")
 				assert.Empty(t, boundHomes(t, doc, "maxLength"), "no node or carrier holds the other length")
 				assert.ElementsMatch(t, []string{"/components/schemas/O1/minLength"}, keptEntries(t, doc, "openapi:minLength"))
-				for _, v := range irverify.Verify(doc) {
-					assert.NotEqual(t, "ir/bound-of-another-kind", v.Code, "violation at %s", v.Path)
+				for _, violation := range irverify.Verify(doc) {
+					assert.NotEqual(t, "ir/bound-of-another-kind", violation.Code, "violation at %s", violation.Path)
 				}
 			})
 		})
@@ -344,11 +350,11 @@ func TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant(t *testi
 var ownedRows = []homeRow{
 	{
 		name: "object", schema: "{type: object, properties: {a: {type: string}}, minProperties: 2}",
-		kind: "model", carrier: map[string]any{}, node: map[string]any{"minProps": 2.0},
+		kind: "model", carrier: map[string]any{}, node: map[string]any{"minProperties": 2.0},
 	},
 	{
 		name: "map", schema: "{type: object, additionalProperties: {type: string}, minProperties: 2}",
-		kind: "map", carrier: map[string]any{}, node: map[string]any{"minProps": 2.0},
+		kind: "map", carrier: map[string]any{}, node: map[string]any{"minProperties": 2.0},
 	},
 	{
 		name: "list", schema: "{type: array, items: {type: string}, minItems: 2}",
@@ -356,11 +362,11 @@ var ownedRows = []homeRow{
 	},
 	{
 		name: "wrapped", schema: "{allOf: [{$ref: '#/components/schemas/Obj'}], minProperties: 2}",
-		kind: "model", carrier: map[string]any{}, node: map[string]any{"minProps": 2.0},
+		kind: "model", carrier: map[string]any{}, node: map[string]any{"minProperties": 2.0},
 	},
 	{
 		name: "entry", schema: "{allOf: [{$ref: '#/components/schemas/Obj'}, {maxProperties: 3}]}",
-		kind: "model", carrier: map[string]any{}, node: map[string]any{"maxProps": 3.0},
+		kind: "model", carrier: map[string]any{}, node: map[string]any{"maxProperties": 3.0},
 	},
 	{
 		name: "scalar", schema: "{type: string, format: byte, maxLength: 5}",
@@ -373,7 +379,7 @@ var ownedRows = []homeRow{
 	{
 		name:   "metadata",
 		schema: "{type: object, additionalProperties: {anyOf: [{type: string}, {type: integer}]}, maxProperties: 32}",
-		kind:   "map", carrier: map[string]any{}, node: map[string]any{"maxProps": 32.0},
+		kind:   "map", carrier: map[string]any{}, node: map[string]any{"maxProperties": 32.0},
 	},
 	{
 		name:   "instanceId",
@@ -460,7 +466,7 @@ func TestCompile_AReferenceNamingAPropertyReadsTheNodeHoldingItsBound(t *testing
 					t.Run(row.name, func(t *testing.T) {
 						holder := placementOf(t, doc, pos.carrierID(row))
 						requireHome(t, holder, row)
-						via := placementOf(t, doc, "p/openapi/components/schemas/User/properties/r_"+row.name)
+						via := placementOf(t, doc, "property/openapi/components/schemas/User/properties/r_"+row.name)
 						assert.Equal(t, holder.typeID, via.typeID, "the reference reads the property's own node")
 						assert.Empty(t, heldBounds(via.carrier), "the reference's carrier holds none")
 					})
@@ -479,7 +485,7 @@ func TestCompile_AReferenceNamingAPropertyReadsTheNodeHoldingItsBound(t *testing
 // declared first.
 func TestCompile_AReferenceNamingASharedPrimitivePropertyReadsANodeHoistedThere(t *testing.T) {
 	t.Parallel()
-	const hoisted = "t/anon" + holderPropertiesAt + "inl"
+	const hoisted = "type/anonymous" + holderPropertiesAt + "inl"
 	schemas := []string{
 		"Holder: {type: object, properties: {inl: {type: string, minLength: 3}}}",
 		"User: {type: object, properties: {r_inl: {$ref: '#/components/schemas/Holder/properties/inl'}}}",
@@ -489,10 +495,10 @@ func TestCompile_AReferenceNamingASharedPrimitivePropertyReadsANodeHoistedThere(
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "shared", admissionSpec(version, "", schemas...))
-				inl := placementOf(t, doc, "p/openapi"+holderPropertiesAt+"inl")
+				inl := placementOf(t, doc, "property/openapi"+holderPropertiesAt+"inl")
 				assert.Equal(t, "primitive", inl.kindOf(), "the property names the shared string")
 				assert.Equal(t, map[string]any{"minLength": 3.0}, heldBounds(inl.carrier), "the property keeps its bound")
-				via := placementOf(t, doc, "p/openapi/components/schemas/User/properties/r_inl")
+				via := placementOf(t, doc, "property/openapi/components/schemas/User/properties/r_inl")
 				assert.Equal(t, hoisted, via.typeID, "the reference reads a node hoisted at the pointer")
 				assert.Equal(t, "scalar", via.kindOf())
 				assert.Equal(t, map[string]any{"minLength": 3.0}, heldBounds(via.node), "that node holds the bound")

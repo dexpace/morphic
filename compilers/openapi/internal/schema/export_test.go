@@ -53,11 +53,11 @@ type Lowerer struct {
 // LowererOver is the only place the fixture's fields are initialised. Both
 // entry points below build on it, so a field added to Lowerer cannot reach one
 // of them and miss the other.
-func LowererOver(c service.Ctx) *Lowerer {
+func LowererOver(serviceContext service.Ctx) *Lowerer {
 	types := compile.NewTypes()
 	return &Lowerer{
-		Ctx:   c.Ctx,
-		Doc:   c.Doc,
+		Ctx:   serviceContext.Ctx,
+		Doc:   serviceContext.Doc,
 		Out:   &ir.Document{},
 		Types: types,
 	}
@@ -89,26 +89,26 @@ func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // LowerSpecWith is LowerSpec under policy.
 func LowerSpecWith(t *testing.T, src string, policy lowering.Policy) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	l, diags := LoweredWith(t, src, policy)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-	doc := l.Document(t)
-	return doc, append(diags, l.Diags.List()...)
+	lowerer, diags := LoweredWith(t, src, policy)
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	doc := lowerer.Document(t)
+	return doc, append(diags, lowerer.Diags.List()...)
 }
 
 // LowerSpecCountingLands lowers src as LowerSpec does, and returns too how
 // many hop readings were made reading what a $ref lands on.
 func LowerSpecCountingLands(t *testing.T, src string) (*ir.Document, []ir.Diagnostic, int) {
 	t.Helper()
-	l, diags := LoweredFor(t, src)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
-	doc := l.Document(t)
-	return doc, append(diags, l.Diags.List()...), *landingCount(l.Ctx)
+	lowerer, diags := LoweredFor(t, src)
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	doc := lowerer.Document(t)
+	return doc, append(diags, lowerer.Diags.List()...), *landingCount(lowerer.Ctx)
 }
 
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
-	return LowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	return LowererOver(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 }
 
 // Schemas returns the statements of the component schemas of the fixture's
@@ -130,8 +130,8 @@ func (l *Lowerer) Schemas() iter.Seq2[string, *statement.Statement] {
 func (l *Lowerer) Document(t *testing.T) *ir.Document {
 	t.Helper()
 	reg, settled := l.Types.Finish(t.Context())
-	for _, d := range settled {
-		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
+	for _, diagnostic := range settled {
+		require.NotEqual(t, compile.RegistryRefused, diagnostic.Code, "the registry refused an entry: %s", diagnostic.Message)
 	}
 	l.Diags.AppendAll(settled)
 	l.Out.Types = reg
@@ -154,16 +154,16 @@ func StandaloneSchema(s *oas3.Schema) *statement.Schema {
 	return Standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
 }
 
-// StatedIn returns the statement of s as l's table reads it, s being the
-// schema a component of l's document declares: for a test holding the
+// StatedIn returns the statement of s as lowerer's table reads it, s being the
+// schema a component of lowerer's document declares: for a test holding the
 // parser's schema object and handing a reader the run's statement of it. It
 // panics on any other s, since a statement read alone has no position and no
 // reference binding, so the reader would answer for another schema than the
 // run's without the test saying so.
-func StatedIn(l *Lowerer, s *oas3.Schema) *statement.Schema {
-	for _, js := range l.Doc.Components.Schemas.All() {
+func StatedIn(lowerer *Lowerer, s *oas3.Schema) *statement.Schema {
+	for _, js := range lowerer.Doc.Components.Schemas.All() {
 		if js.GetSchema() == s {
-			return l.Ctx.Statements().Of(js).Schema
+			return lowerer.Ctx.Statements().Of(js).Schema
 		}
 	}
 	panic("schema: StatedIn of a schema no component of the fixture's document declares")
@@ -178,18 +178,18 @@ func LowerSource(t *testing.T, src compilers.Source) (*ir.Document, []*statement
 	if err != nil || loaded == nil || loaded.Doc == nil {
 		return nil, nil, false
 	}
-	l := LowererOver(service.New(0, loaded, service.Policy{}))
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+	lowerer := LowererOver(service.New(0, loaded, service.Policy{}))
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 	var statements []*statement.Statement
-	for _, js := range l.Schemas() {
+	for _, js := range lowerer.Schemas() {
 		statements = append(statements, js)
 	}
-	return l.Document(t), statements, true
+	return lowerer.Document(t), statements, true
 }
 
 // UnreadKeys is unreadKeys, the keys read named.
-func UnreadKeys(s *statement.Schema, read []string) []string {
-	return unreadKeys(s, keySetOf(read...))
+func UnreadKeys(schema *statement.Schema, read []string) []string {
+	return unreadKeys(schema, keySetOf(read...))
 }
 
 // ReadDomain returns readDomain.

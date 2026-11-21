@@ -130,7 +130,7 @@ func decodeReport(t *testing.T, stderr string) (int, report.Report) {
 	return got.Version, got.Report
 }
 
-// TestRun_DiagFormatJSONWritesOneReport pins --diag-format json on both
+// TestRun_DiagFormatJSONWritesOneReport pins --diagnostics-format json on both
 // commands: stderr holds one JSON report, every finding in it as rated with the
 // rule it met, the verdict beside them, and the run's exit status and stdout
 // are what text gives.
@@ -145,7 +145,7 @@ func TestRun_DiagFormatJSONWritesOneReport(t *testing.T) {
 			spec := writeFile(t, "spec.yaml", twoErrorSpec)
 			textCode, textOut, _ := runCommand(t, command, spec, "--triage", rules)
 
-			code, stdout, stderr := runCommand(t, command, spec, "--triage", rules, "--diag-format", "json")
+			code, stdout, stderr := runCommand(t, command, spec, "--triage", rules, "--diagnostics-format", "json")
 			assert.Equal(t, textCode, code)
 			assert.Equal(t, textOut, stdout)
 			version, got := decodeReport(t, stderr)
@@ -172,13 +172,13 @@ func TestRun_DiagFormatJSONWritesOneReport(t *testing.T) {
 // always has one to read.
 func TestRun_DiagFormatJSONWritesAReportForEveryRun(t *testing.T) {
 	t.Parallel()
-	code, _, stderr := runCommand(t, "validate", writeFile(t, "spec.yaml", testspec.Tiny), "--diag-format", "json")
+	code, _, stderr := runCommand(t, "validate", writeFile(t, "spec.yaml", testspec.Tiny), "--diagnostics-format", "json")
 	require.Equal(t, 0, code, stderr)
 	_, clean := decodeReport(t, stderr)
 	assert.False(t, clean.Failed)
 	assert.Empty(t, clean.Findings)
 
-	code, _, stderr = runCommand(t, "compile", writeFile(t, "spec.yaml", "hello: world\n"), "--diag-format", "json")
+	code, _, stderr = runCommand(t, "compile", writeFile(t, "spec.yaml", "hello: world\n"), "--diagnostics-format", "json")
 	require.Equal(t, exitFindings, code, stderr)
 	_, refused := decodeReport(t, stderr)
 	assert.True(t, refused.Failed)
@@ -194,33 +194,33 @@ func TestRun_DiagFormatJSONCarriesTheCacheWarnings(t *testing.T) {
 	require.NoError(t, os.WriteFile(blocked, nil, 0o600))
 	spec := specFile(t)
 
-	code, _, stderr := runCommand(t, "compile", spec, "--cache-dir", blocked, "--diag-format", "json")
+	code, _, stderr := runCommand(t, "compile", spec, "--cache-dir", blocked, "--diagnostics-format", "json")
 	require.Equal(t, 0, code, stderr)
 	_, after := decodeReport(t, stderr)
 	require.Len(t, after.Warnings, 1)
 	assert.Regexp(t, `^engine: cache: load: [^\n]+; engine: cache: store: [^\n]+$`, after.Warnings[0])
 
 	failBuildID(t, os.ErrPermission)
-	code, _, stderr = runCommand(t, "validate", spec, "--cache-dir", t.TempDir(), "--diag-format", "json")
+	code, _, stderr = runCommand(t, "validate", spec, "--cache-dir", t.TempDir(), "--diagnostics-format", "json")
 	require.Equal(t, 0, code, stderr)
 	_, before := decodeReport(t, stderr)
 	assert.Equal(t, []string{os.ErrPermission.Error()}, before.Warnings)
 }
 
-// TestRun_DiagFormatJSONRefusesTheTextOptions pins --show and --diag-limit as
-// misuses beside --diag-format json, which writes every finding: accepted,
-// either would say a report was narrowed that was not.
+// TestRun_DiagFormatJSONRefusesTheTextOptions pins --min-severity and --diagnostics-per-code-limit
+// as misuses beside --diagnostics-format json, which writes every finding:
+// accepted, either would say a report was narrowed that was not.
 func TestRun_DiagFormatJSONRefusesTheTextOptions(t *testing.T) {
 	t.Parallel()
-	for _, option := range [][]string{{"--show", "error"}, {"--diag-limit", "1"}} {
+	for _, option := range [][]string{{"--min-severity", "error"}, {"--diagnostics-per-code-limit", "1"}} {
 		for _, command := range []string{"compile", "validate"} {
 			t.Run(command+"/"+option[0], func(t *testing.T) {
 				t.Parallel()
-				args := append([]string{command, specFile(t), "--diag-format", "json"}, option...)
+				args := append([]string{command, specFile(t), "--diagnostics-format", "json"}, option...)
 				code, stdout, stderr := runCommand(t, args...)
 				assert.Equal(t, exitFailure, code)
 				assert.Empty(t, stdout)
-				assert.Equal(t, "morphic: --diag-format json writes every finding, so "+option[0]+
+				assert.Equal(t, "morphic: --diagnostics-format json writes every finding, so "+option[0]+
 					" has nothing to withhold\nTry \"morphic "+command+" --help\" for usage.\n", stderr)
 			})
 		}
@@ -250,7 +250,7 @@ components:
 // TestRun_TextWithholdsWhatItsOptionsSay pins the text format's defaults and
 // both options on a spec drawing more findings of one code than the default
 // writes: three of them and a count of the rest, then every one under
-// --diag-limit 0, then none below --show warning.
+// --diagnostics-per-code-limit 0, then none below --min-severity warning.
 func TestRun_TextWithholdsWhatItsOptionsSay(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", manyFindingsSpec)
@@ -263,10 +263,10 @@ func TestRun_TextWithholdsWhatItsOptionsSay(t *testing.T) {
 	}{
 		{"the defaults", nil, 4, []string{"  2 more info " + code + " not shown",
 			"  4 of 6 findings shown: 0 error, 1 warning, 5 info, 0 accepted"}},
-		{"every finding", []string{"--diag-limit", "0"}, 6, []string{}},
-		{"one of a code", []string{"--diag-limit", "1"}, 2, []string{"  4 more info " + code + " not shown",
+		{"every finding", []string{"--diagnostics-per-code-limit", "0"}, 6, []string{}},
+		{"one of a code", []string{"--diagnostics-per-code-limit", "1"}, 2, []string{"  4 more info " + code + " not shown",
 			"  2 of 6 findings shown: 0 error, 1 warning, 5 info, 0 accepted"}},
-		{"warnings and errors", []string{"--show", "warning"}, 1, []string{"  5 info " + code + " not shown",
+		{"warnings and errors", []string{"--min-severity", "warning"}, 1, []string{"  5 info " + code + " not shown",
 			"  1 of 6 findings shown: 0 error, 1 warning, 5 info, 0 accepted"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestRun_DiagFormatJSONWriteFailureEndsTheRun(t *testing.T) {
 			t.Parallel()
 			var stdout bytes.Buffer
 			stderr := &firstWriteFails{}
-			code := run(t.Context(), []string{"compile", writeFile(t, "spec.yaml", tc.spec), "--diag-format", "json"},
+			code := run(t.Context(), []string{"compile", writeFile(t, "spec.yaml", tc.spec), "--diagnostics-format", "json"},
 				&stdout, stderr)
 			assert.Equal(t, tc.want, code)
 			assert.Equal(t, "morphic: write diagnostics: pipe closed\n", stderr.text.String())
@@ -361,7 +361,7 @@ func TestRun_DiagFormatJSONWritesAFailureAfterItsReport(t *testing.T) {
 			t.Parallel()
 			out := filepath.Join(t.TempDir(), "absent", "ir.json")
 			code, stdout, stderr := runCommand(t, "compile", writeFile(t, "spec.yaml", tc.spec),
-				"--diag-format", "json", "-o", out)
+				"--diagnostics-format", "json", "-o", out)
 			assert.Equal(t, tc.want, code)
 			assert.Empty(t, stdout)
 			lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
@@ -393,7 +393,7 @@ func TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure(t *testing.T) {
 				newEngine = func(...engine.Option) (*engine.Engine, error) { return nil, errors.New("no compilers") }
 			}
 			missing := filepath.Join(t.TempDir(), "absent.yaml")
-			code, stdout, stderr := runCommand(t, "validate", missing, "--cache-dir", t.TempDir(), "--diag-format", "json")
+			code, stdout, stderr := runCommand(t, "validate", missing, "--cache-dir", t.TempDir(), "--diagnostics-format", "json")
 			assert.Equal(t, exitFailure, code)
 			assert.Empty(t, stdout)
 			lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
@@ -433,7 +433,7 @@ func TestRun_NoRuleHidesAnUnknownSeverity(t *testing.T) {
 		for _, command := range []string{"compile", "validate"} {
 			for _, format := range []string{"text", "json"} {
 				t.Run(name+"/"+command+"/"+format, func(t *testing.T) {
-					args := []string{command, spec, "--fail-on", "none", "--diag-format", format}
+					args := []string{command, spec, "--fail-on", "none", "--diagnostics-format", format}
 					if rules != "" {
 						args = append(args, "--triage", triageFile(t, rules))
 					}

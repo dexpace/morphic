@@ -11,16 +11,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Promise records that a node is expected at coordinate: a reference names it
-// and leaves building it to the lowering that owns it, so the node is built in
-// its owner's context whichever lowering reached it first. Once every lowering
-// has returned, build builds it if none did (Finish).
+// ReserveNodeAtCoordinate records that a node is expected at coordinate: a
+// reference names it and leaves building it to the lowering that owns it, so
+// the node is built in its owner's context whichever lowering reached it first.
+// Once every lowering has returned, build builds it if none did (Finish).
 //
 // A coordinate promised again keeps its first build: a build lowers the
 // coordinate in the context its own position gives it, not its referrer's, so
 // any of them builds the same node. A nil build, or one promised after
 // Finish, could never be taken, so both are refused.
-func (t *Types) Promise(coordinate string, build func() []ir.Diagnostic) {
+func (t *Types) ReserveNodeAtCoordinate(coordinate string, build func() []ir.Diagnostic) {
 	switch {
 	case t.fulfilled:
 		t.refuse("promise rejected: the registry has already fulfilled its promises (at %q)", coordinate)

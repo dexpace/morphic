@@ -15,7 +15,7 @@ import (
 // to how a key is derived, so a consumer storing keys records it beside them: a
 // key another version derived agrees with none of this one's.
 // TestCorrelationVersion_PinsTheDerivation holds it to the keys derived.
-const CorrelationVersion = 4
+const CorrelationVersion = 5
 
 // Correlation returns the correlation key of the entity id names, of any class
 // of ID (docs/ir/derived-facts.md#correlation-keys): a key built from what the
@@ -23,7 +23,7 @@ const CorrelationVersion = 4
 // schema that changes the ID. It is false for an id the document does not
 // declare, for an entity no named position reaches, and for one whose key
 // another entity of the document shares.
-func (x *Index) Correlation(id string) (string, bool) {
+func (x *DocumentFacts) Correlation(id string) (string, bool) {
 	key, ok := x.correlationIndex().keys[id]
 	return key, ok
 }
@@ -31,13 +31,13 @@ func (x *Index) Correlation(id string) (string, bool) {
 // Correlated returns the ID of the entity whose correlation key is key, and
 // false when no entity of the document has it. Matching an entity across two
 // revisions is Correlation in one and Correlated in the other.
-func (x *Index) Correlated(key string) (string, bool) {
+func (x *DocumentFacts) Correlated(key string) (string, bool) {
 	id, ok := x.correlationIndex().ids[key]
 	return id, ok
 }
 
 // correlationIndex returns the correlation keys of the document, derived once.
-func (x *Index) correlationIndex() *correlations {
+func (x *DocumentFacts) correlationIndex() *correlations {
 	x.correlationOnce.Do(func() { x.correlation = newCorrelations(x.doc) })
 	return x.correlation
 }
@@ -53,7 +53,7 @@ type correlations struct {
 type candidate struct {
 	key    string
 	id     string
-	expand func(c *correlator, key string)
+	expand func(correlatorValue *correlator, key string)
 }
 
 // correlator settles every entity's key in key order. An entity takes the
@@ -66,9 +66,9 @@ type correlator struct {
 	pending     candidateHeap
 	settled     map[string]bool // every entity decided, keyed or not
 	out         *correlations
-	inline      map[ir.TypeID]bool        // anonymous models another model composes
-	ops         map[ir.OpID]*ir.Operation // every operation the walk reaches
-	partHeaders map[ir.PropID][]ir.Header // each multipart part's headers, by the property it encodes
+	inline      map[ir.TypeID]bool               // anonymous models another model composes
+	operations  map[ir.OperationID]*ir.Operation // every operation the walk reaches
+	partHeaders map[ir.PropertyID][]ir.Header    // each multipart part's headers, by the property it encodes
 }
 
 // newCorrelations derives the correlation keys of doc. A nil doc has none.
@@ -77,14 +77,14 @@ func newCorrelations(doc *ir.Document) *correlations {
 	if doc == nil {
 		return out
 	}
-	c := &correlator{
+	correlatorValue := &correlator{
 		doc: doc, settled: map[string]bool{}, out: out,
-		inline: inlineConjuncts(doc.Types), ops: map[ir.OpID]*ir.Operation{},
+		inline: inlineConjuncts(doc.Types), operations: map[ir.OperationID]*ir.Operation{},
 	}
-	c.seedLayer()
-	c.seedTypes()
-	for c.pending.Len() > 0 {
-		c.settle(c.popLeast())
+	correlatorValue.seedLayer()
+	correlatorValue.seedTypes()
+	for correlatorValue.pending.Len() > 0 {
+		correlatorValue.settle(correlatorValue.popLeast())
 	}
 	return out
 }

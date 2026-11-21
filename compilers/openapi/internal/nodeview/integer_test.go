@@ -37,8 +37,8 @@ func TestParseCoreInteger_ReadsTheCoreSchemasThreeForms(t *testing.T) {
 func TestCoreInteger_SignIsTheValues(t *testing.T) {
 	t.Parallel()
 	for text, want := range map[string]int{"-0": 0, "000": 0, "0x0": 0, "-7": -1, "0o1": 1, "+3": 1} {
-		c, ok := nodeview.ParseCoreInteger(text)
+		coreInteger, ok := nodeview.ParseCoreInteger(text)
 		assert.True(t, ok, "%q", text)
-		assert.Equal(t, want, c.Sign(), "%q", text)
+		assert.Equal(t, want, coreInteger.Sign(), "%q", text)
 	}
 }

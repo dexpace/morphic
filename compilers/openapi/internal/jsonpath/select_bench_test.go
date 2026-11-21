@@ -53,13 +53,13 @@ func apiTree(b *testing.B, paths int) *yaml.Node {
 // steps it spends.
 func benchmarkSelect(b *testing.B, query string, root *yaml.Node) {
 	b.Helper()
-	q, err := jsonpath.Parse(query)
+	queryValue, err := jsonpath.Parse(query)
 	require.NoError(b, err)
 	spent, selected := 0, 0
 	b.ReportAllocs()
 	for b.Loop() {
 		steps := budget.New(budget.Unbounded())
-		got, err := q.Select(b.Context(), nodeview.New(), root, &steps)
+		got, err := queryValue.Select(b.Context(), nodeview.New(), root, &steps)
 		if err != nil {
 			b.Fatal(err)
 		}

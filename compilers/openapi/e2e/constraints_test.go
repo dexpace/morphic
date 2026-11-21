@@ -24,8 +24,8 @@ func compileComponentSpec(t *testing.T, spec string) *ir.Document {
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "t.yaml", Data: []byte(spec)}}, compilers.Options{})
 	require.NoError(t, err)
-	for _, d := range diags {
-		require.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(t, ir.SeverityError, diagnostic.Severity, "unexpected error diagnostic: %+v", diagnostic)
 	}
 	require.NotNil(t, doc)
 	return doc
@@ -52,7 +52,7 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := compileComponentSpec(t, head+tc.body+"\n")
-			sc, ok := doc.Types["t/openapi/components/schemas/N"].(*ir.Scalar)
+			sc, ok := doc.Types["type/openapi/components/schemas/N"].(*ir.Scalar)
 			require.True(t, ok, "N lowers to a scalar")
 			require.NotNil(t, sc.Constraints, "component scalar keeps its constraints")
 			require.NotNil(t, sc.Constraints.Min)
@@ -95,10 +95,10 @@ func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 			require.NotNil(t, doc)
 
 			var got []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					got = append(got, d.Code)
-					assert.True(t, strings.HasSuffix(string(d.Provenance.Pointer), tc.pointer), "pointer %q", d.Provenance.Pointer)
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					got = append(got, diagnostic.Code)
+					assert.True(t, strings.HasSuffix(string(diagnostic.Provenance.Pointer), tc.pointer), "pointer %q", diagnostic.Provenance.Pointer)
 				}
 			}
 			assert.Equal(t, tc.want, got)
@@ -106,7 +106,7 @@ func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 	}
 
 	doc := compileComponentSpec(t, head+"{type: number, minimum: 1e2000000000}}}\n")
-	sc, ok := doc.Types["t/openapi/components/schemas/N"].(*ir.Scalar)
+	sc, ok := doc.Types["type/openapi/components/schemas/N"].(*ir.Scalar)
 	require.True(t, ok, "N lowers to a scalar")
 	require.NotNil(t, sc.Constraints)
 	require.NotNil(t, sc.Constraints.Min)
@@ -135,12 +135,12 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 		"        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n"
 	doc := compileComponentSpec(t, spec)
 
-	uses, ok := doc.Types["t/openapi/components/schemas/Uses"].(*ir.Model)
+	uses, ok := doc.Types["type/openapi/components/schemas/Uses"].(*ir.Model)
 	require.True(t, ok, "Uses lowers to a model")
 	var target ir.TypeID
-	for _, p := range uses.Properties {
-		if p.WireName == "b" {
-			target = p.Type.Target
+	for _, property := range uses.Properties {
+		if property.WireName == "b" {
+			target = property.Type.Target
 		}
 	}
 	require.NotEmpty(t, target, "property b resolves to the hoisted sub-schema")

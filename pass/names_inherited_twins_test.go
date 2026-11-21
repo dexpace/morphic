@@ -21,11 +21,11 @@ func TestNames_ReadsAnExposedPairAtTheModelThatMetItAlone(t *testing.T) {
 	t.Parallel()
 	both := &ir.Model{ID: "Both", Name: named("Both"), Mixins: []ir.TypeRef{{Target: "A"}, {Target: "B"}}}
 	doc := withTypes(
-		extending("A", "", spelled("p/a/0", "userId", "userId")),
-		extending("B", "", spelled("p/b/0", "user_id", "user_id")),
+		extending("A", "", spelled("property/a/0", "userId", "userId")),
+		extending("B", "", spelled("property/b/0", "user_id", "user_id")),
 		both,
 		&ir.Model{ID: "Diamond", Name: named("Diamond"), Mixins: []ir.TypeRef{{Target: "Both"}, {Target: "C"}}},
-		extending("C", "", spelled("p/c/0", "other", "other")),
+		extending("C", "", spelled("property/c/0", "other", "other")),
 	)
 	want := []ir.Diagnostic{exposed("Both", `0 of model A ("userId") and 0 of model B ("user_id")`)}
 
@@ -44,12 +44,12 @@ func TestNames_ReadsAnExposedPairAtTheModelThatMetItAlone(t *testing.T) {
 func TestNames_ReadsAModelsOwnPropertiesOnceWhateverItExtends(t *testing.T) {
 	t.Parallel()
 	own := withTypes(
-		extending("Base", "", spelled("p/base/0", "other", "other")),
-		extending("Child", "Base", spelled("p/child/0", "userId", "userId"), spelled("p/child/1", "user_id", "user_id")),
+		extending("Base", "", spelled("property/base/0", "other", "other")),
+		extending("Child", "Base", spelled("property/child/0", "userId", "userId"), spelled("property/child/1", "user_id", "user_id")),
 	)
 	third := withTypes(
-		extending("Base", "", spelled("p/base/0", "userId", "userId"), spelled("p/base/1", "user_id", "user_id")),
-		extending("Child", "Base", spelled("p/child/0", "UserId", "UserId")),
+		extending("Base", "", spelled("property/base/0", "userId", "userId"), spelled("property/base/1", "user_id", "user_id")),
+		extending("Child", "Base", spelled("property/child/0", "UserId", "UserId")),
 	)
 	for _, tc := range []struct {
 		name string
@@ -78,8 +78,8 @@ func TestNames_ReadsAModelsOwnPropertiesOnceWhateverItExtends(t *testing.T) {
 func TestNames_ReadsAPairAModelsBaseAndInterfaceBringAtTheModel(t *testing.T) {
 	t.Parallel()
 	doc := withTypes(
-		extending("A", "", spelled("p/a/0", "userId", "userId")),
-		extending("B", "", spelled("p/b/0", "user_id", "user_id")),
+		extending("A", "", spelled("property/a/0", "userId", "userId")),
+		extending("B", "", spelled("property/b/0", "user_id", "user_id")),
 		&ir.Model{ID: "X", Name: named("X"), Base: &ir.TypeRef{Target: "A"}, Implements: []ir.TypeRef{{Target: "B"}}},
 	)
 
@@ -105,8 +105,8 @@ func TestNames_ReadsNoPairAgainBelowTheEntryThatMetIt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc := withTypes(
-				extending("Pair", "", spelled("p/pair/0", "userId", "userId"), spelled("p/pair/1", "user_id", "user_id")),
-				extending("Other", "", spelled("p/other/0", "other", "other")),
+				extending("Pair", "", spelled("property/pair/0", "userId", "userId"), spelled("property/pair/1", "user_id", "user_id")),
+				extending("Other", "", spelled("property/other/0", "other", "other")),
 				below,
 			)
 			assert.Empty(t, cmp.Diff(want, namesOf(t, doc)))

@@ -16,10 +16,10 @@ import (
 // code then its path.
 func entityRefFindings(doc *ir.Document) []string {
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		switch v.Code {
+	for _, violation := range irverify.Verify(doc) {
+		switch violation.Code {
 		case "ir/entity-ref-empty", "ir/entity-ref-ambiguous", "ir/replaced-by-itself":
-			got = append(got, v.Code+" "+v.Path)
+			got = append(got, violation.Code+" "+violation.Path)
 		}
 	}
 	return got
@@ -29,21 +29,21 @@ func entityRefFindings(doc *ir.Document) []string {
 // none names nothing, two are ambiguous, one of any class is sound.
 func TestVerify_AnEntityRefNamesOneEntity(t *testing.T) {
 	t.Parallel()
-	const at = "doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy"
+	const at = "document.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy"
 	for _, tc := range []struct {
 		name string
 		refs []ir.EntityRef
 		want []string
 	}{
-		{"one of each kind", []ir.EntityRef{{Operation: "op/x/S/v2"}, {Type: "t/x/V2"}, {Server: "server/x"}}, nil},
+		{"one of each kind", []ir.EntityRef{{Operation: "operation/x/S/v2"}, {Type: "type/x/V2"}, {Server: "server/x"}}, nil},
 		{"none", []ir.EntityRef{{}}, []string{"ir/entity-ref-empty " + at + "[0]"}},
-		{"two", []ir.EntityRef{{Operation: "op/x/S/v2"}, {Operation: "op/x/S/v3", Param: "param/x"}},
+		{"two", []ir.EntityRef{{Operation: "operation/x/S/v2"}, {Operation: "operation/x/S/v3", Param: "parameter/x"}},
 			[]string{"ir/entity-ref-ambiguous " + at + "[1]"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "op/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: tc.refs}}
-			assert.Equal(t, tc.want, entityRefFindings(opDoc(op)))
+			operation := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: tc.refs}}
+			assert.Equal(t, tc.want, entityRefFindings(singleOperationDocument(operation)))
 		})
 	}
 }
@@ -53,9 +53,9 @@ func TestVerify_AnEntityRefNamesOneEntity(t *testing.T) {
 // declares is dangling, at its field.
 func TestVerify_AReplacementIsAReference(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "op/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Operation: "op/x/S/ghost"}}}}
-	assert.Equal(t, []string{"doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy[0].Operation"},
-		violationPaths(irverify.Verify(opDoc(op)), "ir/dangling-op-ref"))
+	operation := ir.Operation{ID: "operation/x/S/op", Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Operation: "operation/x/S/ghost"}}}}
+	assert.Equal(t, []string{"document.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy[0].Operation"},
+		violationPaths(irverify.Verify(singleOperationDocument(operation)), "ir/dangling-operation-ref"))
 }
 
 // TestVerify_NothingReplacesItself holds every carrier of a Deprecation to
@@ -65,27 +65,27 @@ func TestVerify_AReplacementIsAReference(t *testing.T) {
 func TestVerify_NothingReplacesItself(t *testing.T) {
 	t.Parallel()
 	self := func(ref ir.EntityRef) *ir.Deprecation { return &ir.Deprecation{ReplacedBy: []ir.EntityRef{ref}} }
-	op := ir.Operation{
-		ID: "op/x/S/op", Deprecation: self(ir.EntityRef{Operation: "op/x/S/op"}),
+	operation := ir.Operation{
+		ID: "operation/x/S/op", Deprecation: self(ir.EntityRef{Operation: "operation/x/S/op"}),
 		Params: []ir.Parameter{
-			{ID: "param/x/a", Name: named("a"), Deprecation: self(ir.EntityRef{Param: "param/x/a"})},
-			{ID: "param/x/b", Name: named("b"), Deprecation: self(ir.EntityRef{Param: "param/x/a"})},
-			{ID: "param/x/c", Name: named("c"), Deprecation: self(ir.EntityRef{Property: "param/x/c"})},
+			{ID: "parameter/x/a", Name: named("a"), Deprecation: self(ir.EntityRef{Param: "parameter/x/a"})},
+			{ID: "parameter/x/b", Name: named("b"), Deprecation: self(ir.EntityRef{Param: "parameter/x/a"})},
+			{ID: "parameter/x/c", Name: named("c"), Deprecation: self(ir.EntityRef{Property: "parameter/x/c"})},
 		},
 	}
-	doc := opDoc(op)
+	doc := singleOperationDocument(operation)
 	doc.Types = ir.TypeRegistry{
-		"t/x/M": &ir.Model{ID: "t/x/M", Name: named("m"), Deprecation: self(ir.EntityRef{Type: "t/x/M"}),
-			Properties: []ir.Property{{ID: "p/x/M/a", Name: named("a"), Deprecation: self(ir.EntityRef{Property: "p/x/M/a"})}}},
-		"t/x/E": &ir.Enum{ID: "t/x/E", Name: named("e"), Members: []ir.EnumMember{
-			{ID: "e/x/E/a", Name: named("a"), Deprecation: self(ir.EntityRef{Member: "e/x/E/a"})},
+		"type/x/M": &ir.Model{ID: "type/x/M", Name: named("m"), Deprecation: self(ir.EntityRef{Type: "type/x/M"}),
+			Properties: []ir.Property{{ID: "property/x/M/a", Name: named("a"), Deprecation: self(ir.EntityRef{Property: "property/x/M/a"})}}},
+		"type/x/E": &ir.Enum{ID: "type/x/E", Name: named("e"), Members: []ir.EnumMember{
+			{ID: "enum-member/x/E/a", Name: named("a"), Deprecation: self(ir.EntityRef{Member: "enum-member/x/E/a"})},
 		}},
 	}
 	assert.ElementsMatch(t, []string{
-		"ir/replaced-by-itself doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy[0]",
-		"ir/replaced-by-itself doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy[0]",
-		"ir/replaced-by-itself doc.Types[t/x/M].Deprecation.ReplacedBy[0]",
-		"ir/replaced-by-itself doc.Types[t/x/M].Properties[0].Deprecation.ReplacedBy[0]",
-		"ir/replaced-by-itself doc.Types[t/x/E].Members[0].Deprecation.ReplacedBy[0]",
+		"ir/replaced-by-itself document.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy[0]",
+		"ir/replaced-by-itself document.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy[0]",
+		"ir/replaced-by-itself document.Types[type/x/M].Deprecation.ReplacedBy[0]",
+		"ir/replaced-by-itself document.Types[type/x/M].Properties[0].Deprecation.ReplacedBy[0]",
+		"ir/replaced-by-itself document.Types[type/x/E].Members[0].Deprecation.ReplacedBy[0]",
 	}, entityRefFindings(doc))
 }

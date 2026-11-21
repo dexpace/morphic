@@ -32,19 +32,19 @@ type Runner interface {
 	Run() int
 }
 
-// Main runs m and fails the process if doing so leaves a goroutine behind. A
-// package whose tests start a goroutine calls it from a TestMain in place of
-// running m.Run() directly:
+// Main runs runner and fails the process if doing so leaves a goroutine behind.
+// A package whose tests start a goroutine calls it from a TestMain in place of
+// running runner.Run() directly:
 //
-//	func TestMain(m *testing.M) { leakcheck.Main(m) }
+//	func TestMain(runner *testing.M) { leakcheck.Main(runner) }
 //
-// Main's body is exactly one statement so that its coverage counter is
-// recorded the instant it is entered — before m.Run() runs to completion and
-// writes the coverage profile, which is otherwise a trap: anything a test
-// binary executes only after m.Run() returns is invisible to that profile, and
+// Main's body is exactly one statement so that its coverage counter is recorded
+// the instant it is entered — before runner.Run() runs to completion and writes
+// the coverage profile, which is otherwise a trap: anything a test binary
+// executes only after runner.Run() returns is invisible to that profile, and
 // the gate this repo runs treats one uncovered statement as a failure.
-func Main(m Runner) {
-	os.Exit(verdict(m.Run(), pprofLookup, os.Stderr))
+func Main(runner Runner) {
+	os.Exit(verdict(runner.Run(), pprofLookup, os.Stderr))
 }
 
 // profile is the subset of *pprof.Profile that verdict reads. A small
@@ -83,8 +83,8 @@ func pprofLookup(name string) profile {
 // tests can drive every branch — profile absent, a write failure, zero leaks,
 // and one or more leaks — without an actual leaked goroutine.
 func verdict(code int, lookup func(string) profile, w io.Writer) int {
-	p := lookup(goroutineLeakProfile)
-	if p == nil {
+	profileValue := lookup(goroutineLeakProfile)
+	if profileValue == nil {
 		_, _ = fmt.Fprintf(w, "leakcheck: %q profile not registered (needs Go 1.27+); "+
 			"failing because the leak check itself could not run\n", goroutineLeakProfile)
 		return forcedCode(code)
@@ -94,13 +94,13 @@ func verdict(code int, lookup func(string) profile, w io.Writer) int {
 	// makes the Count below accurate. It is buffered rather than written
 	// straight to w so that a clean run — the common case — prints nothing.
 	var stacks bytes.Buffer
-	if err := p.WriteTo(&stacks, debugLevel); err != nil {
+	if err := profileValue.WriteTo(&stacks, debugLevel); err != nil {
 		_, _ = fmt.Fprintf(w, "leakcheck: writing %q profile: %v; "+
 			"failing because the leak check itself could not run\n", goroutineLeakProfile, err)
 		return forcedCode(code)
 	}
 
-	if n := p.Count(); n > 0 {
+	if n := profileValue.Count(); n > 0 {
 		_, _ = fmt.Fprintf(w, "leakcheck: %d leaked goroutine(s)\n", n)
 		_, _ = w.Write(stacks.Bytes())
 		return forcedCode(code)

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "T",
         "canonical": "t"
@@ -52,7 +52,7 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/tags/T",
+          "id": "operation-group/tags/T",
           "name": {
             "source": "T",
             "canonical": "t"
@@ -66,7 +66,7 @@
           },
           "operations": [
             {
-              "id": "op/openapi/paths/~1a/get",
+              "id": "operation/openapi/paths/~1a/get",
               "name": {
                 "source": "a",
                 "canonical": "a"
@@ -75,13 +75,13 @@
               "stability": "beta",
               "params": [
                 {
-                  "id": "param/openapi/paths/~1a/get/parameters/p/query",
+                  "id": "parameter/openapi/paths/~1a/get/parameters/p/query",
                   "name": {
                     "source": "p",
                     "canonical": "p"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -120,13 +120,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1a/get/parameters/c/query",
+                  "id": "parameter/openapi/paths/~1a/get/parameters/c/query",
                   "name": {
                     "source": "c",
                     "canonical": "c"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -180,21 +180,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1a/get/responses/200/headers/X-H",
+                      "id": "property/openapi/paths/~1a/get/responses/200/headers/X-H",
                       "name": {
                         "source": "X-H",
                         "canonical": "x_h"
                       },
                       "wireName": "X-H",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "encoding": {
                         "mediaType": "text/plain"
@@ -246,7 +246,7 @@
                     "uriTemplate": "/a",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1a/get/parameters/p/query",
+                        "param": "parameter/openapi/paths/~1a/get/parameters/p/query",
                         "location": "query",
                         "wireName": "p",
                         "style": "form",
@@ -254,7 +254,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1a/get/parameters/c/query",
+                        "param": "parameter/openapi/paths/~1a/get/parameters/c/query",
                         "location": "query",
                         "wireName": "c",
                         "allowReserved": false,
@@ -284,7 +284,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1a/put",
+              "id": "operation/openapi/paths/~1a/put",
               "name": {
                 "source": "own",
                 "canonical": "own"
@@ -380,9 +380,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -390,7 +390,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

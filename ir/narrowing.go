@@ -62,7 +62,7 @@ const (
 // and spent is the steps it took. Once they pass limit it stops without an
 // answer and ok is false, spent then passing limit by at most what the walk it
 // was taking read. It writes nothing to types.
-func NarrowedShapes(types TypeRegistry, root TypeID, limit int) (n Narrowing, spent int, ok bool) {
+func NarrowedShapes(types TypeRegistry, root TypeID, limit int) (narrowing Narrowing, spent int, ok bool) {
 	first := narrowedWalk(types, root, nil)
 	spent = first.steps
 	if spent > limit {
@@ -72,40 +72,40 @@ func NarrowedShapes(types TypeRegistry, root TypeID, limit int) (n Narrowing, sp
 	case 0:
 		return Narrowing{}, spent, true
 	case 1:
-		n.Union = first.narrowed[0].id
+		narrowing.Union = first.narrowed[0].id
 	default:
 		return Narrowing{Undistributed: UndistributedSeveral}, spent, true
 	}
 
 	pending, why := deeper(nil, nil, first.narrowed[0])
 	for why == "" && len(pending) > 0 {
-		p := pending[len(pending)-1]
+		pendingShape := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
 		// Clipped, so the append never writes the over its siblings share,
 		// whatever order they are walked in.
-		over := append(slices.Clip(p.over), p.next)
-		w := narrowedWalk(types, root, over)
-		if spent += w.steps; spent > limit {
+		over := append(slices.Clip(pendingShape.over), pendingShape.next)
+		walked := narrowedWalk(types, root, over)
+		if spent += walked.steps; spent > limit {
 			return Narrowing{}, spent, false
 		}
 		switch {
-		case w.unending:
+		case walked.unending:
 			why = UndistributedUnending
-		case len(w.narrowed) > 1:
+		case len(walked.narrowed) > 1:
 			why = UndistributedSeveral
-		case len(w.narrowed) == 1:
-			pending, why = deeper(pending, over, w.narrowed[0])
+		case len(walked.narrowed) == 1:
+			pending, why = deeper(pending, over, walked.narrowed[0])
 		default:
 			if spent++; spent > limit {
 				return Narrowing{}, spent, false
 			}
-			n.Shapes = append(n.Shapes, NarrowedShape{Over: variantsOf(over), Flattening: w.flat})
+			narrowing.Shapes = append(narrowing.Shapes, NarrowedShape{Over: variantsOf(over), Flattening: walked.flat})
 		}
 	}
 	if why != "" {
-		return Narrowing{Union: n.Union, Undistributed: why}, spent, true
+		return Narrowing{Union: narrowing.Union, Undistributed: why}, spent, true
 	}
-	return n, spent, true
+	return narrowing, spent, true
 }
 
 // substitution names the variant a walk reads where it meets a union.
@@ -130,15 +130,15 @@ type pendingShape struct {
 // why it takes none: it tags its variants by a key, an envelope or a tuple
 // element.
 func deeper(pending []pendingShape, over []substitution, met metUnion) ([]pendingShape, Undistributed) {
-	u := met.union
-	if d := u.Discriminator; u.WireTagged && (d == nil || d.Envelope != "" || d.Index != nil) {
+	union := met.union
+	if discriminator := union.Discriminator; union.WireTagged && (discriminator == nil || discriminator.Envelope != "" || discriminator.TupleElementIndex != nil) {
 		return pending, UndistributedNotValues
 	}
-	for _, v := range slices.Backward(u.Variants) {
-		if v.Type.Target == "" {
+	for _, variant := range slices.Backward(union.Variants) {
+		if variant.Type.Target == "" {
 			continue // an unset variant names nothing, so no shape is over it
 		}
-		pending = append(pending, pendingShape{over: over, next: substitution{union: met.id, variant: v.Type.Target}})
+		pending = append(pending, pendingShape{over: over, next: substitution{union: met.id, variant: variant.Type.Target}})
 	}
 	return pending, ""
 }
@@ -146,8 +146,8 @@ func deeper(pending []pendingShape, over []substitution, met metUnion) ([]pendin
 // variantsOf returns the variants over reads, in its order.
 func variantsOf(over []substitution) []TypeID {
 	out := make([]TypeID, len(over))
-	for i, s := range over {
-		out[i] = s.variant
+	for i, substitution := range over {
+		out[i] = substitution.variant
 	}
 	return out
 }
@@ -165,10 +165,10 @@ type walked struct {
 // read in its union's place, and reads off it the unions the composition
 // narrows and whether no distribution ends it.
 func narrowedWalk(types TypeRegistry, root TypeID, over []substitution) walked {
-	f := flattener{types: types, narrow: &narrowState{over: over}}
-	flat := f.flatten(root)
-	narrowed := f.narrowed()
-	return walked{flat: flat, narrowed: narrowed, unending: f.narrow.unending, steps: f.steps}
+	flattenerValue := flattener{types: types, narrow: &narrowState{over: over}}
+	flat := flattenerValue.flatten(root)
+	narrowed := flattenerValue.narrowed()
+	return walked{flat: flat, narrowed: narrowed, unending: flattenerValue.narrow.unending, steps: flattenerValue.steps}
 }
 
 // narrowState is what a [NarrowedShapes] walk reads beside the flattening.
@@ -218,44 +218,44 @@ type metUnion struct {
 // each variant along it a step. One longer than over has reached a union
 // twice, so the walk substitutes nothing more. A model it ends at is placed.
 func (f *flattener) substitute(target, id TypeID) (TypeID, TypeID) {
-	n := f.narrow
-	if len(n.over) == 0 || n.unending {
+	narrowState := f.narrow
+	if len(narrowState.over) == 0 || narrowState.unending {
 		return target, id
 	}
-	if n.at == nil {
-		n.at = make(map[TypeID]int, len(n.over))
-		for i, s := range n.over {
-			n.at[s.union] = i
+	if narrowState.at == nil {
+		narrowState.at = make(map[TypeID]int, len(narrowState.over))
+		for i, substitution := range narrowState.over {
+			narrowState.at[substitution.union] = i
 		}
-		n.ends = make([]variantEnd, len(n.over))
+		narrowState.ends = make([]variantEnd, len(narrowState.over))
 	}
 	var chain []int
 	for {
-		i, substituted := n.at[id]
+		i, substituted := narrowState.at[id]
 		if !substituted {
 			break
 		}
-		if len(chain) == len(n.over) {
-			n.unending = true
+		if len(chain) == len(narrowState.over) {
+			narrowState.unending = true
 			return target, id
 		}
 		f.steps++
-		if e := n.ends[i]; e.read {
-			target, id = e.target, e.id
+		if variantEnd := narrowState.ends[i]; variantEnd.read {
+			target, id = variantEnd.target, variantEnd.id
 			break
 		}
 		chain = append(chain, i)
-		target = n.over[i].variant
+		target = narrowState.over[i].variant
 		id = f.resolve(target)
 	}
 	for _, i := range chain {
-		n.ends[i] = variantEnd{target: target, id: id, read: true}
+		narrowState.ends[i] = variantEnd{target: target, id: id, read: true}
 	}
-	if m, ok := f.types[id].(*Model); len(chain) > 0 && ok && m != nil {
-		if n.placed == nil {
-			n.placed = map[TypeID]bool{}
+	if model, ok := f.types[id].(*Model); len(chain) > 0 && ok && model != nil {
+		if narrowState.placed == nil {
+			narrowState.placed = map[TypeID]bool{}
 		}
-		n.placed[id] = true
+		narrowState.placed[id] = true
 	}
 	return target, id
 }
@@ -264,8 +264,8 @@ func (f *flattener) substitute(target, id TypeID) (TypeID, TypeID) {
 // the walk met that it reads no variant of, unless it is no union or met
 // already.
 func (n *narrowState) meet(types TypeRegistry, id TypeID) {
-	u, ok := types[id].(*Union)
-	if !ok || u == nil || n.seen[id] {
+	union, ok := types[id].(*Union)
+	if !ok || union == nil || n.seen[id] {
 		return
 	}
 	if _, substituted := n.at[id]; substituted {
@@ -275,15 +275,15 @@ func (n *narrowState) meet(types TypeRegistry, id TypeID) {
 		n.seen = map[TypeID]bool{}
 	}
 	n.seen[id] = true
-	n.unions = append(n.unions, metUnion{id: id, union: u})
+	n.unions = append(n.unions, metUnion{id: id, union: union})
 }
 
 // readRoot records the models the walk read in its root's strongly
 // connected component, the last it reads: a placed one among them composes
 // the root in turn.
 func (n *narrowState) readRoot(component []frame) {
-	for _, c := range component {
-		n.unending = n.unending || n.placed[c.id]
+	for _, frame := range component {
+		n.unending = n.unending || n.placed[frame.id]
 	}
 }
 
@@ -293,20 +293,20 @@ func (n *narrowState) readRoot(component []frame) {
 // variant it reads is a step.
 func (f *flattener) narrowed() []metUnion {
 	var out []metUnion
-	for _, u := range f.narrow.unions {
-		if !f.lists(u.union) {
-			out = append(out, u)
+	for _, metUnion := range f.narrow.unions {
+		if !f.lists(metUnion.union) {
+			out = append(out, metUnion)
 		}
 	}
 	return out
 }
 
-// lists reports whether the union u has a variant standing for the walk's
+// lists reports whether the union union has a variant standing for the walk's
 // root, read through alias scalars, each variant it reads a step.
-func (f *flattener) lists(u *Union) bool {
-	for _, v := range u.Variants {
+func (f *flattener) lists(union *Union) bool {
+	for _, variant := range union.Variants {
 		f.steps++
-		if f.resolve(v.Type.Target) == f.narrow.root {
+		if f.resolve(variant.Type.Target) == f.narrow.root {
 			return true
 		}
 	}

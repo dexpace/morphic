@@ -78,31 +78,31 @@ components:
 // different places.
 func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir.TypeRef) {
 	t.Helper()
-	op := openapitest.FindOp(t, doc, "op")
-	param, ok := openapitest.ParamBySource(op, "id")
+	operation := openapitest.FindOperation(t, doc, "op")
+	param, ok := openapitest.ParamBySource(operation, "id")
 	require.True(t, ok, "the operation declares id")
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	require.NotNil(t, op.Request)
-	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	require.NotNil(t, operation.Request)
+	require.NotNil(t, operation.Responses[0].Payload)
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok, "Items lowers to a list")
 	union, ok := typeByName(doc, "Variants").(*ir.Union)
 	require.True(t, ok, "Variants lowers to a union")
 	bag, ok := typeByName(doc, "Bag").(*ir.Model)
 	require.True(t, ok, "Bag lowers to a model")
-	require.NotNil(t, bag.AdditionalProps)
-	require.NotNil(t, bag.AdditionalProps.Value, "Bag types every key")
+	require.NotNil(t, bag.AdditionalProperties)
+	require.NotNil(t, bag.AdditionalProperties.Value, "Bag types every key")
 	carriers = map[string]ir.TypeRef{
 		"property":  propertyOf(t, doc, "Holder", "f").Type,
 		"parameter": param.Type,
-		"header":    op.Responses[0].Headers[0].Type,
+		"header":    operation.Responses[0].Headers[0].Type,
 	}
 	nodes = map[string]ir.TypeRef{
-		"request":  op.Request.Contents[0].Type,
-		"response": op.Responses[0].Payload.Contents[0].Type,
-		"map":      *bag.AdditionalProps.Value,
-		"items":    items.Elem,
+		"request":  operation.Request.Contents[0].Type,
+		"response": operation.Responses[0].Payload.Contents[0].Type,
+		"map":      *bag.AdditionalProperties.Value,
+		"items":    items.ElementType,
 		"variant":  union.Variants[0].Type,
 	}
 	return carriers, nodes
@@ -147,12 +147,12 @@ func TestRefinement_AnAnnotationOnlyEntryLandsTyped(t *testing.T) {
 	assert.Empty(t, withCode(diags, diag.DegradedConstruct), "nothing is left to keep verbatim")
 
 	owner := propertyOf(t, doc, "Holder", "owner")
-	m, ok := doc.Types[owner.Type.Target].(*ir.Model)
+	model, ok := doc.Types[owner.Type.Target].(*ir.Model)
 	require.True(t, ok, "an object target keeps its composition")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Owner"), m.Base.Target)
-	assert.Equal(t, "The owner", m.Docs.Description)
-	assert.Empty(t, m.Unmodeled)
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Owner"), model.Base.Target)
+	assert.Equal(t, "The owner", model.Docs.Description)
+	assert.Empty(t, model.Unmodeled)
 	assert.True(t, owner.Type.Nullable)
 	assert.NotEmpty(t, owner.Type.Inferred, "the null is the policy's reading")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
@@ -186,9 +186,9 @@ func TestRefinement_PrimitiveEntriesLowerToTheirMeet(t *testing.T) {
 			alias, ok := typeByName(doc, "Prim").(*ir.Scalar)
 			require.True(t, ok, "Prim is a named scalar, not %T", typeByName(doc, "Prim"))
 			require.NotNil(t, alias.Base)
-			prim, ok := doc.Types[alias.Base.Target].(*ir.Primitive)
+			primitive, ok := doc.Types[alias.Base.Target].(*ir.Primitive)
 			require.True(t, ok)
-			assert.Equal(t, ir.PrimInt32, prim.Prim)
+			assert.Equal(t, ir.PrimitiveInt32, primitive.PrimitiveKind)
 		})
 	}
 }
@@ -245,14 +245,14 @@ func TestRefinement_AUnionEntryIsAConjunct(t *testing.T) {
 	}
 
 	field := propertyOf(t, doc, "Holder", "value")
-	assert.Equal(t, ir.TypeID("t/prim/string"), field.Type.Target, "a property lowers to the meet too")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), field.Type.Target, "a property lowers to the meet too")
 	require.NotNil(t, field.Constraints)
 	assert.Equal(t, int64(1000), *field.Constraints.MaxLength)
 	assert.Empty(t, field.Unmodeled)
 
 	beside, ok := typeByName(doc, "BesideDecides").(*ir.Scalar)
 	require.True(t, ok, "BesideDecides is a scalar, not %T", typeByName(doc, "BesideDecides"))
-	assert.Equal(t, ir.TypeID("t/prim/string"), beside.Base.Target, "the keywords beside the allOf decide it")
+	assert.Equal(t, ir.TypeID("type/primitive/string"), beside.Base.Target, "the keywords beside the allOf decide it")
 	assert.Empty(t, beside.Unmodeled, "with no principal entry, the anyOf is said all the same")
 
 	for _, name := range []string{"SameText", "SameRef"} {
@@ -321,8 +321,8 @@ func TestRefinement_AUnionBesideTheAllOfIsAConjunct(t *testing.T) {
 				assert.Equal(t, propertyConjunct(t, doc, "branch"), propertyConjunct(t, doc, "beside"), "the property")
 				_, composes := typeByName(doc, "Beside").(*ir.Model)
 				assert.False(t, composes, "no conjunct admits an object")
-				p := propertyOf(t, doc, "Holder", "beside")
-				for _, kept := range []ir.Unmodeled{typeByName(doc, "Beside").Common().Unmodeled, p.Unmodeled} {
+				property := propertyOf(t, doc, "Holder", "beside")
+				for _, kept := range []ir.Unmodeled{typeByName(doc, "Beside").Common().Unmodeled, property.Unmodeled} {
 					_, keeps := kept[tc.kept]
 					assert.Equal(t, tc.kept != "", keeps, "the union is kept under %q", tc.kept)
 				}
@@ -342,19 +342,19 @@ func TestRefinement_AUnionThePrincipalSaysIsConsumed(t *testing.T) {
 	const written = "{allOf: [{$ref: '#/components/schemas/Str'}], oneOf: [{type: string}, {type: boolean}]}"
 	for _, doc := range unionConjunctOrders(t, "    S: "+written+"\n"+
 		"    Holder:\n      type: object\n      properties:\n        f: "+written+"\n") {
-		s, ok := typeByName(doc, "S").(*ir.Scalar)
+		scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 		require.True(t, ok, "S is an alias over its principal, not %T", typeByName(doc, "S"))
-		assert.Equal(t, componentID("Str"), s.Base.Target)
-		assert.Empty(t, s.Unmodeled, "the alias keeps nothing")
-		assert.Nil(t, s.Constraints, "the alias adds no bound")
-		p := propertyOf(t, doc, "Holder", "f")
-		assert.Equal(t, componentID("Str"), p.Type.Target, "the property names the target")
-		assert.Empty(t, p.Unmodeled, "the property keeps nothing")
-		for _, d := range doc.Diagnostics {
-			at := string(d.Provenance.Pointer)
+		assert.Equal(t, componentID("Str"), scalar.Base.Target)
+		assert.Empty(t, scalar.Unmodeled, "the alias keeps nothing")
+		assert.Nil(t, scalar.Constraints, "the alias adds no bound")
+		property := propertyOf(t, doc, "Holder", "f")
+		assert.Equal(t, componentID("Str"), property.Type.Target, "the property names the target")
+		assert.Empty(t, property.Unmodeled, "the property keeps nothing")
+		for _, diagnostic := range doc.Diagnostics {
+			at := string(diagnostic.Provenance.Pointer)
 			for _, written := range []string{"/components/schemas/S", "/components/schemas/Holder/properties/f"} {
 				assert.False(t, strings.HasSuffix(at, written) || strings.Contains(at, written+"/"),
-					"nothing is reported at %s: %s %s", written, d.Code, at)
+					"nothing is reported at %s: %s %s", written, diagnostic.Code, at)
 			}
 		}
 	}
@@ -393,12 +393,12 @@ func TestRefinement_AShapelessUnionBesideIsValidationLogic(t *testing.T) {
 		"    OnBranch: {allOf: [{$ref: '#/components/schemas/Str'}, {"+union+"}]}\n"+
 		"    Holder:\n      type: object\n      properties:\n"+
 		"        f: {allOf: [{$ref: '#/components/schemas/Str'}], "+union+"}\n") {
-		s, ok := typeByName(doc, "S").(*ir.Scalar)
+		scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 		require.True(t, ok, "S is an alias over its principal, not %T", typeByName(doc, "S"))
-		assert.Equal(t, componentID("Str"), s.Base.Target)
-		p := propertyOf(t, doc, "Holder", "f")
-		assert.Equal(t, componentID("Str"), p.Type.Target)
-		for at, kept := range map[string]ir.Unmodeled{"/components/schemas/S": s.Unmodeled, "/components/schemas/Holder/properties/f": p.Unmodeled} {
+		assert.Equal(t, componentID("Str"), scalar.Base.Target)
+		property := propertyOf(t, doc, "Holder", "f")
+		assert.Equal(t, componentID("Str"), property.Type.Target)
+		for at, kept := range map[string]ir.Unmodeled{"/components/schemas/S": scalar.Unmodeled, "/components/schemas/Holder/properties/f": property.Unmodeled} {
 			assert.Equal(t, ir.ReasonValidationOnly, kept["openapi:oneOf"].Reason, at)
 			assert.Len(t, diagsAtPointer(doc.Diagnostics, diag.ValidationOnlyKeyword, at), 1, at)
 			assert.Empty(t, diagsAtPointer(doc.Diagnostics, diag.DegradedConstruct, at), at)
@@ -429,8 +429,8 @@ func unionConjunctOrders(t *testing.T, positions string) []*ir.Document {
 // componentConjunct renders what the component name lowered to, as
 // conjunctShape does: an alias by its base, any other node as written there.
 func componentConjunct(doc *ir.Document, name string) string {
-	if s, ok := typeByName(doc, name).(*ir.Scalar); ok && s.Base != nil {
-		return conjunctShape(doc, *s.Base, s.Constraints, s.Unmodeled)
+	if scalar, ok := typeByName(doc, name).(*ir.Scalar); ok && scalar.Base != nil {
+		return conjunctShape(doc, *scalar.Base, scalar.Constraints, scalar.Unmodeled)
 	}
 	return conjunctShape(doc, ir.TypeRef{Target: componentID(name)}, nil, typeByName(doc, name).Common().Unmodeled)
 }
@@ -438,8 +438,8 @@ func componentConjunct(doc *ir.Document, name string) string {
 // propertyConjunct renders what Holder's property wire lowered to.
 func propertyConjunct(t *testing.T, doc *ir.Document, wire string) string {
 	t.Helper()
-	p := propertyOf(t, doc, "Holder", wire)
-	return conjunctShape(doc, p.Type, p.Constraints, p.Unmodeled)
+	property := propertyOf(t, doc, "Holder", wire)
+	return conjunctShape(doc, property.Type, property.Constraints, property.Unmodeled)
 }
 
 // unionKeptKey matches a key a union is kept under, whichever spelling wrote it.
@@ -451,10 +451,10 @@ var unionKeptKey = regexp.MustCompile(`^openapi:(oneOf|anyOf|allOf/\d+)$`)
 // a key a union is kept under by its reason alone.
 func conjunctShape(doc *ir.Document, ref ir.TypeRef, cons *ir.Constraints, kept ir.Unmodeled) string {
 	target := []ir.TypeID{ref.Target}
-	if u, ok := doc.Types[ref.Target].(*ir.Union); ok {
+	if union, ok := doc.Types[ref.Target].(*ir.Union); ok {
 		target = target[:0]
-		for _, v := range u.Variants {
-			target = append(target, v.Type.Target)
+		for _, variant := range union.Variants {
+			target = append(target, variant.Type.Target)
 		}
 	}
 	keys := map[string]ir.UnmodeledReason{}
@@ -483,9 +483,9 @@ func TestRefinement_DisjointConjunctsStayAComposition(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+"    Disj: "+tc.schema+"\n"))
-			m, ok := typeByName(doc, "Disj").(*ir.Model)
+			model, ok := typeByName(doc, "Disj").(*ir.Model)
 			require.True(t, ok, "no value satisfies it, so nothing refines: got %T", typeByName(doc, "Disj"))
-			assert.NotEmpty(t, m.Unmodeled, "each entry is kept")
+			assert.NotEmpty(t, model.Unmodeled, "each entry is kept")
 			assert.Equal(t, tc.warns, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 		})
 	}
@@ -566,17 +566,17 @@ func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 				assert.Equal(t, int64(2), *alias.Constraints.MinLength, position)
 				assert.Empty(t, alias.Unmodeled, position)
 			}
-			p := propertyOf(t, doc, "Holder", "f")
-			assert.Equal(t, "mine", p.Docs.Description)
-			require.NotNil(t, p.Constraints)
-			require.NotNil(t, p.Constraints.MinLength)
-			assert.Equal(t, int64(2), *p.Constraints.MinLength)
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			property := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, "mine", property.Docs.Description)
+			require.NotNil(t, property.Constraints)
+			require.NotNil(t, property.Constraints.MinLength)
+			assert.Equal(t, int64(2), *property.Constraints.MinLength)
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			assert.Equal(t, "mine", param.Docs.Description)
 			require.NotNil(t, param.Constraints)
-			assert.Equal(t, "mine", op.Responses[0].Headers[0].Docs.Description)
+			assert.Equal(t, "mine", operation.Responses[0].Headers[0].Docs.Description)
 			named, ok := typeByName(doc, "Named").(*ir.Scalar)
 			require.True(t, ok)
 			assert.Equal(t, "mine", named.Docs.Description)
@@ -601,12 +601,12 @@ func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, positionsDoc(refinementTargets, written))
 			noDegradation(t, diags)
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints, "property")
 			assert.Equal(t, want, param.Constraints, "parameter")
-			assert.Equal(t, want, op.Responses[0].Headers[0].Constraints, "header")
+			assert.Equal(t, want, operation.Responses[0].Headers[0].Constraints, "header")
 			_, nodes := positionRefs(t, doc)
 			for position, ref := range nodes {
 				alias := aliasAt(t, doc, ref)
@@ -672,19 +672,19 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 			if tc.code != "" {
 				code, reason = tc.code, tc.reason
 			}
-			held := func(where string, u ir.Unmodeled) {
+			held := func(where string, unmodeled ir.Unmodeled) {
 				t.Helper()
-				entry, ok := u[tc.key]
-				if assert.True(t, ok, "%s keeps %s: got %v", where, tc.key, u) {
+				entry, ok := unmodeled[tc.key]
+				if assert.True(t, ok, "%s keeps %s: got %v", where, tc.key, unmodeled) {
 					assert.Equal(t, reason, entry.Reason, where)
 				}
 			}
-			op := openapitest.FindOp(t, doc, "op")
-			param, ok := openapitest.ParamBySource(op, "id")
+			operation := openapitest.FindOperation(t, doc, "op")
+			param, ok := openapitest.ParamBySource(operation, "id")
 			require.True(t, ok)
 			held("a property", propertyOf(t, doc, "Holder", "f").Unmodeled)
 			held("a parameter", schemaKept(param.Unmodeled))
-			held("a header", schemaKept(op.Responses[0].Headers[0].Unmodeled))
+			held("a header", schemaKept(operation.Responses[0].Headers[0].Unmodeled))
 			_, nodes := positionRefs(t, doc)
 			for position, ref := range nodes {
 				held(position, aliasAt(t, doc, ref).Unmodeled)
@@ -696,10 +696,10 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 				assert.NotContains(t, typeByName(doc, target).Common().Unmodeled, tc.key, "%s is shared", target)
 			}
 			var reports []string
-			for _, d := range withCode(diags, code) {
-				reports = append(reports, d.Message)
-				assert.Contains(t, d.Message, tc.report)
-				assert.Equal(t, ir.SeverityInfo, d.Severity)
+			for _, diagnostic := range withCode(diags, code) {
+				reports = append(reports, diagnostic.Message)
+				assert.Contains(t, diagnostic.Message, tc.report)
+				assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
 			}
 			assert.NotEmpty(t, reports)
 			other := diag.UnknownSchemaKeyword
@@ -717,8 +717,8 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 // of the entries; two alike tie to the least reference text.
 func TestRefinement_SeveralRefsUseTheNarrowest(t *testing.T) {
 	t.Parallel()
-	const str, mode = "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/Mode'}"
-	for _, entries := range [][2]string{{str, mode}, {mode, str}} {
+	const stringReference, mode = "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/Mode'}"
+	for _, entries := range [][2]string{{stringReference, mode}, {mode, stringReference}} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+
 			"    Two: {allOf: ["+entries[0]+", "+entries[1]+"]}\n"+
 			"    Same: {allOf: [{$ref: '#/components/schemas/Mail'}, {$ref: '#/components/schemas/MailToo'}]}\n"))
@@ -803,7 +803,7 @@ func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
 		},
 		"properties in an entry": {
 			schemas: "    S: {allOf: [{type: string, properties: {a: {type: string}}}]}\n",
-			base:    "t/prim/string",
+			base:    "type/primitive/string",
 		},
 		"required beside": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], required: [a]}\n", base: componentID("Str"),
@@ -813,9 +813,9 @@ func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
-			s, ok := typeByName(doc, "S").(*ir.Scalar)
+			scalar, ok := typeByName(doc, "S").(*ir.Scalar)
 			require.True(t, ok, "got %T", typeByName(doc, "S"))
-			assert.Equal(t, tc.base, s.Base.Target)
+			assert.Equal(t, tc.base, scalar.Base.Target)
 		})
 	}
 }
@@ -916,18 +916,18 @@ func TestRefinement_AValueSetNarrowsTheRefItBeats(t *testing.T) {
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", targets+"    Holder:\n"+
 				"      type: object\n      properties:\n        f: "+written+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "Holder", "f")
-			assert.Equal(t, "op doc", firstDocs(doc, p).Description, "the field keeps what the $ref says of it")
-			assert.Equal(t, "Op title", firstDocs(doc, p).Summary)
-			assert.Len(t, firstDocs(doc, p).ExternalDocs, 1)
-			assert.NotEqual(t, componentID("Op"), p.Type.Target, "the value set is what the field holds")
-			assert.True(t, p.Deprecation != nil || doc.Types[p.Type.Target].Common().Deprecation != nil,
+			property := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, "op doc", firstDocs(doc, property).Description, "the field keeps what the $ref says of it")
+			assert.Equal(t, "Op title", firstDocs(doc, property).Summary)
+			assert.Len(t, firstDocs(doc, property).ExternalDocs, 1)
+			assert.NotEqual(t, componentID("Op"), property.Type.Target, "the value set is what the field holds")
+			assert.True(t, property.Deprecation != nil || doc.Types[property.Type.Target].Common().Deprecation != nil,
 				"a deprecated target deprecates the field")
-			assert.NotEmpty(t, p.Visibility.Only, "and a read-only one keeps it out of a request")
-			require.NotNil(t, p.Default, "a member of the narrowed set is the field's default")
-			assert.Equal(t, "set", p.Default.Str)
-			assert.Empty(t, p.Examples, "a target's example describes the target, never a use of it")
-			assert.Empty(t, doc.Types[p.Type.Target].Common().Examples)
+			assert.NotEmpty(t, property.Visibility.Only, "and a read-only one keeps it out of a request")
+			require.NotNil(t, property.Default, "a member of the narrowed set is the field's default")
+			assert.Equal(t, "set", property.Default.String)
+			assert.Empty(t, property.Examples, "a target's example describes the target, never a use of it")
+			assert.Empty(t, doc.Types[property.Type.Target].Common().Examples)
 			assert.Len(t, doc.Types[componentID("Op")].Common().Examples, 1, "and stays on its node")
 		})
 	}
@@ -963,11 +963,11 @@ func TestRefinement_AValueSetNarrowsTheRefItBeats(t *testing.T) {
 
 // firstDocs is the documentation the field reads: the property's, else its
 // node's where the position owns one.
-func firstDocs(doc *ir.Document, p ir.Property) ir.Docs {
-	if p.Docs.Description != "" {
-		return p.Docs
+func firstDocs(doc *ir.Document, property ir.Property) ir.Docs {
+	if property.Docs.Description != "" {
+		return property.Docs
 	}
-	return doc.Types[p.Type.Target].Common().Docs
+	return doc.Types[property.Type.Target].Common().Docs
 }
 
 // TestRefinement_ANarrowingKeepsItsTargetOnANode pins the narrowing at a
@@ -1006,7 +1006,7 @@ func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
         Mode: {type: string, enum: [a, b], example: b}
     Narrow: `+written+"\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
-		en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
+		en, ok := doc.Types["type/anonymous/components/schemas/Host/$defs/Mode"].(*ir.Enum)
 		require.True(t, ok, "%s: nothing but the kept $ref names the target", name)
 		assert.Len(t, en.Members, 2, name)
 		assert.NotEmpty(t, en.Examples, "%s: the target's examples stay on its node", name)
@@ -1024,32 +1024,32 @@ func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
 	const uuid = `"0b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11"`
 	for name, tc := range map[string]struct {
 		written string
-		want    ir.PrimKind
+		want    ir.PrimitiveKind
 		kept    []string
 	}{
-		"a type on an entry":   {"{allOf: [{type: integer}, {const: 80.0}]}", ir.PrimInteger, nil},
-		"in the other order":   {"{allOf: [{const: 80.0}, {type: integer}]}", ir.PrimInteger, nil},
-		"a format on an entry": {"{allOf: [{type: integer, format: int32}, {const: 80}]}", ir.PrimInt32, nil},
-		"an enum":              {"{allOf: [{type: string, format: uuid}, {enum: [" + uuid + "]}]}", ir.PrimUUID, nil},
-		"a const beside":       {"{const: 80.0, allOf: [{type: integer}]}", ir.PrimInteger, nil},
-		"a type beside":        {"{type: integer, format: int32, allOf: [{const: 80}]}", ir.PrimInt32, nil},
-		"a wider type beside":  {"{type: number, const: 80, allOf: [{type: integer}]}", ir.PrimInteger, nil},
+		"a type on an entry":   {"{allOf: [{type: integer}, {const: 80.0}]}", ir.PrimitiveInteger, nil},
+		"in the other order":   {"{allOf: [{const: 80.0}, {type: integer}]}", ir.PrimitiveInteger, nil},
+		"a format on an entry": {"{allOf: [{type: integer, format: int32}, {const: 80}]}", ir.PrimitiveInt32, nil},
+		"an enum":              {"{allOf: [{type: string, format: uuid}, {enum: [" + uuid + "]}]}", ir.PrimitiveUUID, nil},
+		"a const beside":       {"{const: 80.0, allOf: [{type: integer}]}", ir.PrimitiveInteger, nil},
+		"a type beside":        {"{type: integer, format: int32, allOf: [{const: 80}]}", ir.PrimitiveInt32, nil},
+		"a wider type beside":  {"{type: number, const: 80, allOf: [{type: integer}]}", ir.PrimitiveInteger, nil},
 		"a wider format with the value": {"{allOf: [{type: integer, format: int32}, {type: integer, format: int64, const: 80}]}",
-			ir.PrimInt32, nil},
+			ir.PrimitiveInt32, nil},
 		"a wider format on another entry": {"{allOf: [{type: integer, format: int64}, {type: integer, format: int32}, {const: 80}]}",
-			ir.PrimInt32, nil},
+			ir.PrimitiveInt32, nil},
 		"a wider format beside": {"{type: integer, format: int64, allOf: [{enum: [80]}, {type: integer, format: int32}]}",
-			ir.PrimInt32, nil},
-		"a $ref": {"{allOf: [{$ref: '#/components/schemas/Int32'}, {enum: [80]}]}", ir.PrimInt32, []string{"openapi:$ref"}},
-		"a $ref to a refinement": {"{allOf: [{$ref: '#/components/schemas/Port'}, {enum: [80]}]}", ir.PrimInt32,
+			ir.PrimitiveInt32, nil},
+		"a $ref": {"{allOf: [{$ref: '#/components/schemas/Int32'}, {enum: [80]}]}", ir.PrimitiveInt32, []string{"openapi:$ref"}},
+		"a $ref to a refinement": {"{allOf: [{$ref: '#/components/schemas/Port'}, {enum: [80]}]}", ir.PrimitiveInt32,
 			[]string{"openapi:$ref"}},
 		"two formats": {"{allOf: [{type: integer, format: int8}, {type: integer, format: uint8}, {const: 80}]}",
-			ir.PrimNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
-		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimInteger,
+			ir.PrimitiveNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
+		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimitiveInteger,
 			[]string{"openapi:format"}},
-		"a format a member is not of": {"{allOf: [{type: integer, format: int8}, {enum: [1, 300]}]}", ir.PrimInteger,
+		"a format a member is not of": {"{allOf: [{type: integer, format: int8}, {enum: [1, 300]}]}", ir.PrimitiveInteger,
 			[]string{"openapi:format"}},
-		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimInteger,
+		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimitiveInteger,
 			[]string{"openapi:format"}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -1085,12 +1085,12 @@ func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
 	for _, order := range orders {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", order))
 		openapitest.RequireNoErrorDiags(t, diags)
-		lit, ok := doc.Types["t/anon/components/schemas/S/allOf/1"].(*ir.Literal)
+		lit, ok := doc.Types["type/anonymous/components/schemas/S/allOf/1"].(*ir.Literal)
 		require.True(t, ok)
-		assert.Equal(t, ir.PrimNumber, lit.ValueType, "the entry alone writes no type")
+		assert.Equal(t, ir.PrimitiveNumber, lit.ValueType, "the entry alone writes no type")
 		at, ok := typeByName(doc, "S").(*ir.Literal)
 		require.True(t, ok, "got %T", typeByName(doc, "S"))
-		assert.Equal(t, ir.PrimInt32, at.ValueType, "the position's node is typed by every conjunct")
+		assert.Equal(t, ir.PrimitiveInt32, at.ValueType, "the position's node is typed by every conjunct")
 		docs = append(docs, doc)
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
@@ -1133,7 +1133,7 @@ func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 
 	bounded, ok := typeByName(doc, "Bounded").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "Bounded"))
-	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
+	assert.Equal(t, ir.PrimitiveInt64, bounded.ValueType)
 	assert.Equal(t, []string{"openapi:maximum"}, unmodeledKeys(bounded.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline entry")
@@ -1180,9 +1180,9 @@ func TestRefinement_ACarrierReadsThroughARefinement(t *testing.T) {
 	beside := propertyOf(t, doc, "Holder", "beside")
 	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref entry writes speaks too")
 
-	lent := propertyOf(t, doc, "Holder", "lent")
-	assert.Equal(t, "lent doc", lent.Docs.Description)
-	require.NotNil(t, lent.Default, "what a target's entry writes it lends a use")
+	fallbackProperty := propertyOf(t, doc, "Holder", "lent")
+	assert.Equal(t, "lent doc", fallbackProperty.Docs.Description)
+	require.NotNil(t, fallbackProperty.Default, "what a target's entry writes it lends a use")
 
 	direct := propertyOf(t, doc, "Holder", "direct")
 	assert.NotEmpty(t, direct.Visibility.Only)
@@ -1218,27 +1218,27 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 		"uuid over string": {"{type: string}", "{type: string, format: uuid}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
-				prim, ok := doc.Types[id].(*ir.Primitive)
+				primitive, ok := doc.Types[id].(*ir.Primitive)
 				require.True(t, ok, "%T", doc.Types[id])
-				assert.Equal(t, ir.PrimUUID, prim.Prim)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"items over none": {"{type: array}", "{type: array, items: {type: string}}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
 				list, ok := doc.Types[id].(*ir.List)
 				require.True(t, ok, "%T", doc.Types[id])
-				prim, ok := doc.Types[list.Elem.Target].(*ir.Primitive)
+				primitive, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
 				require.True(t, ok)
-				assert.Equal(t, ir.PrimString, prim.Prim)
+				assert.Equal(t, ir.PrimitiveString, primitive.PrimitiveKind)
 			}},
 		"narrower items": {"{type: array, items: {type: string}}", "{type: array, items: {type: string, format: uuid}}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
 				list, ok := doc.Types[id].(*ir.List)
 				require.True(t, ok, "%T", doc.Types[id])
-				prim, ok := doc.Types[list.Elem.Target].(*ir.Primitive)
+				primitive, ok := doc.Types[list.ElementType.Target].(*ir.Primitive)
 				require.True(t, ok)
-				assert.Equal(t, ir.PrimUUID, prim.Prim)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"a subset of an enum": {"{enum: [a, b]}", "{enum: [a]}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
@@ -1250,9 +1250,9 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 		"a redaction names no shape": {"{type: string, format: password}", "{type: string, format: uuid}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
 				t.Helper()
-				prim, ok := doc.Types[id].(*ir.Primitive)
+				primitive, ok := doc.Types[id].(*ir.Primitive)
 				require.True(t, ok, "%T", doc.Types[id])
-				assert.Equal(t, ir.PrimUUID, prim.Prim)
+				assert.Equal(t, ir.PrimitiveUUID, primitive.PrimitiveKind)
 			}},
 		"a type array's member": {"{type: [string, integer]}", "{type: string, format: email}",
 			func(t *testing.T, doc *ir.Document, id ir.TypeID) {
@@ -1267,9 +1267,9 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
 					"      properties:\n        f: {allOf: ["+entries[0]+", "+entries[1]+"]}\n"))
 				assert.Empty(t, withCode(diags, diag.DegradedConstruct), entries)
-				p := propertyOf(t, doc, "Holder", "f")
-				tc.want(t, doc, p.Type.Target)
-				assert.Empty(t, p.Unmodeled, "the wider entry says nothing the narrower does not")
+				property := propertyOf(t, doc, "Holder", "f")
+				tc.want(t, doc, property.Type.Target)
+				assert.Empty(t, property.Unmodeled, "the wider entry says nothing the narrower does not")
 			}
 		})
 	}
@@ -1298,9 +1298,9 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
 		assert.NotEqual(t, ir.KindModel, typeByName(doc, name).Kind(), name)
 	}
 	for _, wire := range []string{"level", "whole"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.IsType(t, &ir.Enum{}, doc.Types[p.Type.Target], wire)
-		assert.NotNil(t, p.Default, "%s: the set takes the $ref's default", wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.IsType(t, &ir.Enum{}, doc.Types[property.Type.Target], wire)
+		assert.NotNil(t, property.Default, "%s: the set takes the $ref's default", wire)
 	}
 }
 
@@ -1316,21 +1316,21 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		a, b string
-		// prim is what the position is.
-		prim ir.PrimKind
+		// primitive is what the position is.
+		primitive ir.PrimitiveKind
 		// keys are what it keeps, both entries whole where nil.
 		keys []string
 	}{
-		"two hoisting formats": {"{type: string, format: email}", "{type: string, format: hostname}", ir.PrimString, nil},
-		"two table formats":    {"{type: string, format: date}", "{type: string, format: uuid}", ir.PrimString, nil},
+		"two hoisting formats": {"{type: string, format: email}", "{type: string, format: hostname}", ir.PrimitiveString, nil},
+		"two table formats":    {"{type: string, format: date}", "{type: string, format: uuid}", ir.PrimitiveString, nil},
 		"a format and a bare wider one": {"{type: integer, format: int32}", "{type: integer, format: uint32}",
-			ir.PrimInteger, nil},
-		"an overlap of value sets": {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimString, nil},
+			ir.PrimitiveInteger, nil},
+		"an overlap of value sets": {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimitiveString, nil},
 		"two element types": {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}",
-			ir.PrimAny, nil},
-		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}", ir.PrimString,
+			ir.PrimitiveAny, nil},
+		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}", ir.PrimitiveString,
 			[]string{"openapi:enum", "openapi:type"}},
-		"two type lists": {"{type: [string, boolean]}", "{type: [string, integer]}", ir.PrimString, nil},
+		"two type lists": {"{type: [string, boolean]}", "{type: [string, integer]}", ir.PrimitiveString, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1338,13 +1338,13 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
 					"      properties:\n        f: {allOf: ["+entries+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
-				p := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, ir.PrimTypeID(tc.prim), p.Type.Target, entries)
+				property := propertyOf(t, doc, "Holder", "f")
+				assert.Equal(t, ir.PrimitiveTypeID(tc.primitive), property.Type.Target, entries)
 				keys := tc.keys
 				if keys == nil {
 					keys = []string{"openapi:allOf/0", "openapi:allOf/1"}
 				}
-				assert.Equal(t, keys, slices.Sorted(maps.Keys(p.Unmodeled)), entries)
+				assert.Equal(t, keys, slices.Sorted(maps.Keys(property.Unmodeled)), entries)
 				assert.Equal(t, []jsontext.Pointer{
 					"/components/schemas/Holder/properties/f/allOf/0", "/components/schemas/Holder/properties/f/allOf/1",
 				}, openapitest.PointersOf(diags, diag.DegradedConstruct), entries)
@@ -1354,10 +1354,10 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
 		"      properties:\n        f: {type: string, format: email, allOf: [{type: string, format: hostname}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "Holder", "f")
-	assert.NotEqual(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, "beside the allOf, the keywords there decide")
-	held := p.Unmodeled
-	if owned, ok := doc.Types[p.Type.Target]; ok && len(held) == 0 {
+	irProperty := propertyOf(t, doc, "Holder", "f")
+	assert.NotEqual(t, ir.PrimitiveTypeID(ir.PrimitiveAny), irProperty.Type.Target, "beside the allOf, the keywords there decide")
+	held := irProperty.Unmodeled
+	if owned, ok := doc.Types[irProperty.Type.Target]; ok && len(held) == 0 {
 		held = owned.Common().Unmodeled
 	}
 	assert.Contains(t, held, "openapi:allOf/0")
@@ -1385,11 +1385,11 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 		// The type both write alike is kept once; each content keyword is
 		// reported at itself, and each entry's type at the entry.
 		"each writes other": {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}",
-			3, false, ir.PrimTypeID(ir.PrimString), 4},
+			3, false, ir.PrimitiveTypeID(ir.PrimitiveString), 4},
 		"a union written twice":  {"", union, union, 0, false, "", 0},
 		"words beside the allOf": {"type: string, ", "{type: string, description: d}", "{type: string, minLength: 1}", 0, false, "", 0},
 		"a set beside the allOf": {"enum: [a, b], ", "{enum: [b, a]}", "{enum: [a, b], description: d}", 0, false,
-			"t/anon/components/schemas/Holder/properties/f", 0},
+			"type/anonymous/components/schemas/Holder/properties/f", 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1397,12 +1397,12 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
 					"      properties:\n        f: {"+tc.beside+"allOf: ["+entries+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
-				p := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, tc.top, p.Type.Target == ir.PrimTypeID(ir.PrimAny), entries)
-				assert.Len(t, p.Unmodeled, tc.kept, entries)
+				property := propertyOf(t, doc, "Holder", "f")
+				assert.Equal(t, tc.top, property.Type.Target == ir.PrimitiveTypeID(ir.PrimitiveAny), entries)
+				assert.Len(t, property.Unmodeled, tc.kept, entries)
 				assert.Len(t, withCode(diags, diag.DegradedConstruct), max(tc.kept, tc.reports), entries)
 				if tc.node != "" {
-					assert.Equal(t, tc.node, p.Type.Target, entries)
+					assert.Equal(t, tc.node, property.Type.Target, entries)
 				}
 			}
 		})
@@ -1466,9 +1466,9 @@ func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 		kinded, unkinded string
 		want             ir.TypeID
 	}{
-		"format":   {"{type: integer}", "{format: int32}", "t/prim/integer"},
-		"maxItems": {"{type: string}", "{maxItems: 2}", "t/prim/string"},
-		"items":    {"{type: string}", "{items: {type: string}}", "t/prim/string"},
+		"format":   {"{type: integer}", "{format: int32}", "type/primitive/integer"},
+		"maxItems": {"{type: string}", "{maxItems: 2}", "type/primitive/string"},
+		"items":    {"{type: string}", "{items: {type: string}}", "type/primitive/string"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1492,7 +1492,7 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		list, other string
-		elem        ir.TypeKind
+		element     ir.TypeKind
 	}{
 		"true":            {"{type: array, items: {type: string}}", "{type: array, items: true}", ir.KindPrimitive},
 		"false":           {"{type: array, items: {type: string}}", "{type: array, items: false}", ir.KindModel},
@@ -1504,8 +1504,8 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 				doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    T: {allOf: ["+entries+"]}\n"))
 				list, ok := doc.Types[componentID("T")].(*ir.List)
 				require.True(t, ok, "%s: %#v", entries, doc.Types[componentID("T")])
-				assert.Equal(t, tc.elem, doc.Types[list.Elem.Target].Kind(), entries)
-				assert.NotEqual(t, ir.TypeID("t/prim/any"), list.Elem.Target, entries)
+				assert.Equal(t, tc.element, doc.Types[list.ElementType.Target].Kind(), entries)
+				assert.NotEqual(t, ir.TypeID("type/primitive/any"), list.ElementType.Target, entries)
 				assert.Empty(t, list.Unmodeled, entries)
 			}
 		})
@@ -1520,7 +1520,7 @@ func TestRefinement_NoConjunctNamingAKindLeavesTheTopType(t *testing.T) {
 	doc, _ := parseFull(t, openapitest.ComponentSpec("    T: {allOf: [{format: int32}]}\n"))
 	alias, ok := doc.Types[componentID("T")].(*ir.Scalar)
 	require.True(t, ok, "%#v", doc.Types[componentID("T")])
-	assert.Equal(t, ir.TypeID("t/prim/any"), alias.Base.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), alias.Base.Target)
 	assert.Contains(t, alias.Unmodeled, "openapi:format")
 }
 
@@ -1529,9 +1529,9 @@ func TestRefinement_NoConjunctNamingAKindLeavesTheTopType(t *testing.T) {
 // one list compare equal. Which entry of two orders holds a kept keyword differs
 // by its index alone, so only the count of them is compared.
 func typeShapes(doc *ir.Document) string {
-	m := doc.Types[componentID("Holder")].(*ir.Model)
-	p := m.Properties[0]
-	td := doc.Types[p.Type.Target]
+	model := doc.Types[componentID("Holder")].(*ir.Model)
+	property := model.Properties[0]
+	td := doc.Types[property.Type.Target]
 	rendered, err := json.Marshal(struct {
 		Docs        ir.Docs
 		Constraints *ir.Constraints
@@ -1539,12 +1539,12 @@ func typeShapes(doc *ir.Document) string {
 		Visibility  ir.Visibility
 		Kept        int
 		Kind        string
-	}{p.Docs, p.Constraints, p.Type.Nullable, p.Visibility, len(p.Unmodeled), fmt.Sprintf("%T", td)})
+	}{property.Docs, property.Constraints, property.Type.Nullable, property.Visibility, len(property.Unmodeled), fmt.Sprintf("%T", td)})
 	if err != nil {
 		return err.Error()
 	}
 	if _, ok := td.(*ir.Primitive); ok {
-		return string(rendered) + string(p.Type.Target)
+		return string(rendered) + string(property.Type.Target)
 	}
 	return string(rendered)
 }
@@ -1613,9 +1613,9 @@ func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *t
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"allOf", "beside"} {
-		p := propertyOf(t, doc, "Holder", name)
-		assert.Empty(t, p.Unmodeled, name)
-		assert.Equal(t, componentID("Port"), p.Type.Target, name)
+		property := propertyOf(t, doc, "Holder", name)
+		assert.Empty(t, property.Unmodeled, name)
+		assert.Equal(t, componentID("Port"), property.Type.Target, name)
 	}
 }
 
@@ -1642,7 +1642,7 @@ func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 	assert.NotEmpty(t, shared.Visibility.Only)
 
 	owned := propertyOf(t, doc, "Holder", "owned")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/properties/owned"), owned.Type.Target,
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Holder/properties/owned"), owned.Type.Target,
 		"the node stands at the position, whichever conjunct decides it")
 	en, ok := doc.Types[owned.Type.Target].(*ir.Enum)
 	require.True(t, ok)
@@ -1659,9 +1659,9 @@ func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	elem, ok := doc.Types[items.Elem.Target].(*ir.Enum)
-	require.True(t, ok, "got %T", doc.Types[items.Elem.Target])
-	assert.Contains(t, elem.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
+	element, ok := doc.Types[items.ElementType.Target].(*ir.Enum)
+	require.True(t, ok, "got %T", doc.Types[items.ElementType.Target])
+	assert.Contains(t, element.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
 }
 
 // TestRefinement_ARefEntrysSiblingsAreThePositions pins a $ref entry writing
@@ -1676,11 +1676,11 @@ func TestRefinement_ARefEntrysSiblingsAreThePositions(t *testing.T) {
         f: {allOf: [{$ref: '#/components/schemas/Str', description: beside, readOnly: true}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "Holder", "f")
-	assert.Equal(t, componentID("Str"), p.Type.Target)
-	assert.Equal(t, "beside", p.Docs.Description)
-	assert.NotEmpty(t, p.Visibility.Only)
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Holder/properties/f/allOf/0"))
+	property := propertyOf(t, doc, "Holder", "f")
+	assert.Equal(t, componentID("Str"), property.Type.Target)
+	assert.Equal(t, "beside", property.Docs.Description)
+	assert.NotEmpty(t, property.Visibility.Only)
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/properties/f/allOf/0"))
 }
 
 // TestRefinement_VariantNamedAsItsRef pins a union branch refining a $ref: named
@@ -1695,13 +1695,13 @@ func TestRefinement_VariantNamedAsItsRef(t *testing.T) {
         - allOf: [{type: boolean}]
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "U").(*ir.Union)
+	union, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 4)
-	assert.Equal(t, "str", u.Variants[0].Name.Hint)
-	assert.Equal(t, "port", u.Variants[1].Name.Hint)
-	assert.Equal(t, "mode", u.Variants[2].Name.Hint)
-	assert.Equal(t, "variant_3", u.Variants[3].Name.Hint)
+	require.Len(t, union.Variants, 4)
+	assert.Equal(t, "str", union.Variants[0].Name.Hint)
+	assert.Equal(t, "port", union.Variants[1].Name.Hint)
+	assert.Equal(t, "mode", union.Variants[2].Name.Hint)
+	assert.Equal(t, "variant_3", union.Variants[3].Name.Hint)
 }
 
 // TestRefinement_FlattensAsItsFlatSpelling pins that nesting changes nothing: a
@@ -1721,9 +1721,9 @@ func TestRefinement_FlattensAsItsFlatSpelling(t *testing.T) {
 	assert.Equal(t, "mine", nested.Docs.Description)
 
 	typed := propertyOf(t, doc, "Holder", "typed")
-	prim, ok := doc.Types[typed.Type.Target].(*ir.Primitive)
+	primitive, ok := doc.Types[typed.Type.Target].(*ir.Primitive)
 	require.True(t, ok, "got %T", doc.Types[typed.Type.Target])
-	assert.Equal(t, ir.PrimString, prim.Prim)
+	assert.Equal(t, ir.PrimitiveString, primitive.PrimitiveKind)
 	require.NotNil(t, typed.Constraints)
 	assert.Equal(t, "mine", typed.Docs.Description)
 }
@@ -1742,12 +1742,12 @@ func TestRefinement_ANullOnlyEntryIsTheNull(t *testing.T) {
 `))
 	assert.Empty(t, diags)
 	for _, wire := range []string{"f", "g"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.True(t, p.Type.Nullable, wire)
-		e, ok := doc.Types[p.Type.Target].(*ir.Enum)
-		require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
-		assert.Empty(t, e.Members, wire)
-		assert.True(t, e.Closed, wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.True(t, property.Type.Nullable, wire)
+		enum, ok := doc.Types[property.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%s: got %T", wire, doc.Types[property.Type.Target])
+		assert.Empty(t, enum.Members, wire)
+		assert.True(t, enum.Closed, wire)
 	}
 }
 
@@ -2027,18 +2027,18 @@ func TestRefinement_AConstUnreadableStaysAComposition(t *testing.T) {
 // one beside the allOf among them, to the narrower entry it refines to.
 func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 	t.Parallel()
-	l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Blob: {type: string, format: binary}
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Blob: {type: string, format: binary}
     Inner: {allOf: [{$ref: '#/components/schemas/Blob'}], description: inner}
     Outer: {allOf: [{$ref: '#/components/schemas/Inner'}, {description: outer}]}
     Inline: {allOf: [{type: string, format: binary}, {description: inline}]}
     Narrowed: {enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}
     Bare: {allOf: [{description: says nothing}]}
 `))
-	schemas := l.Doc.Components.GetSchemas()
+	schemas := lowerer.Doc.Components.GetSchemas()
 	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Narrowed": "binary", "Bare": ""} {
 		js, ok := schemas.Get(name)
 		require.True(t, ok, name)
-		assert.Equal(t, format, statement.Parsed(schema.DecidingSchema(l.Ctx, l.Ctx.Statements().Of(js).Schema)).GetFormat(), name)
+		assert.Equal(t, format, statement.Parsed(schema.DecidingSchema(lowerer.Ctx, lowerer.Ctx.Statements().Of(js).Schema)).GetFormat(), name)
 	}
 }
 
@@ -2054,7 +2054,7 @@ func TestRefinement_ItemsItCannotRenderRestateNothing(t *testing.T) {
 		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+entries+"]}\n"))
 		list, ok := typeByName(doc, "S").(*ir.List)
 		require.True(t, ok, "got %T", typeByName(doc, "S"))
-		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/S/allOf/%d/items", i)), list.Elem.Target, entries)
+		assert.Equal(t, ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/S/allOf/%d/items", i)), list.ElementType.Target, entries)
 	}
 }
 
@@ -2088,11 +2088,11 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	require.True(t, ok, "got %T", typeByName(doc, "Beside"))
 	assert.Equal(t, []string{"openapi:minProperties"}, unmodeledKeys(beside.Unmodeled))
 	assert.Equal(t, "d", beside.Docs.Description)
-	for _, u := range []*ir.Union{branch, beside} {
-		str, isScalar := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
-		require.True(t, isScalar, "got %T", doc.Types[u.Variants[0].Type.Target])
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
-		assert.Equal(t, ir.TypeID("t/prim/integer"), u.Variants[1].Type.Target)
+	for _, union := range []*ir.Union{branch, beside} {
+		stringType, isScalar := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
+		require.True(t, isScalar, "got %T", doc.Types[union.Variants[0].Type.Target])
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, stringType.Constraints)
+		assert.Equal(t, ir.TypeID("type/primitive/integer"), union.Variants[1].Type.Target)
 	}
 }
 
@@ -2105,18 +2105,18 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 // (TestCollectionBound_OnAnEntryLandsAsItsFlatSpelling).
 func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *testing.T) {
 	t.Parallel()
-	str := &ir.Constraints{MaxLength: new(int64(2))}
-	num := &ir.Constraints{Min: new(ir.BigVal("1"))}
+	stringConstraints := &ir.Constraints{MaxLength: new(int64(2))}
+	number := &ir.Constraints{Min: new(ir.BigVal("1"))}
 	for _, tc := range []struct {
 		name, allOf string
 		held        [2]*ir.Constraints
 		kept        []string
 	}{
-		{"one entry", "[{maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
-		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
-		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{str, num}, nil},
-		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{str, num}, nil},
-		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{str, nil},
+		{"one entry", "[{maxLength: 2}]", [2]*ir.Constraints{stringConstraints, nil}, nil},
+		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{stringConstraints, nil}, nil},
+		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{stringConstraints, number}, nil},
+		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{stringConstraints, number}, nil},
+		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{stringConstraints, nil},
 			[]string{"openapi:minProperties"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2124,13 +2124,13 @@ func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *test
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 				"    OnBranch: {type: [string, integer], format: x-mine, allOf: "+tc.allOf+"}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			u, ok := typeByName(doc, "OnBranch").(*ir.Union)
+			union, ok := typeByName(doc, "OnBranch").(*ir.Union)
 			require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
-			assert.Equal(t, tc.kept, unmodeledKeys(u.Unmodeled))
+			assert.Equal(t, tc.kept, unmodeledKeys(union.Unmodeled))
 			for i, want := range tc.held {
-				v, isScalar := doc.Types[u.Variants[i].Type.Target].(*ir.Scalar)
-				require.True(t, isScalar, "got %T", doc.Types[u.Variants[i].Type.Target])
-				assert.Equal(t, want, v.Constraints, "variant %d", i)
+				scalar, isScalar := doc.Types[union.Variants[i].Type.Target].(*ir.Scalar)
+				require.True(t, isScalar, "got %T", doc.Types[union.Variants[i].Type.Target])
+				assert.Equal(t, want, scalar.Constraints, "variant %d", i)
 			}
 			if tc.kept != nil {
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
@@ -2151,13 +2151,13 @@ func TestRefinement_AnEntryBoundBesideATypeListIsReadAtTheEntry(t *testing.T) {
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 		"    OnBranch: {type: [string, integer], allOf: [{maxLength: 99999999999999999999, minLength: 1}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "OnBranch").(*ir.Union)
+	union, ok := typeByName(doc, "OnBranch").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
-	assert.Empty(t, u.Unmodeled, "the entry folded")
-	str, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
-	require.True(t, ok, "got %T", doc.Types[u.Variants[0].Type.Target])
-	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
-	kept, ok := str.Unmodeled["openapi:maxLength"]
+	assert.Empty(t, union.Unmodeled, "the entry folded")
+	stringType, ok := doc.Types[union.Variants[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok, "got %T", doc.Types[union.Variants[0].Type.Target])
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, stringType.Constraints)
+	kept, ok := stringType.Unmodeled["openapi:maxLength"]
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/OnBranch/allOf/0/maxLength"), kept.Provenance.Pointer)
 	require.Len(t, diags, 1, "%+v", diags)
@@ -2212,7 +2212,7 @@ func TestRefinement_AnAllOfBesideARefJoinsItsConjunction(t *testing.T) {
 	assert.Contains(t, dynamicRef.Unmodeled, "openapi:$dynamicRef")
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, "branch", doc.Types[items.Elem.Target].Common().Docs.Description, "an items beside a $ref reads its entry too")
+	assert.Equal(t, "branch", doc.Types[items.ElementType.Target].Common().Docs.Description, "an items beside a $ref reads its entry too")
 }
 
 // TestRefinement_DeclaredBeforeItsTarget pins a use lowered before what it names:
@@ -2227,7 +2227,7 @@ func TestRefinement_DeclaredBeforeItsTarget(t *testing.T) {
 	assert.Empty(t, diags)
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, componentID("Late"), items.Elem.Target)
+	assert.Equal(t, componentID("Late"), items.ElementType.Target)
 }
 
 // TestRefinement_TheValueSetWithinMostOthersWins pins the election past a value set
@@ -2242,11 +2242,11 @@ func TestRefinement_TheValueSetWithinMostOthersWins(t *testing.T) {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
 			"      properties:\n        f: {allOf: ["+entries+"]}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
-		p := propertyOf(t, doc, "Holder", "f")
-		en, ok := doc.Types[p.Type.Target].(*ir.Enum)
-		require.True(t, ok, "%s: got %T", entries, doc.Types[p.Type.Target])
+		property := propertyOf(t, doc, "Holder", "f")
+		en, ok := doc.Types[property.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%s: got %T", entries, doc.Types[property.Type.Target])
 		assert.Len(t, en.Members, 2, entries)
-		assert.Empty(t, p.Unmodeled, "%s: the node the position owns keeps what it keeps", entries)
+		assert.Empty(t, property.Unmodeled, "%s: the node the position owns keeps what it keeps", entries)
 		assert.Equal(t, []string{overlapping}, slices.Sorted(maps.Keys(en.Unmodeled)),
 			"%s: it holds the narrower set, and keeps the one overlapping it", entries)
 	}
@@ -2288,15 +2288,15 @@ func TestRefinement_AnEntryDisagreeingStaysWhole(t *testing.T) {
 		"one": {"openapi:allOf/1", "openapi:allOf/2"},
 		"two": {"openapi:allOf/0", "openapi:allOf/1"},
 	} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.Equal(t, "from the target", p.Docs.Description, wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, "from the target", property.Docs.Description, wire)
 		for _, key := range keys {
-			assert.Contains(t, p.Unmodeled, key, wire)
+			assert.Contains(t, property.Unmodeled, key, wire)
 		}
 	}
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	alias := aliasAt(t, doc, items.Elem)
+	alias := aliasAt(t, doc, items.ElementType)
 	assert.Nil(t, alias.Constraints, "no pattern stands for the two")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/1")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/2")
@@ -2315,9 +2315,9 @@ func TestRefinement_AnEntryReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
         f: {allOf: [{$ref: '#/components/schemas/Str'}, {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	f := propertyOf(t, doc, "Holder", "f")
-	assert.Contains(t, f.Unmodeled, "openapi:allOf/1")
-	assert.NotContains(t, f.Unmodeled, "openapi:not")
+	property := propertyOf(t, doc, "Holder", "f")
+	assert.Contains(t, property.Unmodeled, "openapi:allOf/1")
+	assert.NotContains(t, property.Unmodeled, "openapi:not")
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Holder/properties/f/allOf/1"),
 		"reads its $refs against another base")

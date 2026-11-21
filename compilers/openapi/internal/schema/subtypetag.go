@@ -23,11 +23,11 @@ import (
 // every node is interned in answers in any declaration order, so it is a
 // settlement. A union written beside or on its allOf is one of those it
 // composes (lowerSubtypeUnion).
-func deferSubtypeTag(c lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.TypeID, pointer jsontext.Pointer) {
-	if tag.byName == nil || !c.DiscriminatorInference.Honours() {
+func deferSubtypeTag(loweringContext lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.TypeID, pointer jsontext.Pointer) {
+	if tag.byName == nil || !loweringContext.DiscriminatorInference.Honours() {
 		return
 	}
-	ts.Defer(subtypeTagReading{c: c, id: id, pointer: pointer, property: tag.byName.PropertyName, name: tag.value})
+	ts.Defer(subtypeTagReading{c: loweringContext, id: id, pointer: pointer, property: tag.byName.PropertyName, name: tag.value})
 }
 
 // subtypeTagReading settles the tag of the subtype id under the
@@ -47,26 +47,26 @@ type subtypeTagReading struct {
 // several or none, as no one tag then routes to it. Either is marked and
 // reported.
 func (t subtypeTagReading) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
-	m, ok := reg[t.id].(*ir.Model)
-	if !ok || m == nil || m.DiscriminatorValue != t.name {
+	model, ok := reg[t.id].(*ir.Model)
+	if !ok || model == nil || model.DiscriminatorValue != t.name {
 		return []ir.Diagnostic{t.c.DiagAt(ir.SeverityError, diag.InternalInvariant, t.pointer,
 			"internal: subtype %q is not registered as the model its lowering tagged %q, "+
 				"so the discriminator inference deferred for it is not taken", t.id, t.name)}
 	}
 	flat := ir.FlattenedProperties(reg, t.id)
-	p, declared := flatMember(flat, t.property)
-	got := readingsOf(t.c).object(reg, flat, p, declared, t.property)
+	flatProperty, declared := flatMember(flat, t.property)
+	got := readingsOf(t.c).object(reg, flat, flatProperty, declared, t.property)
 	if got.admits(t.name) {
 		return nil
 	}
 	tags := got.strings
-	m.Provenance.Inferred = ir.JoinInferred(m.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
+	model.Provenance.Inferred = ir.JoinInferred(model.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
 	outcome := "no tag its instances carry routes to it, so it carries none"
 	if len(tags) == 1 {
-		m.DiscriminatorValue = tags[0]
+		model.DiscriminatorValue = tags[0]
 		outcome = "it carries " + strconv.Quote(tags[0]) + " instead"
 	} else {
-		m.DiscriminatorValue = ""
+		model.DiscriminatorValue = ""
 	}
 	return []ir.Diagnostic{t.c.DiagAt(ir.SeverityInfo, diag.InferredDiscriminator, t.pointer,
 		"the discriminator routes this schema by its name, %q, a tag its %q rejects, admitting %s; %s, marked inferred",

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NullabilityFourStates",
         "canonical": "nullability_four_states"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/S": {
+    "type/openapi/components/schemas/S": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/S",
+      "id": "type/openapi/components/schemas/S",
       "name": {
         "source": "S",
         "canonical": "s"
@@ -75,21 +75,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/S/properties/reqPlain",
+          "id": "property/openapi/components/schemas/S/properties/reqPlain",
           "name": {
             "source": "reqPlain",
             "canonical": "req_plain"
           },
           "wireName": "reqPlain",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -102,21 +102,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/S/properties/reqNull",
+          "id": "property/openapi/components/schemas/S/properties/reqNull",
           "name": {
             "source": "reqNull",
             "canonical": "req_null"
           },
           "wireName": "reqNull",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": true
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -129,21 +129,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/S/properties/optPlain",
+          "id": "property/openapi/components/schemas/S/properties/optPlain",
           "name": {
             "source": "optPlain",
             "canonical": "opt_plain"
           },
           "wireName": "optPlain",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -156,21 +156,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/S/properties/optNull",
+          "id": "property/openapi/components/schemas/S/properties/optNull",
           "name": {
             "source": "optNull",
             "canonical": "opt_null"
           },
           "wireName": "optNull",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -187,9 +187,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -197,7 +197,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -9,13 +9,13 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkDiscriminators reports discriminator mappings whose target either does
 // not exist or is not a legal variant/subtype, and a model discriminator whose
 // tag property the model does not expose. facts indexes doc.
-func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.Index) []ir.Diagnostic {
+func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.DocumentFacts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var read mappingReads
 	for _, id := range live {
@@ -37,7 +37,7 @@ func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.Inde
 // so none costs a collection of its own: a union's variant targets, and a
 // mapping's keys, sorted.
 type mappingReads struct {
-	variants reuse.Map[ir.TypeID, bool]
+	variants scratchstate.Map[ir.TypeID, bool]
 	keys     []string
 }
 
@@ -45,15 +45,15 @@ type mappingReads struct {
 // variant targets. It asks nothing of what a variant declares of the tag
 // (docs/ir/unions.md#tag-modes), so a closed variant declaring no tag member,
 // which no tagged payload can be, passes (GitHub #1807).
-func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) []ir.Diagnostic {
-	if u.Discriminator == nil {
+func checkUnionDiscriminator(doc *ir.Document, union *ir.Union, read *mappingReads) []ir.Diagnostic {
+	if union.Discriminator == nil {
 		return nil
 	}
 	variants := read.variants.Emptied()
-	for _, v := range u.Variants {
-		variants[v.Type.Target] = true
+	for _, variant := range union.Variants {
+		variants[variant.Type.Target] = true
 	}
-	return checkMapping(doc, u.Discriminator, string(u.ID), read, func(target ir.TypeID) bool {
+	return checkMapping(doc, union.Discriminator, string(union.ID), read, func(target ir.TypeID) bool {
 		return variants[target]
 	})
 }
@@ -63,34 +63,34 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) 
 // Abstract, whose own instances are a payload too
 // (docs/ir/models.md#discriminator), and the tag property to be one this model
 // exposes. Its routes and tag are asked of facts, the one index of the run.
-func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model, read *mappingReads) []ir.Diagnostic {
-	if m.Discriminator == nil {
+func checkModelDiscriminator(doc *ir.Document, facts *irfacts.DocumentFacts, model *ir.Model, read *mappingReads) []ir.Diagnostic {
+	if model.Discriminator == nil {
 		return nil
 	}
-	diags := checkDiscriminatorProperty(facts, m)
-	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), read, func(target ir.TypeID) bool {
-		return (target == m.ID && !m.Abstract) || facts.IsSubtype(target, m.ID)
+	diags := checkDiscriminatorProperty(facts, model)
+	return append(diags, checkMapping(doc, model.Discriminator, string(model.ID), read, func(target ir.TypeID) bool {
+		return (target == model.ID && !model.Abstract) || facts.IsSubtype(target, model.ID)
 	})...)
 }
 
 // checkDiscriminatorProperty requires a model discriminator's tag property to be
 // one the model exposes — its own, or one it composes in.
 //
-// checkPropIDRefs already holds every PropID to naming a property the document
-// declares somewhere. This is the tighter claim available where the root is
-// written down: a tag on a property of some unrelated model routes nothing, and
-// an emitter building a decoder reads the tag off *this* model's instance. A
-// tag naming a declaration the model's flattening overrides passes, though
-// docs/ir/models.md#the-flattening has it name the one taken, as
+// checkPropertyIDRefs already holds every PropertyID to naming a property the
+// document declares somewhere. This is the tighter claim available where the
+// root is written down: a tag on a property of some unrelated model routes
+// nothing, and an emitter building a decoder reads the tag off *this* model's
+// instance. A tag naming a declaration the model's flattening overrides passes,
+// though docs/ir/models.md#the-flattening has it name the one taken, as
 // appendUnknownPartDiags says.
-func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
-	prop := m.Discriminator.Property
-	if prop == "" || facts.Exposes(m.ID, prop) {
+func checkDiscriminatorProperty(facts *irfacts.DocumentFacts, model *ir.Model) []ir.Diagnostic {
+	property := model.Discriminator.Property
+	if property == "" || facts.Exposes(model.ID, property) {
 		return nil
 	}
-	where := string(m.ID)
+	where := string(model.ID)
 	return []ir.Diagnostic{diag(ir.SeverityError, "pass/discriminator-unknown-property",
-		fmt.Sprintf("discriminator on %s tags property %q, which the model neither declares nor composes in", where, prop),
+		fmt.Sprintf("discriminator on %s tags property %q, which the model neither declares nor composes in", where, property),
 		where)}
 }
 
@@ -105,19 +105,19 @@ func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnost
 // not referentially closed, while pass/discriminator-missing-variant says this
 // discriminator cannot route that wire value, which a polymorphic decoder's
 // emitter subscribes to. Neither consumer should need the other's code.
-func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, read *mappingReads,
+func checkMapping(doc *ir.Document, discriminator *ir.Discriminator, where string, read *mappingReads,
 	member func(ir.TypeID) bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	// Asked in ascending key order, sorted in read's list, so map iteration
 	// reaches neither the output nor the questions member asks.
 	read.keys = read.keys[:0]
-	for key := range d.Mapping {
+	for key := range discriminator.Mapping {
 		read.keys = append(read.keys, key)
 	}
 	slices.Sort(read.keys)
 	for _, key := range read.keys {
-		target := d.Mapping[key]
+		target := discriminator.Mapping[key]
 		if target == "" {
 			continue // it names nothing to route to, which checkEmptyRefs reports alone
 		}
@@ -125,11 +125,11 @@ func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, read *map
 			diags = append(diags, missingVariant(fmt.Sprintf("mapping %q", key), where, target, why))
 		}
 	}
-	if d.Default == "" {
+	if discriminator.Default == "" {
 		return diags
 	}
-	if legal, why := mappingTarget(doc, d.Default, member); !legal {
-		diags = append(diags, missingVariant("default", where, d.Default, why))
+	if legal, why := mappingTarget(doc, discriminator.Default, member); !legal {
+		diags = append(diags, missingVariant("default", where, discriminator.Default, why))
 	}
 	return diags
 }

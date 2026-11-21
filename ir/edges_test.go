@@ -76,12 +76,12 @@ func edgeDiff(td ir.TypeDef) string {
 
 func TestTypeEdges_EveryKindHasAnArm(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td := newFilled(t, k)
+			td := newFilled(t, typeKind)
 			assert.Empty(t, edgeDiff(td))
-			assert.NotEmpty(t, slices.Collect(ir.TypeEdges(td)), "a filled %s yields at least its common edges", k)
+			assert.NotEmpty(t, slices.Collect(ir.TypeEdges(td)), "a filled %s yields at least its common edges", typeKind)
 		})
 	}
 }
@@ -126,18 +126,18 @@ func TestTypeEdges_MatchesTheReflectionWalk(t *testing.T) {
 // so nothing that reads edges may call it recursive or the sibling reachable.
 func TestTypeEdges_ADocRefIsNoEdge(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "t/m", Docs: ir.Docs{Description: "see Self and Other", Refs: []ir.DocRef{
-		{StartByte: 4, EndByte: 8, Type: "t/m"},
-		{StartByte: 13, EndByte: 18, Type: "t/other"},
+	model := &ir.Model{ID: "type/m", Docs: ir.Docs{Description: "see Self and Other", Refs: []ir.DocRef{
+		{StartByte: 4, EndByte: 8, Type: "type/m"},
+		{StartByte: 13, EndByte: 18, Type: "type/other"},
 	}}}
-	assert.Empty(t, slices.Collect(ir.TypeEdges(m)))
+	assert.Empty(t, slices.Collect(ir.TypeEdges(model)))
 }
 
 func TestTypeEdges_SelfReferenceStillCounts(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{ID: "self", Base: &ir.TypeRef{Target: "self"}}
-	assert.Equal(t, []ir.TypeID{"self"}, slices.Collect(ir.TypeEdges(m)))
-	assert.Empty(t, edgeDiff(m))
+	model := &ir.Model{ID: "self", Base: &ir.TypeRef{Target: "self"}}
+	assert.Equal(t, []ir.TypeID{"self"}, slices.Collect(ir.TypeEdges(model)))
+	assert.Empty(t, edgeDiff(model))
 }
 
 // TestTypeEdges_SharedPointerIsFollowedFromEachField pins that TypeEdges and its
@@ -145,18 +145,18 @@ func TestTypeEdges_SelfReferenceStillCounts(t *testing.T) {
 // encodes, one edge per field.
 func TestTypeEdges_SharedPointerIsFollowedFromEachField(t *testing.T) {
 	t.Parallel()
-	v := &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/shared"}}
-	m := &ir.Model{Properties: []ir.Property{{Default: v}, {Default: v}}}
-	assert.Equal(t, []ir.TypeID{"t/shared", "t/shared"}, slices.Collect(ir.TypeEdges(m)))
-	assert.Empty(t, edgeDiff(m), "the reflection walk reaches the shared value from each field too")
+	value := &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/shared"}}
+	model := &ir.Model{Properties: []ir.Property{{Default: value}, {Default: value}}}
+	assert.Equal(t, []ir.TypeID{"type/shared", "type/shared"}, slices.Collect(ir.TypeEdges(model)))
+	assert.Empty(t, edgeDiff(model), "the reflection walk reaches the shared value from each field too")
 }
 
 func TestTypeEdges_StopsWhenTheConsumerBreaks(t *testing.T) {
 	t.Parallel()
-	for _, k := range allKinds {
-		t.Run(string(k), func(t *testing.T) {
+	for _, typeKind := range allKinds {
+		t.Run(string(typeKind), func(t *testing.T) {
 			t.Parallel()
-			td := newFilled(t, k)
+			td := newFilled(t, typeKind)
 			full := slices.Collect(ir.TypeEdges(td))
 			for n := 1; n <= len(full); n++ {
 				var got []ir.TypeID
@@ -184,46 +184,46 @@ func TestTypeEdges_NilYieldsNothing(t *testing.T) {
 
 func TestTypeEdges_NeverYieldsAnEmptyTarget(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{
+	model := &ir.Model{
 		Base:       &ir.TypeRef{},
 		Implements: []ir.TypeRef{{}},
-		Properties: []ir.Property{{Default: &ir.Value{Ref: &ir.ValueRef{}, Ctor: &ir.CtorValue{}}}},
+		Properties: []ir.Property{{Default: &ir.Value{Ref: &ir.ValueRef{}, Constructor: &ir.ConstructorValue{}}}},
 		Discriminator: &ir.Discriminator{
 			Mapping: map[string]ir.TypeID{"x": ""},
 		},
 	}
-	assert.Empty(t, slices.Collect(ir.TypeEdges(m)))
+	assert.Empty(t, slices.Collect(ir.TypeEdges(model)))
 }
 
 func TestTypeEdges_DiscriminatorMappingInSortedOrder(t *testing.T) {
 	t.Parallel()
-	u := &ir.Union{Discriminator: &ir.Discriminator{
-		Mapping: map[string]ir.TypeID{"b": "t/b", "a": "t/a", "c": "t/c"},
-		Default: "t/default",
+	union := &ir.Union{Discriminator: &ir.Discriminator{
+		Mapping: map[string]ir.TypeID{"b": "type/b", "a": "type/a", "c": "type/c"},
+		Default: "type/default",
 	}}
-	assert.Equal(t, []ir.TypeID{"t/a", "t/b", "t/c", "t/default"}, slices.Collect(ir.TypeEdges(u)))
+	assert.Equal(t, []ir.TypeID{"type/a", "type/b", "type/c", "type/default"}, slices.Collect(ir.TypeEdges(union)))
 }
 
 // nestingArms wraps a value one level deeper through each way a Value holds
 // another.
 var nestingArms = map[string]func(ir.Value) ir.Value{
-	"list": func(v ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: []ir.Value{v}} },
-	"object": func(v ir.Value) ir.Value {
-		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
+	"list": func(value ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: []ir.Value{value}} },
+	"object": func(value ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: value}}}
 	},
-	"ctor": func(v ir.Value) ir.Value {
-		return ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Args: []ir.Value{v}}}
+	"ctor": func(value ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Args: []ir.Value{value}}}
 	},
 }
 
-// nestedLiteral returns a literal whose value reaches a ref to "t/deep" through
-// levels nested values.
+// nestedLiteral returns a literal whose value reaches a ref to "type/deep"
+// through levels nested values.
 func nestedLiteral(wrap func(ir.Value) ir.Value, levels int) *ir.Literal {
-	v := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/deep"}}
+	value := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/deep"}}
 	for range levels {
-		v = wrap(v)
+		value = wrap(value)
 	}
-	return &ir.Literal{Value: v}
+	return &ir.Literal{Value: value}
 }
 
 func TestTypeEdges_ValueNestingStopsPastTheBound(t *testing.T) {
@@ -232,7 +232,7 @@ func TestTypeEdges_ValueNestingStopsPastTheBound(t *testing.T) {
 		t.Run(arm, func(t *testing.T) {
 			t.Parallel()
 			at := nestedLiteral(wrap, ir.MaxWalkDepth)
-			assert.Equal(t, []ir.TypeID{"t/deep"}, slices.Collect(ir.TypeEdges(at)), "a value at the bound is entered")
+			assert.Equal(t, []ir.TypeID{"type/deep"}, slices.Collect(ir.TypeEdges(at)), "a value at the bound is entered")
 			past := nestedLiteral(wrap, ir.MaxWalkDepth+1)
 			assert.Empty(t, slices.Collect(ir.TypeEdges(past)), "a value past the bound is not")
 		})
@@ -258,15 +258,16 @@ func TestTypeEdges_OnlyTruncatesWhereTheWalkAlreadyHas(t *testing.T) {
 
 func TestTypeEdges_ArgumentWithoutValueFromYieldsItsType(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{Properties: []ir.Property{{
-		Args: []ir.Parameter{{Type: ir.TypeRef{Target: "t/arg"}}},
+	model := &ir.Model{Properties: []ir.Property{{
+		Args: []ir.Parameter{{Type: ir.TypeRef{Target: "type/arg"}}},
 	}}}
-	assert.Equal(t, []ir.TypeID{"t/arg"}, slices.Collect(ir.TypeEdges(m)))
+	assert.Equal(t, []ir.TypeID{"type/arg"}, slices.Collect(ir.TypeEdges(model)))
 }
 
-// edgeLiteral returns a literal holding v, and the edges TypeEdges yields from it.
-func edgeLiteral(v ir.Value) []ir.TypeID {
-	return slices.Collect(ir.TypeEdges(&ir.Literal{Value: v}))
+// edgeLiteral returns a literal holding value, and the edges TypeEdges yields
+// from it.
+func edgeLiteral(value ir.Value) []ir.TypeID {
+	return slices.Collect(ir.TypeEdges(&ir.Literal{Value: value}))
 }
 
 // TestTypeEdges_ASelfContainingValueIsFollowedOnce holds TypeEdges to ending on a
@@ -276,10 +277,10 @@ func edgeLiteral(v ir.Value) []ir.TypeID {
 // bound, yielding the edge beside the cycle once per level; with it, once.
 func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
 	t.Parallel()
-	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/leaf"}}
+	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/leaf"}}
 
-	ctor := &ir.CtorValue{Scalar: "t/scalar"}
-	ctor.Args = []ir.Value{leaf, {Kind: ir.ValueCtor, Ctor: ctor}}
+	constructor := &ir.ConstructorValue{Scalar: "type/scalar"}
+	constructor.Args = []ir.Value{leaf, {Kind: ir.ValueConstructor, Constructor: constructor}}
 
 	list := []ir.Value{leaf, {}}
 	list[1] = ir.Value{Kind: ir.ValueList, List: list}
@@ -292,9 +293,9 @@ func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
 		v    ir.Value
 		want []ir.TypeID
 	}{
-		{"a constructor", ir.Value{Kind: ir.ValueCtor, Ctor: ctor}, []ir.TypeID{"t/scalar", "t/leaf"}},
-		{"a list", ir.Value{Kind: ir.ValueList, List: list}, []ir.TypeID{"t/leaf"}},
-		{"an object", ir.Value{Kind: ir.ValueObject, Object: object}, []ir.TypeID{"t/leaf"}},
+		{"a constructor", ir.Value{Kind: ir.ValueConstructor, Constructor: constructor}, []ir.TypeID{"type/scalar", "type/leaf"}},
+		{"a list", ir.Value{Kind: ir.ValueList, List: list}, []ir.TypeID{"type/leaf"}},
+		{"an object", ir.Value{Kind: ir.ValueObject, Object: object}, []ir.TypeID{"type/leaf"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -308,12 +309,12 @@ func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
 // followed both times, as is a prefix of a list or an object from inside it.
 func TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace(t *testing.T) {
 	t.Parallel()
-	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/leaf"}}
-	twice := func(v ir.Value) ir.Value {
-		return ir.Value{Kind: ir.ValueList, List: []ir.Value{v, v}}
+	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "type/leaf"}}
+	twice := func(value ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueList, List: []ir.Value{value, value}}
 	}
 
-	ctor := ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/scalar"}}
+	constructor := ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/scalar"}}
 	list := ir.Value{Kind: ir.ValueList, List: []ir.Value{leaf}}
 	object := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: leaf}}}
 
@@ -322,9 +323,9 @@ func TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace(t *testing.T) {
 	members := []ir.Field{{Name: "a", Value: leaf}, {Name: "b"}}
 	members[1].Value = ir.Value{Kind: ir.ValueObject, Object: members[:1]}
 
-	assert.Equal(t, []ir.TypeID{"t/scalar", "t/scalar"}, edgeLiteral(twice(ctor)))
-	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(twice(list)))
-	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(twice(object)))
-	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueList, List: prefix}))
-	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueObject, Object: members}))
+	assert.Equal(t, []ir.TypeID{"type/scalar", "type/scalar"}, edgeLiteral(twice(constructor)))
+	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(twice(list)))
+	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(twice(object)))
+	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueList, List: prefix}))
+	assert.Equal(t, []ir.TypeID{"type/leaf", "type/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueObject, Object: members}))
 }

@@ -18,15 +18,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// scenarioStr is the string value a scenario's parameters and body hold.
-var scenarioStr = ir.Value{Kind: ir.ValueString, Str: "v"}
+// scenarioString is the string value a scenario's parameters and body hold.
+var scenarioString = ir.Value{Kind: ir.ValueString, String: "v"}
 
 // TestExample_ScenarioInput_Encoding pins how an example writes its input: a
 // populated one under "input" with its parameters keyed by ID and its body
 // beside them, an empty one as an empty object, and a nil one not at all.
 func TestExample_ScenarioInput_Encoding(t *testing.T) {
 	t.Parallel()
-	body := scenarioStr
+	body := scenarioString
 	for _, tc := range []struct {
 		name string
 		ex   ir.Example
@@ -35,11 +35,11 @@ func TestExample_ScenarioInput_Encoding(t *testing.T) {
 		{
 			name: "params and body",
 			ex: ir.Example{Name: "ex", Input: &ir.ScenarioInput{
-				Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioStr},
+				Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioString},
 				Body:   &body,
 			}},
-			want: `{"name":"ex","input":{"params":{"param/x/o/q":{"kind":"string","str":"v"}},` +
-				`"body":{"kind":"string","str":"v"}}}`,
+			want: `{"name":"ex","input":{"params":{"parameter/x/o/q":{"kind":"string","string":"v"}},` +
+				`"body":{"kind":"string","string":"v"}}}`,
 		},
 		{
 			name: "an empty scenario sends nothing but is not absent",
@@ -64,13 +64,13 @@ func TestExample_ScenarioInput_Encoding(t *testing.T) {
 
 // TestExample_ScenarioInput_RoundTrips holds each distinction an input draws to
 // the codec: an absent input and an empty one, a nil Body and one holding null,
-// a nil parameter map and an empty one, and a key that names no valid ParamID,
-// which the codec carries and irverify reports. It runs through an Example
-// alone and through a whole Document, each compared with cmp.Diff.
+// a nil parameter map and an empty one, and a key that names no valid
+// ParameterID, which the codec carries and irverify reports. It runs through an
+// Example alone and through a whole Document, each compared with cmp.Diff.
 func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	body := scenarioStr
+	body := scenarioString
 	for _, tc := range []struct {
 		name  string
 		input *ir.ScenarioInput
@@ -78,10 +78,10 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 		{name: "a nil input", input: nil},
 		{name: "an empty input", input: &ir.ScenarioInput{}},
 		{name: "a nil parameter map", input: &ir.ScenarioInput{Body: &body}},
-		{name: "a nil body", input: &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"param/x/o/q": scenarioStr}}},
+		{name: "a nil body", input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/o/q": scenarioString}}},
 		{name: "a body holding a null value", input: &ir.ScenarioInput{Body: &null}},
-		{name: "a key that is no valid ParamID", input: &ir.ScenarioInput{
-			Params: map[ir.ParamID]ir.Value{"": scenarioStr, "not an id": null, "t/x/M": scenarioStr},
+		{name: "a key that is no valid ParameterID", input: &ir.ScenarioInput{
+			Params: map[ir.ParameterID]ir.Value{"": scenarioString, "not an id": null, "type/x/M": scenarioString},
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -91,8 +91,8 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 
 			doc := ir.Document{
 				IRVersion: ir.IRVersion,
-				Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-					ID: "t/x/S", Name: ir.Naming{Source: "s", Canonical: "s"}, Examples: []ir.Example{ex},
+				Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+					ID: "type/x/S", Name: ir.Naming{Source: "s", Canonical: "s"}, Examples: []ir.Example{ex},
 				}},
 			}
 			raw, err := json.Marshal(&doc, json.Deterministic(true))
@@ -109,8 +109,8 @@ func TestExample_ScenarioInput_RoundTrips(t *testing.T) {
 // as no member and read back nil, and a Body beside it is untouched.
 func TestExample_ScenarioInput_EmptyParamMapIsTheNilOne(t *testing.T) {
 	t.Parallel()
-	body := scenarioStr
-	in := ir.Example{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{}, Body: &body}}
+	body := scenarioString
+	in := ir.Example{Name: "ex", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{}, Body: &body}}
 	raw, err := json.Marshal(in, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), `"params"`)
@@ -148,19 +148,19 @@ func TestExample_ScenarioInput_TypeEdgesReadItInTheWalksOrder(t *testing.T) {
 	ref := func(id ir.TypeID) ir.Value {
 		return ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: id, Member: "m"}}
 	}
-	body := ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/x/C", Name: "now"}}
-	m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}, Examples: []ir.Example{{
+	body := ir.Value{Kind: ir.ValueConstructor, Constructor: &ir.ConstructorValue{Scalar: "type/x/C", Name: "now"}}
+	model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}, Examples: []ir.Example{{
 		Name: "ex",
 		Input: &ir.ScenarioInput{
-			Params: map[ir.ParamID]ir.Value{"param/b": ref("t/x/B"), "param/a": ref("t/x/A")},
+			Params: map[ir.ParameterID]ir.Value{"parameter/b": ref("type/x/B"), "parameter/a": ref("type/x/A")},
 			Body:   &body,
 		},
 	}}}
 
-	got := slices.Collect(ir.TypeEdges(m))
+	got := slices.Collect(ir.TypeEdges(model))
 
-	assert.Equal(t, []ir.TypeID{"t/x/A", "t/x/B", "t/x/C"}, got)
-	assert.Empty(t, edgeDiff(m), "TypeEdges must agree with the reflection walk")
+	assert.Equal(t, []ir.TypeID{"type/x/A", "type/x/B", "type/x/C"}, got)
+	assert.Empty(t, edgeDiff(model), "TypeEdges must agree with the reflection walk")
 }
 
 // TestExample_ScenarioInput_ParamsEncodeInKeyOrder pins that a scenario's
@@ -170,17 +170,17 @@ func TestExample_ScenarioInput_TypeEdgesReadItInTheWalksOrder(t *testing.T) {
 func TestExample_ScenarioInput_ParamsEncodeInKeyOrder(t *testing.T) {
 	t.Parallel()
 	const keys = 8
-	params := make(map[ir.ParamID]ir.Value, keys)
+	params := make(map[ir.ParameterID]ir.Value, keys)
 	sorted := make([]string, 0, keys)
 	for i := range keys {
-		id := fmt.Sprintf("param/x/o/k%d", keys-1-i)
-		params[ir.ParamID(id)] = scenarioStr
+		id := fmt.Sprintf("parameter/x/o/k%d", keys-1-i)
+		params[ir.ParameterID(id)] = scenarioString
 		sorted = append(sorted, id)
 	}
 	slices.Sort(sorted)
 	ex := ir.Example{Name: "ex", Input: &ir.ScenarioInput{Params: params}}
-	doc := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		ID: "t/x/S", Name: ir.Naming{Source: "s", Canonical: "s"}, Examples: []ir.Example{ex},
+	doc := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"type/x/S": &ir.Scalar{
+		ID: "type/x/S", Name: ir.Naming{Source: "s", Canonical: "s"}, Examples: []ir.Example{ex},
 	}}}
 
 	for range 10 {

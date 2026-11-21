@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,18 +20,18 @@ import (
 // deprecated operation, parameter and model member names as its replacement,
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
-// every promotion (docs/compilers/openapi.md#policies), and reads nothing
-// while policy is off. p is the run's promoter, and w the document, which is
-// whole.
-func Infer(policy Inference, p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+// every promotion (docs/compilers/openapi.md#policies), and reads nothing while
+// policy is off. promoter is the run's promoter, and compiledDocumentView the
+// document, which is whole.
+func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
-	r := resolver{p: p, w: w}
-	diags := r.inferService()
-	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
-		if m, ok := w.Types[id].(*ir.Model); ok && m != nil {
-			diags = r.inferMembers(diags, m)
+	resolverValue := resolver{p: promoter, w: compiledDocumentView}
+	diags := resolverValue.inferService()
+	for _, id := range slices.Sorted(maps.Keys(compiledDocumentView.Types)) {
+		if model, ok := compiledDocumentView.Types[id].(*ir.Model); ok && model != nil {
+			diags = resolverValue.inferMembers(diags, model)
 		}
 	}
 	return diags
@@ -41,31 +41,31 @@ func Infer(policy Inference, p promotion.Promoter, w *whole.Document) []ir.Diagn
 // an operation by its route, and of each of its parameters, naming a parameter
 // beside it in code.
 func (r *resolver) inferService() []ir.Diagnostic {
-	ops := r.w.Ops
-	routes := indexRoutes(ops)
+	operations := r.w.Operations
+	routes := indexRoutes(operations)
 	var diags []ir.Diagnostic
-	for _, op := range ops {
-		diags = append(diags, r.message(deprecated{op.Unmodeled, op.Deprecation, &op.Provenance,
-			ir.EntityRef{Operation: op.ID}}, scope{"operation", routes.named, routes.find})...)
-		param := r.paramFinder(op)
-		for i := range op.Params {
-			p := &op.Params[i]
-			diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
-				ir.EntityRef{Param: p.ID}}, scope{"parameter", codeSpans, param})...)
+	for _, operation := range operations {
+		diags = append(diags, r.message(deprecated{operation.Unmodeled, operation.Deprecation, &operation.Provenance,
+			ir.EntityRef{Operation: operation.ID}}, scope{"operation", routes.named, routes.find})...)
+		param := r.paramFinder(operation)
+		for i := range operation.Params {
+			parameter := &operation.Params[i]
+			diags = append(diags, r.message(deprecated{parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance,
+				ir.EntityRef{Param: parameter.ID}}, scope{"parameter", codeSpans, param})...)
 		}
 	}
 	return diags
 }
 
-// inferMembers reads the message of each of m's members, naming a member of
-// m in code, and returns diags with what it reports appended, as every
+// inferMembers reads the message of each of model's members, naming a member of
+// model in code, and returns diags with what it reports appended, as every
 // model's are, so a model reporting nothing allocates nothing.
-func (r *resolver) inferMembers(diags []ir.Diagnostic, m *ir.Model) []ir.Diagnostic {
-	member := r.memberFinder(m.ID)
-	for i := range m.Properties {
-		p := &m.Properties[i]
-		diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
-			ir.EntityRef{Property: p.ID}}, scope{"property", codeSpans, member})...)
+func (r *resolver) inferMembers(diags []ir.Diagnostic, model *ir.Model) []ir.Diagnostic {
+	member := r.memberFinder(model.ID)
+	for i := range model.Properties {
+		property := &model.Properties[i]
+		diags = append(diags, r.message(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
+			ir.EntityRef{Property: property.ID}}, scope{"property", codeSpans, member})...)
 	}
 	return diags
 }
@@ -90,25 +90,26 @@ type scope struct {
 	find  func(string) (ir.EntityRef, int)
 }
 
-// message fills, under the replacement policy, the replacements n's message
-// names, where n is deprecated and its own keys write none, so that nothing
-// the promotion fills is read over. Only a name a phrase introduces is read
-// (introducedNames). A message naming no entity of n's class, or n alone,
-// names no replacement. One naming another fills the field all or
-// none, n passed over and a repeat kept once: a name naming nothing, or
-// several entities, leaves it unset, reported, the prose keeping it. n is
+// message fills, under the replacement policy, the replacements
+// deprecatedValue's message names, where deprecatedValue is deprecated and its
+// own keys write none, so that nothing the promotion fills is read over. Only a
+// name a phrase introduces is read (introducedNames). A message naming no
+// entity of deprecatedValue's class, or deprecatedValue alone, names no
+// replacement. One naming another fills the field all or none, deprecatedValue
+// passed over and a repeat kept once: a name naming nothing, or several
+// entities, leaves it unset, reported, the prose keeping it. deprecatedValue is
 // marked where they fill it. The rule is
 // docs/compilers/openapi.md#replacement-inference.
-func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
-	if n.dep == nil || r.p.Writes(n.own, promotion.TargetDeprecationReplacedBy) {
+func (r *resolver) message(deprecatedValue deprecated, scopeValue scope) []ir.Diagnostic {
+	if deprecatedValue.dep == nil || r.p.Writes(deprecatedValue.own, promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
-	names := introducedNames(n.dep.Message, s.named(n.dep.Message))
+	names := introducedNames(deprecatedValue.dep.Message, scopeValue.named(deprecatedValue.dep.Message))
 	refs := make([]ir.EntityRef, 0, len(names))
 	named, why := false, ""
 	for _, name := range names {
-		ref, matched := s.find(name)
-		if matched == 1 && ref == n.self {
+		ref, matched := scopeValue.find(name)
+		if matched == 1 && ref == deprecatedValue.self {
 			continue
 		}
 		named = named || matched > 0
@@ -123,20 +124,20 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 			if matched > 1 {
 				quantity = "more than one"
 			}
-			why = fmt.Sprintf("%q names %s %s", name, quantity, s.class)
+			why = fmt.Sprintf("%q names %s %s", name, quantity, scopeValue.class)
 		}
 	}
 	switch {
 	case !named:
 		return nil
 	case why != "":
-		at := *n.prov
+		at := *deprecatedValue.prov
 		at.Inferred = ""
 		return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UndecidedReplacement, at,
 			"no replacement is inferred: %s", why)}
 	}
-	n.dep.ReplacedBy = refs
-	n.prov.Inferred = ir.JoinInferred(n.prov.Inferred, InferenceHeuristic)
+	deprecatedValue.dep.ReplacedBy = refs
+	deprecatedValue.prov.Inferred = ir.JoinInferred(deprecatedValue.prov.Inferred, InferenceHeuristic)
 	return nil
 }
 
@@ -150,8 +151,8 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 func codeSpans(text string) []named {
 	runs := backtickRuns(text)
 	byLength := map[int][]int{}
-	for i, r := range runs {
-		byLength[r.length] = append(byLength[r.length], i)
+	for i, backtickRun := range runs {
+		byLength[backtickRun.length] = append(byLength[backtickRun.length], i)
 	}
 	cursor := map[int]int{}
 	var spans []named
@@ -213,22 +214,22 @@ func spanContent(raw string) string {
 // HTTP bindings send them by, which a message names an operation by, and the
 // methods those bindings use.
 type routeIndex struct {
-	byRoute map[string][]ir.OpID
+	byRoute map[string][]ir.OperationID
 	methods map[string]bool
 }
 
-// indexRoutes indexes ops by route. A binding with no path template, a
+// indexRoutes indexes operations by route. A binding with no path template, a
 // webhook's, is no route a message names.
-func indexRoutes(ops []*ir.Operation) routeIndex {
-	ix := routeIndex{byRoute: map[string][]ir.OpID{}, methods: map[string]bool{}}
-	for _, op := range ops {
-		for _, b := range op.Bindings.HTTP {
+func indexRoutes(operations []*ir.Operation) routeIndex {
+	ix := routeIndex{byRoute: map[string][]ir.OperationID{}, methods: map[string]bool{}}
+	for _, operation := range operations {
+		for _, b := range operation.Bindings.HTTP {
 			if !strings.HasPrefix(b.URITemplate, "/") {
 				continue
 			}
 			key := b.Method + " " + b.URITemplate
-			if !slices.Contains(ix.byRoute[key], op.ID) {
-				ix.byRoute[key] = append(ix.byRoute[key], op.ID)
+			if !slices.Contains(ix.byRoute[key], operation.ID) {
+				ix.byRoute[key] = append(ix.byRoute[key], operation.ID)
 			}
 			ix.methods[b.Method] = true
 		}

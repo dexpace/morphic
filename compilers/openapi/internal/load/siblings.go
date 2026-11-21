@@ -16,7 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -90,10 +90,10 @@ func modelSiblings(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree) 
 	return siblingsFrom(ctx, walk(ctx, doc), tree, buildSibling)
 }
 
-// refBeside reports whether n is a reference writing a field beside its $ref,
-// as every use site holding fields beside its $ref is (see withoutRef).
-func refBeside(n *yaml.Node) bool {
-	return isReference(n) && writesBeside(n)
+// refBeside reports whether node is a reference writing a field beside its
+// $ref, as every use site holding fields beside its $ref is (see withoutRef).
+func refBeside(node *yaml.Node) bool {
+	return isReference(node) && writesBeside(node)
 }
 
 // isReference reports whether node is a reference as the bindings' table reads
@@ -116,19 +116,19 @@ func isReference(node *yaml.Node) bool {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree provenance.Tree, build siblingBuild,
 ) (Siblings, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}}
+	siblings := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}}
 	var faults []ir.Diagnostic
 	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-		faults = append(faults, s.add(ctx, site, rp, build, tree)...)
+		faults = append(faults, siblings.add(ctx, site, rp, build, tree)...)
 		return nil
 	}
 	_, err := eachModel(items, "sibling search", met)
 	// The document's walk, then each model's in turn, until one panics or ctx
 	// is done.
-	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
-		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
+	for i := 0; err == nil && i < len(siblings.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
+		_, err = eachModel(siblings.modelWalk(ctx, i), "sibling search", met)
 	}
-	return s, faults
+	return siblings, faults
 }
 
 // add models the fields rp's use site writes beside its $ref, at site. It does
@@ -187,7 +187,7 @@ func (s *Siblings) addLanding(ctx context.Context, items iter.Seq[soa.WalkItem],
 		return s.model(ctx, at, rp, buildSibling)
 	}
 	_, err := eachModel(locatedWalk(items, pointer), "sibling search", met)
-	for i := first; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
+	for i := first; err == nil && i < len(s.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
 		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
 	}
 	return first, err
@@ -228,18 +228,18 @@ func withoutRefIn(node *yaml.Node, depth int) *yaml.Node {
 // copied less its $ref (withoutRefIn), and val itself for anything else, which
 // merges nothing.
 func mergedWithoutRef(val *yaml.Node, depth int) *yaml.Node {
-	v := nodeview.Deref(val)
-	if v.Kind == yaml.MappingNode {
-		return withoutRefIn(v, depth)
+	node := nodeview.Deref(val)
+	if node.Kind == yaml.MappingNode {
+		return withoutRefIn(node, depth)
 	}
-	if v.Kind != yaml.SequenceNode {
+	if node.Kind != yaml.SequenceNode {
 		return val
 	}
-	list := *v
-	list.Content = make([]*yaml.Node, 0, len(v.Content))
-	for _, item := range v.Content {
-		if m := nodeview.Deref(item); m != nil && m.Kind == yaml.MappingNode {
-			item = withoutRefIn(m, depth)
+	list := *node
+	list.Content = make([]*yaml.Node, 0, len(node.Content))
+	for _, item := range node.Content {
+		if dereferenced := nodeview.Deref(item); dereferenced != nil && dereferenced.Kind == yaml.MappingNode {
+			item = withoutRefIn(dereferenced, depth)
 		}
 		list.Content = append(list.Content, item)
 	}
@@ -262,7 +262,7 @@ func writesBeside(node *yaml.Node) bool {
 			return true
 		}
 	}
-	return merges && slices.ContainsFunc(nodeview.Pairs(node), func(p nodeview.Pair) bool { return p.Key != refKey })
+	return merges && slices.ContainsFunc(nodeview.Pairs(node), func(pair nodeview.Pair) bool { return pair.Key != refKey })
 }
 
 // isRefKey reports whether key spells $ref, directly or through an alias, as

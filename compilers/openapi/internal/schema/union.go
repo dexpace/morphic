@@ -28,51 +28,51 @@ import (
 // union into optional fields. The Union, standing where st says, holds the
 // value bounds written beside it, as a branch's node, shared by every use of
 // the branch, cannot (docs/compilers/openapi.md#constraints). fin finishes it.
-func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+func lowerOneOfAnyOf(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, fin finisher,
 	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	at := st.position(s)
-	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok && !pairedPrincipal(c, st) {
-		ref, diags := Ref(c, ts, depth, inner, ip)
+	at := st.position(schema)
+	if inner, ip, ok := nullUnionCollapse(loweringContext, schema, pointer); ok && !pairedPrincipal(loweringContext, st) {
+		ref, diags := Ref(loweringContext, ts, depth, inner, ip)
 		// The null branches say the null, so the reference admits it whatever
 		// the branch it names says, and declares it where theirs or that
 		// branch's own reference does (unionNullReading).
-		declared := ref.Nullable && ref.Inferred == "" || valueNulls(c, s).union.declared == nullAdmitted
-		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, at, s, pointer)...)
+		declared := ref.Nullable && ref.Inferred == "" || valueNulls(loweringContext, schema).union.declared == nullAdmitted
+		return nullRef(loweringContext, ref.Target, declared, true), append(diags, liftedNullFindings(loweringContext, at, schema, pointer)...)
 	}
-	if allNullUnion(c, at, s) {
-		ref, diags := lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
+	if allNullUnion(loweringContext, at, schema) {
+		ref, diags := lowerNullOnlyUnion(loweringContext, ts, schema, pointer, fin, st)
 		if st.of == nil {
 			// The union of null alone is a conjunct like any other, so a pair
 			// sharing no value is reported here as where it is not null alone.
-			diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
+			diags = append(diags, diagUnionsShareNothing(loweringContext, schema, pointer, unionShape)...)
 		}
 		return ref, diags
 	}
-	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s, s)}, fin, st,
+	owner, diags := keepingUnread(loweringContext, ts, schema, pointer, dispatch{said: branchesSay(loweringContext, schema, schema)}, fin, st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
-			tid := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-				u := besideUnion(s, pointer)
-				u.schema, u.dead = at, pairDeadNulls(c, at, s, st)
-				def, unionDiags := buildUnion(c, ts, u, common,
+			tid := internNode(loweringContext, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+				unionAt := besideUnion(schema, pointer)
+				unionAt.schema, unionAt.dead = at, pairDeadNulls(loweringContext, at, schema, st)
+				def, unionDiags := buildUnion(loweringContext, ts, unionAt, common,
 					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
-						ref, refDiags := Ref(c, ts, depth, b, vptr)
+						ref, refDiags := Ref(loweringContext, ts, depth, b, vptr)
 						diags = append(diags, refDiags...)
 						return ref
 					})
 				diags = append(diags, unionDiags...)
-				if u.dead != nil {
+				if unionAt.dead != nil {
 					// The report names an entry's union by the entry it is written on,
 					// and a dead branch by the null the rest keeps out, not by a body.
-					reported := u
+					reported := unionAt
 					reported.entry, reported.nulls = st.of != nil, true
-					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, reported, st.pointer(pointer))...)
+					diags = append(diags, keepDeadBranches(loweringContext, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
-				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
+				cons, consDiags := ConstraintsOf(loweringContext, &def.Unmodeled, schema, st.foldedEntries(loweringContext, schema, pointer), pointer, st.takes(loweringContext, schema))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
-				read := nodeBoundsRead(s, st.takes(c, s), def.Constraints, def.Unmodeled)
+				read := nodeBoundsRead(schema, st.takes(loweringContext, schema), def.Constraints, def.Unmodeled)
 				if def.Discriminator != nil {
 					read |= keyBit("discriminator")
 				}
@@ -80,40 +80,40 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 			}, fin)
 			return tid, 0, diags
 		})
-	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	ref, nullDiags := schemaNullRef(loweringContext, owner, schema, siteAt(pointer))
 	if st.of == nil {
 		// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
-		diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
+		diags = append(diags, diagUnionsShareNothing(loweringContext, schema, pointer, unionShape)...)
 	}
-	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, at, s, pointer))
+	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(loweringContext, at, schema, pointer))
 }
 
-// pairDeadNulls marks, by index, each branch of the union s elects at
+// pairDeadNulls marks, by index, each branch of the union schema elects at
 // position that is a variant admitting null alone, as a $ref to a schema of
 // null alone is, where position elects one union of a oneOf and an anyOf and
 // what it writes beside that union, the one passed over among it, keeps null
 // out (restForbidsNull): no instance is one of both. It is nil where none is,
 // where no variant would live, the pair then sharing no value, which its own
-// warning says, or where s elects no union of a pair
+// warning says, or where schema elects no union of a pair
 // (docs/compilers/openapi.md#union-beside-structure).
-func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bool {
-	if !writesBothUnions(s) && !pairedPrincipal(c, st) {
+func pairDeadNulls(loweringContext lowering.Ctx, position, schema *statement.Schema, st stand) []bool {
+	if !writesBothUnions(schema) && !pairedPrincipal(loweringContext, st) {
 		return nil
 	}
-	branches, _, _ := unionBranches(c, position, s)
+	branches, _, _ := unionBranches(loweringContext, position, schema)
 	var dead []bool
 	live := false
 	for i, b := range branches {
-		bs := c.Statements().Sub(b)
-		if nullBranch(c, bs) {
+		bs := loweringContext.Statements().Subschema(b)
+		if nullBranch(loweringContext, bs) {
 			continue
 		}
-		if kinds, inferred := lowersTo(c, bs); kinds&^kindNull != 0 || inferred {
+		if kinds, inferred := lowersTo(loweringContext, bs); kinds&^kindNull != 0 || inferred {
 			live = true
 			continue
 		}
 		if dead == nil {
-			if !restForbidsNull(c, position, s) {
+			if !restForbidsNull(loweringContext, position, schema) {
 				return nil
 			}
 			dead = make([]bool, len(branches))
@@ -134,16 +134,16 @@ func pairDeadNulls(c lowering.Ctx, position, s *statement.Schema, st stand) []bo
 // A schema declaring both combinators collapses neither: the co-declared anyOf
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
-func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (*statement.Statement, jsontext.Pointer, bool) {
-	if choice := s.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+func nullUnionCollapse(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (*statement.Statement, jsontext.Pointer, bool) {
+	if choice := schema.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return nil, "", false
 	}
-	variants, key, _ := unionBranches(c, s, s)
+	variants, key, _ := unionBranches(loweringContext, schema, schema)
 	var nonNull *statement.Statement
 	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
-	for i, v := range variants {
-		st := c.Statements().Sub(v)
-		if nullBranch(c, st) {
+	for i, subschema := range variants {
+		st := loweringContext.Statements().Subschema(subschema)
+		if nullBranch(loweringContext, st) {
 			nullCount++
 			continue
 		}
@@ -160,37 +160,37 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 // principal of a refinement passing over another entry's union
 // (electsOneOfPair), which conjoins with it as a co-declared anyOf does, so it
 // collapses no more than one schema writing both does.
-func pairedPrincipal(c lowering.Ctx, st stand) bool {
-	return st.of != nil && electsOneOfPair(c, st.of)
+func pairedPrincipal(loweringContext lowering.Ctx, st stand) bool {
+	return st.of != nil && electsOneOfPair(loweringContext, st.of)
 }
 
-// electsOneOfPair reports whether s refines to an inline entry writing one
-// union of a oneOf and an anyOf that s and its entries write between them
+// electsOneOfPair reports whether schema refines to an inline entry writing one
+// union of a oneOf and an anyOf that schema and its entries write between them
 // (writesUnionPair), a body beside them or none, the other passed over.
-func electsOneOfPair(c lowering.Ctx, s *statement.Schema) bool {
-	d := decisionOf(c, s)
-	if !d.refines || d.principalAt < 0 {
+func electsOneOfPair(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	decision := decisionOf(loweringContext, schema)
+	if !decision.refines || decision.principalAt < 0 {
 		return false
 	}
-	p := entryStatement(c, s, d.principalAt)
-	if p.Ref != nil || !declaresUnion(p.Schema) || writesBothUnions(p.Schema) {
+	schemaStatement := entryStatement(loweringContext, schema, decision.principalAt)
+	if schemaStatement.Ref != nil || !declaresUnion(schemaStatement.Schema) || writesBothUnions(schemaStatement.Schema) {
 		return false
 	}
-	return writesUnionPair(s, allOfEntries(c, s, ""))
+	return writesUnionPair(schema, allOfEntries(loweringContext, schema, ""))
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
-// unionBranches elects of s at position is a null branch (nullBranch). nullUnionCollapse has no
-// non-null branch to collapse a set like this onto, so without this check
-// lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
-// and interns a Union with none left — the empty value space irverify's
-// ir/union-no-variants rejects (GitHub #416). The branch set still admits
-// exactly one value, the one a schema of null alone at this position admits,
-// so lowerOneOfAnyOf lowers it the same way instead.
-func allNullUnion(c lowering.Ctx, position, s *statement.Schema) bool {
-	variants, _, _ := unionBranches(c, position, s)
-	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v statement.Sub) bool {
-		return !nullBranch(c, c.Statements().Sub(v))
+// unionBranches elects of schema at position is a null branch (nullBranch).
+// nullUnionCollapse has no non-null branch to collapse a set like this onto, so
+// without this check lowerOneOfAnyOf's buildUnion fallback strips every branch
+// as a null marker and interns a Union with none left — the empty value space
+// irverify's ir/union-no-variants rejects (GitHub #416). The branch set still
+// admits exactly one value, the one a schema of null alone at this position
+// admits, so lowerOneOfAnyOf lowers it the same way instead.
+func allNullUnion(loweringContext lowering.Ctx, position, schema *statement.Schema) bool {
+	variants, _, _ := unionBranches(loweringContext, position, schema)
+	return len(variants) > 0 && !slices.ContainsFunc(variants, func(subschema statement.Subschema) bool {
+		return !nullBranch(loweringContext, loweringContext.Statements().Subschema(subschema))
 	})
 }
 
@@ -202,54 +202,57 @@ func allNullUnion(c lowering.Ctx, position, s *statement.Schema) bool {
 // are declared, carries no shape the node's fields could hold, so it is kept
 // verbatim under Unmodeled instead of dropped
 // (docs/compilers/openapi.md#union-null-only). The node stands where st says.
-func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+func lowerNullOnlyUnion(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, fin finisher,
 	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	var branches finished
-	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{},
-		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin), st,
+	owner, diags := keepingUnread(loweringContext, ts, schema, pointer, dispatch{},
+		branches.on(func(td ir.TypeDef) []ir.Diagnostic {
+			return preserveNullOnlyUnion(loweringContext, td, schema, pointer)
+		}).then(fin), st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), 0, nil
+			return lowerNullAlone(loweringContext, ts, standingValueSet(schema, pointer, st).finishedBy(fin)), 0, nil
 		})
-	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, st.position(s), s, pointer))
+	ref, nullDiags := schemaNullRef(loweringContext, owner, schema, siteAt(pointer))
+	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(loweringContext, st.position(schema), schema, pointer))
 }
 
-// preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the Unmodeled of
-// td, in hand, the node lowerNullOnlyUnion built, an Enum with no member, which
-// holds no branch set of its own, and reports what it kept.
-func preserveNullOnlyUnion(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	kept, diags := preserveBranchSets(c, &td.Common().Unmodeled, s, ir.ReasonDegradedLowering, pointer)
+// preserveNullOnlyUnion keeps schema's oneOf/anyOf verbatim under the Unmodeled
+// of td, in hand, the node lowerNullOnlyUnion built, an Enum with no member,
+// which holds no branch set of its own, and reports what it kept.
+func preserveNullOnlyUnion(loweringContext lowering.Ctx, td ir.TypeDef, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := preserveBranchSets(loweringContext, &td.Common().Unmodeled, schema, ir.ReasonDegradedLowering, pointer)
 	if len(kept) == 0 {
 		return diags
 	}
 	// Both keywords land here when both are declared: buildUnion, and its
 	// preserveUnusedCombinator, are never reached from this arm, so this is the
 	// only place either combinator gets a home.
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	return append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"every branch admits only the null value, so this position lowered as an enum with no member "+
 			"behind a nullable reference; %s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
 }
 
-// preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
-// keyword order, reporting one it cannot convert. ir.ReasonValidationOnly
-// routes each through the validation-only keyword-family reporting
-// (annotation.PreserveValidationOnlyKeyword) and returns no keywords. Every
-// other reason keeps each plainly (annotation.PreserveSchemaKeyword) and returns
-// the keywords kept, so a caller with a message of its own knows what to name.
+// preserveBranchSets stores schema's declared oneOf/anyOf verbatim under
+// unmodeled, in keyword order, reporting one it cannot convert.
+// ir.ReasonValidationOnly routes each through the validation-only
+// keyword-family reporting (annotation.PreserveValidationOnlyKeyword) and
+// returns no keywords. Every other reason keeps each plainly
+// (annotation.PreserveSchemaKeyword) and returns the keywords kept, so a caller
+// with a message of its own knows what to name.
 //
 // preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop: they keep
 // the same keywords because the node they attach to has no branch set of its
 // own, and differ only in the sentence that explains why.
-func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, reason ir.UnmodeledReason, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+func preserveBranchSets(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, reason ir.UnmodeledReason, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.Place())...)
+			diags = append(diags, annotation.PreserveValidationOnlyKeyword(unmodeled, schema, kw, pointer, loweringContext.Place())...)
 			continue
 		}
-		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.Place())
+		ok, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, kw, reason, pointer, loweringContext.Place())
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, kw)
@@ -268,9 +271,9 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // declines to collapse past it, and the verbatim lowering keeps both keywords
 // (preserveUnionSiblingsAt). Reading the preference as one only that last
 // lowering could reach is what dropped the anyOf in silence (GitHub #35).
-func unionBranches(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Sub, string, bool) {
+func unionBranches(loweringContext lowering.Ctx, position, holder *statement.Schema) ([]statement.Subschema, string, bool) {
 	choice := holder.ChoiceKeywords()
-	if len(choice.OneOf) > 0 && (len(choice.AnyOf) == 0 || !anyOfElected(c, position, holder)) {
+	if len(choice.OneOf) > 0 && (len(choice.AnyOf) == 0 || !anyOfElected(loweringContext, position, holder)) {
 		return choice.OneOf, "oneOf", true
 	}
 	return choice.AnyOf, "anyOf", false
@@ -286,40 +289,40 @@ type unionElectionOf struct {
 // oneOf's do not, so the oneOf only narrows what the position declares and
 // types nothing (docs/compilers/openapi.md#competing-keywords). Read once a run,
 // as every reader of the union asks.
-func anyOfElected(c lowering.Ctx, position, holder *statement.Schema) bool {
-	return lowering.Remembered(c, unionElectionOf{position, holder}, func() bool {
+func anyOfElected(loweringContext lowering.Ctx, position, holder *statement.Schema) bool {
+	return lowering.ReadOncePerRun(loweringContext, unionElectionOf{position, holder}, func() bool {
 		choice := holder.ChoiceKeywords()
-		return !setsDeclareShape(c, position, holder, choice.OneOf) && setsDeclareShape(c, position, holder, choice.AnyOf)
+		return !setsDeclareShape(loweringContext, position, holder, choice.OneOf) && setsDeclareShape(loweringContext, position, holder, choice.AnyOf)
 	})
 }
 
 // passedOver returns the branch set unionBranches passes over in holder at
 // position, a conjunct of the rest of that position, and its keyword: none
 // where holder writes one union.
-func passedOver(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Sub, string) {
+func passedOver(loweringContext lowering.Ctx, position, holder *statement.Schema) ([]statement.Subschema, string) {
 	choice := holder.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil, ""
 	}
-	if _, key, _ := unionBranches(c, position, holder); key == "oneOf" {
+	if _, key, _ := unionBranches(loweringContext, position, holder); key == "oneOf" {
 		return choice.AnyOf, "anyOf"
 	}
 	return choice.OneOf, "oneOf"
 }
 
 // branches is unionBranches for u's holder at its position.
-func (u unionAt) branches(c lowering.Ctx) ([]statement.Sub, string, bool) {
-	return unionBranches(c, u.schema, u.holder)
+func (u unionAt) branches(loweringContext lowering.Ctx) ([]statement.Subschema, string, bool) {
+	return unionBranches(loweringContext, u.schema, u.holder)
 }
 
-// restKeepsNull returns whether what u's position writes but u's own union
-// keeps null out (restForbidsNull), read on first asking: most unions hold no
-// variant admitting null.
-func restKeepsNull(c lowering.Ctx, u unionAt) func() bool {
+// restKeepsNull returns whether what unionAtValue's position writes but
+// unionAtValue's own union keeps null out (restForbidsNull), read on first
+// asking: most unions hold no variant admitting null.
+func restKeepsNull(loweringContext lowering.Ctx, unionAtValue unionAt) func() bool {
 	var read, forbids bool
 	return func() bool {
 		if !read {
-			read, forbids = true, restForbidsNull(c, u.schema, u.holder)
+			read, forbids = true, restForbidsNull(loweringContext, unionAtValue.schema, unionAtValue.holder)
 		}
 		return forbids
 	}
@@ -329,19 +332,19 @@ func restKeepsNull(c lowering.Ctx, u unionAt) func() bool {
 // the union of holder, the union holder passes over among it, as
 // bodyAdmitsNull reads that rest: a rest saying nothing of null keeps none
 // out, and a passed-over union read past the budget decides nothing.
-func restForbidsNull(c lowering.Ctx, body, holder *statement.Schema) bool {
-	n := newNulls(c)
-	n.variants, n.rest = true, holder
-	if n.conjunct(c.Statements().Read(body), nullSite{}).forbids(c) {
+func restForbidsNull(loweringContext lowering.Ctx, body, holder *statement.Schema) bool {
+	nulls := newNulls(loweringContext)
+	nulls.variants, nulls.rest = true, holder
+	if nulls.conjunct(loweringContext.Statements().Read(body), nullSite{}).forbids(loweringContext) {
 		return true
 	}
-	passed, _ := passedOver(c, body, holder)
+	passed, _ := passedOver(loweringContext, body, holder)
 	if passed == nil {
 		return false
 	}
-	m := newNulls(c)
-	m.variants = true
-	return m.branchesNull(passed).forbids(c) && !m.conjuncts.Exhausted()
+	nullsValue := newNulls(loweringContext)
+	nullsValue.variants = true
+	return nullsValue.branchesNull(passed).forbids(loweringContext) && !nullsValue.conjuncts.Exhausted()
 }
 
 // otherCombinator names each union keyword's counterpart, so the branch set
@@ -350,8 +353,9 @@ func restForbidsNull(c lowering.Ctx, body, holder *statement.Schema) bool {
 var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 
 // preserveUnusedCombinator keeps the branch set unionBranches passed over in
-// u's holder verbatim on the Union the position lowers to, and reports it. A
-// holder declaring only one combinator passes over nothing and is left alone.
+// unionAtValue's holder verbatim on the Union the position lowers to, and
+// reports it. A holder declaring only one combinator passes over nothing and is
+// left alone.
 //
 // A schema writing both conjoins them, but one ir.Union carries one branch set,
 // so the other stays recoverable beside the elected one
@@ -359,8 +363,8 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // its branches declare no shape against the schema at the position, an entry
 // holding both as much as one written beside the allOf. Beside a body the union
 // distributes across, each variant keeps it instead (buildComposedVariant).
-func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, u unionAt, won string) []ir.Diagnostic {
-	choice := u.holder.ChoiceKeywords()
+func preserveUnusedCombinator(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, unionAtValue unionAt, won string) []ir.Diagnostic {
+	choice := unionAtValue.holder.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
@@ -368,16 +372,16 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, u unionAt, won st
 	if unused == "anyOf" {
 		set = choice.AnyOf
 	}
-	if !setsDeclareShape(c, u.schema, u.holder, set) {
+	if !setsDeclareShape(loweringContext, unionAtValue.schema, unionAtValue.holder, set) {
 		// Branches narrowing only what the position declares are validation
 		// logic, as the same union on an entry of its own is (entryUnionReason).
-		return annotation.PreserveValidationOnlyKeyword(p, u.holder, unused, u.at, c.Place())
+		return annotation.PreserveValidationOnlyKeyword(unmodeled, unionAtValue.holder, unused, unionAtValue.at, loweringContext.Place())
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(p, u.holder, unused, ir.ReasonDegradedLowering, u.at, c.Place())
+	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, unionAtValue.holder, unused, ir.ReasonDegradedLowering, unionAtValue.at, loweringContext.Place())
 	if !kept {
 		return diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, u.at,
+	return append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, unionAtValue.at,
 		"oneOf and anyOf are both declared here and conjoin, and one Union carries one "+
 			"branch set; this position lowered as its %s, with %s kept verbatim under Unmodeled",
 		won, unused))
@@ -389,7 +393,7 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, u unionAt, won st
 // stripping, variant hints, exclusivity, pointer derivation.
 type variantTypeFunc func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef
 
-// buildUnion assembles the Union node for the union u, attaching the
+// buildUnion assembles the Union node for the union unionAtValue, attaching the
 // discriminator standing with it, where one does, with the routes it implies
 // (spellImplicitRoutes). common is already built by the caller (internNode), so
 // buildUnion needs no hint of its own to build one, and it places the union.
@@ -398,32 +402,32 @@ type variantTypeFunc func(b *statement.Statement, vptr jsontext.Pointer) ir.Type
 // them (indexBranches). A union the discriminator routes is WireTagged, an
 // anyOf as much as a oneOf: the tag property's value names its variant
 // (docs/ir/unions.md).
-func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeCommon, variantType variantTypeFunc,
+func buildUnion(loweringContext lowering.Ctx, ts *compile.Types, unionAtValue unionAt, common ir.TypeCommon, variantType variantTypeFunc,
 ) (*ir.Union, []ir.Diagnostic) {
-	branches, key, exclusive := u.branches(c)
+	branches, key, exclusive := unionAtValue.branches(loweringContext)
 	var diags []ir.Diagnostic
-	if !u.distributed {
-		diags = preserveUnusedCombinator(c, &common.Unmodeled, u, key)
+	if !unionAtValue.distributed {
+		diags = preserveUnusedCombinator(loweringContext, &common.Unmodeled, unionAtValue, key)
 	}
-	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.schema, u.holder, u.at))...)
+	diags = append(diags, recordNullBranches(loweringContext, &common.Unmodeled, nullBranchKeeps(loweringContext, unionAtValue.schema, unionAtValue.holder, unionAtValue.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
-	keepsNull := restKeepsNull(c, u)
+	keepsNull := restKeepsNull(loweringContext, unionAtValue)
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
-		if !u.variantBranch(c, i, st) {
+		st := loweringContext.Statements().Subschema(b)
+		if !unionAtValue.variantBranch(loweringContext, i, st) {
 			continue // a null branch lifts to the enclosing ref's Nullable bit; a dead one is kept
 		}
-		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
-		t := variantType(st, vptr)
-		if t.Nullable && keepsNull() {
+		vptr := unionAtValue.at + ids.Ptr(key, strconv.Itoa(i))
+		typeRef := variantType(st, vptr)
+		if typeRef.Nullable && keepsNull() {
 			// A null is shared only where every conjunct may admit it, so a
 			// rest keeping it out leaves the variant none, its other values
 			// living (docs/compilers/openapi.md#union-null-variant).
-			t.Nullable, t.Inferred = false, ""
+			typeRef.Nullable, typeRef.Inferred = false, ""
 		}
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(variantHint(c, st, vptr)),
-			Type: t,
+			Name: compile.NamingHint(variantHint(loweringContext, st, vptr)),
+			Type: typeRef,
 		})
 	}
 	node := &ir.Union{
@@ -432,18 +436,18 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 		Exclusive:  exclusive,
 		Closed:     true,
 	}
-	var x *branchIndex
-	if u.disc != nil {
-		x = indexBranches(c, u, variants)
+	var branchIndexValue *branchIndex
+	if unionAtValue.disc != nil {
+		branchIndexValue = indexBranches(loweringContext, unionAtValue, variants)
 	}
-	disc, discDiags := lowerDiscriminator(c, ts, u.disc, u.discAt, nil, x)
+	disc, discDiags := lowerDiscriminator(loweringContext, ts, unionAtValue.disc, unionAtValue.discAt, nil, branchIndexValue)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
-	diags = append(diags, keepEntryDiscriminatorKeys(c, node, u)...)
-	diags = append(diags, keepDeadRoutes(c, node, u)...)
-	diags = append(diags, spellImplicitRoutes(c, u, node, common.Provenance.Pointer)...)
-	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
+	diags = append(diags, keepEntryDiscriminatorKeys(loweringContext, node, unionAtValue)...)
+	diags = append(diags, keepDeadRoutes(loweringContext, node, unionAtValue)...)
+	diags = append(diags, spellImplicitRoutes(loweringContext, unionAtValue, node, common.Provenance.Pointer)...)
+	deferUnionTags(loweringContext, ts, unionAtValue, node, common.Provenance.Pointer)
 	return node, diags
 }
 
@@ -453,23 +457,23 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 // its position's node (annotation.Read), and an entry has no node, so they ride
 // on the node holding the discriminator, scoped by their path from it where they
 // lie beneath it (annotation.SchemaExtensions).
-func keepEntryDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
-	if !u.entry || u.disc == nil || u.discAt != u.at {
+func keepEntryDiscriminatorKeys(loweringContext lowering.Ctx, union *ir.Union, unionAtValue unionAt) []ir.Diagnostic {
+	if !unionAtValue.entry || unionAtValue.disc == nil || unionAtValue.discAt != unionAtValue.at {
 		return nil
 	}
-	owner, scope := discriminatorScope(u, n.Provenance.Pointer)
-	// u.disc is the holder's, as discAt is at.
-	kept, diags := annotation.SchemaExtensions(u.disc.Extensions, c.Place(), owner, scope)
-	diags = append(diags, annotation.UnknownKeysNamed(&kept, u.disc.Unknown, u.disc.Node, c.Place(), owner, scope)...)
-	n.Unmodeled = annotation.MergeUnmodeled(n.Unmodeled, kept)
+	owner, scope := discriminatorScope(unionAtValue, union.Provenance.Pointer)
+	// unionAtValue.disc is the holder's, as discAt is at.
+	kept, diags := annotation.SchemaExtensions(unionAtValue.disc.Extensions, loweringContext.Place(), owner, scope)
+	diags = append(diags, annotation.UnknownKeysNamed(&kept, unionAtValue.disc.Unknown, unionAtValue.disc.Node, loweringContext.Place(), owner, scope)...)
+	union.Unmodeled = annotation.MergeUnmodeled(union.Unmodeled, kept)
 	return diags
 }
 
-// discriminatorScope is where the discriminator standing with u is written,
-// and the scope what a node at pointer keeps of it is keyed by: its path
-// beneath pointer, or `discriminator` where it is not beneath it.
-func discriminatorScope(u unionAt, pointer jsontext.Pointer) (jsontext.Pointer, string) {
-	owner := u.discAt + ids.Ptr("discriminator")
+// discriminatorScope is where the discriminator standing with unionAtValue is
+// written, and the scope what a node at pointer keeps of it is keyed by: its
+// path beneath pointer, or `discriminator` where it is not beneath it.
+func discriminatorScope(unionAtValue unionAt, pointer jsontext.Pointer) (jsontext.Pointer, string) {
+	owner := unionAtValue.discAt + ids.Ptr("discriminator")
 	if rest, beneath := strings.CutPrefix(string(owner), string(pointer)+"/"); beneath {
 		return owner, rest
 	}
@@ -514,14 +518,14 @@ type unionAt struct {
 // of the Union u lowers to: every branch but a null one, which lifts to the
 // reference's Nullable, and one no instance of the body u is distributed over
 // satisfies. Each reader aligning branches with variants asks it.
-func (u unionAt) variantBranch(c lowering.Ctx, i int, st *statement.Statement) bool {
-	return !nullBranch(c, st) && (u.dead == nil || !u.dead[i])
+func (u unionAt) variantBranch(loweringContext lowering.Ctx, i int, st *statement.Statement) bool {
+	return !nullBranch(loweringContext, st) && (u.dead == nil || !u.dead[i])
 }
 
-// besideUnion is the union s, written at pointer, writes itself, with the
+// besideUnion is the union schema, written at pointer, writes itself, with the
 // discriminator written beside it.
-func besideUnion(s *statement.Schema, pointer jsontext.Pointer) unionAt {
-	return unionAt{holder: s, at: pointer, schema: s, disc: s.Discriminator(), discAt: pointer}
+func besideUnion(schema *statement.Schema, pointer jsontext.Pointer) unionAt {
+	return unionAt{holder: schema, at: pointer, schema: schema, disc: schema.Discriminator(), discAt: pointer}
 }
 
 // entryUnionOf keys what entryUnion read of one schema.
@@ -545,29 +549,29 @@ type entryUnionIndex struct {
 // rest (unionApart), else as classifyConjoined says. ok is false where the
 // union stays with its entry, as for the base of a hierarchy the
 // discriminator routes.
-func entryUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
-	at := entryUnionIndexOf(c, s)
+func entryUnion(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
+	at := entryUnionIndexOf(loweringContext, schema)
 	if !at.ok {
 		return unionAt{}, 0, false
 	}
-	comp := allOfEntries(c, s, pointer)
-	e := comp.entries[at.index]
-	u := unionAt{holder: e.schema.Schema, at: e.pointer, schema: s, disc: s.Discriminator(), discAt: pointer, entry: true}
-	if d := u.holder.Discriminator(); d != nil {
-		u.disc, u.discAt = d, e.pointer
+	comp := allOfEntries(loweringContext, schema, pointer)
+	entry := comp.entries[at.index]
+	unionAtValue := unionAt{holder: entry.schema.Schema, at: entry.pointer, schema: schema, disc: schema.Discriminator(), discAt: pointer, entry: true}
+	if discriminator := unionAtValue.holder.Discriminator(); discriminator != nil {
+		unionAtValue.disc, unionAtValue.discAt = discriminator, entry.pointer
 	}
-	if unionApart(c, s, comp, at.index) {
-		return u, unionSharesNoKind, false
+	if unionApart(loweringContext, schema, comp, at.index) {
+		return unionAtValue, unionSharesNoKind, false
 	}
-	how := classifyConjoined(c, s, u, pointer)
-	return u, how, how == unionDistributed || how == unionRoutedSubtype
+	how := classifyConjoined(loweringContext, schema, unionAtValue, pointer)
+	return unionAtValue, how, how == unionDistributed || how == unionRoutedSubtype
 }
 
 // entryUnionIndexOf returns findEntryUnion's reading of s, read once a run, as
 // every reader of a position s is written at, and of a hierarchy s is the base
 // of, asks.
-func entryUnionIndexOf(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
-	return lowering.Remembered(c, entryUnionOf{s}, func() entryUnionIndex { return findEntryUnion(c, s) })
+func entryUnionIndexOf(loweringContext lowering.Ctx, schema *statement.Schema) entryUnionIndex {
+	return lowering.ReadOncePerRun(loweringContext, entryUnionOf{schema}, func() entryUnionIndex { return findEntryUnion(loweringContext, schema) })
 }
 
 // findEntryUnion is entryUnion's reading of s alone: where s lowers its
@@ -578,22 +582,22 @@ func entryUnionIndexOf(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
 // in any order. One declaring no shape stays residue. A discriminator on both
 // s and the entry leaves none: nothing says which routes it. A $ref site or a
 // union beside the allOf lowers first.
-func findEntryUnion(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
-	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
+func findEntryUnion(loweringContext lowering.Ctx, schema *statement.Schema) entryUnionIndex {
+	if declaresUnion(schema) || dispatchOf(schema).won != "allOf" {
 		return entryUnionIndex{}
 	}
-	entries := allOfEntries(c, s, "").entries
+	entries := allOfEntries(loweringContext, schema, "").entries
 	var shaped, oneOfs []int
-	for i, e := range entries {
-		choice := e.schema.ChoiceKeywords()
+	for i, entry := range entries {
+		choice := entry.schema.ChoiceKeywords()
 		// Judged against the rest of the conjunction, the entry's own unions
 		// apart, as a union beside the allOf and the election within an entry are.
-		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) ||
-			!setsDeclareShape(c, s, e.schema.Schema, choice.OneOf, choice.AnyOf) {
+		if entry.schema.Ref != nil || !declaresUnion(entry.schema.Schema) ||
+			!setsDeclareShape(loweringContext, schema, entry.schema.Schema, choice.OneOf, choice.AnyOf) {
 			continue
 		}
 		shaped = append(shaped, i)
-		if _, key, _ := unionBranches(c, s, e.schema.Schema); key == "oneOf" {
+		if _, key, _ := unionBranches(loweringContext, schema, entry.schema.Schema); key == "oneOf" {
 			oneOfs = append(oneOfs, i)
 		}
 	}
@@ -604,11 +608,11 @@ func findEntryUnion(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
 		return entryUnionIndex{}
 	}
 	index := shaped[0]
-	if entries[index].schema.Discriminator() != nil && s.Discriminator() != nil ||
-		!branchesNameReferents(c, s, entries[index].schema.Schema) {
+	if entries[index].schema.Discriminator() != nil && schema.Discriminator() != nil ||
+		!branchesNameReferents(loweringContext, schema, entries[index].schema.Schema) {
 		return entryUnionIndex{}
 	}
-	if decisionOf(c, s).refines {
+	if decisionOf(loweringContext, schema).refines {
 		return entryUnionIndex{}
 	}
 	return entryUnionIndex{index: index, ok: true}
@@ -623,61 +627,61 @@ func findEntryUnion(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
 // 1}` or an entry of either, names its variant as the bare $ref does, a title
 // beside it too (GitHub #1018, #2000). The node the branch owns keeps the
 // branch's own.
-func variantHint(c lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) string {
-	own := lowering.NameAt(c, vptr)
+func variantHint(loweringContext lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) string {
+	own := lowering.NameAt(loweringContext, vptr)
 	if !stated(b.Schema) || b.Ref != nil {
 		return own
 	}
-	if _, titled := lowering.NameTitle(c, vptr); titled {
+	if _, titled := lowering.NameTitle(loweringContext, vptr); titled {
 		return own
 	}
-	if r, refines := refinementOf(c, b.Schema, vptr); refines && r.ref != nil {
-		return cmp.Or(lowering.NameThrough(c, r.ref.pointer), own)
+	if refinement, refines := refinementOf(loweringContext, b.Schema, vptr); refines && refinement.ref != nil {
+		return cmp.Or(lowering.NameThrough(loweringContext, refinement.ref.pointer), own)
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
-	entries := allOfEntries(c, b.Schema, vptr).entries
-	base, ok := selectAllOfBase(c, entries, "")
+	entries := allOfEntries(loweringContext, b.Schema, vptr).entries
+	base, ok := selectAllOfBase(loweringContext, entries, "")
 	if !ok || !variantNamesTarget(b.Schema, entries) {
 		return own
 	}
-	return cmp.Or(lowering.NameThrough(c, entries[base].pointer), own)
+	return cmp.Or(lowering.NameThrough(loweringContext, entries[base].pointer), own)
 }
 
 // variantNamesTarget reports whether s, a branch composing the base of
 // entries, its flattened conjuncts, is a use of that one target: it and no
 // conjunct writes a member, a catch-all, a discriminator or a union, and no
 // $ref but the base's is written (docs/compilers/openapi.md#union).
-func variantNamesTarget(s *statement.Schema, entries []allOfEntry) bool {
+func variantNamesTarget(schema *statement.Schema, entries []allOfEntry) bool {
 	refs := 0
-	declares := func(o *statement.Schema) bool {
-		object := o.ObjectKeywords()
+	declares := func(statementSchema *statement.Schema) bool {
+		object := statementSchema.ObjectKeywords()
 		return len(object.Properties) > 0 || len(object.PatternProperties) > 0 || len(object.Required) > 0 ||
-			written(object.AdditionalProperties) || o.Discriminator() != nil || declaresUnion(o)
+			written(object.AdditionalProperties) || statementSchema.Discriminator() != nil || declaresUnion(statementSchema)
 	}
-	if declares(s) {
+	if declares(schema) {
 		return false
 	}
-	for _, e := range entries {
-		if e.schema.Ref != nil {
+	for _, entry := range entries {
+		if entry.schema.Ref != nil {
 			refs++
 			continue
 		}
-		if stated(e.schema.Schema) && declares(e.schema.Schema) {
+		if stated(entry.schema.Schema) && declares(entry.schema.Schema) {
 			return false
 		}
 	}
 	return refs == 1
 }
 
-// writesBothUnions reports whether s writes a oneOf and an anyOf.
-func writesBothUnions(s *statement.Schema) bool {
-	choice := s.ChoiceKeywords()
+// writesBothUnions reports whether schema writes a oneOf and an anyOf.
+func writesBothUnions(schema *statement.Schema) bool {
+	choice := schema.ChoiceKeywords()
 	return len(choice.OneOf) > 0 && len(choice.AnyOf) > 0
 }
 
-// declaresUnion reports whether s writes oneOf or anyOf at all.
-func declaresUnion(s *statement.Schema) bool {
-	choice := s.ChoiceKeywords()
+// declaresUnion reports whether schema writes oneOf or anyOf at all.
+func declaresUnion(schema *statement.Schema) bool {
+	choice := schema.ChoiceKeywords()
 	return len(choice.OneOf) > 0 || len(choice.AnyOf) > 0
 }

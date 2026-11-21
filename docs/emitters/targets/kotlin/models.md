@@ -39,13 +39,13 @@ The states' forms are in the [lowering table](lowering.md).
 Unknown members follow [the shared rule](../../refine/models.md#unknown-members): the SDK's `Json`
 is strict, and each model the spec leaves open carries `@JsonIgnoreUnknownKeys`, so a closed model
 nested in an open one stays strict and the reverse stays open. A model with a catch-all
-(`AdditionalProps`) is the exception: the annotation would drop the undeclared members before its
-serializer saw them, so its serializer reads the object whole through
+(`AdditionalProperties`) is the exception: the annotation would drop the undeclared members before
+its serializer saw them, so its serializer reads the object whole through
 `JsonDecoder.decodeJsonElement` and folds them into the map, as Go's embedded fallback receives them
 whatever the options say. Where the catch-all's `Key` is set, it reads each name through the key's
 text serializer ([types](types.md#integers)), refuses two that read as one key, and writes each
-key's text back: with a `Long` key, `{"1": …, "2.0": …}` read as 1 and 2, which were written `{"1":
-…, "2": …}`, and `{"1": …, "1e0": …}` was refused (Kotlin 2.4.0).
+key's text back: with a `Long` key, `{"1": …, "2.0": …}` read as 1 and 2, which were written
+`{"1": …, "2": …}`, and `{"1": …, "1e0": …}` was refused (Kotlin 2.4.0).
 
 ## Recursive references
 

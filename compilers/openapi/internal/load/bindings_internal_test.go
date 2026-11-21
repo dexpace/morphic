@@ -19,13 +19,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -38,7 +38,7 @@ func TestBindSchemas_HoldsTheTableToMaxSteps(t *testing.T) {
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%+v", diags)
-	assert.Equal(t, budget.AtMost(bind.MaxSteps), doc.Bindings.Table().Limit())
+	assert.Equal(t, budget.AtMost(reftable.MaxSteps), doc.Bindings.Table().Limit())
 }
 
 // TestBindingDiags_ReportsTheBudgetOnce pins that a table whose work ran out is
@@ -47,7 +47,7 @@ func TestBindSchemas_HoldsTheTableToMaxSteps(t *testing.T) {
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
 	root := buildTree(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
+	table := reftable.Bind(t.Context(), root, reftable.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
 	diags := bindingDiags(places{}, table)
@@ -77,14 +77,14 @@ x-params:
 `), Options{})
 	require.NoError(t, err)
 	for _, path := range []string{"/a", "/b"} {
-		op := doc.Doc.Paths.GetOrZero(path).GetObject().Get()
-		require.NotNil(t, op, path)
-		p := refscope.Object[soa.Parameter](doc.Bindings, op.GetParameters()[0])
+		operation := doc.Doc.Paths.GetOrZero(path).GetObject().Get()
+		require.NotNil(t, operation, path)
+		p := refscope.Object[soa.Parameter](doc.Bindings, operation.GetParameters()[0])
 		require.NotNil(t, p, path)
 		assert.Equal(t, "r", p.GetName(), "%s ends at the last copy", path)
 		site, ok := doc.Bindings.Site(p.GetSchema())
 		require.True(t, ok, path)
-		assert.Equal(t, bind.Position{Pointer: "/x-params/q/schema"}, site, path)
+		assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-params/q/schema"}, site, path)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
-	cfg := bind.Config{Self: "spec.yaml", Open: func(string, string) (*yaml.Node, error) { return &other, nil }}
+	cfg := reftable.Config{Self: "spec.yaml", Open: func(string, string) (*yaml.Node, error) { return &other, nil }}
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
@@ -107,14 +107,14 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 	for limit, exhausted := 1, true; exhausted; limit++ {
 		require.Less(t, limit, 1<<12, "the reading fits some limit")
 		cfg.Limit = budget.AtMost(limit)
-		table := bind.Bind(t.Context(), root, cfg)
+		table := reftable.Bind(t.Context(), root, cfg)
 		exhausted = table.Exhausted()
 		var failed []ir.Diagnostic
 		crossed := false
-		for _, d := range bindingDiags(byDocument(table), table) {
-			switch d.Code {
+		for _, diagnostic := range bindingDiags(byDocument(table), table) {
+			switch diagnostic.Code {
 			case diag.UnresolvedRef:
-				failed = append(failed, d)
+				failed = append(failed, diagnostic)
 			case diag.BudgetExceeded:
 				crossed = true
 			}
@@ -145,7 +145,7 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 			"Q: {$ref: 'third.yaml#/R'}\n",
 		"third.yaml": "R: {$ref: 'other.yaml#/Q'}\n",
 	}
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
+	table := reftable.Bind(t.Context(), root, reftable.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		var node yaml.Node
 		return &node, yaml.Unmarshal([]byte(docs[name]), &node)
 	}})
@@ -153,8 +153,8 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 
 	diags := bindingDiags(byDocument(table), table)
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%d%s: %s", d.Provenance.Source, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		got = append(got, fmt.Sprintf("%d%s: %s", diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 
 	const rest = " comes back to where it started and never reaches a schema"
@@ -189,12 +189,12 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 	} {
 		js, ok := doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		e, ok := bindings.Entry(js)
+		referenceSite, ok := bindings.Entry(js)
 		require.True(t, ok, name)
-		require.Equal(t, bind.Resolved, e.Chain.Status, name)
-		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
-		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
-		held := bindings.At(e.Chain.End)
+		require.Equal(t, reftable.Resolved, referenceSite.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(referenceSite.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, referenceSite.Chain.End.Pointer, name)
+		held := bindings.At(referenceSite.Chain.End)
 		assert.NotNil(t, held, "%s ends on a schema held for it", name)
 		assert.Same(t, held, bindings.End(js), name)
 	}
@@ -258,7 +258,7 @@ components:
 	require.NotNil(t, js)
 	site, ok := doc.Bindings.Site(js)
 	require.True(t, ok)
-	assert.Equal(t, bind.Position{Pointer: "/components/parameters/R/schema"}, site)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/parameters/R/schema"}, site)
 }
 
 // TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails pins that a
@@ -269,7 +269,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	root := buildTree(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",
+	table := reftable.Bind(t.Context(), root, reftable.Config{Self: "spec.yaml",
 		Open: func(string, string) (*yaml.Node, error) { return &other, nil }})
 
 	diags := bindingDiags(places{}, table)
@@ -335,9 +335,9 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 
 			require.NoError(t, err)
 			var unresolved []ir.Diagnostic
-			for _, d := range diags {
-				if d.Code == diag.UnresolvedRef {
-					unresolved = append(unresolved, d)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnresolvedRef {
+					unresolved = append(unresolved, diagnostic)
 				}
 			}
 			require.Len(t, unresolved, 1, "%+v", diags)
@@ -365,7 +365,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 		"a mapping merges through `<<` deeper than 64 levels, which resolving the $refs does not "+
 			"expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that "+
 			"mapping is a schema, no $dynamicRef in its document is expanded")}
-	assert.Empty(t, cmp.Diff(want, bindingDiags(places{}, bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))))
+	assert.Empty(t, cmp.Diff(want, bindingDiags(places{}, reftable.Bind(t.Context(), &root, reftable.Config{Self: "spec.yaml"}))))
 }
 
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
@@ -375,10 +375,10 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 // least position another document writes is reported in that document.
 func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	t.Parallel()
-	failed := typed.Built{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/S"},
-		Site: bind.Position{Pointer: "/components/schemas/A"}, Reached: true}, Err: errors.New("it failed")}
-	elsewhere := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"}, Name: "other.yaml",
-		Site: bind.Position{Pointer: "/components/schemas/B"}, Reached: true}, Err: errors.New("it failed")}
+	failed := typed.Built{Landing: reftable.Landing{At: reftable.DocumentPointer{Pointer: "/x-lib/S"},
+		Site: reftable.DocumentPointer{Pointer: "/components/schemas/A"}, Reached: true}, Err: errors.New("it failed")}
+	elsewhere := typed.Built{Landing: reftable.Landing{At: reftable.DocumentPointer{Doc: 1, Pointer: "/S"}, Name: "other.yaml",
+		Site: reftable.DocumentPointer{Pointer: "/components/schemas/B"}, Reached: true}, Err: errors.New("it failed")}
 	foreign := failed
 	foreign.Landing.Reached = false
 	built := typed.Built{Landing: failed.Landing}
@@ -391,8 +391,8 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	}
 	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere}, nil)))
 
-	object := builtObject{landing: bind.ObjectLanding{At: bind.Position{Pointer: "/x-params/q"}, Kind: bind.RefParameter,
-		Site: bind.Position{Pointer: "/paths/~1a/get/parameters/0"}, Reached: true}, err: errors.New("it failed")}
+	object := builtObject{landing: reftable.ObjectLanding{At: reftable.DocumentPointer{Pointer: "/x-params/q"}, Kind: reftable.RefParameter,
+		Site: reftable.DocumentPointer{Pointer: "/paths/~1a/get/parameters/0"}, Reached: true}, err: errors.New("it failed")}
 	unreached := object
 	unreached.landing.Reached = false
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation,
@@ -402,8 +402,8 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")
 	require.Empty(t, codes)
-	away := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"},
-		Site: bind.Position{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
+	away := typed.Built{Landing: reftable.Landing{At: reftable.DocumentPointer{Doc: 1, Pointer: "/S"},
+		Site: reftable.DocumentPointer{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
 	got := buildFailures(places{others: doc.Others, table: doc.Bindings.Table()}, []typed.Built{away}, nil)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X/y"}, got[0].Provenance)
@@ -433,11 +433,12 @@ func TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases(t *testing.T) 
 
 // byDocument places a finding at a position of table, which read other
 // documents: Source is the number the table reads the position's document
-// under, which indexes Document.Sources in the order these tests read them.
-func byDocument(table *bind.Table) places {
+// under, which indexes LoadedOpenAPIDocument.Sources in the order these tests
+// read them.
+func byDocument(table *reftable.ReferenceTargetTable) places {
 	others := Others{byName: map[string]int{}}
-	for id := range bind.DocID(table.Documents()) {
-		if id != bind.Source {
+	for id := range reftable.DocID(table.Documents()) {
+		if id != reftable.Source {
 			others.byName[table.Document(id).Name] = len(others.list)
 			others.list = append(others.list, Other{Index: int(id)})
 		}
@@ -448,18 +449,18 @@ func byDocument(table *bind.Table) places {
 // TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt pins where a
 // finding at a position of the bindings' table is placed: the source's where
 // the source places its pointer, another document's in that document's
-// Document.Sources entry, and one in a document no entry lists, which a load
-// never produces, at the source's root rather than nowhere.
+// LoadedOpenAPIDocument.Sources entry, and one in a document no entry lists,
+// which a load never produces, at the source's root rather than nowhere.
 func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	t.Parallel()
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")
 	require.Empty(t, codes)
 	source := provenance.Doc{Source: 5}
 	table := doc.Bindings.Table()
-	ext := bind.Position{Doc: 1, Pointer: "/X"}
+	ext := reftable.DocumentPointer{Doc: 1, Pointer: "/X"}
 
 	listed := places{source: source, others: doc.Others, table: table}
-	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components"}, listed.position(bind.Position{Pointer: "/components"}))
+	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components"}, listed.position(reftable.DocumentPointer{Pointer: "/components"}))
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed.position(ext))
 
 	unlisted := places{source: source, table: table}
@@ -488,7 +489,7 @@ components:
 `), Options{})
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
-	disc := bind.Position{Pointer: "/components/schemas/Pet/discriminator"}
+	disc := reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}
 	for value, bound := range map[string]bool{"Cat": false, "Pet": false, "cat.yaml": true} {
 		_, ok := got.Bindings.Table().Mapping(disc, value)
 		assert.Equal(t, bound, ok, value)

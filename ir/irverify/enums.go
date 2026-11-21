@@ -17,23 +17,23 @@ import (
 // has no arm for one. TestEnums_EveryDeclaredEnumIsHeld holds this table and
 // enumExceptions to the enums ir declares.
 var heldEnums = map[string]string{
-	"AdditionalMode":  "ir/unknown-additional-mode",
-	"AuthKind":        "ir/unknown-auth-kind",
-	"HTTPInbound":     "ir/unknown-http-inbound",
-	"HTTPLocation":    "ir/unknown-http-location",
-	"IdempotencyKind": "ir/unknown-idempotency-kind",
-	"LinkValueKind":   "ir/unknown-link-value-kind",
-	"MsgDirection":    "ir/unknown-message-direction",
-	"PageStop":        "ir/unknown-page-stop",
-	"PageStrategy":    "ir/unknown-page-strategy",
-	"PresenceKind":    "ir/unknown-presence-kind",
-	"PrimKind":        "ir/unknown-prim-kind",
-	"RelatedRole":     "ir/unknown-related-role",
-	"Severity":        "ir/unknown-severity",
-	"Stability":       "ir/unknown-stability",
-	"StreamingMode":   "ir/unknown-streaming-mode",
-	"UnmodeledReason": "ir/unknown-unmodeled-reason",
-	"ValueKind":       "ir/unknown-value-kind",
+	"AdditionalMode":   "ir/unknown-additional-mode",
+	"AuthKind":         "ir/unknown-auth-kind",
+	"HTTPInbound":      "ir/unknown-http-inbound",
+	"HTTPLocation":     "ir/unknown-http-location",
+	"IdempotencyKind":  "ir/unknown-idempotency-kind",
+	"LinkValueKind":    "ir/unknown-link-value-kind",
+	"MessageDirection": "ir/unknown-message-direction",
+	"PageStop":         "ir/unknown-page-stop",
+	"PageStrategy":     "ir/unknown-page-strategy",
+	"PresenceKind":     "ir/unknown-presence-kind",
+	"PrimitiveKind":    "ir/unknown-primitive-kind",
+	"RelatedRole":      "ir/unknown-related-role",
+	"Severity":         "ir/unknown-severity",
+	"Stability":        "ir/unknown-stability",
+	"StreamingMode":    "ir/unknown-streaming-mode",
+	"UnmodeledReason":  "ir/unknown-unmodeled-reason",
+	"ValueKind":        "ir/unknown-value-kind",
 }
 
 // enumExceptions names each string enum of ir that Verify does not hold, with
@@ -65,7 +65,7 @@ var walkEnums = map[reflect.Type]enumRule{
 		"ir/unknown-http-location", "parameter binding carries undeclared location"),
 	reflect.TypeFor[ir.IdempotencyKind](): wireEnum(ir.IdempotencyKind.Valid,
 		"ir/unknown-idempotency-kind", "operation carries undeclared idempotency kind"),
-	reflect.TypeFor[ir.MsgDirection](): wireEnum(ir.MsgDirection.Valid,
+	reflect.TypeFor[ir.MessageDirection](): wireEnum(ir.MessageDirection.Valid,
 		"ir/unknown-message-direction", "message binding carries undeclared direction"),
 	reflect.TypeFor[ir.PageStrategy](): wireEnum(ir.PageStrategy.Valid,
 		"ir/unknown-page-strategy", "pagination names undeclared strategy"),
@@ -133,13 +133,13 @@ func checkModelEnums(doc *ir.Document) []Violation {
 				Path:    typePath(id) + ".Additional",
 			})
 		}
-		for i, prop := range model.Properties {
-			if prop.Presence.Valid() {
+		for i, property := range model.Properties {
+			if property.Presence.Valid() {
 				continue
 			}
 			vs = append(vs, Violation{
 				Code:    "ir/unknown-presence-kind",
-				Message: "property carries undeclared presence " + strconv.Quote(string(prop.Presence)),
+				Message: "property carries undeclared presence " + strconv.Quote(string(property.Presence)),
 				Path:    typePath(id) + ".Properties[" + strconv.Itoa(i) + "].Presence",
 			})
 		}

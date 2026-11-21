@@ -27,8 +27,8 @@ type agreement struct {
 
 // newAgreement returns an agreement no conjunct has written to, reading each
 // conjunct's value bounds in its dialect (exclusiveIsBoolean).
-func newAgreement(c lowering.Ctx) *agreement {
-	return &agreement{c: c, first: map[string]foldRendering{}, split: map[string]bool{},
+func newAgreement(loweringContext lowering.Ctx) *agreement {
+	return &agreement{c: loweringContext, first: map[string]foldRendering{}, split: map[string]bool{},
 		bounds: map[string]*boundReading{}}
 }
 
@@ -38,8 +38,8 @@ func (a *agreement) write(conjunct *statement.Schema) []string {
 	var entries []string
 	var cons *ir.Constraints
 	read := false
-	for _, k := range conjunct.Keys {
-		keyword := k.Name
+	for _, key := range conjunct.Keys {
+		keyword := key.Name
 		entry, fold := foldEntry(a.c, conjunct, keyword)
 		if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
 			continue
@@ -162,9 +162,9 @@ func boundOf(entry string, cons *ir.Constraints) ir.Constraints {
 	case "maxLength":
 		return ir.Constraints{MaxLength: cons.MaxLength}
 	case "minProperties":
-		return ir.Constraints{MinProps: cons.MinProps}
+		return ir.Constraints{MinProperties: cons.MinProperties}
 	case "maxProperties":
-		return ir.Constraints{MaxProps: cons.MaxProps}
+		return ir.Constraints{MaxProperties: cons.MaxProperties}
 	case "pattern":
 		return ir.Constraints{Pattern: cons.Pattern}
 	case "minItems":

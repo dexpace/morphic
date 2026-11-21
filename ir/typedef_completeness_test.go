@@ -53,7 +53,7 @@ func TestTypeDef_EveryDeclaredKindIsRegistered(t *testing.T) {
 // document round-trips) breaks with the rest of the gate green.
 func TestTypeDef_EveryDeclaredKindTagsItsJSON(t *testing.T) {
 	t.Parallel()
-	const id ir.TypeID = "t/x"
+	const id ir.TypeID = "type/x"
 	for _, kc := range declaredTypeKinds(t) {
 		t.Run(string(kc.kind), func(t *testing.T) {
 			t.Parallel()
@@ -134,8 +134,8 @@ func TestTypeDef_HandWrittenKindListsAreComplete(t *testing.T) {
 		t.Run(tt.list, func(t *testing.T) {
 			t.Parallel()
 			got := make([]string, 0, len(tt.kinds))
-			for _, k := range tt.kinds {
-				got = append(got, string(k))
+			for _, typeKind := range tt.kinds {
+				got = append(got, string(typeKind))
 			}
 			slices.Sort(got)
 
@@ -202,8 +202,8 @@ func declaredTypeKinds(t *testing.T) []typeKindConst {
 	declared := declaredConstsOfType(t, "TypeKind")
 	require.NotEmpty(t, declared, "the ir sources must declare TypeKind constants")
 	out := make([]typeKindConst, 0, len(declared))
-	for _, c := range declared {
-		out = append(out, typeKindConst{name: c.Name, kind: ir.TypeKind(c.Value)})
+	for _, declaredConst := range declared {
+		out = append(out, typeKindConst{name: declaredConst.Name, kind: ir.TypeKind(declaredConst.Value)})
 	}
 	return out
 }

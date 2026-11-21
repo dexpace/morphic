@@ -22,16 +22,16 @@ type boundHomes struct {
 	numberText bool
 }
 
-// reads returns the bounds s writes that a node holding what h says reads,
-// s being the position's own schema or a voice of it: the value bounds of the
-// kinds h.value names (boundsRead), and where h.collection holds, the
-// collection bounds a field states, uniqueItems only where it holds it, true
-// (referenceHolds).
-func (h boundHomes) reads(s *statement.Schema) keySet {
-	out := boundsRead(s, h.value, nil)
+// reads returns the bounds schema writes that a node holding what h says reads,
+// schema being the position's own schema or a folded entry of it: the value
+// bounds of the kinds h.value names (boundsRead), and where h.collection holds,
+// the collection bounds a field states, uniqueItems only where it holds it,
+// true (referenceHolds).
+func (h boundHomes) reads(schema *statement.Schema) keySet {
+	out := boundsRead(schema, h.value, nil)
 	if h.collection {
-		out |= collectionReads(s) &^ keyBit("uniqueItems")
-		if referenceHolds(s, "uniqueItems") {
+		out |= collectionReads(schema) &^ keyBit("uniqueItems")
+		if referenceHolds(schema, "uniqueItems") {
 			out |= keyBit("uniqueItems")
 		}
 	}
@@ -45,30 +45,30 @@ func (h boundHomes) reads(s *statement.Schema) keySet {
 // the principal, a reference (referenceReads), where those types admit an
 // array. A node the position owns holds what the lowering that builds it folds
 // of them (ownHomes).
-func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
-	if !LoweredToOwnNode(c, pointer, target) {
-		r, refined := refinementOf(c, s, pointer)
-		takes := boundKinds(c, s)
-		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}
+func homesAt(loweringContext lowering.Ctx, schema *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
+	if !LoweredToOwnNode(loweringContext, pointer, target) {
+		refinement, refined := refinementOf(loweringContext, schema, pointer)
+		takes := boundKinds(loweringContext, schema)
+		return boundHomes{value: takes, collection: refined && refinement.principal != nil && takes&kindArray != 0}
 	}
-	return ownHomes(c, s, pointer)
+	return ownHomes(loweringContext, schema, pointer)
 }
 
 // ownHomes returns which bounds the node the refinement s, written at pointer,
 // owns holds for the voices of its allOf: where an inline principal built it,
 // that principal's (nodeHomes), none for a value set's or a $ref's, and
 // otherwise what s's own dispatch builds.
-func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
-	takes := boundKinds(c, s)
-	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
-		e := r.principal
-		if _, set := valueSetPrincipal(r); set || e.schema.Ref != nil {
+func ownHomes(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) boundHomes {
+	takes := boundKinds(loweringContext, schema)
+	if refinement, refined := refinementOf(loweringContext, schema, pointer); refined && refinement.principal != nil {
+		entry := refinement.principal
+		if _, set := valueSetPrincipal(refinement); set || entry.schema.Ref != nil {
 			return boundHomes{}
 		}
-		return nodeHomes(c, e.schema.Schema, principalDispatch(*e), takes)
+		return nodeHomes(loweringContext, entry.schema.Schema, principalDispatch(*entry), takes)
 	}
-	d, _ := dispatchAt(c, s, pointer)
-	return nodeHomes(c, s, d, takes)
+	dispatch, _ := dispatchAt(loweringContext, schema, pointer)
+	return nodeHomes(loweringContext, schema, dispatch, takes)
 }
 
 // nodeHomes returns which bounds the node s lowers to by the dispatch d holds,
@@ -78,19 +78,19 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 // an array's List or Tuple, a type list's variant's among them, a union's of
 // oneOf or anyOf the value bounds alone, and none of an object's, which
 // lowerModel builds with no voice.
-func nodeHomes(c lowering.Ctx, s *statement.Schema, d dispatch, takes kindSet) boundHomes {
-	if d.won == "const" || d.won == "enum" {
+func nodeHomes(loweringContext lowering.Ctx, schema *statement.Schema, dispatchValue dispatch, takes kindSet) boundHomes {
+	if dispatchValue.won == "const" || dispatchValue.won == "enum" {
 		return boundHomes{}
 	}
-	if declaresUnion(s) {
+	if declaresUnion(schema) {
 		return boundHomes{value: takes}
 	}
-	t := typingOf(c, s)
-	if t.top() {
+	typing := typingOf(loweringContext, schema)
+	if typing.top() {
 		return boundHomes{value: takes}
 	}
 	var homes boundHomes
-	for _, st := range t.types {
+	for _, st := range typing.types {
 		switch st {
 		case statement.KindObject:
 		case statement.KindArray:
@@ -98,7 +98,7 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, d dispatch, takes kindSet) b
 		default:
 			// A type list's variant takes the format only where no other listed
 			// type pairs with it (variantFormat), as lowerTypeVariant builds it.
-			if carriesText(s, st, variantFormat(s, st, t.types)) {
+			if carriesText(schema, st, variantFormat(schema, st, typing.types)) {
 				homes.numberText = true
 				continue
 			}

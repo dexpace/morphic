@@ -12,7 +12,7 @@ type OperationLink struct {
 	// from.
 	Name Naming `json:"name"`
 	// Operation is the operation the link leads to.
-	Operation OpID `json:"operation"`
+	Operation OperationID `json:"operation"`
 	// Params are the values the link gives Operation's parameters, in source
 	// order, each parameter once. One it gives nothing is the caller's to pass.
 	Params []LinkParam `json:"params,omitempty"`
@@ -34,7 +34,7 @@ type OperationLink struct {
 // to.
 type LinkParam struct {
 	// Param is a parameter of the link's Operation.
-	Param ParamID `json:"param"`
+	Param ParameterID `json:"param"`
 	// Value is what the parameter is given.
 	Value LinkValue `json:"value"`
 }
@@ -54,7 +54,7 @@ type LinkValue struct {
 	// Response is a value of the response, a header or its body, set when
 	// Kind is LinkResponse. Its Root is nil: the path roots in the response
 	// carrying the link.
-	Response *PropPath `json:"response,omitzero"`
+	Response *PropertyPath `json:"response,omitzero"`
 }
 
 // LinkValueKind says where a LinkValue comes from.

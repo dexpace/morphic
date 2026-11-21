@@ -84,7 +84,7 @@ func TestWriteDocument_CompactIsTheIndentedFormWithoutWhitespace(t *testing.T) {
 		"compacting the indented output must reproduce the compact one exactly")
 	assert.Empty(t, cmp.Diff(string(compact), string(written(t, doc, output.Compact))),
 		"two calls over one document must write the same bytes")
-	order := []string{`"irVersion"`, `"name"`, `"docs"`, `"types"`, `"t/Alpha"`, `"t/Beta"`, `"t/Zeta"`,
+	order := []string{`"irVersion"`, `"name"`, `"docs"`, `"types"`, `"type/Alpha"`, `"type/Beta"`, `"type/Zeta"`,
 		`"tagDefs"`, `"zebra"`, `"apple"`}
 	last := -1
 	for _, member := range order {
@@ -336,14 +336,14 @@ func TestEncode_ADestinationThatFillsIsAWriteFailure(t *testing.T) {
 				t.Parallel()
 				document := strings.TrimSuffix(string(written(t, manyTypesDoc(), l.layout)), "\n")
 				stopAt := tt.stopAt(len(document))
-				w := &fillingWriter{stopAt: stopAt}
+				fillingWriterValue := &fillingWriter{stopAt: stopAt}
 
-				err := output.Encode(t.Context(), w, manyTypesDoc(), l.layout)
+				err := output.Encode(t.Context(), fillingWriterValue, manyTypesDoc(), l.layout)
 
 				require.ErrorIs(t, err, errDisk)
 				assert.EqualError(t, err, "write ir document: disk gone")
-				assert.Equal(t, 1, w.refusals, "no write starts once the destination has refused one")
-				got := w.buf.String()
+				assert.Equal(t, 1, fillingWriterValue.refusals, "no write starts once the destination has refused one")
+				got := fillingWriterValue.buf.String()
 				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
 				assert.Equal(t, stopAt == len(document), got == document,
 					"the destination holds the whole document only when it refuses nothing before the newline")
@@ -442,14 +442,14 @@ func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 				t.Parallel()
 				document := strings.TrimSuffix(string(written(t, manyTypesDoc(), l.layout)), "\n")
 				stopAt := tt.stopAt(len(document))
-				ctx, w := newCancellingWriter(t, stopAt)
+				ctx, cancellingWriter := newCancellingWriter(t, stopAt)
 
-				err := output.Encode(ctx, w, manyTypesDoc(), l.layout)
+				err := output.Encode(ctx, cancellingWriter, manyTypesDoc(), l.layout)
 
 				require.ErrorIs(t, err, context.Canceled)
 				assert.EqualError(t, err, "write ir document: context canceled")
-				assert.Zero(t, w.late, "no write starts once the context has ended")
-				got := w.buf.String()
+				assert.Zero(t, cancellingWriter.late, "no write starts once the context has ended")
+				got := cancellingWriter.buf.String()
 				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
 				assert.Equal(t, stopAt == len(document), got == document,
 					"the destination holds the whole document only when the stop waits for all of it")

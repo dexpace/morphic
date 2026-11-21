@@ -103,12 +103,12 @@ func TestCompile_AnExternalDocumentStreamIsReportedInItsOwnEntry(t *testing.T) {
 		assert.Equal(t, dropped, diags[0].Message)
 		require.NotNil(t, doc)
 		tree := irTree(t, doc)
-		s := findByID(tree, "t/openapi/components/schemas/S")
+		s := findByID(tree, "type/openapi/components/schemas/S")
 		require.NotNil(t, s)
 		base := s["base"].(map[string]any)["target"].(string)
 		a := findByID(tree, base)
 		require.NotNil(t, a)
-		assert.Equal(t, "t/prim/string", a["base"].(map[string]any)["target"], "S is a string")
+		assert.Equal(t, "type/primitive/string", a["base"].(map[string]any)["target"], "S is a string")
 	})
 }
 

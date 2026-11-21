@@ -14,9 +14,9 @@ import (
 )
 
 // defaultDiagLimit is how many findings of one code and severity the text
-// format writes when --diag-limit is not given: enough to show what the code
-// reports and where, few enough that a spec drawing thousands of findings
-// fits on a screen, its counts beside them.
+// format writes when --diagnostics-per-code-limit is not given: enough to show
+// what the code reports and where, few enough that a spec drawing thousands of
+// findings fits on a screen, its counts beside them.
 const defaultDiagLimit = 3
 
 // readTriage reads the triage file path names, or none for an empty path.
@@ -29,20 +29,21 @@ func readTriage(ctx context.Context, path string) ([]triage.Rule, error) {
 
 // writeFindings writes res's findings to stderr in the format opts names: one
 // JSON report, the verdict, held and any warning about the run's cache in it,
-// or text, as many as --show and --diag-limit admit, then that warning.
+// or text, as many as --min-severity and --diagnostics-per-code-limit admit,
+// then that warning.
 func writeFindings(stderr io.Writer, opts specOptions, res *engine.Result, held []error) error {
-	r := report.Report{Failed: res.Failed, Sources: res.Sources, Findings: res.Findings, UnusedRules: res.UnusedRules}
+	runReport := report.Report{Failed: res.Failed, Sources: res.Sources, Findings: res.Findings, UnusedRules: res.UnusedRules}
 	if opts.format == formatJSON {
 		if res.CacheErr != nil {
 			held = append(held, res.CacheErr)
 		}
 		for _, w := range held {
-			r.Warnings = append(r.Warnings, warningText(w))
+			runReport.Warnings = append(runReport.Warnings, warningText(w))
 		}
-		return report.WriteJSON(stderr, r)
+		return report.WriteJSON(stderr, runReport)
 	}
-	textOpts := report.TextOptions{Least: ir.Severity(opts.show), PerCode: int(opts.limit)}
-	if err := report.WriteText(stderr, r, textOpts); err != nil {
+	textOpts := report.TextOptions{Least: ir.Severity(opts.minSeverity), PerCode: int(opts.limit)}
+	if err := report.WriteText(stderr, runReport, textOpts); err != nil {
 		return err
 	}
 	if res.CacheErr != nil {

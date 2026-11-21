@@ -182,16 +182,16 @@ func TestAssertSameRun_SeesEachField(t *testing.T) {
 		Sources:     []ir.SourceInfo{{Path: "p"}}, Format: compilers.SourceFormat{Name: "n", Version: "1"},
 	}
 	rows := map[string]func(*engine.Result){
-		"Document":    func(r *engine.Result) { r.Document = &ir.Document{IRVersion: ir.IRVersion, Name: "b"} },
-		"Diagnostics": func(r *engine.Result) { r.Diagnostics = nil },
-		"Sources":     func(r *engine.Result) { r.Sources = []ir.SourceInfo{{Path: "q"}} },
-		"Format":      func(r *engine.Result) { r.Format.Version = "2" },
-		"Failed":      func(r *engine.Result) { r.Failed = true },
-		"Findings": func(r *engine.Result) {
-			r.Findings = []triage.Finding{{Diagnostic: r.Diagnostics[0], Severity: ir.SeverityInfo}}
+		"Document":    func(result *engine.Result) { result.Document = &ir.Document{IRVersion: ir.IRVersion, Name: "b"} },
+		"Diagnostics": func(result *engine.Result) { result.Diagnostics = nil },
+		"Sources":     func(result *engine.Result) { result.Sources = []ir.SourceInfo{{Path: "q"}} },
+		"Format":      func(result *engine.Result) { result.Format.Version = "2" },
+		"Failed":      func(result *engine.Result) { result.Failed = true },
+		"Findings": func(result *engine.Result) {
+			result.Findings = []triage.Finding{{Diagnostic: result.Diagnostics[0], Severity: ir.SeverityInfo}}
 		},
-		"UnusedRules": func(r *engine.Result) {
-			r.UnusedRules = []triage.Rule{{Code: "c", Severity: ir.SeverityInfo, Reason: "r"}}
+		"UnusedRules": func(result *engine.Result) {
+			result.UnusedRules = []triage.Rule{{Code: "c", Severity: ir.SeverityInfo, Reason: "r"}}
 		},
 	}
 	for field, change := range rows {
@@ -247,14 +247,14 @@ func TestWithCache_EachEntryPointReadsTheCache(t *testing.T) {
 	src := compilers.Source{Path: "spec.yaml", Data: []byte(testspec.Tiny)}
 	onDisk := writeSpec(t, testspec.Tiny)
 	for name, run := range map[string]func(*engine.Engine, context.Context) (*engine.Result, error){
-		"Run": func(e *engine.Engine, ctx context.Context) (*engine.Result, error) {
-			return e.Run(ctx, onDisk, engine.RunOptions{})
+		"Run": func(compileEngine *engine.Engine, ctx context.Context) (*engine.Result, error) {
+			return compileEngine.Run(ctx, onDisk, engine.RunOptions{})
 		},
-		"RunSpec": func(e *engine.Engine, ctx context.Context) (*engine.Result, error) {
-			return e.RunSpec(ctx, src, engine.RunOptions{})
+		"RunSpec": func(compileEngine *engine.Engine, ctx context.Context) (*engine.Result, error) {
+			return compileEngine.RunSpec(ctx, src, engine.RunOptions{})
 		},
-		"RunSources": func(e *engine.Engine, ctx context.Context) (*engine.Result, error) {
-			return e.RunSources(ctx, []compilers.Source{src}, engine.RunOptions{})
+		"RunSources": func(compileEngine *engine.Engine, ctx context.Context) (*engine.Result, error) {
+			return compileEngine.RunSources(ctx, []compilers.Source{src}, engine.RunOptions{})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -831,9 +831,9 @@ func TestWithCache_AnEntryForAnotherKeyIsRefused(t *testing.T) {
 // struct type name, read as the compiler reads them.
 func declaredFields(t *testing.T, name string) []string {
 	t.Helper()
-	p, err := decls.Load(reflect.TypeFor[engine.RunOptions]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[engine.RunOptions]().PkgPath())
 	require.NoError(t, err)
-	named, err := p.Named(name)
+	named, err := loadedPackage.Named(name)
 	require.NoError(t, err)
 	fields, ok := named.Underlying().(*types.Struct)
 	require.True(t, ok, "%s is a struct", name)
@@ -1040,9 +1040,9 @@ func TestWithCache_ADirectoryServesARun(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache")
 	spec, _ := splitSpec(t)
 	dir := func() *cache.Dir {
-		d, err := cache.NewDir(path)
+		dir, err := cache.NewDir(path)
 		require.NoError(t, err)
-		return d
+		return dir
 	}
 
 	first, counter := cachedEngine(t, dir(), "b1")

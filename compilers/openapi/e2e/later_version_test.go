@@ -36,13 +36,13 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.NotEmpty(t, doc.TagDefs)
 	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
 
-	search, ok := opByName(doc, "searchBooks")
+	search, ok := operationByName(doc, "searchBooks")
 	require.True(t, ok)
 	assert.Equal(t, "QUERY", search.Bindings.HTTP[0].Method)
-	purge, ok := opByName(doc, "purgeBooks")
+	purge, ok := operationByName(doc, "purgeBooks")
 	require.True(t, ok)
 	assert.Equal(t, "PURGE", purge.Bindings.HTTP[0].Method)
-	list, ok := opByName(doc, "listBooks")
+	list, ok := operationByName(doc, "listBooks")
 	require.True(t, ok)
 	assert.Equal(t, ir.HTTPLocationQuerystring, list.Bindings.HTTP[0].ParamBindings[0].Location)
 	assert.Equal(t, "The books.", list.Responses[0].Docs.Summary)
@@ -51,23 +51,23 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 		"a Reference Object's summary folds over the target's docs, as in 3.1")
 	assert.Equal(t, ir.ReasonOutOfScope, doc.Unmodeled["openapi:jsonSchemaDialect"].Reason)
 
-	item, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Item")].(*ir.Model)
+	item, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/Item")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, item.XML)
 	assert.Equal(t, "element", item.XML.NodeType)
 	require.NotNil(t, item.Discriminator)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Novel"), item.Discriminator.Default)
+	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Novel"), item.Discriminator.Default)
 
-	_, ok = doc.Types[ir.TypeID("t/anon/components/schemas/Edition/properties/number")].(*ir.Literal)
+	_, ok = doc.Types[ir.TypeID("type/anonymous/components/schemas/Edition/properties/number")].(*ir.Literal)
 	assert.True(t, ok, "a const a 3.0 schema writes lowers as in 3.1")
 	assert.Contains(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct),
 		jsontext.Pointer("/components/schemas/Edition/properties/number/const"), "and is a later minor's construct")
 
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.UnknownObjectKey }),
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.UnknownObjectKey }),
 		"a construct a later minor defines is not an undefined key")
-	for _, d := range diags {
-		if d.Code == diag.LaterVersionConstruct {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.LaterVersionConstruct {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 		}
 	}
 }
@@ -89,9 +89,9 @@ func TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		var later, others []string
-		for _, d := range diags {
-			line := fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer)
-			if d.Code == diag.LaterVersionConstruct {
+		for _, diagnostic := range diags {
+			line := fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer)
+			if diagnostic.Code == diag.LaterVersionConstruct {
 				later = append(later, line)
 			} else {
 				others = append(others, line)
@@ -137,12 +137,12 @@ func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
 			doc, diags := parseFull(t, "openapi: "+version+
 				"\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
-			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")].(*ir.Model)
 			require.True(t, ok)
-			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["n"]
 			require.True(t, ok)
-			require.NotNil(t, prop.XML)
-			assert.Equal(t, "text", prop.XML.NodeType)
+			require.NotNil(t, property.XML)
+			assert.Equal(t, "text", property.XML.NodeType)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
 				"/components/schemas/S/properties/n/xml/nodeType"))

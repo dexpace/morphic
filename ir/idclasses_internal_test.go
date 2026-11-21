@@ -24,8 +24,8 @@ func TestIDClasses_AreDerivedOnceNotPerReader(t *testing.T) {
 	doc := &Document{}
 	references := testing.AllocsPerRun(5, func() { _ = NewIDReferences(doc) })
 	empty := testing.AllocsPerRun(5, func() {
-		var e EmptyReferences
-		e.Visit(reflect.ValueOf(Operation{}), WalkPath{})
+		var emptyReferences EmptyReferences
+		emptyReferences.Visit(reflect.ValueOf(Operation{}), WalkPath{})
 	})
 
 	assert.Less(t, references, deriving, "NewIDReferences: %v allocations, deriving the classes %v", references, deriving)

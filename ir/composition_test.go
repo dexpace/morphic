@@ -15,10 +15,10 @@ import (
 func TestSupertypes_BaseThenImplementsThroughAliases(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{Target: "alias"}
-			m.Implements = irtest.RefsTo("i1", "i2")
-			m.Mixins = irtest.RefsTo("mix")
+		irtest.ModelOf("m", func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "alias"}
+			model.Implements = irtest.RefsTo("i1", "i2")
+			model.Mixins = irtest.RefsTo("mix")
 		}),
 		irtest.ScalarOf("alias", "alias2"), irtest.ScalarOf("alias2", "b"),
 		irtest.ModelOf("b", nil), irtest.ModelOf("i1", nil), irtest.ModelOf("i2", nil), irtest.ModelOf("mix", nil),
@@ -41,7 +41,7 @@ func TestSupertypes_TypedNilAliasEndsTheChain(t *testing.T) {
 	t.Parallel()
 	var nilScalar *ir.Scalar
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) { m.Implements = irtest.RefsTo("a") }),
+		irtest.ModelOf("m", func(model *ir.Model) { model.Implements = irtest.RefsTo("a") }),
 		irtest.ScalarOf("a", "z"),
 	)
 	doc.Types["z"] = nilScalar
@@ -51,7 +51,7 @@ func TestSupertypes_TypedNilAliasEndsTheChain(t *testing.T) {
 func TestSupertypes_AnOpaqueScalarStandsForItself(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) { m.Implements = irtest.RefsTo("opaque") }),
+		irtest.ModelOf("m", func(model *ir.Model) { model.Implements = irtest.RefsTo("opaque") }),
 		irtest.ScalarOf("opaque", ""),
 	)
 	assert.Equal(t, []ir.TypeID{"opaque"}, ir.Supertypes(doc, "m"))
@@ -61,9 +61,9 @@ func TestSupertypes_SkipsAReferenceNamingNoType(t *testing.T) {
 	t.Parallel()
 	holey := &ir.Scalar{ID: "holey", Base: &ir.TypeRef{}}
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{}
-			m.Implements = []ir.TypeRef{{}, {Target: "holey"}, {Target: "i"}}
+		irtest.ModelOf("m", func(model *ir.Model) {
+			model.Base = &ir.TypeRef{}
+			model.Implements = []ir.TypeRef{{}, {Target: "holey"}, {Target: "i"}}
 		}),
 		holey, irtest.ModelOf("i", nil),
 	)
@@ -75,8 +75,8 @@ func TestIsSubtype_Transitive(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("root", nil),
-		irtest.ModelOf("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "root"} }),
-		irtest.ModelOf("leaf", func(m *ir.Model) { m.Implements = irtest.RefsTo("mid") }),
+		irtest.ModelOf("mid", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "root"} }),
+		irtest.ModelOf("leaf", func(model *ir.Model) { model.Implements = irtest.RefsTo("mid") }),
 	)
 	assert.True(t, ir.IsSubtype(doc, "leaf", "root"))
 	assert.True(t, ir.IsSubtype(doc, "leaf", "mid"))
@@ -89,8 +89,8 @@ func TestIsSubtype_ExcludesMixins(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ModelOf("x", nil),
-		irtest.ModelOf("m", func(m *ir.Model) { m.Mixins = irtest.RefsTo("x") }),
-		irtest.ModelOf("viaAlias", func(m *ir.Model) { m.Implements = irtest.RefsTo("alias") }),
+		irtest.ModelOf("m", func(model *ir.Model) { model.Mixins = irtest.RefsTo("x") }),
+		irtest.ModelOf("viaAlias", func(model *ir.Model) { model.Implements = irtest.RefsTo("alias") }),
 		irtest.ScalarOf("alias", "x"),
 	)
 	assert.False(t, ir.IsSubtype(doc, "m", "x"), "a mixin makes no subtype")
@@ -101,7 +101,7 @@ func TestIsSubtype_CyclicAliasChainTerminates(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		irtest.ScalarOf("a", "b"), irtest.ScalarOf("b", "a"),
-		irtest.ModelOf("m", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"} }),
+		irtest.ModelOf("m", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "a"} }),
 	)
 	assert.False(t, ir.IsSubtype(doc, "m", "elsewhere"))
 }
@@ -109,60 +109,66 @@ func TestIsSubtype_CyclicAliasChainTerminates(t *testing.T) {
 func TestIsSubtype_CyclicCompositionTerminates(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "b"} }),
-		irtest.ModelOf("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"} }),
+		irtest.ModelOf("a", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "b"} }),
+		irtest.ModelOf("b", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "a"} }),
 	)
 	assert.True(t, ir.IsSubtype(doc, "a", "a"), "a cycle leads back to the start")
 	assert.False(t, ir.IsSubtype(doc, "a", "elsewhere"))
 }
 
-func prop(id ir.PropID) ir.Property { return ir.Property{ID: id} }
+func property(id ir.PropertyID) ir.Property { return ir.Property{ID: id} }
 
-func TestExposedProps_IncludesMixins(t *testing.T) {
+func TestExposedProperties_IncludesMixins(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("m", func(m *ir.Model) {
-			m.Properties = []ir.Property{prop("m.own")}
-			m.Base = &ir.TypeRef{Target: "base"}
-			m.Implements = irtest.RefsTo("iface")
-			m.Mixins = irtest.RefsTo("mix", "viaAlias")
+		irtest.ModelOf("m", func(model *ir.Model) {
+			model.Properties = []ir.Property{property("m.own")}
+			model.Base = &ir.TypeRef{Target: "base"}
+			model.Implements = irtest.RefsTo("iface")
+			model.Mixins = irtest.RefsTo("mix", "viaAlias")
 		}),
-		irtest.ModelOf("base", func(m *ir.Model) { m.Properties = []ir.Property{prop("base.p")} }),
-		irtest.ModelOf("iface", func(m *ir.Model) { m.Properties = []ir.Property{prop("iface.p")} }),
-		irtest.ModelOf("mix", func(m *ir.Model) { m.Properties = []ir.Property{prop("mix.p")} }),
+		irtest.ModelOf("base", func(model *ir.Model) { model.Properties = []ir.Property{property("base.p")} }),
+		irtest.ModelOf("iface", func(model *ir.Model) { model.Properties = []ir.Property{property("iface.p")} }),
+		irtest.ModelOf("mix", func(model *ir.Model) { model.Properties = []ir.Property{property("mix.p")} }),
 		irtest.ScalarOf("viaAlias", "aliased"),
-		irtest.ModelOf("aliased", func(m *ir.Model) { m.Properties = []ir.Property{prop("aliased.p")} }),
+		irtest.ModelOf("aliased", func(model *ir.Model) { model.Properties = []ir.Property{property("aliased.p")} }),
 		irtest.ScalarOf("opaque", ""),
-		irtest.ModelOf("unrelated", func(m *ir.Model) { m.Properties = []ir.Property{prop("unrelated.p")} }),
+		irtest.ModelOf("unrelated", func(model *ir.Model) { model.Properties = []ir.Property{property("unrelated.p")} }),
 	)
-	want := map[ir.PropID]bool{
+	want := map[ir.PropertyID]bool{
 		"m.own": true, "base.p": true, "iface.p": true, "mix.p": true, "aliased.p": true,
 	}
-	assert.Equal(t, want, ir.ExposedProps(doc, "m"))
-	assert.Empty(t, ir.ExposedProps(doc, "opaque"))
-	assert.Empty(t, ir.ExposedProps(doc, "missing"))
-	assert.Empty(t, ir.ExposedProps(nil, "m"))
+	assert.Equal(t, want, ir.ExposedProperties(doc, "m"))
+	assert.Empty(t, ir.ExposedProperties(doc, "opaque"))
+	assert.Empty(t, ir.ExposedProperties(doc, "missing"))
+	assert.Empty(t, ir.ExposedProperties(nil, "m"))
 }
 
-func TestExposedProps_CyclicMixinsTerminate(t *testing.T) {
+func TestExposedProperties_CyclicMixinsTerminate(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
-		irtest.ModelOf("a", func(m *ir.Model) { m.Properties = []ir.Property{prop("a.p")}; m.Mixins = irtest.RefsTo("b") }),
-		irtest.ModelOf("b", func(m *ir.Model) { m.Properties = []ir.Property{prop("b.p")}; m.Mixins = irtest.RefsTo("a") }),
+		irtest.ModelOf("a", func(model *ir.Model) {
+			model.Properties = []ir.Property{property("a.p")}
+			model.Mixins = irtest.RefsTo("b")
+		}),
+		irtest.ModelOf("b", func(model *ir.Model) {
+			model.Properties = []ir.Property{property("b.p")}
+			model.Mixins = irtest.RefsTo("a")
+		}),
 	)
-	assert.Equal(t, map[ir.PropID]bool{"a.p": true, "b.p": true}, ir.ExposedProps(doc, "a"))
+	assert.Equal(t, map[ir.PropertyID]bool{"a.p": true, "b.p": true}, ir.ExposedProperties(doc, "a"))
 }
 
-func TestExposedProps_SkipsTypedNil(t *testing.T) {
+func TestExposedProperties_SkipsTypedNil(t *testing.T) {
 	t.Parallel()
 	var nilModel *ir.Model
-	doc := irtest.DocOf(irtest.ModelOf("m", func(m *ir.Model) { m.Mixins = irtest.RefsTo("n") }))
+	doc := irtest.DocOf(irtest.ModelOf("m", func(model *ir.Model) { model.Mixins = irtest.RefsTo("n") }))
 	doc.Types["n"] = nilModel
-	assert.Empty(t, ir.ExposedProps(doc, "m"))
+	assert.Empty(t, ir.ExposedProperties(doc, "m"))
 }
 
-func TestExposedProps_OtherKindsExposeNothing(t *testing.T) {
+func TestExposedProperties_OtherKindsExposeNothing(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(&ir.Enum{ID: "e"})
-	assert.Empty(t, ir.ExposedProps(doc, "e"))
+	assert.Empty(t, ir.ExposedProperties(doc, "e"))
 }

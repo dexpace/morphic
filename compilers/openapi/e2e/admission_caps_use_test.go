@@ -70,11 +70,11 @@ func capUseSpec(version, kind string, n int) (paths string, schemas []string) {
 			}
 		}
 	})
-	var p, props strings.Builder
+	var p, properties strings.Builder
 	p.WriteString("paths:\n  /p:\n    get:\n      parameters:\n")
 	for _, name := range names {
 		fmt.Fprintf(&p, "        - {name: q_%s, in: query, schema: %s}\n", name, uses[name])
-		fmt.Fprintf(&props, "p_%s: %s, ", name, uses[name])
+		fmt.Fprintf(&properties, "p_%s: %s, ", name, uses[name])
 		schemas = append(schemas, "U_"+name+": "+uses[name])
 	}
 	p.WriteString("      responses: {'204': {description: none}}\n")
@@ -82,7 +82,7 @@ func capUseSpec(version, kind string, n int) (paths string, schemas []string) {
 		fmt.Fprintf(&p, "  /r/%s:\n    get:\n      responses: {'200': {description: ok, content: {application/json: {schema: %s}}}}\n",
 			name, uses[name])
 	}
-	schemas = append(schemas, "H: {type: object, properties: {"+strings.TrimSuffix(props.String(), ", ")+"}}",
+	schemas = append(schemas, "H: {type: object, properties: {"+strings.TrimSuffix(properties.String(), ", ")+"}}",
 		"C: {$ref: '#/components/schemas/T'}")
 	return p.String(), append(schemas, capTarget(kind, n)...)
 }
@@ -106,9 +106,9 @@ func useLoweringOf(doc *ir.Document, diags []ir.Diagnostic) useLowering {
 			out.types[id] = td
 		}
 	}
-	for _, d := range diags {
-		if !targetOwned.MatchString(string(d.Provenance.Pointer)) {
-			out.diags = append(out.diags, d)
+	for _, diagnostic := range diags {
+		if !targetOwned.MatchString(string(diagnostic.Provenance.Pointer)) {
+			out.diags = append(out.diags, diagnostic)
 		}
 	}
 	slices.SortFunc(out.diags, func(a, b ir.Diagnostic) int {
@@ -188,7 +188,7 @@ func TestCompile_AUseOfATargetAdmittingNoKindLowersAlikePastTheCaps(t *testing.T
 func requireNoModelOverStrings(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	for id, td := range doc.Types {
-		if strings.HasPrefix(string(id), "t/openapi/components/schemas/U_") {
+		if strings.HasPrefix(string(id), "type/openapi/components/schemas/U_") {
 			_, model := td.(*ir.Model)
 			require.False(t, model, "%s lowers to a Model", id)
 		}

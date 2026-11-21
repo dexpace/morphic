@@ -182,7 +182,7 @@ func hasEmptyForm(owner reflect.Value, position string) bool {
 		position == "Idempotency.TokenParam":
 		return true
 	case position == "Discriminator.Property":
-		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("Index").IsNil()
+		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("TupleElementIndex").IsNil()
 	default:
 		return false
 	}
@@ -191,13 +191,13 @@ func hasEmptyForm(owner reflect.Value, position string) bool {
 // emptyRefFindings returns the ir/empty-<noun>-ref findings of diags, each
 // spelled with where it is, and the other errors, each with its message too.
 func emptyRefFindings(diags []ir.Diagnostic) (empty, other []string) {
-	for _, d := range diags {
-		finding := d.Code + " @ " + d.Provenance.Node
+	for _, diagnostic := range diags {
+		finding := diagnostic.Code + " @ " + diagnostic.Provenance.Node
 		switch {
-		case strings.HasPrefix(d.Code, "ir/empty-") && strings.HasSuffix(d.Code, "-ref"):
+		case strings.HasPrefix(diagnostic.Code, "ir/empty-") && strings.HasSuffix(diagnostic.Code, "-ref"):
 			empty = append(empty, finding)
-		case d.Severity == ir.SeverityError:
-			other = append(other, finding+": "+d.Message)
+		case diagnostic.Severity == ir.SeverityError:
+			other = append(other, finding+": "+diagnostic.Message)
 		}
 	}
 	return empty, other
@@ -207,9 +207,9 @@ func emptyRefFindings(diags []ir.Diagnostic) (empty, other []string) {
 // spelled as emptyRefFindings spells pass's, in pass's order.
 func verifiedEmptyRefs(doc *ir.Document) []string {
 	var out []string
-	for _, v := range irverify.Verify(doc) {
-		if strings.HasPrefix(v.Code, "ir/empty-") && strings.HasSuffix(v.Code, "-ref") {
-			out = append(out, v.Code+" @ "+v.Path)
+	for _, violation := range irverify.Verify(doc) {
+		if strings.HasPrefix(violation.Code, "ir/empty-") && strings.HasSuffix(violation.Code, "-ref") {
+			out = append(out, violation.Code+" @ "+violation.Path)
 		}
 	}
 	slices.Sort(out)
@@ -249,27 +249,27 @@ func sweepDocuments(t *testing.T) []sweepDocument {
 // keys.
 func reachDocument() *ir.Document {
 	doc := validDoc()
-	overloaded, replies := ir.OpID("op/x/a"), ir.ChannelID("chan/x/r")
+	overloaded, replies := ir.OperationID("operation/x/a"), ir.ChannelID("channel/x/r")
 	sends := ir.Operation{
-		ID: "op/x/b", OverloadOf: &overloaded,
-		Params: []ir.Parameter{{ID: "param/x/b/q", Name: ir.Naming{Source: "q"}}},
-		Bindings: ir.OpBindings{Message: &ir.MessageBinding{
-			Channel: "chan/x/c", Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg/x/m"},
-			Reply: &ir.Reply{Channel: &replies, Messages: []ir.MessageID{"msg/x/m"}},
+		ID: "operation/x/b", OverloadOf: &overloaded,
+		Params: []ir.Parameter{{ID: "parameter/x/b/q", Name: ir.Naming{Source: "q"}}},
+		Bindings: ir.OperationBindings{Message: &ir.MessageBinding{
+			Channel: "channel/x/c", Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"message/x/m"},
+			Reply: &ir.Reply{Channel: &replies, Messages: []ir.MessageID{"message/x/m"}},
 		}},
 		Examples: []ir.Example{{Name: "ex", Input: &ir.ScenarioInput{
-			Params: map[ir.ParamID]ir.Value{"param/x/b/q": {Kind: ir.ValueString, Str: "v"}},
+			Params: map[ir.ParameterID]ir.Value{"parameter/x/b/q": {Kind: ir.ValueString, String: "v"}},
 		}}},
 	}
-	doc.Services = []ir.Service{{ID: "s/x/S", Servers: []ir.ServerID{"server/x/s"}, Groups: []ir.OperationGroup{{
-		ID: "g/x/G", Operations: []ir.Operation{{ID: "op/x/a"}, sends},
+	doc.Services = []ir.Service{{ID: "service/x/S", Servers: []ir.ServerID{"server/x/s"}, Groups: []ir.OperationGroup{{
+		ID: "operation-group/x/G", Operations: []ir.Operation{{ID: "operation/x/a"}, sends},
 	}}}}
 	doc.Servers = map[ir.ServerID]ir.Server{"server/x/s": {ID: "server/x/s"}}
 	doc.Channels = map[ir.ChannelID]ir.Channel{
-		"chan/x/c": {ID: "chan/x/c", Messages: []ir.MessageID{"msg/x/m"}, Servers: []ir.ServerID{"server/x/s"}},
-		"chan/x/r": {ID: "chan/x/r", Messages: []ir.MessageID{"msg/x/m"}},
+		"channel/x/c": {ID: "channel/x/c", Messages: []ir.MessageID{"message/x/m"}, Servers: []ir.ServerID{"server/x/s"}},
+		"channel/x/r": {ID: "channel/x/r", Messages: []ir.MessageID{"message/x/m"}},
 	}
-	doc.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m"}}
+	doc.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m"}}
 	return doc
 }
 
@@ -294,17 +294,17 @@ var reached = []string{
 func TestValidate_BlankingAReferenceDrawsOneFindingFromBothCheckers(t *testing.T) {
 	t.Parallel()
 	blanked := map[string]int{}
-	for _, d := range sweepDocuments(t) {
-		baseEmpty, baseOther := emptyRefFindings(validated(t, d.doc))
-		require.Empty(t, baseEmpty, "%s holds no empty reference before the sweep", d.name)
-		c := siteCollector{t: t}
-		c.value(reflect.ValueOf(d.doc), func() {}, 0)
-		for _, s := range c.sites {
-			if blanked[s.position] >= sitesPerPosition {
+	for _, sweepDocument := range sweepDocuments(t) {
+		baseEmpty, baseOther := emptyRefFindings(validated(t, sweepDocument.doc))
+		require.Empty(t, baseEmpty, "%s holds no empty reference before the sweep", sweepDocument.name)
+		siteCollectorValue := siteCollector{t: t}
+		siteCollectorValue.value(reflect.ValueOf(sweepDocument.doc), func() {}, 0)
+		for _, blankSite := range siteCollectorValue.sites {
+			if blanked[blankSite.position] >= sitesPerPosition {
 				continue
 			}
-			blanked[s.position]++
-			assertBlankedFindings(t, d, s, baseOther)
+			blanked[blankSite.position]++
+			assertBlankedFindings(t, sweepDocument, blankSite, baseOther)
 		}
 	}
 	for _, position := range reached {
@@ -312,20 +312,21 @@ func TestValidate_BlankingAReferenceDrawsOneFindingFromBothCheckers(t *testing.T
 	}
 }
 
-// assertBlankedFindings blanks s in d and holds what each checker reports to
-// the position's form; baseOther are the errors d drew before.
-func assertBlankedFindings(t *testing.T, d sweepDocument, s blankSite, baseOther []string) {
+// assertBlankedFindings blanks blankSiteValue in sweepDocumentValue and holds
+// what each checker reports to the position's form; baseOther are the errors
+// sweepDocumentValue drew before.
+func assertBlankedFindings(t *testing.T, sweepDocumentValue sweepDocument, blankSiteValue blankSite, baseOther []string) {
 	t.Helper()
-	restore := s.blank()
-	empty, other := emptyRefFindings(validated(t, d.doc))
-	verified := verifiedEmptyRefs(d.doc)
+	restore := blankSiteValue.blank()
+	empty, other := emptyRefFindings(validated(t, sweepDocumentValue.doc))
+	verified := verifiedEmptyRefs(sweepDocumentValue.doc)
 	restore()
 
-	where := d.name + ": " + s.position
-	if s.emptyForm {
+	where := sweepDocumentValue.name + ": " + blankSiteValue.position
+	if blankSiteValue.emptyForm {
 		assert.Empty(t, empty, "%s has an empty form", where)
 	} else if assert.Len(t, empty, 1, "%s has no empty form", where) {
-		assert.True(t, strings.HasPrefix(empty[0], "ir/empty-"+ir.RefNoun(s.class)+"-ref @ "), "%s drew %s", where, empty[0])
+		assert.True(t, strings.HasPrefix(empty[0], "ir/empty-"+ir.RefNoun(blankSiteValue.class)+"-ref @ "), "%s drew %s", where, empty[0])
 		for _, finding := range other {
 			if !slices.Contains(baseOther, finding) {
 				assert.NotContains(t, finding, `""`, "%s: an empty reference draws no second error", where)

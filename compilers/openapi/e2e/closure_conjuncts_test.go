@@ -33,9 +33,9 @@ func TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare(t *
 				for _, at := range conjunctionPositions {
 					model := closureModelAt(t, doc, at)
 					requireClosurePatterns(t, model, string(at))
-					require.NotNil(t, model.AdditionalProps.Value, "a key no pattern matches at %s", at)
-					assert.Equal(t, prim(ir.PrimAny), model.AdditionalProps.Value.Target, "is anything at %s", at)
-					assert.True(t, slices.ContainsFunc(model.Properties, func(p ir.Property) bool { return p.WireName == "b" }), at)
+					require.NotNil(t, model.AdditionalProperties.Value, "a key no pattern matches at %s", at)
+					assert.Equal(t, primitive(ir.PrimitiveAny), model.AdditionalProperties.Value.Target, "is anything at %s", at)
+					assert.True(t, slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.WireName == "b" }), at)
 					assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
 					assert.Empty(t, degradedUnder(diags, at), "nothing is reported at %s", at)
 				}
@@ -86,7 +86,7 @@ func TestEntryClosure_TwoEntriesWritingAClosureTypeNeither(t *testing.T) {
 				for _, at := range conjunctionPositions {
 					model := closureModelAt(t, doc, at)
 					assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "open at %s", at)
-					assert.Nil(t, model.AdditionalProps, "no catch-all at %s", at)
+					assert.Nil(t, model.AdditionalProperties, "no catch-all at %s", at)
 					assert.Equal(t, entryKept("openapi:allOf/0", "openapi:allOf/1"), keptOn(model), "both entries at %s", at)
 					assert.Len(t, degradedUnder(diags, at), 2, "one info each at %s", at)
 				}
@@ -134,10 +134,10 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	))
 	requireErrorsAndWarnings(t, diags, nil)
 	for _, at := range conjunctionPositions {
-		m, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
+		mapT, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.MapT)
 		require.True(t, ok, "a map of the entry's catch-all at %s", at)
-		assert.Equal(t, prim(ir.PrimInteger), m.Value.Target, at)
-		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(m), at)
+		assert.Equal(t, primitive(ir.PrimitiveInteger), mapT.Value.Target, at)
+		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:unevaluated": ir.ReasonValidationOnly}, keptOn(mapT), at)
 	}
 
 	doc, diags = compileAnnotationSpec(t, "patterns", conjunctionSpec("3.1.0",
@@ -146,9 +146,9 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		model := closureModelAt(t, doc, at)
 		assert.Equal(t, ir.AdditionalClosedAfterComposition, model.Additional, at)
-		require.NotNil(t, model.AdditionalProps, at)
-		assert.Nil(t, model.AdditionalProps.Value, "a key no pattern matches is the composition's at %s", at)
-		assert.Len(t, model.AdditionalProps.Patterns, 1, at)
+		require.NotNil(t, model.AdditionalProperties, at)
+		assert.Nil(t, model.AdditionalProperties.Value, "a key no pattern matches is the composition's at %s", at)
+		assert.Len(t, model.AdditionalProperties.Patterns, 1, at)
 		assert.Empty(t, keptUnder(doc, at), at)
 	}
 
@@ -167,7 +167,7 @@ func TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry(t *testing.T) {
 	for _, at := range conjunctionPositions {
 		model := closureModelAt(t, doc, at)
 		assert.Equal(t, ir.AdditionalUnspecified, model.Additional, at)
-		assert.Nil(t, model.AdditionalProps, at)
+		assert.Nil(t, model.AdditionalProperties, at)
 		assert.Equal(t, map[string]ir.UnmodeledReason{
 			"openapi:additionalProperties": ir.ReasonDegradedLowering,
 			"openapi:unevaluated":          ir.ReasonValidationOnly,
@@ -223,11 +223,11 @@ func TestEntryClosure_AClosureBesideAUnionReadsTheAllOfAlike(t *testing.T) {
 			doc, diags := compileAnnotationSpec(t, "union", conjunctionSpec("3.1.0", tc.schema, components...))
 			requireErrorsAndWarnings(t, diags, nil)
 			for _, at := range conjunctionPositions {
-				u, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
+				union, ok := kindNode(t, doc, usedAt(t, doc, at)).(*ir.Union)
 				require.True(t, ok, "a union at %s", at)
-				require.Len(t, u.Variants, 2, at)
-				for _, v := range u.Variants {
-					variant, ok := kindNode(t, doc, v.Type.Target).(*ir.Model)
+				require.Len(t, union.Variants, 2, at)
+				for _, irVariant := range union.Variants {
+					variant, ok := kindNode(t, doc, irVariant.Type.Target).(*ir.Model)
 					require.True(t, ok, "a composed variant at %s", at)
 					assert.Equal(t, tc.closed, variant.Additional == ir.AdditionalClosed, "closed at %s", at)
 					assert.Equal(t, tc.kept, keptOn(variant), at)

@@ -6,7 +6,7 @@ package merge
 import (
 	"reflect"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +35,7 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 		return relUnrelated
 	case shared == 0:
 		return relDisjoint
-	case !related, aWithin && bWithin && (kinds == holdsBoth || !ordered):
+	case !related, aWithin && bWithin && (kinds == bothNodesHoldPart || !ordered):
 		return relUnrelated
 	}
 	detail, adoptable := j.detailOf(extras{Common: a.TypeCommon}, extras{Common: b.TypeCommon})
@@ -43,26 +43,26 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 }
 
 // valueTypeHolding is the holding of two enums' value types: the narrower says
-// all the other does (spelling.Relate), and one says all the other does of
+// all the other does (typeformat.Relate), and one says all the other does of
 // itself. It is false where neither is within the other, since no value type
 // says both.
-func valueTypeHolding(a, b ir.PrimKind) (holding, bool) {
-	return holdingOf(fromSpelling(spelling.Relate(a, b)))
+func valueTypeHolding(a, b ir.PrimitiveKind) (holding, bool) {
+	return holdingOf(fromTypeformat(typeformat.Relate(a, b)))
 }
 
 // narrowestValueType returns the value type within every other of the enums
 // nodes holds, and false where no one is, or a node is no enum.
-func narrowestValueType(nodes []ir.TypeDef) (ir.PrimKind, bool) {
-	var narrowest ir.PrimKind
+func narrowestValueType(nodes []ir.TypeDef) (ir.PrimitiveKind, bool) {
+	var narrowest ir.PrimitiveKind
 	for k, td := range nodes {
-		e, ok := td.(*ir.Enum)
+		enum, ok := td.(*ir.Enum)
 		if !ok {
 			return "", false
 		}
-		switch rel := spelling.Relate(e.ValueType, narrowest); {
-		case k == 0, rel == spelling.ANarrower:
-			narrowest = e.ValueType
-		case rel != spelling.Same && rel != spelling.BNarrower:
+		switch rel := typeformat.Relate(enum.ValueType, narrowest); {
+		case k == 0, rel == typeformat.ANarrower:
+			narrowest = enum.ValueType
+		case rel != typeformat.Same && rel != typeformat.BNarrower:
 			return "", false
 		}
 	}
@@ -74,15 +74,15 @@ func narrowestValueType(nodes []ir.TypeDef) (ir.PrimKind, bool) {
 // those values says anything else of it otherwise, its ID aside.
 func sharedMembers(xs []ir.EnumMember, ys memberIndex) (within bool, shared int, ok bool) {
 	within = true
-	for _, x := range xs {
-		k, found := ys.find(x.Value)
+	for _, enumMember := range xs {
+		k, found := ys.find(enumMember.Value)
 		if !found {
 			within = false
 			continue
 		}
-		y := ys.members[k]
-		x.ID, y.ID, y.Value = "", "", x.Value
-		if !reflect.DeepEqual(x, y) {
+		irEnumMember := ys.members[k]
+		enumMember.ID, irEnumMember.ID, irEnumMember.Value = "", "", enumMember.Value
+		if !reflect.DeepEqual(enumMember, irEnumMember) {
 			return false, 0, false
 		}
 		shared++
@@ -94,8 +94,8 @@ func sharedMembers(xs []ir.EnumMember, ys memberIndex) (within bool, shared int,
 // xs lists them.
 func inOneOrder(xs []ir.EnumMember, ys memberIndex) bool {
 	last := -1
-	for _, x := range xs {
-		k, found := ys.find(x.Value)
+	for _, enumMember := range xs {
+		k, found := ys.find(enumMember.Value)
 		if !found {
 			continue
 		}
@@ -122,29 +122,29 @@ type memberIndex struct {
 
 // indexMembers indexes ms by value.
 func indexMembers(ms []ir.EnumMember) memberIndex {
-	x := memberIndex{members: ms, byValue: make(map[string]int, len(ms))}
-	for i, m := range ms {
-		key, ok := canonicalValue(m.Value, 0)
+	memberIndexValue := memberIndex{members: ms, byValue: make(map[string]int, len(ms))}
+	for i, enumMember := range ms {
+		key, ok := canonicalValue(enumMember.Value, 0)
 		if !ok {
-			x.rest = append(x.rest, i)
+			memberIndexValue.rest = append(memberIndexValue.rest, i)
 			continue
 		}
-		if _, seen := x.byValue[key]; !seen {
-			x.byValue[key] = i
+		if _, seen := memberIndexValue.byValue[key]; !seen {
+			memberIndexValue.byValue[key] = i
 		}
 	}
-	return x
+	return memberIndexValue
 }
 
-// find returns the position of the first member holding v, and false where
+// find returns the position of the first member holding value, and false where
 // none does.
-func (x memberIndex) find(v ir.Value) (int, bool) {
-	if key, ok := canonicalValue(v, 0); ok {
+func (x memberIndex) find(value ir.Value) (int, bool) {
+	if key, ok := canonicalValue(value, 0); ok {
 		i, found := x.byValue[key]
 		return i, found
 	}
 	for _, i := range x.rest {
-		if reflect.DeepEqual(x.members[i].Value, v) {
+		if reflect.DeepEqual(x.members[i].Value, value) {
 			return i, true
 		}
 	}
@@ -157,16 +157,16 @@ func (x memberIndex) find(v ir.Value) (int, bool) {
 // meet where a literal can hold what the node adds (verdict). A node saying more
 // of its values than a held format and bounds overlaps the literal, as before.
 func (j typeJudge) literalBesideDetail(lit *ir.Literal, node ir.TypeDef) relation {
-	s, ok := node.(*ir.Scalar)
+	scalar, ok := node.(*ir.Scalar)
 	if !ok {
 		return relOverlap
 	}
-	bare := *s
+	bare := *scalar
 	bare.TypeCommon = ir.TypeCommon{}
 	if !scalarSaysOnlyFormat(&bare) {
 		return relOverlap
 	}
-	detail, adoptable := j.detailOf(extras{Common: lit.TypeCommon}, extras{Common: s.TypeCommon})
+	detail, adoptable := j.detailOf(extras{Common: lit.TypeCommon}, extras{Common: scalar.TypeCommon})
 	return verdict(holding{a: true}, detail, adoptable)
 }
 

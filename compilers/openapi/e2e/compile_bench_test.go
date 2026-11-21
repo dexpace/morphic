@@ -25,12 +25,12 @@ import (
 // both numbers, measured over the same corpus in the same way.
 func BenchmarkCompile_Petstore(b *testing.B) {
 	data := petstoreSpec(b)
-	c := openapi.New()
+	compiler := openapi.New()
 	src := []compilers.Source{{Path: "petstore.yaml", Data: data}}
 
 	b.ReportAllocs()
 	for b.Loop() {
-		doc, _, err := c.Compile(b.Context(), src, compilers.Options{})
+		doc, _, err := compiler.Compile(b.Context(), src, compilers.Options{})
 		if err != nil {
 			b.Fatalf("compile: %v", err)
 		}

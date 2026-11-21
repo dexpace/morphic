@@ -11,26 +11,27 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // Source is what a Table reads: the bindings holding each schema of the
-// documents and where it was read, and the rows each position's schema is
-// read with, those of the dialect in force there (dialect.Table.At).
+// documents and where it was read, and the rows each position's schema is read
+// with, those of the dialect in force there (dialect.SchemaDialectRows.At).
 type Source struct {
 	Bindings *typed.Bindings
-	Rules    dialect.Table
+	Rules    dialect.SchemaDialectRows
 }
 
-// Table reads schema objects into statements and remembers each, keyed by the
-// parser's value, which is one per coordinate (docs/parser-library.md#alias-expansion).
-// What it remembers turns on the documents and their bindings alone, so every
-// walk of a run shares one. It is not safe for concurrent use.
-type Table struct {
+// MemoizingSchemaReader reads schema objects into statements and remembers
+// each, keyed by the parser's value, which is one per coordinate
+// (docs/parser-library.md#alias-expansion). What it remembers turns on the
+// documents and their bindings alone, so every walk of a run shares one. It is
+// not safe for concurrent use.
+type MemoizingSchemaReader struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
@@ -46,22 +47,22 @@ type Table struct {
 
 // NewTable returns a table reading from src, which has read nothing yet. The
 // zero Rules reads every key with the zero rows, which define none.
-func NewTable(src Source) *Table {
-	return &Table{
+func NewTable(src Source) *MemoizingSchemaReader {
+	return &MemoizingSchemaReader{
 		src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{},
 		besideRefs: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
 	}
 }
 
-// At returns the statement of the schema the bindings hold at p, an Unwritten
-// one where they hold none.
-func (t *Table) At(p bind.Position) *Statement {
-	return t.Of(t.src.Bindings.At(p))
+// At returns the statement of the schema the bindings hold at documentPointer,
+// an Unwritten one where they hold none.
+func (t *MemoizingSchemaReader) At(documentPointer reftable.DocumentPointer) *Statement {
+	return t.Of(t.src.Bindings.At(documentPointer))
 }
 
-// Sub returns the statement of the schema s names.
-func (t *Table) Sub(s Sub) *Statement {
-	return t.Of(s.m)
+// Subschema returns the statement of the schema subschema names.
+func (t *MemoizingSchemaReader) Subschema(subschema Subschema) *Statement {
+	return t.Of(subschema.m)
 }
 
 // Read returns the statement of the schema object s, for a caller lowering
@@ -71,57 +72,57 @@ func (t *Table) Sub(s Sub) *Statement {
 // reference. A nil s reads as Unwritten, and so does one no table read, which
 // holds no value. s is one t read: a schema another table built a statement
 // over keeps that statement, whichever table is asked.
-func (t *Table) Read(s *Schema) *Statement {
+func (t *MemoizingSchemaReader) Read(schema *Schema) *Statement {
 	switch {
-	case s == nil:
+	case schema == nil:
 		return t.Of(nil)
-	case s.of != nil:
-		return s.of
-	case s.WrittenBeside != nil:
-		st := &Statement{Schema: s}
-		s.of = st
+	case schema.of != nil:
+		return schema.of
+	case schema.WrittenBeside != nil:
+		st := &Statement{Schema: schema}
+		schema.of = st
 		t.flatten(st)
 		return st
 	}
-	return t.Of(s.m)
+	return t.Of(schema.m)
 }
 
-// readKeys places each key s's node writes, in the order the parser holds
+// readKeys places each key schema's node writes, in the order the parser holds
 // them (nodeview.View.MappingPairs), in the slot rules give it, marks those
-// s.Unknown lists, the keys the parser's model holds no field for, and marks s
-// Truncated where its merges run past nodeview.MergeDepthLimit. Past
-// indexAbove keys it indexes them first, so that marking, and every later Key,
-// finds a key without scanning.
-func readKeys(s *Schema, rules oas.SchemaRules) {
+// schema.Unknown lists, the keys the parser's model holds no field for, and
+// marks schema Truncated where its merges run past nodeview.MergeDepthLimit.
+// Past indexAbove keys it indexes them first, so that marking, and every later
+// Key, finds a key without scanning.
+func readKeys(schema *Schema, rules specrules.SchemaRules) {
 	view := nodeview.New()
-	pairs := view.MappingPairs(s.Node)
-	s.Truncated = !view.Expanded(s.Node)
+	pairs := view.MappingPairs(schema.Node)
+	schema.Truncated = !view.Expanded(schema.Node)
 	if len(pairs) == 0 {
 		return
 	}
-	s.Keys = make([]Key, len(pairs))
-	for i, p := range pairs {
-		slot, later := rules.Slot(p.Key)
-		s.Keys[i] = Key{Name: p.Key, Node: p.Val, Slot: slot, Later: later, Null: isNull(p.Val), Modeled: true}
+	schema.Keys = make([]Key, len(pairs))
+	for i, pair := range pairs {
+		slot, later := rules.Slot(pair.Key)
+		schema.Keys[i] = Key{Name: pair.Key, Node: pair.Val, Slot: slot, DefinedOnlyInLaterMinor: later, Null: isNull(pair.Val), Modeled: true}
 	}
-	index(s)
-	for _, name := range s.Unknown {
-		if i, _ := s.find(name); i >= 0 {
-			s.Keys[i].Modeled = false
+	index(schema)
+	for _, name := range schema.Unknown {
+		if i, _ := schema.find(name); i >= 0 {
+			schema.Keys[i].Modeled = false
 		}
 	}
 }
 
-// index maps each key of s to its place, past indexAbove keys, and leaves s
-// none at or below it.
-func index(s *Schema) {
-	s.index = nil
-	if len(s.Keys) <= indexAbove {
+// index maps each key of schema to its place, past indexAbove keys, and leaves
+// schema none at or below it.
+func index(schema *Schema) {
+	schema.index = nil
+	if len(schema.Keys) <= indexAbove {
 		return
 	}
-	s.index = make(map[string]int, len(s.Keys))
-	for i, k := range s.Keys {
-		s.index[k.Name] = i
+	schema.index = make(map[string]int, len(schema.Keys))
+	for i, key := range schema.Keys {
+		schema.index[key.Name] = i
 	}
 }
 
@@ -134,29 +135,29 @@ func index(s *Schema) {
 // that. It walks an explicit stack of at most MaxFlattenDepth+1 lists, reading
 // each entry's schema object and never an entry's statement, so it adds no
 // recursion.
-func (t *Table) flatten(st *Statement) {
+func (t *MemoizingSchemaReader) flatten(st *Statement) {
 	type frame struct {
-		list  []Sub
+		list  []Subschema
 		next  int
 		owner *Schema
 		rel   jsontext.Pointer
 	}
 	stack := []frame{{list: st.AllOf}}
 	for len(stack) > 0 {
-		f := &stack[len(stack)-1]
-		if f.next == len(f.list) {
-			owner, rel := f.owner, f.rel
+		frameValue := &stack[len(stack)-1]
+		if frameValue.next == len(frameValue.list) {
+			owner, rel := frameValue.owner, frameValue.rel
 			stack = stack[:len(stack)-1]
 			if owner != nil {
-				st.Entries = append(st.Entries, Entry{Schema: owner, Rel: rel, Wrapper: true})
+				st.Entries = append(st.Entries, AllOfConjunct{Schema: owner, Rel: rel, Wrapper: true})
 			}
 			continue
 		}
-		entry := t.read(f.list[f.next].m)
-		rel := f.rel + "/allOf/" + jsontext.Pointer(strconv.Itoa(f.next))
-		f.next++
+		entry := t.read(frameValue.list[frameValue.next].m)
+		rel := frameValue.rel + "/allOf/" + jsontext.Pointer(strconv.Itoa(frameValue.next))
+		frameValue.next++
 		if conjoins(entry) {
-			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel, Split: true})
+			st.Entries = append(st.Entries, AllOfConjunct{Schema: t.reference(entry), Rel: rel, Split: true})
 			entry = t.besideRefOf(entry)
 		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0
@@ -164,7 +165,7 @@ func (t *Table) flatten(st *Statement) {
 			stack = append(stack, frame{list: entry.AllOf, owner: entry, rel: rel})
 			continue
 		}
-		st.Entries = append(st.Entries, Entry{Schema: entry, Rel: rel, Capped: wraps})
+		st.Entries = append(st.Entries, AllOfConjunct{Schema: entry, Rel: rel, Capped: wraps})
 	}
 }
 
@@ -174,24 +175,24 @@ func (t *Table) flatten(st *Statement) {
 // reference is one conjunct and the keywords beside it another
 // (docs/compilers/openapi.md#ref-use-site). A reference merged in past
 // nodeview.MergeDepthLimit, which no key of s names, conjoins as any does.
-func conjoins(s *Schema) bool {
-	if s.Truth != Stated || s.Ref == nil || failedEntry(s) {
+func conjoins(schema *Schema) bool {
+	if schema.Truth != Stated || schema.Ref == nil || failedEntry(schema) {
 		return false
 	}
-	return slices.ContainsFunc(s.Keys, func(k Key) bool { return ReadBeside(k.Name, k.Node, s.Ref.Keyword) })
+	return slices.ContainsFunc(schema.Keys, func(key Key) bool { return ReadBeside(key.Name, key.Node, schema.Ref.Keyword) })
 }
 
-// failedEntry reports whether s, writing a reference, is an allOf entry whose
-// reference the bindings read as ending on no schema. Such an entry is read
-// whole: nothing reads what it writes beside the reference, which the
+// failedEntry reports whether schema, writing a reference, is an allOf entry
+// whose reference the bindings read as ending on no schema. Such an entry is
+// read whole: nothing reads what it writes beside the reference, which the
 // composition keeps as the entry wrote it
 // (docs/compilers/openapi.md#allof-inline-residue). Written anywhere else, the
 // same object conjoins, as `{allOf: [{$ref: …}], …}` does.
-func failedEntry(s *Schema) bool {
-	if !s.Ref.Bound || s.Ref.Entry.Chain.Status == bind.Resolved {
+func failedEntry(schema *Schema) bool {
+	if !schema.Ref.Bound || schema.Ref.Entry.Chain.Status == reftable.Resolved {
 		return false
 	}
-	at := string(s.At.Pointer)
+	at := string(schema.At.Pointer)
 	i := strings.LastIndexByte(at, '/')
 	if i < 0 || !strings.HasSuffix(at[:i], "/allOf") {
 		return false
@@ -205,11 +206,11 @@ func failedEntry(s *Schema) bool {
 	return err == nil
 }
 
-// refKey returns the place in s, which writes a reference, of the key naming
-// it, and false where none does: the model holds a $ref merged in past
-// nodeview.MergeDepthLimit, which s's keys do not list (Truncated).
-func refKey(s *Schema) (int, bool) {
-	i, _ := s.find(s.Ref.Keyword)
+// refKey returns the place in schema, which writes a reference, of the key
+// naming it, and false where none does: the model holds a $ref merged in past
+// nodeview.MergeDepthLimit, which schema's keys do not list (Truncated).
+func refKey(schema *Schema) (int, bool) {
+	i, _ := schema.find(schema.Ref.Keyword)
 	return i, i >= 0
 }
 
@@ -217,21 +218,21 @@ func refKey(s *Schema) (int, bool) {
 // object itself, or, for one writing a reference beside other keys
 // (conjoins), the keywords beside its reference, which is the statement's
 // first entry.
-func (t *Table) own(js *model) *Schema {
-	s := t.read(js)
-	if conjoins(s) {
-		return t.wordsOf(s)
+func (t *MemoizingSchemaReader) own(js *model) *Schema {
+	schema := t.read(js)
+	if conjoins(schema) {
+		return t.wordsOf(schema)
 	}
-	return s
+	return schema
 }
 
-// wordsOf returns s, which conjoins and a position writes, less its
+// wordsOf returns schema, which conjoins and a position writes, less its
 // reference (lessReference), and the reference as its BesideRef: the
 // position's statement lists the two. Of builds it once.
-func (t *Table) wordsOf(s *Schema) *Schema {
-	w := lessReference(s)
-	w.BesideRef = t.reference(s)
-	return w
+func (t *MemoizingSchemaReader) wordsOf(schema *Schema) *Schema {
+	schemaValue := lessReference(schema)
+	schemaValue.BesideRef = t.reference(schema)
+	return schemaValue
 }
 
 // besideRefOf returns s, an allOf entry that conjoins, less its reference
@@ -240,82 +241,83 @@ func (t *Table) wordsOf(s *Schema) *Schema {
 // holding its keys alone, so no reader of the composition's conjuncts reads
 // the reference twice; it names it WrittenBeside, for a reader of how its
 // keys are spelt (docs/compilers/openapi.md#ref-use-site).
-func (t *Table) besideRefOf(s *Schema) *Schema {
-	if r, ok := t.besideRefs[s]; ok {
-		return r
+func (t *MemoizingSchemaReader) besideRefOf(schema *Schema) *Schema {
+	if schemaValue, ok := t.besideRefs[schema]; ok {
+		return schemaValue
 	}
-	r := lessReference(s)
-	r.WrittenBeside = t.reference(s)
-	content := make([]*yaml.Node, 0, 2*len(r.Keys))
-	for _, k := range r.Keys {
-		content = append(content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k.Name}, k.Node)
+	otherSchema := lessReference(schema)
+	otherSchema.WrittenBeside = t.reference(schema)
+	content := make([]*yaml.Node, 0, 2*len(otherSchema.Keys))
+	for _, key := range otherSchema.Keys {
+		content = append(content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Name}, key.Node)
 	}
-	r.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: content}
-	t.besideRefs[s] = r
-	return r
+	otherSchema.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: content}
+	t.besideRefs[schema] = otherSchema
+	return otherSchema
 }
 
-// lessReference returns a copy of s, which conjoins, holding every key but the
-// one writing its reference, and every slot it fills. It shares s's values.
-func lessReference(s *Schema) *Schema {
-	w := *s
-	w.Ref, w.of = nil, nil
-	w.Keys = slices.DeleteFunc(slices.Clone(s.Keys), func(k Key) bool { return k.Name == s.Ref.Keyword })
-	index(&w)
-	return &w
+// lessReference returns a copy of schema, which conjoins, holding every key but
+// the one writing its reference, and every slot it fills. It shares schema's
+// values.
+func lessReference(schema *Schema) *Schema {
+	schemaValue := *schema
+	schemaValue.Ref, schemaValue.of = nil, nil
+	schemaValue.Keys = slices.DeleteFunc(slices.Clone(schema.Keys), func(key Key) bool { return key.Name == schema.Ref.Keyword })
+	index(&schemaValue)
+	return &schemaValue
 }
 
-// reference returns the reference s, which conjoins, writes, as a schema
+// reference returns the reference schema, which conjoins, writes, as a schema
 // object writing it alone, its node too, and its statement, which lists no
-// entry. A reference no key of s names is read from its text.
-func (t *Table) reference(s *Schema) *Schema {
-	if r, ok := t.references[s]; ok {
-		return r
+// entry. A reference no key of schema names is read from its text.
+func (t *MemoizingSchemaReader) reference(schema *Schema) *Schema {
+	if schemaValue, ok := t.references[schema]; ok {
+		return schemaValue
 	}
-	r := &Schema{At: s.At, Ref: s.Ref, m: s.m}
-	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Ref.Text}
-	if i, named := refKey(s); named {
-		r.Keys, value = []Key{s.Keys[i]}, s.Keys[i].Node
+	otherSchema := &Schema{At: schema.At, Ref: schema.Ref, m: schema.m}
+	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: schema.Ref.Text}
+	if i, named := refKey(schema); named {
+		otherSchema.Keys, value = []Key{schema.Keys[i]}, schema.Keys[i].Node
 	}
 	// Its node writes the reference alone, so it reads as the entry
 	// `{$ref: …}` would, not as the object it is written in.
-	r.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
-		{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Ref.Keyword}, value,
+	otherSchema.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: schema.Ref.Keyword}, value,
 	}}
-	r.of = &Statement{Schema: r}
-	t.references[s] = r
-	return r
+	otherSchema.of = &Statement{Schema: otherSchema}
+	t.references[schema] = otherSchema
+	return otherSchema
 }
 
-// open makes s's struct of slot, where it has none yet: a key of the slot's
-// keywords opens it, whether or not its value is read.
-func open(s *Schema, slot oas.Slot) {
+// open makes schema's struct of slot, where it has none yet: a key of the
+// slot's keywords opens it, whether or not its value is read.
+func open(schema *Schema, slot specrules.Slot) {
 	switch {
-	case slot == oas.SlotKinds && s.Kinds == nil:
-		s.Kinds = &Kinds{}
-	case slot == oas.SlotValues && s.Values == nil:
-		s.Values = &Values{}
-	case slot == oas.SlotFormat && s.Format == nil:
-		s.Format = &Format{}
-	case slot == oas.SlotNumber && s.Number == nil:
-		s.Number = &Number{}
-	case slot == oas.SlotText && s.Text == nil:
-		s.Text = &Text{}
-	case slot == oas.SlotArray && s.Array == nil:
-		s.Array = &Array{}
-	case slot == oas.SlotObject && s.Object == nil:
-		s.Object = &Object{}
-	case slot == oas.SlotChoice && s.Choice == nil:
-		s.Choice = &Choice{}
-	case slot == oas.SlotLogic && s.Logic == nil:
-		s.Logic = &Logic{}
-	case slot == oas.SlotNotes && s.Notes == nil:
-		s.Notes = &Notes{}
+	case slot == specrules.SlotKinds && schema.Kinds == nil:
+		schema.Kinds = &Kinds{}
+	case slot == specrules.SlotValues && schema.Values == nil:
+		schema.Values = &Values{}
+	case slot == specrules.SlotFormat && schema.Format == nil:
+		schema.Format = &Format{}
+	case slot == specrules.SlotNumber && schema.Number == nil:
+		schema.Number = &Number{}
+	case slot == specrules.SlotText && schema.Text == nil:
+		schema.Text = &Text{}
+	case slot == specrules.SlotArray && schema.Array == nil:
+		schema.Array = &Array{}
+	case slot == specrules.SlotObject && schema.Object == nil:
+		schema.Object = &Object{}
+	case slot == specrules.SlotChoice && schema.Choice == nil:
+		schema.Choice = &Choice{}
+	case slot == specrules.SlotLogic && schema.Logic == nil:
+		schema.Logic = &Logic{}
+	case slot == specrules.SlotNotes && schema.Notes == nil:
+		schema.Notes = &Notes{}
 	}
 }
 
-// isNull reports whether n, its alias followed, is a YAML null.
-func isNull(n *yaml.Node) bool {
-	n = nodeview.Deref(n)
-	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+// isNull reports whether node, its alias followed, is a YAML null.
+func isNull(node *yaml.Node) bool {
+	node = nodeview.Deref(node)
+	return node != nil && node.Kind == yaml.ScalarNode && node.ShortTag() == "!!null"
 }

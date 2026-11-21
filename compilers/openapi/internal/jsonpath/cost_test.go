@@ -169,7 +169,7 @@ func TestMaxResults_IsTheBoundOnWhatAnEvaluationHolds(t *testing.T) {
 // again and again, so the tree costs a pointer a member.
 func TestSelect_HoldsANodelistToMaxResults(t *testing.T) {
 	t.Parallel()
-	q, err := jsonpath.Parse("$[*]")
+	query, err := jsonpath.Parse("$[*]")
 	require.NoError(t, err)
 	member := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "0"}
 	sequence := func(members int) *yaml.Node {
@@ -181,10 +181,10 @@ func TestSelect_HoldsANodelistToMaxResults(t *testing.T) {
 	}
 	b := budget.New(budget.Unbounded())
 
-	got, err := q.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults-1), &b)
+	got, err := query.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults-1), &b)
 	require.NoError(t, err)
 	assert.Len(t, got, jsonpath.MaxResults-1)
 
-	_, err = q.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults), &b)
+	_, err = query.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults), &b)
 	assert.ErrorIs(t, err, jsonpath.ErrResults)
 }

@@ -131,8 +131,8 @@ func compareForms(first, second *ir.Document, perm permutation, ties tieSites, l
 func sameNodes(left, right []report, first, second func(string) (string, bool)) ([]report, []report) {
 	rightKeys := make([]string, len(right))
 	unmatched := map[string]int{}
-	for i, r := range right {
-		key := nodeKey(r, second)
+	for i, report := range right {
+		key := nodeKey(report, second)
 		rightKeys[i] = key
 		if key != "" {
 			unmatched[key]++
@@ -140,40 +140,41 @@ func sameNodes(left, right []report, first, second func(string) (string, bool)) 
 	}
 	paired := map[string]int{}
 	var keptLeft []report
-	for _, r := range left {
-		key := nodeKey(r, first)
+	for _, report := range left {
+		key := nodeKey(report, first)
 		if key != "" && unmatched[key] > 0 {
 			unmatched[key]--
 			paired[key]++
 			continue
 		}
-		keptLeft = append(keptLeft, r)
+		keptLeft = append(keptLeft, report)
 	}
 	keptRight := make([]report, 0, len(right))
-	for i, r := range right {
+	for i, report := range right {
 		if key := rightKeys[i]; key != "" && paired[key] > 0 {
 			paired[key]--
 			continue
 		}
-		keptRight = append(keptRight, r)
+		keptRight = append(keptRight, report)
 	}
 	return keptLeft, keptRight
 }
 
-// nodeKey is r's key with its node as identify writes it and no pointer, as a
-// report naming a node is erased (reportsOf), or empty, pairing with nothing,
-// where r names no node or identify cannot tell the node by what it holds.
-func nodeKey(r report, identify func(string) (string, bool)) string {
-	if r.raw.Provenance.Node == "" {
+// nodeKey is reportValue's key with its node as identify writes it and no
+// pointer, as a report naming a node is erased (reportsOf), or empty, pairing
+// with nothing, where reportValue names no node or identify cannot tell the
+// node by what it holds.
+func nodeKey(reportValue report, identify func(string) (string, bool)) string {
+	if reportValue.raw.Provenance.Node == "" {
 		return ""
 	}
-	node, ok := identify(r.raw.Provenance.Node)
+	node, ok := identify(reportValue.raw.Provenance.Node)
 	if !ok {
 		return ""
 	}
-	d := r.raw
-	d.Provenance.Pointer, d.Provenance.Node = "", node
-	return diagnosticKey(d)
+	diagnostic := reportValue.raw
+	diagnostic.Provenance.Pointer, diagnostic.Provenance.Node = "", node
+	return diagnosticKey(diagnostic)
 }
 
 // formDecline is the decline a canonical form's error stands for, if any.
@@ -216,28 +217,28 @@ type tieSites struct{ pointers, nodes, members, holders, stated []string }
 // the reversed sequences.
 func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 	out := make([]report, 0, len(diags))
-	for _, d := range diags {
-		raw := d
-		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
-		d.Provenance.Node = rebase(d.Provenance.Node, from)
-		d.Related = slices.Clone(d.Related)
-		for i := range d.Related {
-			p := &d.Related[i].Provenance
-			p.Pointer, p.Node = jsontext.Pointer(rebase(string(p.Pointer), from)), rebase(p.Node, from)
+	for _, diagnostic := range diags {
+		raw := diagnostic
+		diagnostic.Provenance.Pointer = jsontext.Pointer(rebase(string(diagnostic.Provenance.Pointer), from))
+		diagnostic.Provenance.Node = rebase(diagnostic.Provenance.Node, from)
+		diagnostic.Related = slices.Clone(diagnostic.Related)
+		for i := range diagnostic.Related {
+			provenance := &diagnostic.Related[i].Provenance
+			provenance.Pointer, provenance.Node = jsontext.Pointer(rebase(string(provenance.Pointer), from)), rebase(provenance.Node, from)
 		}
-		e := d
-		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
-		e.Provenance.Node = erase(d.Provenance.Node, written)
-		if e.Provenance.Node != "" {
-			e.Provenance.Pointer = ""
+		irDiagnostic := diagnostic
+		irDiagnostic.Provenance.Pointer = jsontext.Pointer(erase(string(diagnostic.Provenance.Pointer), written))
+		irDiagnostic.Provenance.Node = erase(diagnostic.Provenance.Node, written)
+		if irDiagnostic.Provenance.Node != "" {
+			irDiagnostic.Provenance.Pointer = ""
 		}
-		e.Related = slices.Clone(d.Related)
-		for i := range e.Related {
-			p := &e.Related[i].Provenance
-			p.Pointer, p.Node = jsontext.Pointer(erase(string(p.Pointer), written)), erase(p.Node, written)
+		irDiagnostic.Related = slices.Clone(diagnostic.Related)
+		for i := range irDiagnostic.Related {
+			provenance := &irDiagnostic.Related[i].Provenance
+			provenance.Pointer, provenance.Node = jsontext.Pointer(erase(string(provenance.Pointer), written)), erase(provenance.Node, written)
 		}
-		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer),
-			node: d.Provenance.Node, rebased: d, raw: raw})
+		out = append(out, report{key: diagnosticKey(diagnostic), erased: diagnosticKey(irDiagnostic), pointer: string(diagnostic.Provenance.Pointer),
+			node: diagnostic.Provenance.Node, rebased: diagnostic, raw: raw})
 	}
 	return out
 }
@@ -279,12 +280,12 @@ func movedReports(a, b []report, written sequences) (ties tieSites, left, right 
 // model holding one, or sitting at or beneath a tie site or a tied member's
 // pointer, says what a tie decided, in the one order it decided it.
 func untied(rs []report, ties tieSites, written sequences) []report {
-	return slices.DeleteFunc(rs, func(r report) bool {
-		node := erase(r.node, written)
+	return slices.DeleteFunc(rs, func(reportValue report) bool {
+		node := erase(reportValue.node, written)
 		_, tied := slices.BinarySearch(ties.nodes, node)
 		_, holds := slices.BinarySearch(ties.holders, node)
-		at := erase(r.pointer, written)
-		return r.node != "" && (tied || holds) || atSite(ties.pointers, at) || atSite(ties.members, at)
+		at := erase(reportValue.pointer, written)
+		return reportValue.node != "" && (tied || holds) || atSite(ties.pointers, at) || atSite(ties.members, at)
 	})
 }
 
@@ -301,12 +302,12 @@ func atSite(sites []string, erased string) bool {
 // empty when there are none.
 func renderUnpaired(left, right []report) string {
 	lines := make([]string, 0, len(left)+len(right))
-	for _, r := range left {
-		lines = append(lines, "-"+strconv.Quote(r.key))
+	for _, report := range left {
+		lines = append(lines, "-"+strconv.Quote(report.key))
 	}
 	reversed := make([]string, 0, len(right))
-	for _, r := range right {
-		reversed = append(reversed, "+"+strconv.Quote(r.key))
+	for _, report := range right {
+		reversed = append(reversed, "+"+strconv.Quote(report.key))
 	}
 	slices.Sort(reversed)
 	return strings.Join(append(lines, reversed...), "\n")
@@ -356,25 +357,25 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSites, tied, sites, holders map[string]bool) bool {
 	grew := false
 	members := slices.Concat(ties.members, slices.Collect(maps.Keys(sites)))
-	isTied := func(d ir.PropertyDecl) bool {
-		at := erase(string(d.Property.Provenance.Pointer), seqs)
+	isTied := func(propertyDecl ir.PropertyDecl) bool {
+		at := erase(string(propertyDecl.Property.Provenance.Pointer), seqs)
 		_, atMember := slices.BinarySearch(ties.members, at)
-		return tied[erase(string(d.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember ||
-			minted(members, string(d.Property.ID), at)
+		return tied[erase(string(propertyDecl.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember ||
+			minted(members, string(propertyDecl.Property.ID), at)
 	}
 	for _, id := range models {
-		if u, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, u, isTied) {
+		if union, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, union, isTied) {
 			tied[erase(string(id), seqs)], grew = true, true
 		}
 		if _, isModel := doc.Types[id].(*ir.Model); !isModel {
 			continue
 		}
-		for _, p := range ir.FlattenedProperties(doc.Types, id).Properties {
-			own := erase(string(p.Property.ID), seqs)
-			if p.Owner == id && !tied[own] && (isTied(p.PropertyDecl) || slices.ContainsFunc(p.Overridden, isTied)) {
+		for _, flatProperty := range ir.FlattenedProperties(doc.Types, id).Properties {
+			own := erase(string(flatProperty.Property.ID), seqs)
+			if flatProperty.Owner == id && !tied[own] && (isTied(flatProperty.PropertyDecl) || slices.ContainsFunc(flatProperty.Overridden, isTied)) {
 				tied[own], grew = true, true
 			}
-			if at := erase(string(p.Property.Provenance.Pointer), seqs); p.Owner == id && tied[own] {
+			if at := erase(string(flatProperty.Property.Provenance.Pointer), seqs); flatProperty.Owner == id && tied[own] {
 				grew = grew || !sites[at]
 				sites[at] = true
 				holders[erase(string(id), seqs)] = true
@@ -384,17 +385,17 @@ func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSi
 	return grew
 }
 
-// inferenceTied reports whether u's discriminator was inferred from a member a
-// tie decided: the inference reads each variant's member the discriminator
-// names, so what it finds follows the tie.
-func inferenceTied(doc *ir.Document, u *ir.Union, isTied func(ir.PropertyDecl) bool) bool {
-	d := u.Discriminator
-	if d == nil || !d.Inferred {
+// inferenceTied reports whether union's discriminator was inferred from a
+// member a tie decided: the inference reads each variant's member the
+// discriminator names, so what it finds follows the tie.
+func inferenceTied(doc *ir.Document, union *ir.Union, isTied func(ir.PropertyDecl) bool) bool {
+	discriminator := union.Discriminator
+	if discriminator == nil || !discriminator.Inferred {
 		return false
 	}
-	for _, v := range u.Variants {
-		for _, p := range ir.FlattenedProperties(doc.Types, v.Type.Target).Properties {
-			if p.Property.WireName == d.PropertyName && isTied(p.PropertyDecl) {
+	for _, variant := range union.Variants {
+		for _, flatProperty := range ir.FlattenedProperties(doc.Types, variant.Type.Target).Properties {
+			if flatProperty.Property.WireName == discriminator.PropertyName && isTied(flatProperty.PropertyDecl) {
 				return true
 			}
 		}
@@ -412,17 +413,17 @@ func difference(a, b []report) (onlyA, onlyB []report) {
 // of the same key, sorted by key.
 func without(a, b []report) []report {
 	taken := make(map[string]int, len(b))
-	for _, r := range b {
-		taken[r.key]++
+	for _, report := range b {
+		taken[report.key]++
 	}
 	var out []report
-	for _, r := range a {
-		if taken[r.key] > 0 {
-			taken[r.key]--
+	for _, report := range a {
+		if taken[report.key] > 0 {
+			taken[report.key]--
 			continue
 		}
-		out = append(out, r)
+		out = append(out, report)
 	}
-	slices.SortFunc(out, func(x, y report) int { return strings.Compare(x.key, y.key) })
+	slices.SortFunc(out, func(reportValue, otherReport report) int { return strings.Compare(reportValue.key, otherReport.key) })
 	return out
 }

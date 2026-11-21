@@ -55,8 +55,8 @@ func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
 		return nil
 	}
 	out := make([]ir.OAuthFlow, 0, len(present))
-	for _, f := range present {
-		out = append(out, oauthFlow(f))
+	for _, sourceFlow := range present {
+		out = append(out, oauthFlow(sourceFlow))
 	}
 	return out
 }
@@ -64,15 +64,15 @@ func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
 // oauthFlow lowers one OAuth2 flow, reading only the fields of flowFields its
 // kind defines; preserveUndefinedFlowFields keeps the rest. The device flow's
 // deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL (docs/ir/auth.md).
-func oauthFlow(f sourceFlow) ir.OAuthFlow {
+func oauthFlow(sourceFlowValue sourceFlow) ir.OAuthFlow {
 	fl := ir.OAuthFlow{
-		Kind:       f.kind,
-		RefreshURL: f.src.GetRefreshURL(),
-		Scopes:     scopes(f.src),
+		Kind:       sourceFlowValue.kind,
+		RefreshURL: sourceFlowValue.src.GetRefreshURL(),
+		Scopes:     scopes(sourceFlowValue.src),
 	}
 	for _, field := range flowFields() {
-		if slices.Contains(flowFieldsDefinedBy(f.keyword), field.name) {
-			*field.slot(&fl) = field.read(f.src)
+		if slices.Contains(flowFieldsDefinedBy(sourceFlowValue.keyword), field.name) {
+			*field.slot(&fl) = field.read(sourceFlowValue.src)
 		}
 	}
 	return fl
@@ -156,8 +156,8 @@ func flowsMissing(ss *soa.SecurityScheme) bool {
 // decl, and a $ref entry holds no flows either way. The message names no entry,
 // so the copies every alias of one declaration draws dedup to one report, placed
 // in whichever document holds the declaration (GitHub #874).
-func oauthNoFlowDiag(c service.Ctx, decl jsontext.Pointer) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
+func oauthNoFlowDiag(serviceContext service.Ctx, decl jsontext.Pointer) ir.Diagnostic {
+	return serviceContext.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
 		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
 			"so it states no way to obtain a token")
 }
@@ -168,16 +168,16 @@ func oauthNoFlowDiag(c service.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 // lists are one ordered reading of the same object — scheme.Flows came from
 // oauthFlows, which walks presentFlows — so the i-th lowered flow is the i-th
 // declared one and the two cannot differ in length.
-func applyFlowAnnotations(c service.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
+func applyFlowAnnotations(serviceContext service.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for i, f := range presentFlows(flows) {
-		fptr := flowsPtr + ids.Ptr(f.keyword)
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.Place(), fptr)
+	for i, sourceFlow := range presentFlows(flows) {
+		fptr := flowsPtr + ids.Ptr(sourceFlow.keyword)
+		ext, extDiags := annotation.ExtensionsFrom(sourceFlow.src.GetExtensions(), serviceContext.Place(), fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
-		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.Place(), fptr)...)
-		methods, promoted := promotion.TokenEndpointAuthMethods(c.Promoter(), lowered[i].Unmodeled, &lowered[i].Inferred)
+		diags = append(diags, preserveUndefinedFlowFields(serviceContext, &lowered[i], sourceFlow, fptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, sourceFlow.src, serviceContext.Place(), fptr)...)
+		methods, promoted := promotion.TokenEndpointAuthMethods(serviceContext.Promoter(), lowered[i].Unmodeled, &lowered[i].Inferred)
 		lowered[i].TokenEndpointAuthMethods = methods
 		diags = append(diags, promoted...)
 	}
@@ -193,8 +193,8 @@ func applyFlowAnnotations(c service.Ctx, lowered []ir.OAuthFlow, flows *soa.OAut
 // It reads the flow's mapping as the parser does, as every preservation site
 // does, so a field merged in through a `<<` key is kept as a written one is
 // (GitHub #384).
-func preserveUndefinedFlowFields(c service.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
-	defined := flowFieldsDefinedBy(f.keyword)
+func preserveUndefinedFlowFields(serviceContext service.Ctx, fl *ir.OAuthFlow, sourceFlowValue sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
+	defined := flowFieldsDefinedBy(sourceFlowValue.keyword)
 	var diags []ir.Diagnostic
 	for _, field := range flowFields() {
 		if slices.Contains(defined, field.name) {
@@ -202,13 +202,13 @@ func preserveUndefinedFlowFields(c service.Ctx, fl *ir.OAuthFlow, f sourceFlow, 
 		}
 		at := fptr + ids.Ptr(field.name)
 		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
-			nodeview.Child(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.Place().At(at))
+			nodeview.Child(sourceFlowValue.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, serviceContext.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"oauth flow %s does not define %s; kept verbatim under Unmodeled", f.keyword, field.name))
+		diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"oauth flow %s does not define %s; kept verbatim under Unmodeled", sourceFlowValue.keyword, field.name))
 	}
 	return diags
 }

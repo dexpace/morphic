@@ -41,11 +41,11 @@ func distributedOver(t *testing.T, doc *ir.Document, id ir.TypeID) map[ir.TypeID
 	union, ok := kindNode(t, doc, id).(*ir.Union)
 	require.True(t, ok, "%s is a union", id)
 	out := map[ir.TypeID]*ir.Model{}
-	for _, v := range union.Variants {
-		m, isModel := kindNode(t, doc, v.Type.Target).(*ir.Model)
-		require.True(t, isModel, "%s: variant %s", id, v.Type.Target)
-		require.NotNil(t, m.Base, "%s: variant %s", id, v.Type.Target)
-		out[m.Base.Target] = m
+	for _, variant := range union.Variants {
+		model, isModel := kindNode(t, doc, variant.Type.Target).(*ir.Model)
+		require.True(t, isModel, "%s: variant %s", id, variant.Type.Target)
+		require.NotNil(t, model.Base, "%s: variant %s", id, variant.Type.Target)
+		out[model.Base.Target] = model
 	}
 	return out
 }
@@ -59,8 +59,8 @@ func unionAsWritten(t *testing.T, doc *ir.Document, id ir.TypeID) string {
 	require.True(t, ok, "%s is a union", id)
 	tree := nodeWithoutNames(t, doc, id)
 	variants := make([]any, 0, len(union.Variants))
-	for _, v := range union.Variants {
-		variants = append(variants, nodeWithoutNames(t, doc, v.Type.Target))
+	for _, variant := range union.Variants {
+		variants = append(variants, nodeWithoutNames(t, doc, variant.Type.Target))
 	}
 	tree["variants"] = variants
 	raw, err := json.Marshal(tree, json.Deterministic(true))
@@ -97,10 +97,10 @@ func TestKindInference_AClosureBesideAUnionOfObjectsDistributes(t *testing.T) {
 							variants := distributedOver(t, doc, componentID(name))
 							assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")},
 								slices.Collect(maps.Keys(variants)), name)
-							for base, m := range variants {
-								assert.Equal(t, ir.AdditionalClosed, m.Additional, "%s over %s", name, base)
-								assert.Empty(t, m.Properties, "%s over %s", name, base)
-								assert.False(t, markedKindInference(m), "%s over %s: the branch declares the object", name, base)
+							for base, model := range variants {
+								assert.Equal(t, ir.AdditionalClosed, model.Additional, "%s over %s", name, base)
+								assert.Empty(t, model.Properties, "%s over %s", name, base)
+								assert.False(t, markedKindInference(model), "%s over %s: the branch declares the object", name, base)
 							}
 							assert.Empty(t, keptUnder(doc, jsontext.Pointer("/components/schemas/"+name)), name)
 						}
@@ -130,10 +130,10 @@ func TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes(t *testing.T) {
 					requireErrorsAndWarnings(t, diags, nil)
 					variants := distributedOver(t, doc, componentID("Open"))
 					require.Len(t, variants, 2)
-					for base, m := range variants {
-						require.NotNil(t, m.AdditionalProps, "%s holds the catch-all", base)
-						require.NotNil(t, m.AdditionalProps.Value, base)
-						assert.Equal(t, prim(ir.PrimString), m.AdditionalProps.Value.Target, base)
+					for base, model := range variants {
+						require.NotNil(t, model.AdditionalProperties, "%s holds the catch-all", base)
+						require.NotNil(t, model.AdditionalProperties.Value, base)
+						assert.Equal(t, primitive(ir.PrimitiveString), model.AdditionalProperties.Value.Target, base)
 					}
 					assert.Empty(t, keptUnder(doc, "/components/schemas/Open"))
 				})
@@ -182,11 +182,11 @@ func TestKindInference_AClosedFormBodyBesideAUnionKeysNoPartItsModelsLack(t *tes
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, off := range []bool{false, true} {
 			doc, _ := compileKindInference(t, "form", admissionSpec(version, body, closedObjects...), off)
-			held := map[ir.PropID]bool{}
+			held := map[ir.PropertyID]bool{}
 			for _, td := range doc.Types {
-				if m, ok := td.(*ir.Model); ok {
-					for _, p := range m.Properties {
-						held[p.ID] = true
+				if model, ok := td.(*ir.Model); ok {
+					for _, property := range model.Properties {
+						held[property.ID] = true
 					}
 				}
 			}

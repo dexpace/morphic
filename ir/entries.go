@@ -26,13 +26,13 @@ type entryStack struct {
 }
 
 // mapEntry is one map entry paired with its key as a path spells it, which also
-// orders the walk: label for a labelled key, num for an integer one.
+// orders the walk: label for a labelled key, number for an integer one.
 type mapEntry struct {
-	key   reflect.Value
-	value reflect.Value
-	label string
-	num   uint64
-	form  keyForm
+	key    reflect.Value
+	value  reflect.Value
+	label  string
+	number uint64
+	form   keyForm
 }
 
 // keyForm is how an entry or a path step holds a map key: as its label, or as
@@ -42,17 +42,17 @@ type keyForm uint8
 
 const (
 	labelledKey keyForm = iota // label holds the key as fmt's %v spells it
-	signedKey                  // num holds a signed key's bits
-	unsignedKey                // num holds an unsigned key
+	signedKey                  // number holds a signed key's bits
+	unsignedKey                // number holds an unsigned key
 )
 
 // appendKey renders a key held in form onto b, as fmt's %v spells it.
-func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
+func appendKey(b []byte, form keyForm, number uint64, label string) []byte {
 	switch form {
 	case signedKey:
-		return strconv.AppendInt(b, int64(num), 10)
+		return strconv.AppendInt(b, int64(number), 10)
 	case unsignedKey:
-		return strconv.AppendUint(b, num, 10)
+		return strconv.AppendUint(b, number, 10)
 	case labelledKey:
 	}
 	return append(b, label...)
@@ -60,7 +60,7 @@ func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
 
 // appendLabel renders e's key onto b, as a path spells it.
 func (e mapEntry) appendLabel(b []byte) []byte {
-	return appendKey(b, e.form, e.num, e.label)
+	return appendKey(b, e.form, e.number, e.label)
 }
 
 // compareEntries orders two entries of one map by their keys' spellings, byte
@@ -93,43 +93,43 @@ type entryFrame struct {
 // an unexported field is copied entry by entry, as SetIterKey refuses to read
 // one.
 func (s *entryStack) push(v reflect.Value) entryFrame {
-	f := entryFrame{base: len(s.entries)}
+	entryFrameValue := entryFrame{base: len(s.entries)}
 	n := v.Len()
 	if n > 0 && v.CanInterface() {
-		f.store = s.storeFor(v.Type())
-		f.slot = f.store.reserve(n)
+		entryFrameValue.store = s.storeFor(v.Type())
+		entryFrameValue.slot = entryFrameValue.store.reserve(n)
 	}
 	form := formOf(v.Type().Key())
 	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
 	for iter := v.MapRange(); iter.Next(); {
-		k, val := f.copyEntry(iter, len(s.entries)-f.base)
+		k, val := entryFrameValue.copyEntry(iter, len(s.entries)-entryFrameValue.base)
 		s.entries = append(s.entries, entryOf(k, val, form))
 	}
-	f.end = len(s.entries)
-	slices.SortFunc(s.entries[f.base:], compareEntries)
-	return f
+	entryFrameValue.end = len(s.entries)
+	slices.SortFunc(s.entries[entryFrameValue.base:], compareEntries)
+	return entryFrameValue
 }
 
 // entryOf pairs the key k and value val of a map whose keys are held in form.
 func entryOf(k, val reflect.Value, form keyForm) mapEntry {
-	e := mapEntry{key: k, value: val, form: form}
+	mapEntryValue := mapEntry{key: k, value: val, form: form}
 	switch form {
 	case signedKey:
-		e.num = uint64(k.Int())
+		mapEntryValue.number = uint64(k.Int())
 	case unsignedKey:
-		e.num = k.Uint()
+		mapEntryValue.number = k.Uint()
 	case labelledKey:
-		e.label = keyLabel(k)
+		mapEntryValue.label = keyLabel(k)
 	}
-	return e
+	return mapEntryValue
 }
 
-// pop takes f's entries off the stack, which must hold no frame above f, and
-// frees its slots for the next map of its type.
-func (s *entryStack) pop(f entryFrame) {
-	s.entries = s.entries[:f.base]
-	if f.store != nil {
-		f.store.used = f.slot
+// pop takes entryFrameValue's entries off the stack, which must hold no frame
+// above entryFrameValue, and frees its slots for the next map of its type.
+func (s *entryStack) pop(entryFrameValue entryFrame) {
+	s.entries = s.entries[:entryFrameValue.base]
+	if entryFrameValue.store != nil {
+		entryFrameValue.store.used = entryFrameValue.slot
 	}
 }
 

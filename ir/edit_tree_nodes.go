@@ -73,13 +73,13 @@ type treeList struct {
 // index reads the tree out of services, taking at most limit steps.
 func (t *serviceTree) index(services []Service, limit int) {
 	t.read, t.byID = true, map[treeKey][]*treeNode{}
-	r := treeRead{steps: stepLimit{left: limit}}
+	treeReadValue := treeRead{steps: stepLimit{left: limit}}
 	for i := range services {
-		n := t.add(nil, &t.services, serviceNode, string(services[i].ID))
-		n.service = &services[i]
-		t.indexGroups(n, services[i].Groups, 0, &r)
+		treeNode := t.add(nil, &t.services, serviceNode, string(services[i].ID))
+		treeNode.service = &services[i]
+		t.indexGroups(treeNode, services[i].Groups, 0, &treeReadValue)
 	}
-	t.cut = r.steps.cut
+	t.cut = treeReadValue.steps.cut
 }
 
 // treeRead is one read of the tree: the group slices it is inside, and the
@@ -92,46 +92,46 @@ type treeRead struct {
 // indexGroups reads groups, held by parent at depth levels below a service,
 // with what they hold, as ForEachOperation walks them: a step per group and
 // per operation, in its order.
-func (t *serviceTree) indexGroups(parent *treeNode, groups []OperationGroup, depth int, r *treeRead) {
+func (t *serviceTree) indexGroups(parent *treeNode, groups []OperationGroup, depth int, treeReadValue *treeRead) {
 	if len(groups) == 0 {
 		return
 	}
 	if depth > MaxGroupDepth {
-		r.steps.cut = true
+		treeReadValue.steps.cut = true
 		return
 	}
-	if !r.path.enter(&groups[0], len(groups)) {
+	if !treeReadValue.path.enter(&groups[0], len(groups)) {
 		return
 	}
 	for i := range groups {
-		if !r.steps.take() {
+		if !treeReadValue.steps.take() {
 			break
 		}
-		g := t.add(parent, &parent.groups, groupNode, string(groups[i].ID))
-		g.group = &groups[i]
-		t.indexOperations(g, groups[i].Operations, r)
-		t.indexGroups(g, groups[i].Groups, depth+1, r)
+		treeNode := t.add(parent, &parent.groups, groupNode, string(groups[i].ID))
+		treeNode.group = &groups[i]
+		t.indexOperations(treeNode, groups[i].Operations, treeReadValue)
+		t.indexGroups(treeNode, groups[i].Groups, depth+1, treeReadValue)
 	}
-	r.path.leave()
+	treeReadValue.path.leave()
 }
 
-// indexOperations reads the operations of the group g, a step each.
-func (t *serviceTree) indexOperations(g *treeNode, ops []Operation, r *treeRead) {
-	for j := range ops {
-		if !r.steps.take() {
+// indexOperations reads the operations of the group treeNodeValue, a step each.
+func (t *serviceTree) indexOperations(treeNodeValue *treeNode, operations []Operation, treeReadValue *treeRead) {
+	for j := range operations {
+		if !treeReadValue.steps.take() {
 			return
 		}
-		t.add(g, &g.operations, operationNode, string(ops[j].ID)).operation = &ops[j]
+		t.add(treeNodeValue, &treeNodeValue.operations, operationNode, string(operations[j].ID)).operation = &operations[j]
 	}
 }
 
 // add records a node of class with id, held by parent in the list in.
 func (t *serviceTree) add(parent *treeNode, in *treeList, class treeClass, id string) *treeNode {
-	n := &treeNode{parent: parent, in: in}
-	in.nodes = append(in.nodes, n)
+	treeNodeValue := &treeNode{parent: parent, in: in}
+	in.nodes = append(in.nodes, treeNodeValue)
 	key := treeKey{class: class, id: id}
-	t.byID[key] = append(t.byID[key], n)
-	return n
+	t.byID[key] = append(t.byID[key], treeNodeValue)
+	return treeNodeValue
 }
 
 // find returns the node of class the edit holds at id, when it holds one, and
@@ -142,9 +142,9 @@ func (t *serviceTree) find(class treeClass, id string) (*treeNode, int) {
 		found *treeNode
 		held  int
 	)
-	for _, n := range t.byID[treeKey{class: class, id: id}] {
-		if n.held() {
-			found = n
+	for _, treeNode := range t.byID[treeKey{class: class, id: id}] {
+		if treeNode.held() {
+			found = treeNode
 			held++
 		}
 	}
@@ -153,28 +153,28 @@ func (t *serviceTree) find(class treeClass, id string) (*treeNode, int) {
 
 // held reports whether neither n nor a node holding it was removed.
 func (n *treeNode) held() bool {
-	for m := n; m != nil; m = m.parent {
-		if m.removed {
+	for treeNode := n; treeNode != nil; treeNode = treeNode.parent {
+		if treeNode.removed {
 			return false
 		}
 	}
 	return true
 }
 
-// touch records that the edit wrote n: the list holding it, and each list on
-// the path to it, no longer shows what the edit holds.
-func (t *serviceTree) touch(n *treeNode) {
-	for m := n; m != nil; m = m.parent { // no deeper than index reads, which MaxGroupDepth bounds
-		m.in.stale = true
+// touch records that the edit wrote treeNodeValue: the list holding it, and
+// each list on the path to it, no longer shows what the edit holds.
+func (t *serviceTree) touch(treeNodeValue *treeNode) {
+	for treeNode := treeNodeValue; treeNode != nil; treeNode = treeNode.parent { // no deeper than index reads, which MaxGroupDepth bounds
+		treeNode.in.stale = true
 		t.work++
 	}
 }
 
-// remove records that the edit removed n, which the next build of the list
-// holding it drops.
-func (t *serviceTree) remove(n *treeNode) {
-	n.removed = true
-	t.touch(n)
+// remove records that the edit removed treeNodeValue, which the next build of
+// the list holding it drops.
+func (t *serviceTree) remove(treeNodeValue *treeNode) {
+	treeNodeValue.removed = true
+	t.touch(treeNodeValue)
 }
 
 // settle brings out's services up to what the edit holds.
@@ -184,47 +184,48 @@ func (t *serviceTree) settle(out *Document) {
 	}
 }
 
-// serviceOf returns n's service as the edit holds it, building what is stale in
-// it first.
-func (t *serviceTree) serviceOf(n *treeNode) Service {
-	if n.groups.stale {
-		s := *n.service
-		s.Groups = built(t, &n.groups, t.groupOf)
-		n.service = &s
+// serviceOf returns treeNodeValue's service as the edit holds it, building what
+// is stale in it first.
+func (t *serviceTree) serviceOf(treeNodeValue *treeNode) Service {
+	if treeNodeValue.groups.stale {
+		service := *treeNodeValue.service
+		service.Groups = built(t, &treeNodeValue.groups, t.groupOf)
+		treeNodeValue.service = &service
 	}
-	return *n.service
+	return *treeNodeValue.service
 }
 
-// groupOf returns n's group as the edit holds it, building what is stale in it
-// first. It recurses no deeper than index read, which MaxGroupDepth bounds.
-func (t *serviceTree) groupOf(n *treeNode) OperationGroup {
-	if !n.groups.stale && !n.operations.stale {
-		return *n.group
+// groupOf returns treeNodeValue's group as the edit holds it, building what is
+// stale in it first. It recurses no deeper than index read, which MaxGroupDepth
+// bounds.
+func (t *serviceTree) groupOf(treeNodeValue *treeNode) OperationGroup {
+	if !treeNodeValue.groups.stale && !treeNodeValue.operations.stale {
+		return *treeNodeValue.group
 	}
-	g := *n.group
-	if n.groups.stale {
-		g.Groups = built(t, &n.groups, t.groupOf)
+	operationGroup := *treeNodeValue.group
+	if treeNodeValue.groups.stale {
+		operationGroup.Groups = built(t, &treeNodeValue.groups, t.groupOf)
 	}
-	if n.operations.stale {
-		g.Operations = built(t, &n.operations, func(n *treeNode) Operation { return *n.operation })
+	if treeNodeValue.operations.stale {
+		operationGroup.Operations = built(t, &treeNodeValue.operations, func(otherTreeNode *treeNode) Operation { return *otherTreeNode.operation })
 	}
-	n.group = &g
-	return g
+	treeNodeValue.group = &operationGroup
+	return operationGroup
 }
 
 // built drops from list the nodes the edit removed and returns a new slice of
 // what element reads off each one left, or nil for none, as the document
 // decodes a slice that was empty.
-func built[T any](t *serviceTree, list *treeList, element func(*treeNode) T) []T {
-	t.work += len(list.nodes)
+func built[T any](serviceTreeValue *serviceTree, list *treeList, element func(*treeNode) T) []T {
+	serviceTreeValue.work += len(list.nodes)
 	list.stale = false
-	list.nodes = slices.DeleteFunc(list.nodes, func(n *treeNode) bool { return n.removed })
+	list.nodes = slices.DeleteFunc(list.nodes, func(treeNodeValue *treeNode) bool { return treeNodeValue.removed })
 	if len(list.nodes) == 0 {
 		return nil
 	}
-	elems := make([]T, len(list.nodes))
-	for i, n := range list.nodes {
-		elems[i] = element(n)
+	elements := make([]T, len(list.nodes))
+	for i, treeNode := range list.nodes {
+		elements[i] = element(treeNode)
 	}
-	return elems
+	return elements
 }

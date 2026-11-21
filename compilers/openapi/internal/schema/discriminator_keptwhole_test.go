@@ -24,13 +24,13 @@ func TestDiscriminator_KeptWholeOnce(t *testing.T) {
 	require.NoError(t, err)
 	doc, _ := parseFull(t, string(src))
 
-	node := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	node := doc.Types[ir.TypeID("type/openapi/components/schemas/S")]
 	require.NotNil(t, node)
 	kept := node.Common().Unmodeled
 	assert.Contains(t, kept, "openapi:discriminator")
 	assert.NotContains(t, kept, "openapi:discriminator/x-tag", "the extension is inside the whole entry")
 
-	holder, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Holder")].(*ir.Model)
+	holder, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/Holder")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, holder.Properties, 1)
 	assert.Contains(t, holder.Properties[0].Unmodeled, "openapi:xml/x-tag")

@@ -17,36 +17,36 @@ import (
 func (c *Census) Report() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "documents %d\nno-document %d\ntruncated %d\n", c.documents, c.noDocument, c.truncated)
-	for _, f := range c.universe.facts {
-		t := c.members[f.name]
-		fmt.Fprintf(&b, "member %d %d %s\n", t.docs, t.instances, f.name)
-		if f.emptiable {
-			t := c.empties[f.name]
-			fmt.Fprintf(&b, "empty %d %d %s\n", t.docs, t.instances, f.name)
+	for _, memberFact := range c.universe.facts {
+		tally := c.members[memberFact.name]
+		fmt.Fprintf(&b, "member %d %d %s\n", tally.docs, tally.instances, memberFact.name)
+		if memberFact.emptiable {
+			tallyValue := c.empties[memberFact.name]
+			fmt.Fprintf(&b, "empty %d %d %s\n", tallyValue.docs, tallyValue.instances, memberFact.name)
 		}
 	}
-	for _, e := range c.universe.all {
-		c.writeValues(&b, e)
+	for _, enumeration := range c.universe.all {
+		c.writeValues(&b, enumeration)
 	}
 	return b.String()
 }
 
-// writeValues writes the value lines of the enumeration e: every value it
-// declares and every other value a document held.
-func (c *Census) writeValues(b *strings.Builder, e *enumeration) {
-	values := maps.Clone(e.declared)
-	for k, v := range c.undeclared {
-		if k.enum == e.name {
-			values[k.spelling] = v
+// writeValues writes the value lines of the enumeration enumerationValue: every
+// value it declares and every other value a document held.
+func (c *Census) writeValues(b *strings.Builder, enumerationValue *enumeration) {
+	values := maps.Clone(enumerationValue.declared)
+	for valueKey, v := range c.undeclared {
+		if valueKey.enum == enumerationValue.name {
+			values[valueKey.spelling] = v
 		}
 	}
 	byValue := func(x, y string) int { return compareValues(values[x], values[y]) }
 	for _, s := range slices.SortedFunc(maps.Keys(values), byValue) {
-		t := c.values[valueKey{enum: e.name, spelling: s}]
+		tally := c.values[valueKey{enum: enumerationValue.name, spelling: s}]
 		note := ""
-		if _, isDeclared := e.declared[s]; !isDeclared {
+		if _, isDeclared := enumerationValue.declared[s]; !isDeclared {
 			note = " undeclared"
 		}
-		fmt.Fprintf(b, "value %d %d %s %s%s\n", t.docs, t.instances, e.name, s, note)
+		fmt.Fprintf(b, "value %d %d %s %s%s\n", tally.docs, tally.instances, enumerationValue.name, s, note)
 	}
 }

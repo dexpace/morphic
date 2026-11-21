@@ -32,9 +32,9 @@ func composedDoc(t *testing.T, schemas string) (*ir.Document, []ir.Diagnostic) {
 // diagsUnder returns the diagnostics of diags at or beneath prefix.
 func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if strings.HasPrefix(string(d.Provenance.Pointer), prefix) {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if strings.HasPrefix(string(diagnostic.Provenance.Pointer), prefix) {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -50,23 +50,23 @@ func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *tes
 	t.Parallel()
 	const parts = "    A: {type: object, properties: {p: {type: string}}}\n" +
 		"    B: {type: object, properties: {p: {type: integer}}}\n"
-	const id = "p/composed/components/schemas/AB/allOf/properties/p"
+	const id = "property/composed/components/schemas/AB/allOf/properties/p"
 	for entries, tc := range map[string]struct {
 		later ir.TypeID
 		lost  string
 	}{
-		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"t/prim/integer", "/components/schemas/A/properties/p"},
-		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"t/prim/string", "/components/schemas/B/properties/p"},
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"type/primitive/integer", "/components/schemas/A/properties/p"},
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"type/primitive/string", "/components/schemas/B/properties/p"},
 	} {
 		doc, diags := composedDoc(t, parts+"    AB: {allOf: "+entries+"}\n")
 
-		p := propertyOf(t, doc, "AB", "p")
-		assert.Equal(t, ir.PropID(id), p.ID, entries)
-		assert.Equal(t, tc.later, p.Type.Target, "the entry written later: %s", entries)
-		assert.Empty(t, p.Unmodeled, "the declaration that lost stays on its model: %s", entries)
+		property := propertyOf(t, doc, "AB", "p")
+		assert.Equal(t, ir.PropertyID(id), property.ID, entries)
+		assert.Equal(t, tc.later, property.Type.Target, "the entry written later: %s", entries)
+		assert.Empty(t, property.Unmodeled, "the declaration that lost stays on its model: %s", entries)
 		flat := ir.FlattenedProperties(doc.Types, componentID("AB"))
 		require.Len(t, flat.Properties, 1)
-		assert.Equal(t, p.ID, flat.Properties[0].Property.ID, "the flattening takes the composition's own")
+		assert.Equal(t, property.ID, flat.Properties[0].Property.ID, "the flattening takes the composition's own")
 		require.Len(t, diags, 1, "%+v", diags)
 		found := diagsAtPointer(diags, diag.ConflictingRedecl, tc.lost)
 		require.Len(t, found, 1, entries)
@@ -102,15 +102,15 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 
 			byRef, written := propertyOf(t, doc, "Ref", "id"), propertyOf(t, doc, "Inline", "id")
 			mineAt := map[bool]string{true: "1", false: "0"}[refFirst]
-			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Ref/allOf/"+mineAt+"/properties/id"), byRef.ID, name)
+			assert.Equal(t, ir.PropertyID("property/openapi/components/schemas/Ref/allOf/"+mineAt+"/properties/id"), byRef.ID, name)
 			assert.Equal(t, ids.Ptr("components", "schemas", "Ref", "allOf", mineAt, "properties", "id"),
 				byRef.Provenance.Pointer, name)
 			assert.Equal(t, written.Type, byRef.Type, name)
 			assert.Equal(t, written.Docs, byRef.Docs, name)
 			assert.Equal(t, written.Constraints, byRef.Constraints, name)
 			atRef := 0
-			for _, d := range diags {
-				if d.Provenance.Node == string(byRef.ID) {
+			for _, diagnostic := range diags {
+				if diagnostic.Provenance.Node == string(byRef.ID) {
 					atRef++
 				}
 			}
@@ -134,8 +134,8 @@ func TestMembers_ATieAnEntrySettledIsNotCountedAgain(t *testing.T) {
 		"    Inline: {allOf: ["+holding("string")+", "+part+"]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "Ref", "p").Type.Target)
-	assert.Equal(t, ir.TypeID("t/prim/string"), propertyOf(t, doc, "Inline", "p").Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), propertyOf(t, doc, "Ref", "p").Type.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), propertyOf(t, doc, "Inline", "p").Type.Target)
 	for _, model := range []string{"Ref", "Inline"} {
 		at := diagsUnder(diags, "/components/schemas/"+model+"/")
 		require.Len(t, at, 1, model)
@@ -345,8 +345,8 @@ func TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt(t *testing.T)
 	require.True(t, isModel, "two inline objects compose")
 	assert.Nil(t, composed.Base, "no $ref names either object")
 	assert.Equal(t, []ir.TypeRef{
-		{Target: "t/anon/components/schemas/S1/allOf/1/properties/a"},
-		{Target: "t/anon/components/schemas/S2/properties/a"},
+		{Target: "type/anonymous/components/schemas/S1/allOf/1/properties/a"},
+		{Target: "type/anonymous/components/schemas/S2/properties/a"},
 	}, composed.Mixins)
 }
 
@@ -383,16 +383,16 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
 	assert.True(t, propertyOf(t, doc, "Required", "kind").Required)
 	assert.Empty(t, required.Requires)
 
-	for name, want := range map[string]ir.PropID{
-		"Tagged":  "p/openapi/components/schemas/Tagged/properties/kind",
-		"Shared":  "p/composed/components/schemas/Shared/allOf/properties/kind",
-		"Brought": "p/composed/components/schemas/Brought/allOf/properties/kind",
+	for name, want := range map[string]ir.PropertyID{
+		"Tagged":  "property/openapi/components/schemas/Tagged/properties/kind",
+		"Shared":  "property/composed/components/schemas/Shared/allOf/properties/kind",
+		"Brought": "property/composed/components/schemas/Brought/allOf/properties/kind",
 	} {
 		tagged, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, name)
 		kind := propertyOf(t, doc, name, "kind")
 		assert.Equal(t, want, kind.ID, name)
-		assert.Equal(t, ir.TypeID("t/prim/string"), kind.Type.Target, name)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), kind.Type.Target, name)
 		assert.Equal(t, new(int64(9)), kind.Constraints.MaxLength, "%s: B's bound", name)
 		require.NotNil(t, tagged.Discriminator, name)
 		assert.Equal(t, kind.ID, tagged.Discriminator.Property, name)
@@ -416,7 +416,7 @@ func TestMembers_AModelIsSettledAfterWhatItComposes(t *testing.T) {
 		found := diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/Base/properties/id")
 		require.Len(t, found, 2, "%+v", diags)
 		for i, model := range []string{"Aliased", "Top"} {
-			assert.Contains(t, found[i].Message, "t/prim/integer", model)
+			assert.Contains(t, found[i].Message, "type/primitive/integer", model)
 			assert.Contains(t, found[i].Message, "kept what the declaration at /components/schemas/"+model+"/allOf/1/properties/id", model)
 		}
 	}
@@ -451,14 +451,14 @@ func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
 		later ir.TypeID
 		lost  string
 	}{
-		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"t/prim/integer", "/components/schemas/A1/properties/r"},
-		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"t/prim/string", "/components/schemas/B1/properties/r"},
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"type/primitive/integer", "/components/schemas/A1/properties/r"},
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"type/primitive/string", "/components/schemas/B1/properties/r"},
 	} {
 		doc, diags := composedDoc(t, parts+"    M: {allOf: "+entries+"}\n")
 
-		q := propertyOf(t, doc, "M", "q")
-		composed, ok := doc.Types[q.Type.Target].(*ir.Model)
-		require.True(t, ok, "got %T", doc.Types[q.Type.Target])
+		property := propertyOf(t, doc, "M", "q")
+		composed, ok := doc.Types[property.Type.Target].(*ir.Model)
+		require.True(t, ok, "got %T", doc.Types[property.Type.Target])
 		require.Len(t, composed.Properties, 1, "its own r")
 		assert.Equal(t, tc.later, composed.Properties[0].Type.Target, entries)
 		assert.Len(t, diagsAtPointer(diags, diag.ConflictingRedecl, tc.lost), 1, "%s: %+v", entries, diags)
@@ -508,7 +508,7 @@ func TestMembers_AModelSettlesOnceHoweverManyRoundsReachIt(t *testing.T) {
 	composed, isModel := doc.Types[propertyOf(t, doc, "M", "q").Type.Target].(*ir.Model)
 	require.True(t, isModel, "the fold composes A1 and B1")
 	require.Len(t, composed.Properties, 1, "settled in the round after")
-	first, isModel := doc.Types["t/openapi/components/schemas/A1"].(*ir.Model)
+	first, isModel := doc.Types["type/openapi/components/schemas/A1"].(*ir.Model)
 	require.True(t, isModel)
 	assert.Len(t, first.Properties, 1, "its member only entries declare, once")
 }
@@ -536,8 +536,8 @@ func TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed(t *testing
 		}
 		doc, _ := composedDoc(t, spec.String())
 		for level := range levels {
-			x := propertyOf(t, doc, name(level), "x")
-			assert.Equal(t, ir.TypeID("t/prim/integer"), x.Type.Target, "level %d, derived first %v", level, derivedFirst)
+			property := propertyOf(t, doc, name(level), "x")
+			assert.Equal(t, ir.TypeID("type/primitive/integer"), property.Type.Target, "level %d, derived first %v", level, derivedFirst)
 		}
 	}
 }
@@ -596,15 +596,15 @@ func TestMembers_AModelTheMergeComposesNamesItsMembersApart(t *testing.T) {
 	} {
 		doc, _ := composedDoc(t, tc.schemas)
 
-		for space, id := range map[string]ir.PropID{
-			"anon":     ir.PropID("p/composed/" + tc.at + "/allOf/properties/y"),
-			"composed": ir.PropID("p/composed/" + tc.at + "/allOf/allOf/properties/y"),
+		for space, id := range map[string]ir.PropertyID{
+			"anonymous": ir.PropertyID("property/composed/" + tc.at + "/allOf/properties/y"),
+			"composed":  ir.PropertyID("property/composed/" + tc.at + "/allOf/allOf/properties/y"),
 		} {
-			m, ok := doc.Types[ir.TypeID("t/"+space+"/"+tc.at)].(*ir.Model)
+			model, ok := doc.Types[ir.TypeID("type/"+space+"/"+tc.at)].(*ir.Model)
 			require.True(t, ok, "%s: the %s model", name, space)
-			y, ok := openapitest.PropsByWire(m.Properties)["y"]
+			property, ok := openapitest.PropertiesByWire(model.Properties)["y"]
 			require.True(t, ok, "%s: the %s model settles y", name, space)
-			assert.Equal(t, id, y.ID, "%s: the %s model", name, space)
+			assert.Equal(t, id, property.ID, "%s: the %s model", name, space)
 		}
 	}
 }

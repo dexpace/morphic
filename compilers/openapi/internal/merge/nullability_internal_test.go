@@ -19,7 +19,7 @@ import (
 func TestIntersectNull_TheMarkerFollowsTheBit(t *testing.T) {
 	t.Parallel()
 	ref := func(nullable bool, inferred ir.Inferred) ir.TypeRef {
-		return ir.TypeRef{Target: "t/str", Nullable: nullable, Inferred: inferred}
+		return ir.TypeRef{Target: "type/str", Nullable: nullable, Inferred: inferred}
 	}
 	cases := []struct {
 		name           string

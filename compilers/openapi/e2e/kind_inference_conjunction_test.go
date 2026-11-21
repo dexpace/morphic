@@ -52,17 +52,17 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 	case conjunctionPositions[1]:
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok)
-		p, ok := propByWire(holder, "p")
+		property, ok := propertyByWire(holder, "p")
 		require.True(t, ok)
-		id = p.Type.Target
+		id = property.Type.Target
 	case conjunctionPositions[2]:
 		list, ok := kindNode(t, doc, componentID("Els")).(*ir.List)
 		require.True(t, ok)
-		id = list.Elem.Target
+		id = list.ElementType.Target
 	default:
-		op := operationAt(t, doc, "GET", "/x")
-		require.Len(t, op.Params, 1)
-		id = op.Params[0].Type.Target
+		operation := operationAt(t, doc, "GET", "/x")
+		require.Len(t, operation.Params, 1)
+		id = operation.Params[0].Type.Target
 	}
 	for range 4 {
 		alias, ok := doc.Types[id].(*ir.Scalar)
@@ -79,9 +79,9 @@ func usedAt(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir.TypeID {
 func keptUnder(doc *ir.Document, at jsontext.Pointer) map[jsontext.Pointer]ir.UnmodeledReason {
 	out := map[jsontext.Pointer]ir.UnmodeledReason{}
 	for _, site := range unmodeledSites(doc) {
-		p := site.entry.Provenance.Pointer
-		if p == at || strings.HasPrefix(string(p), string(at)+"/") {
-			out[p] = site.entry.Reason
+		pointer := site.entry.Provenance.Pointer
+		if pointer == at || strings.HasPrefix(string(pointer), string(at)+"/") {
+			out[pointer] = site.entry.Reason
 		}
 	}
 	return out
@@ -90,8 +90,8 @@ func keptUnder(doc *ir.Document, at jsontext.Pointer) map[jsontext.Pointer]ir.Un
 // degradedUnder lists, sorted, the pointers at or under at that an info
 // openapi/degraded-construct is drawn at, once per info.
 func degradedUnder(diags []ir.Diagnostic, at jsontext.Pointer) []jsontext.Pointer {
-	return slices.DeleteFunc(degradedInfoPointers(diags), func(p jsontext.Pointer) bool {
-		return p != at && !strings.HasPrefix(string(p), string(at)+"/")
+	return slices.DeleteFunc(degradedInfoPointers(diags), func(pointer jsontext.Pointer) bool {
+		return pointer != at && !strings.HasPrefix(string(pointer), string(at)+"/")
 	})
 }
 
@@ -161,7 +161,7 @@ func TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim(t *test
 						assert.Empty(t, markedNodes(doc), tc.name)
 						for _, at := range conjunctionPositions {
 							entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", tc.entry))
-							assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "%s at %s", tc.name, at)
+							assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry + "/items": ir.ReasonDegradedLowering},
 								keptUnder(doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "%s at %s", tc.name, at)
@@ -249,7 +249,7 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 		}
 		for _, at := range conjunctionPositions {
 			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", refAt))
-			assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "off=%t at %s", off, at)
+			assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
 				keptUnder(doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "off=%t at %s", off, at)
@@ -323,16 +323,17 @@ func missingItemsOf(version string, kept bool, entries []string, typed string) [
 		slices.Index(entries, typed))}}
 }
 
-// assertMinItems holds c to a minItems of want, and to none where want is 0.
-func assertMinItems(t *testing.T, c *ir.Constraints, want int) {
+// assertMinItems holds constraints to a minItems of want, and to none where
+// want is 0.
+func assertMinItems(t *testing.T, constraints *ir.Constraints, want int) {
 	t.Helper()
 	if want == 0 {
-		assert.True(t, c == nil || c.MinItems == nil, "no minItems")
+		assert.True(t, constraints == nil || constraints.MinItems == nil, "no minItems")
 		return
 	}
-	require.NotNil(t, c)
-	require.NotNil(t, c.MinItems)
-	assert.Equal(t, int64(want), *c.MinItems)
+	require.NotNil(t, constraints)
+	require.NotNil(t, constraints.MinItems)
+	assert.Equal(t, int64(want), *constraints.MinItems)
 }
 
 // TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind holds
@@ -390,7 +391,7 @@ func TestKindInference_AnEntryReadAloneIsItsOwnPosition(t *testing.T) {
 		"Out: {$ref: '#/components/schemas/Pos/allOf/1'}",
 		"Pos: " + declaredBesideClaim[0].schema,
 	}
-	entryID := ir.TypeID("t/anon/components/schemas/Pos/allOf/1")
+	entryID := ir.TypeID("type/anonymous/components/schemas/Pos/allOf/1")
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
@@ -403,7 +404,7 @@ func TestKindInference_AnEntryReadAloneIsItsOwnPosition(t *testing.T) {
 					require.True(t, ok)
 					require.NotNil(t, out.Base)
 					assert.Equal(t, entryID, out.Base.Target, "off=%t", off)
-					assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
+					assert.Equal(t, primitive(ir.PrimitiveString), usedAt(t, doc, conjunctionPositions[0]), "off=%t", off)
 					assert.Equal(t, !off, entry.Kind() == ir.KindList, "off=%t: %s", off, entry.Kind())
 					assert.Equal(t, !off, markedKindInference(entry), "off=%t", off)
 				}
@@ -431,11 +432,11 @@ func TestKindInference_AFormBodyKeysNoPartItsModelLacks(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, off := range []bool{false, true} {
 			doc, _ := compileKindInference(t, "form", admissionSpec(version, body), off)
-			held := map[ir.PropID]bool{}
+			held := map[ir.PropertyID]bool{}
 			for _, td := range doc.Types {
-				if m, ok := td.(*ir.Model); ok {
-					for _, p := range m.Properties {
-						held[p.ID] = true
+				if model, ok := td.(*ir.Model); ok {
+					for _, property := range model.Properties {
+						held[property.ID] = true
 					}
 				}
 			}
@@ -506,10 +507,10 @@ func TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo(t *testing.T) {
 				for _, off := range []bool{false, true} {
 					doc, diags := compileKindInference(t, "says", admissionSpec(version, "", schemas...), off)
 					requireErrorsAndWarnings(t, diags, nil)
-					for name, w := range want[off] {
+					for name, outcome := range want[off] {
 						td := kindNode(t, doc, componentID(name))
-						assert.Equal(t, w.kind, td.Kind(), "%s off=%t", name, off)
-						assert.Equal(t, w.kept, keptOn(td), "%s off=%t", name, off)
+						assert.Equal(t, outcome.kind, td.Kind(), "%s off=%t", name, off)
+						assert.Equal(t, outcome.kept, keptOn(td), "%s off=%t", name, off)
 					}
 				}
 			})

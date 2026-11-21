@@ -50,17 +50,17 @@ const maxCachedPairs = 1 << 21
 // DocumentRoot returns the effective root node to scan: the content of a
 // document node, or the node itself otherwise. It returns nil for an empty
 // document.
-func DocumentRoot(n *yaml.Node) *yaml.Node {
-	if n == nil {
+func DocumentRoot(node *yaml.Node) *yaml.Node {
+	if node == nil {
 		return nil
 	}
-	if n.Kind == yaml.DocumentNode {
-		if len(n.Content) == 0 {
+	if node.Kind == yaml.DocumentNode {
+		if len(node.Content) == 0 {
 			return nil
 		}
-		return n.Content[0]
+		return node.Content[0]
 	}
-	return n
+	return node
 }
 
 // Pair is one effective key/value pair of a mapping node, after alias and
@@ -97,12 +97,12 @@ type View struct {
 // bound must not be allowed to hide.
 func (v *View) Exhausted() bool { return v.exhausted }
 
-// Expanded reports whether n's pairs are all its `<<` merges supply, read as a
-// pointer walk reads them: false for a mapping whose merges run past
+// Expanded reports whether node's pairs are all its `<<` merges supply, read as
+// a pointer walk reads them: false for a mapping whose merges run past
 // MergeDepthLimit, where a key it lacks may lie past the bound. A node that is
 // no mapping has nothing to expand.
-func (v *View) Expanded(n *yaml.Node) bool {
-	return v.expand(Deref(n), 0).complete
+func (v *View) Expanded(node *yaml.Node) bool {
+	return v.expand(Deref(node), 0).complete
 }
 
 // New returns an empty view; a view must not outlive the node tree whose
@@ -155,14 +155,14 @@ func (e expansion) asSource() []Pair {
 // the mapping writes itself, then its own, a key written twice at its last
 // copy.
 //
-// n is dereferenced, so an alias standing in for a whole mapping can be passed
-// directly; a non-mapping node (including nil) yields no pairs. The returned
-// slice is the view's own memo — callers must treat it as read-only.
-func (v *View) MappingPairs(n *yaml.Node) []Pair {
-	return v.expand(Deref(n), 0).pairs
+// node is dereferenced, so an alias standing in for a whole mapping can be
+// passed directly; a non-mapping node (including nil) yields no pairs. The
+// returned slice is the view's own memo — callers must treat it as read-only.
+func (v *View) MappingPairs(node *yaml.Node) []Pair {
+	return v.expand(Deref(node), 0).pairs
 }
 
-// expand returns n's expansion, incomplete if a merge cycle was broken or
+// expand returns node's expansion, incomplete if a merge cycle was broken or
 // MergeDepthLimit was reached. Only a complete expansion is memoized: caching
 // an incomplete one could make one traversal order lose a $ref another would
 // find. serves decides which reads a memoized entry may answer.
@@ -171,18 +171,18 @@ func (v *View) MappingPairs(n *yaml.Node) []Pair {
 // since truncation only drops pairs and never invents an edge. Letting one
 // over-deep chain disable the view would let a document disable every reader
 // by opening with one; the exhausted flag records it instead (Exhausted).
-func (v *View) expand(n *yaml.Node, depth int) expansion {
-	if n == nil || n.Kind != yaml.MappingNode {
+func (v *View) expand(node *yaml.Node, depth int) expansion {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return expansion{complete: true}
 	}
-	if cached, ok := v.pairs[n]; ok && v.serves(cached, depth) {
+	if cached, ok := v.pairs[node]; ok && v.serves(cached, depth) {
 		return cached
 	}
 	// A merge cycle needs no bound of its own: it requires an alias to an
 	// ancestor, which the alias pre-scan refuses before a compile's views read
 	// the tree. Detection reads the root before that scan, and inFlight closes
 	// a cycle there having read every mapping on it.
-	if v.inFlight[n] {
+	if v.inFlight[node] {
 		return expansion{}
 	}
 	if depth > MergeDepthLimit {
@@ -190,17 +190,17 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 		return expansion{}
 	}
 
-	v.inFlight[n] = true
-	e := v.expandContent(n, depth)
-	delete(v.inFlight, n)
+	v.inFlight[node] = true
+	expansionValue := v.expandContent(node, depth)
+	delete(v.inFlight, node)
 
 	// An incomplete result is memoized at an entry point too: nothing is in
-	// flight, so it depends on n alone, and a truncated chain is not
+	// flight, so it depends on node alone, and a truncated chain is not
 	// re-expanded once per node that references it.
-	if e.complete || v.isEntryPoint(depth) {
-		v.memoize(n, e)
+	if expansionValue.complete || v.isEntryPoint(depth) {
+		v.memoize(node, expansionValue)
 	}
-	return e
+	return expansionValue
 }
 
 // serves reports whether a memoized expansion is the answer a fresh view would
@@ -212,11 +212,11 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 // truncate, and the memo must not hide the truncation. An incomplete entry was
 // kept only because it was an entry point, and an entry point is the one read
 // it can stand in for.
-func (v *View) serves(e expansion, depth int) bool {
-	if !e.complete {
+func (v *View) serves(expansionValue expansion, depth int) bool {
+	if !expansionValue.complete {
 		return v.isEntryPoint(depth)
 	}
-	return depth+e.height <= MergeDepthLimit
+	return depth+expansionValue.height <= MergeDepthLimit
 }
 
 // isEntryPoint reports whether an expansion that just finished at this depth was
@@ -232,15 +232,15 @@ func (v *View) isEntryPoint(depth int) bool {
 // makes the budget a memory bound the scan can enforce without touching what
 // it reports. An expansion declined spends nothing, so a smaller one may still
 // fit after it.
-func (v *View) memoize(n *yaml.Node, e expansion) {
-	held := len(e.pairs)
-	if e.repeated != nil {
-		held += len(e.repeated.merged)
+func (v *View) memoize(node *yaml.Node, expansionValue expansion) {
+	held := len(expansionValue.pairs)
+	if expansionValue.repeated != nil {
+		held += len(expansionValue.repeated.merged)
 	}
 	if !v.cached.Remaining().Admits(held) {
 		return
 	}
-	v.pairs[n] = e
+	v.pairs[node] = expansionValue
 	v.cached.Spend(held)
 }
 
@@ -250,12 +250,12 @@ func (v *View) memoize(n *yaml.Node, e expansion) {
 //
 // The height it records is one more than the tallest merge source's, so a
 // mapping that merges nothing has height 0.
-func (v *View) expandContent(n *yaml.Node, depth int) expansion {
+func (v *View) expandContent(node *yaml.Node, depth int) expansion {
 	var explicit, merged []Pair
-	e := expansion{complete: true}
+	expansionValue := expansion{complete: true}
 
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		raw, val := n.Content[i], Deref(n.Content[i+1])
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		raw, val := node.Content[i], Deref(node.Content[i+1])
 		// The library's own predicate, so the view and the unmarshaller cannot
 		// disagree about which key merges. It is handed the key unresolved, as the
 		// library hands it: an alias standing in for `<<` is an ordinary key. Every
@@ -263,8 +263,8 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 		if IsMergeKey(raw) {
 			got := v.mergeSource(val, depth+1)
 			merged = append(merged, got.pairs...)
-			e.complete = e.complete && got.complete
-			e.height = max(e.height, got.height+1)
+			expansionValue.complete = expansionValue.complete && got.complete
+			expansionValue.height = max(expansionValue.height, got.height+1)
 			continue
 		}
 		key, own := KeyOf(raw)
@@ -278,15 +278,15 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 	if !repeats && len(merged) == 0 {
 		// Most mappings merge nothing and write each key once: their own pairs
 		// are already the answer, in order, and nothing else is allocated.
-		e.pairs = explicit
-		return e
+		expansionValue.pairs = explicit
+		return expansionValue
 	}
 	var asSource []Pair
-	e.pairs, asSource = flatten(explicit, merged)
+	expansionValue.pairs, asSource = flatten(explicit, merged)
 	if repeats {
-		e.repeated = &repeated{merged: asSource}
+		expansionValue.repeated = &repeated{merged: asSource}
 	}
-	return e
+	return expansionValue
 }
 
 // smallKeys is the width below which a mapping's keys are compared pair by
@@ -298,8 +298,8 @@ const smallKeys = 16
 func writesTwice(own []Pair) bool {
 	if len(own) <= smallKeys {
 		for i := 1; i < len(own); i++ {
-			for _, p := range own[:i] {
-				if p.Key == own[i].Key {
+			for _, pair := range own[:i] {
+				if pair.Key == own[i].Key {
 					return true
 				}
 			}
@@ -307,11 +307,11 @@ func writesTwice(own []Pair) bool {
 		return false
 	}
 	seen := make(map[string]bool, len(own))
-	for _, p := range own {
-		if seen[p.Key] {
+	for _, pair := range own {
+		if seen[pair.Key] {
 			return true
 		}
-		seen[p.Key] = true
+		seen[pair.Key] = true
 	}
 	return false
 }
@@ -325,17 +325,17 @@ func writesTwice(own []Pair) bool {
 // is written twice.
 func flatten(explicit, merged []Pair) (own, asSource []Pair) {
 	written := make(map[string]int, len(explicit))
-	for _, p := range explicit {
-		written[p.Key]++
+	for _, pair := range explicit {
+		written[pair.Key]++
 	}
 	base := make([]Pair, 0, len(merged))
 	taken := make(map[string]bool, len(merged))
-	for _, p := range merged {
-		if written[p.Key] > 0 || taken[p.Key] {
+	for _, pair := range merged {
+		if written[pair.Key] > 0 || taken[pair.Key] {
 			continue
 		}
-		taken[p.Key] = true
-		base = append(base, p)
+		taken[pair.Key] = true
+		base = append(base, pair)
 	}
 	own = slices.Concat(base, keepCopy(explicit, written, lastCopy))
 	if len(written) == len(explicit) {
@@ -357,10 +357,10 @@ const (
 func keepCopy(pairs []Pair, written map[string]int, rule copyRule) []Pair {
 	seen := make(map[string]int, len(written))
 	out := make([]Pair, 0, len(written))
-	for _, p := range pairs {
-		seen[p.Key]++
-		if rule == firstCopy && seen[p.Key] == 1 || rule == lastCopy && seen[p.Key] == written[p.Key] {
-			out = append(out, p)
+	for _, pair := range pairs {
+		seen[pair.Key]++
+		if rule == firstCopy && seen[pair.Key] == 1 || rule == lastCopy && seen[pair.Key] == written[pair.Key] {
+			out = append(out, pair)
 		}
 	}
 	return out
@@ -376,13 +376,13 @@ func IsMergeKey(raw *yaml.Node) bool {
 }
 
 // KeyOf returns the key the parser gives the mapping pair whose raw key node is
-// raw, and whether the pair is one of the mapping's own: a `<<` merge key
-// names none, and nor does a key that is no scalar once its alias is followed,
-// which the parser reads as the empty string
-// (docs/parser-library.md#non-scalar-key). Such an entry is left out by every
-// reader, since "" would be one pointer for every such key of a mapping, and
-// oas.CheckFormat reports it. The view and every reader of a mapping's raw
-// pairs ask KeyOf, so none can disagree about a pair's key.
+// raw, and whether the pair is one of the mapping's own: a `<<` merge key names
+// none, and nor does a key that is no scalar once its alias is followed, which
+// the parser reads as the empty string (docs/parser-library.md#non-scalar-key).
+// Such an entry is left out by every reader, since "" would be one pointer for
+// every such key of a mapping, and specrules.CheckFormat reports it. The view
+// and every reader of a mapping's raw pairs ask KeyOf, so none can disagree
+// about a pair's key.
 func KeyOf(raw *yaml.Node) (string, bool) {
 	if raw == nil || IsMergeKey(raw) {
 		return "", false
@@ -401,17 +401,17 @@ func KeyOf(raw *yaml.Node) (string, bool) {
 // RepeatedKeys returns the keys a mapping writes more than once, each once, in
 // the order their second copies appear. A key an explicit pair shares with a
 // `<<` merge is the merge's precedence rule at work, not a repeat, so merged
-// pairs are not counted. n is dereferenced; a node that is no mapping repeats
-// nothing.
-func RepeatedKeys(n *yaml.Node) []string {
-	n = Deref(n)
-	if n == nil || n.Kind != yaml.MappingNode {
+// pairs are not counted. node is dereferenced; a node that is no mapping
+// repeats nothing.
+func RepeatedKeys(node *yaml.Node) []string {
+	node = Deref(node)
+	if node == nil || node.Kind != yaml.MappingNode {
 		return nil
 	}
-	copies := make(map[string]int, len(n.Content)/2)
+	copies := make(map[string]int, len(node.Content)/2)
 	var out []string
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, own := KeyOf(n.Content[i])
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key, own := KeyOf(node.Content[i])
 		if !own {
 			continue
 		}
@@ -426,7 +426,7 @@ func RepeatedKeys(n *yaml.Node) []string {
 // order flatten settles them: a mapping is a single merge source, and a
 // sequence is several, its mapping elements in order. Anything else merges
 // nothing, as for the library (docs/parser-library.md#merge-keys), and
-// oas.CheckFormat reports it.
+// specrules.CheckFormat reports it.
 //
 // The height of a sequence is its tallest element's: the elements are
 // alternatives at one level, not links in a chain.
@@ -435,26 +435,26 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 		got := v.expand(val, depth)
 		return expansion{pairs: got.asSource(), height: got.height, complete: got.complete}
 	}
-	e := expansion{complete: true}
+	expansionValue := expansion{complete: true}
 	for _, item := range val.Content {
 		got := v.expand(Deref(item), depth)
-		e.pairs = append(e.pairs, got.asSource()...)
-		e.complete = e.complete && got.complete
-		e.height = max(e.height, got.height)
+		expansionValue.pairs = append(expansionValue.pairs, got.asSource()...)
+		expansionValue.complete = expansionValue.complete && got.complete
+		expansionValue.height = max(expansionValue.height, got.height)
 	}
-	return e
+	return expansionValue
 }
 
 // MergeSources returns what the `<<` value val names: each element of a list
 // written or aliased there, its alias followed, or val itself. It reads one
 // level, as a merge does, so its work is the list's length.
 func MergeSources(val *yaml.Node) []*yaml.Node {
-	v := Deref(val)
-	if v == nil || v.Kind != yaml.SequenceNode {
+	node := Deref(val)
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return []*yaml.Node{val}
 	}
-	out := make([]*yaml.Node, len(v.Content))
-	for i, item := range v.Content {
+	out := make([]*yaml.Node, len(node.Content))
+	for i, item := range node.Content {
 		out[i] = Deref(item)
 	}
 	return out
@@ -463,39 +463,39 @@ func MergeSources(val *yaml.Node) []*yaml.Node {
 // NotMapping reports whether src, followed through its alias, is no mapping,
 // so a `<<` naming it merges nothing (docs/parser-library.md#merge-keys).
 func NotMapping(src *yaml.Node) bool {
-	s := Deref(src)
-	return s == nil || s.Kind != yaml.MappingNode
+	node := Deref(src)
+	return node == nil || node.Kind != yaml.MappingNode
 }
 
-// MergesNothing reports whether a `<<` of the mapping n, or of a mapping a `<<`
-// merges in at any depth, names something that is no mapping, which merges
-// nothing (docs/parser-library.md#merge-keys). n is dereferenced, and a node
+// MergesNothing reports whether a `<<` of the mapping node, or of a mapping a
+// `<<` merges in at any depth, names something that is no mapping, which merges
+// nothing (docs/parser-library.md#merge-keys). node is dereferenced, and a node
 // that is no mapping writes no `<<`.
 //
 // It reads the merges to their end, as the parser does, where View stops at
 // MergeDepthLimit: a mapping the chain shows no fault in is one the parser reads
 // whole. Each mapping is read once, however many aliases reach it, so the work
 // is bounded by the tree rather than by the paths through it.
-func MergesNothing(n *yaml.Node) bool {
-	n = Deref(n)
-	if n == nil || n.Kind != yaml.MappingNode {
+func MergesNothing(node *yaml.Node) bool {
+	node = Deref(node)
+	if node == nil || node.Kind != yaml.MappingNode {
 		return false
 	}
-	seen := map[*yaml.Node]bool{n: true}
-	for todo := []*yaml.Node{n}; len(todo) > 0; {
-		m := todo[len(todo)-1]
+	seen := map[*yaml.Node]bool{node: true}
+	for todo := []*yaml.Node{node}; len(todo) > 0; {
+		current := todo[len(todo)-1]
 		todo = todo[:len(todo)-1]
-		for i := 0; i+1 < len(m.Content); i += 2 {
-			if !IsMergeKey(m.Content[i]) {
+		for i := 0; i+1 < len(current.Content); i += 2 {
+			if !IsMergeKey(current.Content[i]) {
 				continue
 			}
-			for _, src := range MergeSources(m.Content[i+1]) {
+			for _, src := range MergeSources(current.Content[i+1]) {
 				if NotMapping(src) {
 					return true
 				}
-				if s := Deref(src); !seen[s] {
-					seen[s] = true
-					todo = append(todo, s)
+				if otherNode := Deref(src); !seen[otherNode] {
+					seen[otherNode] = true
+					todo = append(todo, otherNode)
 				}
 			}
 		}
@@ -535,23 +535,23 @@ func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*
 // reads through the view, so pointer navigation resolves an alias key and an
 // aliased or merged value as MappingPairs reads them.
 //
-// n itself is not dereferenced, unlike MappingPairs: an alias handed here
+// node itself is not dereferenced, unlike MappingPairs: an alias handed here
 // matches neither arm and answers nil. Every caller walks with a dereference at
 // each hop, as DocumentPath does, so the difference is unreachable; it is
 // written down because that sibling promises the opposite.
-func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
-	if n == nil {
+func (v *View) ChildByToken(node *yaml.Node, token string) *yaml.Node {
+	if node == nil {
 		return nil
 	}
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.MappingNode:
-		return v.mappingChild(n, token)
+		return v.mappingChild(node, token)
 	case yaml.SequenceNode:
 		idx, err := strconv.Atoi(token)
-		if err != nil || idx < 0 || idx >= len(n.Content) {
+		if err != nil || idx < 0 || idx >= len(node.Content) {
 			return nil
 		}
-		return n.Content[idx]
+		return node.Content[idx]
 	}
 	return nil
 }
@@ -563,22 +563,22 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 // to speed up they are the same answer: re-deriving the pairs first would spend
 // a Deref and a memo lookup to reach a map read that never needed them.
 //
-// n is known to be a mapping node here, so it is its own Deref and keys the
+// node is known to be a mapping node here, so it is its own Deref and keys the
 // index under the same node MappingPairs memoizes the pairs under.
-func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
+func (v *View) mappingChild(node *yaml.Node, token string) *yaml.Node {
 	// Read without asking serves: every read of an index follows a pointer walk,
 	// which enters at depth 0, and there the memo entry it projects is always
 	// the answer. The index holds no state of its own to differ from it.
-	if index := v.keys[n]; index != nil {
+	if index := v.keys[node]; index != nil {
 		return index[token]
 	}
-	pairs := v.MappingPairs(n)
-	if index := v.keyIndex(n, pairs); index != nil {
+	pairs := v.MappingPairs(node)
+	if index := v.keyIndex(node, pairs); index != nil {
 		return index[token]
 	}
-	for _, p := range pairs {
-		if p.Key == token {
-			return p.Val
+	for _, pair := range pairs {
+		if pair.Key == token {
+			return pair.Val
 		}
 	}
 	return nil
@@ -598,7 +598,7 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // reuse condition.
 const minIndexedPairs = 16
 
-// keyIndex returns n's expansion as a key map, built on the second read of a
+// keyIndex returns node's expansion as a key map, built on the second read of a
 // mapping, or nil for a mapping it does not index.
 //
 // Without it, resolving R references into a components mapping of M entries
@@ -608,7 +608,7 @@ const minIndexedPairs = 16
 // The first read of a mapping only leaves a nil marker in v.keys, so an index
 // exists only where a walk came back. Indexes hold at most maxCachedPairs
 // entries between them, and markers at most maxCachedPairs/minIndexedPairs.
-func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
+func (v *View) keyIndex(node *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 	if len(pairs) < minIndexedPairs {
 		return nil
 	}
@@ -616,33 +616,33 @@ func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 	// tracking memoize; at depth 0 the two select the same mappings. The memo
 	// bounds the indexes rather than being charged for them, which would halve
 	// a memo that keeps merge chains from going cubic.
-	if _, memoized := v.pairs[n]; !memoized {
+	if _, memoized := v.pairs[node]; !memoized {
 		return nil
 	}
-	if _, seen := v.keys[n]; !seen {
+	if _, seen := v.keys[node]; !seen {
 		if v.keys == nil {
 			v.keys = map[*yaml.Node]map[string]*yaml.Node{}
 		}
 		// A nil entry is a marker, never an empty index: only a mapping of at
 		// least minIndexedPairs is stored.
-		v.keys[n] = nil // read once; the next read is what earns an index
+		v.keys[node] = nil // read once; the next read is what earns an index
 		return nil
 	}
 
 	// Only a marker reaches here: callers read a built index from v.keys first.
 	index := make(map[string]*yaml.Node, len(pairs))
-	for _, p := range pairs {
-		index[p.Key] = p.Val
+	for _, pair := range pairs {
+		index[pair.Key] = pair.Val
 	}
-	v.keys[n] = index
+	v.keys[node] = index
 	return index
 }
 
 // Deref follows AliasNode links to the anchored node, bounded against an alias
 // chain that loops (the anchor-cycle detector reports those separately).
-func Deref(n *yaml.Node) *yaml.Node {
-	for i := 0; n != nil && n.Kind == yaml.AliasNode && i <= maxAliasChain; i++ {
-		n = n.Alias
+func Deref(node *yaml.Node) *yaml.Node {
+	for i := 0; node != nil && node.Kind == yaml.AliasNode && i <= maxAliasChain; i++ {
+		node = node.Alias
 	}
-	return n
+	return node
 }

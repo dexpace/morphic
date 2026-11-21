@@ -43,9 +43,9 @@ type brokenTextError struct{}
 func (brokenTextError) Error() string { panic("rendering the panic value") }
 
 // nilReceiverError implements error on a pointer receiver that reads through itself.
-type nilReceiverError struct{ msg string }
+type nilReceiverError struct{ message string }
 
-func (e *nilReceiverError) Error() string { return e.msg }
+func (e *nilReceiverError) Error() string { return e.message }
 
 // store writes to m, which a test hands nil.
 func store(m map[string]int) { m["a"] = 1 }

@@ -74,13 +74,13 @@ func TestWriteText_WithAndWithoutSourcePath(t *testing.T) {
 		},
 		{
 			name: "a node beside a source: the file is printed, not the node",
-			prov: ir.Provenance{Source: 0, Node: "op/x"},
+			prov: ir.Provenance{Source: 0, Node: "operation/x"},
 			want: "error openapi/bad spec.yaml: m\n",
 		},
 		{
 			name: "NoSource with a node prints the node bare",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
-			want: "error openapi/bad op/x: m\n",
+			prov: ir.Provenance{Source: ir.NoSource, Node: "operation/x"},
+			want: "error openapi/bad operation/x: m\n",
 		},
 		{
 			name: "an unresolvable source with a position prints the position bare",
@@ -219,13 +219,13 @@ func TestWriteText_StopsAtFirstFailingWrite(t *testing.T) {
 	for failAt := 1; failAt <= len(diags); failAt++ {
 		t.Run(fmt.Sprintf("write %d fails", failAt), func(t *testing.T) {
 			t.Parallel()
-			w := &failingWriter{failAt: failAt}
+			failingWriterValue := &failingWriter{failAt: failAt}
 
-			err := writeDiagnostics(w, diags, nil)
+			err := writeDiagnostics(failingWriterValue, diags, nil)
 
 			require.ErrorIs(t, err, errDisk)
-			assert.Equal(t, failAt, w.attempts, "no write may follow the failing one")
-			assert.Equal(t, strings.Join(lines[:failAt-1], ""), w.text.String())
+			assert.Equal(t, failAt, failingWriterValue.attempts, "no write may follow the failing one")
+			assert.Equal(t, strings.Join(lines[:failAt-1], ""), failingWriterValue.text.String())
 		})
 	}
 }
@@ -245,12 +245,12 @@ func TestWriteText_NothingToWrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			w := &failingWriter{failAt: 1}
+			failingWriterValue := &failingWriter{failAt: 1}
 
-			err := writeDiagnostics(w, tt.diags, nil)
+			err := writeDiagnostics(failingWriterValue, tt.diags, nil)
 
 			require.NoError(t, err)
-			assert.Zero(t, w.attempts)
+			assert.Zero(t, failingWriterValue.attempts)
 		})
 	}
 }
@@ -292,7 +292,7 @@ func finding(sev ir.Severity, code, pointer string) triage.Finding {
 // them. A code at two ratings is two groups, each held to the count alone.
 func TestWriteText_WithholdsPastTheCountOfACode(t *testing.T) {
 	t.Parallel()
-	r := report.Report{Sources: []ir.SourceInfo{{Path: "s.yaml"}}, Findings: []triage.Finding{
+	runReport := report.Report{Sources: []ir.SourceInfo{{Path: "s.yaml"}}, Findings: []triage.Finding{
 		finding(ir.SeverityInfo, "a", "/1"),
 		finding(ir.SeverityWarning, "b", "/2"),
 		finding(ir.SeverityInfo, "a", "/3"),
@@ -302,7 +302,7 @@ func TestWriteText_WithholdsPastTheCountOfACode(t *testing.T) {
 		finding(ir.SeverityError, "c", "/7"),
 	}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{PerCode: 2}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{PerCode: 2}))
 	assert.Equal(t, "info a s.yaml#/1: m\n"+
 		"warning b s.yaml#/2: m\n"+
 		"info a s.yaml#/3: m\n"+
@@ -319,7 +319,7 @@ func TestWriteText_WithholdsBelowTheLeastSeverity(t *testing.T) {
 	t.Parallel()
 	lowered := finding(ir.SeverityInfo, "lowered", "/3")
 	lowered.Diagnostic.Severity = ir.SeverityError
-	r := report.Report{Findings: []triage.Finding{
+	runReport := report.Report{Findings: []triage.Finding{
 		finding(ir.SeverityInfo, "a", "/1"),
 		finding(ir.SeverityWarning, "b", "/2"),
 		lowered,
@@ -327,7 +327,7 @@ func TestWriteText_WithholdsBelowTheLeastSeverity(t *testing.T) {
 		finding(ir.SeverityError, "c", "/5"),
 	}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{Least: ir.SeverityWarning}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{Least: ir.SeverityWarning}))
 	assert.Equal(t, "warning b /2: m\n"+
 		"error c /5: m\n"+
 		"  2 info a not shown\n"+
@@ -335,7 +335,7 @@ func TestWriteText_WithholdsBelowTheLeastSeverity(t *testing.T) {
 		"  2 of 5 findings shown: 1 error, 1 warning, 3 info, 0 accepted\n", w.String())
 
 	w.Reset()
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{Least: ir.SeverityError, PerCode: 1}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{Least: ir.SeverityError, PerCode: 1}))
 	assert.Equal(t, "error c /5: m\n"+
 		"  2 info a not shown\n"+
 		"  1 warning b not shown\n"+
@@ -349,9 +349,9 @@ func TestWriteText_CountsWhatARuleAccepted(t *testing.T) {
 	t.Parallel()
 	accepted := finding(ir.SeverityError, "a", "/1")
 	accepted.Accepted = true
-	r := report.Report{Findings: []triage.Finding{accepted, finding(ir.SeverityInfo, "b", "/2")}}
+	runReport := report.Report{Findings: []triage.Finding{accepted, finding(ir.SeverityInfo, "b", "/2")}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{}))
 	assert.Equal(t, "info b /2: m\n"+
 		"  1 of 2 findings shown: 0 error, 0 warning, 1 info, 1 accepted\n", w.String())
 }
@@ -360,9 +360,9 @@ func TestWriteText_CountsWhatARuleAccepted(t *testing.T) {
 // threshold ranks as shown at every Least, never hidden below one.
 func TestWriteText_ShowsWhatItCannotRank(t *testing.T) {
 	t.Parallel()
-	r := report.Report{Findings: []triage.Finding{finding("fatal", "a", "/1")}}
+	runReport := report.Report{Findings: []triage.Finding{finding("fatal", "a", "/1")}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{Least: ir.SeverityError}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{Least: ir.SeverityError}))
 	assert.Equal(t, "fatal a /1: m\n", w.String())
 }
 
@@ -370,16 +370,16 @@ func TestWriteText_ShowsWhatItCannotRank(t *testing.T) {
 // naming its code and place, after the counts, and no tally for them alone.
 func TestWriteText_NamesEachUnusedRule(t *testing.T) {
 	t.Parallel()
-	r := report.Report{UnusedRules: []triage.Rule{
+	runReport := report.Report{UnusedRules: []triage.Rule{
 		{Code: "a", Severity: ir.SeverityInfo, Reason: "r"},
 		{Code: "b", Pointer: "/p", Accept: true, Reason: "r"},
-		{Code: "c", Node: "s/x", Severity: ir.SeverityError, Reason: "r"},
+		{Code: "c", Node: "service/x", Severity: ir.SeverityError, Reason: "r"},
 	}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{}))
 	assert.Equal(t, "  triage rule for a matched no finding\n"+
 		"  triage rule for b at /p matched no finding\n"+
-		"  triage rule for c at node s/x matched no finding\n", w.String())
+		"  triage rule for c at node service/x matched no finding\n", w.String())
 }
 
 // TestWriteText_CountsUnusedRulesPastTheCountOfACode holds the unused rules to
@@ -390,11 +390,11 @@ func TestWriteText_CountsUnusedRulesPastTheCountOfACode(t *testing.T) {
 	at := func(code, pointer string) triage.Rule {
 		return triage.Rule{Code: code, Pointer: jsontext.Pointer(pointer), Accept: true, Reason: "r"}
 	}
-	r := report.Report{UnusedRules: []triage.Rule{
+	runReport := report.Report{UnusedRules: []triage.Rule{
 		at("a", "/1"), at("b", "/2"), at("a", "/3"), at("a", "/4"), at("b", "/5"), at("c", "/6"),
 	}}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{PerCode: 1}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{PerCode: 1}))
 	assert.Equal(t, "  triage rule for a at /1 matched no finding\n"+
 		"  triage rule for b at /2 matched no finding\n"+
 		"  triage rule for c at /6 matched no finding\n"+
@@ -406,7 +406,7 @@ func TestWriteText_CountsUnusedRulesPastTheCountOfACode(t *testing.T) {
 // a negative count as refused before anything is written.
 func TestWriteText_RefusesOptionsItCannotRead(t *testing.T) {
 	t.Parallel()
-	r := report.Report{Findings: []triage.Finding{finding(ir.SeverityInfo, "a", "/1")}}
+	runReport := report.Report{Findings: []triage.Finding{finding(ir.SeverityInfo, "a", "/1")}}
 	for _, tc := range []struct {
 		name string
 		opts report.TextOptions
@@ -417,11 +417,11 @@ func TestWriteText_RefusesOptionsItCannotRead(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			w := &failingWriter{failAt: 1}
-			err := report.WriteText(w, r, tc.opts)
+			failingWriterValue := &failingWriter{failAt: 1}
+			err := report.WriteText(failingWriterValue, runReport, tc.opts)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.want)
-			assert.Zero(t, w.attempts)
+			assert.Zero(t, failingWriterValue.attempts)
 		})
 	}
 }
@@ -441,7 +441,7 @@ func TestWriteText_EscapesWhatASpecWrites(t *testing.T) {
 		{Severity: ir.SeverityWarning, Code: "n", Message: "m\u202e", Provenance: ir.Provenance{Source: ir.NoSource, Node: "s/\r"}},
 		{Severity: ir.SeverityWarning, Code: "w", Message: "m\x7f", Provenance: ir.Provenance{Source: 0, Pointer: "/p", WrittenBy: 1}},
 	}
-	r := report.Report{
+	runReport := report.Report{
 		Sources:  []ir.SourceInfo{{Path: "dir\t/s.yaml"}, {Path: "o\nverlay.yaml", Format: "overlay@1.0.0"}},
 		Findings: append(rated(shown), forged, finding(ir.SeverityInfo, "a\x00", "/1"), finding(ir.SeverityInfo, "a\x00", "/2")),
 		UnusedRules: []triage.Rule{
@@ -450,7 +450,7 @@ func TestWriteText_EscapesWhatASpecWrites(t *testing.T) {
 		},
 	}
 	var w strings.Builder
-	require.NoError(t, report.WriteText(&w, r, report.TextOptions{PerCode: 1}))
+	require.NoError(t, report.WriteText(&w, runReport, report.TextOptions{PerCode: 1}))
 	assert.Equal(t, `warning c\x1b[31m dir\t/s.yaml:1 (#/k\x1b]0;PWNED\a): \a\x7f\u009b\u202e\u00a0\xff é \x1b `+"\ufffd\n"+
 		`warning n s/\r: m\u202e`+"\n"+
 		`warning w dir\t/s.yaml#/p (written by o\nverlay.yaml): m\x7f`+"\n"+

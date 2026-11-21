@@ -85,7 +85,7 @@ func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (
 // success, through a client judging each address the read dials against
 // req.Reach (guardedClient), and states the space the answer came from.
 func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
-	client, g, err := guardedClient(d.client(), req.Reach, d.classifier(), cmp.Or(d.resolver, net.DefaultResolver))
+	client, guard, err := guardedClient(d.client(), req.Reach, d.classifier(), cmp.Or(d.resolver, net.DefaultResolver))
 	if err != nil {
 		return compilers.DocumentRead{}, fmt.Errorf("%s: %w", u, err)
 	}
@@ -95,7 +95,7 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 	}
 	resp, err := client.Do(get)
 	if err != nil {
-		return compilers.DocumentRead{}, g.failed(err) // a *url.Error, naming the request and its URL
+		return compilers.DocumentRead{}, guard.failed(err) // a *url.Error, naming the request and its URL
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return compilers.DocumentRead{}, errors.Join(fmt.Errorf("GET %s: %s", u, resp.Status), resp.Body.Close())
@@ -108,8 +108,8 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 		return compilers.DocumentRead{}, err
 	}
 	read := compilers.DocumentRead{Data: data}
-	if g != nil {
-		read.Space, read.Bound = g.stated()
+	if guard != nil {
+		read.Space, read.Bound = guard.stated()
 	}
 	return read, nil
 }

@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,15 +27,15 @@ func inferring() promotion.Promoter {
 func says(message string) *ir.Deprecation { return &ir.Deprecation{Message: message} }
 
 // route is an operation id bound by method to path, deprecated by dep.
-func route(id ir.OpID, method, path string, dep *ir.Deprecation) ir.Operation {
-	return ir.Operation{ID: id, Deprecation: dep, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+func route(id ir.OperationID, method, path string, dep *ir.Deprecation) ir.Operation {
+	return ir.Operation{ID: id, Deprecation: dep, Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{
 		{Method: method, URITemplate: path},
 	}}}
 }
 
-// routes is a document of one service holding ops.
-func routes(ops ...ir.Operation) *ir.Document {
-	return &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}
+// routes is a document of one service holding operations.
+func routes(operations ...ir.Operation) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}}
 }
 
 // TestMessage_AnOperationsNamesItsReplacementByRoute pins how an operation's
@@ -48,7 +48,7 @@ func routes(ops ...ir.Operation) *ir.Document {
 // message naming no other operation is not.
 func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 	t.Parallel()
-	v2 := ir.EntityRef{Operation: "op/v2"}
+	v2 := ir.EntityRef{Operation: "operation/v2"}
 	for _, tc := range []struct {
 		message string
 		want    []ir.EntityRef
@@ -61,7 +61,7 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 		{"See (GET /v2/zones).", nil, ""},
 		{"Use GET /v2/zones; GET /v1/zones goes away.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones, or GET /v2/zones with a filter.", []ir.EntityRef{v2}, ""},
-		{"Use GET /v2/zones and POST /v2/zones.", []ir.EntityRef{v2, {Operation: "op/v2-post"}}, ""},
+		{"Use GET /v2/zones and POST /v2/zones.", []ir.EntityRef{v2, {Operation: "operation/v2-post"}}, ""},
 		{"Use GET /v2/zones; FETCH /v2/zones is the hook's.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones, as described at /docs.", []ir.EntityRef{v2}, ""},
 		{"GET requests go to GET /v2/zones.", nil, ""},
@@ -79,20 +79,20 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			t.Parallel()
-			v1 := route("op/v1", http.MethodGet, "/v1/zones", says(tc.message))
+			v1 := route("operation/v1", http.MethodGet, "/v1/zones", says(tc.message))
 			v1.Provenance = ir.Provenance{Pointer: "/paths/~1v1~1zones/get", Inferred: "extension-promotion"}
-			doc := routes(v1, route("op/v2", http.MethodGet, "/v2/zones", nil),
-				route("op/v2-post", http.MethodPost, "/v2/zones", nil),
-				ir.Operation{ID: "op/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
+			doc := routes(v1, route("operation/v2", http.MethodGet, "/v2/zones", nil),
+				route("operation/v2-post", http.MethodPost, "/v2/zones", nil),
+				ir.Operation{ID: "operation/hook", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
-				replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
-			op := doc.Services[0].Groups[0].Operations[0]
-			assert.Equal(t, tc.want, op.Deprecation.ReplacedBy)
+				replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
+			operation := doc.Services[0].Groups[0].Operations[0]
+			assert.Equal(t, tc.want, operation.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
 			if tc.want != nil {
 				want = "extension-promotion,replacement-inference"
 			}
-			assert.Equal(t, want, op.Provenance.Inferred, "marked where filled")
+			assert.Equal(t, want, operation.Provenance.Inferred, "marked where filled")
 		})
 	}
 }
@@ -113,13 +113,13 @@ func undecided(why string, at ir.Provenance) []ir.Diagnostic {
 func TestMessage_ARouteTwoOperationsShareNamesNone(t *testing.T) {
 	t.Parallel()
 	for _, first := range []bool{false, true} {
-		a, b := route("op/a", http.MethodGet, "/v2", nil), route("op/b", http.MethodGet, "/v2", nil)
+		a, b := route("operation/a", http.MethodGet, "/v2", nil), route("operation/b", http.MethodGet, "/v2", nil)
 		if first {
 			a, b = b, a
 		}
-		doc := routes(route("op/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
+		doc := routes(route("operation/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
 		assert.Equal(t, undecided(`"GET /v2." names more than one operation`, ir.Provenance{}),
-			replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), "first %t", first)
+			replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)), "first %t", first)
 		assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy, "first %t", first)
 	}
 }
@@ -150,34 +150,34 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 			t.Parallel()
 			atMember := ir.Provenance{Pointer: "/components/schemas/m/properties/old"}
 			atParam := ir.Provenance{Pointer: "/paths/~1a/get/parameters/0"}
-			model := &ir.Model{ID: "t/m", Properties: []ir.Property{
-				{ID: "p/old", WireName: "old", Deprecation: says(tc.message), Provenance: atMember},
-				{ID: "p/new", WireName: "new"}, {ID: "p/other", WireName: "other"},
+			model := &ir.Model{ID: "type/m", Properties: []ir.Property{
+				{ID: "property/old", WireName: "old", Deprecation: says(tc.message), Provenance: atMember},
+				{ID: "property/new", WireName: "new"}, {ID: "property/other", WireName: "other"},
 			}}
-			op := ir.Operation{ID: "op/a",
+			operation := ir.Operation{ID: "operation/a",
 				Params: []ir.Parameter{
-					{ID: "param/old", Name: ir.Naming{Source: "old"}, Deprecation: says(tc.message), Provenance: atParam},
-					{ID: "param/new", Name: ir.Naming{Source: "new"}}, {ID: "param/other", Name: ir.Naming{Source: "other"}},
+					{ID: "parameter/old", Name: ir.Naming{Source: "old"}, Deprecation: says(tc.message), Provenance: atParam},
+					{ID: "parameter/new", Name: ir.Naming{Source: "new"}}, {ID: "parameter/other", Name: ir.Naming{Source: "other"}},
 				},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
-					{Param: "param/old", Location: ir.HTTPLocationQuery}, {Param: "param/new", Location: ir.HTTPLocationQuery},
-					{Param: "param/other", Location: ir.HTTPLocationQuery},
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+					{Param: "parameter/old", Location: ir.HTTPLocationQuery}, {Param: "parameter/new", Location: ir.HTTPLocationQuery},
+					{Param: "parameter/other", Location: ir.HTTPLocationQuery},
 				}}}},
 			}
-			doc := routes(op)
-			doc.Types = ir.TypeRegistry{"t/m": model}
+			doc := routes(operation)
+			doc.Types = ir.TypeRegistry{"type/m": model}
 			var want []ir.Diagnostic
 			if tc.why != "" {
 				want = slices.Concat(undecided(fmt.Sprintf(tc.why, "parameter"), atParam),
 					undecided(fmt.Sprintf(tc.why, "property"), atMember))
 			}
-			assert.Equal(t, want, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
+			assert.Equal(t, want, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
 
 			members := make([]ir.EntityRef, 0, len(tc.want))
 			params := make([]ir.EntityRef, 0, len(tc.want))
 			for _, name := range tc.want {
-				members = append(members, ir.EntityRef{Property: ir.PropID("p/" + name)})
-				params = append(params, ir.EntityRef{Param: ir.ParamID("param/" + name)})
+				members = append(members, ir.EntityRef{Property: ir.PropertyID("property/" + name)})
+				params = append(params, ir.EntityRef{Param: ir.ParameterID("parameter/" + name)})
 			}
 			if len(tc.want) == 0 {
 				members, params = nil, nil
@@ -200,24 +200,24 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 		why     string
 	}{
 		{"Use `id` instead.", nil, `"id" names more than one parameter`},
-		{"Use `path.id` instead.", []ir.EntityRef{{Param: "param/path"}}, ""},
+		{"Use `path.id` instead.", []ir.EntityRef{{Param: "parameter/path"}}, ""},
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			t.Parallel()
-			op := ir.Operation{ID: "op/a",
+			operation := ir.Operation{ID: "operation/a",
 				Params: []ir.Parameter{
-					{ID: "param/legacy", Name: ir.Naming{Source: "legacy"}, Deprecation: says(tc.message)},
-					{ID: "param/path", Name: ir.Naming{Source: "id"}}, {ID: "param/query", Name: ir.Naming{Source: "id"}},
+					{ID: "parameter/legacy", Name: ir.Naming{Source: "legacy"}, Deprecation: says(tc.message)},
+					{ID: "parameter/path", Name: ir.Naming{Source: "id"}}, {ID: "parameter/query", Name: ir.Naming{Source: "id"}},
 				},
-				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
-					{Param: "param/legacy", Location: ir.HTTPLocationQuery, WireName: "legacy"},
-					{Param: "param/path", Location: ir.HTTPLocationPath, WireName: "id"},
-					{Param: "param/query", Location: ir.HTTPLocationQuery, WireName: "id"},
+				Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+					{Param: "parameter/legacy", Location: ir.HTTPLocationQuery, WireName: "legacy"},
+					{Param: "parameter/path", Location: ir.HTTPLocationPath, WireName: "id"},
+					{Param: "parameter/query", Location: ir.HTTPLocationQuery, WireName: "id"},
 				}}}},
 			}
-			doc := routes(op)
-			doc.Types = ir.TypeRegistry{"t/nil": (*ir.Model)(nil), "t/s": &ir.Scalar{ID: "t/s"}}
-			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
+			doc := routes(operation)
+			doc.Types = ir.TypeRegistry{"type/nil": (*ir.Model)(nil), "type/s": &ir.Scalar{ID: "type/s"}}
+			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
@@ -232,11 +232,11 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 	t.Parallel()
 	build := func(own ir.Unmodeled, dep *ir.Deprecation) *ir.Document {
-		v1 := route("op/v1", http.MethodGet, "/v1", dep)
+		v1 := route("operation/v1", http.MethodGet, "/v1", dep)
 		v1.Unmodeled = own
-		v2 := route("op/v2", http.MethodGet, "/v2", nil)
+		v2 := route("operation/v2", http.MethodGet, "/v2", nil)
 		v2.Name = ir.Naming{Source: "getV2"}
-		v3 := route("op/v3", http.MethodGet, "/v3", nil)
+		v3 := route("operation/v3", http.MethodGet, "/v3", nil)
 		return routes(v1, v2, v3)
 	}
 	replaced := func(doc *ir.Document) []ir.EntityRef {
@@ -255,11 +255,11 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		want   []ir.EntityRef
 	}{
 		{"a key naming a replacement", mapped(), replacement.Inference{}, names(`"getV2"`),
-			says("Use GET /v3 or GET /v9."), []ir.EntityRef{{Operation: "op/v2"}}},
+			says("Use GET /v3 or GET /v9."), []ir.EntityRef{{Operation: "operation/v2"}}},
 		{"a key naming nothing", mapped(), replacement.Inference{}, names(`"gone"`), says("Use GET /v3 or GET /v9."), nil},
 		{"a key writing false", mapped(), replacement.Inference{}, names(`false`), says("Use GET /v3."), nil},
 		{"a key writing an empty list", mapped(), replacement.Inference{}, names(`[]`), says("Use GET /v3."), nil},
-		{"no key", mapped(), replacement.Inference{}, nil, says("Use GET /v3."), []ir.EntityRef{{Operation: "op/v3"}}},
+		{"no key", mapped(), replacement.Inference{}, nil, says("Use GET /v3."), []ir.EntityRef{{Operation: "operation/v3"}}},
 		{"no deprecation", inferring(), replacement.Inference{}, nil, nil, nil},
 		{"no message", inferring(), replacement.Inference{}, nil, &ir.Deprecation{}, nil},
 		{"the policy off", inferring(), off, nil, says("Use GET /v3 or GET /v9."), nil},
@@ -268,8 +268,8 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := build(tc.own, tc.dep)
-			replacement.Resolve(tc.p, whole.New(doc))
-			assert.Empty(t, replacement.Infer(tc.policy, tc.p, whole.New(doc)))
+			replacement.Resolve(tc.p, compileddoc.New(doc))
+			assert.Empty(t, replacement.Infer(tc.policy, tc.p, compileddoc.New(doc)))
 			assert.Equal(t, tc.want, replaced(doc))
 		})
 	}

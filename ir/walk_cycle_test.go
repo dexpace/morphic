@@ -26,7 +26,7 @@ const walkLimit = 200
 // walkLimit of them.
 func walkBounded(root any) []string {
 	var paths []string
-	ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(root, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		paths = append(paths, at.String())
 		return len(paths) < walkLimit
 	}))
@@ -39,13 +39,13 @@ type valueCycle struct {
 	Path, Entered, Type string
 }
 
-// valueCycles walks root from "doc" with a recorder that prunes nothing and
-// returns the cycles it was told of, in walk order, with whether the depth cap
-// truncated the walk.
+// valueCycles walks root from "document" with a recorder that prunes nothing
+// and returns the cycles it was told of, in walk order, with whether the depth
+// cap truncated the walk.
 func valueCycles(root any) ([]valueCycle, bool) {
-	var r recorder
-	truncated := ir.WalkValues(root, "doc", &r)
-	return r.cycles, truncated
+	var recorderValue recorder
+	truncated := ir.WalkValues(root, "document", &recorderValue)
+	return recorderValue.cycles, truncated
 }
 
 // kidTree is a struct whose slice of itself can hold the slice that holds it.
@@ -67,9 +67,9 @@ func TestWalkValues_SelfContainingSliceIsNotEnteredAgain(t *testing.T) {
 	kids[0].Kids, kids[1].Kids = kids, kids
 
 	assert.Equal(t, []string{
-		"doc", "doc.Kids",
-		"doc.Kids[0]", "doc.Kids[0].Kids",
-		"doc.Kids[1]", "doc.Kids[1].Kids",
+		"document", "document.Kids",
+		"document.Kids[0]", "document.Kids[0].Kids",
+		"document.Kids[1]", "document.Kids[1].Kids",
 	}, walkBounded(kidTree{Kids: kids}))
 }
 
@@ -77,12 +77,12 @@ func TestWalkValues_SelfContainingSliceIsNotEnteredAgain(t *testing.T) {
 // the third kind of reference the encoder follows.
 func TestWalkValues_SelfContainingMapIsNotEnteredAgain(t *testing.T) {
 	t.Parallel()
-	m := kidMap{}
-	m["a"], m["b"] = m, m
+	kidMapValue := kidMap{}
+	kidMapValue["a"], kidMapValue["b"] = kidMapValue, kidMapValue
 
 	assert.Equal(t, []string{
-		"doc", "doc[a].key", "doc[a]", "doc[b].key", "doc[b]",
-	}, walkBounded(m))
+		"document", "document[a].key", "document[a]", "document[b].key", "document[b]",
+	}, walkBounded(kidMapValue))
 }
 
 // TestWalkValues_ASliceReachedTwiceIsWalkedFromEach pins what stays as it was: a
@@ -93,8 +93,8 @@ func TestWalkValues_ASliceReachedTwiceIsWalkedFromEach(t *testing.T) {
 	shared := []kidTree{{}}
 	paths := walkBounded(struct{ A, B []kidTree }{A: shared, B: shared})
 
-	assert.Contains(t, paths, "doc.A[0].Kids")
-	assert.Contains(t, paths, "doc.B[0].Kids")
+	assert.Contains(t, paths, "document.A[0].Kids")
+	assert.Contains(t, paths, "document.B[0].Kids")
 }
 
 // TestWalkValues_APrefixOfASliceIsAnotherReference holds the length in a slice's
@@ -106,10 +106,10 @@ func TestWalkValues_APrefixOfASliceIsAnotherReference(t *testing.T) {
 	kids[1].Kids = kids[:1]
 
 	assert.Equal(t, []string{
-		"doc", "doc.Kids",
-		"doc.Kids[0]", "doc.Kids[0].Kids",
-		"doc.Kids[1]", "doc.Kids[1].Kids",
-		"doc.Kids[1].Kids[0]", "doc.Kids[1].Kids[0].Kids",
+		"document", "document.Kids",
+		"document.Kids[0]", "document.Kids[0].Kids",
+		"document.Kids[1]", "document.Kids[1].Kids",
+		"document.Kids[1].Kids[0]", "document.Kids[1].Kids[0].Kids",
 	}, walkBounded(kidTree{Kids: kids}))
 }
 
@@ -134,7 +134,7 @@ func TestWalkValues_AReferenceIsIdentifiedByTypeAsWellAsAddress(t *testing.T) {
 		Whole *firstField
 	}{Head: &whole.Head, Whole: whole}
 
-	assert.Contains(t, walkBounded(root), "doc.Whole.Tail")
+	assert.Contains(t, walkBounded(root), "document.Whole.Tail")
 }
 
 // TestWalkValues_AnArrayOfReferencesIsWalkedElementByElement holds an array to
@@ -148,8 +148,8 @@ func TestWalkValues_AnArrayOfReferencesIsWalkedElementByElement(t *testing.T) {
 	}{Pointers: [2]*ptrNode{{}, {}}, Trees: [1]kidTree{{Kids: []kidTree{{}}}}}
 
 	paths := walkBounded(root)
-	assert.Contains(t, paths, "doc.Pointers[1].Next")
-	assert.Contains(t, paths, "doc.Trees[0].Kids[0]")
+	assert.Contains(t, paths, "document.Pointers[1].Next")
+	assert.Contains(t, paths, "document.Trees[0].Kids[0]")
 }
 
 // TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered holds what a
@@ -162,17 +162,17 @@ func TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
 	loop.Next = loop
 	kids := make([]kidTree, 1)
 	kids[0].Kids = kids
-	m := kidMap{}
-	m["a"] = m
+	kidMapValue := kidMap{}
+	kidMapValue["a"] = kidMapValue
 
 	for _, tt := range []struct {
 		name string
 		root any
 		want []valueCycle
 	}{
-		{"a pointer", loop, []valueCycle{{Path: "doc.Next", Entered: "doc", Type: "*ir_test.ptrNode"}}},
-		{"a slice", kidTree{Kids: kids}, []valueCycle{{Path: "doc.Kids[0].Kids", Entered: "doc.Kids", Type: "[]ir_test.kidTree"}}},
-		{"a map", m, []valueCycle{{Path: "doc[a]", Entered: "doc", Type: "ir_test.kidMap"}}},
+		{"a pointer", loop, []valueCycle{{Path: "document.Next", Entered: "document", Type: "*ir_test.ptrNode"}}},
+		{"a slice", kidTree{Kids: kids}, []valueCycle{{Path: "document.Kids[0].Kids", Entered: "document.Kids", Type: "[]ir_test.kidTree"}}},
+		{"a map", kidMapValue, []valueCycle{{Path: "document[a]", Entered: "document", Type: "ir_test.kidMap"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -216,9 +216,9 @@ func TestCycleVisitor_IsToldNothingOfAnAcyclicGraph(t *testing.T) {
 func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 	t.Parallel()
 	mkLoop := func() *ptrNode {
-		n := &ptrNode{}
-		n.Next = n
-		return n
+		ptrNodeValue := &ptrNode{}
+		ptrNodeValue.Next = ptrNodeValue
+		return ptrNodeValue
 	}
 	root := map[string]*ptrNode{"a": mkLoop(), "b": mkLoop(), "c": mkLoop()}
 
@@ -228,7 +228,7 @@ func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 		again, _ := valueCycles(root)
 		require.Empty(t, cmp.Diff(first, again))
 	}
-	assert.Equal(t, "doc[a].Next", first[0].Path)
+	assert.Equal(t, "document[a].Next", first[0].Path)
 }
 
 // deepListCycles is a [listVisits] that is an ir.CycleVisitor too, reading no
@@ -247,8 +247,8 @@ func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 	t.Parallel()
 	root := irtest.NestedListValue(ir.MaxWalkDepth)
 
-	deep := walkDeepList(func(l *listVisits) bool {
-		return ir.WalkValues(root, "doc", ir.CycleVisitor(deepListCycles{l}))
+	deep := walkDeepList(func(listVisitsValue *listVisits) bool {
+		return ir.WalkValues(root, "document", ir.CycleVisitor(deepListCycles{listVisitsValue}))
 	})
 
 	assert.True(t, deep.truncated, "WalkValues with a CycleVisitor must report truncation at ir.MaxWalkDepth")
@@ -260,9 +260,9 @@ func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 type nodeKind int
 
 const (
-	ctorNode   nodeKind = iota // a *ir.CtorValue, holding its arguments
-	listNode                   // a []ir.Value, holding its elements
-	objectNode                 // a []ir.Field, holding its members' values
+	constructorNode nodeKind = iota // a *ir.ConstructorValue, holding its arguments
+	listNode                        // a []ir.Value, holding its elements
+	objectNode                      // a []ir.Field, holding its members' values
 )
 
 // graphNode is one node of the random graphs the encoder comparison builds: a
@@ -277,35 +277,35 @@ type graphNode struct {
 // node's value holds the values of the nodes it points at, so an edge back to
 // an ancestor makes the Go value contain itself.
 func buildGraph(nodes []graphNode) []ir.Value {
-	ctors := make([]*ir.CtorValue, len(nodes))
+	constructors := make([]*ir.ConstructorValue, len(nodes))
 	lists := make([][]ir.Value, len(nodes))
 	objects := make([][]ir.Field, len(nodes))
-	for i, n := range nodes {
+	for i, graphNode := range nodes {
 		switch {
-		case n.kind == ctorNode:
-			ctors[i] = &ir.CtorValue{Scalar: "t/x/S", Name: "n"}
-		case len(n.out) == 0: // an empty list or object stays nil
-		case n.kind == listNode:
-			lists[i] = make([]ir.Value, len(n.out))
-		case n.kind == objectNode:
-			objects[i] = make([]ir.Field, len(n.out))
+		case graphNode.kind == constructorNode:
+			constructors[i] = &ir.ConstructorValue{Scalar: "type/x/S", Name: "n"}
+		case len(graphNode.out) == 0: // an empty list or object stays nil
+		case graphNode.kind == listNode:
+			lists[i] = make([]ir.Value, len(graphNode.out))
+		case graphNode.kind == objectNode:
+			objects[i] = make([]ir.Field, len(graphNode.out))
 		}
 	}
 	ref := func(i int) ir.Value {
 		switch nodes[i].kind {
-		case ctorNode:
-			return ir.Value{Kind: ir.ValueCtor, Ctor: ctors[i]}
+		case constructorNode:
+			return ir.Value{Kind: ir.ValueConstructor, Constructor: constructors[i]}
 		case listNode:
 			return ir.Value{Kind: ir.ValueList, List: lists[i]}
 		default:
 			return ir.Value{Kind: ir.ValueObject, Object: objects[i]}
 		}
 	}
-	for i, n := range nodes {
-		for k, j := range n.out {
-			switch n.kind {
-			case ctorNode:
-				ctors[i].Args = append(ctors[i].Args, ref(j))
+	for i, graphNode := range nodes {
+		for k, j := range graphNode.out {
+			switch graphNode.kind {
+			case constructorNode:
+				constructors[i].Args = append(constructors[i].Args, ref(j))
 			case listNode:
 				lists[i][k] = ref(j)
 			case objectNode:
@@ -349,11 +349,11 @@ func hasCycle(nodes []graphNode) bool {
 	return false
 }
 
-// unfoldedCtors counts the constructors met in reading nodes as the tree the
-// document's JSON encodes, one for each way in, except that a node met again from
-// inside itself is not entered: the count a traversal that ends at cycles must
-// reach, worked out on the graph as drawn.
-func unfoldedCtors(nodes []graphNode) int {
+// unfoldedConstructors counts the constructors met in reading nodes as the tree
+// the document's JSON encodes, one for each way in, except that a node met
+// again from inside itself is not entered: the count a traversal that ends at
+// cycles must reach, worked out on the graph as drawn.
+func unfoldedConstructors(nodes []graphNode) int {
 	onPath := make([]bool, len(nodes))
 	var count func(i int) int
 	count = func(i int) int {
@@ -362,7 +362,7 @@ func unfoldedCtors(nodes []graphNode) int {
 		}
 		onPath[i] = true
 		n := 0
-		if nodes[i].kind == ctorNode {
+		if nodes[i].kind == constructorNode {
 			n++
 		}
 		for _, j := range nodes[i].out {
@@ -418,7 +418,7 @@ func TestCycleVisitor_AgreesWithTheEncoder(t *testing.T) {
 	for range 400 {
 		nodes := randomGraph(r)
 		values := buildGraph(nodes)
-		model := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}}
+		model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "m", Canonical: "m"}}
 		for i := range values {
 			model.Examples = append(model.Examples, ir.Example{Value: &values[i]})
 		}
@@ -429,8 +429,8 @@ func TestCycleVisitor_AgreesWithTheEncoder(t *testing.T) {
 		require.False(t, truncated, "%+v", nodes)
 		require.Equal(t, want, len(cycles) > 0, "the walk disagrees with the graph drawn: %+v", nodes)
 		require.Equal(t, want, irtest.RefusedAsCyclic(doc), "the encoder disagrees with the graph drawn: %+v", nodes)
-		ctors := unfoldedCtors(nodes)
-		require.Equal(t, ctors, countEdges(model, ctors),
+		constructors := unfoldedConstructors(nodes)
+		require.Equal(t, constructors, countEdges(model, constructors),
 			"TypeEdges does not end where the graph drawn does: %+v", nodes)
 		if want {
 			cyclic++

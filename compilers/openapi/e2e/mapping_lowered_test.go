@@ -63,12 +63,12 @@ func readAndReported(t *testing.T, src string) (read, reported bool) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	_, read = doc.Types["t/anon/x-lib/T"]
-	for _, d := range diags {
+	_, read = doc.Types["type/anonymous/x-lib/T"]
+	for _, diagnostic := range diags {
 		switch {
-		case d.Code == "openapi/unresolved-ref" && strings.HasSuffix(string(d.Provenance.Pointer), "/mapping/x"):
+		case diagnostic.Code == "openapi/unresolved-ref" && strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/mapping/x"):
 			read = true
-		case d.Code == "openapi/validation/validation-type-mismatch":
+		case diagnostic.Code == "openapi/validation/validation-type-mismatch":
 			reported = true
 		}
 	}
@@ -195,12 +195,12 @@ func TestMappingTargets_TheLoadPhaseResolvesEveryEntryItReaches(t *testing.T) {
 	t.Parallel()
 	cases := slices.Concat(schemaKeywordCases(t), structureCases())
 	seen := map[bool]bool{}
-	for _, c := range cases {
-		read, reported := readAndReported(t, c.doc())
+	for _, readCase := range cases {
+		read, reported := readAndReported(t, readCase.doc())
 		seen[read] = true
-		assert.Equal(t, !c.unreached, reported, "%s: the finding in T is reported unless nothing reaches the entry", c.name)
+		assert.Equal(t, !readCase.unreached, reported, "%s: the finding in T is reported unless nothing reaches the entry", readCase.name)
 		if read {
-			assert.True(t, reported, "%s: the lowering read the entry, so its target is resolved", c.name)
+			assert.True(t, reported, "%s: the lowering read the entry, so its target is resolved", readCase.name)
 		}
 	}
 	assert.Equal(t, map[bool]bool{false: true, true: true}, seen, "the rows tell both answers apart")
@@ -228,13 +228,13 @@ func TestMappingTargets_ARawReferenceResolvesInEitherOrder(t *testing.T) {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
 			compilers.Options{})
 		require.NoError(t, err)
-		for _, d := range diags {
-			assert.NotEqual(t, ir.SeverityError, d.Severity, "%s %s: %s", d.Code, d.Provenance.Pointer, d.Message)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%s %s: %s", diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message)
 		}
 		types = append(types, doc.Types)
 	}
 	assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
-	assert.Contains(t, types[0], ir.TypeID("t/anon/x-defs/Dog"))
+	assert.Contains(t, types[0], ir.TypeID("type/anonymous/x-defs/Dog"))
 }
 
 // TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder pins a
@@ -258,9 +258,9 @@ func TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder(t *testi
 			compilers.Options{})
 		require.NoError(t, err)
 		var errs []string
-		for _, d := range diags {
-			if d.Severity == ir.SeverityError {
-				errs = append(errs, string(d.Provenance.Pointer)+" "+d.Code)
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityError {
+				errs = append(errs, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Code)
 			}
 		}
 		slices.Sort(errs)
@@ -293,8 +293,8 @@ func TestMappingTargets_AReferenceInACopyResolvesInEitherOrder(t *testing.T) {
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}},
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
-		for _, d := range diags {
-			assert.NotEqual(t, "/x-lib/Y/properties/q", string(d.Provenance.Pointer), "%s: %s", d.Code, d.Message)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, "/x-lib/Y/properties/q", string(diagnostic.Provenance.Pointer), "%s: %s", diagnostic.Code, diagnostic.Message)
 		}
 	}
 }
@@ -335,15 +335,15 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 					[]compilers.Source{{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)}},
 					compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 				require.NoError(t, err)
-				for _, d := range diags {
-					if strings.HasSuffix(string(d.Provenance.Pointer), "/properties/friend") {
-						assert.Fail(t, "Cat's own $ref is unresolved", "%s: %s", d.Code, d.Message)
+				for _, diagnostic := range diags {
+					if strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/properties/friend") {
+						assert.Fail(t, "Cat's own $ref is unresolved", "%s: %s", diagnostic.Code, diagnostic.Message)
 					}
 				}
 				types = append(types, doc.Types)
 			}
 			assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
-			assert.Contains(t, types[0], ir.TypeID("t/anon/x-lib/Dog"))
+			assert.Contains(t, types[0], ir.TypeID("type/anonymous/x-lib/Dog"))
 		})
 	}
 }
@@ -357,25 +357,25 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 func TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits(t *testing.T) {
 	t.Parallel()
 	response := "{description: x, content: {application/json: {schema: " + namesT + "}}}"
-	for _, c := range []readCase{
+	for _, readCaseValue := range []readCase{
 		{name: "a path item a path's $ref reaches", paths: "  /a: {$ref: '#/x-lib/I'}",
 			lib: "  I: {get: {responses: {'200': " + response + "}}}\n"},
 		{name: "a callback an operation's $ref reaches", paths: "  /a: {post: {responses: {'200': {description: ok}}, " +
 			"callbacks: {c: {$ref: '#/x-lib/C'}}}}", lib: "  C: {'{$url}': {post: {responses: {'200': " + response + "}}}}\n"},
 	} {
 		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: "spec.yaml", Data: []byte(c.doc())}}, compilers.Options{})
-		require.NoError(t, err, c.name)
-		require.NotNil(t, doc, c.name)
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(readCaseValue.doc())}}, compilers.Options{})
+		require.NoError(t, err, readCaseValue.name)
+		require.NotNil(t, doc, readCaseValue.name)
 		var mapped []ir.TypeID
 		for _, def := range doc.Types {
-			if m, ok := def.(*ir.Model); ok && m.Discriminator != nil {
-				mapped = append(mapped, m.Discriminator.Mapping["x"])
+			if model, ok := def.(*ir.Model); ok && model.Discriminator != nil {
+				mapped = append(mapped, model.Discriminator.Mapping["x"])
 			}
 		}
-		assert.Equal(t, []ir.TypeID{"t/anon/x-lib/T"}, mapped, c.name)
-		for _, d := range diags {
-			assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %+v", c.name, d)
+		assert.Equal(t, []ir.TypeID{"type/anonymous/x-lib/T"}, mapped, readCaseValue.name)
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, "openapi/unresolved-ref", diagnostic.Code, "%s: %+v", readCaseValue.name, diagnostic)
 		}
 	}
 }

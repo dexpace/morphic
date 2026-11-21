@@ -109,11 +109,10 @@ function-by-class cells and the mutants planted, killed and judged equivalent, e
   test name and each doc comment on the set that claims something of every member, though the
   change leaves them alone: plant in the new member a defect the claim covers
   (`references/testing.md#plant-each-class-a-claim-covers`) and see a test redden.
-- **Why.** #1354 added two methods to `irfacts.Index`, documented as safe for concurrent use, and
-  its first round, holding only tests it edited, never met
-  `TestIndex_EveryMethodIsSafeForConcurrentUse`, which asked neither: an unsynchronized build
-  behind them passed `go test -race` until it asked both (#1623, #1354 at aa62909a2 and
-  cf810cca9).
+- **Why.** #1354 added two methods to `irfacts.DocumentFacts`, documented as safe for concurrent
+  use, and its first round, holding only tests it edited, never met
+  `TestIndex_EveryMethodIsSafeForConcurrentUse`, which asked neither: an unsynchronized build behind
+  them passed `go test -race` until it asked both (#1623, #1354 at aa62909a2 and cf810cca9).
 - **Probe.** For the set's package, `go doc <package> <Type>`,
   `git grep -nE 'func Test[[:alnum:]_]*((Every|Each|All|Any|No|Never|Only|Always)[A-Z]|Complete)' -- '<directory>/*_test.go'`
   and `git grep -niE 'fully( populated|$)|every (field|member|method|kind)' -- '<directory>/*_test.go'`

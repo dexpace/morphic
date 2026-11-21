@@ -27,9 +27,9 @@ func nodesAt(t *testing.T, root *yaml.Node, pointers []jsontext.Pointer) []*yaml
 	t.Helper()
 	view := nodeview.New()
 	nodes := make([]*yaml.Node, 0, len(pointers))
-	for _, p := range pointers {
-		path, complete := view.DocumentPath(root, p)
-		require.True(t, complete, "%s names nothing", p)
+	for _, pointer := range pointers {
+		path, complete := view.DocumentPath(root, pointer)
+		require.True(t, complete, "%s names nothing", pointer)
 		nodes = append(nodes, path[len(path)-1])
 	}
 	return nodes
@@ -112,10 +112,10 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 		var all []*yaml.Node
 		stack := []*yaml.Node{root}
 		for len(stack) > 0 {
-			n := stack[len(stack)-1]
+			node := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			all = append(all, n)
-			stack = append(stack, n.Content...)
+			all = append(all, node)
+			stack = append(stack, node.Content...)
 		}
 		r.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
 		candidates := all[:r.IntN(len(all))+1]
@@ -141,15 +141,15 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 func TestLeast_RanksANodeNoPointerReachesLast(t *testing.T) {
 	t.Parallel()
 	root := indexOf(t, []byte("z: {}\nm: {<<: {k: {}}, ? [c] : {}}\n")).Root()
-	z := root.Content[1]
+	node := root.Content[1]
 	pairs := root.Content[3].Content
 	merged, complexKey, complexValue := pairs[1].Content[1], pairs[2], pairs[3]
 	require.Equal(t, yaml.SequenceNode, complexKey.Kind, "the second pair's key is no scalar")
 
-	assert.Same(t, z, Least(t.Context(), root, []*yaml.Node{merged, z, complexKey}))
+	assert.Same(t, node, Least(t.Context(), root, []*yaml.Node{merged, node, complexKey}))
 	assert.Same(t, merged, Least(t.Context(), root, []*yaml.Node{merged, complexKey}))
 	assert.Same(t, complexKey, Least(t.Context(), root, []*yaml.Node{complexKey, merged}))
-	assert.Same(t, z, Least(t.Context(), root, []*yaml.Node{complexValue, z}),
+	assert.Same(t, node, Least(t.Context(), root, []*yaml.Node{complexValue, node}),
 		"the value of an entry whose key is no scalar has no pointer")
 }
 
@@ -196,8 +196,8 @@ func TestPathsTo_ClimbsEachNodeOnce(t *testing.T) {
 	}
 	steps, _ := stepsIn(t.Context(), root, len(candidates)*4+depth*4)
 	want := map[*yaml.Node]int{}
-	for i, c := range candidates {
-		want[c] = i
+	for i, node := range candidates {
+		want[node] = i
 	}
 
 	under := pathsTo(steps, candidates, want)
@@ -270,10 +270,10 @@ func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
 	for order, data := range bothOrders(members) {
 		t.Run(order, func(t *testing.T) {
 			t.Parallel()
-			d := onlyRefusal(t, data)
-			assert.Equal(t, diag.CyclicRef, d.Code)
-			assert.Equal(t, jsontext.Pointer("/a/k/0"), d.Provenance.Pointer)
-			assert.Equal(t, `recursive YAML anchor "y" references an ancestor node`, d.Message)
+			diagnostic := onlyRefusal(t, data)
+			assert.Equal(t, diag.CyclicRef, diagnostic.Code)
+			assert.Equal(t, jsontext.Pointer("/a/k/0"), diagnostic.Provenance.Pointer)
+			assert.Equal(t, `recursive YAML anchor "y" references an ancestor node`, diagnostic.Message)
 		})
 	}
 }

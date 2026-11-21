@@ -18,29 +18,29 @@ import (
 // canonical words alone are not.
 func TestVerify_ParamChoiceNamesAreDistinct(t *testing.T) {
 	t.Parallel()
-	a, b, c := choiceParams[0], choiceParams[1], choiceParams[2]
-	twice := []ir.ParamVariant{{Name: named("v"), Params: []ir.ParamID{a}}, {Name: named("v"), Params: []ir.ParamID{b}}}
+	a, b, parameterID := choiceParams[0], choiceParams[1], choiceParams[2]
+	twice := []ir.ParamVariant{{Name: named("v"), Params: []ir.ParameterID{a}}, {Name: named("v"), Params: []ir.ParameterID{b}}}
 	for _, tc := range []struct {
 		name    string
 		choices []ir.ParamChoice
 		want    []string
 	}{
 		{"two choices of one name", []ir.ParamChoice{
-			choiceOf("x", []ir.ParamID{a}, []ir.ParamID{b}), choiceOf("y", []ir.ParamID{c}, []ir.ParamID{a}),
-			choiceOf("x", []ir.ParamID{b}, []ir.ParamID{c}),
-		}, []string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[2].Name"}},
+			choiceOf("x", []ir.ParameterID{a}, []ir.ParameterID{b}), choiceOf("y", []ir.ParameterID{parameterID}, []ir.ParameterID{a}),
+			choiceOf("x", []ir.ParameterID{b}, []ir.ParameterID{parameterID}),
+		}, []string{"ir/param-choice-name-duplicate " + choiceOperationPath + ".ParamChoices[2].Name"}},
 		{"two variants of one name", []ir.ParamChoice{{Name: named("x"), Variants: twice}},
-			[]string{"ir/param-choice-name-duplicate " + choiceOp + ".ParamChoices[0].Variants[1].Name"}},
+			[]string{"ir/param-choice-name-duplicate " + choiceOperationPath + ".ParamChoices[0].Variants[1].Name"}},
 		{"a variant named as another choice", []ir.ParamChoice{
-			choiceOf("alpha", []ir.ParamID{a}, []ir.ParamID{b}),
+			choiceOf("alpha", []ir.ParameterID{a}, []ir.ParameterID{b}),
 		}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
-			for _, v := range irverify.Verify(opDoc(choiceOperation(tc.choices...))) {
-				if v.Code == "ir/param-choice-name-duplicate" {
-					got = append(got, v.Code+" "+v.Path)
+			for _, violation := range irverify.Verify(singleOperationDocument(choiceOperation(tc.choices...))) {
+				if violation.Code == "ir/param-choice-name-duplicate" {
+					got = append(got, violation.Code+" "+violation.Path)
 				}
 			}
 			assert.Equal(t, tc.want, got)

@@ -16,18 +16,18 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,8 +48,8 @@ type Options struct {
 	// model is built, or nil for none. With empty Data, the document its Path
 	// names is read through Reader (readOverlay).
 	Overlay *overlay.Options
-	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
-	// It is read only when Overlay is set.
+	// OverlaySrcIndex is the index the overlay document takes in
+	// LoadedOpenAPIDocument.Sources. It is read only when Overlay is set.
 	OverlaySrcIndex int
 	// MaxSourceBytes bounds the size in bytes of the source, of the overlay and
 	// of each document a reference reads, each checked before anything reads
@@ -76,11 +76,11 @@ type Options struct {
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
-	// document of sourceindex.MaxIndexedNodes nodes, and counts the indexes one
-	// load builds. Carrying it here rather than in a package-level variable keeps
-	// the bound an input to the stage, so nothing a test does to it is visible to
-	// a concurrent load.
-	buildIndex func(ctx context.Context, root *yaml.Node) sourceindex.Index
+	// document of sourcetreestats.MaxIndexedNodes nodes, and counts the indexes
+	// one load builds. Carrying it here rather than in a package-level variable
+	// keeps the bound an input to the stage, so nothing a test does to it is
+	// visible to a concurrent load.
+	buildIndex func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements
 	// entered is told each phase a load enters, before the context is asked, or
 	// is nil. It is unexported because it is this package's test seam: a test
 	// cancels at the start of a phase through it, and lists the phases a load
@@ -89,7 +89,7 @@ type Options struct {
 	// judging is told each object a check of what the references reach reads
 	// as a kind, or is nil. It is this package's test seam: a test counts how
 	// often each is read, and in which phase.
-	judging func(oas.Kind, *yaml.Node)
+	judging func(specrules.Kind, *yaml.Node)
 }
 
 // readyForModel clears the name of each anchor in the model's source tree, in
@@ -105,13 +105,13 @@ type Options struct {
 func readyForModel(ctx context.Context, root *yaml.Node, a *aside) []anchor {
 	var cleared []anchor
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
-	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Anchor != "" {
-			cleared = append(cleared, anchor{node: n, name: n.Anchor})
-			n.Anchor = ""
+	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Anchor != "" {
+			cleared = append(cleared, anchor{node: node, name: node.Anchor})
+			node.Anchor = ""
 		}
-		if n.Kind == yaml.MappingNode {
-			a.hide(n, noKey)
+		if node.Kind == yaml.MappingNode {
+			a.hide(node, noKey)
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
@@ -138,17 +138,16 @@ func noKey(key, _ *yaml.Node) bool {
 // its own, which the CLI reports on the channel it uses for being invoked wrong.
 var ErrParse = errors.New("parse source")
 
-// Document is the successful output of the load phase: a parsed speakeasy
-// document, where each of its references lands, and the identity metadata the
-// rest of the compiler needs.
-// A nil *Document with error-severity diagnostics means the source is a spec
-// problem the compiler refuses to lower (e.g. an unsupported version). The
-// normalized "openapi" + major.minor format reaches the IR through
-// Source.Format alone; Document does not separately carry a
-// compilers.SourceFormat, since nothing downstream ever read one.
-type Document struct {
+// LoadedOpenAPIDocument is the successful output of the load phase: a parsed
+// speakeasy document, where each of its references lands, and the identity
+// metadata the rest of the compiler needs. A nil *Document with error-severity
+// diagnostics means the source is a spec problem the compiler refuses to lower
+// (e.g. an unsupported version). The normalized "openapi" + major.minor format
+// reaches the IR through Source.Format alone; Document does not separately
+// carry a compilers.SourceFormat, since nothing downstream ever read one.
+type LoadedOpenAPIDocument struct {
 	Doc    *soa.OpenAPI  // parsed document, whose references Bindings resolve
-	Source ir.SourceInfo // the entry Document.Sources records for this source
+	Source ir.SourceInfo // the entry LoadedOpenAPIDocument.Sources records for this source
 	// Location is where the source lies, as its references are read against
 	// (see Location), and Places where every file the compile names lies.
 	Location string
@@ -165,11 +164,11 @@ type Document struct {
 	// it reuses, which the parser does not model.
 	Siblings   Siblings
 	MediaTypes MediaTypes
-	// Others is every document a reference read beside the source, in the
-	// order Document.Sources lists them after the source and its overlay, and
-	// Dialects the rows each schema of them is read with.
+	// Others is every document a reference read beside the source, in the order
+	// LoadedOpenAPIDocument.Sources lists them after the source and its
+	// overlay, and Dialects the rows each schema of them is read with.
 	Others   Others
-	Dialects dialect.Table
+	Dialects dialect.SchemaDialectRows
 	// Rows is what the table says at the minor the source declares, in the
 	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
 	// schemas where none names its own (Dialects) are read with, from the table
@@ -179,26 +178,27 @@ type Document struct {
 }
 
 // Rows is what the rule table says at the minor a document is read at, in a
-// dialect: how its schemas read (oas.SchemaRules), what its Encoding Objects
-// leave unwritten (oas.EncodingRules), and how its Security Requirement
-// Objects name a scheme (oas.SecurityRules).
+// dialect: how its schemas read (specrules.SchemaRules), what its Encoding
+// Objects leave unwritten (specrules.EncodingRules), and how its Security
+// Requirement Objects name a scheme (specrules.SecurityRules).
 type Rows struct {
-	Schema   oas.SchemaRules
-	Encoding oas.EncodingRules
-	Security oas.SecurityRules
+	Schema   specrules.SchemaRules
+	Encoding specrules.EncodingRules
+	Security specrules.SecurityRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
 // become ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
-func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*Document, []ir.Diagnostic, error) {
-	// An overlay sharing the source's index is the one way to get the attribution
-	// silently wrong. Every position the overlay introduced would name the source,
-	// and Document.Sources would carry an entry nothing references — no diagnostic,
-	// and nothing structural to catch it, because both indexes address a declared
-	// entry. An index past the end is caught downstream by irverify as the dangling
-	// reference it is; this collision is not, so it is checked here.
+func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
+	// An overlay sharing the source's index is the one way to get the
+	// attribution silently wrong. Every position the overlay introduced would
+	// name the source, and LoadedOpenAPIDocument.Sources would carry an entry
+	// nothing references — no diagnostic, and nothing structural to catch it,
+	// because both indexes address a declared entry. An index past the end is
+	// caught downstream by irverify as the dangling reference it is; this
+	// collision is not, so it is checked here.
 	if opts.Overlay != nil && opts.OverlaySrcIndex == srcIndex {
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
 	}
@@ -212,16 +212,16 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	// The byte budget is checked before anything reads the bytes, because it is
 	// the one bound that can be: every finer measure of the document costs a parse
 	// to take (GitHub #75).
-	if d, over := OverByteBudget(ir.Provenance{Source: srcIndex}, src.Data, opts.MaxSourceBytes); over {
-		return nil, []ir.Diagnostic{d}, nil
+	if diagnostic, over := OverByteBudget(ir.Provenance{Source: srcIndex}, src.Data, opts.MaxSourceBytes); over {
+		return nil, []ir.Diagnostic{diagnostic}, nil
 	}
 
 	if err := opts.enter(ctx, phaseParse); err != nil {
 		return nil, nil, err
 	}
 	parsed, err := parsedFor(ctx, src, opts.MaxSourceNodes)
-	if d, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
-		return nil, []ir.Diagnostic{d}, nil
+	if diagnostic, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
+		return nil, []ir.Diagnostic{diagnostic}, nil
 	}
 	if err != nil {
 		// A parse its context stopped is no source that will not parse.
@@ -242,7 +242,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
-func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
+func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*LoadedOpenAPIDocument, []ir.Diagnostic, error) {
 	places := refscope.NewPlaces(opts.Reader)
 	// Where the source lies, and the directory a read is confined to, are
 	// placed as every file the compile names is, so a link to the source's
@@ -251,14 +251,14 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		src.Location = places.File(location)
 	}
 	opts.Within = places.Directory(opts.Within)
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
+	loadingValue := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
 	// A load that ends before reach leaves the tree as the source wrote it.
-	defer l.aside.restore()
-	for _, s := range steps() {
-		if err := opts.enter(ctx, s.phase); err != nil {
+	defer loadingValue.aside.restore()
+	for _, step := range steps() {
+		if err := opts.enter(ctx, step.phase); err != nil {
 			return nil, nil, err
 		}
-		refused, err := s.run(l, ctx)
+		refused, err := step.run(loadingValue, ctx)
 		if err != nil {
 			return nil, nil, stopped(ctx, err)
 		}
@@ -268,10 +268,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			return nil, nil, err
 		}
 		if refused {
-			return nil, l.early, nil
+			return nil, loadingValue.early, nil
 		}
 	}
-	doc, diags := l.document(parsed.Hash())
+	doc, diags := loadingValue.document(parsed.Hash())
 	return doc, diags, nil
 }
 
@@ -283,7 +283,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	at := func(p jsontext.Pointer) ir.Provenance { return sites.source.At(p) }
+	at := func(pointer jsontext.Pointer) ir.Provenance { return sites.source.At(pointer) }
 	return append(listRepeats(at, sibs, bindings, walkSource(ctx, doc, sibs, media)),
 		landingRepeats(ctx, sites, sibs, bindings)...)
 }
@@ -291,8 +291,8 @@ func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Sibl
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
 // what Options.buildIndex stands in for when a caller leaves it nil, which
 // everything outside this package's tests does.
-func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Index {
-	return sourceindex.Build(ctx, root, sourceindex.MaxIndexedNodes)
+func defaultIndex(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+	return sourcetreestats.Build(ctx, root, sourcetreestats.MaxIndexedNodes)
 }
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
@@ -317,7 +317,7 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, whole,
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
-			sourceindex.MaxIndexedNodes)}
+			sourcetreestats.MaxIndexedNodes)}
 	}
 
 	diags := shapeRefusals(ctx, tree, whole, idx, opts, closed)
@@ -335,36 +335,36 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 // node, and whole one about the tree as a whole. A closed document, the source
 // as written or patched, past the pointer bound is weighed again by what a
 // compile names (namedWithin).
-func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index, opts Options,
+func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourcetreestats.Measurements, opts Options,
 	closed bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, tree, idx); deep {
-		diags = append(diags, d)
+	if diagnostic, deep := scan.Nesting(ctx, tree, idx); deep {
+		diags = append(diags, diagnostic)
 	}
 	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus, opts.MaxSourceBytes)...)
 	if diag.HasError(diags) {
 		return diags
 	}
-	if d, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
-		diags = append(diags, d)
+	if diagnostic, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
+		diags = append(diags, diagnostic)
 	}
 	return diags
 }
 
-// namedWithin reports whether the pointers a compile of idx's tree names one
-// by one total within the bound its size allows, counting a value kept raw by
-// its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
-// leaves, one too large to weigh so, one that may name a dialect, whose
-// schemas another grammar may read (namesDialect), and one a mapping of which
-// writes a key the Format section refuses, where the check of its keys spells
-// a pointer for every node to place its findings (oas.BreaksFormat), are not
-// within it.
-func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
-	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || oas.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
+// namedWithin reports whether the pointers a compile of idx's tree names one by
+// one total within the bound its size allows, counting a value kept raw by its
+// root alone (reftable.NamedPointerBytes, GitHub #1499). A tree a reference
+// leaves, one too large to weigh so, one that may name a dialect, whose schemas
+// another grammar may read (namesDialect), and one a mapping of which writes a
+// key the Format section refuses, where the check of its keys spells a pointer
+// for every node to place its findings (specrules.BreaksFormat), are not within
+// it.
+func namedWithin(ctx context.Context, idx sourcetreestats.Measurements) bool {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || specrules.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
 		return false
 	}
-	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
+	total, complete := reftable.NamedPointerBytes(ctx, idx.Root(), sourcetreestats.MaxIndexedNodes)
 	return complete && total <= scan.PointerAllowance(idx.Written())
 }
 
@@ -372,10 +372,10 @@ func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
 // tree places the mapping — the way the alias refusals are anchored. The parser
 // panics on such a mapping at a reference object, where no recover reaches
 // (docs/parser-library.md#tagged-mapping-panic).
-func taggedMappingRefusal(tree provenance.Tree, n *yaml.Node) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(n),
+func taggedMappingRefusal(tree provenance.Tree, node *yaml.Node) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(node),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
-		n.Tag, sourceindex.MapTag)
+		node.Tag, sourcetreestats.MapTag)
 }
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
@@ -422,19 +422,20 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 
 // rowsAt returns what spec says at the minor version names, in the dialect uri
 // names, and whether that is one spec has no Schema Object rows for
-// (oas.Spec.SchemaRules).
-func rowsAt(spec oas.Spec, version, uri string) (rows Rows, unread bool) {
+// (specrules.Spec.SchemaRules).
+func rowsAt(spec specrules.Spec, version, uri string) (rows Rows, unread bool) {
 	schema, unread := spec.SchemaRules(version, uri)
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
-// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the compiler supports it: a minor the rule table covers
-// (oas.ParseMinor), so no document is compiled that the table holds to nothing.
+// supportedMinor returns the normalized major.minor prefix of an OpenAPI
+// version string and whether the compiler supports it: a minor the rule table
+// covers (specrules.ParseMinor), so no document is compiled that the table
+// holds to nothing.
 func supportedMinor(version string) (string, bool) {
-	m, ok := oas.ParseMinor(version)
+	minor, ok := specrules.ParseMinor(version)
 	if !ok {
 		return "", false
 	}
-	return m.String(), true
+	return minor.String(), true
 }

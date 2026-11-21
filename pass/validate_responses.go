@@ -15,15 +15,15 @@ import (
 // a Default among them: it is a response, whichever class the plan gives it.
 func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		declared := len(op.Responses)
-		if op.Default != nil {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		declared := len(operation.Responses)
+		if operation.Default != nil {
 			declared++
 		}
-		if op.OneWay && declared > 0 {
+		if operation.OneWay && declared > 0 {
 			diags = append(diags, diag(ir.SeverityError, "pass/oneway-with-responses",
-				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, declared),
-				string(op.ID)))
+				fmt.Sprintf("operation %s is one-way but declares %d response(s)", operation.ID, declared),
+				string(operation.ID)))
 		}
 	})
 	return diags
@@ -34,14 +34,14 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 // is a Response or an ErrorCase (docs/ir/responses.md).
 func checkDefaultResponses(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		if op.Default == nil || answersCatchAllOnly(op.Default.Conditions) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if operation.Default == nil || answersCatchAllOnly(operation.Default.Conditions) {
 			return
 		}
-		where := string(op.ID) + "/default"
+		where := string(operation.ID) + "/default"
 		diags = append(diags, diag(ir.SeverityError, "ir/default-response-conditions",
 			fmt.Sprintf("default response at %s answers %s, where a default answers the catch-all alone",
-				where, statusNames(op.Default.Conditions.StatusCodes)), where))
+				where, statusNames(operation.Default.Conditions.StatusCodes)), where))
 	})
 	return diags
 }
@@ -54,21 +54,21 @@ func statusNames(rs []ir.StatusRange) string {
 		return "no status"
 	}
 	names := make([]string, 0, len(rs))
-	for _, r := range rs {
+	for _, statusRange := range rs {
 		switch {
-		case r == (ir.StatusRange{}):
+		case statusRange == (ir.StatusRange{}):
 			names = append(names, "the catch-all")
-		case r.From == r.To:
-			names = append(names, strconv.Itoa(r.From))
+		case statusRange.From == statusRange.To:
+			names = append(names, strconv.Itoa(statusRange.From))
 		default:
-			names = append(names, strconv.Itoa(r.From)+"-"+strconv.Itoa(r.To))
+			names = append(names, strconv.Itoa(statusRange.From)+"-"+strconv.Itoa(statusRange.To))
 		}
 	}
 	return strings.Join(names, " and ")
 }
 
-// answersCatchAllOnly reports whether c is the catch-all condition alone: one
-// range, the zero one (docs/ir/responses.md).
-func answersCatchAllOnly(c ir.ResponseConditions) bool {
-	return len(c.StatusCodes) == 1 && c.StatusCodes[0] == ir.StatusRange{}
+// answersCatchAllOnly reports whether responseConditions is the catch-all
+// condition alone: one range, the zero one (docs/ir/responses.md).
+func answersCatchAllOnly(responseConditions ir.ResponseConditions) bool {
+	return len(responseConditions.StatusCodes) == 1 && responseConditions.StatusCodes[0] == ir.StatusRange{}
 }

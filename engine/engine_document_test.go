@@ -27,9 +27,9 @@ func danglingDocument() *ir.Document {
 		IRVersion: ir.IRVersion,
 		Name:      "Dangling",
 		Types:     ir.TypeRegistry{},
-		Services: []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID: "op/x", Errors: []ir.ErrorCase{{Payload: &ir.Payload{
-				Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}},
+		Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+			ID: "operation/x", Errors: []ir.ErrorCase{{Payload: &ir.Payload{
+				Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/missing"}}},
 			}}},
 		}}}}}},
 		Sources: []ir.SourceInfo{{Path: "spec.yaml"}},

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "NullOnlyUnion",
         "canonical": "null_only_union"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/AnyOfNull": {
+    "type/openapi/components/schemas/AnyOfNull": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/AnyOfNull",
+      "id": "type/openapi/components/schemas/AnyOfNull",
       "name": {
         "source": "AnyOfNull",
         "canonical": "any_of_null"
@@ -91,9 +91,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/AnyOfTwoNull": {
+    "type/openapi/components/schemas/AnyOfTwoNull": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/AnyOfTwoNull",
+      "id": "type/openapi/components/schemas/AnyOfTwoNull",
       "name": {
         "source": "AnyOfTwoNull",
         "canonical": "any_of_two_null"
@@ -126,9 +126,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/BothNull": {
+    "type/openapi/components/schemas/BothNull": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/BothNull",
+      "id": "type/openapi/components/schemas/BothNull",
       "name": {
         "source": "BothNull",
         "canonical": "both_null"
@@ -170,9 +170,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/Holder": {
+    "type/openapi/components/schemas/Holder": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "type/openapi/components/schemas/Holder",
       "name": {
         "source": "Holder",
         "canonical": "holder"
@@ -186,21 +186,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/anyOfNull",
+          "id": "property/openapi/components/schemas/Holder/properties/anyOfNull",
           "name": {
             "source": "anyOfNull",
             "canonical": "any_of_null"
           },
           "wireName": "anyOfNull",
           "type": {
-            "target": "t/openapi/components/schemas/AnyOfNull",
+            "target": "type/openapi/components/schemas/AnyOfNull",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -213,21 +213,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/oneOfNull",
+          "id": "property/openapi/components/schemas/Holder/properties/oneOfNull",
           "name": {
             "source": "oneOfNull",
             "canonical": "one_of_null"
           },
           "wireName": "oneOfNull",
           "type": {
-            "target": "t/openapi/components/schemas/OneOfNull",
+            "target": "type/openapi/components/schemas/OneOfNull",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -240,21 +240,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/anyOfTwoNull",
+          "id": "property/openapi/components/schemas/Holder/properties/anyOfTwoNull",
           "name": {
             "source": "anyOfTwoNull",
             "canonical": "any_of_two_null"
           },
           "wireName": "anyOfTwoNull",
           "type": {
-            "target": "t/openapi/components/schemas/AnyOfTwoNull",
+            "target": "type/openapi/components/schemas/AnyOfTwoNull",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -267,21 +267,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/bothNull",
+          "id": "property/openapi/components/schemas/Holder/properties/bothNull",
           "name": {
             "source": "bothNull",
             "canonical": "both_null"
           },
           "wireName": "bothNull",
           "type": {
-            "target": "t/openapi/components/schemas/BothNull",
+            "target": "type/openapi/components/schemas/BothNull",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -294,21 +294,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/otherSpellings",
+          "id": "property/openapi/components/schemas/Holder/properties/otherSpellings",
           "name": {
             "source": "otherSpellings",
             "canonical": "other_spellings"
           },
           "wireName": "otherSpellings",
           "type": {
-            "target": "t/openapi/components/schemas/OtherSpellings",
+            "target": "type/openapi/components/schemas/OtherSpellings",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -325,9 +325,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/OneOfNull": {
+    "type/openapi/components/schemas/OneOfNull": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/OneOfNull",
+      "id": "type/openapi/components/schemas/OneOfNull",
       "name": {
         "source": "OneOfNull",
         "canonical": "one_of_null"
@@ -357,9 +357,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/OtherSpellings": {
+    "type/openapi/components/schemas/OtherSpellings": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/OtherSpellings",
+      "id": "type/openapi/components/schemas/OtherSpellings",
       "name": {
         "source": "OtherSpellings",
         "canonical": "other_spellings"

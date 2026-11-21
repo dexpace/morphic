@@ -22,10 +22,10 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref, a schema's or a reference object's, whose
 	// own hop resolves to nothing, at the $ref, in whichever document writes
-	// it, with why (bind.Hop.Why); a $ref whose chain ends on it reports nothing
-	// of its own (docs/compilers/openapi.md#references). The lowering reports a
-	// $ref it cannot follow at its position too, kept only where the load phase
-	// reported none there (openapi.withoutRereported).
+	// it, with why (reftable.Hop.Why); a $ref whose chain ends on it reports
+	// nothing of its own (docs/compilers/openapi.md#references). The lowering
+	// reports a $ref it cannot follow at its position too, kept only where the
+	// load phase reported none there (openapi.withoutRereported).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// UnresolvedSecurityScheme reports a security requirement naming a scheme
 	// the compiler resolved no mechanism for, at the requirement, from
@@ -67,7 +67,7 @@ const (
 	// proceeds.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
-	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
+	// scan indexes (sourcetreestats.MaxIndexedNodes). Every answer the index gives
 	// about such a document is a partial one, including the node count the
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
@@ -193,12 +193,12 @@ const (
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number, at every schema the rule table's check reads, in its dialect
 	// (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see oas's decimalBound).
+	// diagnostic for the defect — see specrules' decimalBound).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
 	// number under 3.0's or draft 4's), at every schema the rule table's check
-	// reads — see oas's decimalBound.
+	// reads — see specrules' decimalBound.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -496,8 +496,9 @@ const (
 	// rather than that one's error because such a document is legal and still
 	// lowers.
 	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
-	// UnknownKeyEntryTaken reports a key whose Unmodeled entry is already held by
-	// a construct declared somewhere else, so the key reached the IR in no form.
+	// UnknownKeyEntryAlreadyClaimed reports a key whose Unmodeled entry is
+	// already held by a construct declared somewhere else, so the key reached
+	// the IR in no form.
 	//
 	// The carriers holding more than one object's entries are where two constructs
 	// can spell one entry: a parameter's own keys and the keywords its schema had
@@ -506,7 +507,7 @@ const (
 	// refusing a key on that operation alone. Warning rather than error because
 	// the document is otherwise lowered whole, and the entry that did survive is
 	// in it.
-	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
+	UnknownKeyEntryAlreadyClaimed = "openapi/unknown-key-entry-already-claimed"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
 	// the parameter's content there and states its serialization through the

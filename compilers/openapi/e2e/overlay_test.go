@@ -162,14 +162,14 @@ actions:
 			require.NotNil(t, doc, "compile refused: %+v", diags)
 
 			var got []report
-			for _, d := range diags {
-				if d.Code != diag.DuplicateServerName {
+			for _, diagnostic := range diags {
+				if diagnostic.Code != diag.DuplicateServerName {
 					continue
 				}
-				assert.Equal(t, ir.SeverityWarning, d.Severity)
-				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
+				assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+				_, first, _ := strings.Cut(diagnostic.Message, " repeats the name at ")
 				first, _, _ = strings.Cut(first, ";")
-				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.WrittenBy})
+				got = append(got, report{at: string(diagnostic.Provenance.Pointer), first: first, source: diagnostic.Provenance.WrittenBy})
 			}
 			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
 
@@ -192,9 +192,9 @@ func propertyProvenance(t *testing.T, doc *ir.Document, schema, property string)
 		if !ok || model.Name.Source != schema {
 			continue
 		}
-		for _, p := range model.Properties {
-			if p.Name.Source == property {
-				return p.Provenance
+		for _, irProperty := range model.Properties {
+			if irProperty.Name.Source == property {
+				return irProperty.Provenance
 			}
 		}
 		t.Fatalf("schema %q has no property %q", schema, property)
@@ -220,8 +220,8 @@ func TestCompile_OverlayAppliesBeforeLowering(t *testing.T) {
 		var out []string
 		for _, def := range doc.Types {
 			if model, ok := def.(*ir.Model); ok && model.Name.Source == "Pet" {
-				for _, p := range model.Properties {
-					out = append(out, p.Name.Source)
+				for _, property := range model.Properties {
+					out = append(out, property.Name.Source)
 				}
 			}
 		}
@@ -269,9 +269,9 @@ actions:
 				continue
 			}
 			seen++
-			_, has := propByWire(model, "added")
+			_, has := propertyByWire(model, "added")
 			assert.False(t, has, "%s keeps the value the anchor had, with nothing the overlay added", name)
-			_, kept := propByWire(model, "old")
+			_, kept := propertyByWire(model, "old")
 			assert.True(t, kept, "%s still holds the property the source wrote", name)
 		}
 	}
@@ -307,9 +307,9 @@ actions:
 	require.NoError(t, err)
 
 	var got []ir.Provenance
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl {
-			got = append(got, d.Provenance)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingRedecl {
+			got = append(got, diagnostic.Provenance)
 		}
 	}
 	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/0/properties/p", WrittenBy: 1}}, got,
@@ -353,7 +353,7 @@ actions:
 		member := "/components/schemas/" + schema + "/allOf/properties/o"
 		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(member), WrittenBy: writer},
 			propertyProvenance(t, doc, schema, "o"), "%s's member", schema)
-		minted, ok := doc.Types[ir.TypeID("t/composed"+member)]
+		minted, ok := doc.Types[ir.TypeID("type/composed"+member)]
 		require.True(t, ok, "%s's member composes X and Y", schema)
 		assert.Equal(t, writer, minted.Common().Provenance.WrittenBy, "%s's minted model", schema)
 	}
@@ -465,9 +465,9 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 	assert.Equal(t, 0, propertyProvenance(t, doc, "Pet", "name").Source)
 }
 
-// primKindsSpec declares properties of several primitive kinds, so the rule is
-// held across kinds rather than for one.
-const primKindsSpec = `openapi: 3.1.0
+// primitiveKindsSpec declares properties of several primitive kinds, so the
+// rule is held across kinds rather than for one.
+const primitiveKindsSpec = `openapi: 3.1.0
 info:
   title: Prims
   version: "1"
@@ -496,11 +496,11 @@ actions:
 
 // primitiveProvenances returns the Provenance of every *ir.Primitive in
 // doc.Types, keyed by kind.
-func primitiveProvenances(doc *ir.Document) map[ir.PrimKind]ir.Provenance {
-	out := make(map[ir.PrimKind]ir.Provenance)
+func primitiveProvenances(doc *ir.Document) map[ir.PrimitiveKind]ir.Provenance {
+	out := make(map[ir.PrimitiveKind]ir.Provenance)
 	for _, def := range doc.Types {
-		if prim, ok := def.(*ir.Primitive); ok {
-			out[prim.Prim] = prim.Provenance
+		if primitive, ok := def.(*ir.Primitive); ok {
+			out[primitive.PrimitiveKind] = primitive.Provenance
 		}
 	}
 	return out
@@ -518,21 +518,21 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
 		overlay *openapi.Overlay
-		kinds   []ir.PrimKind
+		kinds   []ir.PrimitiveKind
 	}{
 		"plain": {
-			kinds: []ir.PrimKind{ir.PrimBool, ir.PrimInteger, ir.PrimNumber, ir.PrimString},
+			kinds: []ir.PrimitiveKind{ir.PrimitiveBool, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveString},
 		},
 		"overlaid": {
 			overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addBirthProperty)},
-			kinds:   []ir.PrimKind{ir.PrimBool, ir.PrimDate, ir.PrimInteger, ir.PrimNumber, ir.PrimString},
+			kinds:   []ir.PrimitiveKind{ir.PrimitiveBool, ir.PrimitiveDate, ir.PrimitiveInteger, ir.PrimitiveNumber, ir.PrimitiveString},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: "spec.yaml", Data: []byte(primKindsSpec)}},
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(primitiveKindsSpec)}},
 				compilers.Options{FormatOptions: openapi.Options{Overlay: tc.overlay}})
 			require.NoError(t, err)
 			require.NotNil(t, doc, "compile refused: %+v", diags)
@@ -541,9 +541,9 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 					"the one position reaching date is the overlay's")
 			}
 
-			want := make(map[ir.PrimKind]ir.Provenance, len(tc.kinds))
-			for _, k := range tc.kinds {
-				want[k] = ir.Provenance{Source: ir.NoSource}
+			want := make(map[ir.PrimitiveKind]ir.Provenance, len(tc.kinds))
+			for _, primitiveKind := range tc.kinds {
+				want[primitiveKind] = ir.Provenance{Source: ir.NoSource}
 			}
 			if diff := cmp.Diff(want, primitiveProvenances(doc)); diff != "" {
 				t.Errorf("primitive provenance by kind (-want +got):\n%s", diff)
@@ -587,9 +587,9 @@ actions:
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		var out []ir.Diagnostic
-		for _, d := range diags {
-			if d.Provenance.Position != (ir.Position{}) {
-				out = append(out, d)
+		for _, diagnostic := range diags {
+			if diagnostic.Provenance.Position != (ir.Position{}) {
+				out = append(out, diagnostic)
 			}
 		}
 		require.NotEmpty(t, out, "the fixture must produce a sited diagnostic to compare")
@@ -682,8 +682,8 @@ actions:
 		if !ok || model.Name.Source != "Pet" {
 			continue
 		}
-		for _, p := range model.Properties {
-			assert.NotEqual(t, "fromDisk", p.Name.Source, "the file at that path was read")
+		for _, property := range model.Properties {
+			assert.NotEqual(t, "fromDisk", property.Name.Source, "the file at that path was read")
 		}
 	}
 }
@@ -723,9 +723,9 @@ actions:
 	require.NotNil(t, doc)
 
 	var errs []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			errs = append(errs, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			errs = append(errs, diagnostic)
 		}
 	}
 	want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.CyclicRef,
@@ -736,10 +736,10 @@ actions:
 	// A, on the loop, lowers to the top type; B writes a type beside its $ref,
 	// one conjunct of it, so it lowers as the conjunction its read cut short
 	// does, whatever that is.
-	alias, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/A")].(*ir.Scalar)
+	alias, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/A")].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/any"), alias.Base.Target)
-	assert.Contains(t, doc.Types, ir.TypeID("t/openapi/components/schemas/B"))
+	assert.Equal(t, ir.TypeID("type/primitive/any"), alias.Base.Target)
+	assert.Contains(t, doc.Types, ir.TypeID("type/openapi/components/schemas/B"))
 }
 
 // provenanceSpec and provenancePatch exercise GitHub #522's fix on every
@@ -990,9 +990,9 @@ type diagKey struct {
 // returned them.
 func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnostic {
 	out := map[diagKey][]ir.Diagnostic{}
-	for _, d := range diags {
-		k := diagKey{d.Code, d.Provenance.Pointer}
-		out[k] = append(out[k], d)
+	for _, diagnostic := range diags {
+		diagKeyValue := diagKey{diagnostic.Code, diagnostic.Provenance.Pointer}
+		out[diagKeyValue] = append(out[diagKeyValue], diagnostic)
 	}
 	return out
 }
@@ -1017,9 +1017,9 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
 	assert.False(t, ir.HasError(diags), "the overlay applies cleanly: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code,
-			"an action that silently matched nothing would hollow this test out: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code,
+			"an action that silently matched nothing would hollow this test out: %+v", diagnostic)
 	}
 	assert.Empty(t, irverify.Verify(doc), "the fixture stays structurally valid")
 
@@ -1124,8 +1124,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		// schema's attribution while the combined entries name the overlay.
 		validationOnly := byCodeAndPointer[diagKey{diag.ValidationOnlyKeyword, "/components/schemas/Pet"}]
 		require.Len(t, validationOnly, 4)
-		for _, d := range validationOnly {
-			assert.Equal(t, 0, d.Provenance.Source, "%s", d.Message)
+		for _, diagnostic := range validationOnly {
+			assert.Equal(t, 0, diagnostic.Provenance.Source, "%s", diagnostic.Message)
 		}
 	})
 
@@ -1191,8 +1191,8 @@ actions:
 		}})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code, "every action must land: %+v", diagnostic)
 	}
 
 	entries := unmodeledEntriesByPath(doc)
@@ -1245,8 +1245,8 @@ actions:
 		}})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.OverlayAction, diagnostic.Code, "every action must land: %+v", diagnostic)
 	}
 
 	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
@@ -1290,9 +1290,9 @@ actions:
 // operationIDFindings returns the operationId diagnostics in diags, keyed by code.
 func operationIDFindings(diags []ir.Diagnostic) map[string][]ir.Diagnostic {
 	found := map[string][]ir.Diagnostic{}
-	for _, d := range diags {
-		if d.Code == diag.ConflictingOperationID || d.Code == diag.DuplicateOperationID {
-			found[d.Code] = append(found[d.Code], d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.ConflictingOperationID || diagnostic.Code == diag.DuplicateOperationID {
+			found[diagnostic.Code] = append(found[diagnostic.Code], diagnostic)
 		}
 	}
 	return found

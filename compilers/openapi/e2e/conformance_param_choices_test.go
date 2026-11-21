@@ -22,8 +22,8 @@ const (
 )
 
 // choiceParamID is the ID of the query parameter of listResources called name.
-func choiceParamID(name string) ir.ParamID {
-	return ir.ParamID("param/openapi/paths/~1resources/get/parameters/" + name + "/query")
+func choiceParamID(name string) ir.ParameterID {
+	return ir.ParameterID("parameter/openapi/paths/~1resources/get/parameters/" + name + "/query")
 }
 
 // choiceNaming is the naming of a choice or variant written name, a
@@ -38,18 +38,18 @@ func paramChoicesFilled() []ir.ParamChoice {
 		{
 			Name: choiceNaming("cursor"),
 			Variants: []ir.ParamVariant{
-				{Name: choiceNaming("backward"), Params: []ir.ParamID{choiceParamID("before")}},
-				{Name: choiceNaming("forward"), Params: []ir.ParamID{choiceParamID("after")}},
+				{Name: choiceNaming("backward"), Params: []ir.ParameterID{choiceParamID("before")}},
+				{Name: choiceNaming("forward"), Params: []ir.ParameterID{choiceParamID("after")}},
 			},
 		},
 		{
 			Name:     choiceNaming("parent"),
 			Required: true,
 			Variants: []ir.ParamVariant{
-				{Name: choiceNaming("by_external_id"), Params: []ir.ParamID{
+				{Name: choiceNaming("by_external_id"), Params: []ir.ParameterID{
 					choiceParamID("parent_slug"), choiceParamID("parent_external_id"),
 				}},
-				{Name: choiceNaming("by_id"), Params: []ir.ParamID{choiceParamID("parent_id")}},
+				{Name: choiceNaming("by_id"), Params: []ir.ParameterID{choiceParamID("parent_id")}},
 			},
 		},
 	}
@@ -58,23 +58,23 @@ func paramChoicesFilled() []ir.ParamChoice {
 // listResources returns the document's one operation.
 func listResources(t *testing.T, doc *ir.Document) ir.Operation {
 	t.Helper()
-	return linkOp(t, doc, "listResources")
+	return linkOperation(t, doc, "listResources")
 }
 
 // declaredChoiceParams is the five parameters of listResources in the order
 // the fixture declares them.
-func declaredChoiceParams() []ir.ParamID {
-	return []ir.ParamID{
+func declaredChoiceParams() []ir.ParameterID {
+	return []ir.ParameterID{
 		choiceParamID("parent_id"), choiceParamID("parent_slug"), choiceParamID("parent_external_id"),
 		choiceParamID("before"), choiceParamID("after"),
 	}
 }
 
-// opParamIDs lists the IDs of op's parameters in order.
-func opParamIDs(op ir.Operation) []ir.ParamID {
-	ids := make([]ir.ParamID, 0, len(op.Params))
-	for _, p := range op.Params {
-		ids = append(ids, p.ID)
+// operationParamIDs lists the IDs of operation's parameters in order.
+func operationParamIDs(operation ir.Operation) []ir.ParameterID {
+	ids := make([]ir.ParameterID, 0, len(operation.Params))
+	for _, parameter := range operation.Params {
+		ids = append(ids, parameter.ID)
 	}
 	return ids
 }
@@ -86,14 +86,14 @@ func opParamIDs(op ir.Operation) []ir.ParamID {
 func assertParamChoices(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	assert.Empty(t, diags, "a choice the convention writes well draws no finding")
-	op := listResources(t, doc)
+	operation := listResources(t, doc)
 
-	assert.Equal(t, paramChoicesFilled(), op.ParamChoices)
-	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
-	assert.Equal(t, declaredChoiceParams(), opParamIDs(op),
+	assert.Equal(t, paramChoicesFilled(), operation.ParamChoices)
+	assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
+	assert.Equal(t, declaredChoiceParams(), operationParamIDs(operation),
 		"the parameters stay the operation's, in the order they are declared")
 
-	entry, kept := op.Unmodeled["openapi:"+choicesKey]
+	entry, kept := operation.Unmodeled["openapi:"+choicesKey]
 	require.True(t, kept, "the key is kept whatever is filled from it")
 	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
 	assert.Equal(t, choicesPointer, string(entry.Provenance.Pointer))

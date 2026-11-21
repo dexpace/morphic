@@ -27,14 +27,14 @@ func Fill(t *testing.T, v any) {
 
 // fill holds Fill's logic against the minimal testingT surface, so its refusal
 // can be driven by a stub.
-func fill(t testingT, v any) {
-	t.Helper()
+func fill(testingTValue testingT, v any) {
+	testingTValue.Helper()
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		t.Fatalf("irtest: fill: want a non-nil pointer, got %T", v)
+		testingTValue.Fatalf("irtest: fill: want a non-nil pointer, got %T", v)
 	}
-	f := &filler{stack: map[reflect.Type]int{}}
-	f.fill(rv.Elem())
+	fillerValue := &filler{stack: map[reflect.Type]int{}}
+	fillerValue.fill(rv.Elem())
 }
 
 // typeIDType is the reflect.Type of ir.TypeID.
@@ -50,7 +50,7 @@ type filler struct {
 // id returns the next distinct type ID.
 func (f *filler) id() string {
 	f.next++
-	return fmt.Sprintf("t/filled-%d", f.next)
+	return fmt.Sprintf("type/filled-%d", f.next)
 }
 
 // fill populates v by its kind.
@@ -107,8 +107,8 @@ func (f *filler) fillMap(v reflect.Value) {
 		f.keys++
 		key.SetString(fmt.Sprintf("key%d", f.keys))
 	}
-	elem := reflect.New(v.Type().Elem()).Elem()
-	f.fill(elem)
+	element := reflect.New(v.Type().Elem()).Elem()
+	f.fill(element)
 	v.Set(reflect.MakeMap(v.Type()))
-	v.SetMapIndex(key, elem)
+	v.SetMapIndex(key, element)
 }

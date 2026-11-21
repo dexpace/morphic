@@ -45,14 +45,14 @@ const (
 // Scalar is one YAML scalar classified: its kind, its text as written, and
 // the value its kind reads that text as.
 type Scalar struct {
-	Text  string
-	Num   ir.BigVal
-	Bytes []byte
-	Kind  ScalarKind
-	Bool  bool
+	Text   string
+	Number ir.BigVal
+	Bytes  []byte
+	Kind   ScalarKind
+	Bool   bool
 }
 
-// Classify reads the scalar node n by its resolved tag, never by the schema
+// Classify reads the scalar node node by its resolved tag, never by the schema
 // around it: the one classification a value lowered into the IR and a payload
 // kept verbatim both render, so the two never read one scalar as two kinds
 // (GitHub #783, #784). The tag is the parser's
@@ -62,34 +62,34 @@ type Scalar struct {
 // A scalar whose text its tag does not admit, as `!!bool maybe` or `.inf`, is
 // an error, as yaml.v3's decoding refuses it, never text of a kind the source
 // did not write (docs/compilers/openapi.md#values).
-func Classify(n *yaml.Node) (Scalar, error) {
-	if n == nil || n.Kind != yaml.ScalarNode {
+func Classify(node *yaml.Node) (Scalar, error) {
+	if node == nil || node.Kind != yaml.ScalarNode {
 		return Scalar{}, errors.New("openapi: not a scalar")
 	}
-	s := Scalar{Text: n.Value}
-	switch tag := n.ShortTag(); tag {
+	scalar := Scalar{Text: node.Value}
+	switch tag := node.ShortTag(); tag {
 	case "!!null":
-		return s, decodes(n, new(any), "null")
+		return scalar, decodes(node, new(any), "null")
 	case "!!bool":
-		s.Kind = ScalarBool
-		return s, decodes(n, &s.Bool, "bool")
+		scalar.Kind = ScalarBool
+		return scalar, decodes(node, &scalar.Bool, "bool")
 	case "!!int", "!!float":
-		num, err := NumericLiteral(n)
+		number, err := NumericLiteral(node)
 		if err != nil {
-			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
+			return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 		}
-		s.Kind, s.Num = ScalarNumber, num
-		return s, nil
+		scalar.Kind, scalar.Number = ScalarNumber, number
+		return scalar, nil
 	case "!!str", "!!merge":
-		return text(n, s)
+		return text(node, scalar)
 	case "!!timestamp":
-		s.Kind = ScalarTimestamp
-		return s, decodes(n, new(time.Time), "timestamp")
+		scalar.Kind = ScalarTimestamp
+		return scalar, decodes(node, new(time.Time), "timestamp")
 	case "!!binary":
-		return binary(n, s)
+		return binary(node, scalar)
 	default:
-		s.Kind = ScalarTagged
-		return s, nil
+		scalar.Kind = ScalarTagged
+		return scalar, nil
 	}
 }
 
@@ -117,20 +117,20 @@ func (s Scalar) JSONKind() ScalarKind {
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
-func text(n *yaml.Node, s Scalar) (Scalar, error) {
-	s.Kind = ScalarString
-	if n.Style != 0 || n.ShortTag() != "!!str" {
-		return s, nil
+func text(node *yaml.Node, scalar Scalar) (Scalar, error) {
+	scalar.Kind = ScalarString
+	if node.Style != 0 || node.ShortTag() != "!!str" {
+		return scalar, nil
 	}
-	num, err := ir.NewBigVal(n.Value)
+	number, err := ir.NewBigVal(node.Value)
 	switch {
 	case err == nil:
-		s.Kind, s.Num = ScalarNumber, num
-		return s, nil
+		scalar.Kind, scalar.Number = ScalarNumber, number
+		return scalar, nil
 	case errors.Is(err, ir.ErrExponentRange):
-		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
+		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 	default:
-		return s, nil
+		return scalar, nil
 	}
 }
 
@@ -138,20 +138,20 @@ func text(n *yaml.Node, s Scalar) (Scalar, error) {
 // holds. yaml.v3 base64-decodes a !!binary node into a string (it rejects a
 // []byte target), so the decode goes through one. The error names no text,
 // which may be any length of bytes.
-func binary(n *yaml.Node, s Scalar) (Scalar, error) {
+func binary(node *yaml.Node, scalar Scalar) (Scalar, error) {
 	var raw string
-	if err := n.Decode(&raw); err != nil {
+	if err := node.Decode(&raw); err != nil {
 		return Scalar{}, fmt.Errorf("openapi: binary literal: %w", err)
 	}
-	s.Kind, s.Bytes = ScalarBinary, []byte(raw)
-	return s, nil
+	scalar.Kind, scalar.Bytes = ScalarBinary, []byte(raw)
+	return scalar, nil
 }
 
-// decodes reports whether yaml.v3 decodes n into target, which is the check
-// that n's text is one its tag admits.
-func decodes(n *yaml.Node, target any, what string) error {
-	if err := n.Decode(target); err != nil {
-		return fmt.Errorf("openapi: %s literal %q: %w", what, n.Value, err)
+// decodes reports whether yaml.v3 decodes node into target, which is the check
+// that node's text is one its tag admits.
+func decodes(node *yaml.Node, target any, what string) error {
+	if err := node.Decode(target); err != nil {
+		return fmt.Errorf("openapi: %s literal %q: %w", what, node.Value, err)
 	}
 	return nil
 }
@@ -172,8 +172,8 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	}
 	switch node.ShortTag() {
 	case "!!int":
-		if c, ok := nodeview.ParseCoreInteger(node.Value); ok {
-			return coreLiteral(c)
+		if coreInteger, ok := nodeview.ParseCoreInteger(node.Value); ok {
+			return coreLiteral(coreInteger)
 		}
 		return decodeIntLiteral(node)
 	case "!!float":
@@ -190,22 +190,22 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // base-ten integer is copied, at any length.
 const maxBasedDigits = 256
 
-// coreLiteral renders c, an integer the core schema spells, as its decimal
-// literal: a base-ten one as written, its leading zeros dropped, and an 0o or
-// 0x one converted, up to maxBasedDigits digits.
-func coreLiteral(c nodeview.CoreInteger) (ir.BigVal, error) {
-	if c.Base == 10 {
-		digits := strings.TrimLeft(c.Digits, "0")
-		if digits != "" && c.Negative {
+// coreLiteral renders coreInteger, an integer the core schema spells, as its
+// decimal literal: a base-ten one as written, its leading zeros dropped, and an
+// 0o or 0x one converted, up to maxBasedDigits digits.
+func coreLiteral(coreInteger nodeview.CoreInteger) (ir.BigVal, error) {
+	if coreInteger.Base == 10 {
+		digits := strings.TrimLeft(coreInteger.Digits, "0")
+		if digits != "" && coreInteger.Negative {
 			digits = "-" + digits
 		}
 		return ir.NewBigVal(cmp.Or(digits, "0"))
 	}
-	if len(c.Digits) > maxBasedDigits {
+	if len(coreInteger.Digits) > maxBasedDigits {
 		return "", fmt.Errorf("openapi: a base-%d integer of %d digits is past the %d digits read",
-			c.Base, len(c.Digits), maxBasedDigits)
+			coreInteger.Base, len(coreInteger.Digits), maxBasedDigits)
 	}
-	v, _ := new(big.Int).SetString(c.Digits, c.Base) // the grammar admits digits of the base alone
+	v, _ := new(big.Int).SetString(coreInteger.Digits, coreInteger.Base) // the grammar admits digits of the base alone
 	return ir.NewBigVal(v.String())
 }
 

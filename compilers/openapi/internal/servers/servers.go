@@ -56,32 +56,32 @@ func Reopen(held map[ir.ServerID]ir.Server) *Registry {
 // absent or empty is served at "/", which OpenAPI supplies in its place and
 // which is minted at ids.DefaultServer with no pointer, since nothing in the
 // source writes it (GitHub #672).
-func (r *Registry) Root(c service.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
+func (r *Registry) Root(serviceContext service.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 	// The field, not GetServers, which stands in a "/" server for an empty list:
 	// the default below is minted as no declaration.
-	if declared := c.Doc.Servers; len(declared) > 0 {
-		return r.Declared(c, declared, "")
+	if declared := serviceContext.Doc.Servers; len(declared) > 0 {
+		return r.Declared(serviceContext, declared, "")
 	}
 	id := ids.DefaultServer()
 	r.byID[id] = ir.Server{
 		ID:          id,
 		Name:        serverName(&soa.Server{URL: defaultServerURL}),
 		URLTemplate: defaultServerURL,
-		Provenance:  c.Place().At(""),
+		Provenance:  serviceContext.Place().At(""),
 	}
 	return []ir.ServerID{id}, nil
 }
 
 // Declared registers the servers list the object at owner declares and returns
-// their IDs in source order, or nil when it lowers none. c is the context of the
-// document that declares the list, so each server's ID and provenance name its
-// own position there, whichever mount reached it.
+// their IDs in source order, or nil when it lowers none. serviceContext is the
+// context of the document that declares the list, so each server's ID and
+// provenance name its own position there, whichever mount reached it.
 //
 // A nil entry, which no valid document writes, lowers nothing and keeps the
 // index it occupies, so the next entry's ID is still its own position. An empty
 // list declares nothing, as an absent one does, and so overrides nothing above
 // it (docs/compilers/openapi.md#path-item-servers).
-func (r *Registry) Declared(c service.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
+func (r *Registry) Declared(serviceContext service.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
 	if len(list) == 0 {
 		return nil, nil
 	}
@@ -91,7 +91,7 @@ func (r *Registry) Declared(c service.Ctx, list []*soa.Server, owner jsontext.Po
 		if s == nil {
 			continue
 		}
-		id, serverDiags := r.At(c, s, owner+ids.Ptr("servers", strconv.Itoa(i)))
+		id, serverDiags := r.At(serviceContext, s, owner+ids.Ptr("servers", strconv.Itoa(i)))
 		out = append(out, id)
 		diags = append(diags, serverDiags...)
 	}
@@ -101,15 +101,16 @@ func (r *Registry) Declared(c service.Ctx, list []*soa.Server, owner jsontext.Po
 	return out, diags
 }
 
-// At registers the server s declared at at and returns its ID, lowering it
-// the first time any mount reaches it. c is the context of the document
-// declaring it, as for Declared. A Link Object's server is one no list holds.
-func (r *Registry) At(c service.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
-	id := c.IDs().Server(at)
+// At registers the server s declared at at and returns its ID, lowering it the
+// first time any mount reaches it. serviceContext is the context of the
+// document declaring it, as for Declared. A Link Object's server is one no list
+// holds.
+func (r *Registry) At(serviceContext service.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
+	id := serviceContext.IDs().Server(at)
 	if _, held := r.byID[id]; held {
 		return id, nil
 	}
-	one, diags := lowerServer(c, s, id, at)
+	one, diags := lowerServer(serviceContext, s, id, at)
 	r.byID[id] = one
 	return id, diags
 }
@@ -125,9 +126,9 @@ func (r *Registry) Servers() map[ir.ServerID]ir.Server {
 
 // lowerServer lowers one server declared at sptr as id, keeping its x-* and
 // undeclared keys on the ir.Server itself.
-func lowerServer(c service.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
-	vars, diags := serverVariables(c, s, sptr)
-	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.Place(), sptr)
+func lowerServer(serviceContext service.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
+	vars, diags := serverVariables(serviceContext, s, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), serviceContext.Place(), sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
 		ID:          id,
@@ -136,14 +137,14 @@ func lowerServer(c service.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Poi
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   vars,
 		Unmodeled:   ext,
-		Provenance:  c.Place().At(sptr),
+		Provenance:  serviceContext.Place().At(sptr),
 	}
-	diags = append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, serviceContext.Place(), sptr)...)
 	if s.GetName() != "" {
 		return out, diags
 	}
 	// Only a name the document declares nowhere else is a key's to give.
-	name, promoted := promotion.ServerName(c.Promoter(), out.Unmodeled, &out.Provenance)
+	name, promoted := promotion.ServerName(serviceContext.Promoter(), out.Unmodeled, &out.Provenance)
 	if name != "" {
 		out.Name = ir.NamingFor(name)
 	}
@@ -172,7 +173,7 @@ func serverName(s *soa.Server) ir.Naming {
 
 // serverVariables lowers a server's URL template variables in source order, or
 // nil when it declares none.
-func serverVariables(c service.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.ServerVariable, []ir.Diagnostic) {
+func serverVariables(serviceContext service.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.ServerVariable, []ir.Diagnostic) {
 	vars := s.GetVariables()
 	if vars == nil || vars.Len() == 0 {
 		return nil, nil
@@ -186,7 +187,7 @@ func serverVariables(c service.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
 		// field is read directly — as annotation.XMLHints already reads its own.
-		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.Place(), vptr)
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, serviceContext.Place(), vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
@@ -195,7 +196,7 @@ func serverVariables(c service.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.Place(), vptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, serviceContext.Place(), vptr)...)
 		out = append(out, one)
 	}
 	return out, diags

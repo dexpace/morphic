@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Maps",
         "canonical": "maps"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/AnyMap": {
+    "type/openapi/components/schemas/AnyMap": {
       "kind": "map",
-      "id": "t/openapi/components/schemas/AnyMap",
+      "id": "type/openapi/components/schemas/AnyMap",
       "name": {
         "source": "AnyMap",
         "canonical": "any_map"
@@ -74,13 +74,13 @@
         "pointer": "/components/schemas/AnyMap"
       },
       "value": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/BoundedMap": {
+    "type/openapi/components/schemas/BoundedMap": {
       "kind": "map",
-      "id": "t/openapi/components/schemas/BoundedMap",
+      "id": "type/openapi/components/schemas/BoundedMap",
       "name": {
         "source": "BoundedMap",
         "canonical": "bounded_map"
@@ -93,18 +93,18 @@
         "pointer": "/components/schemas/BoundedMap"
       },
       "value": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
         "uniqueItems": false,
-        "minProps": 1,
-        "maxProps": 10
+        "minProperties": 1,
+        "maxProperties": 10
       }
     },
-    "t/openapi/components/schemas/ClosedAfter": {
+    "type/openapi/components/schemas/ClosedAfter": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ClosedAfter",
+      "id": "type/openapi/components/schemas/ClosedAfter",
       "name": {
         "source": "ClosedAfter",
         "canonical": "closed_after"
@@ -118,21 +118,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ClosedAfter/properties/a",
+          "id": "property/openapi/components/schemas/ClosedAfter/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -150,9 +150,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ClosedAfterPatterns": {
+    "type/openapi/components/schemas/ClosedAfterPatterns": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ClosedAfterPatterns",
+      "id": "type/openapi/components/schemas/ClosedAfterPatterns",
       "name": {
         "source": "ClosedAfterPatterns",
         "canonical": "closed_after_patterns"
@@ -164,12 +164,12 @@
         "source": 0,
         "pointer": "/components/schemas/ClosedAfterPatterns"
       },
-      "additionalProps": {
+      "additionalProperties": {
         "patterns": [
           {
             "pattern": "^x-",
             "value": {
-              "target": "t/prim/string",
+              "target": "type/primitive/string",
               "nullable": false
             }
           }
@@ -180,9 +180,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ClosedPatternMap": {
+    "type/openapi/components/schemas/ClosedPatternMap": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ClosedPatternMap",
+      "id": "type/openapi/components/schemas/ClosedPatternMap",
       "name": {
         "source": "ClosedPatternMap",
         "canonical": "closed_pattern_map"
@@ -194,12 +194,12 @@
         "source": 0,
         "pointer": "/components/schemas/ClosedPatternMap"
       },
-      "additionalProps": {
+      "additionalProperties": {
         "patterns": [
           {
             "pattern": "^x-",
             "value": {
-              "target": "t/prim/string",
+              "target": "type/primitive/string",
               "nullable": false
             }
           }
@@ -210,9 +210,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ClosedRecord": {
+    "type/openapi/components/schemas/ClosedRecord": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ClosedRecord",
+      "id": "type/openapi/components/schemas/ClosedRecord",
       "name": {
         "source": "ClosedRecord",
         "canonical": "closed_record"
@@ -226,21 +226,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ClosedRecord/properties/a",
+          "id": "property/openapi/components/schemas/ClosedRecord/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -258,9 +258,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/ClosedTwice": {
+    "type/openapi/components/schemas/ClosedTwice": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/ClosedTwice",
+      "id": "type/openapi/components/schemas/ClosedTwice",
       "name": {
         "source": "ClosedTwice",
         "canonical": "closed_twice"
@@ -287,21 +287,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/ClosedTwice/properties/a",
+          "id": "property/openapi/components/schemas/ClosedTwice/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -319,9 +319,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/InertBesideAMap": {
+    "type/openapi/components/schemas/InertBesideAMap": {
       "kind": "map",
-      "id": "t/openapi/components/schemas/InertBesideAMap",
+      "id": "type/openapi/components/schemas/InertBesideAMap",
       "name": {
         "source": "InertBesideAMap",
         "canonical": "inert_beside_a_map"
@@ -349,13 +349,13 @@
         "pointer": "/components/schemas/InertBesideAMap"
       },
       "value": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/InertBesideARecord": {
+    "type/openapi/components/schemas/InertBesideARecord": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/InertBesideARecord",
+      "id": "type/openapi/components/schemas/InertBesideARecord",
       "name": {
         "source": "InertBesideARecord",
         "canonical": "inert_beside_a_record"
@@ -384,21 +384,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/InertBesideARecord/properties/a",
+          "id": "property/openapi/components/schemas/InertBesideARecord/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -411,9 +411,9 @@
           }
         }
       ],
-      "additionalProps": {
+      "additionalProperties": {
         "value": {
-          "target": "t/prim/any",
+          "target": "type/primitive/any",
           "nullable": false
         }
       },
@@ -421,9 +421,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/OpenMap": {
+    "type/openapi/components/schemas/OpenMap": {
       "kind": "map",
-      "id": "t/openapi/components/schemas/OpenMap",
+      "id": "type/openapi/components/schemas/OpenMap",
       "name": {
         "source": "OpenMap",
         "canonical": "open_map"
@@ -436,13 +436,13 @@
         "pointer": "/components/schemas/OpenMap"
       },
       "value": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/OpenRecord": {
+    "type/openapi/components/schemas/OpenRecord": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/OpenRecord",
+      "id": "type/openapi/components/schemas/OpenRecord",
       "name": {
         "source": "OpenRecord",
         "canonical": "open_record"
@@ -456,21 +456,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/OpenRecord/properties/a",
+          "id": "property/openapi/components/schemas/OpenRecord/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "wireName": "a",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -483,9 +483,9 @@
           }
         }
       ],
-      "additionalProps": {
+      "additionalProperties": {
         "value": {
-          "target": "t/prim/any",
+          "target": "type/primitive/any",
           "nullable": false
         }
       },
@@ -493,9 +493,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/PatternMap": {
+    "type/openapi/components/schemas/PatternMap": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/PatternMap",
+      "id": "type/openapi/components/schemas/PatternMap",
       "name": {
         "source": "PatternMap",
         "canonical": "pattern_map"
@@ -507,16 +507,16 @@
         "source": 0,
         "pointer": "/components/schemas/PatternMap"
       },
-      "additionalProps": {
+      "additionalProperties": {
         "value": {
-          "target": "t/prim/any",
+          "target": "type/primitive/any",
           "nullable": false
         },
         "patterns": [
           {
             "pattern": "^x-",
             "value": {
-              "target": "t/prim/string",
+              "target": "type/primitive/string",
               "nullable": false
             }
           }
@@ -526,9 +526,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -536,11 +536,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -548,11 +548,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -560,7 +560,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

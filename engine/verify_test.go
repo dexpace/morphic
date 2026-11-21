@@ -60,8 +60,8 @@ var verifiedEntries = []entry{runFromAFile, runFromABuffer, runFromMemory, runOv
 // violationCodes returns the codes of vs, in order.
 func violationCodes(vs []irverify.Violation) []string {
 	codes := make([]string, 0, len(vs))
-	for _, v := range vs {
-		codes = append(codes, v.Code)
+	for _, violation := range vs {
+		codes = append(codes, violation.Code)
 	}
 	return codes
 }
@@ -100,15 +100,15 @@ var brokenDocuments = []struct {
 	// only as a consequence: a reference to the node's own ID resolves to nothing.
 	silent bool
 }{
-	{"a duplicate operation ID", func(d *ir.Document) {
-		group := &d.Services[0].Groups[0]
+	{"a duplicate operation ID", func(document *ir.Document) {
+		group := &document.Services[0].Groups[0]
 		group.Operations = append(slices.Clone(group.Operations), group.Operations[0])
-	}, []string{"ir/duplicate-op-id"}, true},
-	{"a registry key unequal to its node's ID", func(d *ir.Document) {
-		d.Types = ir.TypeRegistry{"t/openapi/a": &ir.Scalar{ID: "t/openapi/b"}}
+	}, []string{"ir/duplicate-operation-id"}, true},
+	{"a registry key unequal to its node's ID", func(document *ir.Document) {
+		document.Types = ir.TypeRegistry{"type/openapi/a": &ir.Scalar{ID: "type/openapi/b"}}
 	}, []string{"ir/type-id-mismatch"}, false},
-	{"a cased canonical name", func(d *ir.Document) {
-		d.Services[0].Name.Canonical = "Ping"
+	{"a cased canonical name", func(document *ir.Document) {
+		document.Services[0].Name.Canonical = "Ping"
 	}, []string{"ir/naming-cased"}, true},
 }
 
@@ -331,7 +331,7 @@ func TestEngine_RunVerifiesWhatAPassReturns(t *testing.T) {
 // above: a transform that returns a changed copy is not refused for being one.
 func TestEngine_RunAcceptsAPassWhoseOutputIsSound(t *testing.T) {
 	t.Parallel()
-	renames := changed(func(d *ir.Document) { d.Name = "Renamed" })
+	renames := changed(func(document *ir.Document) { document.Name = "Renamed" })
 	for _, via := range verifiedEntries {
 		t.Run(via.name, func(t *testing.T) {
 			t.Parallel()
@@ -447,7 +447,7 @@ func TestEngine_RunDocumentLeavesTheDocumentItIsHandedUnverifiedByDefault(t *tes
 // the ones irverify reports for it.
 func TestEngine_RunVerifiesADocumentThatWillNotEncode(t *testing.T) {
 	t.Parallel()
-	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(d *ir.Document) { d.Name = "not \xff UTF-8" }},
+	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(document *ir.Document) { document.Name = "not \xff UTF-8" }},
 		pass.Validator{})
 
 	_, err := runFromMemory.run(t, eng, engine.RunOptions{Verify: true, DisablePasses: []string{engine.ValidatePass}})
@@ -471,14 +471,14 @@ func TestVerifyError_NamesTheFirstViolationsOnOneLine(t *testing.T) {
 		violations []irverify.Violation
 		want       string
 	}{
-		{"one", []irverify.Violation{violation("ir/a", "doc.A")},
-			`engine: verify stage: the document breaks 1 invariants: ir/a at "doc.A"`},
-		{"three", []irverify.Violation{violation("ir/a", "doc.A"), violation("ir/b", "doc.B"), violation("ir/c", "doc.C")},
-			`engine: verify stage: the document breaks 3 invariants: ir/a at "doc.A"; ir/b at "doc.B"; ir/c at "doc.C"`},
+		{"one", []irverify.Violation{violation("ir/a", "document.A")},
+			`engine: verify stage: the document breaks 1 invariants: ir/a at "document.A"`},
+		{"three", []irverify.Violation{violation("ir/a", "document.A"), violation("ir/b", "document.B"), violation("ir/c", "document.C")},
+			`engine: verify stage: the document breaks 3 invariants: ir/a at "document.A"; ir/b at "document.B"; ir/c at "document.C"`},
 		{"four", []irverify.Violation{violation("ir/a", "A"), violation("ir/b", "B"), violation("ir/c", "C"), violation("ir/d", "D")},
 			`engine: verify stage: the document breaks 4 invariants: ir/a at "A"; ir/b at "B"; ir/c at "C"; and 1 more`},
-		{"a path with a line break and a quote", []irverify.Violation{violation("ir/a", "doc.Types[a\n\"b\"]")},
-			`engine: verify stage: the document breaks 1 invariants: ir/a at "doc.Types[a\n\"b\"]"`},
+		{"a path with a line break and a quote", []irverify.Violation{violation("ir/a", "document.Types[a\n\"b\"]")},
+			`engine: verify stage: the document breaks 1 invariants: ir/a at "document.Types[a\n\"b\"]"`},
 		{"a path past the bound", []irverify.Violation{violation("ir/a", strings.Repeat("k", 5000))},
 			fmt.Sprintf(`engine: verify stage: the document breaks 1 invariants: ir/a at "%s"`, strings.Repeat("k", 200))},
 	}
@@ -511,7 +511,7 @@ func TestRunOptions_VerifyIsOffAndAbsentFromTheEncodingByDefault(t *testing.T) {
 // cost of verifying for nothing.
 func TestEngine_RunWalksADocumentOnlyWhereItChanged(t *testing.T) {
 	t.Parallel()
-	rename := changed(func(d *ir.Document) { d.Name = "Renamed" })
+	rename := changed(func(document *ir.Document) { document.Name = "Renamed" })
 	versioned := funcPass{"versioned", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 		next := *doc
 		next.Version = "2"
@@ -572,10 +572,10 @@ func runPets(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.
 	return eng.RunSources(t.Context(), []compilers.Source{{Path: "pets.yaml", Data: []byte(petSpec)}}, opts)
 }
 
-// firstType returns the type of d with the lowest ID, so a test breaks the same
-// one on every run.
-func firstType(d *ir.Document) ir.TypeDef {
-	return d.Types[slices.Sorted(maps.Keys(d.Types))[0]]
+// firstType returns the type of document with the lowest ID, so a test breaks
+// the same one on every run.
+func firstType(document *ir.Document) ir.TypeDef {
+	return document.Types[slices.Sorted(maps.Keys(document.Types))[0]]
 }
 
 // TestEngine_RunVerifiesADocumentThatHoldsItself pins what a verified run does
@@ -587,8 +587,8 @@ func TestEngine_RunVerifiesADocumentThatHoldsItself(t *testing.T) {
 	list := make([]ir.Value, 1)
 	list[0] = ir.Value{Kind: ir.ValueList, List: list}
 	example := ir.Value{Kind: ir.ValueList, List: list}
-	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(d *ir.Document) {
-		firstType(d).Common().Examples = []ir.Example{{Value: &example}}
+	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(document *ir.Document) {
+		firstType(document).Common().Examples = []ir.Example{{Value: &example}}
 	}})
 
 	res, err := runPets(t, eng, engine.RunOptions{Verify: true})
@@ -606,8 +606,8 @@ func TestEngine_RunVerifiesADocumentNestedPastTheWalkBound(t *testing.T) {
 	for range 2 * ir.MaxWalkDepth {
 		example = ir.Value{Kind: ir.ValueList, List: []ir.Value{example}}
 	}
-	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(d *ir.Document) {
-		firstType(d).Common().Examples = []ir.Example{{Value: &example}}
+	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(document *ir.Document) {
+		firstType(document).Common().Examples = []ir.Example{{Value: &example}}
 	}})
 
 	res, err := runPets(t, eng, engine.RunOptions{Verify: true})

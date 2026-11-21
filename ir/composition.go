@@ -13,8 +13,9 @@ import (
 // for it, since a $ref carrying siblings composes the branch's own alias node,
 // not the schema it points at (docs/ir/models.md#composition-entries). Mixins
 // are absent on purpose: a mixin contributes members without making the model a
-// member of anything, so it belongs to [ExposedProps], not to subtype identity.
-// An id naming no live model yields nil, and an unset reference is skipped.
+// member of anything, so it belongs to [ExposedProperties], not to subtype
+// identity. An id naming no live model yields nil, and an unset reference is
+// skipped.
 func Supertypes(doc *Document, id TypeID) []TypeID {
 	left := math.MaxInt
 	supers, _ := supertypes(nil, doc, id, &left)
@@ -28,17 +29,17 @@ func supertypes(dst []TypeID, doc *Document, id TypeID, left *int) ([]TypeID, bo
 	if doc == nil {
 		return dst, true
 	}
-	m, ok := doc.Types[id].(*Model)
-	if !ok || m == nil {
+	model, ok := doc.Types[id].(*Model)
+	if !ok || model == nil {
 		return dst, true
 	}
-	if m.Base != nil {
-		if dst, ok = appendSupertype(dst, doc, m.Base.Target, left); !ok {
+	if model.Base != nil {
+		if dst, ok = appendSupertype(dst, doc, model.Base.Target, left); !ok {
 			return dst, false
 		}
 	}
-	for _, r := range m.Implements {
-		if dst, ok = appendSupertype(dst, doc, r.Target, left); !ok {
+	for _, typeRef := range model.Implements {
+		if dst, ok = appendSupertype(dst, doc, typeRef.Target, left); !ok {
 			return dst, false
 		}
 	}
@@ -49,9 +50,9 @@ func supertypes(dst []TypeID, doc *Document, id TypeID, left *int) ([]TypeID, bo
 // scalars, unless that is no type at all. It reports false when *left ran out
 // first.
 func appendSupertype(dst []TypeID, doc *Document, target TypeID, left *int) ([]TypeID, bool) {
-	t, ok := aliasTarget(doc, target, left)
-	if ok && t != "" {
-		dst = append(dst, t)
+	typeID, ok := aliasTarget(doc, target, left)
+	if ok && typeID != "" {
+		dst = append(dst, typeID)
 	}
 	return dst, ok
 }
@@ -70,11 +71,11 @@ func take(left *int) bool {
 // for its Base, and a chain of them for the type at its end
 // (docs/ir/scalars.md).
 func AliasBase(types TypeRegistry, id TypeID) (TypeID, bool) {
-	s, ok := types[id].(*Scalar)
-	if !ok || s == nil || s.Base == nil {
+	scalar, ok := types[id].(*Scalar)
+	if !ok || scalar == nil || scalar.Base == nil {
 		return "", false
 	}
-	return s.Base.Target, true
+	return scalar.Base.Target, true
 }
 
 // aliasTarget follows a chain of alias scalars to the type it stands for,
@@ -104,7 +105,7 @@ func aliasTarget(doc *Document, id TypeID, left *int) (TypeID, bool) {
 // hierarchy.
 //
 // It is the relation's definition, walked afresh for one question. A caller
-// asking many of one document asks irfacts.Index, which is held to it.
+// asking many of one document asks irfacts.DocumentFacts, which is held to it.
 func IsSubtype(doc *Document, target, base TypeID) bool {
 	sub, _, _ := IsSubtypeWithin(doc, target, base, math.MaxInt)
 	return sub
@@ -154,34 +155,34 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 	return false, true
 }
 
-// ExposedProps returns the property IDs the type root names exposes: its own
-// plus those it composes in through Base, Implements and Mixins
+// ExposedProperties returns the property IDs the type root names exposes: its
+// own plus those it composes in through Base, Implements and Mixins
 // (docs/ir/models.md), the flat set an emitter renders. A root naming an alias
 // scalar exposes the parts of the model the alias stands for, and one naming
 // neither that nor a live model exposes none. A visited set ends the walk on a
 // cyclic hierarchy.
 //
 // It is the relation's definition, walked afresh for one root. A caller asking
-// many of one document asks irfacts.Index, which is held to it.
-func ExposedProps(doc *Document, root TypeID) map[PropID]bool {
-	props := map[PropID]bool{}
+// many of one document asks irfacts.DocumentFacts, which is held to it.
+func ExposedProperties(doc *Document, root TypeID) map[PropertyID]bool {
+	properties := map[PropertyID]bool{}
 	left := math.MaxInt
-	exposedWalk(doc, root, &left, func(p PropID) bool {
-		props[p] = true
+	exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {
+		properties[propertyID] = true
 		return false
 	})
-	return props
+	return properties
 }
 
-// ExposesWithin answers whether [ExposedProps] holds prop by the same walk,
-// which stops at the first type declaring prop, in at most limit steps: one
-// for root and for each part source it follows, and one for each property it
-// reads. spent is the steps it took, and ok is false when the walk needed more
-// than limit and stopped without an answer.
-func ExposesWithin(doc *Document, root TypeID, prop PropID, limit int) (exposed bool, spent int, ok bool) {
+// ExposesWithin answers whether [ExposedProperties] holds property by the same
+// walk, which stops at the first type declaring property, in at most limit
+// steps: one for root and for each part source it follows, and one for each
+// property it reads. spent is the steps it took, and ok is false when the walk
+// needed more than limit and stopped without an answer.
+func ExposesWithin(doc *Document, root TypeID, property PropertyID, limit int) (exposed bool, spent int, ok bool) {
 	left := limit
-	ok = exposedWalk(doc, root, &left, func(p PropID) bool {
-		exposed = p == prop
+	ok = exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {
+		exposed = propertyID == property
 		return exposed
 	})
 	return exposed, limit - left, ok
@@ -190,7 +191,7 @@ func ExposesWithin(doc *Document, root TypeID, prop PropID, limit int) (exposed 
 // exposedWalk hands visit each property the types root leads to declare, taking
 // steps from *left, and stops when visit returns true. It reports false when
 // *left ran out first.
-func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropID) bool) bool {
+func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropertyID) bool) bool {
 	if doc == nil {
 		return true
 	}
@@ -225,25 +226,25 @@ func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropID) bool)
 // parents, an alias scalar's base. No other kind carries parts or says where
 // to find them. stop reports that visit returned true, and ok false that *left
 // ran out first.
-func partSources(dst []TypeID, td TypeDef, left *int, visit func(PropID) bool) (sources []TypeID, stop, ok bool) {
+func partSources(dst []TypeID, td TypeDef, left *int, visit func(PropertyID) bool) (sources []TypeID, stop, ok bool) {
 	switch t := td.(type) {
 	case *Model:
-		for _, p := range t.Properties {
+		for _, property := range t.Properties {
 			if !take(left) {
 				return dst, false, false
 			}
-			if visit(p.ID) {
+			if visit(property.ID) {
 				return dst, true, true
 			}
 		}
 		if t.Base != nil {
 			dst = append(dst, t.Base.Target)
 		}
-		for _, r := range t.Implements {
-			dst = append(dst, r.Target)
+		for _, typeRef := range t.Implements {
+			dst = append(dst, typeRef.Target)
 		}
-		for _, r := range t.Mixins {
-			dst = append(dst, r.Target)
+		for _, typeRef := range t.Mixins {
+			dst = append(dst, typeRef.Target)
 		}
 		return dst, false, true
 	case *Scalar:

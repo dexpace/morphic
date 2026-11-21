@@ -24,11 +24,11 @@ var allReasons = []ir.UnmodeledReason{
 	ir.ReasonNoIRHome, ir.ReasonOutOfScope,
 }
 
-// docWithUnmodeled hangs p off validDoc's model, an Unmodeled site the walk
-// reaches through the Types registry.
-func docWithUnmodeled(p ir.Unmodeled) *ir.Document {
+// docWithUnmodeled hangs unmodeled off validDoc's model, an Unmodeled site the
+// walk reaches through the Types registry.
+func docWithUnmodeled(unmodeled ir.Unmodeled) *ir.Document {
 	doc := validDoc()
-	doc.Types["t/x/Model"].Common().Unmodeled = p
+	doc.Types["type/x/Model"].Common().Unmodeled = unmodeled
 	return doc
 }
 
@@ -36,11 +36,11 @@ func docWithUnmodeled(p ir.Unmodeled) *ir.Document {
 // check: none of the declared values may be reported, or the check would fail
 // documents it exists to pass.
 func TestVerify_EveryDeclaredReasonIsClean(t *testing.T) {
-	p := ir.Unmodeled{}
-	for _, r := range allReasons {
-		p["openapi:"+string(r)] = ir.UnmodeledEntry{Reason: r, Value: ir.RawValue(`1`)}
+	unmodeled := ir.Unmodeled{}
+	for _, unmodeledReason := range allReasons {
+		unmodeled["openapi:"+string(unmodeledReason)] = ir.UnmodeledEntry{Reason: unmodeledReason, Value: ir.RawValue(`1`)}
 	}
-	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(unmodeled)))
 }
 
 // TestVerify_EmptyUnmodeledReasonIsAViolation pins the defect every other check
@@ -53,7 +53,7 @@ func TestVerify_EmptyUnmodeledReasonIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-unmodeled-reason", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
+	assert.Equal(t, "document.Types[type/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
 }
 
 // TestVerify_UnknownUnmodeledReasonIsAViolation covers the other way a bare
@@ -78,7 +78,7 @@ func TestVerify_EmptyUnmodeledKeyIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/empty-unmodeled-key", got[0].Code)
-	assert.Equal(t, `doc.Types[t/x/Model].Unmodeled[""]`, got[0].Path)
+	assert.Equal(t, `document.Types[type/x/Model].Unmodeled[""]`, got[0].Path)
 }
 
 // TestVerify_EmptyKeyAndReasonReportBoth pins that the two defects are checked
@@ -97,13 +97,13 @@ func TestVerify_EmptyKeyAndReasonReportBoth(t *testing.T) {
 func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID:   "s/x/S",
+		ID:   "service/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
-			ID:   "g/x/S/g",
+			ID:   "operation-group/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
-				ID:        "op/x/S/op",
+				ID:        "operation/x/S/op",
 				Name:      named("op"),
 				Unmodeled: ir.Unmodeled{"openapi:x-internal": {Value: ir.RawValue(`true`)}},
 			}},
@@ -137,7 +137,7 @@ func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 			got := verifyDeclared(doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
-			assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
+			assert.Equal(t, "document.Types[type/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
 			assert.Contains(t, got[0].Message, "unmodeled entry")
 			// A nil payload encodes, as null; only the others stop the document.
 			consequence := "cannot be marshaled"
@@ -153,14 +153,14 @@ func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 // value kinds a preserved construct can be, so the check cannot pass by
 // rejecting everything.
 func TestVerify_ValidUnmodeledValuesAreClean(t *testing.T) {
-	p := ir.Unmodeled{}
+	unmodeled := ir.Unmodeled{}
 	for i, raw := range []string{`null`, `true`, `12.5`, `"s"`, `[1,2]`, `{"a":{"b":[]}}`, ` 1 `} {
-		p["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
+		unmodeled["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
 			Reason: ir.ReasonVendorExtension,
 			Value:  ir.RawValue(raw),
 		}
 	}
-	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(unmodeled)))
 }
 
 // rawConfigCarriers builds one document per field that carries an ir.RawConfig,
@@ -178,30 +178,30 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 	}
 	channel := validDoc()
 	channel.Channels = map[ir.ChannelID]ir.Channel{
-		"chan/a": {ID: "chan/a", Name: named("a"), Bindings: cfg},
+		"channel/a": {ID: "channel/a", Name: named("a"), Bindings: cfg},
 	}
 	message := validDoc()
 	message.Messages = map[ir.MessageID]ir.Message{
-		"msg/a": {ID: "msg/a", Name: named("a"), Bindings: cfg},
+		"message/a": {ID: "message/a", Name: named("a"), Bindings: cfg},
 	}
 	operation := validDoc()
-	operation.Channels = map[ir.ChannelID]ir.Channel{"chan/a": {ID: "chan/a", Name: named("a")}}
-	operation.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
-		ID:   "g/x/S/g",
+	operation.Channels = map[ir.ChannelID]ir.Channel{"channel/a": {ID: "channel/a", Name: named("a")}}
+	operation.Services = []ir.Service{{ID: "service/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+		ID:   "operation-group/x/S/g",
 		Name: named("g"),
 		Operations: []ir.Operation{{
-			ID:   "op/x/S/op",
+			ID:   "operation/x/S/op",
 			Name: named("op"),
-			Bindings: ir.OpBindings{Message: &ir.MessageBinding{
-				Channel:   "chan/a",
-				Direction: ir.MsgDirectionSend,
+			Bindings: ir.OperationBindings{Message: &ir.MessageBinding{
+				Channel:   "channel/a",
+				Direction: ir.MessageDirectionSend,
 				Bindings:  cfg,
 			}},
 		}},
 	}}}}
 	protocol := validDoc()
 	protocol.Services = []ir.Service{{
-		ID:        "s/x/S",
+		ID:        "service/x/S",
 		Name:      named("s"),
 		Protocols: []ir.ProtocolDecl{{Name: "grpc", Options: ir.RawConfig{"clientId": payload}}},
 	}}
@@ -210,11 +210,11 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 		doc  *ir.Document
 		path string
 	}{
-		"Server.Bindings":         {server, "doc.Servers[server/x/a].Bindings[kafka][clientId]"},
-		"Channel.Bindings":        {channel, "doc.Channels[chan/a].Bindings[kafka][clientId]"},
-		"Message.Bindings":        {message, "doc.Messages[msg/a].Bindings[kafka][clientId]"},
-		"MessageBinding.Bindings": {operation, "doc.Services[0].Groups[0].Operations[0].Bindings.Message.Bindings[kafka][clientId]"},
-		"ProtocolDecl.Options":    {protocol, "doc.Services[0].Protocols[0].Options[clientId]"},
+		"Server.Bindings":         {server, "document.Servers[server/x/a].Bindings[kafka][clientId]"},
+		"Channel.Bindings":        {channel, "document.Channels[channel/a].Bindings[kafka][clientId]"},
+		"Message.Bindings":        {message, "document.Messages[message/a].Bindings[kafka][clientId]"},
+		"MessageBinding.Bindings": {operation, "document.Services[0].Groups[0].Operations[0].Bindings.Message.Bindings[kafka][clientId]"},
+		"ProtocolDecl.Options":    {protocol, "document.Services[0].Protocols[0].Options[clientId]"},
 	}
 }
 
@@ -248,7 +248,7 @@ func TestVerify_RawConfigEntryWithAnEmptyKeyIsSpelledAsTheWalkSpellsIt(t *testin
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
-	assert.Equal(t, "doc.Servers[server/x/a].Bindings[kafka][]", got[0].Path)
+	assert.Equal(t, "document.Servers[server/x/a].Bindings[kafka][]", got[0].Path)
 }
 
 // TestVerify_ValidRawConfigIsClean pins the negative half at every carrier: a
@@ -281,7 +281,7 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 				var back ir.Document
 				require.NoError(t, json.Unmarshal(encoded, &back))
 				assert.Equal(t, ir.RawValue("null"),
-					back.Types["t/x/Model"].Common().Unmodeled["openapi:x"].Value,
+					back.Types["type/x/Model"].Common().Unmodeled["openapi:x"].Value,
 					"a nil payload does not come back as one")
 				return
 			}

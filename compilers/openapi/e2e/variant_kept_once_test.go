@@ -76,21 +76,21 @@ func TestCompile_ABranchAVariantKeepsLowersNowhereElse(t *testing.T) {
 // requireKeptOnce holds the variant over branch i of N's oneOf to keeping
 // the branch verbatim, with no node at or under the branch's pointer and one
 // finding there, the info saying it is kept.
-func requireKeptOnce(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, v ir.Variant, i int) {
+func requireKeptOnce(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, variant ir.Variant, i int) {
 	t.Helper()
 	at := "/components/schemas/N/oneOf/" + strconv.Itoa(i)
-	m, ok := doc.Types[v.Type.Target].(*ir.Model)
+	model, ok := doc.Types[variant.Type.Target].(*ir.Model)
 	require.True(t, ok, "the variant over branch %d is a model", i)
-	assert.Contains(t, m.Unmodeled, "openapi:oneOf/"+strconv.Itoa(i))
+	assert.Contains(t, model.Unmodeled, "openapi:oneOf/"+strconv.Itoa(i))
 	for id := range doc.Types {
-		own := strings.TrimPrefix(string(id), "t/anon")
+		own := strings.TrimPrefix(string(id), "type/anonymous")
 		assert.False(t, own == at || strings.HasPrefix(own, at+"/"), "%s holds branch %d again", id, i)
 	}
 	var found []string
-	for _, d := range diags {
-		p := string(d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		p := string(diagnostic.Provenance.Pointer)
 		if p == at || strings.HasPrefix(p, at+"/") {
-			found = append(found, d.Code)
+			found = append(found, diagnostic.Code)
 		}
 	}
 	assert.Equal(t, []string{diag.DegradedConstruct}, found, "the findings at and under %s", at)

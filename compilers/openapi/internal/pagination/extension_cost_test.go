@@ -15,10 +15,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
 
 // pageSpec is a document of n operations, each reading its cursor, the next
@@ -26,9 +26,9 @@ import (
 // members, as the walk of each states: operation is one operation's text, its
 // %[1]d the operation's number.
 func pageSpec(n int, operation string) string {
-	var paths, props strings.Builder
+	var paths, properties strings.Builder
 	for i := range n {
-		fmt.Fprintf(&props, "        m%d: {type: string}\n", i)
+		fmt.Fprintf(&properties, "        m%d: {type: string}\n", i)
 		fmt.Fprintf(&paths, operation, i)
 	}
 	return openapitest.PathsSpec(paths.String()) + `components:
@@ -37,7 +37,7 @@ func pageSpec(n int, operation string) string {
       type: object
       properties:
         items: {type: array, items: {type: string}}
-` + props.String()
+` + properties.String()
 }
 
 // pageSpecs are the shapes whose operations read the one model: the cursor from
@@ -80,20 +80,20 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	p := promotion.New(pagePolicy())
+	promoter := promotion.New(pagePolicy())
 	fewest := math.Inf(1)
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, diags := pagination.Promote(p, whole.New(doc), nil)
+		_, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range whole.New(doc).Ops {
-			if op.Pagination != nil {
+		for _, operation := range compileddoc.New(doc).Operations {
+			if operation.Pagination != nil {
 				filled++
 			}
-			op.Pagination = nil
+			operation.Pagination = nil
 		}
 		require.Equal(t, operations, filled)
 		fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))

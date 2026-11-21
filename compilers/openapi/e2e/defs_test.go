@@ -70,25 +70,25 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 
 // assertOwnDefsProperty requires that the owner's own property (by wire name)
 // resolves directly to a Model interned at that SAME schema's own "$defs/<def>"
-// position, carrying wantProp — proof the reference landed on the schema's own
-// definition rather than a sibling's (GitHub #557). A model property is a
+// position, carrying wantProperty — proof the reference landed on the schema's
+// own definition rather than a sibling's (GitHub #557). A model property is a
 // CarriedRef position, so a bare $ref (no siblings, as every property here is)
 // resolves directly to the target with no alias in between.
-func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, prop, def, wantProp string) {
+func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, wireName, def, wantProperty string) {
 	t.Helper()
-	m, ok := doc.Types[owner].(*ir.Model)
+	model, ok := doc.Types[owner].(*ir.Model)
 	require.True(t, ok, "%s is a Model", owner)
-	p, ok := propByWire(m, prop)
-	require.True(t, ok, "%s declares property %q", owner, prop)
+	property, ok := propertyByWire(model, wireName)
+	require.True(t, ok, "%s declares property %q", owner, wireName)
 
-	wantID := ids.Document{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
-	require.Equal(t, wantID, p.Type.Target,
-		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, prop, def)
+	wantID := ids.DocumentIDNamespace{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
+	require.Equal(t, wantID, property.Type.Target,
+		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, wireName, def)
 
-	target, ok := doc.Types[p.Type.Target].(*ir.Model)
+	target, ok := doc.Types[property.Type.Target].(*ir.Model)
 	require.True(t, ok, "the definition itself is a Model")
-	_, ok = propByWire(target, wantProp)
-	assert.True(t, ok, "%s's own definition declares %q; got %+v", owner, wantProp, target.Properties)
+	_, ok = propertyByWire(target, wantProperty)
+	assert.True(t, ok, "%s's own definition declares %q; got %+v", owner, wantProperty, target.Properties)
 }
 
 // TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema is the regression for
@@ -105,10 +105,10 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 		return ids.Ptr("paths", path, "get", "responses", "200", "content", media, "schema")
 	}
 	tests := []struct {
-		name            string
-		owner           ir.TypeID
-		at              jsontext.Pointer
-		prop, def, want string
+		name                string
+		owner               ir.TypeID
+		at                  jsontext.Pointer
+		property, def, want string
 	}{
 		{"an operation", "", response("/a", "application/json"), "p", "n", "x"},
 		{"another with the same definition name", "", response("/b/{id}", "application/json"), "q", "n", "y"},
@@ -118,10 +118,10 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 	for _, tc := range tests {
 		owner := tc.owner
 		if owner == "" {
-			owner = ids.Document{}.ForPointer(tc.at)
+			owner = ids.DocumentIDNamespace{}.ForPointer(tc.at)
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			assertOwnDefsProperty(t, doc, owner, tc.at, tc.prop, tc.def, tc.want)
+			assertOwnDefsProperty(t, doc, owner, tc.at, tc.property, tc.def, tc.want)
 		})
 	}
 }
@@ -179,31 +179,31 @@ func TestCompile_DefsReferenceMergesTargetsOwnNullabilityAndDescription(t *testi
 
 	a, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := propByWire(a, "p")
+	property, ok := propertyByWire(a, "p")
 	require.True(t, ok)
-	assert.False(t, p.Type.Nullable, "A's own $defs/n is a plain string, not a union with null")
-	assert.Equal(t, "from-A", descriptionOf(doc, p), "p must read A's own definition, not B's")
+	assert.False(t, property.Type.Nullable, "A's own $defs/n is a plain string, not a union with null")
+	assert.Equal(t, "from-A", descriptionOf(doc, property), "p must read A's own definition, not B's")
 
 	b, ok := doc.Types[componentID("B")].(*ir.Model)
 	require.True(t, ok)
-	q, ok := propByWire(b, "q")
+	irProperty, ok := propertyByWire(b, "q")
 	require.True(t, ok)
-	assert.True(t, q.Type.Nullable, "B's own $defs/n admits null")
-	assert.Equal(t, "from-B", descriptionOf(doc, q), "q must read B's own definition, not A's")
+	assert.True(t, irProperty.Type.Nullable, "B's own $defs/n admits null")
+	assert.Equal(t, "from-B", descriptionOf(doc, irProperty), "q must read B's own definition, not A's")
 }
 
-// descriptionOf returns p's own description when the property carries one
-// directly, or — when p's type reduced to a shared primitive with nowhere of
-// its own to hold it — the description merged onto p.Docs from the reference's
-// resolved target. Whichever field this compiler attaches it to, it must be
-// the referenced schema's OWN description, never a sibling's; this reads
-// whichever field is populated rather than assuming one, so the assertion
-// survives a refactor of exactly where the merge lands.
-func descriptionOf(doc *ir.Document, p ir.Property) string {
-	if p.Docs.Description != "" {
-		return p.Docs.Description
+// descriptionOf returns property's own description when the property carries
+// one directly, or — when property's type reduced to a shared primitive with
+// nowhere of its own to hold it — the description merged onto property.Docs
+// from the reference's resolved target. Whichever field this compiler attaches
+// it to, it must be the referenced schema's OWN description, never a sibling's;
+// this reads whichever field is populated rather than assuming one, so the
+// assertion survives a refactor of exactly where the merge lands.
+func descriptionOf(doc *ir.Document, property ir.Property) string {
+	if property.Docs.Description != "" {
+		return property.Docs.Description
 	}
-	if td, ok := doc.Types[p.Type.Target]; ok {
+	if td, ok := doc.Types[property.Type.Target]; ok {
 		return td.Common().Docs.Description
 	}
 	return ""
@@ -232,23 +232,23 @@ func TestCompile_DefsDiscriminatorMappingNamesItsOwnSiblingDefinition(t *testing
 	doc, diags := parseFull(t, defsMappingSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	u, ok := doc.Types[componentID("Pet")].(*ir.Union)
+	union, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "a discriminated oneOf lowers to a Union")
-	require.NotNil(t, u.Discriminator)
+	require.NotNil(t, union.Discriminator)
 
-	wantCat := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "cat"))
-	wantDog := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "dog"))
+	wantCat := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "cat"))
+	wantDog := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "Pet", "$defs", "dog"))
 
-	catID, ok := u.Discriminator.Mapping["cat"]
+	catID, ok := union.Discriminator.Mapping["cat"]
 	require.True(t, ok)
-	dogID, ok := u.Discriminator.Mapping["dog"]
+	dogID, ok := union.Discriminator.Mapping["dog"]
 	require.True(t, ok)
 	assert.Equal(t, wantCat, catID, "the cat mapping value names cat's own definition")
 	assert.Equal(t, wantDog, dogID, "the dog mapping value names dog's own definition")
 	assert.NotEqual(t, catID, dogID, "each mapping value names its own definition, not a shared one")
 
-	require.Len(t, u.Variants, 2)
-	variantTargets := []ir.TypeID{u.Variants[0].Type.Target, u.Variants[1].Type.Target}
+	require.Len(t, union.Variants, 2)
+	variantTargets := []ir.TypeID{union.Variants[0].Type.Target, union.Variants[1].Type.Target}
 	assert.Contains(t, variantTargets, catID, "the mapping names the same node its oneOf branch interned")
 	assert.Contains(t, variantTargets, dogID)
 }
@@ -297,8 +297,8 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 			doc, diags := parseFull(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			wantM := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "m"))
-			wantN := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "n"))
+			wantM := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "m"))
+			wantN := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "n"))
 
 			// C is a bare $ref with nothing beside it, so lowering it hoists the
 			// node a component owns over whatever it names (annotation.HomeOwnNode,
@@ -310,9 +310,9 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 			assert.Equal(t, wantN, useOf(t, doc.Types[wantM], "m"),
 				"m's own '#/$defs/n' is read from m's position, landing on A's own n — not on C's")
 
-			n, ok := doc.Types[wantN].(*ir.Model)
+			model, ok := doc.Types[wantN].(*ir.Model)
 			require.True(t, ok, "the terminal definition is a concrete Model")
-			_, ok = propByWire(n, "x")
+			_, ok = propertyByWire(model, "x")
 			assert.True(t, ok)
 		})
 	}
@@ -374,17 +374,17 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 
 			a, ok := doc.Types[componentID("A")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propByWire(a, "p")
+			property, ok := propertyByWire(a, "p")
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target,
+			assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target,
 				"an unresolved $ref degrades to any rather than borrowing B's sibling definition")
 
 			b, ok := doc.Types[componentID("B")].(*ir.Model)
 			require.True(t, ok)
-			q, ok := propByWire(b, "q")
+			irProperty, ok := propertyByWire(b, "q")
 			require.True(t, ok)
-			wantN := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
-			assert.Equal(t, wantN, q.Type.Target, "B's own reference still resolves to its own definition")
+			wantN := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
+			assert.Equal(t, wantN, irProperty.Type.Target, "B's own reference still resolves to its own definition")
 		})
 	}
 }
@@ -417,13 +417,14 @@ components:
 // TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames pins the base a
 // nested $id gives, placed as the load phase places a $ref's document: a dot
 // segment, the root path or a document with an empty fragment is another base,
-// so b roots a resource and q's pointer reads b's $defs, from the resource's
-// root alone. The source itself, however spelled, is none, so the nearest
-// definition above q answers, c's. q's own never does.
+// so b roots a resource and property's pointer reads b's $defs, from the
+// resource's root alone. The source itself, however spelled, is none, so the
+// nearest definition above property answers, pointer's. property's own never
+// does.
 func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 	t.Parallel()
 	b := ids.Ptr("components", "schemas", "A", "properties", "b")
-	c := b + ids.Ptr("properties", "c")
+	pointer := b + ids.Ptr("properties", "c")
 	for id, resource := range map[string]bool{".": true, "./": true, "/": true, "x.json#": true,
 		"spec.yaml": false, "./spec.yaml#": false, "sub/../spec.yaml": false} {
 		t.Run(id, func(t *testing.T) {
@@ -433,15 +434,15 @@ func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 				"          properties:\n            c:\n              $defs: {K: {type: number}}\n"+
 				"              properties:\n                q: {$ref: '#/$defs/K', $defs: {K: {type: integer}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[ids.Document{}.ForPointer(c)].(*ir.Model)
+			model, ok := doc.Types[ids.DocumentIDNamespace{}.ForPointer(pointer)].(*ir.Model)
 			require.True(t, ok, "c is a Model")
-			q, ok := propByWire(m, "q")
+			property, ok := propertyByWire(model, "q")
 			require.True(t, ok, "c declares q")
-			want := c + ids.Ptr("$defs", "K")
+			want := pointer + ids.Ptr("$defs", "K")
 			if resource {
 				want = b + ids.Ptr("$defs", "K")
 			}
-			assert.Equal(t, ids.Document{}.ForPointer(want), q.Type.Target)
+			assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(want), property.Type.Target)
 		})
 	}
 }

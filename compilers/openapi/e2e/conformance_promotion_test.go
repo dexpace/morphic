@@ -28,7 +28,7 @@ func degradedAt(diags []ir.Diagnostic, pointer string) []ir.Severity {
 func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const marker ir.Inferred = "extension-promotion"
 	for _, tc := range []struct {
-		op         string
+		operation  string
 		tier       ir.Stability
 		deprecated bool
 		inferred   ir.Inferred
@@ -52,15 +52,15 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"unstated", ir.StabilityUnstated, false, "", nil},
 		{"underPathItemKey", ir.StabilityBeta, false, "extension-promotion", []string{"openapi:pathItem/x-stability"}},
 	} {
-		op, ok := opByName(doc, tc.op)
-		require.True(t, ok, tc.op)
-		assert.Equal(t, tc.tier, op.Stability, "%s tier", tc.op)
-		assert.Equal(t, tc.deprecated, op.Deprecation != nil, "%s deprecated", tc.op)
-		assert.Equal(t, tc.inferred, op.Provenance.Inferred, "%s marker", tc.op)
+		operation, ok := operationByName(doc, tc.operation)
+		require.True(t, ok, tc.operation)
+		assert.Equal(t, tc.tier, operation.Stability, "%s tier", tc.operation)
+		assert.Equal(t, tc.deprecated, operation.Deprecation != nil, "%s deprecated", tc.operation)
+		assert.Equal(t, tc.inferred, operation.Provenance.Inferred, "%s marker", tc.operation)
 		for _, key := range tc.kept {
-			entry, kept := op.Unmodeled[key]
-			require.True(t, kept, "%s keeps %s", tc.op, key)
-			assert.Equal(t, ir.ReasonVendorExtension, entry.Reason, "%s: %s stays what it was", tc.op, key)
+			entry, kept := operation.Unmodeled[key]
+			require.True(t, kept, "%s keeps %s", tc.operation, key)
+			assert.Equal(t, ir.ReasonVendorExtension, entry.Reason, "%s: %s stays what it was", tc.operation, key)
 		}
 	}
 
@@ -80,7 +80,7 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // format, so the two are one rule at two spellings.
 func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const marker ir.Inferred = "extension-promotion"
-	op, ok := opByName(doc, "keys")
+	operation, ok := operationByName(doc, "keys")
 	require.True(t, ok)
 
 	for _, tc := range []struct {
@@ -96,20 +96,20 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"misread", false, false},
 		{"plain", false, false},
 	} {
-		p, ok := openapitest.ParamBySource(op, tc.name)
+		parameter, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
-		assert.Equal(t, tc.secret, p.Secret, "parameter %s", tc.name)
-		assert.Equal(t, tc.marked, p.Provenance.Inferred == marker, "parameter %s marker", tc.name)
+		assert.Equal(t, tc.secret, parameter.Secret, "parameter %s", tc.name)
+		assert.Equal(t, tc.marked, parameter.Provenance.Inferred == marker, "parameter %s marker", tc.name)
 	}
-	owns, ok := openapitest.ParamBySource(op, "ownsNode")
+	owns, ok := openapitest.ParamBySource(operation, "ownsNode")
 	require.True(t, ok)
 	requireSensitive(t, doc, owns.Type.Target, "a parameter whose schema owns a node")
 
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assert.True(t, h.Secret, h.WireName)
-		assert.Equal(t, marker, h.Provenance.Inferred, h.WireName)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 2)
+	for _, header := range operation.Responses[0].Headers {
+		assert.True(t, header.Secret, header.WireName)
+		assert.Equal(t, marker, header.Provenance.Inferred, header.WireName)
 	}
 
 	login := secretModel(t, doc, "Login")
@@ -125,16 +125,16 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"misread", false, true},
 		{"plain", false, false},
 	} {
-		p, ok := propByWire(login, tc.wire)
+		property, ok := propertyByWire(login, tc.wire)
 		require.True(t, ok, tc.wire)
-		assert.Equal(t, tc.secret, p.Secret, "property %s", tc.wire)
-		assert.Equal(t, tc.secret, p.Provenance.Inferred == marker, "property %s marker", tc.wire)
-		_, kept := p.Unmodeled["openapi:x-sensitive"]
+		assert.Equal(t, tc.secret, property.Secret, "property %s", tc.wire)
+		assert.Equal(t, tc.secret, property.Provenance.Inferred == marker, "property %s marker", tc.wire)
+		_, kept := property.Unmodeled["openapi:x-sensitive"]
 		assert.Equal(t, tc.kept, kept, "property %s entry", tc.wire)
 	}
-	ownsProp, ok := propByWire(login, "ownsNode")
+	ownsProperty, ok := propertyByWire(login, "ownsNode")
 	require.True(t, ok)
-	requireSensitive(t, doc, ownsProp.Type.Target, "a property whose schema owns a node")
+	requireSensitive(t, doc, ownsProperty.Type.Target, "a property whose schema owns a node")
 
 	for _, tc := range []struct {
 		id       ir.TypeID
@@ -142,9 +142,9 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	}{
 		{componentID("Tok"), "a component"},
 		{componentID("Credential"), "a model"},
-		{openapitest.BodyTarget(t, op.Request), "request content schema"},
+		{openapitest.BodyTarget(t, operation.Request), "request content schema"},
 		{mapOf(t, doc, "Bag").Value.Target, "additionalProperties"},
-		{listOf(t, doc, "Tokens").Elem.Target, "items"},
+		{listOf(t, doc, "Tokens").ElementType.Target, "items"},
 		{unionOf(t, doc, "Either").Variants[0].Type.Target, "a union branch"},
 	} {
 		node := requireSensitive(t, doc, tc.id, tc.position)
@@ -203,42 +203,42 @@ func redactionEntry(node map[string]any) (map[string]any, bool) {
 // mapOf returns the component name as a MapT.
 func mapOf(t *testing.T, doc *ir.Document, name string) *ir.MapT {
 	t.Helper()
-	m, ok := doc.Types[componentID(name)].(*ir.MapT)
+	mapT, ok := doc.Types[componentID(name)].(*ir.MapT)
 	require.True(t, ok, "%s is a map", name)
-	return m
+	return mapT
 }
 
 // listOf returns the component name as a List.
 func listOf(t *testing.T, doc *ir.Document, name string) *ir.List {
 	t.Helper()
-	l, ok := doc.Types[componentID(name)].(*ir.List)
+	list, ok := doc.Types[componentID(name)].(*ir.List)
 	require.True(t, ok, "%s is a list", name)
-	return l
+	return list
 }
 
 // unionOf returns the component name as a Union.
 func unionOf(t *testing.T, doc *ir.Document, name string) *ir.Union {
 	t.Helper()
-	u, ok := doc.Types[componentID(name)].(*ir.Union)
+	union, ok := doc.Types[componentID(name)].(*ir.Union)
 	require.True(t, ok, "%s is a union", name)
-	return u
+	return union
 }
 
 // wireNames spells segments by the wire names of the properties they name,
 // read off every model of doc, so a page value reads as the document writes
 // it.
-func wireNames(doc *ir.Document, segments []ir.PropID) []string {
-	names := map[ir.PropID]string{}
+func wireNames(doc *ir.Document, segments []ir.PropertyID) []string {
+	names := map[ir.PropertyID]string{}
 	for _, td := range doc.Types {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				names[p.ID] = p.EffectiveWireName()
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				names[property.ID] = property.EffectiveWireName()
 			}
 		}
 	}
 	out := make([]string, len(segments))
-	for i, s := range segments {
-		out[i] = names[s]
+	for i, propertyID := range segments {
+		out[i] = names[propertyID]
 	}
 	return out
 }
@@ -251,17 +251,17 @@ func wireNames(doc *ir.Document, segments []ir.PropID) []string {
 // reported and unfilled.
 func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const marker ir.Inferred = "extension-promotion"
-	param := func(op ir.Operation, in *ir.InputPath) string {
+	param := func(operation ir.Operation, in *ir.InputPath) string {
 		require.NotNil(t, in)
 		require.NotNil(t, in.Param)
-		for _, p := range op.Params {
-			if p.ID == *in.Param {
-				return p.Name.Source
+		for _, parameter := range operation.Params {
+			if parameter.ID == *in.Param {
+				return parameter.Name.Source
 			}
 		}
 		return ""
 	}
-	byExpression, ok := opByName(doc, "byExpression")
+	byExpression, ok := operationByName(doc, "byExpression")
 	require.True(t, ok)
 	page := byExpression.Pagination
 	require.NotNil(t, page)
@@ -272,7 +272,7 @@ func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, []string{"result_info", "next_page_token"}, wireNames(doc, page.NextCursor.Segments))
 	assert.Equal(t, marker, byExpression.Provenance.Inferred)
 
-	byMarks, ok := opByName(doc, "byMarks")
+	byMarks, ok := operationByName(doc, "byMarks")
 	require.True(t, ok)
 	page = byMarks.Pagination
 	require.NotNil(t, page)
@@ -285,19 +285,19 @@ func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"the type whose key marks the next cursor")
 	assert.Empty(t, byMarks.Provenance.Inferred, "the operation keeps no key")
 
-	byNextLink, ok := opByName(doc, "byNextLink")
+	byNextLink, ok := operationByName(doc, "byNextLink")
 	require.True(t, ok)
 	require.NotNil(t, byNextLink.Pagination)
 	assert.Equal(t, ir.PageStrategyNextLink, byNextLink.Pagination.Strategy)
 	assert.Equal(t, []string{"next"}, wireNames(doc, byNextLink.Pagination.NextLink.Segments))
 	assert.Equal(t, []string{"data"}, wireNames(doc, byNextLink.Pagination.Items.Segments))
 
-	noNextPage, ok := opByName(doc, "noNextPage")
+	noNextPage, ok := operationByName(doc, "noNextPage")
 	require.True(t, ok)
 	assert.Nil(t, noNextPage.Pagination)
 	assert.Empty(t, noNextPage.Provenance.Inferred)
 	require.Len(t, diags, 1, "the one walk with no next page: %+v", diags)
-	assert.Equal(t, `operation "op/openapi/paths/~1offsets/get": the pagination the policy reads from its `+
+	assert.Equal(t, `operation "operation/openapi/paths/~1offsets/get": the pagination the policy reads from its `+
 		`extensions names neither an input continuing it nor a next link, so it fills none`, diags[0].Message)
 }
 
@@ -312,10 +312,10 @@ func assertExtensionServerName(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"server/openapi/paths/~1stream/servers/0":     "stream",
 		"server/openapi/paths/~1stream/put/servers/0": "ingest",
 	} {
-		s, ok := doc.Servers[id]
+		server, ok := doc.Servers[id]
 		require.True(t, ok, id)
-		assert.Equal(t, ir.NamingFor(want), s.Name, id)
-		assert.Equal(t, marker, s.Provenance.Inferred, id)
+		assert.Equal(t, ir.NamingFor(want), server.Name, id)
+		assert.Equal(t, marker, server.Provenance.Inferred, id)
 	}
 	unnamed, ok := doc.Servers["server/openapi/servers/1"]
 	require.True(t, ok)

@@ -16,11 +16,11 @@ import (
 // second model, so a walk that read no declarations would find the reference
 // dangling.
 func referringDoc() *ir.Document {
-	target := &ir.Model{ID: "t/x/Target", Name: ir.Naming{Source: "Target", Canonical: "target"}}
+	target := &ir.Model{ID: "type/x/Target", Name: ir.Naming{Source: "Target", Canonical: "target"}}
 	holder := &ir.Model{
-		ID: "t/x/Holder", Name: ir.Naming{Source: "Holder", Canonical: "holder"},
+		ID: "type/x/Holder", Name: ir.Naming{Source: "Holder", Canonical: "holder"},
 		Properties: []ir.Property{{
-			ID: "p/x/Holder/a", WireName: "a", Name: ir.Naming{Source: "a", Canonical: "a"},
+			ID: "property/x/Holder/a", WireName: "a", Name: ir.Naming{Source: "a", Canonical: "a"},
 			Type: ir.TypeRef{Target: target.ID},
 		}},
 	}
@@ -30,12 +30,12 @@ func referringDoc() *ir.Document {
 // truncations returns the ir/walk-truncated violations of vs, and the codes of
 // every dangling one.
 func truncations(vs []Violation) (truncated []Violation, dangling []string) {
-	for _, v := range vs {
+	for _, violation := range vs {
 		switch {
-		case v.Code == "ir/walk-truncated":
-			truncated = append(truncated, v)
-		case strings.HasPrefix(v.Code, "ir/dangling-"):
-			dangling = append(dangling, v.Code)
+		case violation.Code == "ir/walk-truncated":
+			truncated = append(truncated, violation)
+		case strings.HasPrefix(violation.Code, "ir/dangling-"):
+			dangling = append(dangling, violation.Code)
 		}
 	}
 	return truncated, dangling

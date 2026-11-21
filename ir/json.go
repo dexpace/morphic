@@ -116,20 +116,20 @@ type kinded[T any] struct {
 
 // marshalKinded writes body, an alias of the public kind P, as a kind-tagged
 // object.
-func marshalKinded[P, T any](enc *jsontext.Encoder, k TypeKind, body *T) error {
-	err := json.MarshalEncode(enc, kinded[T]{Kind: k, Body: body})
+func marshalKinded[P, T any](enc *jsontext.Encoder, typeKind TypeKind, body *T) error {
+	err := json.MarshalEncode(enc, kinded[T]{Kind: typeKind, Body: body})
 	return named[P](err, reflect.TypeFor[kinded[T]]())
 }
 
 // unmarshalKinded reads a kind-tagged object into body, an alias of the public
 // kind P, refusing a tag that names any other kind.
-func unmarshalKinded[P, T any](dec *jsontext.Decoder, k TypeKind, body *T) error {
-	w := kinded[T]{Body: body}
-	if err := json.UnmarshalDecode(dec, &w); err != nil {
+func unmarshalKinded[P, T any](dec *jsontext.Decoder, typeKind TypeKind, body *T) error {
+	kindedValue := kinded[T]{Body: body}
+	if err := json.UnmarshalDecode(dec, &kindedValue); err != nil {
 		return named[P](err, reflect.TypeFor[kinded[T]]())
 	}
-	if w.Kind != k {
-		return fmt.Errorf("ir: %s carries the kind tag %q", k, w.Kind)
+	if kindedValue.Kind != typeKind {
+		return fmt.Errorf("ir: %s carries the kind tag %q", typeKind, kindedValue.Kind)
 	}
 	return nil
 }

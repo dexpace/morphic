@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // nameReader reads one scope after another through the same buffers, which
@@ -25,7 +25,7 @@ type nameReader struct {
 	// the last set read whose name has that hash. A hash is its key rather
 	// than the name, since a name compared joined is not a string the scope
 	// holds.
-	seen reuse.Map[uint64, int]
+	seen scratchstate.Map[uint64, int]
 	// hash makes the keys of seen, under one seed for the whole run, and
 	// joined holds the words it hashes with their separators left out.
 	hash   maphash.Hash
@@ -69,13 +69,13 @@ type party struct {
 	words, source string
 }
 
-// partyOf reads n as a party.
-func partyOf(n ir.Naming) party {
-	words := n.Canonical
+// partyOf reads naming as a party.
+func partyOf(naming ir.Naming) party {
+	words := naming.Canonical
 	if words == "" {
-		words = n.Hint
+		words = naming.Hint
 	}
-	return party{words: words, source: n.Source}
+	return party{words: words, source: naming.Source}
 }
 
 // scope says how to report on the parties a nameReader read: what holds them,
@@ -129,9 +129,9 @@ func (sc scope) label(i int) string {
 	return sc.ids[i]
 }
 
-// lead writes what holds sc, as a message about it begins, or nothing for a
-// scope the document holds.
-func (sc scope) lead(b *strings.Builder) {
+// writeMessagePrefix writes what holds sc, as a message about it begins, or
+// nothing for a scope the document holds.
+func (sc scope) writeMessagePrefix(b *strings.Builder) {
 	if sc.in == "" {
 		return
 	}
@@ -162,15 +162,15 @@ func (r *nameReader) read(by comparison) bool {
 	seen, n := r.seen.Emptied(), len(r.parties)
 	r.later, r.last, r.other = sized(r.later, n), sized(r.last, n), sized(r.other, n)
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
-	for i, p := range r.parties {
+	for i, party := range r.parties {
 		r.later[i] = -1
-		if p.words == "" {
-			if p.source == "" {
+		if party.words == "" {
+			if party.source == "" {
 				continue
 			}
 			r.bare = append(r.bare, i)
 		}
-		r.place(by, seen, r.sum(by, p), i)
+		r.place(by, seen, r.sum(by, party), i)
 	}
 	return len(r.shared) > 0 || len(r.bare) > 0
 }
@@ -180,23 +180,23 @@ func sized(s []int, n int) []int {
 	return slices.Grow(s[:0], n)[:n]
 }
 
-// sum hashes the name by compares p by: its words, joined where by joins them,
-// or else its spelling.
-func (r *nameReader) sum(by comparison, p party) uint64 {
+// sum hashes the name by compares partyValue by: its words, joined where by
+// joins them, or else its spelling.
+func (r *nameReader) sum(by comparison, partyValue party) uint64 {
 	r.hash.Reset()
 	switch {
-	case p.words == "":
-		r.hash.WriteString(p.source)
+	case partyValue.words == "":
+		r.hash.WriteString(partyValue.source)
 	case by == byJoinedWords:
 		r.joined = r.joined[:0]
-		for i := range len(p.words) {
-			if p.words[i] != '_' {
-				r.joined = append(r.joined, p.words[i])
+		for i := range len(partyValue.words) {
+			if partyValue.words[i] != '_' {
+				r.joined = append(r.joined, partyValue.words[i])
 			}
 		}
 		r.hash.Write(r.joined)
 	default:
-		r.hash.WriteString(p.words)
+		r.hash.WriteString(partyValue.words)
 	}
 	return r.hash.Sum64()
 }
@@ -226,17 +226,18 @@ func (r *nameReader) place(by comparison, seen map[uint64]int, sum uint64, i int
 // though its hash agrees.
 func (r *nameReader) setOf(by comparison, head, i int) int {
 	for first := head; first >= 0; first = r.other[first] {
-		if alike(by, r.parties[first], r.parties[i]) {
+		if namesCompareEqual(by, r.parties[first], r.parties[i]) {
 			return first
 		}
 	}
 	return -1
 }
 
-// alike reports whether by compares the names of a and b alike. A name with no
-// word character is compared by its spelling alone, which every target names
-// alike and no neutral name equals, as each holds a letter or digit.
-func alike(by comparison, a, b party) bool {
+// namesCompareEqual reports whether by compares the names of a and b alike. A
+// name with no word character is compared by its spelling alone, which every
+// target names alike and no neutral name equals, as each holds a letter or
+// digit.
+func namesCompareEqual(by comparison, a, b party) bool {
 	switch {
 	case a.words == "" || b.words == "":
 		return a.words == b.words && a.source == b.source
@@ -268,7 +269,7 @@ func (r *nameReader) report(sc scope) {
 	}
 	for _, i := range r.bare {
 		var b strings.Builder
-		sc.lead(&b)
+		sc.writeMessagePrefix(&b)
 		fmt.Fprintf(&b, "%s %s (%q) has no word character, so it has no neutral name, and a target names it "+
 			"from its characters", sc.one, sc.label(i), r.parties[i].source)
 		r.diags = append(r.diags, diag(ir.SeverityInfo, "pass/name-without-words", b.String(), sc.at()))
@@ -281,7 +282,7 @@ func (r *nameReader) report(sc scope) {
 // that differ only where their words break.
 func (r *nameReader) collision(sc scope, first int) string {
 	var b strings.Builder
-	sc.lead(&b)
+	sc.writeMessagePrefix(&b)
 	b.WriteString(sc.many)
 	b.WriteByte(' ')
 	for i := first; i >= 0; i = r.later[i] {

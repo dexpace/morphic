@@ -34,7 +34,7 @@ func (s streamCandidate) frame(reg ir.TypeRegistry) ir.TypeRef {
 		return s.events
 	}
 	if list, ok := listBehind(reg, s.events.Target); ok {
-		return list.Elem
+		return list.ElementType
 	}
 	return s.events
 }
@@ -59,11 +59,11 @@ func listBehind(reg ir.TypeRegistry, id ir.TypeID) (*ir.List, bool) {
 // media type, the guess marked. Every content is read here, an error's and the
 // default's too, and applyStreaming reads the answer back rather than asking the
 // policy again, so the operation and its contents never disagree.
-func contentStream(c service.Ctx, mediaType string, item *ir.TypeRef) *ir.ContentStream {
+func contentStream(serviceContext service.Ctx, mediaType string, item *ir.TypeRef) *ir.ContentStream {
 	switch {
 	case item != nil:
 		return &ir.ContentStream{}
-	case c.MediaTypeStreams(mediaType):
+	case serviceContext.MediaTypeStreams(mediaType):
 		return &ir.ContentStream{Inferred: service.StreamingInferenceHeuristic}
 	default:
 		return nil
@@ -79,15 +79,15 @@ func contentStream(c service.Ctx, mediaType string, item *ir.TypeRef) *ir.Conten
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields. What each direction
 // streams is settled later (streamElement); that it streams needs no other node.
-func applyStreaming(c service.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
-	request := streamCandidates(ts, op.Request)
-	response := responseCandidates(ts, op.Responses)
+func applyStreaming(serviceContext service.Ctx, ts *compile.Types, operation *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
+	request := streamCandidates(ts, operation.Request)
+	response := responseCandidates(ts, operation.Responses)
 	if len(request) == 0 && len(response) == 0 {
 		return ""
 	}
-	op.RequestStream = electStream(c, ts, request, declPtr+ids.Ptr("requestBody"), "request")
-	op.ResponseStream = electStream(c, ts, response, declPtr+ids.Ptr("responses"), "response")
-	op.Streaming = streamingMode(op.RequestStream != nil, op.ResponseStream != nil)
+	operation.RequestStream = electStream(serviceContext, ts, request, declPtr+ids.Ptr("requestBody"), "request")
+	operation.ResponseStream = electStream(serviceContext, ts, response, declPtr+ids.Ptr("responses"), "response")
+	operation.Streaming = streamingMode(operation.RequestStream != nil, operation.ResponseStream != nil)
 	var markers []ir.Inferred
 	for _, candidate := range slices.Concat(request, response) {
 		markers = append(markers, candidate.inferred)
@@ -98,12 +98,12 @@ func applyStreaming(c service.Ctx, ts *compile.Types, op *ir.Operation, declPtr 
 // electStream returns the detail of a direction with candidates, nil for one
 // with none, and queues the election of its element. pointer and direction name
 // the direction in the report a disagreement draws.
-func electStream(c service.Ctx, ts *compile.Types, candidates []streamCandidate, pointer jsontext.Pointer, direction string) *ir.StreamDetail {
+func electStream(serviceContext service.Ctx, ts *compile.Types, candidates []streamCandidate, pointer jsontext.Pointer, direction string) *ir.StreamDetail {
 	if len(candidates) == 0 {
 		return nil
 	}
 	detail := &ir.StreamDetail{}
-	ts.Defer(streamElement{c: c, detail: detail, candidates: candidates, pointer: pointer, direction: direction})
+	ts.Defer(streamElement{c: serviceContext, detail: detail, candidates: candidates, pointer: pointer, direction: direction})
 	return detail
 }
 
@@ -178,7 +178,7 @@ func streamCandidates(ts *compile.Types, payload *ir.Payload) []streamCandidate 
 // bytes, whatever its docs or bounds say of the whole.
 func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 	if content.File != nil {
-		return ts.PrimRef(ir.PrimBytes)
+		return ts.PrimitiveRef(ir.PrimitiveBytes)
 	}
 	return content.Type
 }
@@ -188,7 +188,7 @@ func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 func streamingMode(request, response bool) ir.StreamingMode {
 	switch {
 	case request && response:
-		return ir.StreamingBidi
+		return ir.StreamingBidirectional
 	case request:
 		return ir.StreamingClient
 	default:
@@ -204,7 +204,7 @@ func streamingMode(request, response bool) ir.StreamingMode {
 // It names the disagreement rather than counting media types: contents that
 // agree keep their element, and one media type appearing on two responses is
 // not several media types.
-func unelectedElementDiag(c service.Ctx, pointer jsontext.Pointer, direction string) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+func unelectedElementDiag(serviceContext service.Ctx, pointer jsontext.Pointer, direction string) ir.Diagnostic {
+	return serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"the %s streams more than one element type, so it is left unnamed rather than electing one", direction)
 }

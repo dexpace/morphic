@@ -53,10 +53,10 @@ var apartCases = []apartCase{
 	{"a $ref principal", "X9: {allOf: [{$ref: '#/components/schemas/S'}], minimum: 2}", componentID("X9"),
 		map[string]string{"minimum": "2"}, "", nil, ""},
 	{"a property", "P: {type: object, properties: {p: {allOf: [{type: string, minimum: 1}], minimum: 2}}}",
-		"t/anon/components/schemas/P/properties/p", map[string]string{"minimum": "2"}, "openapi:allOf/0",
+		"type/anonymous/components/schemas/P/properties/p", map[string]string{"minimum": "2"}, "openapi:allOf/0",
 		map[string]any{"minimum": 1.0}, "/components/schemas/P/properties/p/allOf/0"},
 	{"an array's items", "I: {type: array, items: {allOf: [{type: string, minimum: 1}], minimum: 2}}",
-		"t/anon/components/schemas/I/items", map[string]string{"minimum": "2"}, "openapi:allOf/0",
+		"type/anonymous/components/schemas/I/items", map[string]string{"minimum": "2"}, "openapi:allOf/0",
 		map[string]any{"minimum": 1.0}, "/components/schemas/I/items/allOf/0"},
 	{"a draft's exclusive flag", "D: {$id: 'https://example.com/d', $schema: " + draft04 +
 		", allOf: [{type: string, minimum: 1, exclusiveMinimum: true}], minimum: 2, exclusiveMinimum: false}", componentID("D"),
@@ -107,14 +107,14 @@ func TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth(t *testi
 					assert.Equal(t, tc.reportedAt, held[tc.entryKey].Provenance.Pointer, "kept where the principal writes it")
 				}
 				var said []string
-				for _, d := range diags {
-					if d.Code != diag.DegradedConstruct || d.Provenance.Pointer != tc.reportedAt {
+				for _, diagnostic := range diags {
+					if diagnostic.Code != diag.DegradedConstruct || diagnostic.Provenance.Pointer != tc.reportedAt {
 						continue
 					}
-					if strings.Contains(d.Message, "otherwise than this inline entry") {
-						said = append(said, d.Message)
+					if strings.Contains(diagnostic.Message, "otherwise than this inline entry") {
+						said = append(said, diagnostic.Message)
 					}
-					if _, listed, ok := strings.Cut(d.Message, "which has no home for "); ok {
+					if _, listed, ok := strings.Cut(diagnostic.Message, "which has no home for "); ok {
 						for key := range tc.entry {
 							assert.NotContains(t, strings.Fields(strings.ReplaceAll(listed, ",", "")), key,
 								"the principal's %s draws no second report", key)
@@ -139,7 +139,7 @@ func TestPrincipalApart_AParameterSchemaHoldsBoth(t *testing.T) {
 		"      parameters:\n        - {name: q, in: query, schema: {allOf: [{type: string, minimum: 1}], minimum: 2}}\n"+
 		"      responses: {'204': {description: ok}}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
-	held := doc.Types["t/anon/paths/~1a/get/parameters/0/schema"].Common().Unmodeled
+	held := doc.Types["type/anonymous/paths/~1a/get/parameters/0/schema"].Common().Unmodeled
 	assert.Equal(t, "2", string(unmodeledEntry(t, held, "openapi:minimum").Value))
 	assert.JSONEq(t, `{"minimum":1}`, string(unmodeledEntry(t, held, "openapi:allOf/0").Value))
 }
@@ -159,9 +159,9 @@ func TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt(t *testing.T) {
 	assert.Contains(t, string(raw), `"openapi:schema/allOf/0":`)
 	assert.NotContains(t, string(raw), `"openapi:allOf/0":`)
 	var said []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/paths/~1a/get/parameters/0/schema/allOf/0" {
-			said = append(said, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/paths/~1a/get/parameters/0/schema/allOf/0" {
+			said = append(said, diagnostic.Message)
 		}
 	}
 	require.Len(t, said, 1)
@@ -187,11 +187,11 @@ func TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping(t *testing.T) {
 	for _, order := range [][]string{lines, reversed} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(strings.Join(order, "\n")+"\n"))
 		for _, name := range []string{"Apart", "Held"} {
-			held := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].Common().Unmodeled
+			held := doc.Types[ir.TypeID("type/openapi/components/schemas/"+name)].Common().Unmodeled
 			assert.Contains(t, string(unmodeledEntry(t, held, "openapi:allOf/0").Value), "#/components/schemas/Nope", name)
 			at := jsontext.Pointer("/components/schemas/" + name + "/allOf/0/discriminator/mapping/x")
-			errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-				return d.Code != diag.UnresolvedRef || d.Provenance.Pointer != at
+			errs := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+				return diagnostic.Code != diag.UnresolvedRef || diagnostic.Provenance.Pointer != at
 			})
 			assert.Len(t, errs, 1, "%s: the mapping naming no schema is reported once at %s", name, at)
 		}

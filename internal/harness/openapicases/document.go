@@ -31,13 +31,13 @@ type raw string
 // value in its place, and the rest follow in their order.
 func (o object) with(more object) object {
 	out := slices.Clone(o)
-	for _, m := range more {
-		i := slices.IndexFunc(out, func(n member) bool { return n.name == m.name })
+	for _, memberValue := range more {
+		i := slices.IndexFunc(out, func(otherMember member) bool { return otherMember.name == memberValue.name })
 		if i < 0 {
-			out = append(out, m)
+			out = append(out, memberValue)
 			continue
 		}
-		out[i] = m
+		out[i] = memberValue
 	}
 	return out
 }
@@ -47,10 +47,10 @@ func (o object) with(more object) object {
 // a document deeper than maxDepth are errors.
 func encode(v any) ([]byte, error) {
 	var buf bytes.Buffer
-	w := writer{enc: jsontext.NewEncoder(&buf, jsontext.WithIndent("  "))}
-	w.write(v, 0)
-	if w.err != nil {
-		return nil, w.err
+	writerValue := writer{enc: jsontext.NewEncoder(&buf, jsontext.WithIndent("  "))}
+	writerValue.write(v, 0)
+	if writerValue.err != nil {
+		return nil, writerValue.err
 	}
 	return buf.Bytes(), nil
 }
@@ -71,9 +71,9 @@ func (w *writer) write(v any, depth int) {
 	switch v := v.(type) {
 	case object:
 		w.token(jsontext.BeginObject)
-		for _, m := range v {
-			w.token(jsontext.String(m.name))
-			w.write(m.value, depth+1)
+		for _, member := range v {
+			w.token(jsontext.String(member.name))
+			w.write(member.value, depth+1)
 		}
 		w.token(jsontext.EndObject)
 	case []any:

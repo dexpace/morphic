@@ -16,8 +16,8 @@ import (
 // MaxResults, which a test reaches with a small tree.
 func (q Query) SelectHolding(ctx context.Context, root *yaml.Node, results int) ([]Located, error) {
 	b := budget.New(budget.Unbounded())
-	e := &evaluator{view: nodeview.New(), steps: &b, results: results, root: root}
-	return e.run(ctx, q.segments, Located{Node: root})
+	evaluatorValue := &evaluator{view: nodeview.New(), steps: &b, results: results, root: root}
+	return evaluatorValue.run(ctx, q.segments, Located{Node: root})
 }
 
 // IsNumber reports whether text reads as a number.

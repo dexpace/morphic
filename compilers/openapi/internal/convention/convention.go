@@ -7,97 +7,97 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Apply fills what w's names imply, under each policy of policy it honours,
-// and returns what the readings report. p is the run's promoter, whose keys a
-// reading defers to, and w the document its lowerings built, whose service
-// tree and registry are whole.
-func Apply(policy Policy, p promotion.Promoter, w *whole.Document) (diags []ir.Diagnostic) {
-	for _, op := range w.Ops {
-		diags = append(diags, operation(policy, p, w, op)...)
+// Apply fills what compiledDocumentView's names imply, under each policy of
+// policy it honours, and returns what the readings report. promoter is the
+// run's promoter, whose keys a reading defers to, and compiledDocumentView the
+// document its lowerings built, whose service tree and registry are whole.
+func Apply(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
+	for _, irOperation := range compiledDocumentView.Operations {
+		diags = append(diags, operation(policy, promoter, compiledDocumentView, irOperation)...)
 	}
 	// Each member is read alone and none is reported, so the registry's order,
 	// which no sort fixes here, decides nothing.
-	for _, td := range w.Types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+	for _, td := range compiledDocumentView.Types {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		for i := range m.Properties {
-			redact(policy.Secret, p, w.Types, &m.Properties[i])
+		for i := range model.Properties {
+			redact(policy.Secret, promoter, compiledDocumentView.Types, &model.Properties[i])
 		}
 	}
 	return diags
 }
 
-// operation fills what op's names imply: its idempotency token, the redaction
-// of its parameters and of every header it declares, and the text of each of
-// its header parameters and its responses' headers.
-func operation(policy Policy, p promotion.Promoter, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
-	reg := w.Types
-	diags := idempotency(policy.Idempotency, w, op)
-	for i := range op.Params {
-		param := &op.Params[i]
-		redactUse(policy.Secret, p, reg, param.Name, param.Type, param.Unmodeled, &param.Secret, &param.Provenance)
+// operation fills what irOperation's names imply: its idempotency token, the
+// redaction of its parameters and of every header it declares, and the text of
+// each of its header parameters and its responses' headers.
+func operation(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, irOperation *ir.Operation) []ir.Diagnostic {
+	reg := compiledDocumentView.Types
+	diags := idempotency(policy.Idempotency, compiledDocumentView, irOperation)
+	for i := range irOperation.Params {
+		param := &irOperation.Params[i]
+		redactUse(policy.Secret, promoter, reg, param.Name, param.Type, param.Unmodeled, &param.Secret, &param.Provenance)
 	}
-	diags = append(diags, httpDateParam(policy.HTTPDate, p, w, op)...)
-	for _, hs := range responseHeaders(op) {
+	diags = append(diags, httpDateParam(policy.HTTPDate, promoter, compiledDocumentView, irOperation)...)
+	for _, hs := range responseHeaders(irOperation) {
 		for i := range hs {
-			redact(policy.Secret, p, reg, &hs[i].Property)
-			diags = append(diags, httpDate(policy.HTTPDate, p, reg, &hs[i])...)
+			redact(policy.Secret, promoter, reg, &hs[i].Property)
+			diags = append(diags, httpDate(policy.HTTPDate, promoter, reg, &hs[i])...)
 		}
 	}
-	for _, hs := range partHeaders(op) {
+	for _, hs := range partHeaders(irOperation) {
 		for i := range hs {
-			redact(policy.Secret, p, reg, &hs[i].Property)
+			redact(policy.Secret, promoter, reg, &hs[i].Property)
 		}
 	}
 	return diags
 }
 
-// responseHeaders returns the header lists of op's responses, error cases and
-// default, each sharing its array with op, so a write to an element lands
-// there.
-func responseHeaders(op *ir.Operation) [][]ir.Header {
-	lists := make([][]ir.Header, 0, len(op.Responses)+len(op.Errors)+1)
-	for i := range op.Responses {
-		lists = append(lists, op.Responses[i].Headers)
+// responseHeaders returns the header lists of operation's responses, error
+// cases and default, each sharing its array with operation, so a write to an
+// element lands there.
+func responseHeaders(operation *ir.Operation) [][]ir.Header {
+	lists := make([][]ir.Header, 0, len(operation.Responses)+len(operation.Errors)+1)
+	for i := range operation.Responses {
+		lists = append(lists, operation.Responses[i].Headers)
 	}
-	for i := range op.Errors {
-		lists = append(lists, op.Errors[i].Headers)
+	for i := range operation.Errors {
+		lists = append(lists, operation.Errors[i].Headers)
 	}
-	if op.Default != nil {
-		lists = append(lists, op.Default.Headers)
+	if operation.Default != nil {
+		lists = append(lists, operation.Default.Headers)
 	}
 	return lists
 }
 
-// partHeaders returns the header lists the encodings of op's bodies give a part
-// or a stream's items, in the order of their contents and, within one, of their
-// parts' IDs. A part's encoding is a map value whose Headers still share their
-// array with op.
-func partHeaders(op *ir.Operation) [][]ir.Header {
-	payloads := []*ir.Payload{op.Request}
-	for i := range op.Responses {
-		payloads = append(payloads, op.Responses[i].Payload)
+// partHeaders returns the header lists the encodings of operation's bodies give
+// a part or a stream's items, in the order of their contents and, within one,
+// of their parts' IDs. A part's encoding is a map value whose Headers still
+// share their array with operation.
+func partHeaders(operation *ir.Operation) [][]ir.Header {
+	payloads := []*ir.Payload{operation.Request}
+	for i := range operation.Responses {
+		payloads = append(payloads, operation.Responses[i].Payload)
 	}
-	for i := range op.Errors {
-		payloads = append(payloads, op.Errors[i].Payload)
+	for i := range operation.Errors {
+		payloads = append(payloads, operation.Errors[i].Payload)
 	}
-	if op.Default != nil {
-		payloads = append(payloads, op.Default.Payload)
+	if operation.Default != nil {
+		payloads = append(payloads, operation.Default.Payload)
 	}
 	var lists [][]ir.Header
-	for _, p := range payloads {
-		if p == nil {
+	for _, payload := range payloads {
+		if payload == nil {
 			continue
 		}
-		for i := range p.Contents {
-			content := &p.Contents[i]
+		for i := range payload.Contents {
+			content := &payload.Contents[i]
 			if content.ItemEncoding != nil {
 				lists = append(lists, content.ItemEncoding.Headers)
 			}
@@ -119,7 +119,7 @@ const maxScalarHops = 64
 // the chain, and whether a node along it names an encoding, asks for
 // redaction, or writes a key the policy reads redaction from.
 type chain struct {
-	prim      ir.PrimKind
+	primitive ir.PrimitiveKind
 	encoded   bool
 	sensitive bool
 	spoken    bool
@@ -128,7 +128,7 @@ type chain struct {
 // readChain reads the chain from id through each scalar's Base, to
 // maxScalarHops of them, and reports false where it ends at a type that is no
 // primitive, at a type the registry does not hold, or past the bound.
-func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
+func readChain(promoter promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
 	var ch chain
 	for range maxScalarHops {
 		td := reg[id]
@@ -137,10 +137,10 @@ func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, 
 		}
 		common := td.Common()
 		ch.sensitive = ch.sensitive || common.Sensitive
-		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, promotion.TargetRedaction)
+		ch.spoken = ch.spoken || promoter.Writes(common.Unmodeled, promotion.TargetRedaction)
 		switch n := td.(type) {
 		case *ir.Primitive:
-			ch.prim = n.Prim
+			ch.primitive = n.PrimitiveKind
 			return ch, true
 		case *ir.Scalar:
 			ch.encoded = ch.encoded || n.Encoding != nil && n.Encoding.Name != ""

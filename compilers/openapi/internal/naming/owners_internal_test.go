@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // TestOwnerOf_NamesOnlyAMediaTypeAContentMapHolds pins the guards on a media
@@ -19,12 +19,12 @@ import (
 // name it nothing rather than read past the pointer's start.
 func TestOwnerOf_NamesOnlyAMediaTypeAContentMapHolds(t *testing.T) {
 	t.Parallel()
-	n := New(nil, true)
-	hint, ok := n.ownerOf(bind.Source, []string{"schema"}, []bind.Kind{bind.KindMediaType, bind.KindSchema}, 0)
+	namer := New(nil, true)
+	hint, ok := namer.ownerOf(reftable.Source, []string{"schema"}, []reftable.Kind{reftable.KindMediaType, reftable.KindSchema}, 0)
 	assert.False(t, ok, "a media type no content map holds")
 	assert.Empty(t, hint)
 
-	hint, ok = n.contentOwner(bind.Source, "/x", bind.KindOther)
+	hint, ok = namer.contentOwner(reftable.Source, "/x", reftable.KindOther)
 	assert.False(t, ok, "content held by no object the grammar names")
 	assert.Empty(t, hint)
 }

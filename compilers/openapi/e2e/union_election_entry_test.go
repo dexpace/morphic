@@ -167,8 +167,8 @@ func requireDistributedOneOf(t *testing.T, doc *ir.Document, at jsontext.Pointer
 	assert.True(t, union.Exclusive)
 	assert.Empty(t, keptOn(union), "the Union keeps neither union")
 	require.Len(t, union.Variants, 2)
-	for i, v := range union.Variants {
-		variant, isModel := kindNode(t, doc, v.Type.Target).(*ir.Model)
+	for i, irVariant := range union.Variants {
+		variant, isModel := kindNode(t, doc, irVariant.Type.Target).(*ir.Model)
 		require.True(t, isModel, "variant %d is a model", i)
 		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:anyOf": reason}, keptOn(variant), "variant %d keeps the anyOf", i)
 		composed := slices.Clone(variant.Mixins)
@@ -176,10 +176,10 @@ func requireDistributedOneOf(t *testing.T, doc *ir.Document, at jsontext.Pointer
 			composed = append(composed, *variant.Base)
 		}
 		targets := make([]ir.TypeID, 0, len(composed))
-		for _, r := range composed {
-			targets = append(targets, r.Target)
+		for _, typeRef := range composed {
+			targets = append(targets, typeRef.Target)
 		}
-		assert.Contains(t, targets, ir.TypeID(fmt.Sprintf("t/anon%s/allOf/1/oneOf/%d", at, i)), "variant %d composes its branch", i)
+		assert.Contains(t, targets, ir.TypeID(fmt.Sprintf("type/anonymous%s/allOf/1/oneOf/%d", at, i)), "variant %d composes its branch", i)
 		if ref {
 			assert.Contains(t, targets, componentID("T"), "variant %d composes the $ref", i)
 			continue
@@ -319,9 +319,9 @@ func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 				requireErrorsAndWarnings(t, diags, nil)
 				union := requireUnionOf(t, doc, at, 2)
 				assert.False(t, union.Exclusive, "the anyOf is elected")
-				for _, v := range union.Variants {
+				for _, variant := range union.Variants {
 					assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly},
-						keptOn(kindNode(t, doc, v.Type.Target)), "each variant keeps the oneOf")
+						keptOn(kindNode(t, doc, variant.Type.Target)), "each variant keeps the oneOf")
 				}
 			}},
 		{"the anyOf refuses a oneOf branch", "[{type: object, properties: {b: {type: string}}}, {type: array}]",
@@ -338,11 +338,11 @@ func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 				t.Helper()
 				requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: string(at),
 					contains: []string{"share no value", "string or integer"}}})
-				m, ok := kindNode(t, doc, entryPositionID(at)).(*ir.Model)
+				model, ok := kindNode(t, doc, entryPositionID(at)).(*ir.Model)
 				require.True(t, ok, "no instance satisfies the two, so the position is the Model its body gives")
 				assert.Equal(t, map[string]ir.UnmodeledReason{
 					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
-				}, keptOn(m), "it keeps both unions")
+				}, keptOn(model), "it keeps both unions")
 			}},
 	}
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {

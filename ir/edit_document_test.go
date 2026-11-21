@@ -26,7 +26,7 @@ func filledDoc(t *testing.T) *ir.Document {
 	reg := registriesDoc()
 	doc.Services, doc.Servers, doc.Channels = treeDoc().Services, reg.Servers, reg.Channels
 	doc.Messages, doc.Auth = reg.Messages, reg.Auth
-	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a"}}
+	doc.Types = ir.TypeRegistry{"type/a": &ir.Any{ID: "type/a"}}
 	return doc
 }
 
@@ -59,32 +59,32 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 	doc := filledDoc(t)
 	before := irtest.Encoded(t, doc)
 
-	e := ir.NewEditor(doc)
-	e.RemoveOperation("o/a1")
+	editor := ir.NewEditor(doc)
+	editor.RemoveOperation("o/a1")
 	var handed map[uintptr]string
-	e.UpdateDocument(func(d *ir.Document) {
-		handed = references(d)
+	editor.UpdateDocument(func(document *ir.Document) {
+		handed = references(document)
 		for _, field := range keyedFields {
-			assert.True(t, reflect.ValueOf(d).Elem().FieldByName(field).IsNil(), "the copy holds %s", field)
+			assert.True(t, reflect.ValueOf(document).Elem().FieldByName(field).IsNil(), "the copy holds %s", field)
 		}
-		require.Len(t, d.TagDefs, 1)
-		require.NotNil(t, d.Contact)
-		d.Name = "renamed"
-		d.TagDefs = nil
-		d.Contact.Name = "changed"
-		d.Versions = append(d.Versions, "v2")
+		require.Len(t, document.TagDefs, 1)
+		require.NotNil(t, document.Contact)
+		document.Name = "renamed"
+		document.TagDefs = nil
+		document.Contact.Name = "changed"
+		document.Versions = append(document.Versions, "v2")
 	})
-	e.RemoveChannel("c/b")
-	out, diags := e.Finish()
+	editor.RemoveChannel("c/b")
+	out, diags := editor.Finish()
 
 	require.Empty(t, diags)
 	assert.Equal(t, "renamed", out.Name)
 	assert.Empty(t, out.TagDefs)
 	assert.Equal(t, "changed", out.Contact.Name)
 	assert.Equal(t, append(slices.Clip(doc.Versions), "v2"), out.Versions)
-	assert.Equal(t, "s/a[g/a(o/a2 o/a3)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]", render(out))
+	assert.Equal(t, "service/a[operation-group/a(o/a2 o/a3)[operation-group/a/n(o/n)] operation-group/b(o/b)] service/b[operation-group/c(o/c)]", render(out))
 	assert.NotContains(t, out.Channels, ir.ChannelID("c/b"))
-	assert.Same(t, doc.Types["t/a"], out.Types["t/a"])
+	assert.Same(t, doc.Types["type/a"], out.Types["type/a"])
 	assert.Equal(t, doc.Diagnostics, out.Diagnostics)
 	assert.Equal(t, before, irtest.Encoded(t, doc), "the edited document changed")
 
@@ -103,9 +103,9 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 func TestEditor_UpdateDocumentKeepsWhatItLeavesOut(t *testing.T) {
 	t.Parallel()
 	doc := filledDoc(t)
-	e := ir.NewEditor(doc)
-	e.UpdateDocument(func(d *ir.Document) { d.Name = "renamed" })
-	out, diags := e.Finish()
+	editor := ir.NewEditor(doc)
+	editor.UpdateDocument(func(document *ir.Document) { document.Name = "renamed" })
+	out, diags := editor.Finish()
 
 	require.Empty(t, diags)
 	assert.Equal(t, "renamed", out.Name)
@@ -125,13 +125,13 @@ func TestEditor_UpdateDocumentRefusesSettingAKeyedPart(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			t.Parallel()
 			doc := filledDoc(t)
-			e := ir.NewEditor(doc)
-			e.UpdateDocument(func(d *ir.Document) {
-				d.Name = "renamed"
-				f := reflect.ValueOf(d).Elem().FieldByName(field)
+			editor := ir.NewEditor(doc)
+			editor.UpdateDocument(func(document *ir.Document) {
+				document.Name = "renamed"
+				f := reflect.ValueOf(document).Elem().FieldByName(field)
 				f.Set(reflect.ValueOf(filledDoc(t)).Elem().FieldByName(field))
 			})
-			out, diags := e.Finish()
+			out, diags := editor.Finish()
 
 			assert.Equal(t, []string{"internal: edit: update rejected: the change of the document set its " + field +
 				", whose nodes the edit changes by their own IDs"}, refusals(t, diags))
@@ -145,9 +145,9 @@ func TestEditor_UpdateDocumentRefusesSettingAKeyedPart(t *testing.T) {
 func TestEditor_UpdateDocumentRefusesNoChange(t *testing.T) {
 	t.Parallel()
 	doc := filledDoc(t)
-	e := ir.NewEditor(doc)
-	e.UpdateDocument(nil)
-	out, diags := e.Finish()
+	editor := ir.NewEditor(doc)
+	editor.UpdateDocument(nil)
+	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{"internal: edit: update rejected: no change for the document"}, refusals(t, diags))
 	assert.Equal(t, irtest.Encoded(t, doc), irtest.Encoded(t, out))

@@ -74,7 +74,7 @@ func TestCompile_AnOverlayDescribesOneSchemaOfASharedNode(t *testing.T) {
 	for _, name := range []string{"A", "B", "C"} {
 		model, ok := typeByName(shared, name).(*ir.Model)
 		require.True(t, ok, name)
-		_, has := propByWire(model, "x")
+		_, has := propertyByWire(model, "x")
 		assert.True(t, has, "%s still holds x", name)
 	}
 
@@ -183,8 +183,8 @@ func TestCompile_AnOverlayFieldTheVersionDoesNotDefineRefusesTheCompile(t *testi
 		assert.Equal(t, ir.SeverityError, diags[0].Severity)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "the finding is about the overlay")
 		assert.Equal(t, "/actions/0/udpate", string(diags[0].Provenance.Pointer), version)
-		for _, d := range diags {
-			assert.NotEqual(t, "openapi/overlay-unsupported", d.Code, "the code has no site left")
+		for _, diagnostic := range diags {
+			assert.NotEqual(t, "openapi/overlay-unsupported", diagnostic.Code, "the code has no site left")
 		}
 	}
 }

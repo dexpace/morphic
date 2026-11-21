@@ -119,15 +119,15 @@ func TestCompile_AChainOfReferencesIsCheckedInTheDocumentItEndsIn(t *testing.T) 
 	doc, diags := compileDir(t, dir, openapi.Options{AllowExternalRefs: true})
 
 	end := -1
-	for i, s := range doc.Sources {
-		if strings.HasSuffix(s.Path, "end.yaml") {
+	for i, sourceInfo := range doc.Sources {
+		if strings.HasSuffix(sourceInfo.Path, "end.yaml") {
 			end = i
 		}
 	}
 	require.NotEqual(t, -1, end, "the last file of the chain is one of the sources: %+v", doc.Sources)
 	found := make([]string, 0, len(diags))
-	for _, d := range diags {
-		found = append(found, fmt.Sprintf("%d%s %s", d.Provenance.Source, d.Provenance.Pointer, d.Code))
+	for _, diagnostic := range diags {
+		found = append(found, fmt.Sprintf("%d%s %s", diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Code))
 	}
 	assert.Equal(t, []string{fmt.Sprintf("%d/item/get/parameters/0/in %s", end, diag.Validation+"/validation-allowed-values")}, found)
 }

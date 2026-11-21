@@ -66,7 +66,7 @@ var loweringRecursions = [][]string{
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
 	// lowering reaches itself through them. Bounded by maxCallbackNesting, the
 	// callbacks an operation whose own lower may be nested in.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
+	{"lowerCallbackOperations", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
@@ -104,7 +104,7 @@ var schemaRecursion = []string{
 	"lowerDiscriminator", "lowerDispatched", "lowerDistributedUnion", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerPrincipalValueSet", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeList",
 	"lowerTypeVariant", "lowerTyped", "lowerTyping", "lowerUnion",
-	"mintUnion", "outcomeKeeps.record", "patternProps",
+	"mintUnion", "outcomeKeeps.record", "patternProperties",
 	"preserveUnmergedEntry", "recordEntryUnhomed",
 	"recordKeptEntry", "recordOwnKeywords", "recordUnread", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
@@ -229,24 +229,24 @@ func callGraphOf(t *testing.T, pkgs []typedPkg) map[string]map[string]bool {
 	t.Helper()
 	names := map[*types.Func]string{}
 	nodes := map[string]graphNode{}
-	for _, p := range pkgs {
-		for _, fd := range funcDecls(p.files) {
-			fn, ok := p.info.Defs[fd.Name].(*types.Func)
+	for _, typedPkg := range pkgs {
+		for _, fd := range funcDecls(typedPkg.files) {
+			fn, ok := typedPkg.info.Defs[fd.Name].(*types.Func)
 			require.True(t, ok, "%s is not a function to the type checker", fd.Name.Name)
 			name := nodeName(fn)
 			_, taken := nodes[name]
 			require.False(t, taken, "two lowerings are named %q; the call graph cannot tell them apart", name)
-			require.Empty(t, literalRecursion(fd.Body, p.info),
+			require.Empty(t, literalRecursion(fd.Body, typedPkg.info),
 				"%s recurses through a function literal's variable, which the call graph cannot name; "+
 					"declare the recursion as a function", name)
 			names[fn] = name
-			nodes[name] = graphNode{body: fd.Body, info: p.info}
+			nodes[name] = graphNode{body: fd.Body, info: typedPkg.info}
 		}
 	}
 
 	graph := make(map[string]map[string]bool, len(nodes))
-	for name, n := range nodes {
-		graph[name] = calleesIn(n.body, n.info, names)
+	for name, graphNode := range nodes {
+		graph[name] = calleesIn(graphNode.body, graphNode.info, names)
 	}
 	return graph
 }
@@ -442,10 +442,10 @@ func a() { var s struct{ f func() }; s.f = func() { s.f() }; s.f() }`, nil},
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := plantedPkg(t, tc.src)
-			decls := funcDecls(p.files)
+			typedPkg := plantedPkg(t, tc.src)
+			decls := funcDecls(typedPkg.files)
 			require.Len(t, decls, 1)
-			assert.Equal(t, tc.want, literalRecursion(decls[0].Body, p.info))
+			assert.Equal(t, tc.want, literalRecursion(decls[0].Body, typedPkg.info))
 		})
 	}
 }
@@ -709,7 +709,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 	t.Parallel()
 	var readers []string
-	for _, dir := range packagesTaking(t, "*whole.Document") {
+	for _, dir := range packagesTaking(t, "*compileddoc.CompiledDocumentView") {
 		if !slices.Contains(loweringPackages, dir) {
 			readers = append(readers, dir)
 		}
@@ -717,9 +717,9 @@ func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 	require.Contains(t, readers, "compilers/openapi/internal/pagination",
 		"the derivation misses a known reader; the walk or the document type moved")
 
-	for _, p := range typedPackages(t, readers) {
-		assert.Empty(t, cyclesOf(callGraphOf(t, []typedPkg{p})),
-			"%s recurses; recursion needs an explicit depth bound, and a pin as the lowerings' have", p.path)
+	for _, typedPkgValue := range typedPackages(t, readers) {
+		assert.Empty(t, cyclesOf(callGraphOf(t, []typedPkg{typedPkgValue})),
+			"%s recurses; recursion needs an explicit depth bound, and a pin as the lowerings' have", typedPkgValue.path)
 	}
 }
 

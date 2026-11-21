@@ -62,15 +62,15 @@ func TestLinks_ReadAMemberThroughAnAlias(t *testing.T) {
 			doc, diags := parseFull(t, aliasLinkSpec(tc.body, tc.schemas))
 			assert.Empty(t, diags, "no finding at all")
 
-			op := openapitest.FindOp(t, doc, "listPets")
-			require.Len(t, op.Responses, 1)
-			require.Len(t, op.Responses[0].Links, 1, "the link is lowered")
-			link := op.Responses[0].Links[0]
+			operation := openapitest.FindOperation(t, doc, "listPets")
+			require.Len(t, operation.Responses, 1)
+			require.Len(t, operation.Responses[0].Links, 1, "the link is lowered")
+			link := operation.Responses[0].Links[0]
 			require.Len(t, link.Params, 1)
-			assert.Equal(t, ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-				Segments: []ir.PropID{"p/openapi/components/schemas/Page/properties/next_cursor"},
+			assert.Equal(t, ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{
+				Segments: []ir.PropertyID{"property/openapi/components/schemas/Page/properties/next_cursor"},
 			}}, link.Params[0].Value)
-			for key := range op.Responses[0].Unmodeled {
+			for key := range operation.Responses[0].Unmodeled {
 				assert.False(t, strings.HasPrefix(key, "openapi:links"), "the link is kept verbatim: %s", key)
 			}
 		})

@@ -14,10 +14,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -78,35 +78,35 @@ type pathOperation struct {
 // because dropping the entry would lose what it declares; lowerOperation
 // reports it.
 func pathOperations(pi *soa.PathItem) []pathOperation {
-	ops := make([]pathOperation, 0, len(httpMethods))
+	operations := make([]pathOperation, 0, len(httpMethods))
 	for _, m := range httpMethods {
 		if src := m.get(pi); src != nil {
-			ops = append(ops, pathOperation{method: strings.ToUpper(m.name), seg: ids.Ptr(m.name), src: src})
+			operations = append(operations, pathOperation{method: strings.ToUpper(m.name), seg: ids.Ptr(m.name), src: src})
 		}
 	}
 	extra := pi.GetAdditionalOperations()
 	if extra == nil {
-		return ops
+		return operations
 	}
 	for method, src := range extra.All() {
 		if src == nil {
 			continue
 		}
-		ops = append(ops, pathOperation{
+		operations = append(operations, pathOperation{
 			method:     method,
 			seg:        ids.Ptr(additionalOperationsField, method),
 			src:        src,
 			additional: true,
 		})
 	}
-	return ops
+	return operations
 }
 
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
-	paths := c.Doc.GetPaths()
+func lowerPaths(ctx context.Context, serviceContext service.Ctx, loweringState operationLoweringState, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+	paths := serviceContext.Doc.GetPaths()
 	if paths == nil {
 		return nil
 	}
@@ -117,12 +117,12 @@ func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroup
 		}
 		// Judged before its item resolves: a key is a path or not, whatever
 		// the item turns out to be.
-		diags = append(diags, pathKeyDiags(c, path)...)
-		layers := pathItemLayers(c, rp, ids.Ptr("paths", path))
+		diags = append(diags, pathKeyDiags(serviceContext, path)...)
+		layers := pathItemLayers(serviceContext, rp, ids.Ptr("paths", path))
 		if layers == nil {
 			continue
 		}
-		diags = append(diags, lowerPathItem(c, w, groups, svc, path, layers)...)
+		diags = append(diags, lowerPathItem(serviceContext, loweringState, groups, svc, path, layers)...)
 	}
 	return diags
 }
@@ -134,44 +134,44 @@ func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroup
 // and lowers from where its layer declares it (see pathItemLayers). A fragment
 // the path's key carries is left out of the URI template and the grouping, and
 // kept on each operation's binding (docs/compilers/openapi.md#path-keys).
-func lowerPathItem(c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
+func lowerPathItem(serviceContext service.Ctx, loweringState operationLoweringState, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
 ) []ir.Diagnostic {
 	template, fragment, fragmented := pathRoute(path)
-	route := opContext{key: path, template: template, groups: groups}
+	route := operationContext{key: path, template: template, groups: groups}
 	ptr := ids.Ptr("paths", path)
-	mounted, diags := mountPathItem(w, layers, mountSite{ptr: ptr, use: c, usePtr: ptr, residue: &svc.Unmodeled}, route)
-	for _, m := range mounted {
+	mounted, diags := mountPathItem(loweringState, layers, mountSite{ptr: ptr, use: serviceContext, usePtr: ptr, residue: &svc.Unmodeled}, route)
+	for _, mountedOperation := range mounted {
 		if fragmented {
-			diags = append(diags, keepFragment(c, &m.op, ptr, fragment)...)
+			diags = append(diags, keepFragment(serviceContext, &mountedOperation.operation, ptr, fragment)...)
 		}
-		grp := groups.place(m.levels)
-		grp.Operations = append(grp.Operations, m.op)
-		grp.Operations = append(grp.Operations, m.extra...)
-		for _, levels := range m.remounts {
+		grp := groups.place(mountedOperation.levels)
+		grp.Operations = append(grp.Operations, mountedOperation.operation)
+		grp.Operations = append(grp.Operations, mountedOperation.extra...)
+		for _, levels := range mountedOperation.remounts {
 			groups.place(levels)
 		}
 	}
 	return diags
 }
 
-// keepFragment keeps on op's HTTP binding the fragment the key at ptr carries,
-// which its URI template leaves out, verbatim and without its "#". It is text
-// whatever it spells, as a quoted scalar is, so "123" stays no number.
-func keepFragment(c service.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
+// keepFragment keeps on operation's HTTP binding the fragment the key at ptr
+// carries, which its URI template leaves out, verbatim and without its "#". It
+// is text whatever it spells, as a quoted scalar is, so "123" stays no number.
+func keepFragment(serviceContext service.Ctx, operation *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
 	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
-	_, diags := annotation.PreserveNodeInto(&op.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
-		ir.ReasonDegradedLowering, c.Place().At(ptr))
+	_, diags := annotation.PreserveNodeInto(&operation.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
+		ir.ReasonDegradedLowering, serviceContext.Place().At(ptr))
 	return diags
 }
 
-// mountedOp is one operation a path item mounts, the callback operations
+// mountedOperation is one operation a path item mounts, the callback operations
 // lowered under it, the groups its route files it in, nil on a route filing
 // none, and the further groups its filing names a remount under.
-type mountedOp struct {
-	op       ir.Operation
-	extra    []ir.Operation
-	levels   []groupLevel
-	remounts [][]groupLevel
+type mountedOperation struct {
+	operation ir.Operation
+	extra     []ir.Operation
+	levels    []groupLevel
+	remounts  [][]groupLevel
 }
 
 // mountSite is where a route mounts a path item: the pointer the operations it
@@ -196,52 +196,52 @@ type mountSite struct {
 // keeps what its layers declare in at.residue instead (preserveUnmounted).
 // route holds what the route sets on every operation; each brings its own
 // method, pointers and parameters.
-func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mountedOp, []ir.Diagnostic) {
+func mountPathItem(loweringState operationLoweringState, layers []layer, at mountSite, route operationContext) ([]mountedOperation, []ir.Diagnostic) {
 	mount := at.ptr
-	ops := mountedOperations(layers)
+	operations := mountedOperations(layers)
 	owner, diags := precedence(layers)
 	params := itemParams(layers)
-	named, serverDiags := itemServers(w.servers, layers, owner)
+	named, serverDiags := itemServers(loweringState.servers, layers, owner)
 	diags = append(diags, serverDiags...)
-	if len(ops) == 0 {
+	if len(operations) == 0 {
 		return nil, append(diags, preserveUnmounted(layers, owner, named, at)...)
 	}
 	var kept ir.Unmodeled
 	var docs ir.Docs
 	diags = append(diags, applyLayers(layers, owner, onOperations(&kept, &docs))...)
 	keptBytes, serverBytes := keptWeight(kept)+docsWeight(docs), serversWeight(named)
-	mounted := make([]mountedOp, 0, len(ops))
-	for _, lo := range ops {
-		l, po := layers[lo.layer], lo.op
+	mounted := make([]mountedOperation, 0, len(operations))
+	for _, lo := range operations {
+		layer, po := layers[lo.layer], lo.operation
 		// An additionalOperations entry is charged what it copies (chargeItemCopy),
 		// as the fixed methods, which bound their own copies, are not; and none
 		// lowers once the budget is crossed, whatever copy crossed it.
-		if po.additional && service.ExpansionCrossed(l.in) {
+		if po.additional && service.ExpansionCrossed(layer.in) {
 			break // the document is refused, so no copy past the budget lowers
 		}
-		opCtx := route
-		opCtx.method = po.method
-		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
-		opCtx.params = mergeParameters(l.in.Bindings(), params, po.src.GetParameters(), opCtx.ptrs.decl)
+		operationCtx := route
+		operationCtx.method = po.method
+		operationCtx.ptrs = operationPointers{mount: mount + po.seg, decl: layer.decl + po.seg}
+		operationCtx.params = mergeParameters(layer.in.Bindings(), params, po.src.GetParameters(), operationCtx.ptrs.decl)
 		var filed filing
 		if route.groups != nil {
-			filed = route.groups.filingFor(l.in, po.src, opCtx.ptrs.decl, route.template)
-			opCtx.inferred = filed.inferred
+			filed = route.groups.filingFor(layer.in, po.src, operationCtx.ptrs.decl, route.template)
+			operationCtx.inferred = filed.inferred
 			diags = append(diags, filed.diags...)
 		}
-		op, extra, opDiags := lowerOperation(l.in, w, po.src, opCtx)
-		diags = append(diags, opDiags...)
-		takes := len(op.Servers) == 0
+		operation, extra, operationDiags := lowerOperation(layer.in, loweringState, po.src, operationCtx)
+		diags = append(diags, operationDiags...)
+		takes := len(operation.Servers) == 0
 		if takes {
-			op.Servers = slices.Clone(named)
+			operation.Servers = slices.Clone(named)
 		}
-		diags = append(diags, keepOn(&op, kept, docs)...)
-		diags = append(diags, promoteOperation(l.in.Promoter(), &op)...)
-		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels, remounts: filed.remounts})
+		diags = append(diags, keepOn(&operation, kept, docs)...)
+		diags = append(diags, promoteOperation(layer.in.Promoter(), &operation)...)
+		mounted = append(mounted, mountedOperation{operation: operation, extra: extra, levels: filed.levels, remounts: filed.remounts})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what
 			// follows them is what it takes of its item's.
-			chargeItemCopy(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):])
+			chargeItemCopy(layer.in, keptBytes, chosen(takes, serverBytes), operationCtx.params[len(po.src.GetParameters()):])
 		}
 	}
 	return mounted, diags
@@ -255,18 +255,19 @@ func chosen(taken bool, weight int) int {
 	return 0
 }
 
-// keepOn writes onto op a copy of each entry its mount's layers keep, and the
-// path's documentation, docs, into the PathDocs of each of op's HTTP bindings.
-// Both are computed once a mount, since nothing in them depends on the
-// operation; only the writing repeats (GitHub #414). An entry op already holds
-// is never replaced (annotation.CopyEntriesInto), though none should be: every
-// kept key sits beneath pathItemScope, which none of op's own writers spells,
-// its census escaping a "/" in a key it keeps (GitHub #1323).
-func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
-	for i := range op.Bindings.HTTP {
-		op.Bindings.HTTP[i].PathDocs = docs
+// keepOn writes onto operation a copy of each entry its mount's layers keep,
+// and the path's documentation, docs, into the PathDocs of each of operation's
+// HTTP bindings. Both are computed once a mount, since nothing in them depends
+// on the operation; only the writing repeats (GitHub #414). An entry operation
+// already holds is never replaced (annotation.CopyEntriesInto), though none
+// should be: every kept key sits beneath pathItemScope, which none of
+// operation's own writers spells, its census escaping a "/" in a key it keeps
+// (GitHub #1323).
+func keepOn(operation *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
+	for i := range operation.Bindings.HTTP {
+		operation.Bindings.HTTP[i].PathDocs = docs
 	}
-	return annotation.CopyEntriesInto(&op.Unmodeled, kept)
+	return annotation.CopyEntriesInto(&operation.Unmodeled, kept)
 }
 
 // applyPathItem keeps, on the carrier into, what a path item declares besides
@@ -279,14 +280,14 @@ func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
 // beside the first is a chance to forget one on a route added later (GitHub
 // #39). The undeclared keys come from undeclaredPathItemKeys: the library's
 // GetUnknownProperties is empty for this object.
-func applyPathItem(c service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
+func applyPathItem(serviceContext service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
 ) []ir.Diagnostic {
-	diags := applyPathItemDocs(c, into, pi, declPtr, cedes)
-	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.Place(), declPtr, into.scope)
+	diags := applyPathItemDocs(serviceContext, into, pi, declPtr, cedes)
+	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), serviceContext.Place(), declPtr, into.scope)
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, keptKeys(undeclaredPathItemKeys(pi), cedes),
-		pi.GetRootNode(), c.Place(), declPtr, into.scope)...)
+		pi.GetRootNode(), serviceContext.Place(), declPtr, into.scope)...)
 }
 
 // carrier is where a path item's own declarations are kept, and under what key
@@ -328,8 +329,8 @@ func onOperations(kept *ir.Unmodeled, docs *ir.Docs) carrier {
 //
 // mountPtr is the item's own mount pointer, and keys it apart from every other
 // item kept on that node.
-func onNearestNode(u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
-	return carrier{unmodeled: u, scope: pathItemScope + string(mountPtr)}
+func onNearestNode(unmodeled *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
+	return carrier{unmodeled: unmodeled, scope: pathItemScope + string(mountPtr)}
 }
 
 // preserveUnmounted keeps what the layers of a mount that produced no
@@ -346,9 +347,9 @@ func preserveUnmounted(layers []layer, owner owners, named []ir.ServerID, at mou
 	into := onNearestNode(at.residue, at.ptr)
 	before := len(*into.unmodeled)
 	var diags []ir.Diagnostic
-	for i, l := range layers {
-		diags = append(diags, applyPathItem(l.in, into, l.item, l.decl, owner.cedes(i))...)
-		diags = append(diags, keepItemParams(l.in, into, l.item, at.ptr, l.decl, owner.cedes(i))...)
+	for i, layer := range layers {
+		diags = append(diags, applyPathItem(layer.in, into, layer.item, layer.decl, owner.cedes(i))...)
+		diags = append(diags, keepItemParams(layer.in, into, layer.item, at.ptr, layer.decl, owner.cedes(i))...)
 	}
 	var landed []string
 	if len(named) > 0 {
@@ -393,11 +394,11 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	// cleared before a model is built (GitHub #459, #501, #538), short of an
 	// external document past the hop bound that recovery follows; the mapping,
 	// read as the parser reads it, stays the one place such a key is found.
-	for _, p := range nodeview.Pairs(pi.GetRootNode()) {
-		if pathItemDeclares(pi, p.Key) {
+	for _, pair := range nodeview.Pairs(pi.GetRootNode()) {
+		if pathItemDeclares(pi, pair.Key) {
 			continue
 		}
-		keys = append(keys, p.Key)
+		keys = append(keys, pair.Key)
 	}
 	return keys
 }
@@ -437,7 +438,7 @@ var pathItemDocKeywords = []string{"summary", "description"}
 // reported: the pair reaches a field. An item mounting none keeps the pair
 // verbatim beside what else it keeps on the nearest node, which
 // preserveUnmountedPathItem announces (GitHub #383).
-func applyPathItemDocs(c service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
+func applyPathItemDocs(serviceContext service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
 	if pi.GetSummary() == "" && pi.GetDescription() == "" {
@@ -454,7 +455,7 @@ func applyPathItemDocs(c service.Ctx, into carrier, pi *soa.PathItem, declPtr js
 		}
 		_, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, annotation.EntryKey(into.scope, keyword),
 			nodeview.Child(pi.GetRootNode(), keyword), ir.ReasonNoIRHome,
-			c.Place().At(declPtr+ids.Ptr(keyword)))
+			serviceContext.Place().At(declPtr+ids.Ptr(keyword)))
 		diags = append(diags, fieldDiags...)
 	}
 	return diags
@@ -482,22 +483,22 @@ func writePathDocs(docs *ir.Docs, pi *soa.PathItem, cedes func(string) bool) {
 // ID would be, less what cedes says a nearer layer keeps. An entry whose $ref
 // resolves to nothing has no slot: it is reported where the reference is
 // written, and lowers nowhere, as on an operation.
-func keepItemParams(c service.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
+func keepItemParams(serviceContext service.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ledger := newParamLedger(mountPtr)
 	for i, rp := range pi.GetParameters() {
-		slot, ok := paramKey(c.Bindings(), rp)
+		slot, ok := paramKey(serviceContext.Bindings(), rp)
 		if !ok || cedes(paramConstruct(slot)) {
 			continue
 		}
-		p := resolve.Object[soa.Parameter](c.Bindings(), rp)
+		p := componentlookup.Object[soa.Parameter](serviceContext.Bindings(), rp)
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
 		occurrence := ledger.count(p.GetName(), string(p.GetIn()))
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
 		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
-			ir.ReasonNoIRHome, c.Place().At(entry))
+			ir.ReasonNoIRHome, serviceContext.Place().At(entry))
 		diags = append(diags, keepDiags...)
 	}
 	return diags

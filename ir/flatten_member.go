@@ -30,14 +30,14 @@ func NewMemberReader(types TypeRegistry) *MemberReader {
 // names no model, read through alias scalars, or none it composes declares
 // the name.
 func (r *MemberReader) Member(root TypeID, wire string) (PropertyDecl, bool) {
-	q := memberQuery{reader: r, wire: wire}
-	f := flattener{types: r.types, query: &q}
-	f.read(root)
-	r.steps += f.steps
-	if len(q.reads) == 0 {
+	memberQueryValue := memberQuery{reader: r, wire: wire}
+	flattenerValue := flattener{types: r.types, query: &memberQueryValue}
+	flattenerValue.read(root)
+	r.steps += flattenerValue.steps
+	if len(memberQueryValue.reads) == 0 {
 		return PropertyDecl{}, false
 	}
-	return taken(q.reads), true
+	return taken(memberQueryValue.reads), true
 }
 
 // memberQuery is the one wire name a MemberReader's walk reads, and the
@@ -51,22 +51,22 @@ type memberQuery struct {
 // emit reads the model id names for the query's wire name, through the
 // model's own index: each of its own declarations of the name, in source
 // order, as a flattening's walk reads them.
-func (q *memberQuery) emit(id TypeID, m *Model) {
-	for _, i := range q.reader.ownIndex(id, m)[q.wire] {
-		q.reads = append(q.reads, PropertyDecl{Owner: id, Property: &m.Properties[i]})
+func (q *memberQuery) emit(id TypeID, model *Model) {
+	for _, i := range q.reader.ownIndex(id, model)[q.wire] {
+		q.reads = append(q.reads, PropertyDecl{Owner: id, Property: &model.Properties[i]})
 	}
 }
 
-// ownIndex returns the index of the model m, which id names, by the wire
+// ownIndex returns the index of the model model, which id names, by the wire
 // names of its own properties, made at its first read.
-func (r *MemberReader) ownIndex(id TypeID, m *Model) map[string][]int {
+func (r *MemberReader) ownIndex(id TypeID, model *Model) map[string][]int {
 	if own, read := r.own[id]; read {
 		return own
 	}
-	own := make(map[string][]int, len(m.Properties))
-	for i := range m.Properties {
+	own := make(map[string][]int, len(model.Properties))
+	for i := range model.Properties {
 		r.steps++
-		wire := m.Properties[i].EffectiveWireName()
+		wire := model.Properties[i].EffectiveWireName()
 		own[wire] = append(own[wire], i)
 	}
 	r.own[id] = own

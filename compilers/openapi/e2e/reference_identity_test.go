@@ -111,14 +111,14 @@ func TestReferenceIdentity_ASchemaRefThroughAnAliasIsOneNode(t *testing.T) {
 			refSpec{spec: identitySpec(a)}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 				t.Helper()
 				assertNoErrorDiags(t, diags)
-				declared := ir.TypeID("t/anon" + a.spell("Y"))
+				declared := ir.TypeID("type/anonymous" + a.spell("Y"))
 				require.Contains(t, doc.Types, declared, "the schema lowers where it is declared")
-				alias := ir.TypeID("t/anon" + a.spell("X"))
+				alias := ir.TypeID("type/anonymous" + a.spell("X"))
 				assert.NotContains(t, doc.Types, alias, "and at no pointer an alias spells")
 				for _, name := range []string{"through", "direct"} {
-					op, ok := opByName(doc, name)
+					operation, ok := operationByName(doc, name)
 					require.True(t, ok, name)
-					assert.Equal(t, declared, firstContent(t, op).Type.Target, "%s types its body by that node", name)
+					assert.Equal(t, declared, firstContent(t, operation).Type.Target, "%s types its body by that node", name)
 				}
 			})
 		})
@@ -138,8 +138,8 @@ func typesJSON(t *testing.T, doc *ir.Document) string {
 // mappings are written in, which moves the lines and columns alone.
 func placedFindings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s: %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s: %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	slices.Sort(out)
 	return out

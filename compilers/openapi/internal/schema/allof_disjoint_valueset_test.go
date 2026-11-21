@@ -25,9 +25,9 @@ func TestAllOf_AValueSetBesideAUnionWarnsOnce(t *testing.T) {
 			"    Entry: {allOf: [{$ref: '#/components/schemas/Obj'}, {enum: [a, b]}], "+union+"}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	var warnings []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			warnings = append(warnings, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warnings = append(warnings, diagnostic)
 		}
 	}
 	assert.Len(t, warnings, 2, "a warning for each spelling and no other: %v", warnings)

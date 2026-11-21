@@ -63,8 +63,8 @@ func SchemaExtensions(list []statement.Extension, doc provenance.Doc, owner json
 // order.
 func extensionPairs(list []statement.Extension) iter.Seq2[string, *yaml.Node] {
 	return func(yield func(string, *yaml.Node) bool) {
-		for _, e := range list {
-			if !yield(e.Name, e.Node) {
+		for _, extension := range list {
+			if !yield(extension.Name, extension.Node) {
 				return
 			}
 		}
@@ -121,7 +121,7 @@ func SchemaExtensionsNamed(list []statement.Extension, names iter.Seq[string]) i
 		return nil
 	}
 	return extensionsNamed(func(name string) (*yaml.Node, bool) {
-		i := slices.IndexFunc(list, func(e statement.Extension) bool { return e.Name == name })
+		i := slices.IndexFunc(list, func(extension statement.Extension) bool { return extension.Name == name })
 		if i < 0 {
 			return nil, false
 		}

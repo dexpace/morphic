@@ -32,13 +32,13 @@ var irPackage = sync.OnceValues(func() (*decls.Package, error) {
 // from the source, so a kind added there reaches every test ranging over it.
 func declaredKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
-	p, err := irPackage()
+	loadedPackage, err := irPackage()
 	require.NoError(t, err)
-	consts, err := p.StringConsts("TypeKind")
+	consts, err := loadedPackage.StringConsts("TypeKind")
 	require.NoError(t, err)
 	kinds := make([]ir.TypeKind, 0, len(consts))
-	for _, c := range consts {
-		kinds = append(kinds, ir.TypeKind(c.Value))
+	for _, declaredConst := range consts {
+		kinds = append(kinds, ir.TypeKind(declaredConst.Value))
 	}
 	slices.SortFunc(kinds, func(a, b ir.TypeKind) int { return strings.Compare(string(a), string(b)) })
 	require.NotEmpty(t, kinds, "the ir package must declare its type kinds")

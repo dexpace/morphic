@@ -18,7 +18,7 @@ type HTTPBinding struct {
     ParamBindings []HTTPParamBinding
     RequestContentTypes  []string  // the request body's media types, as written and in source
                                    // order, which states no preference among them
-    ResponseBodyPath *PropPath     // HTTP response body = this sub-field of the response type
+    ResponseBodyPath *PropertyPath // HTTP response body = this sub-field of the response type
                                    // (gRPC transcoding response_body); nil = the whole payload
     SuccessStatus map[int]int      // response index → primary status (denormalized convenience; conditions are the truth)
     Compression *RequestCompression // client MUST compress the request body (Smithy @requestCompression)
@@ -39,8 +39,8 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      ParamID            // this operation's own Operation.Params entry it binds, by ID
-    ParamPath  []PropID           // nested source field within the logical param, when the binding
+    Param      ParameterID        // this operation's own Operation.Params entry it binds, by ID
+    ParamPath  []PropertyID       // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param
     Location   HTTPLocation       // path | query | querystring | header | cookie | body |
@@ -77,10 +77,10 @@ type HTTPParamBinding struct {
                                   // @httpQueryParams); nil = the one field WireName names
                                   // (below)
     ContentType string            // param serialized as a media type (OpenAPI content-style params)
-    BodyPath   []PropID           // for body_property: where in the body model it lands (TypeSpec HttpProperty)
+    BodyPath   []PropertyID       // for body_property: where in the body model it lands (TypeSpec HttpProperty)
 }
 
-type Callback struct { Name, Expression string; Operations []OpID } // Name: the callbacks-map key
+type Callback struct { Name, Expression string; Operations []OperationID } // Name: the callbacks-map key
 ```
 
 `AllowEmptyValue` sits on the binding with a parameter's other serialization facts, the
@@ -89,13 +89,13 @@ field NOT RECOMMENDED, but a document that writes it still states it, Swagger 2.
 a request validator or a mock server needs it to accept `name=`. It is a plain bool beside
 `AllowReserved`, since a declared `false` and an absent one mean the same.
 
-Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per
-non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host
-prefix *and* still serialize at their modeled location, by spec. TypeSpec's `HttpProperty` role+path
-flattening is the model here: nested `@header`/`@body` annotations resolve to explicit
-`(role, wire name, path)` bindings rather than restructured models. A parameter a binding places
-twice at one non-host location is the error `pass/param-binding-mismatch`; one it places nowhere is
-the warning `pass/param-unbound`.
+Every logical parameter — identified by its `ParameterID`, not its name — is bound exactly
+once **per non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand
+into the host prefix *and* still serialize at their modeled location, by spec. TypeSpec's
+`HttpProperty` role+path flattening is the model here: nested `@header`/`@body` annotations resolve
+to explicit `(role, wire name, path)` bindings rather than restructured models. A parameter a
+binding places twice at one non-host location is the error `pass/param-binding-mismatch`; one it
+places nowhere is the warning `pass/param-unbound`.
 
 ## Prefix bindings
 

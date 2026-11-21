@@ -48,15 +48,15 @@ func TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt(t *testi
 			list: "[b, b]", suffix: "/dependencies/a", value: "b",
 			dialect: "jsonSchemaDialect: http://json-schema.org/draft-07/schema#\n"},
 	}
-	for name, k := range keywords {
-		head := head31 + k.dialect + "paths: {}\n"
-		raw := head + "x-raw:\n  T: " + k.schema(k.list) + "\n"
+	for name, repeatingKeyword := range keywords {
+		head := head31 + repeatingKeyword.dialect + "paths: {}\n"
+		raw := head + "x-raw:\n  T: " + repeatingKeyword.schema(repeatingKeyword.list) + "\n"
 		schemas := head + "components:\n  schemas:\n"
 		for form, c := range map[string]struct {
 			files      map[string]string
 			file, base string
 		}{
-			"in place": {map[string]string{"main.yaml": schemas + "    S: " + k.schema(k.list) + "\n"},
+			"in place": {map[string]string{"main.yaml": schemas + "    S: " + repeatingKeyword.schema(repeatingKeyword.list) + "\n"},
 				"main.yaml", "/components/schemas/S"},
 			"under an x- key": {map[string]string{"main.yaml": raw + "components:\n  schemas:\n    S: {$ref: '#/x-raw/T'}\n"},
 				"main.yaml", "/x-raw/T"},
@@ -64,9 +64,9 @@ func TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt(t *testi
 				"main.yaml": schemas + "    S: {$ref: 'other.yaml#/x-raw/T'}\n", "other.yaml": raw,
 			}, "other.yaml", "/x-raw/T"},
 			"anchored at the later mount": {map[string]string{"main.yaml": schemas +
-				"    B: " + k.schema("&r "+k.list) + "\n    A: " + k.schema("*r") + "\n"}, "main.yaml", "/components/schemas/A"},
+				"    B: " + repeatingKeyword.schema("&r "+repeatingKeyword.list) + "\n    A: " + repeatingKeyword.schema("*r") + "\n"}, "main.yaml", "/components/schemas/A"},
 			"anchored at the least mount": {map[string]string{"main.yaml": schemas +
-				"    A: " + k.schema("&r "+k.list) + "\n    B: " + k.schema("*r") + "\n"}, "main.yaml", "/components/schemas/A"},
+				"    A: " + repeatingKeyword.schema("&r "+repeatingKeyword.list) + "\n    B: " + repeatingKeyword.schema("*r") + "\n"}, "main.yaml", "/components/schemas/A"},
 		} {
 			t.Run(name+" "+form, func(t *testing.T) {
 				t.Parallel()
@@ -77,19 +77,19 @@ func TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt(t *testi
 
 				require.NotNil(t, doc, "%+v", diags)
 				var repeats []ir.Diagnostic
-				for _, d := range diags {
-					if d.Code == diag.Validation+"/validation-duplicate-key" {
-						repeats = append(repeats, d)
+				for _, diagnostic := range diags {
+					if diagnostic.Code == diag.Validation+"/validation-duplicate-key" {
+						repeats = append(repeats, diagnostic)
 					}
 				}
 				require.Len(t, repeats, 1, "%+v", diags)
-				d := repeats[0]
-				assert.Equal(t, c.file, filepath.Base(doc.Sources[d.Provenance.Source].Path))
-				assert.Equal(t, c.base+k.suffix+"/1", string(d.Provenance.Pointer))
-				named := firstWrittenAt.FindStringSubmatch(d.Message)
-				require.Len(t, named, 2, d.Message)
-				assert.Equal(t, c.base+k.suffix+"/0", named[1])
-				assert.Equal(t, k.value, valueAt(t, c.files[c.file], jsontext.Pointer(named[1])), d.Message)
+				irDiagnostic := repeats[0]
+				assert.Equal(t, c.file, filepath.Base(doc.Sources[irDiagnostic.Provenance.Source].Path))
+				assert.Equal(t, c.base+repeatingKeyword.suffix+"/1", string(irDiagnostic.Provenance.Pointer))
+				named := firstWrittenAt.FindStringSubmatch(irDiagnostic.Message)
+				require.Len(t, named, 2, irDiagnostic.Message)
+				assert.Equal(t, c.base+repeatingKeyword.suffix+"/0", named[1])
+				assert.Equal(t, repeatingKeyword.value, valueAt(t, c.files[c.file], jsontext.Pointer(named[1])), irDiagnostic.Message)
 			})
 		}
 	}

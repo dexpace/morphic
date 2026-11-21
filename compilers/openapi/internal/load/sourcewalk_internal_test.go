@@ -108,14 +108,14 @@ func callsObject(pkg *typed.Package, fun ast.Expr, obj types.Object) bool {
 // escapes and empty tokens past the first included.
 func TestLocationOf_RendersThePointer(t *testing.T) {
 	t.Parallel()
-	for _, p := range []jsontext.Pointer{
+	for _, pointer := range []jsontext.Pointer{
 		"/paths/~1a",
 		"/paths/~1a~0b/put/callbacks/cb/{$request.body#~1url}",
 		"/paths//get",
 		"/webhooks/hook",
 		"/x-a~1b~0c/X",
 	} {
-		assert.Equal(t, string(p), string(locationOf(p).ToJSONPointer()))
+		assert.Equal(t, string(pointer), string(locationOf(pointer).ToJSONPointer()))
 	}
 }
 
@@ -190,8 +190,8 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	assert.Less(t, put, index("/paths/~1a/put/callbacks/cb/{$request.body#~1url}/delete"))
 	count := 0
 	for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
-		_ = item.Match(soa.Matcher{Operation: func(op *soa.Operation) error {
-			if op == sibs.list[0].Item.Put() {
+		_ = item.Match(soa.Matcher{Operation: func(operation *soa.Operation) error {
+			if operation == sibs.list[0].Item.Put() {
 				count++
 			}
 			return nil

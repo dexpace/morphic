@@ -38,7 +38,7 @@ func TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk(t *testing.T) {
 	root := reader.ResolvedDir(t)
 	spec := writeFile(t, root, "specs/spec.yaml", "on disk")
 	writeFile(t, root, "specs/common.yaml", "common")
-	l := reader.Layered{Held: newMemory(t, []compilers.Source{{Path: spec, Data: []byte("held")}})}
+	layered := reader.Layered{Held: newMemory(t, []compilers.Source{{Path: spec, Data: []byte("held")}})}
 	tests := []struct {
 		name, location string
 		want           string
@@ -52,14 +52,14 @@ func TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: tc.location})
+			got, err := layered.ReadDocument(t.Context(), compilers.DocumentRequest{Location: tc.location})
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got.Data))
 		})
 	}
 
-	got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: filepath.Join(root, "missing.yaml")})
+	got, err := layered.ReadDocument(t.Context(), compilers.DocumentRequest{Location: filepath.Join(root, "missing.yaml")})
 	require.ErrorIs(t, err, fs.ErrNotExist)
 	assert.Nil(t, got.Data)
 }
@@ -97,9 +97,9 @@ func TestLayered_EachRequestIsJudgedByTheReaderServingIt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			under := &recordingReader{}
-			l := reader.Layered{Held: newMemory(t, memorySources()[:1]), Under: under}
+			layered := reader.Layered{Held: newMemory(t, memorySources()[:1]), Under: under}
 
-			got, err := l.ReadDocument(t.Context(), tc.req)
+			got, err := layered.ReadDocument(t.Context(), tc.req)
 
 			if tc.wantIs != nil {
 				require.ErrorIs(t, err, tc.wantIs)
@@ -122,10 +122,10 @@ func TestLayered_EachRequestIsJudgedByTheReaderServingIt(t *testing.T) {
 func TestLayered_NilHeldHoldsNothing(t *testing.T) {
 	t.Parallel()
 	under := &recordingReader{}
-	l := reader.Layered{Under: under}
+	layered := reader.Layered{Under: under}
 
 	for _, location := range []string{"specs/a.yaml", "file:a.yaml", ""} {
-		got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+		got, err := layered.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
 		require.NoError(t, err, location)
 		assert.Equal(t, "under", string(got.Data), location)
 	}
@@ -139,12 +139,12 @@ func TestLayered_ACancelledContextStopsEitherRead(t *testing.T) {
 	t.Parallel()
 	root := reader.ResolvedDir(t)
 	beside := writeFile(t, root, "beside.yaml", "beside")
-	l := reader.Layered{Held: newMemory(t, memorySources()[:1])}
+	layered := reader.Layered{Held: newMemory(t, memorySources()[:1])}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	for _, location := range []string{"specs/a.yaml", beside} {
-		got, err := l.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
+		got, err := layered.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
 		require.ErrorIs(t, err, context.Canceled, location)
 		assert.Nil(t, got.Data, location)
 	}

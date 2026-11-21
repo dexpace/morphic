@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "AnyOfDiscriminated",
         "canonical": "any_of_discriminated"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Labelled/properties/labels": {
+    "type/anonymous/components/schemas/Labelled/properties/labels": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Labelled/properties/labels",
+      "id": "type/anonymous/components/schemas/Labelled/properties/labels",
       "name": {
         "hint": "labels"
       },
@@ -72,14 +72,14 @@
         "source": 0,
         "pointer": "/components/schemas/Labelled/properties/labels"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Labelled": {
+    "type/openapi/components/schemas/Labelled": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Labelled",
+      "id": "type/openapi/components/schemas/Labelled",
       "name": {
         "source": "Labelled",
         "canonical": "labelled"
@@ -93,21 +93,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Labelled/properties/kind",
+          "id": "property/openapi/components/schemas/Labelled/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -120,21 +120,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Labelled/properties/labels",
+          "id": "property/openapi/components/schemas/Labelled/properties/labels",
           "name": {
             "source": "labels",
             "canonical": "labels"
           },
           "wireName": "labels",
           "type": {
-            "target": "t/anon/components/schemas/Labelled/properties/labels",
+            "target": "type/anonymous/components/schemas/Labelled/properties/labels",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -151,9 +151,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Named": {
+    "type/openapi/components/schemas/Named": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Named",
+      "id": "type/openapi/components/schemas/Named",
       "name": {
         "source": "Named",
         "canonical": "named"
@@ -167,21 +167,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Named/properties/kind",
+          "id": "property/openapi/components/schemas/Named/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -194,21 +194,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Named/properties/name",
+          "id": "property/openapi/components/schemas/Named/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -225,9 +225,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Resource": {
+    "type/openapi/components/schemas/Resource": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Resource",
+      "id": "type/openapi/components/schemas/Resource",
       "name": {
         "source": "Resource",
         "canonical": "resource"
@@ -245,7 +245,7 @@
             "hint": "named"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Named",
+            "target": "type/openapi/components/schemas/Named",
             "nullable": false
           },
           "docs": {}
@@ -255,7 +255,7 @@
             "hint": "labelled"
           },
           "type": {
-            "target": "t/openapi/components/schemas/Labelled",
+            "target": "type/openapi/components/schemas/Labelled",
             "nullable": false
           },
           "docs": {}
@@ -266,17 +266,17 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
-          "labelled": "t/openapi/components/schemas/Labelled",
-          "named": "t/openapi/components/schemas/Named"
+          "labelled": "type/openapi/components/schemas/Labelled",
+          "named": "type/openapi/components/schemas/Named"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -284,7 +284,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

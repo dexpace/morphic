@@ -87,29 +87,29 @@ func (r *IDReader) DeclaredIDOf(v reflect.Value) (class reflect.Type, id string,
 	if v.Kind() != reflect.Struct {
 		return nil, "", false
 	}
-	f := r.field(v.Type())
-	if !f.declares() {
+	idField := r.field(v.Type())
+	if !idField.declares() {
 		return nil, "", false
 	}
-	return f.class, f.of(v), true
+	return idField.class, idField.of(v), true
 }
 
 // field returns where struct type t declares its identity, reading t only the
 // first time r meets it.
 func (r *IDReader) field(t reflect.Type) idField {
-	if f, read := r.fields[t]; read {
-		return f
+	if idField, read := r.fields[t]; read {
+		return idField
 	}
 	read := r.fieldOf
 	if read == nil {
 		read = declaredIDField
 	}
-	f := read(t)
+	idFieldValue := read(t)
 	if r.fields == nil {
 		r.fields = map[reflect.Type]idField{}
 	}
-	r.fields[t] = f
-	return f
+	r.fields[t] = idFieldValue
+	return idFieldValue
 }
 
 // idField is where a struct type declares its own identity: the index of the
@@ -198,8 +198,8 @@ func appendIDClasses(dst []reflect.Type, classes map[reflect.Type]bool, t reflec
 	case reflect.Map:
 		return append(dst, t.Key(), t.Elem())
 	case reflect.Struct:
-		if f := declaredIDField(t); f.declares() {
-			classes[f.class] = true
+		if idField := declaredIDField(t); idField.declares() {
+			classes[idField.class] = true
 		}
 		for f := range t.Fields() {
 			dst = append(dst, f.Type)

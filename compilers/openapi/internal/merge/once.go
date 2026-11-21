@@ -22,41 +22,41 @@ import (
 // It reuses diags' array.
 func ReportOnce(diags []ir.Diagnostic) []ir.Diagnostic {
 	said := map[ir.DiagnosticKey]*conflict{}
-	for _, d := range diags {
-		if d.Code != diag.ConflictingRedecl {
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.ConflictingRedecl {
 			continue
 		}
-		key := unnamed(d).Key()
-		c := said[key]
-		if c == nil {
-			c = &conflict{}
-			said[key] = c
+		key := unnamed(diagnostic).Key()
+		conflictValue := said[key]
+		if conflictValue == nil {
+			conflictValue = &conflict{}
+			said[key] = conflictValue
 		}
-		c.models++
-		c.decided = append(c.decided, decided(d)...)
+		conflictValue.models++
+		conflictValue.decided = append(conflictValue.decided, decided(diagnostic)...)
 	}
 	if len(said) == 0 {
 		return diags
 	}
 	out := diags[:0]
-	for _, d := range diags {
-		if d.Code != diag.ConflictingRedecl {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.ConflictingRedecl {
+			out = append(out, diagnostic)
 			continue
 		}
-		bare := unnamed(d)
-		c, first := said[bare.Key()]
+		bare := unnamed(diagnostic)
+		conflict, first := said[bare.Key()]
 		if !first {
 			continue
 		}
 		delete(said, bare.Key())
-		if c.models > 1 {
-			d = bare
-			d.Message += fmt.Sprintf("; the same holds at each of %d models composing both", c.models)
-			slices.SortFunc(c.decided, func(a, b ir.Related) int { return strings.Compare(a.Provenance.Node, b.Provenance.Node) })
-			d.Related = append(d.Related, c.decided...)
+		if conflict.models > 1 {
+			diagnostic = bare
+			diagnostic.Message += fmt.Sprintf("; the same holds at each of %d models composing both", conflict.models)
+			slices.SortFunc(conflict.decided, func(a, b ir.Related) int { return strings.Compare(a.Provenance.Node, b.Provenance.Node) })
+			diagnostic.Related = append(diagnostic.Related, conflict.decided...)
 		}
-		out = append(out, d)
+		out = append(out, diagnostic)
 	}
 	return out
 }
@@ -68,18 +68,18 @@ type conflict struct {
 	decided []ir.Related
 }
 
-// unnamed is d naming no member, beside its place or among what it concerns:
-// what every model composing the two declarations says alike.
-func unnamed(d ir.Diagnostic) ir.Diagnostic {
-	d.Provenance.Node = ""
-	d.Related = slices.DeleteFunc(slices.Clone(d.Related), isDecided)
-	return d
+// unnamed is diagnostic naming no member, beside its place or among what it
+// concerns: what every model composing the two declarations says alike.
+func unnamed(diagnostic ir.Diagnostic) ir.Diagnostic {
+	diagnostic.Provenance.Node = ""
+	diagnostic.Related = slices.DeleteFunc(slices.Clone(diagnostic.Related), isDecided)
+	return diagnostic
 }
 
-// decided is the entries of d listing a member it decided.
-func decided(d ir.Diagnostic) []ir.Related {
-	return slices.DeleteFunc(slices.Clone(d.Related), func(r ir.Related) bool { return !isDecided(r) })
+// decided is the entries of diagnostic listing a member it decided.
+func decided(diagnostic ir.Diagnostic) []ir.Related {
+	return slices.DeleteFunc(slices.Clone(diagnostic.Related), func(related ir.Related) bool { return !isDecided(related) })
 }
 
-// isDecided reports whether r lists a node its finding decided.
-func isDecided(r ir.Related) bool { return r.Role == ir.RelatedDecided }
+// isDecided reports whether related lists a node its finding decided.
+func isDecided(related ir.Related) bool { return related.Role == ir.RelatedDecided }

@@ -71,16 +71,16 @@ type phrase struct {
 // and each joined to it by a comma, `and` or `or` alone. It reads text once,
 // forward.
 func introducedNames(text string, names []named) []string {
-	r := phrase{text: text}
-	r.sentence()
+	phraseValue := phrase{text: text}
+	phraseValue.sentence()
 	at := 0
-	for _, n := range names {
-		r.gap(at, n.start)
-		r.name(n)
-		at = n.end
+	for _, named := range names {
+		phraseValue.gap(at, named.start)
+		phraseValue.name(named)
+		at = named.end
 	}
-	r.gap(at, len(text))
-	return r.out
+	phraseValue.gap(at, len(text))
+	return phraseValue.out
 }
 
 // sentence starts a sentence.
@@ -166,9 +166,9 @@ func (r *phrase) other() {
 }
 
 // name reads a name: introduced where a cue or a joining word leads to it.
-func (r *phrase) name(n named) {
+func (r *phrase) name(namedValue named) {
 	if r.state == expecting || r.state == joined {
-		r.out = append(r.out, n.text)
+		r.out = append(r.out, namedValue.text)
 		r.state = introduced
 	} else {
 		r.state = outside

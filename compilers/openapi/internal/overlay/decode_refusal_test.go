@@ -38,9 +38,9 @@ func TestApply_RefusesATreeOfTheWrongShape(t *testing.T) {
 			assert.False(t, origin.Applied())
 			assert.Equal(t, tc.at, invalidAt(diags), "%+v", diags)
 			require.Len(t, diags, len(tc.at))
-			for _, d := range diags {
-				assert.Equal(t, ir.SeverityError, d.Severity)
-				assert.Equal(t, overlayIndex, d.Provenance.Source, "about the overlay")
+			for _, diagnostic := range diags {
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+				assert.Equal(t, overlayIndex, diagnostic.Provenance.Source, "about the overlay")
 			}
 		})
 	}

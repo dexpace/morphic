@@ -161,14 +161,14 @@ func TestCompile_AFetchedDocumentReadsAURLAFileDeclares(t *testing.T) {
 
 			bad := unresolvedRefs(diags)
 			require.Len(t, bad, 2, "%+v", diags)
-			for _, d := range bad {
-				assert.Positive(t, d.Provenance.Source, "in evil.yaml's entry")
-				assert.Contains(t, string(d.Provenance.Pointer), "/", "%+v", d)
-				assert.Contains(t, d.Message, "404", "the reason is the host's refusal")
+			for _, diagnostic := range bad {
+				assert.Positive(t, diagnostic.Provenance.Source, "in evil.yaml's entry")
+				assert.Contains(t, string(diagnostic.Provenance.Pointer), "/", "%+v", diagnostic)
+				assert.Contains(t, diagnostic.Message, "404", "the reason is the host's refusal")
 			}
 			assert.Equal(t, "FILE-SECRET", describedBy(t, doc, useTarget(t, doc, "L")))
 			for _, k := range []string{"A", "B"} {
-				assert.Equal(t, ir.TypeID("t/prim/any"), typeTarget(t, doc, useTarget(t, doc, k)),
+				assert.Equal(t, ir.TypeID("type/primitive/any"), typeTarget(t, doc, useTarget(t, doc, k)),
 					"%s lands on nothing of local.yaml: %s", k, jsonOf(t, doc))
 			}
 			assert.Equal(t, []string{"/secret.yaml"}, remote.requests(), "one request, for the one URL")

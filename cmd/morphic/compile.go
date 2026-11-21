@@ -63,16 +63,16 @@ place, or accepts the findings at one place, which then fail the run at no
 --fail-on. docs/cli.md gives the file's form. A rule no finding matched is
 named after the findings.
 
-The findings go to stderr as text unless --diag-format json asks for one JSON
-report of the verdict and every finding as rated, beside the rule each met.
-Text writes each finding one per line, but for each code and severity only the
-first --diag-limit, 3 unless given and 0 for every one, and only those at or
-above --show, info unless given; it then counts what it did not write, and a
-finding a rule accepted is only counted.
+The findings go to stderr as text unless --diagnostics-format json asks for one
+JSON report of the verdict and every finding as rated, beside the rule each
+met. Text writes each finding one per line, but for each code and severity only
+the first --diagnostics-per-code-limit, 3 unless given and 0 for every one, and
+only those at or above --min-severity, info unless given; it then counts what
+it did not write, and a finding a rule accepted is only counted.
 
---opt passes a setting to the compiler the spec selects, which names and
-validates its own options; morphic itself knows none of them. The OpenAPI
-compiler's are listed in docs/cli.md.
+--compiler-option passes a setting to the compiler the spec selects, which
+names and validates its own options; morphic itself knows none of them. The
+OpenAPI compiler's are listed in docs/cli.md.
 
 A -- argument ends flag parsing: every argument after it is an operand, even one
 that begins with a dash, which is how a spec file named like a flag is passed.
@@ -106,7 +106,8 @@ const compileExample = `  # IR JSON to stdout
   morphic compile openapi.yaml --explain /components/schemas/Pet
 
   # pass settings to the compiler the spec selects
-  morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml`
+  morphic compile openapi.yaml --compiler-option grouping=path-prefix \
+    --compiler-option overlay=patch.yaml`
 
 // newCompileCmd builds the compile subcommand.
 func newCompileCmd() *cobra.Command {
@@ -147,8 +148,8 @@ type specOptions struct {
 	cacheDir     string
 	triagePath   string
 	format       formatFlag
-	show         showFlag
-	limit        limitFlag
+	minSeverity  minSeverityFlag
+	limit        perCodeLimitFlag
 }
 
 // disabledPasses is the pass names the flags turn off: --disable-pass's, and
@@ -176,7 +177,7 @@ type compileOptions struct {
 func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
 	opts.failOn = failOnFlag(engine.FailOnError)
-	opts.format, opts.show, opts.limit = formatText, showFlag(ir.SeverityInfo), defaultDiagLimit
+	opts.format, opts.minSeverity, opts.limit = formatText, minSeverityFlag(ir.SeverityInfo), defaultDiagLimit
 
 	fs.Var(&opts.failOn, "fail-on",
 		"exit 1 on a finding rated at or above this severity that no --triage rule accepted: error, warning or info; none exits 1 only when the spec lowered to no document")
@@ -186,7 +187,7 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 		"turn off the IR pass with this name (repeatable)")
 	fs.BoolVar(&opts.verify, "verify", false,
 		"check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow")
-	fs.Var(opts.settings, "opt",
+	fs.Var(opts.settings, "compiler-option",
 		"set one key=value option on the compiler the spec selects (repeatable)")
 	fs.StringVar(&opts.cacheDir, "cache-dir", "",
 		"keep compiled documents in this directory, and reuse one while nothing it depends on has changed")
@@ -194,11 +195,11 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	fs.StringVar(&opts.triagePath, "triage", "",
 		"rate or accept findings by code and place, as the rules this JSON file lists say")
 	fs.Lookup("triage").Annotations = map[string][]string{cobra.BashCompFilenameExt: {"json"}}
-	fs.Var(&opts.format, "diag-format",
+	fs.Var(&opts.format, "diagnostics-format",
 		"write the findings to stderr as text, for a person, or as one JSON report, for a program")
-	fs.Var(&opts.show, "show",
+	fs.Var(&opts.minSeverity, "min-severity",
 		"in text, write each finding at or above this severity, error, warning or info, and count the rest")
-	fs.Var(&opts.limit, "diag-limit",
+	fs.Var(&opts.limit, "diagnostics-per-code-limit",
 		"in text, write this many findings of one code and severity, and count the rest; 0 writes every one")
 }
 
@@ -228,8 +229,8 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: exactly one spec file, and no text option beside --diag-format json,
-// which would be accepted and ignored. The command's own name is in the
+// parsed: exactly one spec file, and no text option beside --diagnostics-format
+// json, which would be accepted and ignored. The command's own name is in the
 // message, so a misuse names what was typed. No flag's value is checked here:
 // each refuses a bad one as it is set, and which pass names exist is the
 // engine's to say.
@@ -238,12 +239,12 @@ func specArgs(cmd *cobra.Command, args []string) error {
 		return misuse(cmd, cmd.Name()+" requires exactly one spec file")
 	}
 	fs := cmd.Flags()
-	if fs.Lookup("diag-format").Value.String() != string(formatJSON) {
+	if fs.Lookup("diagnostics-format").Value.String() != string(formatJSON) {
 		return nil
 	}
-	for _, name := range []string{"show", "diag-limit"} {
+	for _, name := range []string{"min-severity", "diagnostics-per-code-limit"} {
 		if fs.Changed(name) {
-			return misuse(cmd, "--diag-format json writes every finding, so --"+name+" has nothing to withhold")
+			return misuse(cmd, "--diagnostics-format json writes every finding, so --"+name+" has nothing to withhold")
 		}
 	}
 	return nil
@@ -323,14 +324,14 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 	}
 
 	if opts.explain.set {
-		e := report.Explain(res.Document, res.Diagnostics, opts.explain.pointer)
+		explanation := report.Explain(res.Document, res.Diagnostics, opts.explain.pointer)
 		// The writers check ctx before the document's first byte, and this is
 		// the same check for the report: a stop that came while the
 		// diagnostics were being written, or since, leaves none of it written.
 		if err := ctx.Err(); err != nil {
 			return failure(err)
 		}
-		if err := report.WriteExplanation(cmd.OutOrStdout(), e); err != nil {
+		if err := report.WriteExplanation(cmd.OutOrStdout(), explanation); err != nil {
 			return &exitError{code: writeFailureExit(code), err: fmt.Errorf("write explanation: %w", err)}
 		}
 		return exitWith(code)

@@ -18,23 +18,23 @@ import (
 // channel, which Validate used to leave to irverify.
 func TestValidate_ReportsAnEmptyRequiredReference(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "op/x/o"}
-	op.Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MsgDirectionSend}
+	operation := ir.Operation{ID: "operation/x/o"}
+	operation.Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MessageDirectionSend}
 
-	diags := validated(t, docWithOperation(op))
+	diags := validated(t, docWithOperation(operation))
 
 	require.Equal(t, 1, countCode(t, diags, "ir/empty-channel-ref"))
-	for _, d := range diags {
-		if d.Code == "ir/empty-channel-ref" {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Equal(t, scenarioOpPath+".Bindings.Message.Channel", d.Provenance.Node)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "ir/empty-channel-ref" {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			assert.Equal(t, scenarioOperationPath+".Bindings.Message.Channel", diagnostic.Provenance.Node)
 		}
 	}
 
-	valid := ir.Operation{ID: "op/x/o"}
-	valid.Bindings.Message = &ir.MessageBinding{Channel: "chan/x/c", Direction: ir.MsgDirectionSend}
+	valid := ir.Operation{ID: "operation/x/o"}
+	valid.Bindings.Message = &ir.MessageBinding{Channel: "channel/x/c", Direction: ir.MessageDirectionSend}
 	doc := docWithOperation(valid)
-	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c"}}
+	doc.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c"}}
 	assert.Zero(t, countCode(t, validated(t, doc), "ir/empty-channel-ref"))
 }
 
@@ -44,21 +44,21 @@ func TestValidate_ReportsAnEmptyRequiredReference(t *testing.T) {
 // also draws a second code from a check that reads the same position.
 func TestValidate_OneCodePerEmptyReference(t *testing.T) {
 	t.Parallel()
-	op := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
-	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+	operation := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	operation.Bindings.HTTP[0].ParamBindings = append(operation.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
-	op.OverloadOf = new(ir.OpID)
-	doc := docWithOperation(op)
+	operation.OverloadOf = new(ir.OperationID)
+	doc := docWithOperation(operation)
 	doc.Services[0].Servers = []ir.ServerID{""}
 
 	diags := validated(t, doc)
 
-	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[1].Param"},
-		nodesOfCode(diags, "ir/empty-param-ref"))
-	assert.Equal(t, []string{scenarioOpPath + ".OverloadOf"}, nodesOfCode(diags, "ir/empty-op-ref"))
-	assert.Equal(t, []string{"doc.Services[0].Servers[0]"}, nodesOfCode(diags, "ir/empty-server-ref"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[1].Param"},
+		nodesOfCode(diags, "ir/empty-parameter-ref"))
+	assert.Equal(t, []string{scenarioOperationPath + ".OverloadOf"}, nodesOfCode(diags, "ir/empty-operation-ref"))
+	assert.Equal(t, []string{"document.Services[0].Servers[0]"}, nodesOfCode(diags, "ir/empty-server-ref"))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
-	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
+	assert.Zero(t, countCode(t, diags, "ir/dangling-parameter-ref"))
 }
 
 // TestValidate_EmptyMappingValueIsAnEmptyReference pins that a discriminator's
@@ -69,9 +69,9 @@ func TestValidate_EmptyMappingValueIsAnEmptyReference(t *testing.T) {
 	t.Parallel()
 	union := func(target ir.TypeID) *ir.Document {
 		doc := validDoc()
-		doc.Types["t/u"] = &ir.Union{
-			ID:            "t/u",
-			Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+		doc.Types["type/u"] = &ir.Union{
+			ID:            "type/u",
+			Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
 			Discriminator: &ir.Discriminator{PropertyName: "k", Mapping: map[string]ir.TypeID{"a": target}},
 		}
 		return doc
@@ -79,10 +79,10 @@ func TestValidate_EmptyMappingValueIsAnEmptyReference(t *testing.T) {
 
 	diags := validated(t, union(""))
 
-	assert.Equal(t, []string{"doc.Types[t/u].Discriminator.Mapping[a]"}, nodesOfCode(diags, "ir/empty-type-ref"))
+	assert.Equal(t, []string{"document.Types[type/u].Discriminator.Mapping[a]"}, nodesOfCode(diags, "ir/empty-type-ref"))
 	assert.Zero(t, countCode(t, diags, "pass/discriminator-missing-variant"))
 
-	valid := validated(t, union("t/m"))
+	valid := validated(t, union("type/m"))
 	assert.Zero(t, countCode(t, valid, "ir/empty-type-ref"))
 	assert.Zero(t, countCode(t, valid, "pass/discriminator-missing-variant"))
 }
@@ -92,20 +92,20 @@ func TestValidate_EmptyMappingValueIsAnEmptyReference(t *testing.T) {
 // idempotency token parameter, and a tag property PropertyName locates.
 func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{ID: "op/x/o", Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}}
-	doc := docWithOperation(op)
-	doc.Types["t/u"] = &ir.Union{
-		ID:       "t/u",
-		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+	operation := ir.Operation{ID: "operation/x/o", Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}}
+	doc := docWithOperation(operation)
+	doc.Types["type/u"] = &ir.Union{
+		ID:       "type/u",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
 		Discriminator: &ir.Discriminator{
-			PropertyName: "k", Property: "", Default: "", Mapping: map[string]ir.TypeID{"a": "t/m"},
+			PropertyName: "k", Property: "", Default: "", Mapping: map[string]ir.TypeID{"a": "type/m"},
 		},
 	}
 
 	diags := validated(t, doc)
 
-	for _, d := range diags {
-		assert.NotRegexp(t, `^ir/empty-.*-ref$`, d.Code, "%s at %s", d.Message, d.Provenance.Node)
+	for _, diagnostic := range diags {
+		assert.NotRegexp(t, `^ir/empty-.*-ref$`, diagnostic.Code, "%s at %s", diagnostic.Message, diagnostic.Provenance.Node)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 // code alone, where each check reading them also reported it under its own.
 func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 	t.Parallel()
-	const op = "doc.Services[0].Groups[0].Operations[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
 	for _, tc := range []struct {
 		name  string
 		doc   func() *ir.Document
@@ -125,41 +125,41 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 		{
 			name: "a message a binding uses, beside one its channel carries",
 			doc: func() *ir.Document {
-				o := ir.Operation{ID: "op/x/o"}
-				o.Bindings.Message = &ir.MessageBinding{
-					Channel: "chan/x/c", Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg/x/m", ""},
+				operation := ir.Operation{ID: "operation/x/o"}
+				operation.Bindings.Message = &ir.MessageBinding{
+					Channel: "channel/x/c", Direction: ir.MessageDirectionSend, Messages: []ir.MessageID{"message/x/m", ""},
 				}
-				doc := docWithOperation(o)
-				doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Messages: []ir.MessageID{"msg/x/m"}}}
-				doc.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m"}}
+				doc := docWithOperation(operation)
+				doc.Channels = map[ir.ChannelID]ir.Channel{"channel/x/c": {ID: "channel/x/c", Messages: []ir.MessageID{"message/x/m"}}}
+				doc.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m"}}
 				return doc
 			},
 			code:  "ir/empty-message-ref",
-			nodes: []string{op + ".Bindings.Message.Messages[1]"},
+			nodes: []string{operationPath + ".Bindings.Message.Messages[1]"},
 		},
 		{
 			name: "an encoding key",
 			doc: func() *ir.Document {
-				return docWithOperation(ir.Operation{ID: "op/x/o", Request: &ir.Payload{Contents: []ir.Content{{
-					MediaType: "multipart/form-data", Type: ir.TypeRef{Target: "t/m"},
-					Encoding: map[ir.PropID]ir.PartEncoding{"": {}},
+				return docWithOperation(ir.Operation{ID: "operation/x/o", Request: &ir.Payload{Contents: []ir.Content{{
+					MediaType: "multipart/form-data", Type: ir.TypeRef{Target: "type/m"},
+					Encoding: map[ir.PropertyID]ir.PartEncoding{"": {}},
 				}}}})
 			},
-			code:  "ir/empty-prop-ref",
-			nodes: []string{op + ".Request.Contents[0].Encoding[].key"},
+			code:  "ir/empty-property-ref",
+			nodes: []string{operationPath + ".Request.Contents[0].Encoding[].key"},
 		},
 		{
 			name: "a link's parameter, given twice",
 			doc: func() *ir.Document {
 				return docWithOperation(ir.Operation{
-					ID: "op/x/o", Params: []ir.Parameter{{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}}},
+					ID: "operation/x/o", Params: []ir.Parameter{{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}}},
 					Responses: []ir.Response{{Links: []ir.OperationLink{{
-						Name: ir.Naming{Source: "l"}, Operation: "op/x/o", Params: []ir.LinkParam{{Param: ""}, {Param: ""}},
+						Name: ir.Naming{Source: "l"}, Operation: "operation/x/o", Params: []ir.LinkParam{{Param: ""}, {Param: ""}},
 					}}}},
 				})
 			},
-			code:  "ir/empty-param-ref",
-			nodes: []string{op + ".Responses[0].Links[0].Params[0].Param", op + ".Responses[0].Links[0].Params[1].Param"},
+			code:  "ir/empty-parameter-ref",
+			nodes: []string{operationPath + ".Responses[0].Links[0].Params[0].Param", operationPath + ".Responses[0].Links[0].Params[1].Param"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -167,11 +167,11 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 			diags := validated(t, tc.doc())
 
 			assert.Equal(t, tc.nodes, nodesOfCode(diags, tc.code))
-			for _, d := range diags {
-				if d.Code == tc.code || d.Severity != ir.SeverityError {
+			for _, diagnostic := range diags {
+				if diagnostic.Code == tc.code || diagnostic.Severity != ir.SeverityError {
 					continue
 				}
-				assert.Failf(t, "a second code", "%s at %s: %s", d.Code, d.Provenance.Node, d.Message)
+				assert.Failf(t, "a second code", "%s at %s: %s", diagnostic.Code, diagnostic.Provenance.Node, diagnostic.Message)
 			}
 		})
 	}
@@ -185,18 +185,18 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
 	t.Parallel()
 	unbound := func(diags []ir.Diagnostic) []ir.Diagnostic { return withCode(diags, "pass/param-unbound") }
-	op := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
-	op.Bindings.HTTP[0].ParamBindings[0].Param = ""
-	diags := validated(t, docWithOperation(op))
+	operation := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
+	operation.Bindings.HTTP[0].ParamBindings[0].Param = ""
+	diags := validated(t, docWithOperation(operation))
 
-	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
-		nodesOfCode(diags, "ir/empty-param-ref"))
+	assert.Equal(t, []string{scenarioOperationPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
+		nodesOfCode(diags, "ir/empty-parameter-ref"))
 	got := unbound(diags)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
 	assert.Empty(t, withCode(diags, "pass/param-binding-mismatch"), "an unplaced parameter is no binding mismatch")
 
-	left := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
+	left := paramBindingOperation("operation/x/o", ir.Parameter{ID: "parameter/x/o/q", Name: ir.Naming{Source: "q"}})
 	left.Bindings.HTTP[0].ParamBindings = nil
 	assert.Equal(t, unbound(validated(t, docWithOperation(left))), got,
 		"the warning is the one a binding left out draws")
@@ -204,23 +204,23 @@ func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
 
 // TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference pins that a
 // discriminator whose Property is empty while neither PropertyName nor Index
-// locates the tag is reported as an empty PropID reference, an error, at the
-// property, in the wording that says what it lacks, and as nothing else; one
-// PropertyName locates is clean.
+// locates the tag is reported as an empty PropertyID reference, an error, at
+// the property, in the wording that says what it lacks, and as nothing else;
+// one PropertyName locates is clean.
 func TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/m"].(*ir.Model).Discriminator = &ir.Discriminator{}
+	doc.Types["type/m"].(*ir.Model).Discriminator = &ir.Discriminator{}
 
 	diags := validated(t, doc)
 
 	require.Len(t, diags, 1, "the empty reference alone")
-	assert.Equal(t, "ir/empty-prop-ref", diags[0].Code)
+	assert.Equal(t, "ir/empty-property-ref", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, "doc.Types[t/m].Discriminator.Property", diags[0].Provenance.Node)
-	assert.Contains(t, diags[0].Message, "neither PropertyName nor Index locates the tag")
+	assert.Equal(t, "document.Types[type/m].Discriminator.Property", diags[0].Provenance.Node)
+	assert.Contains(t, diags[0].Message, "neither PropertyName nor TupleElementIndex locates the tag")
 
 	located := validDoc()
-	located.Types["t/m"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "a"}
+	located.Types["type/m"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "a"}
 	assert.Empty(t, validated(t, located))
 }

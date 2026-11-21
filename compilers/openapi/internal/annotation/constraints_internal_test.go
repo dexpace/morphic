@@ -21,8 +21,8 @@ import (
 
 func TestConstraints_NilSchema(t *testing.T) {
 	t.Parallel()
-	c, kept, diags := Constraints(nil, AllBounds, false, "/p", sourced(0))
-	assert.Nil(t, c)
+	constraints, kept, diags := Constraints(nil, AllBounds, false, "/p", sourced(0))
+	assert.Nil(t, constraints)
 	assert.Nil(t, kept)
 	assert.Nil(t, diags)
 }
@@ -66,13 +66,13 @@ func TestCountIsExact_NeedsBothReadings(t *testing.T) {
 func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	t.Parallel()
 	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: new(5.0)}}
-	c := &ir.Constraints{}
+	constraints := &ir.Constraints{}
 	residue := boundResidue{pointer: "/p"}
-	diags := applyExclusive(c, standaloneSchema(s), minBound, &residue, false)
+	diags := applyExclusive(constraints, standaloneSchema(s), minBound, &residue, false)
 	// The numeric arm is taken (2020-12 dialect, numeric value) but there is no raw
 	// node to read the exact literal from, so nothing is set and no diagnostic.
 	assert.Nil(t, diags)
-	assert.Nil(t, c.ExclusiveMin)
+	assert.Nil(t, constraints.ExclusiveMin)
 	assert.Empty(t, residue.kept)
 }
 
@@ -113,8 +113,8 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	assert.Equal(t, new(int64(2)), got.MinLength)
 	assert.Equal(t, new(int64(8)), got.MaxLength)
 	assert.Equal(t, "^a", got.Pattern)
-	assert.Equal(t, new(int64(1)), got.MinProps)
-	assert.Equal(t, new(int64(4)), got.MaxProps)
+	assert.Equal(t, new(int64(1)), got.MinProperties)
+	assert.Equal(t, new(int64(4)), got.MaxProperties)
 }
 
 // TestConstraints_NothingDeclaredIsNilNotEmpty pins the emptiness check. An
@@ -457,10 +457,10 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 	}
 
 	require.Len(t, diags, 2, "and each side reports its own")
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityWarning, d.Severity)
-		assert.Equal(t, diag.DegradedConstruct, d.Code)
-		assert.Contains(t, d.Message, "bounds nothing")
+	for _, diagnostic := range diags {
+		assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+		assert.Equal(t, diag.DegradedConstruct, diagnostic.Code)
+		assert.Contains(t, diagnostic.Message, "bounds nothing")
 	}
 	assert.Contains(t, diags[0].Message, "exclusiveMinimum is true with no minimum beside it")
 	assert.Contains(t, diags[1].Message, "exclusiveMaximum is true with no maximum beside it")

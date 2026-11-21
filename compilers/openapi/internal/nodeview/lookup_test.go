@@ -93,14 +93,14 @@ func TestChild_AnswersAsMappingPairs(t *testing.T) {
 		"at the bound":       ynode.MergeChain(nodeview.MergeDepthLimit),
 		"past the bound":     ynode.MergeChain(nodeview.MergeDepthLimit + 1),
 	}
-	for name, n := range cases {
-		pairs := nodeview.New().MappingPairs(n)
+	for name, node := range cases {
+		pairs := nodeview.New().MappingPairs(node)
 		asked := map[string]*yaml.Node{"absent": nil, "a": nil, "b": nil, "c": nil, "k": nil, "leaf": nil, "in": nil, "own": nil}
-		for _, p := range pairs {
-			asked[p.Key] = p.Val
+		for _, pair := range pairs {
+			asked[pair.Key] = pair.Val
 		}
 		for key, want := range asked {
-			assert.Same(t, want, nodeview.Child(n, key), "%s: key %q", name, key)
+			assert.Same(t, want, nodeview.Child(node, key), "%s: key %q", name, key)
 		}
 	}
 	assert.NotNil(t, nodeview.Child(cases["at the bound"], "leaf"), "a chain at the bound is read whole")
@@ -112,11 +112,11 @@ func TestChild_AnswersAsMappingPairs(t *testing.T) {
 // node that is no mapping.
 func TestPairs_IsAFreshViewsReading(t *testing.T) {
 	t.Parallel()
-	n := ynode.Map(ynode.Merge(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), ynode.Scalar("b"), ynode.Scalar("2"))
+	node := ynode.Map(ynode.Merge(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), ynode.Scalar("b"), ynode.Scalar("2"))
 
-	assert.Equal(t, nodeview.New().MappingPairs(n), nodeview.Pairs(n))
-	assert.Equal(t, []string{"a", "b"}, []string{nodeview.Pairs(n)[0].Key, nodeview.Pairs(n)[1].Key})
-	assert.Equal(t, nodeview.Pairs(n), nodeview.Pairs(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{n}}),
+	assert.Equal(t, nodeview.New().MappingPairs(node), nodeview.Pairs(node))
+	assert.Equal(t, []string{"a", "b"}, []string{nodeview.Pairs(node)[0].Key, nodeview.Pairs(node)[1].Key})
+	assert.Equal(t, nodeview.Pairs(node), nodeview.Pairs(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{node}}),
 		"a document node is unwrapped")
 	assert.Nil(t, nodeview.Pairs(ynode.Scalar("x")))
 }
@@ -131,17 +131,17 @@ func TestWrittenChildren_ReadsTheTextNotThroughIt(t *testing.T) {
 	target := ynode.Map(ynode.Scalar("m"), ynode.Scalar("merged"))
 	alias := ynode.Alias(target)
 	last := ynode.Scalar("last")
-	n := ynode.Map(
+	node := ynode.Map(
 		ynode.Scalar("a"), alias,
 		ynode.Merge(), ynode.Alias(target),
 		ynode.Alias(ynode.Scalar("k")), ynode.Scalar("first"),
 		ynode.Scalar("k"), last,
 	)
 
-	got := nodeview.WrittenChildren(n)
+	got := nodeview.WrittenChildren(node)
 
 	assert.Equal(t, map[string]*yaml.Node{"a": alias, "k": last}, got)
 	assert.Nil(t, nodeview.WrittenChildren(nil))
 	assert.Nil(t, nodeview.WrittenChildren(ynode.Seq(ynode.Scalar("a"))))
-	assert.Nil(t, nodeview.WrittenChildren(ynode.Alias(n)), "an alias is not where the mapping is written")
+	assert.Nil(t, nodeview.WrittenChildren(ynode.Alias(node)), "an alias is not where the mapping is written")
 }

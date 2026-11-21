@@ -32,10 +32,10 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 5)
-	require.Len(t, op.Bindings.HTTP, 1)
-	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 5)
+	require.Len(t, operation.Bindings.HTTP, 1)
+	bindings := openapitest.IndexBy(operation.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	require.Len(t, bindings, 5, "every logical param bound exactly once")
 
 	id := bindings["id"]
@@ -52,10 +52,10 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	assert.Equal(t, ir.HTTPLocationHeader, bindings["X-Trace"].Location)
 	assert.Equal(t, ir.HTTPLocationCookie, bindings["session"].Location)
 
-	params := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	params := openapitest.IndexBy(operation.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.True(t, params["id"].Required, "path params are always required")
 	require.NotNil(t, params["limit"].Default)
-	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Num)
+	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Number)
 }
 
 func TestParams_ContentStyleParameter(t *testing.T) {
@@ -73,15 +73,15 @@ func TestParams_ContentStyleParameter(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	binding := op.Bindings.HTTP[0].ParamBindings[0]
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
+	binding := operation.Bindings.HTTP[0].ParamBindings[0]
 	assert.Equal(t, "filter", binding.WireName)
 	assert.Equal(t, "application/json", binding.ContentType,
 		"content-style param records its media type on the binding")
-	require.Len(t, op.Params, 1)
-	assert.NotEmpty(t, op.Params[0].Type.Target, "content-style param schema is lowered")
+	require.Len(t, operation.Params, 1)
+	assert.NotEmpty(t, operation.Params[0].Type.Target, "content-style param schema is lowered")
 }
 
 func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
@@ -97,14 +97,14 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := compileService(t, spec)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Params, 1)
-	assert.Empty(t, op.Params[0].Examples, "the unconvertible example is skipped, not appended")
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Params, 1)
+	assert.Empty(t, operation.Params[0].Examples, "the unconvertible example is skipped, not appended")
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/parameters/0/example"), d.Provenance.Pointer)
-	assert.Contains(t, d.Message, "example:")
+	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/parameters/0/example"), diagnostic.Provenance.Pointer)
+	assert.Contains(t, diagnostic.Message, "example:")
 }
 
 const paramSpec = `openapi: 3.1.0
@@ -146,8 +146,8 @@ paths:
 func TestParams_AllLocationsAndStyles(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramSpec)
-	op := openapitest.FindOp(t, doc, "search")
-	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
+	operation := openapitest.FindOperation(t, doc, "search")
+	byName := openapitest.IndexBy(operation.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	assert.Equal(t, ir.HTTPLocationPath, byName["id"].Location)
 	assert.Equal(t, ir.HTTPLocationQuery, byName["q"].Location)
 	assert.Equal(t, ir.HTTPLocationHeader, byName["X-Tok"].Location)
@@ -155,7 +155,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.Equal(t, "deepObject", byName["filter"].Style)
 	assert.Equal(t, "application/json", byName["complex"].ContentType)
 
-	logical := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	logical := openapitest.IndexBy(operation.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
@@ -196,19 +196,19 @@ func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentParamRefSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getA := openapitest.FindOp(t, doc, "getA")
-	getB := openapitest.FindOp(t, doc, "getB")
+	getA := openapitest.FindOperation(t, doc, "getA")
+	getB := openapitest.FindOperation(t, doc, "getB")
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
-	wantID := ir.TypeID("t/anon/components/parameters/Page/schema")
+	wantID := ir.TypeID("type/anonymous/components/parameters/Page/schema")
 	assert.Equal(t, wantID, getA.Params[0].Type.Target)
 	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations resolve the same shared schema")
 	_, ok := doc.Types[wantID]
 	require.True(t, ok, "the shared schema is registered under the component's own pointer")
 
-	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")]
-	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/get/parameters/0/schema")]
+	_, fabricatedA := doc.Types[ir.TypeID("type/anonymous/paths/~1a/get/parameters/0/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("type/anonymous/paths/~1b/get/parameters/0/schema")]
 	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }
@@ -245,9 +245,9 @@ func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramProvenanceSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getPet := openapitest.FindOp(t, doc, "getPet")
-	deletePet := openapitest.FindOp(t, doc, "deletePet")
-	byName := openapitest.IndexBy(getPet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	getPet := openapitest.FindOperation(t, doc, "getPet")
+	deletePet := openapitest.FindOperation(t, doc, "deletePet")
+	byName := openapitest.IndexBy(getPet.Params, func(parameter ir.Parameter) string { return parameter.Name.Source })
 	require.Len(t, byName, 3, "two declared plus the inherited path-item one")
 
 	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/get/parameters/0"), byName["fields"].Provenance.Pointer,
@@ -262,9 +262,9 @@ func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer(pathItem), deletePet.Params[0].Provenance.Pointer,
 		"and both operations on the path name the one declaration, not one pointer each")
 
-	for name, p := range byName {
-		assert.Equal(t, 0, p.Provenance.Source, "%s addresses the compiled source", name)
-		assert.Empty(t, p.Provenance.Inferred, "%s is declared, not inferred", name)
+	for name, parameter := range byName {
+		assert.Equal(t, 0, parameter.Provenance.Source, "%s addresses the compiled source", name)
+		assert.Empty(t, parameter.Provenance.Inferred, "%s is declared, not inferred", name)
 	}
 }
 
@@ -301,12 +301,12 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentContentParamRefSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	getA := openapitest.FindOp(t, doc, "getA")
-	getB := openapitest.FindOp(t, doc, "getB")
+	getA := openapitest.FindOperation(t, doc, "getA")
+	getB := openapitest.FindOperation(t, doc, "getB")
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
-	wantID := ir.TypeID("t/anon/components/parameters/Filter/content/application~1json/schema")
+	wantID := ir.TypeID("type/anonymous/components/parameters/Filter/content/application~1json/schema")
 	assert.Equal(t, wantID, getA.Params[0].Type.Target)
 	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations share the content parameter's schema")
 	_, ok := doc.Types[wantID]
@@ -332,15 +332,15 @@ func TestParams_AllowEmptyValueLowers(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "getX")
-	require.Len(t, op.Bindings.HTTP, 1)
-	byWire := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
+	operation := openapitest.FindOperation(t, doc, "getX")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	byWire := openapitest.IndexBy(operation.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 
 	assert.True(t, byWire["on"].AllowEmptyValue)
 	assert.False(t, byWire["off"].AllowEmptyValue)
 	assert.False(t, byWire["silent"].AllowEmptyValue)
-	for _, p := range op.Params {
-		assert.NotContains(t, p.Unmodeled, "openapi:allowEmptyValue", "%s keeps nothing verbatim", p.Name.Source)
+	for _, parameter := range operation.Params {
+		assert.NotContains(t, parameter.Unmodeled, "openapi:allowEmptyValue", "%s keeps nothing verbatim", parameter.Name.Source)
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }
@@ -369,7 +369,7 @@ func TestParams_AllowEmptyValueUnderAStyleThatCannotWriteOneIsReported(t *testin
 		"/paths/~1x/get/parameters/1/allowEmptyValue",
 		"/paths/~1x/get/parameters/2/allowEmptyValue",
 	}, openapitest.PointersOf(diags, diag.InapplicableLocationKeyword))
-	for _, b := range openapitest.FindOp(t, doc, "getX").Bindings.HTTP[0].ParamBindings {
+	for _, b := range openapitest.FindOperation(t, doc, "getX").Bindings.HTTP[0].ParamBindings {
 		assert.True(t, b.AllowEmptyValue, "%s lowers as declared", b.WireName)
 	}
 }
@@ -406,9 +406,9 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FindOp(t, doc, "getX")
-			require.Len(t, op.Params, 1, "the parameter lowers either way; nothing is dropped")
-			assert.Equal(t, tc.param, op.Params[0].Name.Source)
+			operation := openapitest.FindOperation(t, doc, "getX")
+			require.Len(t, operation.Params, 1, "the parameter lowers either way; nothing is dropped")
+			assert.Equal(t, tc.param, operation.Params[0].Name.Source)
 
 			assert.Equal(t, tc.reported,
 				openapitest.HasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0/name"),
@@ -461,10 +461,10 @@ func TestParams_ExplodeLowersAsDeclared(t *testing.T) {
 `)
 			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			op := openapitest.FirstOp(t, svc)
-			require.Len(t, op.Bindings.HTTP, 1)
-			require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-			got := op.Bindings.HTTP[0].ParamBindings[0]
+			operation := openapitest.FirstOperation(t, svc)
+			require.Len(t, operation.Bindings.HTTP, 1)
+			require.Len(t, operation.Bindings.HTTP[0].ParamBindings, 1)
+			got := operation.Bindings.HTTP[0].ParamBindings[0]
 			assert.Equal(t, tc.style, got.Style, "the written style is kept")
 			assert.Equal(t, tc.want, got.Explode)
 		})
@@ -495,11 +495,11 @@ paths:
 		}}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, doc.Services[0])
-	require.Len(t, op.Bindings.HTTP, 1)
+	operation := openapitest.FirstOperation(t, doc.Services[0])
+	require.Len(t, operation.Bindings.HTTP, 1)
 	for i, want := range []bool{true, false, false} {
-		binding := op.Bindings.HTTP[0].ParamBindings[i]
+		binding := operation.Bindings.HTTP[0].ParamBindings[i]
 		assert.Equal(t, want, binding.AllowReserved, binding.WireName)
-		assert.Equal(t, want, op.Params[i].Provenance.Inferred == "extension-promotion", binding.WireName)
+		assert.Equal(t, want, operation.Params[i].Provenance.Inferred == "extension-promotion", binding.WireName)
 	}
 }

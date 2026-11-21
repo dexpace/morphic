@@ -19,7 +19,7 @@ import (
 // reaches operations through them describe a subset of the document while
 // Validate still returns "internally consistent". facts says whether its walk
 // of the operations stopped, which is the walk those checks share.
-func checkGroupWalkTruncated(facts *irfacts.Index, referencesTruncated bool) []ir.Diagnostic {
+func checkGroupWalkTruncated(facts *irfacts.DocumentFacts, referencesTruncated bool) []ir.Diagnostic {
 	if referencesTruncated || !facts.Partial() {
 		return nil
 	}

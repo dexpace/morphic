@@ -38,23 +38,24 @@ const (
 // unexpanded.
 func recKept(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" && string(d.Provenance.Pointer) == pointer {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" && string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
 }
 
-// recElemBase returns the type the scalar at id, a list's element, is based on.
-func recElemBase(t *testing.T, doc *ir.Document, list ir.TypeID) ir.TypeID {
+// recElementBase returns the type the scalar at id, a list's element, is based
+// on.
+func recElementBase(t *testing.T, doc *ir.Document, list ir.TypeID) ir.TypeID {
 	t.Helper()
-	l, ok := doc.Types[list].(*ir.List)
+	irList, ok := doc.Types[list].(*ir.List)
 	require.True(t, ok, "%s is a list, not %T", list, doc.Types[list])
-	elem, ok := doc.Types[l.Elem.Target].(*ir.Scalar)
-	require.True(t, ok, "its element is a scalar, not %T", doc.Types[l.Elem.Target])
-	require.NotNil(t, elem.Base)
-	return elem.Base.Target
+	element, ok := doc.Types[irList.ElementType.Target].(*ir.Scalar)
+	require.True(t, ok, "its element is a scalar, not %T", doc.Types[irList.ElementType.Target])
+	require.NotNil(t, element.Base)
+	return element.Base.Target
 }
 
 // TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands pins that two
@@ -72,14 +73,14 @@ func TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands(t *testing.T
 		assert.Empty(t, recKept(diags, recTreePointer), name)
 		assert.Empty(t, recKept(diags, recChainPointer), name)
 		assert.Equal(t, componentID("Tree"),
-			recElemBase(t, doc, "t/anon/components/schemas/Tree/properties/children"), name)
+			recElementBase(t, doc, "type/anonymous/components/schemas/Tree/properties/children"), name)
 
 		chain, ok := doc.Types[componentID("Chain")].(*ir.List)
 		require.True(t, ok, name)
-		elem, ok := doc.Types[chain.Elem.Target].(*ir.Scalar)
+		element, ok := doc.Types[chain.ElementType.Target].(*ir.Scalar)
 		require.True(t, ok, name)
-		require.NotNil(t, elem.Base, name)
-		assert.Equal(t, componentID("Chain"), elem.Base.Target, name)
+		require.NotNil(t, element.Base, name)
+		assert.Equal(t, componentID("Chain"), element.Base.Target, name)
 	}
 }
 

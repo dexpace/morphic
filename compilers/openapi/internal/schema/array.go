@@ -15,7 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -23,118 +23,119 @@ import (
 // lowerArray hoists an array schema, written at pointer, at at, as a Tuple when
 // its `items` is a list its dialect reads as one (listedTuple), or when
 // prefixItems is present, else a List over its item schema, each with the
-// collection bounds it declares met with those voices write, fin finishing it
-// once built.
-func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer, at jsontext.Pointer,
-	voices []annotation.Voice, fin finisher,
+// collection bounds it declares met with those foldedEntries write, fin
+// finishing it once built.
+func lowerArray(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer, at jsontext.Pointer,
+	foldedEntries []annotation.FoldedAllOfEntry, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	read := keyBit("items") | typeReadAs(s, statement.KindArray) | collectionReads(s)
-	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		cons := voicedCollectionBounds(ownCollectionConstraints(s), voices)
-		if n, tuple := listedTuple(c, s); tuple {
-			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n, cons)
+	read := keyBit("items") | typeReadAs(schema, statement.KindArray) | collectionReads(schema)
+	id := internNode(loweringContext, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		cons := collectionBoundsMetWithFoldedEntries(ownCollectionConstraints(schema), foldedEntries)
+		if n, tuple := listedTuple(loweringContext, schema); tuple {
+			typeDef, tupleDiags := buildListedTuple(loweringContext, ts, depth, schema, common, pointer, n, cons)
 			diags = append(diags, tupleDiags...)
-			return t, read | keySetOf("prefixItems", "additionalItems")
+			return typeDef, read | keySetOf("prefixItems", "additionalItems")
 		}
-		if prefix := s.PrefixItems(); len(prefix) > 0 {
-			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix, cons)
+		if prefix := schema.PrefixItems(); len(prefix) > 0 {
+			typeDef, tupleDiags := buildTuple(loweringContext, ts, depth, schema, common, pointer, prefix, cons)
 			diags = append(diags, tupleDiags...)
-			return t, read | keySetOf("prefixItems", "additionalItems")
+			return typeDef, read | keySetOf("prefixItems", "additionalItems")
 		}
-		elem, elemDiags := Ref(c, ts, depth, c.Statements().Sub(itemsSchema(s)), pointer+ids.Ptr("items"))
-		diags = append(diags, elemDiags...)
-		return &ir.List{TypeCommon: common, Elem: elem, Constraints: cons}, read
+		element, elementDiags := Ref(loweringContext, ts, depth, loweringContext.Statements().Subschema(itemsSchema(schema)), pointer+ids.Ptr("items"))
+		diags = append(diags, elementDiags...)
+		return &ir.List{TypeCommon: common, ElementType: element, Constraints: cons}, read
 	}, fin)
 	return id, diags
 }
 
-// listedTuple returns how many schemas s writes `items` as a list of where the
-// rows of its dialect, read where s is written (rulesOf) whatever pointer its
-// node stands at, read that list as a tuple, as the drafts before 2020-12 spell
-// one, and false where they do not or it writes no list. A list read so nowhere
-// is the table's to report (docs/compilers/openapi.md#tuples).
-func listedTuple(c lowering.Ctx, s *statement.Schema) (int, bool) {
-	n, listed := listedItems(s)
-	return n, listed && rulesOf(c, s).Takes("items", oas.List)
+// listedTuple returns how many schemas schema writes `items` as a list of where
+// the rows of its dialect, read where schema is written (rulesOf) whatever
+// pointer its node stands at, read that list as a tuple, as the drafts before
+// 2020-12 spell one, and false where they do not or it writes no list. A list
+// read so nowhere is the table's to report (docs/compilers/openapi.md#tuples).
+func listedTuple(loweringContext lowering.Ctx, schema *statement.Schema) (int, bool) {
+	n, listed := listedItems(schema)
+	return n, listed && rulesOf(loweringContext, schema).Takes("items", specrules.List)
 }
 
-// listedItems returns how many schemas s writes `items` as a list of, a tuple
-// as the drafts before 2020-12 spell one, and false where it writes no list.
-// The parser's model has no form for such a list, so only its node tells.
-func listedItems(s *statement.Schema) (int, bool) {
-	n := keyNode(s, "items")
-	if n == nil || n.Kind != yaml.SequenceNode {
+// listedItems returns how many schemas schema writes `items` as a list of, a
+// tuple as the drafts before 2020-12 spell one, and false where it writes no
+// list. The parser's model has no form for such a list, so only its node tells.
+func listedItems(schema *statement.Schema) (int, bool) {
+	node := keyNode(schema, "items")
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return 0, false
 	}
-	return len(n.Content), true
+	return len(node.Content), true
 }
 
-// itemsSchema returns the one schema s writes `items` as, and the zero Sub,
-// which names none, where it writes a list, a tuple, whose entries no reader
-// of one items schema reads: the parser's model holds the false schema there.
-func itemsSchema(s *statement.Schema) statement.Sub {
-	if _, listed := listedItems(s); listed || s == nil || s.Array == nil {
-		return statement.Sub{}
+// itemsSchema returns the one schema schema writes `items` as, and the zero
+// Subschema, which names none, where it writes a list, a tuple, whose entries
+// no reader of one items schema reads: the parser's model holds the false
+// schema there.
+func itemsSchema(schema *statement.Schema) statement.Subschema {
+	if _, listed := listedItems(schema); listed || schema == nil || schema.Array == nil {
+		return statement.Subschema{}
 	}
-	return s.Array.Items
+	return schema.Array.Items
 }
 
-// buildListedTuple lowers the n schemas s writes `items` as a list of into a
-// Tuple's Elems, the `additionalItems` beside them into its Rest, its
-// Constraints being cons. The parser's model holds none of
-// them, so each is the schema the load phase built at its position
-// (bind.Landing). An absent additionalItems leaves every element past them
-// unconstrained, as `true` does, and `false` admits none. An entry or rest
-// written as a number, a string or a list lowers as `false` does, and a `null`
-// as one left out, as 2020-12's are, which the load phase reports.
-func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int,
+// buildListedTuple lowers the n schemas schema writes `items` as a list of into
+// a Tuple's ElementTypes, the `additionalItems` beside them into its Rest, its
+// Constraints being cons. The parser's model holds none of them, so each is the
+// schema the load phase built at its position (reftable.Landing). An absent
+// additionalItems leaves every element past them unconstrained, as `true` does,
+// and `false` admits none. An entry or rest written as a number, a string or a
+// list lowers as `false` does, and a `null` as one left out, as 2020-12's are,
+// which the load phase reports.
+func buildListedTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int,
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	there, site := writtenAt(c, s, pointer)
-	elems := make([]ir.TypeRef, 0, n)
+	there, site := writtenAt(loweringContext, schema, pointer)
+	elements := make([]ir.TypeRef, 0, n)
 	for i := range n {
 		entry := ids.Ptr("items", strconv.Itoa(i))
-		ref, refDiags := Ref(c, ts, depth, heldAt(there, site+entry), pointer+entry)
+		ref, refDiags := Ref(loweringContext, ts, depth, heldAt(there, site+entry), pointer+entry)
 		diags = append(diags, refDiags...)
-		elems = append(elems, ref)
+		elements = append(elements, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: cons}
-	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
+	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elements, Constraints: cons}
+	diags = append(diags, keepPrefixItems(loweringContext, &tuple.Unmodeled, schema, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
-		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
+		ref, restDiags := Ref(loweringContext, ts, depth, js, pointer+rest)
 		diags = append(diags, restDiags...)
-		t.Rest = &ref
+		tuple.Rest = &ref
 	}
-	return t, diags
+	return tuple, diags
 }
 
-// keepPrefixItems keeps on p, verbatim, the prefixItems s writes beside the
-// items list its dialect reads as the tuple, which is the dialect's own
-// spelling of one, where no text makes the two one tuple
+// keepPrefixItems keeps on unmodeled, verbatim, the prefixItems schema writes
+// beside the items list its dialect reads as the tuple, which is the dialect's
+// own spelling of one, where no text makes the two one tuple
 // (docs/compilers/openapi.md#tuples), and reports it once.
-func keepPrefixItems(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if !hasKey(s, "prefixItems") {
+func keepPrefixItems(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if !hasKey(schema, "prefixItems") {
 		return nil
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, "prefixItems", ir.ReasonDegradedLowering, pointer, c.Place())
+	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, "prefixItems", ir.ReasonDegradedLowering, pointer, loweringContext.Place())
 	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
+		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
 			"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))
 	}
 	return diags
 }
 
-// writtenAt returns where s, lowered at pointer, is written: where the
+// writtenAt returns where schema, lowered at pointer, is written: where the
 // bindings place it (placedAt), as a type list lowers each of its variants at
-// a pointer of its own, and else pointer of c's document.
-func writtenAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (lowering.Ctx, jsontext.Pointer) {
-	if there, at, placed := placedAt(c, s); placed {
+// a pointer of its own, and else pointer of loweringContext's document.
+func writtenAt(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) (lowering.Ctx, jsontext.Pointer) {
+	if there, at, placed := placedAt(loweringContext, schema); placed {
 		return there, at
 	}
-	return c, pointer
+	return loweringContext, pointer
 }
 
 // ListedTuple returns the entries the array js writes as a tuple in a list of
@@ -143,16 +144,16 @@ func writtenAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (l
 // none is written: the schemas the load phase built there, as the parser's
 // model holds neither. It is false where js is no such tuple, or the bindings
 // place it in no document the compile read.
-func ListedTuple(c lowering.Ctx, js *statement.Statement) (
+func ListedTuple(loweringContext lowering.Ctx, js *statement.Statement) (
 	entries []*statement.Statement, rest *statement.Statement, ok bool,
 ) {
 	if js.Ref != nil {
-		if end, ok := runEnd(c, js); ok && end.Held() {
+		if end, ok := runEnd(loweringContext, js); ok && end.Held() {
 			js = end
 		}
 	}
 	at, placed := siteOf(js.Schema)
-	there, read := lowering.InDocument(c, at.Doc)
+	there, read := lowering.InDocument(loweringContext, at.Doc)
 	if !placed || !read {
 		return nil, nil, false
 	}
@@ -168,38 +169,39 @@ func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 }
 
 // heldAt returns the statement of the schema the bindings hold at pointer of
-// c's document, the one the parser modelled or the load phase built there,
-// and an Unwritten one where they hold none.
-func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
-	return c.Statements().At(c.Position(pointer))
+// loweringContext's document, the one the parser modelled or the load phase
+// built there, and an Unwritten one where they hold none.
+func heldAt(loweringContext lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
+	return loweringContext.Statements().At(loweringContext.Position(pointer))
 }
 
-// buildTuple lowers prefixItems into a Tuple's Elems, the items beside them
-// into its Rest, its Constraints being cons.
+// buildTuple lowers prefixItems into a Tuple's ElementTypes, the items beside
+// them into its Rest, its Constraints being cons.
 //
 // 2020-12 applies items to every element past prefixItems, so `items: false`
 // leaves no Rest. Any other lowers as a List's items does, under the same name,
 // since /items is named alike whichever node holds it (lowering.NameAt). An absent one
 // lowers to the top type as `items: true` does, though only the latter makes an
-// unevaluatedItems beside it inert. No field is derived from another: Elems is
-// never trimmed to maxItems, and a closed tuple gains no maxItems.
-func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Sub,
+// unevaluatedItems beside it inert. No field is derived from another:
+// ElementTypes is never trimmed to maxItems, and a closed tuple gains no
+// maxItems.
+func buildTuple(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Subschema,
 	cons *ir.Constraints,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	elems := make([]ir.TypeRef, 0, len(prefix))
+	elements := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Sub(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
+		ref, refDiags := Ref(loweringContext, ts, depth, loweringContext.Statements().Subschema(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
 		diags = append(diags, refDiags...)
-		elems = append(elems, ref)
+		elements = append(elements, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: cons}
-	if items := c.Statements().Sub(itemsSchema(s)); !items.Truth.ReadsFalse() {
-		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
+	tuple := &ir.Tuple{TypeCommon: common, ElementTypes: elements, Constraints: cons}
+	if items := loweringContext.Statements().Subschema(itemsSchema(schema)); !items.Truth.ReadsFalse() {
+		rest, restDiags := Ref(loweringContext, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
-		t.Rest = &rest
+		tuple.Rest = &rest
 	}
-	return t, diags
+	return tuple, diags
 }
 
 // ownCollectionConstraints reads the collection bounds s itself writes, which
@@ -208,9 +210,9 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // the statement holds the model's, each count where the model holds the
 // number its literal states (annotation.ExactCount); one it does not
 // is kept unread (keptCount).
-func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
-	array := s.ArrayKeywords()
-	minItems, maxItems := annotation.ExactCount(s, "minItems", array.MinItems), annotation.ExactCount(s, "maxItems", array.MaxItems)
+func ownCollectionConstraints(schema *statement.Schema) *ir.Constraints {
+	array := schema.ArrayKeywords()
+	minItems, maxItems := annotation.ExactCount(schema, "minItems", array.MinItems), annotation.ExactCount(schema, "maxItems", array.MaxItems)
 	if minItems == nil && maxItems == nil && array.UniqueItems == nil {
 		return nil
 	}
@@ -231,17 +233,17 @@ func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
 // is silent, as is a list, read off the raw node, which no documented parser
 // behaviour models. missingArrayItemsConjoined reads past a schema's
 // conjuncts; a subschema kept verbatim never reaches it.
-func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if !slices.Contains(s.Types(), statement.KindArray) {
+func missingArrayItems(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if !slices.Contains(schema.Types(), statement.KindArray) {
 		return nil
 	}
-	if _, listed := listedItems(s); listed || written(s.ArrayKeywords().Items) {
+	if _, listed := listedItems(schema); listed || written(schema.ArrayKeywords().Items) {
 		return nil
 	}
-	if !c.SchemaRules().RequiredWhen("items", "type", string(statement.KindArray)) {
+	if !loweringContext.SchemaRules().RequiredWhen("items", "type", string(statement.KindArray)) {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
+	return []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
 		"OpenAPI 3.0 requires items when type is array, and this schema writes none, "+
 			"so only its other keywords constrain its elements")}
 }
@@ -254,13 +256,13 @@ func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 // reading found holds however much of the rest it read, and one cut short
 // before reaching any leaves the keywords held to the rule as they are
 // written.
-func missingArrayItemsConjoined(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := missingArrayItems(c, s, pointer)
-	if len(diags) == 0 || !writesConjuncts(s) {
+func missingArrayItemsConjoined(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	diags := missingArrayItems(loweringContext, schema, pointer)
+	if len(diags) == 0 || !writesConjuncts(schema) {
 		return diags
 	}
-	w := newAdmissionReader(c)
-	if w.of(c.Statements().Read(s)).items != nil {
+	admissionReader := newAdmissionReader(loweringContext)
+	if admissionReader.of(loweringContext.Statements().Read(schema)).items != nil {
 		return nil
 	}
 	return diags

@@ -50,24 +50,24 @@ func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 	all := func([]int) bool { return true }
 	results := slices.Concat(schemaFull.of(t, openapicases.New(), all), groupFull.of(t, openapicases.Groups(), all))
 	core := map[harness.Oracle]harness.Recorded{}
-	for _, r := range results {
-		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)
+	for _, result := range results {
+		require.False(t, result.Faulted(), "%s: %s: %s", result.Spec, result.Outcome, result.Detail)
 	}
-	for _, o := range harness.CaseOracles() {
+	for _, oracle := range harness.CaseOracles() {
 		var err error
-		core[o], err = openapicases.Record(o)
+		core[oracle], err = openapicases.Record(oracle)
 		require.NoError(t, err)
 	}
-	left := slices.DeleteFunc(harness.Unexplained(results, core), func(r harness.Result) bool { return r.Spec == r.Like })
+	left := slices.DeleteFunc(harness.Unexplained(results, core), func(result harness.Result) bool { return result.Spec == result.Like })
 	t.Logf("what each case oracle asked and declined:\n%s", harness.CaseSummary(results))
 
-	for _, o := range harness.CaseOracles() {
-		path, name := outside[o][0], outside[o][1]
+	for _, oracle := range harness.CaseOracles() {
+		path, name := outside[oracle][0], outside[oracle][1]
 		data, err := os.ReadFile(path)
 		require.NoError(t, err)
 		record, err := harness.ReadRecorded(data)
 		require.NoError(t, err)
-		found := harness.Findings(left, o)
+		found := harness.Findings(left, oracle)
 		if irtest.Update() {
 			require.NoError(t, os.WriteFile(path, record.Write(outsideHeader(name), found), 0o644))
 			continue
@@ -81,12 +81,12 @@ func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 }
 
 // products are the products of schema cases in the order morphic-harness
-// counts their cases for -at: the schema cases, then the suite groups.
+// counts their cases for -case-index: the schema cases, then the suite groups.
 func products() []harness.Cases { return []harness.Cases{openapicases.New(), openapicases.Groups()} }
 
 // report fails t once per line, each on a line of its own starting with the
 // case it names, as the nightly run's report reads them, and ending with the
-// -at index that writes the case's documents and verdicts.
+// -case-index index that writes the case's documents and verdicts.
 func report(t *testing.T, path, why string, lines []string) {
 	t.Helper()
 	ps := products()
@@ -95,22 +95,22 @@ func report(t *testing.T, path, why string, lines []string) {
 		name, _, _ = strings.Cut(name, ": listed ")
 		at, ok := caseIndex(ps, name)
 		require.True(t, ok, "%s names no case", name)
-		t.Errorf("%s\t%s: %s; morphic-harness -cases full -at %d", line, path, why, at)
+		t.Errorf("%s\t%s: %s; morphic-harness -cases full -case-index %d", line, path, why, at)
 	}
 }
 
-// caseIndex returns the index -at takes for the case name names across
+// caseIndex returns the index -case-index takes for the case name names across
 // products, counted one product after another, and false for a name no case
 // has.
 func caseIndex(products []harness.Cases, name string) (int, bool) {
 	first := 0
 	values := strings.Split(name, "/")
-	for _, c := range products {
-		axes := c.Axes()
+	for _, cases := range products {
+		axes := cases.Axes()
 		if i, ok := indexIn(axes, values); ok {
 			return first + i, true
 		}
-		count, err := harness.CaseCount(c)
+		count, err := harness.CaseCount(cases)
 		if err != nil {
 			return 0, false
 		}
@@ -127,7 +127,7 @@ func indexIn(axes []harness.Axis, values []string) (int, bool) {
 	}
 	i := 0
 	for k, a := range axes {
-		v := slices.IndexFunc(a.Values, func(x harness.Value) bool { return x.Name == values[k] })
+		v := slices.IndexFunc(a.Values, func(value harness.Value) bool { return value.Name == values[k] })
 		if v < 0 {
 			return 0, false
 		}
@@ -145,14 +145,14 @@ func TestFull_ACaseIndexIsTheOneMorphicHarnessTakes(t *testing.T) {
 	schemas, err := harness.CaseCount(ps[0])
 	require.NoError(t, err)
 	for _, at := range []int{0, 7, schemas - 1, schemas, schemas + 11} {
-		c, i := ps[0], at
+		cases, i := ps[0], at
 		if at >= schemas {
-			c, i = ps[1], at-schemas
+			cases, i = ps[1], at-schemas
 		}
-		coordinates, err := harness.Coordinates(c, i)
+		coordinates, err := harness.Coordinates(cases, i)
 		require.NoError(t, err)
 		names := make([]string, len(coordinates))
-		for k, a := range c.Axes() {
+		for k, a := range cases.Axes() {
 			names[k] = a.Values[coordinates[k]].Name
 		}
 		got, ok := caseIndex(ps, strings.Join(names, "/"))
@@ -170,16 +170,16 @@ func TestFull_ACaseIndexIsTheOneMorphicHarnessTakes(t *testing.T) {
 func TestFull_EachLineNamesACaseOutsideTheCore(t *testing.T) {
 	t.Parallel()
 	ps := products()
-	for _, o := range harness.CaseOracles() {
-		core, err := openapicases.Record(o)
+	for _, oracle := range harness.CaseOracles() {
+		core, err := openapicases.Record(oracle)
 		require.NoError(t, err)
-		every, err := openapicases.FullRecord(o)
+		every, err := openapicases.FullRecord(oracle)
 		require.NoError(t, err)
 		for name := range every {
 			if _, ok := core[name]; ok {
 				continue
 			}
-			assert.True(t, slices.ContainsFunc(ps, func(c harness.Cases) bool { return outsideCore(c, name) }),
+			assert.True(t, slices.ContainsFunc(ps, func(cases harness.Cases) bool { return outsideCore(cases, name) }),
 				"%s names no case outside a product's core", name)
 		}
 		unlisted, changed, _, unreasoned := every.Judge(nil, openapicases.Reasons())
@@ -188,17 +188,17 @@ func TestFull_EachLineNamesACaseOutsideTheCore(t *testing.T) {
 	}
 }
 
-// outsideCore reports whether name names a case of c, each of its values one
-// of its axis's, one of which at least is not core.
-func outsideCore(c harness.Cases, name string) bool {
-	axes := c.Axes()
+// outsideCore reports whether name names a case of cases, each of its values
+// one of its axis's, one of which at least is not core.
+func outsideCore(cases harness.Cases, name string) bool {
+	axes := cases.Axes()
 	values := strings.Split(name, "/")
 	if len(values) != len(axes) {
 		return false
 	}
 	core := true
 	for k, a := range axes {
-		i := slices.IndexFunc(a.Values, func(v harness.Value) bool { return v.Name == values[k] })
+		i := slices.IndexFunc(a.Values, func(value harness.Value) bool { return value.Name == values[k] })
 		if i < 0 {
 			return false
 		}

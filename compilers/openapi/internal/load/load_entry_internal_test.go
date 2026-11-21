@@ -17,10 +17,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -104,10 +104,10 @@ func TestLoad_AnObjectTheParserFaultsOnIsReportedOnce(t *testing.T) {
 	assert.NotNil(t, doc)
 	assert.Zero(t, countErrorsAt(diags, diag.UnresolvedRef), "%+v", diags)
 	var at []jsontext.Pointer
-	for _, d := range diags {
-		assert.NotEqual(t, diag.Validation, d.Code, "no build failed: %+v", d)
-		if d.Code == diag.Validation+"/validation-type-mismatch" && d.Provenance.Pointer == "/B/$ref" {
-			at = append(at, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.Validation, diagnostic.Code, "no build failed: %+v", diagnostic)
+		if diagnostic.Code == diag.Validation+"/validation-type-mismatch" && diagnostic.Provenance.Pointer == "/B/$ref" {
+			at = append(at, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Len(t, at, 1, "the table reports the $ref once: %+v", diags)
@@ -127,8 +127,8 @@ components: {schemas: {S: {type: number, minimum: .5}}}
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
 
 	require.NoError(t, err)
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "a recoverable literal draws no finding: %+v", d)
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation), "a recoverable literal draws no finding: %+v", diagnostic)
 	}
 }
 
@@ -164,9 +164,9 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 }
 
 // TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
-// the lowering for the source (Document.Rows): those of the minor it declares,
-// the Schema Object's and the Encoding Object's alike, in the dialect its
-// jsonSchemaDialect names.
+// the lowering for the source (LoadedOpenAPIDocument.Rows): those of the minor
+// it declares, the Schema Object's and the Encoding Object's alike, in the
+// dialect its jsonSchemaDialect names.
 func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	t.Parallel()
 	rowsOf := func(version, rest string) Rows {
@@ -181,13 +181,13 @@ func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	assert.True(t, r30.Schema.Defines("nullable"))
 	assert.False(t, r31.Schema.Defines("nullable"))
 	assert.True(t, r31.Schema.Defines("prefixItems"))
-	_, untyped30 := r30.Encoding.ContentType(oas.DefaultUntyped)
-	_, untyped31 := r31.Encoding.ContentType(oas.DefaultUntyped)
+	_, untyped30 := r30.Encoding.ContentType(specrules.DefaultUntyped)
+	_, untyped31 := r31.Encoding.ContentType(specrules.DefaultUntyped)
 	assert.False(t, untyped30)
 	assert.True(t, untyped31)
 	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
-	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
-	_, untyped04 := r04.Encoding.ContentType(oas.DefaultUntyped)
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean))
+	_, untyped04 := r04.Encoding.ContentType(specrules.DefaultUntyped)
 	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
 }
 
@@ -316,13 +316,13 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 // TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
 // attribution can go wrong without anything noticing.
 //
-// The overlay's index and its place in Document.Sources are decided in two
-// packages and have to agree. An index past the end disagrees loudly — irverify
-// reports it as the dangling reference it is — but an index equal to the
-// source's addresses a declared entry, so every position the overlay introduced
-// would quietly name the spec while Sources carried an entry nothing references.
-// That is a caller mistake rather than a document problem, so it leaves as a Go
-// error.
+// The overlay's index and its place in LoadedOpenAPIDocument.Sources are
+// decided in two packages and have to agree. An index past the end disagrees
+// loudly — irverify reports it as the dangling reference it is — but an index
+// equal to the source's addresses a declared entry, so every position the
+// overlay introduced would quietly name the spec while Sources carried an entry
+// nothing references. That is a caller mistake rather than a document problem,
+// so it leaves as a Go error.
 func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 	t.Parallel()
 	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
@@ -344,13 +344,13 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 // source index walks.
 //
 // The bound is reached by shrinking it rather than by building a document of
-// sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of
+// sourcetreestats.MaxIndexedNodes nodes — that would be several gigabytes of
 // fixture, and the part worth testing is what the loader does with a truncated
 // index, not that the walk stops at a number.
 func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
-	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index {
-		return sourceindex.Build(ctx, root, 1)
+	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+		return sourcetreestats.Build(ctx, root, 1)
 	}}
 
 	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), opts)
@@ -380,7 +380,7 @@ func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
 // independent of each other and of anything running beside them.
 func countingIndexBuilder(base Options) (Options, *int) {
 	built := 0
-	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Index {
+	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
 		built++
 		return defaultIndex(ctx, root)
 	}
@@ -454,9 +454,9 @@ components:
 // errorSites returns where each error of the given code is reported, in order.
 func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 	var sites []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityError {
-			sites = append(sites, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Severity == ir.SeverityError {
+			sites = append(sites, diagnostic.Provenance.Pointer)
 		}
 	}
 	return sites
@@ -465,8 +465,8 @@ func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 // countErrors counts the errors among diags, whatever their code.
 func countErrors(diags []ir.Diagnostic) int {
 	var n int
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
 			n++
 		}
 	}

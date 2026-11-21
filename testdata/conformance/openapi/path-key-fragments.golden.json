@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Path key fragments",
         "canonical": "path_key_fragments"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1bearer#oauth2/get",
+              "id": "operation/openapi/paths/~1bearer#oauth2/get",
               "name": {
                 "source": "bearerOAuth",
                 "canonical": "bearer_o_auth"
@@ -111,7 +111,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1bearer#apiKey/get",
+              "id": "operation/openapi/paths/~1bearer#apiKey/get",
               "name": {
                 "source": "bearerApiKey",
                 "canonical": "bearer_api_key"
@@ -163,7 +163,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1bearer/get",
+              "id": "operation/openapi/paths/~1bearer/get",
               "name": {
                 "source": "bearer",
                 "canonical": "bearer"
@@ -205,7 +205,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1other/get",
+              "id": "operation/openapi/paths/~1other/get",
               "name": {
                 "source": "other",
                 "canonical": "other"

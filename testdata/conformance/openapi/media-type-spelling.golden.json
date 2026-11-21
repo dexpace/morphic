@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "MediaTypeSpelling",
         "canonical": "media_type_spelling"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1upload/post",
+              "id": "operation/openapi/paths/~1upload/post",
               "name": {
                 "source": "upload",
                 "canonical": "upload"
@@ -70,16 +70,16 @@
                   {
                     "mediaType": "Multipart/Form-Data",
                     "type": {
-                      "target": "t/anon/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema",
+                      "target": "type/anonymous/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema/properties/file": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema/properties/file": {
                         "contentTypes": [
                           "image/png"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       }
                     }
@@ -126,7 +126,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1submit/post",
+              "id": "operation/openapi/paths/~1submit/post",
               "name": {
                 "source": "submit",
                 "canonical": "submit"
@@ -137,16 +137,16 @@
                   {
                     "mediaType": "Application/X-WWW-Form-Urlencoded; charset=utf-8",
                     "type": {
-                      "target": "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema",
+                      "target": "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {
+                      "property/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -193,7 +193,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1blob/put",
+              "id": "operation/openapi/paths/~1blob/put",
               "name": {
                 "source": "putBlob",
                 "canonical": "put_blob"
@@ -204,7 +204,7 @@
                   {
                     "mediaType": "Application/Octet-Stream",
                     "type": {
-                      "target": "t/prim/bytes",
+                      "target": "type/primitive/bytes",
                       "nullable": false
                     },
                     "file": {
@@ -235,7 +235,7 @@
                       {
                         "mediaType": "application/octet-stream; type=tar",
                         "type": {
-                          "target": "t/prim/bytes",
+                          "target": "type/primitive/bytes",
                           "nullable": false
                         },
                         "file": {
@@ -284,9 +284,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema": {
+    "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema",
+      "id": "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema",
       "name": {
         "hint": "submit_request"
       },
@@ -299,21 +299,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
+          "id": "property/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
           "name": {
             "source": "ids",
             "canonical": "ids"
           },
           "wireName": "ids",
           "type": {
-            "target": "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
+            "target": "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -330,9 +330,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {
+    "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {
       "kind": "list",
-      "id": "t/anon/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
+      "id": "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids",
       "name": {
         "hint": "ids"
       },
@@ -343,14 +343,14 @@
         "source": 0,
         "pointer": "/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema",
       "name": {
         "hint": "upload_request"
       },
@@ -363,21 +363,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema/properties/file",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -394,9 +394,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -404,11 +404,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -416,11 +416,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -428,7 +428,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

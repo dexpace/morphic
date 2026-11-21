@@ -21,9 +21,9 @@ import (
 
 // Where instanceSpec writes its defaults.
 const (
-	carriedA     = "p/openapi/components/schemas/C/properties/a"
-	carriedB     = "p/openapi/components/schemas/C/properties/b"
-	carriedParam = "param/openapi/paths/~1c/get/parameters/q/query"
+	carriedA     = "property/openapi/components/schemas/C/properties/a"
+	carriedB     = "property/openapi/components/schemas/C/properties/b"
+	carriedParam = "parameter/openapi/paths/~1c/get/parameters/q/query"
 )
 
 // instanceSpec writes a property a defaulting to "x", a property b defaulting
@@ -39,15 +39,15 @@ func instanceSpec(b string) []byte {
 
 // instanceCase is a one-case product writing data with instances.
 func instanceCase(data []byte, instances ...Instance) fake {
-	return fake{axes: []Axis{coreAxis("case", "c")}, write: func([]int) (Document, bool) {
-		return Document{Sources: []compilers.Source{{Path: "openapi.json", Data: data}}, Instances: instances}, true
+	return fake{axes: []Axis{coreAxis("case", "c")}, write: func([]int) (CaseDocument, bool) {
+		return CaseDocument{Sources: []compilers.Source{{Path: "openapi.json", Data: data}}, Instances: instances}, true
 	}}
 }
 
-// instanceVerdict is the instance oracle's verdict on c's one case.
-func instanceVerdict(t *testing.T, c fake) Verdict {
+// instanceVerdict is the instance oracle's verdict on fakeValue's one case.
+func instanceVerdict(t *testing.T, fakeValue fake) Verdict {
 	t.Helper()
-	res, ok := CheckCase(t.Context(), c, []int{0})
+	res, ok := CheckCase(t.Context(), fakeValue, []int{0})
 	require.True(t, ok)
 	require.False(t, res.Faulted(), "%s: %s", res.Outcome, res.Detail)
 	return res.Verdicts[2]
@@ -59,17 +59,17 @@ func instanceVerdict(t *testing.T, c fake) Verdict {
 // invalid instance is not asked.
 func TestAdmitted_FindsTheInstancesTheirTypeExcludes(t *testing.T) {
 	inside := []Instance{{Node: carriedA, Valid: true, Name: "a string"}, {Node: carriedParam, Valid: true, Name: "q"}}
-	v := instanceVerdict(t, instanceCase(instanceSpec(`"y"`), inside...))
-	assert.Equal(t, passed(OracleInstance), v)
+	verdict := instanceVerdict(t, instanceCase(instanceSpec(`"y"`), inside...))
+	assert.Equal(t, passed(OracleInstance), verdict)
 
 	outside := slices.Concat(inside, []Instance{{Node: carriedB, Valid: true, Name: "one\tnumber"}})
-	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
+	verdict = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
 	assert.Equal(t, found(OracleInstance, `"one\tnumber"`+"\n"+
-		`"one\tnumber": default is a number, and t/prim/string holds a string`), v)
+		`"one\tnumber": default is a number, and type/primitive/string holds a string`), verdict)
 
 	notAsked := slices.Concat(inside, []Instance{{Node: carriedB, Valid: false, Name: "one"}})
-	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
-	assert.Equal(t, passed(OracleInstance), v, "an invalid instance is not asked")
+	verdict = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
+	assert.Equal(t, passed(OracleInstance), verdict, "an invalid instance is not asked")
 }
 
 // TestAdmitted_DeclinesWhatItCannotAsk pins each decline: no valid instance,
@@ -93,10 +93,10 @@ func TestAdmitted_DeclinesWhatItCannotAsk(t *testing.T) {
 	) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := orig(ctx, sources, options, ps)
 		require.NoError(t, err)
-		m, ok := doc.Types["t/openapi/components/schemas/C"].(*ir.Model)
+		model, ok := doc.Types["type/openapi/components/schemas/C"].(*ir.Model)
 		require.True(t, ok)
-		for i := range m.Properties {
-			m.Properties[i].Default = nil
+		for i := range model.Properties {
+			model.Properties[i].Default = nil
 		}
 		return doc, diags, nil
 	}
@@ -117,17 +117,17 @@ func TestAdmitted_ACompileErrorEndsTheCase(t *testing.T) {
 	assert.Contains(t, res.Detail, "harness: compiling case [0]: the engine is misconfigured")
 }
 
-// kindSpec writes the components schemas, and a model C holding props.
-func kindSpec(schemas, props string) []byte {
+// kindSpec writes the components schemas, and a model C holding properties.
+func kindSpec(schemas, properties string) []byte {
 	return fmt.Appendf(nil, `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {},
-  "components": {"schemas": {%s, "C": {"type": "object", "properties": {%s}}}}}`, schemas, props)
+  "components": {"schemas": {%s, "C": {"type": "object", "properties": {%s}}}}}`, schemas, properties)
 }
 
 // Where kindSpec's defaults are: the property t of C, and the property m of O
 // in the row that writes it.
 const (
-	kindT = "p/openapi/components/schemas/C/properties/t"
-	kindM = "p/openapi/components/schemas/O/properties/m"
+	kindT = "property/openapi/components/schemas/C/properties/t"
+	kindM = "property/openapi/components/schemas/O/properties/m"
 )
 
 // TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred holds the verdict
@@ -169,7 +169,7 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			props := fmt.Sprintf(`"t": {"$ref": "#/components/schemas/%s", "default": %s}`, tc.ref, tc.def)
+			properties := fmt.Sprintf(`"t": {"$ref": "#/components/schemas/%s", "default": %s}`, tc.ref, tc.def)
 			instances := []Instance{{Node: kindT, Valid: true, Name: "t"}}
 			if tc.also != "" {
 				instances = append(instances, Instance{Node: tc.also, Valid: true, Name: "m"})
@@ -186,13 +186,13 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 				}
 				return doc, diags, err
 			}
-			v := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, props), instances...))
+			verdict := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, properties), instances...))
 			if tc.want == "" {
-				assert.Equal(t, passed(OracleInstance), v)
+				assert.Equal(t, passed(OracleInstance), verdict)
 				return
 			}
-			assert.True(t, v.Found(), "%+v", v)
-			assert.Equal(t, tc.want, strings.SplitN(v.Detail, "\n", 2)[0])
+			assert.True(t, verdict.Found(), "%+v", verdict)
+			assert.Equal(t, tc.want, strings.SplitN(verdict.Detail, "\n", 2)[0])
 		})
 	}
 }

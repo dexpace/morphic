@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkOAuthScopes asserts no OAuth flow offers one scope name twice.
@@ -21,7 +21,7 @@ func checkOAuthScopes(doc *ir.Document) []Violation {
 	var vs []Violation
 	// Every flow is read through this one, so a flow costs no map of its own
 	// however many scopes it offers.
-	var offered reuse.Map[string, bool]
+	var offered scratchstate.Map[string, bool]
 	for id, scheme := range doc.Auth {
 		for i, flow := range scheme.Flows {
 			seen := offered.Emptied()

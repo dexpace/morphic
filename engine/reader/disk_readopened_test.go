@@ -84,10 +84,10 @@ func TestReadOpened_JudgesTheFileOpened(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := tc.file(t)
-			f.body = strings.NewReader("never read")
+			scriptedFile := tc.file(t)
+			scriptedFile.body = strings.NewReader("never read")
 
-			got, err := reader.ReadOpened(t.Context(), "p.yaml", f, 0)
+			got, err := reader.ReadOpened(t.Context(), "p.yaml", scriptedFile, 0)
 
 			require.Error(t, err)
 			for _, want := range tc.wantIs {
@@ -97,8 +97,8 @@ func TestReadOpened_JudgesTheFileOpened(t *testing.T) {
 				assert.Contains(t, err.Error(), "p.yaml", "the file refused")
 			}
 			assert.Nil(t, got)
-			assert.Zero(t, f.reads, "a file refused is never read")
-			assert.Equal(t, 1, f.closes, "a file refused is closed once")
+			assert.Zero(t, scriptedFile.reads, "a file refused is never read")
+			assert.Equal(t, 1, scriptedFile.closes, "a file refused is closed once")
 		})
 	}
 }
@@ -133,11 +133,11 @@ func TestReadOpened_ReadsAndClosesARegularFile(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := &scriptedFile{info: infoOf(t, 0), body: tc.body, closeErr: tc.closeErr}
+			scriptedFileValue := &scriptedFile{info: infoOf(t, 0), body: tc.body, closeErr: tc.closeErr}
 
-			got, err := reader.ReadOpened(t.Context(), "p.yaml", f, tc.limit)
+			got, err := reader.ReadOpened(t.Context(), "p.yaml", scriptedFileValue, tc.limit)
 
-			assert.Equal(t, 1, f.closes, "closed once, whatever the read did")
+			assert.Equal(t, 1, scriptedFileValue.closes, "closed once, whatever the read did")
 			if len(tc.wantIs) > 0 {
 				require.Error(t, err)
 				for _, want := range tc.wantIs {
@@ -158,15 +158,15 @@ func TestReadOpened_ReadsAndClosesARegularFile(t *testing.T) {
 // stat rather than a read to the limit.
 func TestReadOpened_RefusesAFileItsSizePutsPastTheLimitUnread(t *testing.T) {
 	t.Parallel()
-	f := &scriptedFile{info: sizedInfo{size: 1 << 30}, body: strings.NewReader("never read")}
+	scriptedFileValue := &scriptedFile{info: sizedInfo{size: 1 << 30}, body: strings.NewReader("never read")}
 
-	got, err := reader.ReadOpened(t.Context(), "p.yaml", f, 1<<20)
+	got, err := reader.ReadOpened(t.Context(), "p.yaml", scriptedFileValue, 1<<20)
 
 	require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
 	assert.Contains(t, err.Error(), "p.yaml")
 	assert.Nil(t, got)
-	assert.Zero(t, f.reads, "refused by its size, unread")
-	assert.Equal(t, 1, f.closes)
+	assert.Zero(t, scriptedFileValue.reads, "refused by its size, unread")
+	assert.Equal(t, 1, scriptedFileValue.closes)
 }
 
 // TestReadOpened_RefusesAnOpenedDirectory runs the second judgement on a real

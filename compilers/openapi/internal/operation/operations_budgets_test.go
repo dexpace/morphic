@@ -34,13 +34,13 @@ webhooks:
   petCreated:
     post: {operationId: petCreated, responses: {"200": {description: ok}}}
 `
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
 
-	declared, _ := auth.LowerSecuritySchemes(c)
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), declared)
+	lowered, diags := operation.LowerService(ctx, serviceContext, compile.NewTypes(), declared)
 
 	assert.Empty(t, diags)
 	assert.Empty(t, lowered.Service.Groups, "neither the path loop nor the webhook loop lowered an operation")
@@ -51,22 +51,22 @@ webhooks:
 // refused.
 func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, bool) {
 	t.Helper()
-	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags, MaxReferenceExpansion: limit})
-	declared, _ := auth.LowerSecuritySchemes(c)
-	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
-	ops := make([]ir.Operation, 0, 3)
-	for _, g := range lowered.Service.Groups {
-		ops = append(ops, g.Operations...)
+	serviceContext := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags, MaxReferenceExpansion: limit})
+	declared, _ := auth.LowerSecuritySchemes(serviceContext)
+	lowered, _ := operation.LowerService(t.Context(), serviceContext, compile.NewTypes(), declared)
+	operations := make([]ir.Operation, 0, 3)
+	for _, operationGroup := range lowered.Service.Groups {
+		operations = append(operations, operationGroup.Operations...)
 	}
-	_, refused := c.ExpansionRefusal()
-	return ops, refused
+	_, refused := serviceContext.ExpansionRefusal()
+	return operations, refused
 }
 
-// names returns the source names of ops, in order.
-func names(ops []ir.Operation) []string {
-	out := make([]string, 0, len(ops))
-	for _, op := range ops {
-		out = append(out, op.Name.Source)
+// names returns the source names of operations, in order.
+func names(operations []ir.Operation) []string {
+	out := make([]string, 0, len(operations))
+	for _, irOperation := range operations {
+		out = append(out, irOperation.Name.Source)
 	}
 	return out
 }
@@ -104,17 +104,17 @@ func TestLowerService_APathItemsCopiesStopAtTheBudget(t *testing.T) {
 	require.Len(t, all[1].Servers, 1)
 	server := len(all[1].Servers[0])
 
-	ops, refused := lowerUnder(t, copyingItem(""), budget.AtMost(kept+server-1))
-	assert.Equal(t, []string{"g", "link"}, names(ops), "crossing on what LINK keeps and the server it takes")
+	operations, refused := lowerUnder(t, copyingItem(""), budget.AtMost(kept+server-1))
+	assert.Equal(t, []string{"g", "link"}, names(operations), "crossing on what LINK keeps and the server it takes")
 	assert.True(t, refused)
 
-	ops, refused = lowerUnder(t, copyingItem(""), budget.AtMost(kept+server))
-	assert.Equal(t, []string{"g", "link"}, names(ops), "crossing on LINK's parameter")
+	operations, refused = lowerUnder(t, copyingItem(""), budget.AtMost(kept+server))
+	assert.Equal(t, []string{"g", "link"}, names(operations), "crossing on LINK's parameter")
 	assert.True(t, refused)
 
 	own := ", servers: [{url: 'https://b.test'}]"
-	ops, refused = lowerUnder(t, copyingItem(own), budget.AtMost(kept+param+kept+server+param))
-	assert.Equal(t, []string{"g", "link", "unlink"}, names(ops), "LINK takes no server of its item's")
+	operations, refused = lowerUnder(t, copyingItem(own), budget.AtMost(kept+param+kept+server+param))
+	assert.Equal(t, []string{"g", "link", "unlink"}, names(operations), "LINK takes no server of its item's")
 	assert.False(t, refused)
 	_, refused = lowerUnder(t, copyingItem(own), budget.AtMost(kept+param+kept+server+param-1))
 	assert.True(t, refused)
@@ -141,8 +141,8 @@ paths:
     additionalOperations:
       LINK: {operationId: link2, responses: {"200": {description: ok}}}
 `
-	ops, refused := lowerUnder(t, spec, budget.AtMost(1))
-	assert.Equal(t, []string{"g", "link", "g2", "p2"}, names(ops))
+	operations, refused := lowerUnder(t, spec, budget.AtMost(1))
+	assert.Equal(t, []string{"g", "link", "g2", "p2"}, names(operations))
 	assert.True(t, refused)
 }
 
@@ -176,13 +176,13 @@ func TestLowerService_AnItemsParametersAreChargedOnceACopy(t *testing.T) {
 	t.Parallel()
 	const param = 25
 	const head = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n"
-	const ops = `    get: {operationId: g, responses: {"200": {description: ok}}}
+	const operations = `    get: {operationId: g, responses: {"200": {description: ok}}}
     additionalOperations:
       LINK: {operationId: link, responses: {"200": {description: ok}}}
 `
 	const components = "components:\n  parameters:\n    P: {name: q, in: query, schema: {type: string}}\n"
-	plain := leastBudget(t, head+ops+components)
-	referenced := leastBudget(t, head+"    parameters: [{$ref: '#/components/parameters/P'}]\n"+ops+components)
+	plain := leastBudget(t, head+operations+components)
+	referenced := leastBudget(t, head+"    parameters: [{$ref: '#/components/parameters/P'}]\n"+operations+components)
 	assert.Equal(t, plain+2*(param+1), referenced, "a $ref'd parameter is charged at each operation, once")
 
 	layered := func(params string) string {

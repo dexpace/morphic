@@ -8,9 +8,9 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,10 +26,10 @@ type partFile struct {
 // apply returns pe marked a file where f reads it one and its type did not, so
 // the marker names the heuristic only where the file rests on it.
 func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
-	if !f.file || pe.Filename {
+	if !f.file || pe.HasFilename {
 		return pe
 	}
-	pe.Filename, pe.Inferred = true, f.inferred
+	pe.HasFilename, pe.Inferred = true, f.inferred
 	return pe
 }
 
@@ -37,11 +37,11 @@ func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
 // as a file (docs/compilers/openapi.md#multipart-encoding): every declaration
 // of it must read so (readDeclaration), as fileFor judges it. Only a multipart
 // part can carry raw bytes.
-func readPartFile(c service.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
+func readPartFile(serviceContext service.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
 	if !multipart || len(part.schemas) == 0 {
 		return partFile{}
 	}
-	return fileFor(c, leastOf(c, part.schemas, readDeclaration), contentTypes)
+	return fileFor(serviceContext, leastOf(serviceContext, part.schemas, readDeclaration), contentTypes)
 }
 
 // fileFor judges a multipart part or item whose schemas read as least, with
@@ -49,16 +49,16 @@ func readPartFile(c service.Ctx, part bodyPart, contentTypes []string, multipart
 // it leaves its media type to say, one where the entry names only binary media
 // types (partContentFile), or, naming none, as the media type its encoding
 // defaults to (untypedPartFile).
-func fileFor(c service.Ctx, least fileReading, contentTypes []string) partFile {
+func fileFor(serviceContext service.Ctx, least fileReading, contentTypes []string) partFile {
 	switch {
 	case least == readsBinary:
 		return partFile{file: true}
 	case !least.open():
 		return partFile{}
 	case len(contentTypes) > 0:
-		return partContentFile(c, contentTypes)
+		return partContentFile(serviceContext, contentTypes)
 	default:
-		return untypedPartFile(c, least)
+		return untypedPartFile(serviceContext, least)
 	}
 }
 
@@ -66,33 +66,33 @@ func fileFor(c service.Ctx, least fileReading, contentTypes []string) partFile {
 // type: one writing no type is judged as naming the contentType the Encoding
 // Object's rows default that case to (service.EncodingRules), which from
 // OpenAPI 3.1 is application/octet-stream, and any other is no file.
-func untypedPartFile(c service.Ctx, least fileReading) partFile {
-	contentType, ok := service.EncodingRules(c).ContentType(oas.DefaultUntyped)
+func untypedPartFile(serviceContext service.Ctx, least fileReading) partFile {
+	contentType, ok := service.EncodingRules(serviceContext).ContentType(specrules.DefaultUntyped)
 	if least != readsUntyped || !ok {
 		return partFile{}
 	}
-	return partContentFile(c, []string{contentType})
+	return partContentFile(serviceContext, []string{contentType})
 }
 
 // readDeclaration reads js, one declaration of a part, as a file: an array
 // through its elements (readElements), else as a body's schema is (readFile)
 // but for an array branch of a union it writes, read through its elements too
 // (readPartBranch).
-func readDeclaration(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
-		return readElements(c, js, s)
+func readDeclaration(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	if s := schemaOf(serviceContext.Bindings(), js); isArraySchema(s) {
+		return readElements(serviceContext, js, s)
 	}
-	return readSchema(c, js, branchReading{read: readPartBranch, part: true})
+	return readSchema(serviceContext, js, branchReading{read: readPartBranch, part: true})
 }
 
 // readPartBranch reads branch, one of a union a part's declaration writes, as a
 // body's union branch is read (readBranch), but an array through its elements
 // (readElements), as the part repeats where the branch holds.
-func readPartBranch(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	if s := schemaOf(c.Bindings(), branch); isArraySchema(s) {
-		return readElements(c, branch, s)
+func readPartBranch(serviceContext service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	if s := schemaOf(serviceContext.Bindings(), branch); isArraySchema(s) {
+		return readElements(serviceContext, branch, s)
 	}
-	return readBranch(c, branch)
+	return readBranch(serviceContext, branch)
 }
 
 // isArraySchema reports whether s writes the type array, alone or with null.
@@ -106,36 +106,38 @@ func isArraySchema(s *oas3.Schema) bool {
 // rest of false admitting none. An array writing no rest reads as other, as
 // one admitting no element does: what its elements past its prefix are is
 // left unsaid, not said to be anything.
-func readElements(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
-	elems, rest, tuple := schema.ListedTuple(c.Ctx, c.Statements().Of(js))
+func readElements(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
+	elements, rest, tuple := schema.ListedTuple(serviceContext.Ctx, serviceContext.Statements().Of(js))
 	if !tuple {
-		rest = c.Statements().Of(s.GetItems())
+		rest = serviceContext.Statements().Of(s.GetItems())
 		for _, e := range s.GetPrefixItems() {
-			elems = append(elems, c.Statements().Of(e))
+			elements = append(elements, serviceContext.Statements().Of(e))
 		}
 	}
 	if rest.Truth == statement.Unwritten {
 		return readsOther
 	}
 	if !rest.Truth.ReadsFalse() {
-		elems = append(elems, rest)
+		elements = append(elements, rest)
 	}
-	if len(elems) == 0 {
+	if len(elements) == 0 {
 		return readsOther
 	}
-	return leastOf(c, elems, func(c service.Ctx, e *statement.Statement) fileReading { return readFile(c, statement.ParsedAt(e)) })
+	return leastOf(serviceContext, elements, func(serviceContextValue service.Ctx, schemaStatement *statement.Statement) fileReading {
+		return readFile(serviceContextValue, statement.ParsedAt(schemaStatement))
+	})
 }
 
 // partContentFile reads a part whose schema leaves its media type to say, and
 // whose encoding entry names contentTypes, as a file where every type named is
 // binary: application/octet-stream as declared, any other the binary policy
 // names marked as its reading.
-func partContentFile(c service.Ctx, contentTypes []string) partFile {
+func partContentFile(serviceContext service.Ctx, contentTypes []string) partFile {
 	out := partFile{file: true}
 	for _, ct := range contentTypes {
 		switch {
 		case service.NormalizeMediaType(ct) == octetStream:
-		case c.MediaTypeBinary(ct):
+		case serviceContext.MediaTypeBinary(ct):
 			out.inferred = service.BinaryInferenceHeuristic
 		default:
 			return partFile{}
@@ -144,19 +146,19 @@ func partContentFile(c service.Ctx, contentTypes []string) partFile {
 	return out
 }
 
-// rawTuple reports whether every element t admits is raw bytes (rawBytes):
-// each of Elems and, where elements may follow them, Rest. A tuple admitting
-// no element at all is no file.
-func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), t *ir.Tuple) bool {
-	if len(t.Elems) == 0 && t.Rest == nil {
+// rawTuple reports whether every element tuple admits is raw bytes (rawBytes):
+// each of ElementTypes and, where elements may follow them, Rest. A tuple
+// admitting no element at all is no file.
+func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), tuple *ir.Tuple) bool {
+	if len(tuple.ElementTypes) == 0 && tuple.Rest == nil {
 		return false
 	}
-	for _, elem := range t.Elems {
-		if !rawBytes(node, elem) {
+	for _, element := range tuple.ElementTypes {
+		if !rawBytes(node, element) {
 			return false
 		}
 	}
-	return t.Rest == nil || rawBytes(node, *t.Rest)
+	return tuple.Rest == nil || rawBytes(node, *tuple.Rest)
 }
 
 // rawBytes reports whether ref ends in bytes that travel raw, through the alias
@@ -172,7 +174,7 @@ func rawBytes(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) bool {
 		}
 		switch t := td.(type) {
 		case *ir.Primitive:
-			return t.Prim == ir.PrimBytes
+			return t.PrimitiveKind == ir.PrimitiveBytes
 		case *ir.Scalar:
 			if t.Base == nil || t.Encoding != nil && t.Encoding.Name != "" {
 				return false

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkRepeatedVariants reports each variant of a union naming a type an
@@ -20,38 +20,38 @@ import (
 // its own.
 func checkRepeatedVariants(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var first reuse.Map[ir.TypeID, int]
+	var first scratchstate.Map[ir.TypeID, int]
 	for _, id := range live {
-		u, isUnion := doc.Types[id].(*ir.Union)
-		if !isUnion || (u.WireTagged && u.Discriminator == nil) {
+		union, isUnion := doc.Types[id].(*ir.Union)
+		if !isUnion || (union.WireTagged && union.Discriminator == nil) {
 			continue
 		}
 		seen := first.Emptied()
-		for i, v := range u.Variants {
-			earlier, repeated := seen[v.Type.Target]
+		for i, variant := range union.Variants {
+			earlier, repeated := seen[variant.Type.Target]
 			if !repeated {
-				seen[v.Type.Target] = i
+				seen[variant.Type.Target] = i
 				continue
 			}
-			diags = append(diags, repeatedVariant(u, earlier, i))
+			diags = append(diags, repeatedVariant(union, earlier, i))
 		}
 	}
 	return diags
 }
 
-// repeatedVariant reports that variant later of u names the type variant
+// repeatedVariant reports that variant later of union names the type variant
 // earlier does.
-func repeatedVariant(u *ir.Union, earlier, later int) ir.Diagnostic {
-	target := u.Variants[later].Type.Target
-	at := fmt.Sprintf("%s/variants/%d", u.ID, later)
-	if u.Exclusive {
+func repeatedVariant(union *ir.Union, earlier, later int) ir.Diagnostic {
+	target := union.Variants[later].Type.Target
+	at := fmt.Sprintf("%s/variants/%d", union.ID, later)
+	if union.Exclusive {
 		return diag(ir.SeverityWarning, "pass/exclusive-union-repeated-variant",
 			fmt.Sprintf("variants %d and %d of union %s both name %s, so a value of it matches both, "+
-				"and the union, which admits a value only one variant matches, refuses it", earlier, later, u.ID, target),
+				"and the union, which admits a value only one variant matches, refuses it", earlier, later, union.ID, target),
 			at)
 	}
 	return diag(ir.SeverityInfo, "pass/inclusive-union-redundant-variant",
 		fmt.Sprintf("variants %d and %d of union %s both name %s, so neither admits a value the other does not, "+
-			"null aside", earlier, later, u.ID, target),
+			"null aside", earlier, later, union.ID, target),
 		at)
 }

@@ -71,9 +71,9 @@ var suiteSkips = map[string]suiteSkip{
 // comparison skips by type and so reaches wherever the document holds one,
 // map values included.
 func diffIgnoringOrigin(want, got *ir.Document) string {
-	w, g := *want, *got
-	w.Sources, w.Diagnostics, g.Sources, g.Diagnostics = nil, nil, nil, nil
-	return cmp.Diff(&w, &g, cmpopts.IgnoreTypes(ir.Provenance{}))
+	document, irDocument := *want, *got
+	document.Sources, document.Diagnostics, irDocument.Sources, irDocument.Diagnostics = nil, nil, nil, nil
+	return cmp.Diff(&document, &irDocument, cmpopts.IgnoreTypes(ir.Provenance{}))
 }
 
 // readFile returns the text of the file at path.

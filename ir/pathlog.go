@@ -59,10 +59,10 @@ func (l *PathLog) All() iter.Seq2[int, WalkPath] {
 	return func(yield func(int, WalkPath) bool) {
 		replay := &valueWalk{}
 		start := 0
-		for i, e := range l.entries {
-			replay.root = e.root
-			replay.steps = append(replay.steps[:e.shared], l.tails[start:e.end]...)
-			start = e.end
+		for i, loggedPath := range l.entries {
+			replay.root = loggedPath.root
+			replay.steps = append(replay.steps[:loggedPath.shared], l.tails[start:loggedPath.end]...)
+			start = loggedPath.end
 			if !yield(i, WalkPath{walk: replay, depth: len(replay.steps)}) {
 				return
 			}

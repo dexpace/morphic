@@ -43,9 +43,9 @@ func compileVerifiedOnDisk(t *testing.T, dir, root string) (*ir.Document, []ir.D
 // opts, nil for the defaults.
 func runVerified(t *testing.T, src compilers.Source, opts any) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	e, err := engine.New()
+	compileEngine, err := engine.New()
 	require.NoError(t, err)
-	res, err := e.RunSpec(t.Context(), src, engine.RunOptions{Verify: true, FormatOptions: opts})
+	res, err := compileEngine.RunSpec(t.Context(), src, engine.RunOptions{Verify: true, FormatOptions: opts})
 	require.NoError(t, err, "the run must verify: every stage's document holds the IR's invariants")
 	require.NotNil(t, res.Document)
 	return res.Document, res.Diagnostics
@@ -64,8 +64,8 @@ func corpusFile(t *testing.T, name string) string {
 // the order the lowerings report in.
 func findings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Severity, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Severity, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -83,9 +83,9 @@ func tree(t *testing.T, v any) any {
 	return out
 }
 
-// at follows path from v through maps by key and slices by index, and returns
-// nil where the path leaves the value.
-func at(v any, path ...string) any {
+// valueAtPath follows path from v through maps by key and slices by index, and
+// returns nil where the path leaves the value.
+func valueAtPath(v any, path ...string) any {
 	for _, step := range path {
 		switch x := v.(type) {
 		case map[string]any:
@@ -109,7 +109,7 @@ func keptValues(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "value")
+		out[key] = valueAtPath(entry, "value")
 	}
 	return out
 }
@@ -119,7 +119,7 @@ func keptReasons(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "reason")
+		out[key] = valueAtPath(entry, "reason")
 	}
 	return out
 }
@@ -130,7 +130,7 @@ func keptPointers(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "provenance", "pointer")
+		out[key] = valueAtPath(entry, "provenance", "pointer")
 	}
 	return out
 }
@@ -141,7 +141,7 @@ func namedItem(t *testing.T, list any, name string) any {
 	t.Helper()
 	items, _ := list.([]any)
 	for _, item := range items {
-		if at(item, "name", "source") == name || at(item, "wireName") == name {
+		if valueAtPath(item, "name", "source") == name || valueAtPath(item, "wireName") == name {
 			return item
 		}
 	}
@@ -149,12 +149,12 @@ func namedItem(t *testing.T, list any, name string) any {
 	return nil
 }
 
-// opTree returns the operation whose operationId is source, as its JSON.
-func opTree(t *testing.T, doc *ir.Document, source string) any {
+// operationTree returns the operation whose operationId is source, as its JSON.
+func operationTree(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	op, ok := opByName(doc, source)
+	operation, ok := operationByName(doc, source)
 	require.True(t, ok, "operation %q", source)
-	return tree(t, op)
+	return tree(t, operation)
 }
 
 // groupTree returns the operation group with the ID id, as its JSON, found
@@ -163,19 +163,19 @@ func groupTree(t *testing.T, doc *ir.Document, id string) (any, bool) {
 	t.Helper()
 	var find func(groups []ir.OperationGroup) (ir.OperationGroup, bool)
 	find = func(groups []ir.OperationGroup) (ir.OperationGroup, bool) {
-		for _, g := range groups {
-			if string(g.ID) == id {
-				return g, true
+		for _, operationGroup := range groups {
+			if string(operationGroup.ID) == id {
+				return operationGroup, true
 			}
-			if got, ok := find(g.Groups); ok {
+			if got, ok := find(operationGroup.Groups); ok {
 				return got, true
 			}
 		}
 		return ir.OperationGroup{}, false
 	}
 	for _, svc := range doc.Services {
-		if g, ok := find(svc.Groups); ok {
-			return tree(t, g), true
+		if operationGroup, ok := find(svc.Groups); ok {
+			return tree(t, operationGroup), true
 		}
 	}
 	return nil, false

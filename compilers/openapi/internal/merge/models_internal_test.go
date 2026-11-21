@@ -20,72 +20,72 @@ import (
 // one way each. Every model names a nested object, so a copy's nested node is
 // compared as a copy too.
 func alikeRegistry() map[ir.TypeID]ir.TypeDef {
-	str := primRef(ir.PrimString)
+	stringType := primitiveRef(ir.PrimitiveString)
 	reg := narrowingRegistry()
 	owner := func(id ir.TypeID, at jsontext.Pointer, anonymous bool, name ir.TypeRef, addr ir.TypeID) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
 			Properties: []ir.Property{
-				{ID: ir.PropID("p" + at + "/name"), WireName: "name", Type: name},
-				{ID: ir.PropID("p" + at + "/addr"), WireName: "addr", Type: ref(addr)},
+				{ID: ir.PropertyID("property" + at + "/name"), WireName: "name", Type: name},
+				{ID: ir.PropertyID("property" + at + "/addr"), WireName: "addr", Type: ref(addr)},
 			}}
 	}
 	addr := func(id ir.TypeID, at jsontext.Pointer, anonymous bool) *ir.Model {
 		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
-			Properties: []ir.Property{{ID: ir.PropID("p" + at + "/street"), WireName: "street", Type: str}}}
+			Properties: []ir.Property{{ID: ir.PropertyID("property" + at + "/street"), WireName: "street", Type: stringType}}}
 	}
-	for _, m := range []*ir.Model{
-		owner("t/Owner", "/components/schemas/Owner", false, str, "t/Owner/addr"),
-		addr("t/Owner/addr", "/components/schemas/Owner/properties/addr", true),
-		owner("t/Twin", "/components/schemas/Twin", false, str, "t/Twin/addr"),
-		addr("t/Twin/addr", "/components/schemas/Twin/properties/addr", true),
-		addr("t/Addr", "/components/schemas/Addr", false),
-		owner("t/Home", "/components/schemas/Home", false, str, "t/Addr"),
-		owner("t/House", "/components/schemas/House", false, str, "t/Addr"),
-		owner("t/copy0", declaredAt(0), true, str, "t/copy0/addr"),
-		addr("t/copy0/addr", declaredAt(0)+"/properties/addr", true),
-		owner("t/copy1", declaredAt(1), true, str, "t/copy1/addr"),
-		addr("t/copy1/addr", declaredAt(1)+"/properties/addr", true),
-		owner("t/copy1-addr", declaredAt(1), true, str, "t/Addr"),
-		owner("t/copy1-uuid", declaredAt(1), true, primRef(ir.PrimUUID), "t/copy1/addr"),
-		owner("t/copy1-int", declaredAt(1), true, primRef(ir.PrimInteger), "t/copy1/addr"),
+	for _, model := range []*ir.Model{
+		owner("type/Owner", "/components/schemas/Owner", false, stringType, "type/Owner/addr"),
+		addr("type/Owner/addr", "/components/schemas/Owner/properties/addr", true),
+		owner("type/Twin", "/components/schemas/Twin", false, stringType, "type/Twin/addr"),
+		addr("type/Twin/addr", "/components/schemas/Twin/properties/addr", true),
+		addr("type/Addr", "/components/schemas/Addr", false),
+		owner("type/Home", "/components/schemas/Home", false, stringType, "type/Addr"),
+		owner("type/House", "/components/schemas/House", false, stringType, "type/Addr"),
+		owner("type/copy0", declaredAt(0), true, stringType, "type/copy0/addr"),
+		addr("type/copy0/addr", declaredAt(0)+"/properties/addr", true),
+		owner("type/copy1", declaredAt(1), true, stringType, "type/copy1/addr"),
+		addr("type/copy1/addr", declaredAt(1)+"/properties/addr", true),
+		owner("type/copy1-addr", declaredAt(1), true, stringType, "type/Addr"),
+		owner("type/copy1-uuid", declaredAt(1), true, primitiveRef(ir.PrimitiveUUID), "type/copy1/addr"),
+		owner("type/copy1-int", declaredAt(1), true, primitiveRef(ir.PrimitiveInteger), "type/copy1/addr"),
 	} {
-		reg[m.ID] = m
+		reg[model.ID] = model
 	}
-	more := *reg["t/copy1"].(*ir.Model)
-	more.Properties = append(slices.Clone(more.Properties), ir.Property{WireName: "more", Type: str})
-	reg["t/copy1-more"] = &more
-	required := *reg["t/copy1"].(*ir.Model)
+	more := *reg["type/copy1"].(*ir.Model)
+	more.Properties = append(slices.Clone(more.Properties), ir.Property{WireName: "more", Type: stringType})
+	reg["type/copy1-more"] = &more
+	required := *reg["type/copy1"].(*ir.Model)
 	required.Properties = slices.Clone(required.Properties)
 	required.Properties[0].Required = true
-	reg["t/copy1-required"] = &required
-	for n, id := range []ir.TypeID{"t/copy0-tagged", "t/copy1-tagged"} {
-		m := *reg[ir.TypeID(fmt.Sprintf("t/copy%d", n))].(*ir.Model)
-		m.Discriminator = &ir.Discriminator{Property: m.Properties[0].ID}
-		reg[id] = &m
+	reg["type/copy1-required"] = &required
+	for n, id := range []ir.TypeID{"type/copy0-tagged", "type/copy1-tagged"} {
+		model := *reg[ir.TypeID(fmt.Sprintf("type/copy%d", n))].(*ir.Model)
+		model.Discriminator = &ir.Discriminator{Property: model.Properties[0].ID}
+		reg[id] = &model
 	}
-	for n, id := range []ir.TypeID{"t/copy0-ref", "t/copy1-ref"} {
-		m := *reg[ir.TypeID(fmt.Sprintf("t/copy%d", n))].(*ir.Model)
-		m.Properties = slices.Clone(m.Properties)
-		m.Properties[0].Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"#n"}`)}}
-		reg[id] = &m
+	for n, id := range []ir.TypeID{"type/copy0-ref", "type/copy1-ref"} {
+		model := *reg[ir.TypeID(fmt.Sprintf("type/copy%d", n))].(*ir.Model)
+		model.Properties = slices.Clone(model.Properties)
+		model.Properties[0].Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"#n"}`)}}
+		reg[id] = &model
 	}
-	for n, id := range []ir.TypeID{"t/copy0-open", "t/copy1-open", "t/copy1-open-other"} {
-		m := *reg[ir.TypeID(fmt.Sprintf("t/copy%d", min(n, 1)))].(*ir.Model)
-		value := ref(ir.TypeID(fmt.Sprintf("t/copy%d/addr", min(n, 1))))
+	for n, id := range []ir.TypeID{"type/copy0-open", "type/copy1-open", "type/copy1-open-other"} {
+		model := *reg[ir.TypeID(fmt.Sprintf("type/copy%d", min(n, 1)))].(*ir.Model)
+		value := ref(ir.TypeID(fmt.Sprintf("type/copy%d/addr", min(n, 1))))
 		if n == 2 {
-			value = primRef(ir.PrimInteger)
+			value = primitiveRef(ir.PrimitiveInteger)
 		}
-		m.AdditionalProps = &ir.AdditionalProps{Value: &value, Key: new(primRef(ir.PrimString)),
-			Patterns: []ir.PatternProps{{Pattern: "^x", Value: primRef(ir.PrimString)}}}
-		m.Implements, m.Base = []ir.TypeRef{ref("t/Addr")}, new(ref("t/Addr"))
-		reg[id] = &m
+		model.AdditionalProperties = &ir.AdditionalProperties{Value: &value, Key: new(primitiveRef(ir.PrimitiveString)),
+			Patterns: []ir.PatternProperties{{Pattern: "^x", Value: primitiveRef(ir.PrimitiveString)}}}
+		model.Implements, model.Base = []ir.TypeRef{ref("type/Addr")}, new(ref("type/Addr"))
+		reg[id] = &model
 	}
-	byAddr := *reg["t/copy1"].(*ir.Model)
+	byAddr := *reg["type/copy1"].(*ir.Model)
 	byAddr.Discriminator = &ir.Discriminator{Property: byAddr.Properties[1].ID}
-	reg["t/copy1-tagged-addr"] = &byAddr
-	stray := *reg["t/copy1"].(*ir.Model)
-	stray.Discriminator = &ir.Discriminator{Property: "p/elsewhere"}
-	reg["t/copy1-stray-tag"] = &stray
+	reg["type/copy1-tagged-addr"] = &byAddr
+	stray := *reg["type/copy1"].(*ir.Model)
+	stray.Discriminator = &ir.Discriminator{Property: "property/elsewhere"}
+	reg["type/copy1-stray-tag"] = &stray
 	return reg
 }
 
@@ -104,31 +104,31 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		a, b ir.TypeID
 		want relation
 	}{
-		{"a component, then an inline copy", "t/Owner", "t/copy1", relANarrower},
-		{"an inline copy, then a component", "t/copy0", "t/Owner", relBNarrower},
-		{"two inline copies", "t/copy0", "t/copy1", relSame},
-		{"two components alike, naming one nested type", "t/Home", "t/House", relOverlap},
-		{"two components alike, each nesting its own object", "t/Owner", "t/Twin", relUnrelated},
-		{"a copy naming a component where the other names a copy", "t/copy0", "t/copy1-addr", relUnrelated},
-		{"a copy with one more property", "t/copy0", "t/copy1-more", relUnrelated},
-		{"a copy requiring a property the other does not", "t/copy0", "t/copy1-required", relUnrelated},
-		{"a copy whose member is narrower", "t/copy0", "t/copy1-uuid", relUnrelated},
-		{"a component whose member is broader than a copy's", "t/Owner", "t/copy1-uuid", relUnrelated},
-		{"a copy whose member is disjoint", "t/copy0", "t/copy1-int", relUnrelated},
-		{"two copies tagged by the same property", "t/copy0-tagged", "t/copy1-tagged", relSame},
-		{"a tag naming no property of its model", "t/copy0", "t/copy1-stray-tag", relUnrelated},
-		{"two copies tagged by different properties", "t/copy0-tagged", "t/copy1-tagged-addr", relUnrelated},
-		{"two copies with one catch-all and composition", "t/copy0-open", "t/copy1-open", relSame},
-		{"two copies whose catch-alls differ", "t/copy0-open", "t/copy1-open-other", relUnrelated},
+		{"a component, then an inline copy", "type/Owner", "type/copy1", firstTypeIsNarrower},
+		{"an inline copy, then a component", "type/copy0", "type/Owner", secondTypeIsNarrower},
+		{"two inline copies", "type/copy0", "type/copy1", relSame},
+		{"two components alike, naming one nested type", "type/Home", "type/House", relOverlap},
+		{"two components alike, each nesting its own object", "type/Owner", "type/Twin", relUnrelated},
+		{"a copy naming a component where the other names a copy", "type/copy0", "type/copy1-addr", relUnrelated},
+		{"a copy with one more property", "type/copy0", "type/copy1-more", relUnrelated},
+		{"a copy requiring a property the other does not", "type/copy0", "type/copy1-required", relUnrelated},
+		{"a copy whose member is narrower", "type/copy0", "type/copy1-uuid", relUnrelated},
+		{"a component whose member is broader than a copy's", "type/Owner", "type/copy1-uuid", relUnrelated},
+		{"a copy whose member is disjoint", "type/copy0", "type/copy1-int", relUnrelated},
+		{"two copies tagged by the same property", "type/copy0-tagged", "type/copy1-tagged", relSame},
+		{"a tag naming no property of its model", "type/copy0", "type/copy1-stray-tag", relUnrelated},
+		{"two copies tagged by different properties", "type/copy0-tagged", "type/copy1-tagged-addr", relUnrelated},
+		{"two copies with one catch-all and composition", "type/copy0-open", "type/copy1-open", relSame},
+		{"two copies whose catch-alls differ", "type/copy0-open", "type/copy1-open-other", relUnrelated},
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-			j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+			typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
 				walk: &stubWalk{}, written: [2][]ir.Provenance{sitesAt(declaredAt(i)), sitesAt(declaredAt(1 - i))}}}
 			want := tc.want
 			if i == 1 {
 				want = want.flipped()
 			}
-			assert.Equal(t, want, j.relate(ref(order[0]), ref(order[1])), "%s (order %d)", tc.name, i)
+			assert.Equal(t, want, typeJudgeValue.relate(ref(order[0]), ref(order[1])), "%s (order %d)", tc.name, i)
 		}
 	}
 }
@@ -147,9 +147,9 @@ func TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase(t *testing.T) {
 		{false, relSame},
 		{true, relUnrelated},
 	} {
-		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+		typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
 			walk: &stubWalk{apart: tc.apart}, written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}}}
-		assert.Equal(t, tc.want, j.relate(ref("t/copy0-ref"), ref("t/copy1-ref")))
+		assert.Equal(t, tc.want, typeJudgeValue.relate(ref("type/copy0-ref"), ref("type/copy1-ref")))
 	}
 }
 
@@ -164,19 +164,19 @@ func TestFold_ModelsAlikeAreOneType(t *testing.T) {
 		targets []ir.TypeID
 		want    ir.TypeID
 	}{
-		{"a component, then a copy", []ir.TypeID{"t/Owner", "t/copy1"}, "t/Owner"},
-		{"a copy, then a component", []ir.TypeID{"t/copy0", "t/Owner"}, "t/Owner"},
-		{"two copies", []ir.TypeID{"t/copy0", "t/copy1"}, "t/copy0"},
-		{"two components", []ir.TypeID{"t/Owner", "t/Twin"}, composedAt(declaredAt(1))},
+		{"a component, then a copy", []ir.TypeID{"type/Owner", "type/copy1"}, "type/Owner"},
+		{"a copy, then a component", []ir.TypeID{"type/copy0", "type/Owner"}, "type/Owner"},
+		{"two copies", []ir.TypeID{"type/copy0", "type/copy1"}, "type/copy0"},
+		{"two components", []ir.TypeID{"type/Owner", "type/Twin"}, composedAt(declaredAt(1))},
 	} {
 		reg := alikeRegistry()
-		g, recorded := stubMerger(reg)
+		stubbed, recorded := stubMerger(reg)
 		decls := declsOf(tc.targets...)
 		for i := range decls {
 			decls[i].source = unread(t)
 		}
 
-		got := g.fold(decls)
+		got := stubbed.fold(decls)
 
 		assert.Equal(t, tc.want, got.Type.Target, tc.name)
 		assert.Empty(t, *recorded, tc.name)
@@ -190,27 +190,27 @@ func TestFold_ModelsAlikeAreOneType(t *testing.T) {
 func TestTypeJudge_ModelPairsStopAtTheirBudget(t *testing.T) {
 	t.Parallel()
 	for _, nested := range []int{maxModelPairs - 1, maxModelPairs} {
-		reg := map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}}
+		reg := map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}}
 		for n := range 2 {
-			outer := &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/%d", n)), Anonymous: true,
+			outer := &ir.Model{ID: ir.TypeID(fmt.Sprintf("type/%d", n)), Anonymous: true,
 				Provenance: ptrAt(declaredAt(n))}
 			for k := range nested {
 				at := declaredAt(n) + jsontext.Pointer(fmt.Sprintf("/properties/f%d", k))
-				id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, k))
+				id := ir.TypeID(fmt.Sprintf("type/%d/%d", n, k))
 				reg[id] = &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(at),
-					Properties: []ir.Property{{WireName: "x", Type: primRef(ir.PrimString)}}}
+					Properties: []ir.Property{{WireName: "x", Type: primitiveRef(ir.PrimitiveString)}}}
 				outer.Properties = append(outer.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: ref(id)})
 			}
 			reg[outer.ID] = outer
 		}
-		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+		typeJudgeValue := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
 			walk: &stubWalk{}, written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}}}
 
 		want := relSame
 		if nested == maxModelPairs {
 			want = relUnrelated
 		}
-		assert.Equal(t, want, j.relate(ref("t/0"), ref("t/1")), "%d nested pairs", nested)
+		assert.Equal(t, want, typeJudgeValue.relate(ref("type/0"), ref("type/1")), "%d nested pairs", nested)
 	}
 }
 
@@ -224,19 +224,19 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 	reg := map[ir.TypeID]ir.TypeDef{}
 	for n := range 2 {
 		for level := range depth {
-			id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, level))
-			next := ref(ir.TypeID(fmt.Sprintf("t/%d/%d", n, level+1)))
-			m := &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n))}
+			id := ir.TypeID(fmt.Sprintf("type/%d/%d", n, level))
+			next := ref(ir.TypeID(fmt.Sprintf("type/%d/%d", n, level+1)))
+			model := &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n))}
 			for k := range width {
-				m.Properties = append(m.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: next})
+				model.Properties = append(model.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: next})
 			}
-			reg[id] = m
+			reg[id] = model
 		}
-		leaf := ir.TypeID(fmt.Sprintf("t/%d/%d", n, depth))
-		reg[leaf] = &ir.Primitive{ID: leaf, Prim: ir.PrimString}
+		leaf := ir.TypeID(fmt.Sprintf("type/%d/%d", n, depth))
+		reg[leaf] = &ir.Primitive{ID: leaf, PrimitiveKind: ir.PrimitiveString}
 	}
 	reads := 0
-	j := typeJudge{
+	typeJudgeValue := typeJudge{
 		resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			reads++
 			td, ok := reg[id]
@@ -245,7 +245,7 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 		sites: declarationSites{written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}, walk: &stubWalk{}},
 	}
 
-	rel := j.relate(ref("t/0/0"), ref("t/1/0"))
+	rel := typeJudgeValue.relate(ref("type/0/0"), ref("type/1/0"))
 
 	require.Equal(t, relUnrelated, rel, "past the budget the two are unrelated")
 	assert.LessOrEqual(t, reads, 4*maxModelPairs*width, "the reads grow with the budget, not with the width to the depth")

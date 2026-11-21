@@ -42,15 +42,15 @@ func TestDescribe_HoldsItsBounds(t *testing.T) {
 
 	t.Chdir(dir)
 	t.Setenv("GOWORK", "off")
-	p, err := decls.Load(".")
+	loadedPackage, err := decls.Load(".")
 	require.NoError(t, err)
 
 	for _, root := range []string{"Within0", "Shallow"} {
-		_, err := jsonshape.Describe(p, root)
+		_, err := jsonshape.Describe(loadedPackage, root)
 		assert.NoError(t, err, root)
 	}
-	_, err = jsonshape.Describe(p, "Beyond0")
+	_, err = jsonshape.Describe(loadedPackage, "Beyond0")
 	assert.ErrorContains(t, err, fmt.Sprintf("Beyond0 reaches more than %d types", jsonshape.MaxTypes))
-	_, err = jsonshape.Describe(p, "Deep")
+	_, err = jsonshape.Describe(loadedPackage, "Deep")
 	assert.ErrorContains(t, err, fmt.Sprintf("Deep: field D: a type nests more than %d deep", jsonshape.MaxDepth))
 }

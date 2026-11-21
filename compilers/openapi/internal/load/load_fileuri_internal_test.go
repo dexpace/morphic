@@ -85,10 +85,10 @@ func TestLoad_AFileURIIsRefusedWithItsReason(t *testing.T) {
 }
 
 // TestLoad_AFileURIAndAPathAreOneDocument pins the identity a file URI has: the
-// file its path names (resolve.Places.FileOf), as the reader reads it, so a
-// file a $ref names by a file URI, another by its path and a third through a
-// dot segment is one document, read and charged once, in either order. Under a
-// budget of one, all three resolve; under none, none is read.
+// file its path names (componentlookup.Places.FileOf), as the reader reads it,
+// so a file a $ref names by a file URI, another by its path and a third through
+// a dot segment is one document, read and charged once, in either order. Under
+// a budget of one, all three resolve; under none, none is read.
 func TestLoad_AFileURIAndAPathAreOneDocument(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"a.yaml": "x: {description: ok}\n"})

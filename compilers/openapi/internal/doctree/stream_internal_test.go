@@ -45,14 +45,14 @@ func TestHoldsContent_ReadsOnlyAWellFormedDocument(t *testing.T) {
 func TestContextReader_FailsOnceTheContextIsDone(t *testing.T) {
 	t.Parallel()
 	under := strings.NewReader("abcdef")
-	r := contextReader{ctx: &ctxtest.Countdown{Context: t.Context(), Left: 1}, r: under}
+	contextReaderValue := contextReader{ctx: &ctxtest.Countdown{Context: t.Context(), Left: 1}, r: under}
 	buf := make([]byte, 3)
 
-	n, err := r.Read(buf)
+	n, err := contextReaderValue.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "abc", string(buf[:n]))
 
-	n, err = r.Read(buf)
+	n, err = contextReaderValue.Read(buf)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Zero(t, n)
 	assert.Equal(t, 3, under.Len(), "nothing more was read")
@@ -64,9 +64,9 @@ func TestContextReader_FailsOnceTheContextIsDone(t *testing.T) {
 func TestContextReader_ReadsAStreamWholeThroughALiveContext(t *testing.T) {
 	t.Parallel()
 	const text = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
-	r := contextReader{ctx: t.Context(), r: strings.NewReader(text)}
+	contextReaderValue := contextReader{ctx: t.Context(), r: strings.NewReader(text)}
 
-	got, err := io.ReadAll(r)
+	got, err := io.ReadAll(contextReaderValue)
 
 	require.NoError(t, err)
 	assert.Equal(t, text, string(got))

@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Discriminators read off pinned tags",
         "canonical": "discriminators_read_off_pinned_tags"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Calculation/oneOf/0": {
+    "type/anonymous/components/schemas/Calculation/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Calculation/oneOf/0",
+      "id": "type/anonymous/components/schemas/Calculation/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Calculation/oneOf/0/properties/operator",
+          "id": "property/openapi/components/schemas/Calculation/oneOf/0/properties/operator",
           "name": {
             "source": "operator",
             "canonical": "operator"
           },
           "wireName": "operator",
           "type": {
-            "target": "t/anon/components/schemas/Calculation/oneOf/0/properties/operator",
+            "target": "type/anonymous/components/schemas/Calculation/oneOf/0/properties/operator",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -105,9 +105,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Calculation/oneOf/0/properties/operator": {
+    "type/anonymous/components/schemas/Calculation/oneOf/0/properties/operator": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Calculation/oneOf/0/properties/operator",
+      "id": "type/anonymous/components/schemas/Calculation/oneOf/0/properties/operator",
       "name": {
         "hint": "operator"
       },
@@ -121,26 +121,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Calculation/oneOf/0/properties/operator/s:count",
+          "id": "enum-member/anonymous/components/schemas/Calculation/oneOf/0/properties/operator/string:count",
           "name": {
             "source": "count",
             "canonical": "count"
           },
           "value": {
             "kind": "string",
-            "str": "count"
+            "string": "count"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Calculation/oneOf/0/properties/operator/s:COUNT",
+          "id": "enum-member/anonymous/components/schemas/Calculation/oneOf/0/properties/operator/string:COUNT",
           "name": {
             "source": "COUNT",
             "canonical": "count"
           },
           "value": {
             "kind": "string",
-            "str": "COUNT"
+            "string": "COUNT"
           },
           "docs": {}
         }
@@ -148,9 +148,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Calculation/oneOf/1": {
+    "type/anonymous/components/schemas/Calculation/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Calculation/oneOf/1",
+      "id": "type/anonymous/components/schemas/Calculation/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -163,21 +163,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Calculation/oneOf/1/properties/operator",
+          "id": "property/openapi/components/schemas/Calculation/oneOf/1/properties/operator",
           "name": {
             "source": "operator",
             "canonical": "operator"
           },
           "wireName": "operator",
           "type": {
-            "target": "t/anon/components/schemas/Calculation/oneOf/1/properties/operator",
+            "target": "type/anonymous/components/schemas/Calculation/oneOf/1/properties/operator",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -190,21 +190,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Calculation/oneOf/1/properties/key",
+          "id": "property/openapi/components/schemas/Calculation/oneOf/1/properties/key",
           "name": {
             "source": "key",
             "canonical": "key"
           },
           "wireName": "key",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -221,9 +221,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Calculation/oneOf/1/properties/operator": {
+    "type/anonymous/components/schemas/Calculation/oneOf/1/properties/operator": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Calculation/oneOf/1/properties/operator",
+      "id": "type/anonymous/components/schemas/Calculation/oneOf/1/properties/operator",
       "name": {
         "hint": "operator"
       },
@@ -237,26 +237,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Calculation/oneOf/1/properties/operator/s:min",
+          "id": "enum-member/anonymous/components/schemas/Calculation/oneOf/1/properties/operator/string:min",
           "name": {
             "source": "min",
             "canonical": "min"
           },
           "value": {
             "kind": "string",
-            "str": "min"
+            "string": "min"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Calculation/oneOf/1/properties/operator/s:max",
+          "id": "enum-member/anonymous/components/schemas/Calculation/oneOf/1/properties/operator/string:max",
           "name": {
             "source": "max",
             "canonical": "max"
           },
           "value": {
             "kind": "string",
-            "str": "max"
+            "string": "max"
           },
           "docs": {}
         }
@@ -264,9 +264,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Circle/allOf/1/properties/kind": {
+    "type/anonymous/components/schemas/Circle/allOf/1/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
+      "id": "type/anonymous/components/schemas/Circle/allOf/1/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -279,13 +279,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "circle"
+        "string": "circle"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Coded/oneOf/0": {
+    "type/anonymous/components/schemas/Coded/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Coded/oneOf/0",
+      "id": "type/anonymous/components/schemas/Coded/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -298,21 +298,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Coded/oneOf/0/properties/code",
+          "id": "property/openapi/components/schemas/Coded/oneOf/0/properties/code",
           "name": {
             "source": "code",
             "canonical": "code"
           },
           "wireName": "code",
           "type": {
-            "target": "t/anon/components/schemas/Coded/oneOf/0/properties/code",
+            "target": "type/anonymous/components/schemas/Coded/oneOf/0/properties/code",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -329,9 +329,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Coded/oneOf/0/properties/code": {
+    "type/anonymous/components/schemas/Coded/oneOf/0/properties/code": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Coded/oneOf/0/properties/code",
+      "id": "type/anonymous/components/schemas/Coded/oneOf/0/properties/code",
       "name": {
         "hint": "code"
       },
@@ -345,14 +345,14 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/anon/components/schemas/Coded/oneOf/0/properties/code/n:7.106e3",
+          "id": "enum-member/anonymous/components/schemas/Coded/oneOf/0/properties/code/number:7.106e3",
           "name": {
             "source": "7106",
             "canonical": "7106"
           },
           "value": {
             "kind": "number",
-            "num": "7106"
+            "number": "7106"
           },
           "docs": {}
         }
@@ -360,9 +360,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Coded/oneOf/1": {
+    "type/anonymous/components/schemas/Coded/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Coded/oneOf/1",
+      "id": "type/anonymous/components/schemas/Coded/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -375,21 +375,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Coded/oneOf/1/properties/code",
+          "id": "property/openapi/components/schemas/Coded/oneOf/1/properties/code",
           "name": {
             "source": "code",
             "canonical": "code"
           },
           "wireName": "code",
           "type": {
-            "target": "t/anon/components/schemas/Coded/oneOf/1/properties/code",
+            "target": "type/anonymous/components/schemas/Coded/oneOf/1/properties/code",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -406,9 +406,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Coded/oneOf/1/properties/code": {
+    "type/anonymous/components/schemas/Coded/oneOf/1/properties/code": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Coded/oneOf/1/properties/code",
+      "id": "type/anonymous/components/schemas/Coded/oneOf/1/properties/code",
       "name": {
         "hint": "code"
       },
@@ -422,14 +422,14 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/anon/components/schemas/Coded/oneOf/1/properties/code/n:7.109e3",
+          "id": "enum-member/anonymous/components/schemas/Coded/oneOf/1/properties/code/number:7.109e3",
           "name": {
             "source": "7109",
             "canonical": "7109"
           },
           "value": {
             "kind": "number",
-            "num": "7109"
+            "number": "7109"
           },
           "docs": {}
         }
@@ -437,9 +437,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/JsonFormat/properties/type": {
+    "type/anonymous/components/schemas/JsonFormat/properties/type": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/JsonFormat/properties/type",
+      "id": "type/anonymous/components/schemas/JsonFormat/properties/type",
       "name": {
         "hint": "type"
       },
@@ -453,14 +453,14 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/JsonFormat/properties/type/s:json",
+          "id": "enum-member/anonymous/components/schemas/JsonFormat/properties/type/string:json",
           "name": {
             "source": "json",
             "canonical": "json"
           },
           "value": {
             "kind": "string",
-            "str": "json"
+            "string": "json"
           },
           "docs": {}
         }
@@ -468,9 +468,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Operation/oneOf/0": {
+    "type/anonymous/components/schemas/Operation/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Operation/oneOf/0",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -483,21 +483,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Operation/oneOf/0/properties/status",
+          "id": "property/openapi/components/schemas/Operation/oneOf/0/properties/status",
           "name": {
             "source": "status",
             "canonical": "status"
           },
           "wireName": "status",
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -514,9 +514,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Operation/oneOf/0/properties/status": {
+    "type/anonymous/components/schemas/Operation/oneOf/0/properties/status": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status",
       "name": {
         "hint": "status"
       },
@@ -533,7 +533,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -543,7 +543,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -554,9 +554,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0": {
+    "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -569,13 +569,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "pending"
+        "string": "pending"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1": {
+    "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/1": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -588,13 +588,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "running"
+        "string": "running"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Operation/oneOf/1": {
+    "type/anonymous/components/schemas/Operation/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Operation/oneOf/1",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -607,21 +607,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Operation/oneOf/1/properties/status",
+          "id": "property/openapi/components/schemas/Operation/oneOf/1/properties/status",
           "name": {
             "source": "status",
             "canonical": "status"
           },
           "wireName": "status",
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/1/properties/status",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/1/properties/status",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -638,9 +638,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Operation/oneOf/1/properties/status": {
+    "type/anonymous/components/schemas/Operation/oneOf/1/properties/status": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Operation/oneOf/1/properties/status",
+      "id": "type/anonymous/components/schemas/Operation/oneOf/1/properties/status",
       "name": {
         "hint": "status"
       },
@@ -653,13 +653,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "completed"
+        "string": "completed"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Optional/oneOf/0": {
+    "type/anonymous/components/schemas/Optional/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Optional/oneOf/0",
+      "id": "type/anonymous/components/schemas/Optional/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -672,21 +672,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Optional/oneOf/0/properties/kind",
+          "id": "property/openapi/components/schemas/Optional/oneOf/0/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Optional/oneOf/0/properties/kind",
+            "target": "type/anonymous/components/schemas/Optional/oneOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -703,9 +703,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Optional/oneOf/0/properties/kind": {
+    "type/anonymous/components/schemas/Optional/oneOf/0/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Optional/oneOf/0/properties/kind",
+      "id": "type/anonymous/components/schemas/Optional/oneOf/0/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -718,13 +718,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "a"
+        "string": "a"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Optional/oneOf/1": {
+    "type/anonymous/components/schemas/Optional/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Optional/oneOf/1",
+      "id": "type/anonymous/components/schemas/Optional/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -737,21 +737,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Optional/oneOf/1/properties/kind",
+          "id": "property/openapi/components/schemas/Optional/oneOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Optional/oneOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/Optional/oneOf/1/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -768,9 +768,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Optional/oneOf/1/properties/kind": {
+    "type/anonymous/components/schemas/Optional/oneOf/1/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Optional/oneOf/1/properties/kind",
+      "id": "type/anonymous/components/schemas/Optional/oneOf/1/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -783,13 +783,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "b"
+        "string": "b"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Overlapping/oneOf/0": {
+    "type/anonymous/components/schemas/Overlapping/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Overlapping/oneOf/0",
+      "id": "type/anonymous/components/schemas/Overlapping/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -802,21 +802,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Overlapping/oneOf/0/properties/operator",
+          "id": "property/openapi/components/schemas/Overlapping/oneOf/0/properties/operator",
           "name": {
             "source": "operator",
             "canonical": "operator"
           },
           "wireName": "operator",
           "type": {
-            "target": "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator",
+            "target": "type/anonymous/components/schemas/Overlapping/oneOf/0/properties/operator",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -833,9 +833,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator": {
+    "type/anonymous/components/schemas/Overlapping/oneOf/0/properties/operator": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator",
+      "id": "type/anonymous/components/schemas/Overlapping/oneOf/0/properties/operator",
       "name": {
         "hint": "operator"
       },
@@ -849,26 +849,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Overlapping/oneOf/0/properties/operator/s:min",
+          "id": "enum-member/anonymous/components/schemas/Overlapping/oneOf/0/properties/operator/string:min",
           "name": {
             "source": "min",
             "canonical": "min"
           },
           "value": {
             "kind": "string",
-            "str": "min"
+            "string": "min"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Overlapping/oneOf/0/properties/operator/s:max",
+          "id": "enum-member/anonymous/components/schemas/Overlapping/oneOf/0/properties/operator/string:max",
           "name": {
             "source": "max",
             "canonical": "max"
           },
           "value": {
             "kind": "string",
-            "str": "max"
+            "string": "max"
           },
           "docs": {}
         }
@@ -876,9 +876,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Overlapping/oneOf/1": {
+    "type/anonymous/components/schemas/Overlapping/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Overlapping/oneOf/1",
+      "id": "type/anonymous/components/schemas/Overlapping/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -891,21 +891,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Overlapping/oneOf/1/properties/operator",
+          "id": "property/openapi/components/schemas/Overlapping/oneOf/1/properties/operator",
           "name": {
             "source": "operator",
             "canonical": "operator"
           },
           "wireName": "operator",
           "type": {
-            "target": "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator",
+            "target": "type/anonymous/components/schemas/Overlapping/oneOf/1/properties/operator",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -922,9 +922,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator": {
+    "type/anonymous/components/schemas/Overlapping/oneOf/1/properties/operator": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator",
+      "id": "type/anonymous/components/schemas/Overlapping/oneOf/1/properties/operator",
       "name": {
         "hint": "operator"
       },
@@ -938,26 +938,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Overlapping/oneOf/1/properties/operator/s:max",
+          "id": "enum-member/anonymous/components/schemas/Overlapping/oneOf/1/properties/operator/string:max",
           "name": {
             "source": "max",
             "canonical": "max"
           },
           "value": {
             "kind": "string",
-            "str": "max"
+            "string": "max"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/Overlapping/oneOf/1/properties/operator/s:sum",
+          "id": "enum-member/anonymous/components/schemas/Overlapping/oneOf/1/properties/operator/string:sum",
           "name": {
             "source": "sum",
             "canonical": "sum"
           },
           "value": {
             "kind": "string",
-            "str": "sum"
+            "string": "sum"
           },
           "docs": {}
         }
@@ -965,9 +965,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Sided/oneOf/0": {
+    "type/anonymous/components/schemas/Sided/oneOf/0": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Sided/oneOf/0",
+      "id": "type/anonymous/components/schemas/Sided/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -980,21 +980,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Sided/oneOf/0/properties/kind",
+          "id": "property/openapi/components/schemas/Sided/oneOf/0/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Sided/oneOf/0/properties/kind",
+            "target": "type/anonymous/components/schemas/Sided/oneOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1011,9 +1011,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Sided/oneOf/0/properties/kind": {
+    "type/anonymous/components/schemas/Sided/oneOf/0/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Sided/oneOf/0/properties/kind",
+      "id": "type/anonymous/components/schemas/Sided/oneOf/0/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -1026,13 +1026,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "triangle"
+        "string": "triangle"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Sided/oneOf/1": {
+    "type/anonymous/components/schemas/Sided/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Sided/oneOf/1",
+      "id": "type/anonymous/components/schemas/Sided/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -1045,21 +1045,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Sided/oneOf/1/properties/kind",
+          "id": "property/openapi/components/schemas/Sided/oneOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Sided/oneOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/Sided/oneOf/1/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1076,9 +1076,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Sided/oneOf/1/properties/kind": {
+    "type/anonymous/components/schemas/Sided/oneOf/1/properties/kind": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Sided/oneOf/1/properties/kind",
+      "id": "type/anonymous/components/schemas/Sided/oneOf/1/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -1091,13 +1091,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "hexagon"
+        "string": "hexagon"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/Square/allOf/1/properties/kind": {
+    "type/anonymous/components/schemas/Square/allOf/1/properties/kind": {
       "kind": "union",
-      "id": "t/anon/components/schemas/Square/allOf/1/properties/kind",
+      "id": "type/anonymous/components/schemas/Square/allOf/1/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -1114,7 +1114,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
+            "target": "type/anonymous/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1125,9 +1125,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0": {
+    "type/anonymous/components/schemas/Square/allOf/1/properties/kind/oneOf/0": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
+      "id": "type/anonymous/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
       "name": {
         "hint": "variant_0"
       },
@@ -1140,13 +1140,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "square"
+        "string": "square"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/TextFormat/properties/type": {
+    "type/anonymous/components/schemas/TextFormat/properties/type": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/TextFormat/properties/type",
+      "id": "type/anonymous/components/schemas/TextFormat/properties/type",
       "name": {
         "hint": "type"
       },
@@ -1159,13 +1159,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "text"
+        "string": "text"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/json/properties/type": {
+    "type/anonymous/components/schemas/json/properties/type": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/json/properties/type",
+      "id": "type/anonymous/components/schemas/json/properties/type",
       "name": {
         "hint": "type"
       },
@@ -1178,13 +1178,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "json"
+        "string": "json"
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/text/properties/type": {
+    "type/anonymous/components/schemas/text/properties/type": {
       "kind": "literal",
-      "id": "t/anon/components/schemas/text/properties/type",
+      "id": "type/anonymous/components/schemas/text/properties/type",
       "name": {
         "hint": "type"
       },
@@ -1197,13 +1197,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "text"
+        "string": "text"
       },
       "valueType": "string"
     },
-    "t/composed/components/schemas/Styled/oneOf/0": {
+    "type/composed/components/schemas/Styled/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Styled/oneOf/0",
+      "id": "type/composed/components/schemas/Styled/oneOf/0",
       "name": {
         "hint": "styled_json_format"
       },
@@ -1216,21 +1216,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Styled/oneOf/0/allOf/allOf/properties/type",
+          "id": "property/composed/components/schemas/Styled/oneOf/0/allOf/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/JsonFormat/properties/type",
+            "target": "type/anonymous/components/schemas/JsonFormat/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1243,21 +1243,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Styled/properties/indent",
+          "id": "property/openapi/components/schemas/Styled/properties/indent",
           "name": {
             "source": "indent",
             "canonical": "indent"
           },
           "wireName": "indent",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1271,16 +1271,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/JsonFormat",
+        "target": "type/openapi/components/schemas/JsonFormat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/Styled/oneOf/1": {
+    "type/composed/components/schemas/Styled/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Styled/oneOf/1",
+      "id": "type/composed/components/schemas/Styled/oneOf/1",
       "name": {
         "hint": "styled_text_format"
       },
@@ -1293,21 +1293,21 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Styled/oneOf/1/allOf/allOf/properties/type",
+          "id": "property/composed/components/schemas/Styled/oneOf/1/allOf/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/TextFormat/properties/type",
+            "target": "type/anonymous/components/schemas/TextFormat/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1320,21 +1320,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Styled/properties/indent",
+          "id": "property/openapi/components/schemas/Styled/properties/indent",
           "name": {
             "source": "indent",
             "canonical": "indent"
           },
           "wireName": "indent",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1348,16 +1348,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/TextFormat",
+        "target": "type/openapi/components/schemas/TextFormat",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Calculation": {
+    "type/openapi/components/schemas/Calculation": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Calculation",
+      "id": "type/openapi/components/schemas/Calculation",
       "name": {
         "source": "Calculation",
         "canonical": "calculation"
@@ -1376,7 +1376,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Calculation/oneOf/0",
+            "target": "type/anonymous/components/schemas/Calculation/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1386,7 +1386,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Calculation/oneOf/1",
+            "target": "type/anonymous/components/schemas/Calculation/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1397,19 +1397,19 @@
       "discriminator": {
         "propertyName": "operator",
         "mapping": {
-          "COUNT": "t/anon/components/schemas/Calculation/oneOf/0",
-          "count": "t/anon/components/schemas/Calculation/oneOf/0",
-          "max": "t/anon/components/schemas/Calculation/oneOf/1",
-          "min": "t/anon/components/schemas/Calculation/oneOf/1"
+          "COUNT": "type/anonymous/components/schemas/Calculation/oneOf/0",
+          "count": "type/anonymous/components/schemas/Calculation/oneOf/0",
+          "max": "type/anonymous/components/schemas/Calculation/oneOf/1",
+          "min": "type/anonymous/components/schemas/Calculation/oneOf/1"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Circle": {
+    "type/openapi/components/schemas/Circle": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Circle",
+      "id": "type/openapi/components/schemas/Circle",
       "name": {
         "source": "Circle",
         "canonical": "circle"
@@ -1424,21 +1424,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/kind",
+          "id": "property/openapi/components/schemas/Circle/allOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/Circle/allOf/1/properties/kind",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1451,21 +1451,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/radius",
+          "id": "property/openapi/components/schemas/Circle/allOf/1/properties/radius",
           "name": {
             "source": "radius",
             "canonical": "radius"
           },
           "wireName": "radius",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1479,7 +1479,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Shape",
+        "target": "type/openapi/components/schemas/Shape",
         "nullable": false
       },
       "abstract": false,
@@ -1487,9 +1487,9 @@
       "discriminatorValue": "circle",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Coded": {
+    "type/openapi/components/schemas/Coded": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Coded",
+      "id": "type/openapi/components/schemas/Coded",
       "name": {
         "source": "Coded",
         "canonical": "coded"
@@ -1507,7 +1507,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Coded/oneOf/0",
+            "target": "type/anonymous/components/schemas/Coded/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1517,7 +1517,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Coded/oneOf/1",
+            "target": "type/anonymous/components/schemas/Coded/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1528,9 +1528,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Format": {
+    "type/openapi/components/schemas/Format": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Format",
+      "id": "type/openapi/components/schemas/Format",
       "name": {
         "source": "Format",
         "canonical": "format"
@@ -1549,7 +1549,7 @@
             "hint": "json_format"
           },
           "type": {
-            "target": "t/openapi/components/schemas/JsonFormat",
+            "target": "type/openapi/components/schemas/JsonFormat",
             "nullable": false
           },
           "docs": {}
@@ -1559,7 +1559,7 @@
             "hint": "text_format"
           },
           "type": {
-            "target": "t/openapi/components/schemas/TextFormat",
+            "target": "type/openapi/components/schemas/TextFormat",
             "nullable": false
           },
           "docs": {}
@@ -1570,17 +1570,17 @@
       "discriminator": {
         "propertyName": "type",
         "mapping": {
-          "json": "t/openapi/components/schemas/JsonFormat",
-          "text": "t/openapi/components/schemas/TextFormat"
+          "json": "type/openapi/components/schemas/JsonFormat",
+          "text": "type/openapi/components/schemas/TextFormat"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/JsonFormat": {
+    "type/openapi/components/schemas/JsonFormat": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/JsonFormat",
+      "id": "type/openapi/components/schemas/JsonFormat",
       "name": {
         "source": "JsonFormat",
         "canonical": "json_format"
@@ -1594,21 +1594,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/JsonFormat/properties/type",
+          "id": "property/openapi/components/schemas/JsonFormat/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/JsonFormat/properties/type",
+            "target": "type/anonymous/components/schemas/JsonFormat/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1625,9 +1625,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Named": {
+    "type/openapi/components/schemas/Named": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Named",
+      "id": "type/openapi/components/schemas/Named",
       "name": {
         "source": "Named",
         "canonical": "named"
@@ -1645,7 +1645,7 @@
             "hint": "json"
           },
           "type": {
-            "target": "t/openapi/components/schemas/json",
+            "target": "type/openapi/components/schemas/json",
             "nullable": false
           },
           "docs": {}
@@ -1655,7 +1655,7 @@
             "hint": "text"
           },
           "type": {
-            "target": "t/openapi/components/schemas/text",
+            "target": "type/openapi/components/schemas/text",
             "nullable": false
           },
           "docs": {}
@@ -1670,9 +1670,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Operation": {
+    "type/openapi/components/schemas/Operation": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Operation",
+      "id": "type/openapi/components/schemas/Operation",
       "name": {
         "source": "Operation",
         "canonical": "operation"
@@ -1691,7 +1691,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/0",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1701,7 +1701,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Operation/oneOf/1",
+            "target": "type/anonymous/components/schemas/Operation/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1712,18 +1712,18 @@
       "discriminator": {
         "propertyName": "status",
         "mapping": {
-          "completed": "t/anon/components/schemas/Operation/oneOf/1",
-          "pending": "t/anon/components/schemas/Operation/oneOf/0",
-          "running": "t/anon/components/schemas/Operation/oneOf/0"
+          "completed": "type/anonymous/components/schemas/Operation/oneOf/1",
+          "pending": "type/anonymous/components/schemas/Operation/oneOf/0",
+          "running": "type/anonymous/components/schemas/Operation/oneOf/0"
         },
         "inferred": true
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Optional": {
+    "type/openapi/components/schemas/Optional": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Optional",
+      "id": "type/openapi/components/schemas/Optional",
       "name": {
         "source": "Optional",
         "canonical": "optional"
@@ -1741,7 +1741,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Optional/oneOf/0",
+            "target": "type/anonymous/components/schemas/Optional/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1751,7 +1751,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Optional/oneOf/1",
+            "target": "type/anonymous/components/schemas/Optional/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1762,9 +1762,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Overlapping": {
+    "type/openapi/components/schemas/Overlapping": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Overlapping",
+      "id": "type/openapi/components/schemas/Overlapping",
       "name": {
         "source": "Overlapping",
         "canonical": "overlapping"
@@ -1782,7 +1782,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Overlapping/oneOf/0",
+            "target": "type/anonymous/components/schemas/Overlapping/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1792,7 +1792,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Overlapping/oneOf/1",
+            "target": "type/anonymous/components/schemas/Overlapping/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1807,9 +1807,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Polygon": {
+    "type/openapi/components/schemas/Polygon": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Polygon",
+      "id": "type/openapi/components/schemas/Polygon",
       "name": {
         "source": "Polygon",
         "canonical": "polygon"
@@ -1823,12 +1823,12 @@
         "inferred": "discriminator-inference"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Shape",
+        "target": "type/openapi/components/schemas/Shape",
         "nullable": false
       },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Sided",
+          "target": "type/openapi/components/schemas/Sided",
           "nullable": false
         }
       ],
@@ -1836,9 +1836,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Shape": {
+    "type/openapi/components/schemas/Shape": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Shape",
+      "id": "type/openapi/components/schemas/Shape",
       "name": {
         "source": "Shape",
         "canonical": "shape"
@@ -1852,21 +1852,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Shape/properties/kind",
+          "id": "property/openapi/components/schemas/Shape/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1882,14 +1882,14 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Shape/properties/kind",
+        "property": "property/openapi/components/schemas/Shape/properties/kind",
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Sided": {
+    "type/openapi/components/schemas/Sided": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Sided",
+      "id": "type/openapi/components/schemas/Sided",
       "name": {
         "source": "Sided",
         "canonical": "sided"
@@ -1907,7 +1907,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/anon/components/schemas/Sided/oneOf/0",
+            "target": "type/anonymous/components/schemas/Sided/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -1917,7 +1917,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/components/schemas/Sided/oneOf/1",
+            "target": "type/anonymous/components/schemas/Sided/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1928,9 +1928,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Square": {
+    "type/openapi/components/schemas/Square": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Square",
+      "id": "type/openapi/components/schemas/Square",
       "name": {
         "source": "Square",
         "canonical": "square"
@@ -1945,21 +1945,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Square/allOf/1/properties/kind",
+          "id": "property/openapi/components/schemas/Square/allOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/components/schemas/Square/allOf/1/properties/kind",
+            "target": "type/anonymous/components/schemas/Square/allOf/1/properties/kind",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1973,7 +1973,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Shape",
+        "target": "type/openapi/components/schemas/Shape",
         "nullable": false
       },
       "abstract": false,
@@ -1981,9 +1981,9 @@
       "discriminatorValue": "square",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Styled": {
+    "type/openapi/components/schemas/Styled": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Styled",
+      "id": "type/openapi/components/schemas/Styled",
       "name": {
         "source": "Styled",
         "canonical": "styled"
@@ -2002,7 +2002,7 @@
             "hint": "json_format"
           },
           "type": {
-            "target": "t/composed/components/schemas/Styled/oneOf/0",
+            "target": "type/composed/components/schemas/Styled/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -2012,7 +2012,7 @@
             "hint": "text_format"
           },
           "type": {
-            "target": "t/composed/components/schemas/Styled/oneOf/1",
+            "target": "type/composed/components/schemas/Styled/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -2023,17 +2023,17 @@
       "discriminator": {
         "propertyName": "type",
         "mapping": {
-          "json": "t/composed/components/schemas/Styled/oneOf/0",
-          "text": "t/composed/components/schemas/Styled/oneOf/1"
+          "json": "type/composed/components/schemas/Styled/oneOf/0",
+          "text": "type/composed/components/schemas/Styled/oneOf/1"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/TextFormat": {
+    "type/openapi/components/schemas/TextFormat": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/TextFormat",
+      "id": "type/openapi/components/schemas/TextFormat",
       "name": {
         "source": "TextFormat",
         "canonical": "text_format"
@@ -2047,21 +2047,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/TextFormat/properties/type",
+          "id": "property/openapi/components/schemas/TextFormat/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/TextFormat/properties/type",
+            "target": "type/anonymous/components/schemas/TextFormat/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2078,9 +2078,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Untagged": {
+    "type/openapi/components/schemas/Untagged": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Untagged",
+      "id": "type/openapi/components/schemas/Untagged",
       "name": {
         "source": "Untagged",
         "canonical": "untagged"
@@ -2099,7 +2099,7 @@
             "hint": "json_format"
           },
           "type": {
-            "target": "t/openapi/components/schemas/JsonFormat",
+            "target": "type/openapi/components/schemas/JsonFormat",
             "nullable": false
           },
           "docs": {}
@@ -2109,7 +2109,7 @@
             "hint": "text_format"
           },
           "type": {
-            "target": "t/openapi/components/schemas/TextFormat",
+            "target": "type/openapi/components/schemas/TextFormat",
             "nullable": false
           },
           "docs": {}
@@ -2120,17 +2120,17 @@
       "discriminator": {
         "propertyName": "type",
         "mapping": {
-          "json": "t/openapi/components/schemas/JsonFormat",
-          "text": "t/openapi/components/schemas/TextFormat"
+          "json": "type/openapi/components/schemas/JsonFormat",
+          "text": "type/openapi/components/schemas/TextFormat"
         },
         "inferred": true
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/json": {
+    "type/openapi/components/schemas/json": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/json",
+      "id": "type/openapi/components/schemas/json",
       "name": {
         "source": "json",
         "canonical": "json"
@@ -2144,21 +2144,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/json/properties/type",
+          "id": "property/openapi/components/schemas/json/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/json/properties/type",
+            "target": "type/anonymous/components/schemas/json/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2175,9 +2175,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/text": {
+    "type/openapi/components/schemas/text": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/text",
+      "id": "type/openapi/components/schemas/text",
       "name": {
         "source": "text",
         "canonical": "text"
@@ -2191,21 +2191,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/text/properties/type",
+          "id": "property/openapi/components/schemas/text/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/anon/components/schemas/text/properties/type",
+            "target": "type/anonymous/components/schemas/text/properties/type",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -2222,9 +2222,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -2232,11 +2232,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -2244,11 +2244,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -2256,7 +2256,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

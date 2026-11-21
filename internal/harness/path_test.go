@@ -39,8 +39,8 @@ func TestCheckPath_DirectorySweepsGoodAndBroken(t *testing.T) {
 	require.Len(t, results, 2, "sweep checks the two specs and skips the golden snapshot")
 
 	byPath := make(map[string]harness.Result, len(results))
-	for _, r := range results {
-		byPath[r.Spec] = r
+	for _, result := range results {
+		byPath[result.Spec] = result
 	}
 
 	assert.Equal(t, harness.OutcomeOK, byPath[goodPath].Outcome, byPath[goodPath].Detail)
@@ -145,8 +145,8 @@ func TestSpecFiles_ListsWhatARegisteredCompilerClaims(t *testing.T) {
 	results, err := harness.CheckPath(context.Background(), dir)
 	require.NoError(t, err)
 	checked := make([]string, len(results))
-	for i, r := range results {
-		checked[i] = r.Spec
+	for i, result := range results {
+		checked[i] = result.Spec
 	}
 	assert.Equal(t, files, checked, "CheckPath checks what SpecFiles lists, in that order")
 }

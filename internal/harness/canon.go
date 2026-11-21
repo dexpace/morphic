@@ -42,11 +42,11 @@ var errCycle = errors.New("canonical form meets a cycle of digests")
 // unorderedMark names the one member of the object markedArray writes.
 const unorderedMark = "\x00unordered"
 
-// markedArray writes elems as they stand, inside an object marking them as a
+// markedArray writes elements as they stand, inside an object marking them as a
 // collection whose order the comparison forgives, so the rewrite sorts them
 // once it has rewritten them. No member of the IR is so named.
-func markedArray(elems [][]byte) []byte {
-	return append(append([]byte(`{"\u0000unordered":`), array(elems)...), '}')
+func markedArray(elements [][]byte) []byte {
+	return append(append([]byte(`{"\u0000unordered":`), array(elements)...), '}')
 }
 
 // canonical is a document's canonical form: its lines, its shape's, and how it
@@ -66,14 +66,14 @@ type canonical struct {
 // name is relative, so an index after allOf or required in it is always
 // erased.
 func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
-	r, err := newRewriter(doc, seqs, ties)
+	rewriter, err := newRewriter(doc, seqs, ties)
 	if err != nil {
 		return canonical{}, err
 	}
-	out := jsontext.Value(r.rewrite(r.tree, place{}, 0))
-	r.fail(out.Indent(jsontext.WithIndent("  ")))
-	shape := r.shape(doc)
-	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
+	out := jsontext.Value(rewriter.rewrite(rewriter.tree, place{}, 0))
+	rewriter.fail(out.Indent(jsontext.WithIndent("  ")))
+	shape := rewriter.shape(doc)
+	return canonical{document: lines(out), shape: shape, identify: rewriter.identify}, rewriter.err
 }
 
 // newRewriter returns a rewriter of doc's forms reading ties, where seqs are
@@ -84,20 +84,20 @@ func newRewriter(doc *ir.Document, seqs sequences, ties tieSites) (*rewriter, er
 	if err != nil {
 		return nil, err
 	}
-	r := &rewriter{
+	rewriterValue := &rewriter{
 		seqs: seqs, ties: ties.pointers, members: ties.members, nodes: map[string]bool{}, stated: map[string]bool{},
 		owners:  map[string][]map[string]any{},
 		digests: map[string]string{}, visiting: map[string]bool{},
 	}
 	for _, node := range ties.nodes {
-		r.nodes[node] = true
+		rewriterValue.nodes[node] = true
 	}
 	for _, node := range ties.stated {
-		r.stated[node] = true
+		rewriterValue.stated[node] = true
 	}
-	r.tree = r.decode(encoded)
-	r.index(r.tree, 0)
-	return r, nil
+	rewriterValue.tree = rewriterValue.decode(encoded)
+	rewriterValue.index(rewriterValue.tree, 0)
+	return rewriterValue, nil
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -193,16 +193,16 @@ func (r *rewriter) index(v any, depth int) {
 }
 
 // rewrite returns v's canonical encoding, compact, as its place says.
-func (r *rewriter) rewrite(v any, p place, depth int) []byte {
+func (r *rewriter) rewrite(v any, placeValue place, depth int) []byte {
 	if depth > maxCanonicalDepth {
 		r.fail(errTooDeep)
 		return []byte("null")
 	}
 	switch v := v.(type) {
 	case map[string]any:
-		return r.object(v, p, depth)
+		return r.object(v, placeValue, depth)
 	case []any:
-		return r.array(v, p, depth)
+		return r.array(v, placeValue, depth)
 	case string:
 		return r.quote(r.text(v, depth))
 	case number:
@@ -218,24 +218,24 @@ func (r *rewriter) rewrite(v any, p place, depth int) []byte {
 // (tied) as the tie, and any other member by member but those it leaves out
 // (leftOut), sorted by name and then by value, since erased names can collide.
 // An id is erased alone.
-func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
-	if elems, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
-		return r.array(elems, place{how: p.how&noIdentity | sortElements}, depth)
+func (r *rewriter) object(o map[string]any, placeValue place, depth int) []byte {
+	if elements, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
+		return r.array(elements, place{how: placeValue.how&noIdentity | sortElements}, depth)
 	}
 	o = r.untie(o)
 	own := provenancePointer(o)
-	if erased, tied := r.tied(o); tied && p.how&noIdentity == 0 {
+	if erased, tied := r.tied(o); tied && placeValue.how&noIdentity == 0 {
 		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), r.foldedOf(o, depth), r.statedOf(o, depth), []byte("}"))
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
 	for _, name := range slices.Sorted(maps.Keys(o)) {
 		v := o[name]
-		if r.leftOut(name, v, p) {
+		if r.leftOut(name, v, placeValue) {
 			continue
 		}
 		key := r.text(name, depth)
-		if p.how&relativeNames != 0 {
+		if placeValue.how&relativeNames != 0 {
 			key = eraseRelative(key)
 		}
 		var value []byte
@@ -243,7 +243,7 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 		case isText && name == "id":
 			value = r.quote(erase(text, r.seqs))
 		default:
-			value = r.rewrite(v, childPlace(name, p, own), depth+1)
+			value = r.rewrite(v, childPlace(name, placeValue, own), depth+1)
 		}
 		members = append(members, member{r.quote(key), value})
 	}
@@ -251,11 +251,11 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 		return cmp.Or(bytes.Compare(a.name, b.name), bytes.Compare(a.value, b.value))
 	})
 	out := []byte{'{'}
-	for i, m := range members {
+	for i, member := range members {
 		if i > 0 {
 			out = append(out, ',')
 		}
-		out = append(append(append(out, m.name...), ':'), m.value...)
+		out = append(append(append(out, member.name...), ':'), member.value...)
 	}
 	return append(out, '}')
 }
@@ -296,15 +296,15 @@ func (r *rewriter) statedOf(o map[string]any, depth int) []byte {
 	return out
 }
 
-// childPlace is the place of the member name of an object at p, whose
+// childPlace is the place of the member name of an object at placeValue, whose
 // provenance's pointer is own: within a verbatim value, or the verbatim value
 // an object keeps beside its provenance; mixins and requires, which mirror
 // allOf and required whatever the source's order; or the unmodeled map.
-func childPlace(name string, p place, own string) place {
-	child := place{how: p.how & noIdentity}
+func childPlace(name string, placeValue place, own string) place {
+	child := place{how: placeValue.how & noIdentity}
 	switch {
-	case p.how&verbatim != 0:
-		return place{how: child.how | verbatim, at: string(appendToken([]byte(p.at), name))}
+	case placeValue.how&verbatim != 0:
+		return place{how: child.how | verbatim, at: string(appendToken([]byte(placeValue.at), name))}
 	case name == "value" && own != "":
 		return place{how: child.how | verbatim, at: own}
 	case name == "mixins", name == "requires":
@@ -317,16 +317,16 @@ func childPlace(name string, p place, own string) place {
 
 // array rewrites an array's elements, sorted when its place says so or when,
 // within a verbatim value, it is a sequence the permutation reversed.
-func (r *rewriter) array(elems []any, p place, depth int) []byte {
-	out := make([][]byte, len(elems))
-	for i, e := range elems {
-		child := place{how: p.how & noIdentity}
-		if p.how&verbatim != 0 {
-			child = place{how: child.how | verbatim, at: p.at + "/" + strconv.Itoa(i)}
+func (r *rewriter) array(elements []any, placeValue place, depth int) []byte {
+	out := make([][]byte, len(elements))
+	for i, e := range elements {
+		child := place{how: placeValue.how & noIdentity}
+		if placeValue.how&verbatim != 0 {
+			child = place{how: child.how | verbatim, at: placeValue.at + "/" + strconv.Itoa(i)}
 		}
 		out[i] = r.rewrite(e, child, depth+1)
 	}
-	if p.how&sortElements != 0 || p.how&verbatim != 0 && r.seqs[p.at] > 0 {
+	if placeValue.how&sortElements != 0 || placeValue.how&verbatim != 0 && r.seqs[placeValue.at] > 0 {
 		return sortedArray(out)
 	}
 	return array(out)
@@ -400,12 +400,12 @@ func (r *rewriter) tiedAt(pointer string) (string, bool) {
 	return erased, atSite(r.ties, erased)
 }
 
-// leftOut reports whether an object at p leaves its member name, holding v, out
-// of its form: an identity a place reads without, or a node it keys by its ID
-// that a tie decided, as a registry does, since a tie decides whether a fold
-// mints it.
-func (r *rewriter) leftOut(name string, v any, p place) bool {
-	if p.how&noIdentity != 0 {
+// leftOut reports whether an object at placeValue leaves its member name,
+// holding v, out of its form: an identity a place reads without, or a node it
+// keys by its ID that a tie decided, as a registry does, since a tie decides
+// whether a fold mints it.
+func (r *rewriter) leftOut(name string, v any, placeValue place) bool {
+	if placeValue.how&noIdentity != 0 {
 		return name == "id" || name == "provenance"
 	}
 	node, isObject := v.(map[string]any)
@@ -550,24 +550,24 @@ func eraseRelative(name string) string {
 // lists the model's undeclared and unflattened names where either holds any.
 func (r *rewriter) shape(doc *ir.Document) []string {
 	var out []string
-	for id, t := range doc.Types {
-		if _, ok := t.(*ir.Model); !ok || r.tiedNode(id, t) {
+	for id, typeDef := range doc.Types {
+		if _, ok := typeDef.(*ir.Model); !ok || r.tiedNode(id, typeDef) {
 			continue
 		}
-		f := ir.FlattenedProperties(doc.Types, id)
+		flattening := ir.FlattenedProperties(doc.Types, id)
 		model := r.text(string(id), 0)
-		for _, p := range f.Properties {
-			out = append(out, model+" member "+strconv.Quote(p.Property.WireName)+" "+r.memberShape(p))
+		for _, flatProperty := range flattening.Properties {
+			out = append(out, model+" member "+strconv.Quote(flatProperty.Property.WireName)+" "+r.memberShape(flatProperty))
 		}
-		if len(f.Undeclared)+len(f.Unflattened) == 0 {
+		if len(flattening.Undeclared)+len(flattening.Unflattened) == 0 {
 			continue
 		}
-		unflattened := make([]string, len(f.Unflattened))
-		for i, u := range f.Unflattened {
-			unflattened[i] = r.text(string(u), 0)
+		unflattened := make([]string, len(flattening.Unflattened))
+		for i, typeID := range flattening.Unflattened {
+			unflattened[i] = r.text(string(typeID), 0)
 		}
 		out = append(out, fmt.Sprintf("%s undeclared %q unflattened %q", model,
-			slices.Sorted(slices.Values(f.Undeclared)), slices.Sorted(slices.Values(unflattened))))
+			slices.Sorted(slices.Values(flattening.Undeclared)), slices.Sorted(slices.Values(unflattened))))
 	}
 	slices.Sort(out)
 	return out
@@ -580,19 +580,19 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 // secret, which a Sensitive type the tie picks does not decide, and where it is
 // visible (foldedOf), and, where a stated tie alone decided it, what statedOf
 // writes.
-func (r *rewriter) memberShape(p ir.FlatProperty) string {
-	prov := p.Property.Provenance
-	id := erase(string(p.Property.ID), r.seqs)
+func (r *rewriter) memberShape(flatProperty ir.FlatProperty) string {
+	prov := flatProperty.Property.Provenance
+	id := erase(string(flatProperty.Property.ID), r.seqs)
 	erased, atSite := r.tiedAt(string(prov.Pointer))
-	byFold := minted(r.members, string(p.Property.ID), erased)
+	byFold := minted(r.members, string(flatProperty.Property.ID), erased)
 	if atSite || byFold || r.nodes[id] {
 		tie := "reported tie " + id
 		if atSite || byFold || r.atMember(erased) {
 			tie = "reported tie at " + erased
 		}
-		visibility, err := json.Marshal(&p.Property.Visibility, json.Deterministic(true))
+		visibility, err := json.Marshal(&flatProperty.Property.Visibility, json.Deterministic(true))
 		r.fail(err)
-		tie += " required " + strconv.FormatBool(p.Required) + " secret " + strconv.FormatBool(p.Property.Secret) +
+		tie += " required " + strconv.FormatBool(flatProperty.Required) + " secret " + strconv.FormatBool(flatProperty.Property.Secret) +
 			" visibility " + string(visibility)
 		if !r.stated[id] {
 			return tie
@@ -602,7 +602,7 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 			Docs        ir.Docs         `json:"docs"`
 			Name        ir.Naming       `json:"name"`
 			XML         *ir.XMLHints    `json:"xml"`
-		}{p.Property.Deprecation, p.Property.Docs, p.Property.Name, p.Property.XML}, json.Deterministic(true))
+		}{flatProperty.Property.Deprecation, flatProperty.Property.Docs, flatProperty.Property.Name, flatProperty.Property.XML}, json.Deterministic(true))
 		r.fail(err)
 		return tie + " stated " + string(stated)
 	}
@@ -611,7 +611,7 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 		Deprecation *ir.Deprecation `json:"deprecation"`
 		Required    bool            `json:"required"`
 		Secret      bool            `json:"secret"`
-	}{p.Property, p.Deprecation, p.Required, p.Secret}, comparableOptions(markedArray, nil))
+	}{flatProperty.Property, flatProperty.Deprecation, flatProperty.Required, flatProperty.Secret}, comparableOptions(markedArray, nil))
 	r.fail(err)
 	return string(r.rewrite(r.decode(encoded), place{how: noIdentity}, 0))
 }

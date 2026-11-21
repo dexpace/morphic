@@ -84,8 +84,8 @@ func checkTarget(target ExtensionTarget, sources []ExtensionSource) error {
 // targetList spells the vocabulary for a refusal.
 func targetList() string {
 	names := make([]string, 0, len(Targets()))
-	for _, t := range Targets() {
-		names = append(names, string(t))
+	for _, extensionTarget := range Targets() {
+		names = append(names, string(extensionTarget))
 	}
 	return strings.Join(names, ", ")
 }

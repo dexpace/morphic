@@ -21,10 +21,10 @@ import (
 // announced rather than silent, and the losing declaration is kept whole.
 func TestFold_DifferingDescriptionsKeepTheLater(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
+	stubbed, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "first"}, Provenance: ptrAt("/first")}
 
-	dst = foldTwo(g, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")},
+	dst = foldTwo(stubbed, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")},
 		unread(t))
 
 	assert.Equal(t, "second", dst.Docs.Description)
@@ -42,10 +42,10 @@ func TestFold_DifferingDescriptionsKeepTheLater(t *testing.T) {
 // construct written twice, not two that disagree.
 func TestFold_AnIdenticalDescriptionIsNotADisagreement(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
+	stubbed, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}}
 
-	dst = foldTwo(g, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(stubbed, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, "same", dst.Docs.Description)
 	assert.Empty(t, *recorded)
@@ -61,7 +61,7 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 	linkA := []ir.Link{{URL: "https://a.example"}}
 	linkB := []ir.Link{{URL: "https://b.example"}}
 	summary := func(s string) ir.Docs { return ir.Docs{Summary: s} }
-	links := func(l []ir.Link) ir.Docs { return ir.Docs{ExternalDocs: l} }
+	links := func(links []ir.Link) ir.Docs { return ir.Docs{ExternalDocs: links} }
 
 	tests := []struct {
 		name     string
@@ -83,11 +83,11 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(nil)
+			stubbed, recorded := stubMerger(nil)
 			dst := ir.Property{WireName: "id", Docs: tt.dst, Provenance: ptrAt("/first")}
 			src := ir.Property{WireName: "id", Docs: tt.src, Provenance: ptrAt("/other")}
 
-			dst = foldTwo(g, dst, src, unread(t))
+			dst = foldTwo(stubbed, dst, src, unread(t))
 
 			assert.Empty(t, cmp.Diff(tt.want, dst.Docs))
 			if tt.detail == "" {
@@ -116,13 +116,13 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 // kept once.
 func TestFold_EveryDocsDisagreementIsReported(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(nil)
+	stubbed, recorded := stubMerger(nil)
 	later := ir.Docs{Summary: "B", Description: "dB", ExternalDocs: []ir.Link{{URL: "https://b.example"}}}
 	dst := ir.Property{WireName: "id", Provenance: ptrAt("/first"),
 		Docs: ir.Docs{Summary: "A", Description: "dA", ExternalDocs: []ir.Link{{URL: "https://a.example"}}}}
 	src := ir.Property{WireName: "id", Provenance: ptrAt("/other"), Docs: later}
 
-	dst = foldTwo(g, dst, src, unread(t))
+	dst = foldTwo(stubbed, dst, src, unread(t))
 
 	assert.Empty(t, cmp.Diff(later, dst.Docs))
 	require.Len(t, *recorded, 3)

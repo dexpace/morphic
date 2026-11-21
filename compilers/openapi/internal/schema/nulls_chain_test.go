@@ -41,10 +41,10 @@ func TestLower_ARefChainIsReadOncePerHop(t *testing.T) {
 		assert.Equal(t, n-1, reads, "n=%d", n)
 
 		for _, i := range []int{0, n / 2, n - 1} {
-			sc, ok := doc.Types[ir.TypeID(fmt.Sprintf("t/openapi/components/schemas/S%d", i))].(*ir.Scalar)
+			sc, ok := doc.Types[ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/S%d", i))].(*ir.Scalar)
 			require.True(t, ok, "S%d", i)
 			require.NotNil(t, sc.Base, "S%d", i)
-			next := ir.TypeID(fmt.Sprintf("t/openapi/components/schemas/S%d", i+1))
+			next := ir.TypeID(fmt.Sprintf("type/openapi/components/schemas/S%d", i+1))
 			assert.Equal(t, next, sc.Base.Target, "n=%d: S%d is based on the component it names, as before", n, i)
 		}
 	}

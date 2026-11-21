@@ -21,20 +21,20 @@ import (
 // it.
 func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 	t.Parallel()
-	const past = ir.GroupID("g/x/b9")
+	const past = ir.GroupID("operation-group/x/b9")
 	doc := forkedGroups(10)
 	calls, cut := groupsVisited(1000, doc)
 	require.True(t, cut)
 	require.Equal(t, 1000, calls)
 
 	whole := ir.NewEditor(doc)
-	whole.UpdateGroup(past, func(g *ir.OperationGroup) { g.Name.Source = "changed" })
+	whole.UpdateGroup(past, func(operationGroup *ir.OperationGroup) { operationGroup.Name.Source = "changed" })
 	_, diags := whole.Finish()
 	require.Empty(t, diags, "the control: a read to the real limit reaches the group")
 
 	held := ir.NewEditorWithin(1000, doc)
 	_, found := held.Group(past)
-	held.UpdateGroup(past, func(g *ir.OperationGroup) { g.Name.Source = "changed" })
+	held.UpdateGroup(past, func(operationGroup *ir.OperationGroup) { operationGroup.Name.Source = "changed" })
 	_, diags = held.Finish()
 
 	assert.False(t, found, "a group the read did not reach is not held")
@@ -49,20 +49,20 @@ func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 // walk reaches within the same limit.
 func TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps(t *testing.T) {
 	t.Parallel()
-	ops := make([]ir.Operation, 10)
-	for i := range ops {
-		ops[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/x/o%d", i))}
+	operations := make([]ir.Operation, 10)
+	for i := range operations {
+		operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/x/o%d", i))}
 	}
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x/a", Operations: ops}}}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x/a", Operations: operations}}}}}
 	const limit = 6
-	var walked []ir.OpID
-	require.True(t, ir.ForEachOperationWithin(limit, doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
+	var walked []ir.OperationID
+	require.True(t, ir.ForEachOperationWithin(limit, doc, func(operation ir.Operation) { walked = append(walked, operation.ID) }))
 
-	e := ir.NewEditorWithin(limit, doc)
-	var held []ir.OpID
-	for _, op := range ops {
-		if _, ok := e.Operation(op.ID); ok {
-			held = append(held, op.ID)
+	editor := ir.NewEditorWithin(limit, doc)
+	var held []ir.OperationID
+	for _, operation := range operations {
+		if _, ok := editor.Operation(operation.ID); ok {
+			held = append(held, operation.ID)
 		}
 	}
 

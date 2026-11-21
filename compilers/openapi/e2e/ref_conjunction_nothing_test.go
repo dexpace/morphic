@@ -33,8 +33,8 @@ func writtenAnyway(t *testing.T, site conjSite, target, schema string) entryWrit
 	require.NotNil(t, doc)
 	relocate := relocater(site.pointer)
 	got := entryWritten{doc: relocate(withoutVersion(t, doc))}
-	for _, d := range diags {
-		got.diags = append(got.diags, fmt.Sprintf("%s %s %s", d.Severity, d.Code, relocate(string(d.Provenance.Pointer))))
+	for _, diagnostic := range diags {
+		got.diags = append(got.diags, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, relocate(string(diagnostic.Provenance.Pointer))))
 	}
 	slices.Sort(got.diags)
 	return got
@@ -74,9 +74,9 @@ func TestRefConjunction_AnAllOfOfOneRefToFalseIsTheReference(t *testing.T) {
 		"H: {type: object, properties: {bare: {$ref: '#/components/schemas/F'}, "+
 			"wrapped: {allOf: [{$ref: '#/components/schemas/F'}]}}}")
 	doc, _ := compileUnrefused(t, spec)
-	h, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
+	model, ok := kindNode(t, doc, componentID("H")).(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, h.Properties, 2)
-	assert.Equal(t, h.Properties[0].Type.Target, h.Properties[1].Type.Target, "the wrapped use names what the bare one does")
+	require.Len(t, model.Properties, 2)
+	assert.Equal(t, model.Properties[0].Type.Target, model.Properties[1].Type.Target, "the wrapped use names what the bare one does")
 	assert.Equal(t, kindNode(t, doc, componentID("Bare")).Kind(), kindNode(t, doc, componentID("Wrapped")).Kind())
 }

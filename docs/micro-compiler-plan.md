@@ -63,7 +63,7 @@ landed with it, in that order, in one pull request.
 | ~~#162~~ | **Landed.** Identifier grammar into `compilers/compile`: `compile.TypeID` and friends over a `compile.Space`, with the minted-namespace rule refused by `compile.Types` | — |
 | ~~#163~~ | **Landed.** Canonical naming grammar into `compilers/compile`, with `compile.NamingFor` beside it and a conformance suite pinning the boundaries `irverify` cannot see | — |
 | ~~#164~~ | **Landed** in three parts: #161 brought `ir/naming-not-words`; `ir/naming-unsegmented` followed for the letter/digit boundary, which a neutral name still carries evidence of; and `ir/naming-not-derived` closed the rest by moving the grammar to `ir` so the verifier can recompute a canonical from its source, which is the only way to see a camel-case boundary. `Hint` followed later, with #54 | — |
-| ~~#73~~ | **Landed.** Its text proposed `ir` for both halves and was right about both. The naming grammar went there, and `irverify` validates against it. The ID *grammar* stayed in `compilers/compile`, but `t/prim/<kind>` followed the naming half to `ir` as `ir.PrimTypeID` — a primitive has no path for a compiler to own — with `ir/prim-id-not-derived` and `ir/prim-space-reserved` holding every producer to it | — |
+| ~~#73~~ | **Landed.** Its text proposed `ir` for both halves and was right about both. The naming grammar went there, and `irverify` validates against it. The ID *grammar* stayed in `compilers/compile`, but `type/primitive/<kind>` followed the naming half to `ir` as `ir.PrimitiveTypeID` — a primitive has no path for a compiler to own — with `ir/primitive-id-not-derived` and `ir/primitive-space-reserved` holding every producer to it | — |
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
 written it into [naming](./ir/naming.md), so the move was measured against a rule already in
@@ -100,7 +100,7 @@ Strictly sequential: each conversion depends on the layer below it having moved.
 |---|---|---|
 | #172 | `Ctx` with accessors; derive indexes at entry | all of Tier 0 |
 | #173 | Convert the leaves — constraints, metadata, auth | #172, #159, #160 |
-| #174 | `internal/resolve` — the pointer-and-identity half only; see below | #173 |
+| #174 | `internal/componentlookup` — the pointer-and-identity half only; see below | #173 |
 | #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it. Both its open questions are settled: `hoist` dissolved, `diagnosedConstraints` was redundant and is gone | #174 |
 | #175 | `internal/operation` — after the core, not before it; see below | #176 |
 | #177 | Remove the `lowerer` struct | #175 |
@@ -187,8 +187,8 @@ So the core converts first. The dependency is one-way and checkable: the core re
 
 `resolve.go` turned out to answer two questions, not one. *What does this `$ref` name, and is
 something already interned there* needs the document's own path, what it declares, and the type
-registry — nothing else, so it became `internal/resolve`. *Follow it far enough to lower what it
-points at* is the schema walk reached through a reference: it calls into `schema.go` and
+registry — nothing else, so it became `internal/componentlookup`. *Follow it far enough to lower
+what it points at* is the schema walk reached through a reference: it calls into `schema.go` and
 `compose.go`, which call back, and no package boundary can be drawn through it.
 
 So seven functions left and eight stayed, and the eight go to `internal/schema` at #176 rather than

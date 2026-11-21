@@ -51,10 +51,10 @@ type Census struct {
 	checked map[reflect.Type][]member
 }
 
-// New returns an empty census of the universe u.
-func New(u Universe) *Census {
+// New returns an empty census of the universe universe.
+func New(universe Universe) *Census {
 	return &Census{
-		universe:   u,
+		universe:   universe,
 		members:    map[string]tally{},
 		empties:    map[string]tally{},
 		values:     map[valueKey]tally{},
@@ -82,26 +82,26 @@ func (c *Census) Add(doc *ir.Document) error {
 
 // add counts the facts the value root holds, whatever its type.
 func (c *Census) add(root any) error {
-	d := &docCount{
+	docCountValue := &docCount{
 		census:     c,
 		members:    map[string]int{},
 		empties:    map[string]int{},
 		values:     map[valueKey]int{},
 		undeclared: map[valueKey]constant.Value{},
 	}
-	truncated := ir.WalkValues(root, ir.DocumentPath, ir.VisitFunc(d.visit))
-	if d.err != nil {
-		return d.err
+	truncated := ir.WalkValues(root, ir.DocumentPath, ir.VisitFunc(docCountValue.visit))
+	if docCountValue.err != nil {
+		return docCountValue.err
 	}
 
 	c.documents++
 	if truncated {
 		c.truncated++
 	}
-	merge(c.members, d.members)
-	merge(c.empties, d.empties)
-	merge(c.values, d.values)
-	maps.Copy(c.undeclared, d.undeclared)
+	merge(c.members, docCountValue.members)
+	merge(c.empties, docCountValue.empties)
+	merge(c.values, docCountValue.values)
+	maps.Copy(c.undeclared, docCountValue.undeclared)
 	return nil
 }
 
@@ -109,10 +109,10 @@ func (c *Census) add(root any) error {
 // each fact the document set gains one document and its instances.
 func merge[K comparable](into map[K]tally, doc map[K]int) {
 	for k, n := range doc {
-		t := into[k]
-		t.docs++
-		t.instances += n
-		into[k] = t
+		tally := into[k]
+		tally.docs++
+		tally.instances += n
+		into[k] = tally
 	}
 }
 
@@ -159,14 +159,14 @@ func (d *docCount) countMembers(v reflect.Value) error {
 	if err != nil {
 		return err
 	}
-	for _, m := range members {
-		f := v.Field(m.index)
-		if !isSet(f, m.emptiable) {
+	for _, member := range members {
+		f := v.Field(member.index)
+		if !isSet(f, member.emptiable) {
 			continue
 		}
-		d.members[m.name]++
-		if m.emptiable && f.Len() == 0 {
-			d.empties[m.name]++
+		d.members[member.name]++
+		if member.emptiable && f.Len() == 0 {
+			d.empties[member.name]++
 		}
 	}
 	return nil
@@ -221,13 +221,13 @@ func (d *docCount) countValue(t reflect.Type, val constant.Value) {
 	if !d.census.universe.declares(t) {
 		return
 	}
-	e, isEnum := d.census.universe.enums[t.Name()]
+	enumeration, isEnum := d.census.universe.enums[t.Name()]
 	if !isEnum {
 		return
 	}
-	key := valueKey{enum: e.name, spelling: val.ExactString()}
+	key := valueKey{enum: enumeration.name, spelling: val.ExactString()}
 	d.values[key]++
-	if _, isDeclared := e.declared[key.spelling]; !isDeclared {
+	if _, isDeclared := enumeration.declared[key.spelling]; !isDeclared {
 		d.undeclared[key] = val
 	}
 }

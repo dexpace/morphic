@@ -1,26 +1,26 @@
 # BindingView — the per-protocol request/response projection
 
 `Parameter`s carry no protocol location ([operations](../../ir/operations.md)). The plan derives,
-from `OpBindings`, a neutral per-protocol view a refiner turns into a request builder: which params
-are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and media
-type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
+from `OperationBindings`, a neutral per-protocol view a refiner turns into a request builder: which
+params are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and
+media type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
 shape. One operation may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC);
 all are represented, in the order below. This resolves [open question 6](../../ir/open-questions.md)
-on the emitter side: status conditions and `StatusCodeProp` are read through the HTTP binding a
+on the emitter side: status conditions and `StatusCodeProperty` are read through the HTTP binding a
 target lowers, so RPC/OTP single-response ops with empty conditions are handled uniformly.
 
 ```go
 type BindingView struct {
-    All      []ProtoBinding  // every binding: OpBindings.RPC, then HTTP in its order, then
-                             // Message, GraphQL and OTP (below)
+    All      []ProtoBinding   // every binding: OperationBindings.RPC, then HTTP in its order, then
+                              // Message, GraphQL and OTP (below)
 }
 type ProtoBinding struct {
-    Protocol Protocol        // the OpBindings field this binding comes from
-    Params   []ParamBind     // HTTP's neutralized param placement, one per HTTPParamBinding
-    ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
-                                  // sub-field of the payload; nil = the whole payload
-    NoBody   bool            // no response under this binding carries a body: an HTTP binding
-                             // whose method is HEAD (below)
+    Protocol Protocol         // the OperationBindings field this binding comes from
+    Params   []ParamBind      // HTTP's neutralized param placement, one per HTTPParamBinding
+    ResponseBodyPath *ir.PropertyPath // HTTPBinding.ResponseBodyPath: the response body is this
+                                      // sub-field of the payload; nil = the whole payload
+    NoBody   bool             // no response under this binding carries a body: an HTTP binding
+                              // whose method is HEAD (below)
     // The binding itself, by reference, not restructured; exactly the one Protocol names is set:
     HTTP     *ir.HTTPBinding    // method/URITemplate/status map
     RPC      *ir.RPCBinding     // System says which RPC system
@@ -29,23 +29,23 @@ type ProtoBinding struct {
     OTP      *ir.OTPBinding     // the behaviour, call/cast/info, the process and the request tag
 }
 type ParamBind struct {
-    Param    ir.ParamID      // the bound Operation.Params entry; one name may be two params
-    ParamPath []ir.PropID    // HTTPParamBinding.ParamPath: the member of the param this binding
-                             // sends, as a transcoding's {book.name} does; empty = the whole param
-    Where    ir.HTTPLocation // where it is sent, in HTTPParamBinding.Location's vocabulary
-    WireName string          // never a rendered identifier (INV4)
+    Param    ir.ParameterID   // the bound Operation.Params entry; one name may be two params
+    ParamPath []ir.PropertyID // HTTPParamBinding.ParamPath: the member of the param this binding
+                              // sends, as a transcoding's {book.name} does; empty = the whole param
+    Where    ir.HTTPLocation  // where it is sent, in HTTPParamBinding.Location's vocabulary
+    WireName string           // never a rendered identifier (INV4)
     Style    string; Explode *bool; Prefix *string  // form/label/matrix/deepObject serialization
     AllowReserved, AllowEmptyValue bool             // the binding's escaping and empty-value facts
-    PathPattern string       // HTTPParamBinding.PathPattern: a pattern of several segments is
-                             // escaped by its own rule (../refine/text.md#escaping)
-    Text     bool            // no Style arranges a value of the param's type, so the input is its
-                             // caller's text: a string in a path, a host label or a header, pairs
-                             // of strings in a query or a cookie
-                             // (../refine/text.md#a-value-no-style-arranges)
-    ContentType string       // a content-style param's media type; "" = serialized by Style
-    BodyPath []ir.PropID     // body_property: where in the body model the param lands
+    PathPattern string        // HTTPParamBinding.PathPattern: a pattern of several segments is
+                              // escaped by its own rule (../refine/text.md#escaping)
+    Text     bool             // no Style arranges a value of the param's type, so the input is its
+                              // caller's text: a string in a path, a host label or a header, pairs
+                              // of strings in a query or a cookie
+                              // (../refine/text.md#a-value-no-style-arranges)
+    ContentType string        // a content-style param's media type; "" = serialized by Style
+    BodyPath []ir.PropertyID  // body_property: where in the body model the param lands
 }
-type Protocol string         // "http" | "rpc" | "message" | "graphql" | "otp"
+type Protocol string          // "http" | "rpc" | "message" | "graphql" | "otp"
 ```
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the
@@ -55,19 +55,19 @@ through `Message`; a messaging target consumes them the same way an HTTP target 
 view copying the message binding's fields, as `MsgView` once did, was dropped: it restructured the
 one binding and left out its `Unmodeled`, which a refiner reads (below).
 
-A `Protocol` names the `OpBindings` field a binding comes from, never the system speaking it: `rpc`
-is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says which
-([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an open
-string, so the vocabulary would be open too and no switch over `Protocol` could be complete, while
-labelling every system `grpc`, as the vocabulary once did, handed a gRPC target a JSON-RPC method to
-lower as gRPC.
+A `Protocol` names the `OperationBindings` field a binding comes from, never the system speaking it:
+`rpc` is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says
+which ([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an
+open string, so the vocabulary would be open too and no switch over `Protocol` could be complete,
+while labelling every system `grpc`, as the vocabulary once did, handed a gRPC target a JSON-RPC
+method to lower as gRPC.
 
 **The order.** The IR orders an operation's HTTP mappings, the primary first, and nothing across
-`OpBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is a rule
-over the fields: `RPC`, then `HTTP` in its order, then `Message`, `GraphQL` and `OTP`, whatever
-order the source wrote them in. "The binding the source states first" was rejected as underivable: a
-Protobuf method states its RPC binding and its transcoding in one declaration, and no field records
-which of a Smithy service's protocol traits came first.
+`OperationBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is
+a rule over the fields: `RPC`, then `HTTP` in its order, then `Message`, `GraphQL` and `OTP`,
+whatever order the source wrote them in. "The binding the source states first" was rejected as
+underivable: a Protobuf method states its RPC binding and its transcoding in one declaration, and no
+field records which of a Smithy service's protocol traits came first.
 
 **The binding a target lowers** is the first of `All` its
 [capabilities](../contract/registry.md#capabilities) cover, an RPC binding only where `RPCSystems`

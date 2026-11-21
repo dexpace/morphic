@@ -23,22 +23,22 @@ type Diags struct {
 }
 
 // Append records d unless one identical to it was already recorded.
-func (d *Diags) Append(x ir.Diagnostic) {
-	if d.emitted[x.Key()] {
+func (d *Diags) Append(diagnostic ir.Diagnostic) {
+	if d.emitted[diagnostic.Key()] {
 		return
 	}
 	if d.emitted == nil {
 		d.emitted = make(map[ir.DiagnosticKey]bool)
 	}
-	d.emitted[x.Key()] = true
-	d.list = append(d.list, x)
+	d.emitted[diagnostic.Key()] = true
+	d.list = append(d.list, diagnostic)
 }
 
 // AppendAll records each of xs in order, deduping as Append does. It is the
 // entry point for a pure reader that returns its findings as a slice.
 func (d *Diags) AppendAll(xs []ir.Diagnostic) {
-	for _, x := range xs {
-		d.Append(x)
+	for _, diagnostic := range xs {
+		d.Append(diagnostic)
 	}
 }
 

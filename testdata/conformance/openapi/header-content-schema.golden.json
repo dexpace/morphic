@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "HeaderContentSchema",
         "canonical": "header_content_schema"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1reports/get",
+              "id": "operation/openapi/paths/~1reports/get",
               "name": {
                 "source": "getReport",
                 "canonical": "get_report"
@@ -80,21 +80,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Schema",
+                      "id": "property/openapi/paths/~1reports/get/responses/200/headers/X-Report-Schema",
                       "name": {
                         "source": "X-Report-Schema",
                         "canonical": "x_report_schema"
                       },
                       "wireName": "X-Report-Schema",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "constraints": {
                         "maxLength": 4,
@@ -116,21 +116,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Content",
+                      "id": "property/openapi/paths/~1reports/get/responses/200/headers/X-Report-Content",
                       "name": {
                         "source": "X-Report-Content",
                         "canonical": "x_report_content"
                       },
                       "wireName": "X-Report-Content",
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "constraints": {
                         "maxLength": 4,
@@ -155,21 +155,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Ref",
+                      "id": "property/openapi/paths/~1reports/get/responses/200/headers/X-Report-Ref",
                       "name": {
                         "source": "X-Report-Ref",
                         "canonical": "x_report_ref"
                       },
                       "wireName": "X-Report-Ref",
                       "type": {
-                        "target": "t/openapi/components/schemas/ReportID",
+                        "target": "type/openapi/components/schemas/ReportID",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "encoding": {
                         "mediaType": "application/json"
@@ -185,21 +185,21 @@
                       }
                     },
                     {
-                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-List",
+                      "id": "property/openapi/paths/~1reports/get/responses/200/headers/X-Report-List",
                       "name": {
                         "source": "X-Report-List",
                         "canonical": "x_report_list"
                       },
                       "wireName": "X-Report-List",
                       "type": {
-                        "target": "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
+                        "target": "type/anonymous/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -248,9 +248,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema": {
+    "type/anonymous/paths/~1reports/get/responses/200/headers/X-Report-List/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
+      "id": "type/anonymous/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
       "name": {
         "hint": "x_report_list"
       },
@@ -261,14 +261,14 @@
         "source": 0,
         "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/schema"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/ReportID": {
+    "type/openapi/components/schemas/ReportID": {
       "kind": "scalar",
-      "id": "t/openapi/components/schemas/ReportID",
+      "id": "type/openapi/components/schemas/ReportID",
       "name": {
         "source": "ReportID",
         "canonical": "report_id"
@@ -281,7 +281,7 @@
         "pointer": "/components/schemas/ReportID"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "constraints": {
@@ -289,9 +289,9 @@
         "uniqueItems": false
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -299,7 +299,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

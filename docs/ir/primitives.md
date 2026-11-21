@@ -5,10 +5,10 @@ Part of the [IR design](./README.md). The built-in leaf types and how their valu
 ```go
 type Primitive struct {
     TypeCommon
-    Prim PrimKind
+    PrimitiveKind PrimitiveKind
 }
 
-type PrimKind string
+type PrimitiveKind string
 // bool string bytes
 // int8 int16 int32 int64 uint8 uint16 uint32 uint64
 // integer  (arbitrary precision — JSON Schema "integer", TypeSpec "integer")
@@ -46,20 +46,19 @@ refuse it. A `Scalar` keeps the format and leaves the reading to the target's
 
 ## Containment
 
-`PrimKind.StrictlyWithin` relates two kinds by the values they hold: `a` is
-strictly within `b` when every finite value of `a` is a value of `b` and `b` lies above `a` in the
-edges below. NaN and the infinities, which only the IEEE-754 kinds hold and no JSON instance
-carries, are outside the domain; that is what puts `float` below `number` and `decimal128` below
-`decimal`. The edges (`domainParents`) follow TypeSpec's declared numeric hierarchy — each integer
-width extends the next (`int8` up to `int64`, `uint8` up to `uint64`), `int64` and `uint64` extend
-`integer`, `float32` extends `float64` extends `float`, `decimal128` extends `decimal`, and
-`numeric` (`PrimNumber`) is their top — with two of its edges refined to exact containments it does
-not declare: `integer` lies within `float` and `float` within `decimal`, since every finite binary
-float is a finite decimal. To these they add the cross-signed widths (`uint8` within `int16`,
-`uint16` within `int32`, `uint32` within `int64`), the widths a float holds exactly (`int16` and
-`uint16` within `float32`, `int32` and `uint32` within `float64`), and `int64` and `uint64` within
-`decimal128`. `PrimAny` is the top: every other kind is strictly within it, which is a rule of the
-walk and not an edge.
+`PrimitiveKind.StrictlyWithin` relates two kinds by the values they hold: `a` is strictly within `b`
+when every finite value of `a` is a value of `b` and `b` lies above `a` in the edges below. NaN and
+the infinities, which only the IEEE-754 kinds hold and no JSON instance carries, are outside the
+domain; that is what puts `float` below `number` and `decimal128` below `decimal`. The edges
+(`domainParents`) follow TypeSpec's declared numeric hierarchy — each integer width extends the next
+(`int8` up to `int64`, `uint8` up to `uint64`), `int64` and `uint64` extend `integer`, `float32`
+extends `float64` extends `float`, `decimal128` extends `decimal`, and `numeric` (`PrimitiveNumber`)
+is their top — with two of its edges refined to exact containments it does not declare: `integer`
+lies within `float` and `float` within `decimal`, since every finite binary float is a finite
+decimal. To these they add the cross-signed widths (`uint8` within `int16`, `uint16` within `int32`,
+`uint32` within `int64`), the widths a float holds exactly (`int16` and `uint16` within `float32`,
+`int32` and `uint32` within `float64`), and `int64` and `uint64` within `decimal128`. `PrimitiveAny`
+is the top: every other kind is strictly within it, which is a rule of the walk and not an edge.
 
 Every edge holds both of a kind's finite values and of the JSON instances its spellings admit.
 OpenAPI floats round, so `format: float` admits every finite number in its range; a bounded integer

@@ -36,11 +36,11 @@ func (p *typeParts) read(td ir.TypeDef) {
 			p.held = appendTarget(p.held, t.Variants[i].Type.Target)
 		}
 	case *ir.List:
-		p.held = appendDecoded(appendTarget(p.held, t.Elem.Target), t.Encoding)
+		p.held = appendDecoded(appendTarget(p.held, t.ElementType.Target), t.Encoding)
 	case *ir.MapT:
 		p.held = appendTarget(appendRef(p.held, t.Key), t.Value.Target)
 	case *ir.Tuple:
-		p.held = appendRef(appendRefs(p.held, t.Elems), t.Rest)
+		p.held = appendRef(appendRefs(p.held, t.ElementTypes), t.Rest)
 	case *ir.Scalar:
 		if t.Base != nil {
 			p.alias = t.Base.Target
@@ -54,22 +54,22 @@ func (p *typeParts) read(td ir.TypeDef) {
 // model reads a model's parts: its properties, what their encodings decode to
 // and their field arguments, its catch-all's value, key and patterns, and its
 // Base, Implements and Mixins.
-func (p *typeParts) model(m *ir.Model) {
-	for i := range m.Properties {
-		prop := &m.Properties[i]
-		p.held = appendDecoded(appendTarget(p.held, prop.Type.Target), prop.Encoding)
-		for j := range prop.Args {
-			p.args = appendDecoded(appendTarget(p.args, prop.Args[j].Type.Target), prop.Args[j].Encoding)
+func (p *typeParts) model(model *ir.Model) {
+	for i := range model.Properties {
+		property := &model.Properties[i]
+		p.held = appendDecoded(appendTarget(p.held, property.Type.Target), property.Encoding)
+		for j := range property.Args {
+			p.args = appendDecoded(appendTarget(p.args, property.Args[j].Type.Target), property.Args[j].Encoding)
 		}
 	}
-	if extra := m.AdditionalProps; extra != nil {
+	if extra := model.AdditionalProperties; extra != nil {
 		p.held = appendRef(appendRef(p.held, extra.Value), extra.Key)
 		for i := range extra.Patterns {
 			p.held = appendTarget(p.held, extra.Patterns[i].Value.Target)
 		}
 	}
-	p.composed = appendRefs(appendRef(p.composed, m.Base), m.Implements)
-	p.composed = appendRefs(p.composed, m.Mixins)
+	p.composed = appendRefs(appendRef(p.composed, model.Base), model.Implements)
+	p.composed = appendRefs(p.composed, model.Mixins)
 }
 
 // appendTarget appends id unless it is empty, which names no type.
@@ -80,21 +80,21 @@ func appendTarget(dst []ir.TypeID, id ir.TypeID) []ir.TypeID {
 	return append(dst, id)
 }
 
-// appendRef appends the target of r, if there is a reference at all.
-func appendRef(dst []ir.TypeID, r *ir.TypeRef) []ir.TypeID {
-	if r == nil {
+// appendRef appends the target of typeRef, if there is a reference at all.
+func appendRef(dst []ir.TypeID, typeRef *ir.TypeRef) []ir.TypeID {
+	if typeRef == nil {
 		return dst
 	}
-	return appendTarget(dst, r.Target)
+	return appendTarget(dst, typeRef.Target)
 }
 
-// appendDecoded appends the type e says an encoded value holds once decoded,
-// if there is an encoding and it says one.
-func appendDecoded(dst []ir.TypeID, e *ir.Encoding) []ir.TypeID {
-	if e == nil {
+// appendDecoded appends the type encoding says an encoded value holds once
+// decoded, if there is an encoding and it says one.
+func appendDecoded(dst []ir.TypeID, encoding *ir.Encoding) []ir.TypeID {
+	if encoding == nil {
 		return dst
 	}
-	return appendRef(dst, e.Schema)
+	return appendRef(dst, encoding.Schema)
 }
 
 // appendRefs appends the target of each reference in rs.

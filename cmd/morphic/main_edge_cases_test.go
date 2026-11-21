@@ -344,12 +344,12 @@ func (danglingDocCompiler) Compile(_ context.Context, sources []compilers.Source
 		// read as the format detection recognized and hashed from its bytes.
 		Sources: []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
 		Services: []ir.Service{{
-			ID: "s/x",
+			ID: "service/x",
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
-					ID: "op/x",
+					ID: "operation/x",
 					Errors: []ir.ErrorCase{{
-						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/missing"}}}},
 					}},
 				}},
 			}},

@@ -30,7 +30,7 @@ type recordLine struct{ what, reason string }
 // ReadRecorded reads a record. A line that is not a comment, blank, or three
 // non-empty fields between tabs, and a name listed twice, are errors.
 func ReadRecorded(data []byte) (Recorded, error) {
-	r := Recorded{}
+	recorded := Recorded{}
 	n := 0
 	for line := range strings.Lines(string(data)) {
 		n++
@@ -42,12 +42,12 @@ func ReadRecorded(data []byte) (Recorded, error) {
 		if len(fields) != 3 || slices.Contains(fields, "") {
 			return nil, fmt.Errorf("harness: record line %d: want name, what and reason between tabs, got %q", n, line)
 		}
-		if _, dup := r[fields[0]]; dup {
+		if _, dup := recorded[fields[0]]; dup {
 			return nil, fmt.Errorf("harness: record line %d: %q is listed twice", n, fields[0])
 		}
-		r[fields[0]] = recordLine{what: fields[1], reason: fields[2]}
+		recorded[fields[0]] = recordLine{what: fields[1], reason: fields[2]}
 	}
-	return r, nil
+	return recorded, nil
 }
 
 // Judge holds findings, every finding an oracle made at the core cases, to r,
@@ -56,14 +56,14 @@ func ReadRecorded(data []byte) (Recorded, error) {
 // and a line whose reason reasons does not name, such as "unclassified".
 func (r Recorded) Judge(findings []Finding, reasons map[string]string) (unlisted, changed, stale, unreasoned []string) {
 	seen := make(map[string]bool, len(findings))
-	for _, f := range findings {
-		seen[f.Name] = true
-		e, ok := r[f.Name]
+	for _, finding := range findings {
+		seen[finding.Name] = true
+		recordLine, ok := r[finding.Name]
 		switch {
 		case !ok:
-			unlisted = append(unlisted, f.Name+"\t"+f.What)
-		case e.what != f.What:
-			changed = append(changed, fmt.Sprintf("%s: listed %q, found %q", f.Name, e.what, f.What))
+			unlisted = append(unlisted, finding.Name+"\t"+finding.What)
+		case recordLine.what != finding.What:
+			changed = append(changed, fmt.Sprintf("%s: listed %q, found %q", finding.Name, recordLine.what, finding.What))
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(r)) {
@@ -79,11 +79,12 @@ func (r Recorded) Judge(findings []Finding, reasons map[string]string) (unlisted
 	return unlisted, changed, stale, unreasoned
 }
 
-// Explains reports whether r lists f at as, with f's What: as is f's case's
-// own name, or the name of the core case it projects to (Result.Like).
-func (r Recorded) Explains(f Finding, as string) bool {
-	e, ok := r[as]
-	return ok && e.what == f.What
+// Explains reports whether r lists finding at as, with finding's What: as is
+// finding's case's own name, or the name of the core case it projects to
+// (Result.Like).
+func (r Recorded) Explains(finding Finding, as string) bool {
+	recordLine, ok := r[as]
+	return ok && recordLine.what == finding.What
 }
 
 // Write renders findings as a record ReadRecorded reads back: header as comment
@@ -97,51 +98,51 @@ func (r Recorded) Write(header string, findings []Finding) []byte {
 		b.WriteString(strings.TrimRight("# "+strings.TrimSuffix(line, "\n"), " ") + "\n")
 	}
 	sorted := slices.SortedFunc(slices.Values(findings), func(a, b Finding) int { return cmp.Compare(a.Name, b.Name) })
-	for _, f := range sorted {
+	for _, finding := range sorted {
 		reason := unclassified
-		if e, ok := r[f.Name]; ok {
-			reason = e.reason
+		if recordLine, ok := r[finding.Name]; ok {
+			reason = recordLine.reason
 		}
-		b.WriteString(f.Name + "\t" + f.What + "\t" + reason + "\n")
+		b.WriteString(finding.Name + "\t" + finding.What + "\t" + reason + "\n")
 	}
 	return []byte(b.String())
 }
 
-// Findings returns what o found in each of results, in their order, and each
-// decline its record lists as it lists a finding (listed), whose What is
+// Findings returns what oracle found in each of results, in their order, and
+// each decline its record lists as it lists a finding (listed), whose What is
 // "declined: <reason>".
-func Findings(results []Result, o Oracle) []Finding {
+func Findings(results []Result, oracle Oracle) []Finding {
 	var out []Finding
-	for _, r := range results {
-		for _, v := range r.Verdicts {
-			if v.Oracle == o && listed(v) {
-				out = append(out, findingOf(r, v))
+	for _, result := range results {
+		for _, verdict := range result.Verdicts {
+			if verdict.Oracle == oracle && listed(verdict) {
+				out = append(out, findingOf(result, verdict))
 			}
 		}
 	}
 	return out
 }
 
-// listed reports whether a record lists v: a finding, or one of the two
+// listed reports whether a record lists verdict: a finding, or one of the two
 // declines no case should draw. A case is written to compile and each group to
 // be judged, so a document that draws an error and an instance nothing judged
 // show as a new finding does. A spelling the oracle cannot compare, for a
 // relocation that collides or a document nested too deep, is listed by none.
-func listed(v Verdict) bool {
-	return v.Found() || v.Declined == DeclineErrorDiagnostic || v.Declined == DeclineNotJudged
+func listed(verdict Verdict) bool {
+	return verdict.Found() || verdict.Declined == DeclineErrorDiagnostic || verdict.Declined == DeclineNotJudged
 }
 
-// findingOf is the Finding v, a verdict of r a record lists, makes.
-func findingOf(r Result, v Verdict) Finding {
-	if !v.Asked() {
-		return Finding{Name: r.Spec, What: declinedWhat(v.Declined)}
+// findingOf is the Finding verdict, a verdict of result a record lists, makes.
+func findingOf(result Result, verdict Verdict) Finding {
+	if !verdict.Asked() {
+		return Finding{Name: result.Spec, What: declinedWhat(verdict.Declined)}
 	}
-	what, _, _ := strings.Cut(v.Detail, "\n")
-	return Finding{Name: r.Spec, What: what}
+	what, _, _ := strings.Cut(verdict.Detail, "\n")
+	return Finding{Name: result.Spec, What: what}
 }
 
-// declinedWhat is the What of a decline for the reason d.
-func declinedWhat(d Decline) string { return "declined: " + string(d) }
+// declinedWhat is the What of a decline for the reason decline.
+func declinedWhat(decline Decline) string { return "declined: " + string(decline) }
 
 // Unexplained returns, of results, those records does not explain: a result a
 // fault ended (Result.Faulted), whole, and one with a finding (explained) its
@@ -152,23 +153,23 @@ func declinedWhat(d Decline) string { return "declined: " + string(d) }
 func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 	run := byName(results)
 	var out []Result
-	for _, r := range results {
-		if r.Faulted() {
-			out = append(out, r)
+	for _, result := range results {
+		if result.Faulted() {
+			out = append(out, result)
 			continue
 		}
 		var left []Verdict
-		for _, v := range r.Verdicts {
-			if !listed(v) || explained(records[v.Oracle], run, r, v) {
+		for _, verdict := range result.Verdicts {
+			if !listed(verdict) || explained(records[verdict.Oracle], run, result, verdict) {
 				continue
 			}
-			if !v.Asked() {
-				v = Verdict{Oracle: v.Oracle, Outcome: OutcomeDeclined, Detail: declinedWhat(v.Declined)}
+			if !verdict.Asked() {
+				verdict = Verdict{Oracle: verdict.Oracle, Outcome: OutcomeDeclined, Detail: declinedWhat(verdict.Declined)}
 			}
-			left = append(left, v)
+			left = append(left, verdict)
 		}
 		if len(left) > 0 {
-			out = append(out, Result{Spec: r.Spec, Like: r.Like, Parts: r.Parts, Outcome: left[0].Outcome,
+			out = append(out, Result{Spec: result.Spec, Like: result.Like, Parts: result.Parts, Outcome: left[0].Outcome,
 				Detail: left[0].Detail, Verdicts: left})
 		}
 	}
@@ -178,46 +179,46 @@ func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 // byName indexes the results naming parts (Result.Parts) by name, and nil
 // where none does.
 func byName(results []Result) map[string]Result {
-	if !slices.ContainsFunc(results, func(r Result) bool { return len(r.Parts) > 0 }) {
+	if !slices.ContainsFunc(results, func(result Result) bool { return len(result.Parts) > 0 }) {
 		return nil
 	}
 	out := make(map[string]Result, len(results))
-	for _, r := range results {
-		out[r.Spec] = r
+	for _, result := range results {
+		out[result.Spec] = result
 	}
 	return out
 }
 
 // explained reports whether rec, or run, the results of the same run by name,
-// explains v, a verdict of r its record lists: rec lists what v found at r's
-// own name or at the core case r projects to; or v is a spelling of a case
-// writing two keywords whose every place it differs at, a part of its What, is
-// a place a spelling of either part differs at in run. Each part is held to
-// the records itself, so a place forgiven here is one already recorded or
-// reported where it stands alone.
-func explained(rec Recorded, run map[string]Result, r Result, v Verdict) bool {
-	f := findingOf(r, v)
-	if rec.Explains(f, r.Spec) || rec.Explains(f, r.Like) {
+// explains verdict, a verdict of result its record lists: rec lists what
+// verdict found at result's own name or at the core case result projects to; or
+// verdict is a spelling of a case writing two keywords whose every place it
+// differs at, a part of its What, is a place a spelling of either part differs
+// at in run. Each part is held to the records itself, so a place forgiven here
+// is one already recorded or reported where it stands alone.
+func explained(rec Recorded, run map[string]Result, result Result, verdict Verdict) bool {
+	finding := findingOf(result, verdict)
+	if rec.Explains(finding, result.Spec) || rec.Explains(finding, result.Like) {
 		return true
 	}
-	if v.Oracle != OracleSpelling || len(r.Parts) == 0 {
+	if verdict.Oracle != OracleSpelling || len(result.Parts) == 0 {
 		return false
 	}
 	places := map[string]bool{}
-	for _, name := range r.Parts {
+	for _, name := range result.Parts {
 		part, ok := run[name]
 		if !ok {
 			continue
 		}
-		for _, w := range part.Verdicts {
-			if w.Oracle == v.Oracle && listed(w) {
-				for place := range strings.SplitSeq(findingOf(part, w).What, ",") {
+		for _, verdictValue := range part.Verdicts {
+			if verdictValue.Oracle == verdict.Oracle && listed(verdictValue) {
+				for place := range strings.SplitSeq(findingOf(part, verdictValue).What, ",") {
 					places[place] = true
 				}
 			}
 		}
 	}
-	for place := range strings.SplitSeq(f.What, ",") {
+	for place := range strings.SplitSeq(finding.What, ",") {
 		if !places[place] {
 			return false
 		}

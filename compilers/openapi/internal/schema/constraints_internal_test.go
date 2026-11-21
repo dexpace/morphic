@@ -22,14 +22,14 @@ import (
 // constraint keywords on it, so ConstraintsOf reports none either way.
 func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	for _, s := range []*statement.Schema{
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	for _, schema := range []*statement.Schema{
 		nil,
 		Standalone(oas3.NewJSONSchemaFromBool(true)).Schema,
 		Standalone(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")).Schema,
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, s, nil, "/p", anyInstance)
+		cons, diags := ConstraintsOf(lowerer.Ctx, &kept, schema, nil, "/p", anyInstance)
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -40,9 +40,9 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 // as ConstraintsOf reads it, holding nothing.
 func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, nil, ir.TypeRef{}, "/p")
+	cons, diags := referenceConstraintsOf(lowerer.Ctx, &kept, nil, nil, ir.TypeRef{}, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
@@ -63,10 +63,10 @@ func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
 // hand.
 func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, Standalone(js).Schema, nil, "/p", anyInstance)
+	cons, diags := ConstraintsOf(lowerer.Ctx, &kept, Standalone(js).Schema, nil, "/p", anyInstance)
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
@@ -78,17 +78,17 @@ func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 // it, not at the position that declared it.
 func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	in := []ir.Diagnostic{
 		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
 		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
 	}
 
-	got := stampConstraintDiags(l.Ctx, in, "/components/schemas/S")
+	got := stampConstraintDiags(lowerer.Ctx, in, "/components/schemas/S")
 
 	require.Len(t, got, 2)
-	for _, d := range got {
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
+	for _, diagnostic := range got {
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, diagnostic.Provenance,
 			"every diagnostic is relocated, not just the first")
 	}
 	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")

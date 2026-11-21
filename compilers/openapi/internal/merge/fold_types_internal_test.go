@@ -24,23 +24,23 @@ import (
 // an emitter renders it into non-compiling code.
 func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+	stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/int": &ir.Primitive{ID: "type/int", PrimitiveKind: ir.PrimitiveInt32},
 	})
 	dst := ir.Property{
 		WireName:    "id",
-		Type:        ir.TypeRef{Target: "t/str"},
-		Default:     &ir.Value{Kind: ir.ValueString, Str: "abc"},
+		Type:        ir.TypeRef{Target: "type/str"},
+		Default:     &ir.Value{Kind: ir.ValueString, String: "abc"},
 		Constraints: &ir.Constraints{MaxLength: new(int64(10))},
-		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
+		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, String: "abc"}}},
 	}
-	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
+	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "type/int"}}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
+	dst = foldTwo(stubbed, dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "the conflict is diagnosed")
-	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the later declaration wins the shape")
+	assert.Equal(t, ir.TypeID("type/int"), dst.Type.Target, "the later declaration wins the shape")
 	assert.Nil(t, dst.Default, "a string default does not belong to an integer field")
 	assert.Nil(t, dst.Constraints, "maxLength constrains the string that was discarded")
 	assert.Empty(t, dst.Examples, "the examples are of the discarded shape")
@@ -56,7 +56,7 @@ func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"type/str": &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
 	}
 	cases := []struct {
 		name                   string
@@ -70,11 +70,11 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(reg)
-			dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.dstNull}}
-			src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.srcNull}}
+			stubbed, recorded := stubMerger(reg)
+			dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "type/str", Nullable: tc.dstNull}}
+			src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "type/str", Nullable: tc.srcNull}}
 
-			dst = foldTwo(g, dst, src, unread(t))
+			dst = foldTwo(stubbed, dst, src, unread(t))
 
 			assert.Equal(t, tc.want, dst.Type.Nullable, "the merged field admits null only where both entries do")
 			assert.Empty(t, *recorded, "an intersection the IR can express is not a conflict")
@@ -94,23 +94,23 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/list":  &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
-		"t/tuple": &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{{Target: "t/str"}}},
-		"t/any":   &ir.Any{ID: "t/any"},
-		"t/str":   &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/opq":   &ir.Scalar{ID: "t/opq"},
+		"type/list":  &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/str"}},
+		"type/tuple": &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{{Target: "type/str"}}},
+		"type/any":   &ir.Any{ID: "type/any"},
+		"type/str":   &ir.Primitive{ID: "type/str", PrimitiveKind: ir.PrimitiveString},
+		"type/opq":   &ir.Scalar{ID: "type/opq"},
 	}
 	cases := []struct {
 		name                 string
 		dstTarget, srcTarget ir.TypeID
 	}{
-		{"a list and a tuple", "t/list", "t/tuple"},
-		{"an opaque scalar keeps the position", "t/opq", "t/str"},
+		{"a list and a tuple", "type/list", "type/tuple"},
+		{"an opaque scalar keeps the position", "type/opq", "type/str"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g, recorded := stubMerger(reg)
+			stubbed, recorded := stubMerger(reg)
 			dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: tc.dstTarget},
 				Provenance: ir.Provenance{Source: 1, Pointer: "/p/allOf/0/properties/id"}}
 			src := ir.Property{
@@ -119,7 +119,7 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 				Provenance: ir.Provenance{Source: 1, Pointer: "/p/allOf/1/properties/id"},
 			}
 
-			dst = foldTwo(g, dst, src, written(`{"type":"object"}`))
+			dst = foldTwo(stubbed, dst, src, written(`{"type":"object"}`))
 
 			assert.Equal(t, tc.srcTarget, dst.Type.Target, "the later declaration wins")
 			require.Len(t, *recorded, 1)
@@ -142,21 +142,21 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 // contradiction the skip exists to prevent, on the one path it did not cover.
 func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/A":   declaring("t/A"),
-		"t/opq": &ir.Scalar{ID: "t/opq"},
+	stubbed, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"type/A":   declaring("type/A"),
+		"type/opq": &ir.Scalar{ID: "type/opq"},
 	})
 	dst := ir.Property{
 		WireName:    "x",
-		Type:        ir.TypeRef{Target: "t/opq"},
+		Type:        ir.TypeRef{Target: "type/opq"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
-		Constraints: &ir.Constraints{MinProps: new(int64(1))},
+		Constraints: &ir.Constraints{MinProperties: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
 		Provenance:  ptrAt("/allOf/0/properties/x"),
 	}
-	src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}, Provenance: ptrAt("/allOf/1/properties/x")}
+	src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "type/A"}, Provenance: ptrAt("/allOf/1/properties/x")}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"object"}`))
+	dst = foldTwo(stubbed, dst, src, written(`{"type":"object"}`))
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and an opaque scalar are not called a conflict")
@@ -171,7 +171,7 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 // and one target declared twice judges null alone and adopts a default.
 func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 	t.Parallel()
-	d := str("x")
+	value := stringValue("x")
 	for _, tc := range []struct {
 		name      string
 		a, b      ir.TypeID
@@ -180,14 +180,14 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 		code      string
 		keptEntry bool
 	}{
-		{"a literal against a kind it is disjoint from", "t/lit-x", "t/prim/integer", nil,
+		{"a literal against a kind it is disjoint from", "type/lit-x", "type/primitive/integer", nil,
 			ir.SeverityWarning, diag.ConflictingRedecl, true},
-		{"lists whose elements overlap", "t/list-i32", "t/list-u32", nil,
+		{"lists whose elements overlap", "type/list-i32", "type/list-u32", nil,
 			ir.SeverityInfo, diag.DegradedConstruct, true},
-		{"one target declared twice", "t/prim/integer", "t/prim/integer", &d, "", "", false},
+		{"one target declared twice", "type/primitive/integer", "type/primitive/integer", &value, "", "", false},
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-			g, recorded := stubMerger(judgeRegistry())
+			stubbed, recorded := stubMerger(judgeRegistry())
 			dst := ir.Property{WireName: "x", Type: ref(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
 			src := ir.Property{WireName: "x", Type: ref(order[1]), Default: tc.dflt,
 				Provenance: ptrAt("/allOf/1/properties/x")}
@@ -195,7 +195,7 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 				dst.Default, src.Default = src.Default, nil
 			}
 
-			dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
+			dst = foldTwo(stubbed, dst, src, written(`{"type":"x"}`))
 
 			if tc.keptEntry {
 				require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
@@ -214,14 +214,14 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 
 // reconcileBothOrders reconciles kinds a and b in both declaration orders and
 // returns what each order recorded and merged.
-func reconcileBothOrders(t *testing.T, a, b ir.PrimKind) (dsts [2]ir.Property, diags [2][]ir.Diagnostic) {
+func reconcileBothOrders(t *testing.T, a, b ir.PrimitiveKind) (dsts [2]ir.Property, diags [2][]ir.Diagnostic) {
 	t.Helper()
-	for i, order := range [][2]ir.PrimKind{{a, b}, {b, a}} {
-		g, recorded := stubMerger(narrowingRegistry())
-		dst := ir.Property{WireName: "x", Type: primRef(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
-		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+	for i, order := range [][2]ir.PrimitiveKind{{a, b}, {b, a}} {
+		stubbed, recorded := stubMerger(narrowingRegistry())
+		dst := ir.Property{WireName: "x", Type: primitiveRef(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
+		src := ir.Property{WireName: "x", Type: primitiveRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
+		dst = foldTwo(stubbed, dst, src, written(`{"type":"x"}`))
 
 		dsts[i], diags[i] = dst, *recorded
 	}
@@ -235,18 +235,18 @@ func TestFold_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
-		a, b ir.PrimKind
+		a, b ir.PrimitiveKind
 	}{
-		{"int32 and uint32", ir.PrimInt32, ir.PrimUint32},
-		{"float32 and integer", ir.PrimFloat32, ir.PrimInteger},
-		{"int64 and float64", ir.PrimInt64, ir.PrimFloat64},
+		{"int32 and uint32", ir.PrimitiveInt32, ir.PrimitiveUint32},
+		{"float32 and integer", ir.PrimitiveFloat32, ir.PrimitiveInteger},
+		{"int64 and float64", ir.PrimitiveInt64, ir.PrimitiveFloat64},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
-			for i, later := range []ir.PrimKind{tc.b, tc.a} {
-				assert.Equal(t, primRef(later).Target, dsts[i].Type.Target, "the later declaration's kind stays (order %d)", i)
+			for i, later := range []ir.PrimitiveKind{tc.b, tc.a} {
+				assert.Equal(t, primitiveRef(later).Target, dsts[i].Type.Target, "the later declaration's kind stays (order %d)", i)
 				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, diag.DegradedConstruct, diags[i][0].Code, "order %d", i)
 				assert.Equal(t, ir.SeverityInfo, diags[i][0].Severity, "order %d", i)
@@ -263,18 +263,18 @@ func TestFold_DisjointKindsStillWarn(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
-		a, b ir.PrimKind
+		a, b ir.PrimitiveKind
 	}{
-		{"string and integer", ir.PrimString, ir.PrimInteger},
-		{"bool and number", ir.PrimBool, ir.PrimNumber},
-		{"uuid and date-time", ir.PrimUUID, ir.PrimDatetimeOffset},
+		{"string and integer", ir.PrimitiveString, ir.PrimitiveInteger},
+		{"bool and number", ir.PrimitiveBool, ir.PrimitiveNumber},
+		{"uuid and date-time", ir.PrimitiveUUID, ir.PrimitiveDatetimeOffset},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
-			for i, later := range []ir.PrimKind{tc.b, tc.a} {
-				assert.Equal(t, primRef(later).Target, dsts[i].Type.Target, "the later declaration wins (order %d)", i)
+			for i, later := range []ir.PrimitiveKind{tc.b, tc.a} {
+				assert.Equal(t, primitiveRef(later).Target, dsts[i].Type.Target, "the later declaration wins (order %d)", i)
 				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, diag.ConflictingRedecl, diags[i][0].Code, "order %d", i)
 				assert.Equal(t, ir.SeverityWarning, diags[i][0].Severity, "order %d", i)
@@ -289,13 +289,13 @@ func TestFold_DisjointKindsStillWarn(t *testing.T) {
 // that stand for a kind the same way a bare reference does.
 func enumRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
-	reg["t/enum/a"] = &ir.Enum{ID: "t/enum/a", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("a")}}}
-	reg["t/enum/b"] = &ir.Enum{ID: "t/enum/b", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("b")}}}
-	reg["t/enum/big"] = &ir.Enum{ID: "t/enum/big", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("5000000000")}}}
-	reg["t/enum/small"] = &ir.Enum{ID: "t/enum/small", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("1")}}}
-	uuid, bytes := primRef(ir.PrimUUID), primRef(ir.PrimBytes)
-	reg["t/scalar/uuid"] = &ir.Scalar{ID: "t/scalar/uuid", Base: &uuid}
-	reg["t/scalar/bytes"] = &ir.Scalar{ID: "t/scalar/bytes", Base: &bytes}
+	reg["type/enum/a"] = &ir.Enum{ID: "type/enum/a", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: stringValue("a")}}}
+	reg["type/enum/b"] = &ir.Enum{ID: "type/enum/b", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{Value: stringValue("b")}}}
+	reg["type/enum/big"] = &ir.Enum{ID: "type/enum/big", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: number("5000000000")}}}
+	reg["type/enum/small"] = &ir.Enum{ID: "type/enum/small", ValueType: ir.PrimitiveInteger, Members: []ir.EnumMember{{Value: number("1")}}}
+	uuid, bytes := primitiveRef(ir.PrimitiveUUID), primitiveRef(ir.PrimitiveBytes)
+	reg["type/scalar/uuid"] = &ir.Scalar{ID: "type/scalar/uuid", Base: &uuid}
+	reg["type/scalar/bytes"] = &ir.Scalar{ID: "type/scalar/bytes", Base: &bytes}
 	return reg
 }
 
@@ -314,26 +314,26 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 		want   ir.Severity // "" = none
 		winner ir.TypeID   // "" = the later declaration's
 	}{
-		{"enum of string and uuid", enum("t/enum/a"), primRef(ir.PrimUUID), ir.SeverityWarning, ""},
-		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), ir.SeverityWarning, ""},
-		{"enum admitted by int32", enum("t/enum/small"), primRef(ir.PrimInt32), ir.SeverityInfo, ""},
-		{"enum of string and bytes", enum("t/enum/a"), primRef(ir.PrimBytes), ir.SeverityInfo, ""},
-		{"enum of string and a uuid scalar", enum("t/enum/a"), enum("t/scalar/uuid"), ir.SeverityWarning, ""},
-		{"enum of string and a bytes scalar", enum("t/enum/a"), enum("t/scalar/bytes"), ir.SeverityInfo, ""},
-		{"enum of string and integer", enum("t/enum/a"), primRef(ir.PrimInteger), ir.SeverityWarning, ""},
-		{"enum of string and another sharing no member", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityWarning, ""},
-		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), "", "t/enum/a"},
-		{"enum of integer and number", enum("t/enum/big"), primRef(ir.PrimNumber), "", "t/enum/big"},
+		{"enum of string and uuid", enum("type/enum/a"), primitiveRef(ir.PrimitiveUUID), ir.SeverityWarning, ""},
+		{"enum of integer and int32", enum("type/enum/big"), primitiveRef(ir.PrimitiveInt32), ir.SeverityWarning, ""},
+		{"enum admitted by int32", enum("type/enum/small"), primitiveRef(ir.PrimitiveInt32), ir.SeverityInfo, ""},
+		{"enum of string and bytes", enum("type/enum/a"), primitiveRef(ir.PrimitiveBytes), ir.SeverityInfo, ""},
+		{"enum of string and a uuid scalar", enum("type/enum/a"), enum("type/scalar/uuid"), ir.SeverityWarning, ""},
+		{"enum of string and a bytes scalar", enum("type/enum/a"), enum("type/scalar/bytes"), ir.SeverityInfo, ""},
+		{"enum of string and integer", enum("type/enum/a"), primitiveRef(ir.PrimitiveInteger), ir.SeverityWarning, ""},
+		{"enum of string and another sharing no member", enum("type/enum/a"), enum("type/enum/b"), ir.SeverityWarning, ""},
+		{"enum of string and bare string", enum("type/enum/a"), primitiveRef(ir.PrimitiveString), "", "type/enum/a"},
+		{"enum of integer and number", enum("type/enum/big"), primitiveRef(ir.PrimitiveNumber), "", "type/enum/big"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for i, order := range [][2]ir.TypeRef{{tc.a, tc.b}, {tc.b, tc.a}} {
-				g, recorded := stubMerger(enumRegistry())
+				stubbed, recorded := stubMerger(enumRegistry())
 				dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 				src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
+				dst = foldTwo(stubbed, dst, src, written(`{"type":"x"}`))
 
 				wantTarget := order[1].Target
 				if tc.winner != "" {
@@ -361,50 +361,50 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 	members := func(prefix string, vs ...string) []ir.EnumMember {
 		out := make([]ir.EnumMember, 0, len(vs))
 		for _, v := range vs {
-			out = append(out, ir.EnumMember{ID: ir.EnumMemberID(prefix + v), Value: str(v)})
+			out = append(out, ir.EnumMember{ID: ir.EnumMemberID(prefix + v), Value: stringValue(v)})
 		}
 		return out
 	}
 	enum := func(id ir.TypeID, ms []ir.EnumMember, desc string) *ir.Enum {
-		e := &ir.Enum{ID: id, ValueType: ir.PrimString, Members: ms}
-		e.Docs.Description = desc
-		return e
+		enum := &ir.Enum{ID: id, ValueType: ir.PrimitiveString, Members: ms}
+		enum.Docs.Description = desc
+		return enum
 	}
-	reg["t/enum/x1"] = enum("t/enum/x1", members("x1/", "a", "b"), "")
-	reg["t/enum/x2"] = enum("t/enum/x2", members("x2/", "a", "b"), "")
-	reg["t/enum/x-described"] = enum("t/enum/x-described", members("xd/", "a", "b"), "some")
-	reg["t/enum/x-reordered"] = enum("t/enum/x-reordered", members("xr/", "b", "a"), "")
-	for _, id := range []ir.TypeID{"t/enum/x-ext1", "t/enum/x-ext2"} {
-		e := enum(id, members(string(id)+"/", "a", "b"), "")
-		e.Unmodeled = ir.Unmodeled{"openapi:x-foo": {
+	reg["type/enum/x1"] = enum("type/enum/x1", members("x1/", "a", "b"), "")
+	reg["type/enum/x2"] = enum("type/enum/x2", members("x2/", "a", "b"), "")
+	reg["type/enum/x-described"] = enum("type/enum/x-described", members("xd/", "a", "b"), "some")
+	reg["type/enum/x-reordered"] = enum("type/enum/x-reordered", members("xr/", "b", "a"), "")
+	for _, id := range []ir.TypeID{"type/enum/x-ext1", "type/enum/x-ext2"} {
+		irEnum := enum(id, members(string(id)+"/", "a", "b"), "")
+		irEnum.Unmodeled = ir.Unmodeled{"openapi:x-foo": {
 			Reason:     ir.ReasonVendorExtension,
 			Value:      ir.RawValue("1"),
 			Provenance: ptrAt(jsontext.Pointer("/at/" + string(id) + "/x-foo")),
 		}}
-		reg[id] = e
+		reg[id] = irEnum
 	}
-	valued := enum("t/enum/x-ext-valued", members("xv/", "a", "b"), "")
+	valued := enum("type/enum/x-ext-valued", members("xv/", "a", "b"), "")
 	valued.Unmodeled = ir.Unmodeled{"openapi:x-foo": {
 		Reason:     ir.ReasonVendorExtension,
 		Value:      ir.RawValue("2"),
 		Provenance: ptrAt("/at/t/enum/x-ext1/x-foo"),
 	}}
-	reg["t/enum/x-ext-valued"] = valued
-	reg["t/lit/1"] = &ir.Literal{ID: "t/lit/1", Value: str("a")}
-	reg["t/lit/2"] = &ir.Literal{ID: "t/lit/2", Value: str("a")}
-	str := primRef(ir.PrimString)
+	reg["type/enum/x-ext-valued"] = valued
+	reg["type/lit/1"] = &ir.Literal{ID: "type/lit/1", Value: stringValue("a")}
+	reg["type/lit/2"] = &ir.Literal{ID: "type/lit/2", Value: stringValue("a")}
+	stringType := primitiveRef(ir.PrimitiveString)
 	minLen := int64(2)
-	reg["t/hex/1"] = &ir.Scalar{ID: "t/hex/1", Base: &str}
-	reg["t/hex/2"] = &ir.Scalar{ID: "t/hex/2", Base: &str}
-	reg["t/hex/min"] = &ir.Scalar{ID: "t/hex/min", Base: &str, Constraints: &ir.Constraints{MinLength: &minLen}}
+	reg["type/hex/1"] = &ir.Scalar{ID: "type/hex/1", Base: &stringType}
+	reg["type/hex/2"] = &ir.Scalar{ID: "type/hex/2", Base: &stringType}
+	reg["type/hex/min"] = &ir.Scalar{ID: "type/hex/min", Base: &stringType, Constraints: &ir.Constraints{MinLength: &minLen}}
 	for _, td := range reg {
 		switch td.(type) {
 		case *ir.Enum, *ir.Literal, *ir.Scalar:
 			td.Common().Anonymous = true
 		}
 	}
-	reg["t/enum/x-named"] = enum("t/enum/x-named", members("xn/", "a", "b"), "")
-	reg["t/enum/x-named2"] = enum("t/enum/x-named2", members("xn2/", "a", "b"), "")
+	reg["type/enum/x-named"] = enum("type/enum/x-named", members("xn/", "a", "b"), "")
+	reg["type/enum/x-named2"] = enum("type/enum/x-named2", members("xn2/", "a", "b"), "")
 	return reg
 }
 
@@ -422,31 +422,31 @@ func TestFold_IdenticalNodesAreOneType(t *testing.T) {
 		same bool
 		win  ir.TypeID // the type that stands in both orders, or "" for the rule's
 	}{
-		{"two identical enums", "t/enum/x1", "t/enum/x2", true, ""},
-		{"two identical literals", "t/lit/1", "t/lit/2", true, ""},
-		{"two identical scalars", "t/hex/1", "t/hex/2", true, ""},
-		{"enums that differ in the provenance of an extension", "t/enum/x-ext1", "t/enum/x-ext2", true, ""},
-		{"a named enum against a hoisted copy", "t/enum/x-named", "t/enum/x1", true, "t/enum/x-named"},
-		{"two named enums declared alike", "t/enum/x-named", "t/enum/x-named2", false, ""},
-		{"enums that differ in an extension's value", "t/enum/x-ext1", "t/enum/x-ext-valued", false, ""},
-		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false, ""},
-		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false, ""},
-		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", true, "t/hex/min"},
+		{"two identical enums", "type/enum/x1", "type/enum/x2", true, ""},
+		{"two identical literals", "type/lit/1", "type/lit/2", true, ""},
+		{"two identical scalars", "type/hex/1", "type/hex/2", true, ""},
+		{"enums that differ in the provenance of an extension", "type/enum/x-ext1", "type/enum/x-ext2", true, ""},
+		{"a named enum against a hoisted copy", "type/enum/x-named", "type/enum/x1", true, "type/enum/x-named"},
+		{"two named enums declared alike", "type/enum/x-named", "type/enum/x-named2", false, ""},
+		{"enums that differ in an extension's value", "type/enum/x-ext1", "type/enum/x-ext-valued", false, ""},
+		{"enums that differ in a description", "type/enum/x1", "type/enum/x-described", false, ""},
+		{"enums that differ in member order", "type/enum/x1", "type/enum/x-reordered", false, ""},
+		{"scalars that differ in a constraint", "type/hex/1", "type/hex/min", true, "type/hex/min"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
 				reg := twinRegistry()
-				g, recorded := stubMerger(reg)
+				stubbed, recorded := stubMerger(reg)
 				dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[0]}, Provenance: ptrAt("/allOf/0/properties/x")}
 				src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[1]}, Provenance: ptrAt("/allOf/1/properties/x")}
-				for _, p := range []ir.Property{dst, src} {
-					if c := reg[p.Type.Target].Common(); c.Anonymous {
-						c.Provenance = p.Provenance
+				for _, property := range []ir.Property{dst, src} {
+					if typeCommon := reg[property.Type.Target].Common(); typeCommon.Anonymous {
+						typeCommon.Provenance = property.Provenance
 					}
 				}
 
-				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
+				dst = foldTwo(stubbed, dst, src, written(`{"type":"x"}`))
 
 				want := tc.win
 				switch {

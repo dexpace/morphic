@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,8 +49,8 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	}
 	versions := []struct {
 		name  string
-		minor oas.Minor
-	}{{"3.0.3", oas.V30}, {"3.1.0", oas.V31}, {"3.2.0", oas.V32}}
+		minor specrules.Minor
+	}{{"3.0.3", specrules.V30}, {"3.1.0", specrules.V31}, {"3.2.0", specrules.V32}}
 	for _, version := range versions {
 		for _, keyword := range nullableKeywords(t, version.minor) {
 			for _, position := range positions {
@@ -134,14 +134,14 @@ components:
 
 // nullableKeywords returns the keywords the table gives a Schema Object at
 // minor, but those whose value is an instance, of which a null is one.
-func nullableKeywords(t *testing.T, minor oas.Minor) []string {
+func nullableKeywords(t *testing.T, minor specrules.Minor) []string {
 	t.Helper()
-	schema, ok := oas.Table().Object(oas.Schema)
+	schema, ok := specrules.Table().Object(specrules.Schema)
 	require.True(t, ok)
 	var out []string
-	for _, f := range schema.Fields {
-		if f.Defined.Holds(minor) && f.Shape != oas.Any {
-			out = append(out, f.Name)
+	for _, field := range schema.Fields {
+		if field.Defined.Holds(minor) && field.Shape != specrules.AnyShapeUnchecked {
+			out = append(out, field.Name)
 		}
 	}
 	require.NotEmpty(t, out)
@@ -155,11 +155,11 @@ func nullableKeywords(t *testing.T, minor oas.Minor) []string {
 func withoutNullWarning(t *testing.T, diags []ir.Diagnostic, keyword string) []ir.Diagnostic {
 	t.Helper()
 	found := false
-	out := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-		if !strings.HasSuffix(string(d.Provenance.Pointer), "/"+strings.ReplaceAll(keyword, "/", "~1")) {
+	out := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+		if !strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/"+strings.ReplaceAll(keyword, "/", "~1")) {
 			return false
 		}
-		require.Equal(t, ir.SeverityWarning, d.Severity, d.Message)
+		require.Equal(t, ir.SeverityWarning, diagnostic.Severity, diagnostic.Message)
 		found = true
 		return true
 	})
@@ -192,8 +192,8 @@ func TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "nothing reads the schema as false")
 	tags, ok := doc.Types[componentID("Tags")].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), tags.Elem.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), tags.ElementType.Target)
 	labels, ok := doc.Types[componentID("Labels")].(*ir.MapT)
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), labels.Value.Target)
+	assert.Equal(t, ir.TypeID("type/primitive/string"), labels.Value.Target)
 }

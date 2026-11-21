@@ -33,7 +33,7 @@ type brokenIRCompiler struct {
 func (c brokenIRCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	types := make(ir.TypeRegistry, c.count)
 	for i := range c.count {
-		types[ir.TypeID(fmt.Sprintf("t/openapi/key%03d", i))] = &ir.Scalar{ID: "t/openapi/other"}
+		types[ir.TypeID(fmt.Sprintf("type/openapi/key%03d", i))] = &ir.Scalar{ID: "type/openapi/other"}
 	}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
@@ -125,7 +125,7 @@ func TestRun_VerifyAcceptsWhatTheShippedCompilerLowers(t *testing.T) {
 func TestReportViolations_BoundsWhatItWrites(t *testing.T) {
 	t.Parallel()
 	err := &engine.VerifyError{Stage: "stage", Violations: []irverify.Violation{
-		{Code: "ir/a", Path: "doc.Types[a\n\"b\"]", Message: "m"},
+		{Code: "ir/a", Path: "document.Types[a\n\"b\"]", Message: "m"},
 		{Code: "ir/b", Path: strings.Repeat("p", 5000), Message: strings.Repeat("m", 5000)},
 	}}
 	var out bytes.Buffer
@@ -134,7 +134,7 @@ func TestReportViolations_BoundsWhatItWrites(t *testing.T) {
 
 	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
 	require.Len(t, lines, 3)
-	assert.Equal(t, `  ir/a at "doc.Types[a\n\"b\"]": m`, lines[1])
+	assert.Equal(t, `  ir/a at "document.Types[a\n\"b\"]": m`, lines[1])
 	assert.Equal(t, fmt.Sprintf(`  ir/b at "%s": %s`, strings.Repeat("p", maxViolationPath), strings.Repeat("m", maxViolationText)), lines[2])
 }
 

@@ -31,7 +31,7 @@ import (
 // The tree is live: an overlay patches it in place, so a Parsed belongs to one
 // compile.
 type Parsed struct {
-	doc   doctree.Document
+	doc   doctree.ParsedYAMLDocument
 	limit budget.Limit
 	hash  string
 }
@@ -66,8 +66,8 @@ func parsedFor(ctx context.Context, src compilers.Source, maxNodes budget.Limit)
 	// A nil *Parsed stored in the interface is not a nil interface, so the
 	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
 	// compilers' own nil-compiler screen exist for the same two spellings.
-	if p, ok := src.Parsed.(*Parsed); ok && p != nil && p.limit == maxNodes && p.hash == ir.SourceHash(src.Data) {
-		return p, nil
+	if parsed, ok := src.Parsed.(*Parsed); ok && parsed != nil && parsed.limit == maxNodes && parsed.hash == ir.SourceHash(src.Data) {
+		return parsed, nil
 	}
 	return Decode(ctx, src.Data, maxNodes)
 }
@@ -122,37 +122,37 @@ var (
 )
 
 // streamDiagnostics reports what the stream of the input at index, read for
-// what, held past the document taken, t, as one error where the first dropped
-// document begins, or nothing for a stream of one document (GitHub #1079,
+// what, held past the document taken, tail, as one error where the first
+// dropped document begins, or nothing for a stream of one document (GitHub #1079,
 // #1078).
-func streamDiagnostics(index int, what streamOf, t doctree.Tail) []ir.Diagnostic {
-	if t.Dropped == 0 && !t.Unparsed && !t.Capped {
+func streamDiagnostics(index int, what streamOf, tail doctree.Tail) []ir.Diagnostic {
+	if tail.Dropped == 0 && !tail.Unparsed && !tail.Capped {
 		return nil
 	}
 	prov := ir.Provenance{Source: index}
-	if t.Line > 0 {
-		prov.Position = ir.Position{Line: t.Line, Column: t.Column}
+	if tail.Line > 0 {
+		prov.Position = ir.Position{Line: tail.Line, Column: tail.Column}
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.StreamDocumentsDropped, prov,
-		"%s%s", what.head, describeTail(what, t))}
+		"%s%s", what.head, describeTail(what, tail))}
 }
 
 // describeTail spells what the stream held past its first document.
-func describeTail(what streamOf, t doctree.Tail) string {
+func describeTail(what streamOf, tail doctree.Tail) string {
 	var parts []string
 	switch {
-	case t.Capped && t.Dropped > 0:
+	case tail.Capped && tail.Dropped > 0:
 		parts = append(parts, fmt.Sprintf("at least %d after it hold content %s, and what follows the %d read was not read",
-			t.Dropped, what.dropped, t.Dropped))
-	case t.Capped:
+			tail.Dropped, what.dropped, tail.Dropped))
+	case tail.Capped:
 		parts = append(parts, fmt.Sprintf("the %d after it hold no content, and what follows them was not read",
 			doctree.MaxStreamDocuments))
-	case t.Dropped == 1:
+	case tail.Dropped == 1:
 		parts = append(parts, "the one after it holds content "+what.dropped)
-	case t.Dropped > 1:
-		parts = append(parts, fmt.Sprintf("the %d after it hold content %s", t.Dropped, what.dropped))
+	case tail.Dropped > 1:
+		parts = append(parts, fmt.Sprintf("the %d after it hold content %s", tail.Dropped, what.dropped))
 	}
-	if t.Unparsed {
+	if tail.Unparsed {
 		parts = append(parts, "what follows could not be parsed as YAML")
 	}
 	return strings.Join(parts, ", and ")
@@ -162,7 +162,7 @@ func describeTail(what streamOf, t doctree.Tail) string {
 // YAML 1.2 while declaring another version: a warning at each thing a declared
 // YAML 1.1 reads otherwise (doctree.Legacy), and one at the directive declaring
 // a later minor, which has no pointer, so its position alone places it.
-func versionDiagnostics(tree provenance.Tree, doc doctree.Document) []ir.Diagnostic {
+func versionDiagnostics(tree provenance.Tree, doc doctree.ParsedYAMLDocument) []ir.Diagnostic {
 	if doc.Directive == nil {
 		return nil
 	}
@@ -173,29 +173,29 @@ func versionDiagnostics(tree provenance.Tree, doc doctree.Document) []ir.Diagnos
 			doc.Directive.Minor)}
 	}
 	diags := make([]ir.Diagnostic, 0, len(doc.Legacy))
-	for _, l := range doc.Legacy {
-		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.YAMLVersionReading, tree.Node(l.Node),
-			"%s", legacyMessage(l)))
+	for _, legacy := range doc.Legacy {
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.YAMLVersionReading, tree.Node(legacy.Node),
+			"%s", legacyMessage(legacy)))
 	}
 	return diags
 }
 
-// legacyMessage words l, one thing YAML 1.1 reads otherwise.
-func legacyMessage(l doctree.Legacy) string {
+// legacyMessage words legacy, one thing YAML 1.1 reads otherwise.
+func legacyMessage(legacy doctree.Legacy) string {
 	const declared = ", which the compiler reads; YAML 1.1, which the document declares, "
 	scalar := "plain scalar"
-	if l.Node.Style&yaml.TaggedStyle != 0 {
-		scalar = "scalar tagged " + l.Node.ShortTag()
+	if legacy.Node.Style&yaml.TaggedStyle != 0 {
+		scalar = "scalar tagged " + legacy.Node.ShortTag()
 	}
 	switch {
-	case l.Kinds:
+	case legacy.Kinds:
 		return fmt.Sprintf("a %s of %d characters is %s in YAML 1.2%sreads %s",
-			scalar, utf8.RuneCountInString(l.Node.Value), l.Is, declared, l.Was)
-	case l.Break == 0:
-		return fmt.Sprintf("%s %q is %s in YAML 1.2%sreads %s", scalar, l.Node.Value, l.Is, declared, l.Was)
-	case l.InComment:
-		return fmt.Sprintf("a comment here holds U+%04X, a character in YAML 1.2%sends a line there", l.Break, declared)
+			scalar, utf8.RuneCountInString(legacy.Node.Value), legacy.Is, declared, legacy.Was)
+	case legacy.Break == 0:
+		return fmt.Sprintf("%s %q is %s in YAML 1.2%sreads %s", scalar, legacy.Node.Value, legacy.Is, declared, legacy.Was)
+	case legacy.InComment:
+		return fmt.Sprintf("a comment here holds U+%04X, a character in YAML 1.2%sends a line there", legacy.Break, declared)
 	default:
-		return fmt.Sprintf("the scalar holds U+%04X, a character in YAML 1.2%sends a line there", l.Break, declared)
+		return fmt.Sprintf("the scalar holds U+%04X, a character in YAML 1.2%sends a line there", legacy.Break, declared)
 	}
 }

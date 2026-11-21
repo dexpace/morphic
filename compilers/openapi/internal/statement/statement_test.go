@@ -31,13 +31,13 @@ func wide(n int) string {
 func TestSchema_KeyOnAWideObjectScansNothing(t *testing.T) {
 	compared := map[int]int{}
 	for _, n := range []int{2000, 20000} {
-		table, c := tableOver(t, wide(n), rulesAt(t, "3.1.0", ""))
-		st := table.At(component(c, "W"))
+		table, loweringContext := tableOver(t, wide(n), rulesAt(t, "3.1.0", ""))
+		st := table.At(component(loweringContext, "W"))
 		require.Len(t, st.Keys, n)
 		last := fmt.Sprintf("x-%d", n-1)
-		k, read := st.Key(last)
+		key, read := st.Key(last)
 		require.True(t, read)
-		assert.Equal(t, last, k.Name)
+		assert.Equal(t, last, key.Name)
 		_, read = st.Key("absent")
 		assert.False(t, read)
 		assert.Zero(t, testing.AllocsPerRun(100, func() { st.Key(last) }), "a lookup allocates nothing")
@@ -52,19 +52,19 @@ func TestSchema_KeyOnAWideObjectScansNothing(t *testing.T) {
 // (docs/compilers/openapi.md#null-keywords).
 func TestSchema_KeyReadsANullKeywordAsLeftOut(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0",
+	table, loweringContext := tableOver(t, document("3.1.0",
 		"A: {maxLength: null, format: ~, $id: null, const: null, default: ~, example: null, title: t}"),
 		rulesAt(t, "3.1.0", ""))
-	a := table.At(component(c, "A"))
+	a := table.At(component(loweringContext, "A"))
 	for _, keyword := range []string{"maxLength", "format", "$id"} {
-		k, read := a.Key(keyword)
+		key, read := a.Key(keyword)
 		assert.False(t, read, keyword)
-		assert.True(t, k.Null, "%s is written", keyword)
+		assert.True(t, key.Null, "%s is written", keyword)
 	}
 	for _, keyword := range []string{"const", "default", "example"} {
-		k, read := a.Key(keyword)
+		key, read := a.Key(keyword)
 		require.True(t, read, keyword)
-		assert.Equal(t, "!!null", k.Node.ShortTag(), keyword)
+		assert.Equal(t, "!!null", key.Node.ShortTag(), keyword)
 	}
 	_, read := a.Key("title")
 	assert.True(t, read)
@@ -77,7 +77,7 @@ func TestSchema_KeyReadsANullKeywordAsLeftOut(t *testing.T) {
 // as what it names, and a schema whose whole body is an alias through it.
 func TestSchema_KeyReadsAKeywordAsTheParserDoes(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, `openapi: 3.1.0
+	table, loweringContext := tableOver(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 x-keys: [&max maximum]
@@ -94,10 +94,10 @@ components:
 	for name, want := range map[string]string{
 		"Merged": "9", "AliasKey": "7", "Repeated": "2", "AliasValue": "5", "Aliased": "5",
 	} {
-		k, read := table.At(component(c, name)).Key("maximum")
+		key, read := table.At(component(loweringContext, name)).Key("maximum")
 		require.True(t, read, "%s writes maximum as the parser reads it", name)
-		assert.Equal(t, yaml.ScalarNode, k.Node.Kind, "%s: the value's alias is followed", name)
-		assert.Equal(t, want, k.Node.Value, name)
+		assert.Equal(t, yaml.ScalarNode, key.Node.Kind, "%s: the value's alias is followed", name)
+		assert.Equal(t, want, key.Node.Value, name)
 	}
 }
 
@@ -118,12 +118,12 @@ func TestKey_DefinedTellsAKeywordTheRowsDefine(t *testing.T) {
 		if tc.named != "" {
 			src = "jsonSchemaDialect: '" + tc.named + "'\n" + src
 		}
-		table, c := tableOver(t, src, rulesAt(t, "3.1.0", tc.named))
-		a := table.At(component(c, "A"))
+		table, loweringContext := tableOver(t, src, rulesAt(t, "3.1.0", tc.named))
+		a := table.At(component(loweringContext, "A"))
 		for key, want := range tc.want {
-			k, read := a.Key(key)
+			keyValue, read := a.Key(key)
 			require.True(t, read, key)
-			assert.Equal(t, want, k.Defined(), "%q reading %q", key, tc.named)
+			assert.Equal(t, want, keyValue.Defined(), "%q reading %q", key, tc.named)
 		}
 	}
 }

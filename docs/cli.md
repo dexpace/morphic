@@ -40,12 +40,12 @@ completes commands, flags, and spec files by extension.
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--verify` | both | Check the IR the compiler and each pass return, and the findings each reports, against the IR's structural invariants, and that no pass changes the document it was handed. The first stage to break one ends the run with exit `2`, listing what it broke. For developing a compiler or a pass: it slows the run. |
-| `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
+| `--compiler-option <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 | `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec, where it lies and every document it reads, the settings, and the passes. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
 | `--triage <file>` | both | Rate or accept findings by the rules this JSON file lists ([Triage](#triage)). A file that cannot be read, or holds a rule no run can apply, is refused with exit `2` before anything compiles. |
-| `--diag-format text\|json` | both | Write the findings to stderr as text (the default), or as one [JSON report](#json-report). |
-| `--show error\|warning\|info` | both | In text, write each finding rated at or above this severity, and count the rest (default `info`). Refused beside `--diag-format json`. |
-| `--diag-limit <n>` | both | In text, write the first `<n>` findings of each code and severity, and count the rest (default `3`); `0` writes every one. Refused beside `--diag-format json`. |
+| `--diagnostics-format text\|json` | both | Write the findings to stderr as text (the default), or as one [JSON report](#json-report). |
+| `--min-severity error\|warning\|info` | both | In text, write each finding rated at or above this severity, and count the rest (default `info`). Refused beside `--diagnostics-format json`. |
+| `--diagnostics-per-code-limit <n>` | both | In text, write the first `<n>` findings of each code and severity, and count the rest (default `3`); `0` writes every one. Refused beside `--diagnostics-format json`. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
 | `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, each construct kept verbatim under `Unmodeled` at or beneath it with the node keeping it and its reason, and the diagnostics stamped at it, as their stages reported them. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
@@ -75,14 +75,14 @@ one line all the same, at the place it sits: its message names the declaration i
 list of what else it concerns, each with its role, is in the [JSON report](#json-report) and the
 IR document ([provenance](ir/provenance.md#related-places)).
 
-Each finding is written at the severity it is rated at, which is the one its stage reported unless
-a [triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text
-format writes the first three of each code and severity, in the order they were reported, and
-counts the rest; `--diag-limit 0` writes every one, and `--show warning` or `--show error` counts
-the findings below that severity instead of writing them. After the findings, each on a line
-indented so no reader of `<severity> <code>` lines takes it for a finding, come a line for each code
-and severity some findings of which were not written, a line for each triage rule that matched no
-finding, and, once anything was left unwritten, a tally:
+Each finding is written at the severity it is rated at, which is the one its stage reported unless a
+[triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text format
+writes the first three of each code and severity, in the order they were reported, and counts the
+rest; `--diagnostics-per-code-limit 0` writes every one, and `--min-severity warning` or
+`--min-severity error` counts the findings below that severity instead of writing them. After the
+findings, each on a line indented so no reader of `<severity> <code>` lines takes it for a finding,
+come a line for each code and severity some findings of which were not written, a line for each
+triage rule that matched no finding, and, once anything was left unwritten, a tally:
 
 ```
   1303 more info openapi/degraded-construct not shown
@@ -111,18 +111,19 @@ exactly, and a reason:
 ```
 
 - `severity` rates the code's findings at `error`, `warning` or `info`, which is what `--fail-on`
-  and `--show` then read. A finding a stage reported at a severity the IR does not declare still
-  ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
+  and `--min-severity` then read. A finding a stage reported at a severity the IR does not declare
+  still ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
 - `accept: true` accepts the findings, which then fail the run at no `--fail-on`, `info` included,
   and are counted rather than written. A rule accepting findings names their place, so it accepts
   none its code reports elsewhere. It does accept every finding of its code at that place, one
   reported later included, and a place can hold a whole scope: a pass reports a collision between
-  two of the document's types at `doc`, so a rule accepting one there accepts the next (#1825).
+  two of the document's types at `document`, so a rule accepting one there accepts the next
+  (#1825).
 - `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
   compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
-  located at that IR node, such as `s/openapi/0`. A rule names at most one place, and one naming a
-  place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
-  located by a line alone, can be ruled by its code only.
+  located at that IR node, such as `service/openapi/0`. A rule names at most one place, and one
+  naming a place outranks one naming only the code. A finding in a document a `$ref` reads (#1804),
+  or located by a line alone, can be ruled by its code only.
 
 A rule names no pattern: a `*` in a code is refused, as is a rule both rating and accepting, an
 acceptance naming no place, two rules ruling the same findings, a pointer that is not RFC 6901, a
@@ -135,7 +136,7 @@ file is read as a spec is, no further than 16 MiB.
 A file accepting each finding a run now draws at a place can start from the run's own report:
 
 ```bash
-morphic validate openapi.yaml --diag-format json 2>&1 >/dev/null |
+morphic validate openapi.yaml --diagnostics-format json 2>&1 >/dev/null |
   jq '{rules: [.findings[].diagnostic
     | if .provenance.source == 0 and .provenance.pointer then {code, pointer: .provenance.pointer}
       elif .provenance.node then {code, node: .provenance.node} else empty end
@@ -143,18 +144,18 @@ morphic validate openapi.yaml --diag-format json 2>&1 >/dev/null |
 ```
 
 Write each `reason` yourself before relying on it: it is what the next reader has to go on. A rule
-the recipe places at a scope, such as `doc`, accepts every later finding of its code about that
+the recipe places at a scope, such as `document`, accepts every later finding of its code about that
 scope too.
 
 ## JSON report
 
-`--diag-format json` writes one JSON object to stderr, then a newline, for a program to read; the
-run's exit status and stdout are what text gives. It is written for every run that reaches its
+`--diagnostics-format json` writes one JSON object to stderr, then a newline, for a program to read;
+the run's exit status and stdout are what text gives. It is written for every run that reaches its
 verdict, a spec that lowered to no document included, and nothing else is written to stderr then,
 not even a warning about the cache. A run that exits `2` before its verdict writes text instead, its
 warnings and then `morphic: ...`. One stopped after its report, or whose document is then refused,
-adds that line after the report, the report staying the first line, whatever status it exits with:
-a refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
+adds that line after the report, the report staying the first line, whatever status it exits with: a
+refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
 
 ```json
 {"version": 2, "failed": false,
@@ -230,11 +231,12 @@ background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 ## Compiler options
 
-`--opt` names an option in the vocabulary of whichever compiler recognizes the spec. Morphic itself
-knows none of them, and the compiler refuses a name it does not know rather than ignoring it.
+`--compiler-option` names an option in the vocabulary of whichever compiler recognizes the spec.
+Morphic itself knows none of them, and the compiler refuses a name it does not know rather than
+ignoring it.
 
 ```bash
-morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
+morphic compile openapi.yaml --compiler-option grouping=path-prefix --compiler-option overlay=patch.yaml
 ```
 
 The OpenAPI compiler accepts the options below. Each option that is `true` by default switches a

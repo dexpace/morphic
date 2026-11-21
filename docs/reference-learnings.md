@@ -114,14 +114,15 @@ avoid — model facts, let emitters decide). fastapi *drops* the discriminator w
 non-object because Pydantic can't express it — **target capability leaking into the compiler**, the
 exact anti-pattern.
 
-**Recommendation:** Morphic's `Discriminator{Property | PropertyName | Index, Mapping map[string]
-TypeID, Default, Envelope, EnvelopeValueName, Inferred}` already covers all of this and points mappings
-at **TypeIDs not names** (severing openapi-generator's triple-name coupling). Two concrete emitter
-obligations the references surface: (1) the plan/emit layer **must be able to materialize a
-discriminator property that is not declared** on the base (`Discriminator.PropertyName` deliberately
-has no PropID) — TypeSpec proves this is required; (2) the "drop discriminator for non-object variants"
-decision belongs in the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's
-mistake). Copy ogen's mapping-ref resolution fallback into the compiler.
+**Recommendation:** Morphic's
+`Discriminator{Property | PropertyName | Index, Mapping map[string] TypeID, Default, Envelope, EnvelopeValueName, Inferred}`
+already covers all of this and points mappings at **TypeIDs not names** (severing
+openapi-generator's triple-name coupling). Two concrete emitter obligations the references surface:
+(1) the plan/emit layer **must be able to materialize a discriminator property that is not
+declared** on the base (`Discriminator.PropertyName` deliberately has no PropertyID) — TypeSpec
+proves this is required; (2) the "drop discriminator for non-object variants" decision belongs in
+the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's mistake). Copy ogen's
+mapping-ref resolution fallback into the compiler.
 
 ## A5. Pagination & streaming: plan-layer traversal over un-lowered IR — CONFIRMS
 
@@ -130,8 +131,8 @@ operation; `extractModelName` walks the TypeRef collapsing nullable→inner, arr
 model variant (a lossy ergonomic shortcut correctly made *in the plan layer*, not the IR). TypeSpec/
 TCGC keep paging as *metadata* (property **paths** from response root, not top-level names) so next-
 links/items can live inside envelopes. **Recommendation:** Morphic's `Pagination` (path-based
-`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than
-all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
+`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropertyPath`s, multiple strategies) is richer
+than all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
 pre-flatten in IR. Add oagen's two plan predicates Morphic's §2.3 list omits:
 **`pathParamsInOptions`** (positional-vs-options-bag:
 `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and **`isArrayResponse`** (unpaginated
@@ -346,7 +347,7 @@ stamps `.Ref`; a `ResolveCtx` ref-stack detects cycles; generic `resolveComponen
 per-kind duplication. openapi-python keeps *two* registries (`classes_by_reference` by $ref path =
 identity, `classes_by_name` = presentation) but name-collisions are **fatal** (`"duplicate models with
 name X"`). **Adopt `RefKey{file, jsonpointer}` → `TypeID` verbatim** for Morphic's ID construction
-(`t/openapi/components/schemas/User`); use the two-map idea only as *compiler bookkeeping* (source
+(`type/openapi/components/schemas/User`); use the two-map idea only as *compiler bookkeeping* (source
 pointer → TypeID), never as IR storage. Morphic's ID-sole-key design means renames never collide — the
 `duplicate name` fatal error simply cannot occur. Keep `operationId` as `Naming.Source` (display) but
 derive identity from the source pointer (fastapi confirms the two roles are distinct; it injects
@@ -379,15 +380,17 @@ parses).
 
 Repeatedly, references *drop* what a richer emitter needs: openapi-python captures constraints then
 ignores them (only `format` drives type choice), drops `patternProperties`/`unevaluatedProperties`/
-non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum openness;
-fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep `Constraints`,
-`Enum{Closed,Flags,FallbackMember,ValueType}`, `AdditionalProps{Value,Key,Patterns}` + `AdditionalMode`,
-`Exclusive`/`WireTagged`, `x-*` everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema
-default) but the bit exists for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow
-**duplicate member values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy
-into the shared validate pass; capture `x-enum-varnames` member names (openapi-python) so emitters
-don't invent `VALUE_1`. TypeSpec confirms `additionalProperties:false`→`Additional=closed`,
-`unevaluatedProperties:false`→`closed_after_composition`, and typed map keys (`indexer.key: Scalar`).
+non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum
+openness; fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep
+`Constraints`, `Enum{Closed,Flags,FallbackMember,ValueType}`,
+`AdditionalProperties{Value,Key,Patterns}` + `AdditionalMode`, `Exclusive`/`WireTagged`, `x-*`
+everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema default) but the bit exists
+for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow **duplicate member
+values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy into the shared
+validate pass; capture `x-enum-varnames` member names (openapi-python) so emitters don't invent
+`VALUE_1`. TypeSpec confirms `additionalProperties:false`→`Additional=closed`,
+`unevaluatedProperties:false`→`closed_after_composition`, and typed map keys
+(`indexer.key: Scalar`).
 
 ## B6. Heuristics are injectable, `Inferred`-marked policy — CONFIRMS #6, with cautionary tales
 
@@ -410,7 +413,7 @@ interacting flags. **Recommendation:** implement the *recipes* (they're genuinel
   metadata companions; known data-paths {data,items,results,records,entries,values,nodes,edges}. This
   is **inference that must be structural-not-destructive**: oagen unwraps unconditionally at parse time
   (mutates IR shape, no opt-out, no marker). Morphic keeps the wrapper model and records
-  `Pagination.Items` as a `PropPath`; unwrap only in a refiner/opt-in policy.
+  `Pagination.Items` as a `PropertyPath`; unwrap only in a refiner/opt-in policy.
 - **Type inference from sibling keywords** when `type` absent (ogen `inferTypes`) — implement, but
   **stamp `Provenance.Inferred`** (ogen doesn't — a cheap place Morphic is strictly better).
 Treat `Unmodeled` as **preserved data**; route any *behavioral* use through explicit `Inferred`-marked

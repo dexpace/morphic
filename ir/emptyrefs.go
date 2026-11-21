@@ -32,7 +32,7 @@ func (r EmptyReference) Code() string {
 // Message says what is wrong at r, in the one wording every checker reports.
 func (r EmptyReference) Message() string {
 	if r.locator {
-		return "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead"
+		return "discriminator names no tag property, and neither PropertyName nor TupleElementIndex locates the tag instead"
 	}
 	return RefNoun(r.Class) + " reference is empty, and this position has no empty form"
 }
@@ -66,8 +66,8 @@ func (e *EmptyReferences) Visit(v reflect.Value, at WalkPath) bool {
 		byType = idFieldsOf(v.Type(), idClasses)
 		e.fields[v.Type()] = byType
 	}
-	for _, f := range byType {
-		e.appendEmpty(v, f, at)
+	for _, refField := range byType {
+		e.appendEmpty(v, refField, at)
 	}
 	return true
 }
@@ -78,57 +78,58 @@ func (e *EmptyReferences) List() []EmptyReference {
 	return slices.Clone(e.found)
 }
 
-// appendEmpty records each empty ID the field f of owner holds; at is where
-// owner sits.
-func (e *EmptyReferences) appendEmpty(owner reflect.Value, f refField, at WalkPath) {
-	v := owner.Field(f.index)
-	switch f.shape {
+// appendEmpty records each empty ID the field refFieldValue of owner holds; at
+// is where owner sits.
+func (e *EmptyReferences) appendEmpty(owner reflect.Value, refFieldValue refField, at WalkPath) {
+	v := owner.Field(refFieldValue.index)
+	switch refFieldValue.shape {
 	case idScalar:
-		if v.String() == "" && !emptyAllowed(owner, f.rule) {
-			e.record(f, fieldPath(at, f), f.rule == idLocator)
+		if v.String() == "" && !emptyAllowed(owner, refFieldValue.rule) {
+			e.record(refFieldValue, fieldPath(at, refFieldValue), refFieldValue.rule == idLocator)
 		}
 	case idPointer:
 		if !v.IsNil() && v.Elem().String() == "" {
-			e.record(f, fieldPath(at, f), false)
+			e.record(refFieldValue, fieldPath(at, refFieldValue), false)
 		}
 	case idSlice:
 		for i := range v.Len() {
 			if v.Index(i).String() == "" {
-				e.record(f, fieldPath(at, f)+"["+strconv.Itoa(i)+"]", false)
+				e.record(refFieldValue, fieldPath(at, refFieldValue)+"["+strconv.Itoa(i)+"]", false)
 			}
 		}
 	case idMapKey:
 		if v.MapIndex(reflect.Zero(v.Type().Key())).IsValid() {
-			e.record(f, fieldPath(at, f)+"[]"+MapKeySuffix, false)
+			e.record(refFieldValue, fieldPath(at, refFieldValue)+"[]"+MapKeySuffix, false)
 		}
 	case idMapValue:
-		e.appendEmptyValues(v, f, at)
+		e.appendEmptyValues(v, refFieldValue, at)
 	}
 }
 
-// appendEmptyValues records each empty ID the map m, the field f of the struct
-// at at, holds as a value, in key order, as the walk ranges the map.
-func (e *EmptyReferences) appendEmptyValues(m reflect.Value, f refField, at WalkPath) {
+// appendEmptyValues records each empty ID the map m, the field refFieldValue of
+// the struct at at, holds as a value, in key order, as the walk ranges the map.
+func (e *EmptyReferences) appendEmptyValues(m reflect.Value, refFieldValue refField, at WalkPath) {
 	if m.Len() == 0 {
 		return
 	}
 	frame := e.ranging.push(m)
 	for _, entry := range e.ranging.entries[frame.base:frame.end] {
 		if entry.value.String() == "" {
-			e.record(f, fieldPath(at, f)+"["+string(entry.appendLabel(nil))+"]", false)
+			e.record(refFieldValue, fieldPath(at, refFieldValue)+"["+string(entry.appendLabel(nil))+"]", false)
 		}
 	}
 	e.ranging.pop(frame)
 }
 
-// record keeps one empty reference of f's class at path.
-func (e *EmptyReferences) record(f refField, path string, locator bool) {
-	e.found = append(e.found, EmptyReference{Class: f.class, Path: path, locator: locator})
+// record keeps one empty reference of refFieldValue's class at path.
+func (e *EmptyReferences) record(refFieldValue refField, path string, locator bool) {
+	e.found = append(e.found, EmptyReference{Class: refFieldValue.class, Path: path, locator: locator})
 }
 
-// fieldPath spells the field f of the struct at at, as the walk spells it.
-func fieldPath(at WalkPath, f refField) string {
-	return at.String() + "." + f.name
+// fieldPath spells the field refFieldValue of the struct at at, as the walk
+// spells it.
+func fieldPath(at WalkPath, refFieldValue refField) string {
+	return at.String() + "." + refFieldValue.name
 }
 
 // emptyAllowed reports whether an empty scalar at a position under rule is the
@@ -138,7 +139,7 @@ func emptyAllowed(owner reflect.Value, rule idRule) bool {
 	case idOptional:
 		return true
 	case idLocator:
-		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("Index").IsNil()
+		return owner.FieldByName("PropertyName").String() != "" || !owner.FieldByName("TupleElementIndex").IsNil()
 	case idRequired, idElsewhere:
 		// A reference has no empty form, and idFieldsOf reads no position
 		// another check holds.

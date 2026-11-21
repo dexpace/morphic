@@ -23,9 +23,9 @@ import (
 // branch, are no union's null.
 func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.False(t, nullBranch(l.Ctx, nil), "no branch is no null")
-	assert.False(t, nullBranch(l.Ctx, Standalone(openapitest.EmptyEitherSchema())), "empty either is not a null schema")
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	assert.False(t, nullBranch(lowerer.Ctx, nil), "no branch is no null")
+	assert.False(t, nullBranch(lowerer.Ctx, Standalone(openapitest.EmptyEitherSchema())), "empty either is not a null schema")
 }
 
 // TestAllNullUnion_NoBranchesFalse covers the guard's own contract rather than
@@ -34,9 +34,9 @@ func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 // direct call can drive.
 func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	empty := StandaloneSchema(&oas3.Schema{})
-	assert.False(t, allNullUnion(l.Ctx, empty, empty), "no oneOf/anyOf branches admits nothing to be null-only")
+	assert.False(t, allNullUnion(lowerer.Ctx, empty, empty), "no oneOf/anyOf branches admits nothing to be null-only")
 }
 
 // TestBranchesSay_NoBranchesSayNothing covers the guard's own contract rather
@@ -49,9 +49,9 @@ func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
 	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader("{type: string, format: uuid, enum: [a]}"), js)
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
-	l := NewRawLowerer(&soa.OpenAPI{})
-	s := StandaloneSchema(js.GetSchema())
-	assert.Empty(t, branchesSay(l.Ctx, s, s), "no branch says a keyword the schema writes")
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	schema := StandaloneSchema(js.GetSchema())
+	assert.Empty(t, branchesSay(lowerer.Ctx, schema, schema), "no branch says a keyword the schema writes")
 }
 
 // TestPreserveNullOnlyUnion_NothingToKeep covers a node whose
@@ -62,8 +62,8 @@ func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
 // guard.
 func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := preserveNullOnlyUnion(l.Ctx, &ir.Scalar{}, StandaloneSchema(&oas3.Schema{}), "/components/schemas/S")
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	diags := preserveNullOnlyUnion(lowerer.Ctx, &ir.Scalar{}, StandaloneSchema(&oas3.Schema{}), "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 
@@ -72,11 +72,11 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 // to compose the union into, and the position composing none.
 func TestComposeMixin_NeedsAModel(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	scalar := &ir.Scalar{ID: "t/anon/scalar"}
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	scalar := &ir.Scalar{ID: "type/anonymous/scalar"}
 
-	assert.Empty(t, composeMixin(l.Ctx, l.Types, 0, scalar, nil, "/p"), "no union to compose")
-	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, 0, scalar, &unionAt{holder: &statement.Schema{}, at: "/p"}, "/p"))
+	assert.Empty(t, composeMixin(lowerer.Ctx, lowerer.Types, 0, scalar, nil, "/p"), "no union to compose")
+	assertInternalInvariant(t, composeMixin(lowerer.Ctx, lowerer.Types, 0, scalar, &unionAt{holder: &statement.Schema{}, at: "/p"}, "/p"))
 }
 
 // TestLowerSubtypeUnion_NeedsItsAllOf drives the state a routed subtype never
@@ -84,8 +84,8 @@ func TestComposeMixin_NeedsAModel(t *testing.T) {
 // ancestor: one electing no allOf lowers, and composes no union.
 func TestLowerSubtypeUnion_NeedsItsAllOf(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	s := &statement.Schema{}
-	_, diags := lowerSubtypeUnion(l.Ctx, l.Types, TopLevelDepth, s, unionAt{holder: s, at: "/components/schemas/S"}, "/components/schemas/S", nil)
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	schema := &statement.Schema{}
+	_, diags := lowerSubtypeUnion(lowerer.Ctx, lowerer.Types, TopLevelDepth, schema, unionAt{holder: schema, at: "/components/schemas/S"}, "/components/schemas/S", nil)
 	assertInternalInvariant(t, diags)
 }

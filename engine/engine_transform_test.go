@@ -54,13 +54,13 @@ func (pruneUnused) Name() string { return "prune-unused" }
 
 func (pruneUnused) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	facts := irfacts.New(doc)
-	e := ir.NewEditor(doc)
+	editor := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		if facts.Usage(id) == 0 {
-			e.RemoveType(id)
+			editor.RemoveType(id)
 		}
 	}
-	return e.Finish()
+	return editor.Finish()
 }
 
 // misusedEdit is a transform with a bug: it removes a type the document does
@@ -70,9 +70,9 @@ type misusedEdit struct{}
 func (misusedEdit) Name() string { return "misused-edit" }
 
 func (misusedEdit) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	e := ir.NewEditor(doc)
-	e.RemoveType("t/absent")
-	return e.Finish()
+	editor := ir.NewEditor(doc)
+	editor.RemoveType("type/absent")
+	return editor.Finish()
 }
 
 // holdsType reports whether doc holds a type its source names name.
@@ -179,34 +179,34 @@ type editEveryPart struct{}
 func (editEveryPart) Name() string { return "edit-every-part" }
 
 func (editEveryPart) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	e := ir.NewEditor(doc)
+	editor := ir.NewEditor(doc)
 	edited := func(docs *ir.Docs) { docs.Summary = "edited" }
 	removed := false
-	ir.ForEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
 		if !removed {
-			e.RemoveOperation(op.ID)
+			editor.RemoveOperation(operation.ID)
 			removed = true
 			return
 		}
-		e.UpdateOperation(op.ID, func(op *ir.Operation) { edited(&op.Docs) })
+		editor.UpdateOperation(operation.ID, func(irOperation *ir.Operation) { edited(&irOperation.Docs) })
 	})
 	for _, svc := range doc.Services {
-		e.UpdateService(svc.ID, func(s *ir.Service) { edited(&s.Docs) })
-		for _, g := range svc.Groups {
-			e.UpdateGroup(g.ID, func(g *ir.OperationGroup) { edited(&g.Docs) })
+		editor.UpdateService(svc.ID, func(service *ir.Service) { edited(&service.Docs) })
+		for _, operationGroup := range svc.Groups {
+			editor.UpdateGroup(operationGroup.ID, func(irOperationGroup *ir.OperationGroup) { edited(&irOperationGroup.Docs) })
 		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
-		e.UpdateServer(id, func(s *ir.Server) { edited(&s.Description) })
+		editor.UpdateServer(id, func(server *ir.Server) { edited(&server.Description) })
 	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Auth)) {
-		e.UpdateAuthScheme(id, func(a *ir.AuthScheme) { edited(&a.Docs) })
+		editor.UpdateAuthScheme(id, func(a *ir.AuthScheme) { edited(&a.Docs) })
 	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
-		e.UpdateType(id, func(td ir.TypeDef) { edited(&td.Common().Docs) })
+		editor.UpdateType(id, func(td ir.TypeDef) { edited(&td.Common().Docs) })
 	}
-	e.UpdateDocument(func(d *ir.Document) { edited(&d.Docs) })
-	return e.Finish()
+	editor.UpdateDocument(func(document *ir.Document) { edited(&document.Docs) })
+	return editor.Finish()
 }
 
 // removeServers is a transform removing every server, whatever still names it.
@@ -215,11 +215,11 @@ type removeServers struct{}
 func (removeServers) Name() string { return "remove-servers" }
 
 func (removeServers) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	e := ir.NewEditor(doc)
+	editor := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
-		e.RemoveServer(id)
+		editor.RemoveServer(id)
 	}
-	return e.Finish()
+	return editor.Finish()
 }
 
 // TestEngine_RunLeavesAServerStillNamedToValidate pins what a removal leaves:
@@ -252,18 +252,18 @@ func TestEngine_RunTransformsEveryPartThroughTheEditor(t *testing.T) {
 	require.False(t, res.Failed, "%v", res.Diagnostics)
 	assert.Empty(t, res.Diagnostics)
 	doc := res.Document
-	var ops []string
-	ir.ForEachOperation(doc, func(op ir.Operation) { ops = append(ops, op.Docs.Summary) })
-	assert.Equal(t, []string{"edited", "edited"}, ops, "the first operation was not removed or the rest not edited")
+	var operations []string
+	ir.ForEachOperation(doc, func(operation ir.Operation) { operations = append(operations, operation.Docs.Summary) })
+	assert.Equal(t, []string{"edited", "edited"}, operations, "the first operation was not removed or the rest not edited")
 	require.Len(t, doc.Services, 1)
 	assert.Equal(t, "edited", doc.Services[0].Docs.Summary)
 	require.Len(t, doc.Services[0].Groups, 2)
-	for _, g := range doc.Services[0].Groups {
-		assert.Equal(t, "edited", g.Docs.Summary, "group %s", g.ID)
+	for _, operationGroup := range doc.Services[0].Groups {
+		assert.Equal(t, "edited", operationGroup.Docs.Summary, "group %s", operationGroup.ID)
 	}
 	require.NotEmpty(t, doc.Servers)
-	for id, s := range doc.Servers {
-		assert.Equal(t, "edited", s.Description.Summary, "server %s", id)
+	for id, server := range doc.Servers {
+		assert.Equal(t, "edited", server.Description.Summary, "server %s", id)
 	}
 	require.Len(t, doc.Auth, 1)
 	for id, a := range doc.Auth {

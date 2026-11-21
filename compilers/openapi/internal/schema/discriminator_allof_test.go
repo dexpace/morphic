@@ -104,8 +104,8 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
-	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	kennelDog := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/pet")
 	want := map[ir.TypeID]string{
 		componentID("Dog"): "Dog",
 		kennelDog:          "",
@@ -149,8 +149,8 @@ func TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping(t *testing.T) {
 `, tc.host))+tc.section)
 			assert.Empty(t, diags)
 
-			cat := ir.TypeID("t/anon/" + tc.host + "/Cat")
-			dog := ir.TypeID("t/anon/" + tc.host + "/Dog")
+			cat := ir.TypeID("type/anonymous/" + tc.host + "/Cat")
+			dog := ir.TypeID("type/anonymous/" + tc.host + "/Dog")
 			assert.Empty(t, cmp.Diff(map[ir.TypeID]string{cat: "cat", dog: ""}, discriminatorValues(t, doc, cat, dog)),
 				"the mapping tags Cat, and no name is implicit for Dog (-want +got)")
 			pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
@@ -202,8 +202,8 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
-	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	kennelDog := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("type/anonymous/components/schemas/Kennel/properties/pet")
 	want := map[ir.TypeID]string{
 		componentID("Dog"): "Dog",
 		kennelDog:          "woofer",
@@ -319,9 +319,9 @@ func TestAllOf_DiscriminatorValueUndiscriminatedChain(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"Shrub", "Sapling"} {
-		m := typeByName(doc, name).(*ir.Model)
-		require.NotNil(t, m.Base, "%s composes a base", name)
-		assert.Empty(t, m.DiscriminatorValue,
+		model := typeByName(doc, name).(*ir.Model)
+		require.NotNil(t, model.Base, "%s composes a base", name)
+		assert.Empty(t, model.DiscriminatorValue,
 			"%s has no discriminated ancestor at any depth", name)
 	}
 }
@@ -353,9 +353,9 @@ func TestAllOf_DiscriminatorValueCyclicComposition(t *testing.T) {
 
 	for i := range n {
 		name := fmt.Sprintf("X%d", i)
-		m, ok := typeByName(doc, name).(*ir.Model)
+		model, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s lowers to a Model", name)
-		assert.Empty(t, m.DiscriminatorValue, "%s has no discriminated ancestor", name)
+		assert.Empty(t, model.DiscriminatorValue, "%s has no discriminated ancestor", name)
 	}
 }
 
@@ -519,9 +519,9 @@ func discriminatorValues(t *testing.T, doc *ir.Document, typeIDs ...ir.TypeID) m
 	t.Helper()
 	got := make(map[ir.TypeID]string, len(typeIDs))
 	for _, id := range typeIDs {
-		m, ok := doc.Types[id].(*ir.Model)
+		model, ok := doc.Types[id].(*ir.Model)
 		require.True(t, ok, "%s should be a model", id)
-		got[id] = m.DiscriminatorValue
+		got[id] = model.DiscriminatorValue
 	}
 	return got
 }

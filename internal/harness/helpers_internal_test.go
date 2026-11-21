@@ -24,7 +24,7 @@ const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // tables.
 func tables() ([]ir.SourceInfo, []ir.Service, map[string][]string) {
 	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml", Hash: emptySHA256}},
-		[]ir.Service{{ID: "s/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		[]ir.Service{{ID: "service/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
 		map[string][]string{ir.IDKindType: {"x"}, ir.IDKindService: {"x"}}
 }
 
@@ -79,16 +79,17 @@ func replaceRegistered(t *testing.T, f func() []compilers.Compiler) {
 // compileFunc is a compile of one spec, as Check makes one.
 type compileFunc func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error)
 
-// swapCompile makes each compile of the rest of the test run f over its first
-// source, the spec, and returns the compile it replaced, for f to wrap.
-func swapCompile(t *testing.T, f compileFunc) compileFunc {
+// swapCompile makes each compile of the rest of the test run compileFuncValue
+// over its first source, the spec, and returns the compile it replaced, for
+// compileFuncValue to wrap.
+func swapCompile(t *testing.T, compileFuncValue compileFunc) compileFunc {
 	t.Helper()
 	orig := compileSources
 	t.Cleanup(func() { compileSources = orig })
 	compileSources = func(ctx context.Context, sources []compilers.Source, _ map[string]string,
 		ps []pass.Pass,
 	) (*ir.Document, []ir.Diagnostic, error) {
-		return f(ctx, sources[0].Path, sources[0].Data, ps)
+		return compileFuncValue(ctx, sources[0].Path, sources[0].Data, ps)
 	}
 	return func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return orig(ctx, []compilers.Source{{Path: spec, Data: data}}, nil, ps)

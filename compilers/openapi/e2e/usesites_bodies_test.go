@@ -21,8 +21,8 @@ func TestBodies_ThreeFindingsOfOneDocument(t *testing.T) {
 		"openapi/validation/validation-invalid-syntax warning /paths/~1a/get/requestBody/content/application json",
 	}, findings(diags))
 
-	content := at(opTree(t, doc, "a"), "request", "contents", "0")
-	assert.Equal(t, "application json", at(content, "mediaType"), "the entry lowers as written")
+	content := valueAtPath(operationTree(t, doc, "a"), "request", "contents", "0")
+	assert.Equal(t, "application json", valueAtPath(content, "mediaType"), "the entry lowers as written")
 }
 
 // TestBodies_AMethodThatForbidsOne compiles a TRACE with a body through a
@@ -47,7 +47,7 @@ func TestContentParameters_SerializationKeywordsAreReported(t *testing.T) {
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/explode",
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/style",
 	}, findings(diags))
-	bindings := at(opTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
+	bindings := valueAtPath(operationTree(t, doc, "a"), "bindings", "http", "0", "paramBindings")
 	binding, _ := namedItem(t, bindings, "c").(map[string]any)
 	assert.NotContains(t, binding, "style")
 }

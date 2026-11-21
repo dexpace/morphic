@@ -15,8 +15,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// settingFlag collects the repeated `--opt key=value` settings that configure
-// whichever compiler the spec turns out to need.
+// settingFlag collects the repeated `--compiler-option key=value` settings that
+// configure whichever compiler the spec turns out to need.
 //
 // It carries the pairs verbatim rather than parsing them, because the CLI does
 // not know which compiler will read them: the names, the accepted values and
@@ -123,10 +123,12 @@ func (f *failOnFlag) Set(raw string) error {
 	return nil
 }
 
-// formatFlag is --diag-format's value: how the findings are written to stderr.
+// formatFlag is --diagnostics-format's value: how the findings are written to
+// stderr.
 type formatFlag string
 
-// The formats --diag-format takes: text for a person, json for a program.
+// The formats --diagnostics-format takes: text for a person, json for a
+// program.
 const (
 	formatText formatFlag = "text"
 	formatJSON formatFlag = "json"
@@ -149,42 +151,44 @@ func (f *formatFlag) Set(raw string) error {
 	}
 }
 
-// showFlag is --show's value: the least severity a finding is written one per
-// line at, the rest counted. It is parsed as it is set, as --fail-on is.
-type showFlag ir.Severity
+// minSeverityFlag is --min-severity's value: the least severity a finding is
+// written one per line at, the rest counted. It is parsed as it is set, as --fail-on
+// is.
+type minSeverityFlag ir.Severity
 
 // String renders the severity as typed.
-func (f *showFlag) String() string { return string(*f) }
+func (f *minSeverityFlag) String() string { return string(*f) }
 
 // Type names the value in flag documentation.
-func (f *showFlag) Type() string { return "severity" }
+func (f *minSeverityFlag) Type() string { return "severity" }
 
 // Set records the severity raw names, refusing one the IR does not declare.
-func (f *showFlag) Set(raw string) error {
+func (f *minSeverityFlag) Set(raw string) error {
 	if !ir.Severity(raw).Valid() {
 		return fmt.Errorf("%q is no severity (known: %s)", raw, strings.Join(ir.SeverityNames(), ", "))
 	}
-	*f = showFlag(raw)
+	*f = minSeverityFlag(raw)
 	return nil
 }
 
-// limitFlag is --diag-limit's value: how many findings of one code and
-// severity the text format writes one per line, 0 for every one.
-type limitFlag int
+// perCodeLimitFlag is --diagnostics-per-code-limit's value: how many findings
+// of one code and severity the text format writes one per line, 0 for every
+// one.
+type perCodeLimitFlag int
 
 // String renders the count.
-func (f *limitFlag) String() string { return strconv.Itoa(int(*f)) }
+func (f *perCodeLimitFlag) String() string { return strconv.Itoa(int(*f)) }
 
 // Type names the value in flag documentation.
-func (f *limitFlag) Type() string { return "count" }
+func (f *perCodeLimitFlag) Type() string { return "count" }
 
 // Set records the count raw spells, refusing one that is not a whole number
 // of 0 or more.
-func (f *limitFlag) Set(raw string) error {
+func (f *perCodeLimitFlag) Set(raw string) error {
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 0 {
 		return fmt.Errorf("want a count of 0 or more, got %q", raw)
 	}
-	*f = limitFlag(n)
+	*f = perCodeLimitFlag(n)
 	return nil
 }

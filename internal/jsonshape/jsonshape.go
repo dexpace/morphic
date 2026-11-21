@@ -32,52 +32,52 @@ const maxTypes = 4096
 // deep.
 const maxDepth = 32
 
-// Describe returns the JSON shape of the named type root, which p declares,
-// and of every type it reaches, spelled one entry per named type, sorted by
-// name. It refuses what Read refuses.
-func Describe(p *decls.Package, root string) (string, error) {
-	s, err := Read(p, root)
+// Describe returns the JSON shape of the named type root, which loadedPackage
+// declares, and of every type it reaches, spelled one entry per named type,
+// sorted by name. It refuses what Read refuses.
+func Describe(loadedPackage *decls.Package, root string) (string, error) {
+	shape, err := Read(loadedPackage, root)
 	if err != nil {
 		return "", err
 	}
-	return s.String(), nil
+	return shape.String(), nil
 }
 
-// Read returns the JSON shape of the named type root, which p declares, and
-// of every type it reaches. It refuses a type whose shape it cannot read from
-// the declarations, such as one held in a non-sealed interface, rather than
-// return less than the encoder reads.
-func Read(p *decls.Package, root string) (*Shape, error) {
-	if p == nil {
+// Read returns the JSON shape of the named type root, which loadedPackage
+// declares, and of every type it reaches. It refuses a type whose shape it
+// cannot read from the declarations, such as one held in a non-sealed
+// interface, rather than return less than the encoder reads.
+func Read(loadedPackage *decls.Package, root string) (*Shape, error) {
+	if loadedPackage == nil {
 		return nil, errors.New("jsonshape: no package")
 	}
-	start, err := p.Named(root)
+	start, err := loadedPackage.Named(root)
 	if err != nil {
 		return nil, fmt.Errorf("jsonshape: %w", err)
 	}
 
-	w := &walker{
-		pkg:     p,
-		methods: methodDecls(p),
+	walkerValue := &walker{
+		pkg:     loadedPackage,
+		methods: methodDecls(loadedPackage),
 		consts:  map[*types.Package]map[*types.Named][]*types.Const{},
 		seen:    map[*types.Named]bool{},
 	}
-	w.reach(start)
-	s := &Shape{pkg: p.Types, root: root}
-	for len(w.queue) > 0 {
-		if len(s.Types) == maxTypes {
+	walkerValue.reach(start)
+	shape := &Shape{pkg: loadedPackage.Types, root: root}
+	for len(walkerValue.queue) > 0 {
+		if len(shape.Types) == maxTypes {
 			return nil, fmt.Errorf("jsonshape: %s reaches more than %d types", root, maxTypes)
 		}
-		n := w.queue[0]
-		w.queue = w.queue[1:]
-		t, err := w.describe(n)
+		n := walkerValue.queue[0]
+		walkerValue.queue = walkerValue.queue[1:]
+		typeValue, err := walkerValue.describe(n)
 		if err != nil {
-			return nil, fmt.Errorf("jsonshape: %s: %w", w.name(n), err)
+			return nil, fmt.Errorf("jsonshape: %s: %w", walkerValue.name(n), err)
 		}
-		s.Types = append(s.Types, t)
+		shape.Types = append(shape.Types, typeValue)
 	}
-	slices.SortFunc(s.Types, func(a, b Type) int { return strings.Compare(a.name, b.name) })
-	return s, nil
+	slices.SortFunc(shape.Types, func(a, b Type) int { return strings.Compare(a.name, b.name) })
+	return shape, nil
 }
 
 // walker describes the named types one root reaches, each once, in the order
@@ -94,16 +94,17 @@ type walker struct {
 	queue  []*types.Named
 }
 
-// methodDecls indexes the methods p declares by the object each defines.
-func methodDecls(p *decls.Package) map[*types.Func]*ast.FuncDecl {
+// methodDecls indexes the methods loadedPackage declares by the object each
+// defines.
+func methodDecls(loadedPackage *decls.Package) map[*types.Func]*ast.FuncDecl {
 	out := map[*types.Func]*ast.FuncDecl{}
-	for _, file := range p.Syntax {
+	for _, file := range loadedPackage.Syntax {
 		for _, d := range file.Decls {
 			fd, isFunc := d.(*ast.FuncDecl)
 			if !isFunc || fd.Recv == nil {
 				continue
 			}
-			if fn, isMethod := p.Info.Defs[fd.Name].(*types.Func); isMethod {
+			if fn, isMethod := loadedPackage.Info.Defs[fd.Name].(*types.Func); isMethod {
 				out[fn] = fd
 			}
 		}
@@ -144,24 +145,24 @@ func (w *walker) describe(n *types.Named) (Type, error) {
 	if n.Obj().Pkg() == nil {
 		return Type{}, errors.New("a predeclared type has no declarations to read")
 	}
-	t := Type{Named: n, name: w.name(n)}
+	typeValue := Type{Named: n, name: w.name(n)}
 	var err error
 	switch u := n.Underlying().(type) {
 	case *types.Struct:
-		t.head = "struct"
-		t.Members, err = w.members(u)
+		typeValue.head = "struct"
+		typeValue.Members, err = w.members(u)
 	case *types.Interface:
-		t.head = "interface"
-		err = w.variants(&t, u)
+		typeValue.head = "interface"
+		err = w.variants(&typeValue, u)
 	default:
-		t.head, err = w.spell(u, 0)
+		typeValue.head, err = w.spell(u, 0)
 	}
 	if err != nil {
 		return Type{}, err
 	}
-	t.codecs = w.codec(n)
-	t.Constants = w.constants(n)
-	return t, nil
+	typeValue.codecs = w.codec(n)
+	typeValue.Constants = w.constants(n)
+	return typeValue, nil
 }
 
 // spell writes t as a description does, queueing each named type in it. It
@@ -178,21 +179,21 @@ func (w *walker) spell(t types.Type, depth int) (string, error) {
 	case *types.Basic:
 		return basic(t)
 	case *types.Pointer:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "*" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "*" + element, err
 	case *types.Slice:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "[]" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "[]" + element, err
 	case *types.Array:
-		elem, err := w.spell(t.Elem(), depth+1)
-		return fmt.Sprintf("[%d]%s", t.Len(), elem), err
+		element, err := w.spell(t.Elem(), depth+1)
+		return fmt.Sprintf("[%d]%s", t.Len(), element), err
 	case *types.Map:
 		key, err := w.spell(t.Key(), depth+1)
 		if err != nil {
 			return "", err
 		}
-		elem, err := w.spell(t.Elem(), depth+1)
-		return "map[" + key + "]" + elem, err
+		element, err := w.spell(t.Elem(), depth+1)
+		return "map[" + key + "]" + element, err
 	default:
 		return "", fmt.Errorf("%s has no shape a description spells", t)
 	}
@@ -214,12 +215,12 @@ func basic(b *types.Basic) (string, error) {
 func (w *walker) members(s *types.Struct) ([]Member, error) {
 	var out []Member
 	for i := range s.NumFields() {
-		m, read, err := w.member(s.Field(i), i, s.Tag(i))
+		member, read, err := w.member(s.Field(i), i, s.Tag(i))
 		switch {
 		case err != nil:
 			return nil, fmt.Errorf("field %s: %w", s.Field(i).Name(), err)
 		case read:
-			out = append(out, m)
+			out = append(out, member)
 		}
 	}
 	return out, nil
@@ -228,7 +229,7 @@ func (w *walker) members(s *types.Struct) ([]Member, error) {
 // member reads the field f, at index i of its struct: its JSON name, type and
 // tag options, or the type it embeds. It reports a field the encoder ignores
 // as not read: one tagged "-", or an unexported one it does not embed.
-func (w *walker) member(f *types.Var, i int, rawTag string) (m Member, read bool, err error) {
+func (w *walker) member(f *types.Var, i int, rawTag string) (member Member, read bool, err error) {
 	tag := reflect.StructTag(rawTag).Get("json")
 	if tag == "-" || (!f.Exported() && !f.Embedded()) {
 		return Member{}, false, nil
@@ -242,16 +243,16 @@ func (w *walker) member(f *types.Var, i int, rawTag string) (m Member, read bool
 		return Member{}, false, err
 	}
 
-	m = Member{Field: f, Index: i, Options: opts, typ: typ}
+	member = Member{Field: f, Index: i, Options: opts, typ: typ}
 	if at := slices.Index(opts, "embed"); at >= 0 || (f.Embedded() && name == "") {
 		if at >= 0 {
-			m.Options = slices.Delete(opts, at, at+1)
+			member.Options = slices.Delete(opts, at, at+1)
 		}
-		m.Embedded = true
-		return m, true, nil
+		member.Embedded = true
+		return member, true, nil
 	}
-	m.Name = cmp.Or(name, f.Name())
-	return m, true, nil
+	member.Name = cmp.Or(name, f.Name())
+	return member, true, nil
 }
 
 // parseTag splits a json tag into its name and its options, sorted, since

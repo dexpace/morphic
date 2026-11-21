@@ -61,25 +61,25 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 		return out, respelling{}, dirs
 	}
 
-	var r respelling
+	var respellingValue respelling
 	free := ^spelled(text)
 	for i, b := range lineBreaks {
 		if present[i] {
-			r.breaks[i] = take(&free)
-			out = replaceBreak(out, b, r.breaks[i])
+			respellingValue.breaks[i] = take(&free)
+			out = replaceBreak(out, b, respellingValue.breaks[i])
 		}
 	}
 	if slashed {
-		r.slash = take(&free)
-		out = replaceSlashes(out, r.slash)
+		respellingValue.slash = take(&free)
+		out = replaceSlashes(out, respellingValue.slash)
 	}
 	if paired {
 		// Found again in out: a placeholder is wider in bytes than a break or an
 		// escaped slash it stands for, so the offsets text gave have moved.
-		r.pair = take(&free)
-		out = replacePairs(out, pairsIn(out), r.pair)
+		respellingValue.pair = take(&free)
+		out = replacePairs(out, pairsIn(out), respellingValue.pair)
 	}
-	return out, r, dirs
+	return out, respellingValue, dirs
 }
 
 // wide reports whether text opens with a UTF-16 or UTF-32 byte order mark.
@@ -345,22 +345,22 @@ func percentAt(text []byte, i int) rune {
 	return placeholderAt(enc[:], 0, 1)
 }
 
-// restore writes back in n what respell put in place: each line-break
-// placeholder as its character, in every string of n, and an escaped slash's
+// restore writes back in node what respell put in place: each line-break
+// placeholder as its character, in every string of node, and an escaped slash's
 // doubled placeholder and a pair of escapes as the character they name in the
 // value of a double-quoted scalar, the one style where a backslash is an
 // escape, and as the characters written in every other string.
-func (r respelling) restore(n *yaml.Node) {
+func (r respelling) restore(node *yaml.Node) {
 	if r == (respelling{}) {
 		return
 	}
-	quoted := n.Kind == yaml.ScalarNode && n.Style&yaml.DoubleQuotedStyle != 0
-	n.Value = r.restored(n.Value, quoted)
-	n.Tag = r.restored(n.Tag, false)
-	n.Anchor = r.restored(n.Anchor, false)
-	n.HeadComment = r.restored(n.HeadComment, false)
-	n.LineComment = r.restored(n.LineComment, false)
-	n.FootComment = r.restored(n.FootComment, false)
+	quoted := node.Kind == yaml.ScalarNode && node.Style&yaml.DoubleQuotedStyle != 0
+	node.Value = r.restored(node.Value, quoted)
+	node.Tag = r.restored(node.Tag, false)
+	node.Anchor = r.restored(node.Anchor, false)
+	node.HeadComment = r.restored(node.HeadComment, false)
+	node.LineComment = r.restored(node.LineComment, false)
+	node.FootComment = r.restored(node.FootComment, false)
 }
 
 // restored is s with what respell put in place written back, the escaped slash
@@ -449,9 +449,9 @@ func directives(text []byte) ([]Directive, []byte) {
 		}
 		switch {
 		case prologue && bytes.HasPrefix(l, []byte("%")):
-			if d, at, ok := yamlDirective(l, line); ok {
-				dirs = append(dirs, d)
-				out = rewriteVersion(out, text, end-len(l)+at.start, end-len(l)+at.end, d.Minor)
+			if directive, at, ok := yamlDirective(l, line); ok {
+				dirs = append(dirs, directive)
+				out = rewriteVersion(out, text, end-len(l)+at.start, end-len(l)+at.end, directive.Minor)
 			}
 		case prologue && blankOrComment(l):
 		case prologue:

@@ -11,9 +11,9 @@ import (
 // Rewrite writes the registry, reads a fragment and looks a node up by an ID
 // spelled out.
 func Rewrite(doc *ir.Document, def ir.TypeDef) error {
-	doc.Types["t/pass/x"] = def      // want "registrywrites: writes a type registry outside ir and compilers/compile; edit a document's registry through an ir.Editor"
+	doc.Types["type/pass/x"] = def   // want "registrywrites: writes a type registry outside ir and compilers/compile; edit a document's registry through an ir.Editor"
 	_, err := url.QueryUnescape("x") // want "fragmentreadings: url.QueryUnescape reads a $ref fragment otherwise than fragment.Pointer; use fragment.Pointer"
-	_ = doc.Types[ir.TypeID("t/pass/y")]
+	_ = doc.Types[ir.TypeID("type/pass/y")]
 	return err
 }
 
@@ -22,7 +22,7 @@ func Rewrite(doc *ir.Document, def ir.TypeDef) error {
 // it.
 func Overwrite(doc *ir.Document) *ir.Document {
 	out, _ := ir.NewEditor(doc).Finish()
-	out.Types["t/a"] = nil                                                          // want "registrywrites: writes a type registry outside ir and compilers/compile; edit a document's registry through an ir.Editor"
+	out.Types["type/a"] = nil                                                       // want "registrywrites: writes a type registry outside ir and compilers/compile; edit a document's registry through an ir.Editor"
 	out.Services[0].Groups[0].Operations[0].Docs.Summary = "changed"                // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
 	out.Services[0].Groups[0].Operations = out.Services[0].Groups[0].Operations[:0] // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
 	out.Servers["v/a"] = ir.Server{}                                                // want "registrywrites: writes a server registry outside ir and the compilers; edit a document's registry through an ir.Editor"
@@ -37,12 +37,12 @@ func Overwrite(doc *ir.Document) *ir.Document {
 // ir.Editor, the way a pass writes one, which draws nothing.
 func Prune(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e := ir.NewEditor(doc)
-	e.RemoveType("t/pass/unused")
-	e.UpdateType("t/pass/kept", func(td ir.TypeDef) { td.Common().Docs.Summary = "kept" })
-	e.ReplaceType(&ir.Any{TypeCommon: ir.TypeCommon{ID: "t/pass/any"}})
-	e.RemoveService("s/pass/unused")
-	e.UpdateGroup("g/pass/kept", func(g *ir.OperationGroup) { g.Docs.Summary = "kept" })
-	e.UpdateOperation("o/pass/kept", func(op *ir.Operation) { op.Params = op.Params[:0] })
+	e.RemoveType("type/pass/unused")
+	e.UpdateType("type/pass/kept", func(td ir.TypeDef) { td.Common().Docs.Summary = "kept" })
+	e.ReplaceType(&ir.Any{TypeCommon: ir.TypeCommon{ID: "type/pass/any"}})
+	e.RemoveService("service/pass/unused")
+	e.UpdateGroup("operation-group/pass/kept", func(g *ir.OperationGroup) { g.Docs.Summary = "kept" })
+	e.UpdateOperation("o/pass/kept", func(operation *ir.Operation) { operation.Params = operation.Params[:0] })
 	e.RemoveOperation("o/pass/unused")
 	e.UpdateChannel("c/pass/kept", func(c *ir.Channel) { c.Bindings = nil })
 	e.RemoveMessage("m/pass/unused")

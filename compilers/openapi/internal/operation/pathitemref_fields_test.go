@@ -64,18 +64,18 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 	for method, decl := range map[string]jsontext.Pointer{
 		"GET": "/paths/~1a/get", "PUT": "/paths/~1b/put", "POST": "/paths/~1c/post",
 	} {
-		op := opByPath(t, doc, method, "/a")
-		assert.Equal(t, decl, op.Provenance.Pointer, "%s at /a is declared where the chain writes it", method)
-		assert.Equal(t, "from a", op.Bindings.HTTP[0].PathDocs.Summary)
-		assert.Equal(t, []string{"https://b.example"}, serversNamed(t, doc, op.Servers),
+		operation := operationByPath(t, doc, method, "/a")
+		assert.Equal(t, decl, operation.Provenance.Pointer, "%s at /a is declared where the chain writes it", method)
+		assert.Equal(t, "from a", operation.Bindings.HTTP[0].PathDocs.Summary)
+		assert.Equal(t, []string{"https://b.example"}, serversNamed(t, doc, operation.Servers),
 			"%s at /a is sent to the servers beside /b's $ref", method)
 	}
 	var collided []string
-	for _, d := range diags {
-		if d.Code == diag.PathItemRefCollision {
-			_, other, _ := strings.Cut(d.Message, "and again at ")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.PathItemRefCollision {
+			_, other, _ := strings.Cut(diagnostic.Message, "and again at ")
 			other, _, _ = strings.Cut(other, " in the item")
-			collided = append(collided, string(d.Provenance.Pointer)+" "+other)
+			collided = append(collided, string(diagnostic.Provenance.Pointer)+" "+other)
 		}
 	}
 	slices.Sort(collided)
@@ -115,8 +115,8 @@ paths:
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, "getOther", opByPath(t, doc, "GET", "/a").Name.Source)
-	assert.Equal(t, "putOther", opByPath(t, doc, "PUT", "/a").Name.Source, "the field beside the $ref is mounted")
+	assert.Equal(t, "getOther", operationByPath(t, doc, "GET", "/a").Name.Source)
+	assert.Equal(t, "putOther", operationByPath(t, doc, "PUT", "/a").Name.Source, "the field beside the $ref is mounted")
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "and nothing is reported unread")
 }
 
@@ -139,8 +139,8 @@ paths:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, "getB", opByPath(t, doc, "GET", "/a").Name.Source, "the item the chain ends at still mounts")
-	put := opByPath(t, doc, "PUT", "/a")
+	assert.Equal(t, "getB", operationByPath(t, doc, "GET", "/a").Name.Source, "the item the chain ends at still mounts")
+	put := operationByPath(t, doc, "PUT", "/a")
 	assert.Equal(t, "putShared", put.Name.Source, "the field beside the $ref at the landing is mounted")
 	assert.Equal(t, jsontext.Pointer("/x-shared/item/put"), put.Provenance.Pointer)
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "and nothing is reported unread")
@@ -192,10 +192,10 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
-		openapitest.FindOp(t, doc, "cbPost")
-		for _, g := range doc.Services[0].Groups {
-			for _, op := range g.Operations {
-				assert.NotEqual(t, "ignoredSibling", op.Name.Source, "callback %q", at)
+		openapitest.FindOperation(t, doc, "cbPost")
+		for _, operationGroup := range doc.Services[0].Groups {
+			for _, operation := range operationGroup.Operations {
+				assert.NotEqual(t, "ignoredSibling", operation.Name.Source, "callback %q", at)
 			}
 		}
 	}
@@ -219,9 +219,9 @@ paths:
     get: {responses: {"200": {description: OK}}}
 `)
 	var lines []int
-	for _, d := range diags {
-		if d.Code == diag.Validation+"/validation-type-mismatch" {
-			lines = append(lines, d.Provenance.Position.Line)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.Validation+"/validation-type-mismatch" {
+			lines = append(lines, diagnostic.Provenance.Position.Line)
 		}
 	}
 	slices.Sort(lines)

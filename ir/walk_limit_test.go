@@ -19,7 +19,7 @@ import (
 func stringValues(n int) []ir.Value {
 	list := make([]ir.Value, n)
 	for i := range list {
-		list[i] = ir.Value{Kind: ir.ValueString, Str: "s"}
+		list[i] = ir.Value{Kind: ir.ValueString, String: "s"}
 	}
 	return list
 }
@@ -28,11 +28,11 @@ func stringValues(n int) []ir.Value {
 // level below twice, so the two elements share one backing array and the tree
 // the encoding writes has 2^depth leaves.
 func doublingValue(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNull}
+	value := ir.Value{Kind: ir.ValueNull}
 	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v, v}}
+		value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value, value}}
 	}
-	return v
+	return value
 }
 
 // sharedExamples returns 21 examples holding a list of 200 strings: the first
@@ -70,7 +70,7 @@ func valueOrHeaders(v reflect.Value, at ir.WalkPath) bool {
 // no limit but the real one.
 func shownBy(root any) int {
 	var counting shownCounter
-	ir.WalkValues(root, "doc", &counting)
+	ir.WalkValues(root, "document", &counting)
 	return counting.n
 }
 
@@ -90,10 +90,10 @@ func TestWalkValues_ReadsToItsLimit(t *testing.T) {
 		{12, limit, true},
 		{14, limit, true},
 	} {
-		v := doublingValue(tc.depth)
+		value := doublingValue(tc.depth)
 		var counting shownCounter
 
-		cut := ir.WalkValuesWithin(limit, &v, "doc", &counting)
+		cut := ir.WalkValuesWithin(limit, &value, "document", &counting)
 
 		assert.Equal(t, tc.wantShown, counting.n, "depth %d: values shown", tc.depth)
 		assert.Equal(t, tc.wantCut, cut, "depth %d: whether the walk stopped", tc.depth)
@@ -111,9 +111,9 @@ func TestWalkValues_TheLimitAndOneFewer(t *testing.T) {
 		require.Greater(t, whole, n, "the walk shows each of %d values and more", n)
 
 		var atLimit, below shownCounter
-		assert.False(t, ir.WalkValuesWithin(whole, &flat, "doc", &atLimit), "the limit of %d is what the walk shows", whole)
+		assert.False(t, ir.WalkValuesWithin(whole, &flat, "document", &atLimit), "the limit of %d is what the walk shows", whole)
 		assert.Equal(t, whole, atLimit.n)
-		assert.True(t, ir.WalkValuesWithin(whole-1, &flat, "doc", &below), "one fewer than %d", whole)
+		assert.True(t, ir.WalkValuesWithin(whole-1, &flat, "document", &below), "one fewer than %d", whole)
 		assert.Equal(t, whole-1, below.n)
 	}
 }
@@ -133,9 +133,9 @@ func TestWalkValues_ASharedPointerIsReadFromEveryHolder(t *testing.T) {
 			"one visitor":                    {&shownCounter{}},
 			"beside one that prunes at will": {&shownCounter{}, pruning},
 		} {
-			assert.False(t, ir.WalkValuesWithin(least, examples, "doc", visitors...),
+			assert.False(t, ir.WalkValuesWithin(least, examples, "document", visitors...),
 				"shared %t, %s: %d values are the whole", shared, name, least)
-			assert.True(t, ir.WalkValuesWithin(least-1, examples, "doc", visitors...),
+			assert.True(t, ir.WalkValuesWithin(least-1, examples, "document", visitors...),
 				"shared %t, %s: one fewer leaves a value unread", shared, name)
 		}
 	}
@@ -145,11 +145,11 @@ func TestWalkValues_ASharedPointerIsReadFromEveryHolder(t *testing.T) {
 // the other in Value, each a constructor whose arguments are a list of 300
 // strings and the constructor itself, both through one pointer.
 func cycleExamples() []ir.Example {
-	d := &ir.CtorValue{Scalar: "t/s", Args: []ir.Value{{Kind: ir.ValueList, List: stringValues(300)}}}
-	d.Args = append(d.Args, ir.Value{Kind: ir.ValueCtor, Ctor: d})
+	constructorValue := &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{{Kind: ir.ValueList, List: stringValues(300)}}}
+	constructorValue.Args = append(constructorValue.Args, ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue})
 	return []ir.Example{
-		{Name: "h", Headers: &ir.Value{Kind: ir.ValueCtor, Ctor: d}},
-		{Name: "v", Value: &ir.Value{Kind: ir.ValueCtor, Ctor: d}},
+		{Name: "h", Headers: &ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}},
+		{Name: "v", Value: &ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}},
 	}
 }
 
@@ -166,11 +166,11 @@ func TestWalkValues_ACycleIsCutWhereItCloses(t *testing.T) {
 	examples := cycleExamples()
 	skipping := ir.VisitFunc(skipsHeaders)
 
-	assert.False(t, ir.WalkValuesWithin(least, examples, "doc", &shownCounter{}, skipping),
+	assert.False(t, ir.WalkValuesWithin(least, examples, "document", &shownCounter{}, skipping),
 		"the cycle ends the walk at %d values", least)
-	assert.True(t, ir.WalkValuesWithin(least-1, examples, "doc", &shownCounter{}, skipping),
+	assert.True(t, ir.WalkValuesWithin(least-1, examples, "document", &shownCounter{}, skipping),
 		"one fewer than the whole is cut")
-	assert.False(t, ir.WalkValuesWithin(least, examples, "doc", skipping, &shownCounter{}),
+	assert.False(t, ir.WalkValuesWithin(least, examples, "document", skipping, &shownCounter{}),
 		"in either order of the visitors")
 }
 
@@ -189,10 +189,10 @@ func TestWalkValues_ACycleIsToldOncePerHolderEntered(t *testing.T) {
 	assert.False(t, aloneCut)
 	assertSameWalks(t, shared, alone, "a constructor holding itself, held twice")
 	require.Len(t, shared[0].cycles, 2, "the visitor that enters both holders is told at each")
-	assert.True(t, strings.HasPrefix(shared[0].cycles[0].Entered, "doc[0].Headers"), "%+v", shared[0].cycles[0])
-	assert.True(t, strings.HasPrefix(shared[0].cycles[1].Entered, "doc[1].Value"), "%+v", shared[0].cycles[1])
+	assert.True(t, strings.HasPrefix(shared[0].cycles[0].Entered, "document[0].Headers"), "%+v", shared[0].cycles[0])
+	assert.True(t, strings.HasPrefix(shared[0].cycles[1].Entered, "document[1].Value"), "%+v", shared[0].cycles[1])
 	require.Len(t, shared[1].cycles, 1, "the visitor that skips Headers enters one holder")
-	assert.True(t, strings.HasPrefix(shared[1].cycles[0].Entered, "doc[1].Value"), "%+v", shared[1].cycles[0])
+	assert.True(t, strings.HasPrefix(shared[1].cycles[0].Entered, "document[1].Value"), "%+v", shared[1].cycles[0])
 }
 
 // pruneAtRoot counts the values it is shown and prunes at the first.
@@ -226,11 +226,11 @@ func TestWalkValues_AVisitorIsShownTheSameWalkBesideOthers(t *testing.T) {
 	t.Run("130 visitors are each shown the limit", func(t *testing.T) {
 		t.Parallel()
 		counters, visitors := countersOf(130)
-		assert.True(t, ir.WalkValuesWithin(limit, &root, "doc", visitors...))
+		assert.True(t, ir.WalkValuesWithin(limit, &root, "document", visitors...))
 		var total int
-		for i, c := range counters {
-			assert.Equal(t, limit, c.n, "visitor %d", i)
-			total += c.n
+		for i, shownCounter := range counters {
+			assert.Equal(t, limit, shownCounter.n, "visitor %d", i)
+			total += shownCounter.n
 		}
 		assert.Equal(t, 195_000, total)
 	})
@@ -240,7 +240,7 @@ func TestWalkValues_AVisitorIsShownTheSameWalkBesideOthers(t *testing.T) {
 		for _, beside := range []int{0, 1, 199} {
 			var pruning pruneAtRoot
 			_, others := countersOf(beside)
-			ir.WalkValuesWithin(limit, &root, "doc", append([]ir.Visitor{&pruning}, others...)...)
+			ir.WalkValuesWithin(limit, &root, "document", append([]ir.Visitor{&pruning}, others...)...)
 			assert.Equal(t, 1, pruning.n, "beside %d visitors", beside)
 		}
 	})
@@ -251,8 +251,8 @@ func TestWalkValues_AVisitorIsShownTheSameWalkBesideOthers(t *testing.T) {
 		for _, atLimit := range []int{1, 100, ir.MaxWalkValues} {
 			alone := &recorder{prune: func(path string) bool { return strings.HasSuffix(path, ".Headers") }}
 			beside := &recorder{prune: alone.prune}
-			ir.WalkValuesWithin(atLimit, examples, "doc", alone)
-			ir.WalkValuesWithin(atLimit, examples, "doc", &shownCounter{}, beside)
+			ir.WalkValuesWithin(atLimit, examples, "document", alone)
+			ir.WalkValuesWithin(atLimit, examples, "document", &shownCounter{}, beside)
 
 			require.NotEmpty(t, alone.paths, "limit %d", atLimit)
 			assert.LessOrEqual(t, len(alone.paths), atLimit)

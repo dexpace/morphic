@@ -16,12 +16,12 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -37,15 +37,15 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
 	ext := service.GroupingExtension{Key: "x-group", Lists: service.ListsAreGroups, Fallback: service.GroupByPathPrefix}
-	c := service.New(7, &load.Document{Doc: doc, Source: src},
+	serviceContext := service.New(7, &load.LoadedOpenAPIDocument{Doc: doc, Source: src},
 		service.Policy{Grouping: service.GroupByExtension, GroupingExtension: ext})
 
-	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
-	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
-	assert.Equal(t, service.GroupByExtension, c.Grouping)
-	assert.Equal(t, ext, c.GroupingExtension)
-	assert.Equal(t, 7, c.SrcIndex)
-	assert.Equal(t, 7, c.Place().Source)
+	assert.Same(t, doc, serviceContext.Doc, "the document is referenced, never copied")
+	assert.Equal(t, []ir.SourceInfo{src}, serviceContext.Sources())
+	assert.Equal(t, service.GroupByExtension, serviceContext.Grouping)
+	assert.Equal(t, ext, serviceContext.GroupingExtension)
+	assert.Equal(t, 7, serviceContext.SrcIndex)
+	assert.Equal(t, 7, serviceContext.Place().Source)
 }
 
 // referenceKinds is a source declaring one component of each kind the library
@@ -74,18 +74,18 @@ func TestDeclared_ReadsEachReferenceKind(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "root.yaml")
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
 	require.NoError(t, err)
-	c := service.New(0, doc, service.Policy{})
+	serviceContext := service.New(0, doc, service.Policy{})
 	cs := doc.Doc.Components
 	for kind, decl := range map[string]jsontext.Pointer{
-		"pathItems":       declaredAt[soa.PathItem](c, cs.PathItems.GetOrZero("A")),
-		"parameters":      declaredAt[soa.Parameter](c, cs.Parameters.GetOrZero("A")),
-		"headers":         declaredAt[soa.Header](c, cs.Headers.GetOrZero("A")),
-		"requestBodies":   declaredAt[soa.RequestBody](c, cs.RequestBodies.GetOrZero("A")),
-		"responses":       declaredAt[soa.Response](c, cs.Responses.GetOrZero("A")),
-		"examples":        declaredAt[soa.Example](c, cs.Examples.GetOrZero("A")),
-		"links":           declaredAt[soa.Link](c, cs.Links.GetOrZero("A")),
-		"callbacks":       declaredAt[soa.Callback](c, cs.Callbacks.GetOrZero("A")),
-		"securitySchemes": declaredAt[soa.SecurityScheme](c, cs.SecuritySchemes.GetOrZero("A")),
+		"pathItems":       declaredAt[soa.PathItem](serviceContext, cs.PathItems.GetOrZero("A")),
+		"parameters":      declaredAt[soa.Parameter](serviceContext, cs.Parameters.GetOrZero("A")),
+		"headers":         declaredAt[soa.Header](serviceContext, cs.Headers.GetOrZero("A")),
+		"requestBodies":   declaredAt[soa.RequestBody](serviceContext, cs.RequestBodies.GetOrZero("A")),
+		"responses":       declaredAt[soa.Response](serviceContext, cs.Responses.GetOrZero("A")),
+		"examples":        declaredAt[soa.Example](serviceContext, cs.Examples.GetOrZero("A")),
+		"links":           declaredAt[soa.Link](serviceContext, cs.Links.GetOrZero("A")),
+		"callbacks":       declaredAt[soa.Callback](serviceContext, cs.Callbacks.GetOrZero("A")),
+		"securitySchemes": declaredAt[soa.SecurityScheme](serviceContext, cs.SecuritySchemes.GetOrZero("A")),
 	} {
 		assert.Equal(t, jsontext.Pointer("/components/"+kind+"/P"), decl, kind)
 	}
@@ -95,13 +95,13 @@ func TestDeclared_ReadsEachReferenceKind(t *testing.T) {
 // names at.
 func declaredAt[T, S any, R interface {
 	*S
-	resolve.Referenced[T]
+	componentlookup.Referenced[T]
 	GetCoreAny() any
 }, P interface {
 	*T
 	GetRootNode() *yaml.Node
-}](c service.Ctx, ref R) jsontext.Pointer {
-	_, _, decl := service.Declared[T, S, R, P](c, ref, "/use")
+}](serviceContext service.Ctx, ref R) jsontext.Pointer {
+	_, _, decl := service.Declared[T, S, R, P](serviceContext, ref, "/use")
 	return decl
 }
 
@@ -119,11 +119,11 @@ func TestSiblings_ReadsTheLoadPhasesModel(t *testing.T) {
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := service.New(0, doc, service.Policy{})
+	serviceContext := service.New(0, doc, service.Policy{})
 	rp, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 
-	sib, ok := c.Siblings().Of(rp)
+	sib, ok := serviceContext.Siblings().Of(rp)
 	require.True(t, ok, "the context reads the load phase's model")
 	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
@@ -149,18 +149,18 @@ components:
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := service.New(0, doc, service.Policy{})
+	serviceContext := service.New(0, doc, service.Policy{})
 	item, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	response, ok := item.GetObject().Get().GetResponses().Get("200")
 	require.True(t, ok)
 	content := response.GetObject().GetContent()
 
-	use, isUse := c.MediaTypeUse(content.GetOrZero("application/json"))
+	use, isUse := serviceContext.MediaTypeUse(content.GetOrZero("application/json"))
 	require.True(t, isUse)
 	require.NotNil(t, use)
 	assert.True(t, use.IsReference(), "the context reads the load phase's model")
-	_, isUse = c.MediaTypeUse(content.GetOrZero("text/plain"))
+	_, isUse = serviceContext.MediaTypeUse(content.GetOrZero("text/plain"))
 	assert.False(t, isUse, "an entry written inline is no use")
 }
 
@@ -196,12 +196,12 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := service.New(0, &load.Document{Doc: tc.doc}, service.Policy{})
+			serviceContext := service.New(0, &load.LoadedOpenAPIDocument{Doc: tc.doc}, service.Policy{})
 			for _, n := range tc.declares {
-				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
+				assert.True(t, serviceContext.DeclaresSchema(n), "%q is declared", n)
 			}
 			for _, n := range tc.denies {
-				assert.False(t, c.DeclaresSchema(n), "%q is not declared", n)
+				assert.False(t, serviceContext.DeclaresSchema(n), "%q is not declared", n)
 			}
 		})
 	}
@@ -233,12 +233,12 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
+	serviceContext := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
 
-	require.Len(t, c.Sources(), 2)
-	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
-	assert.Equal(t, "overlay@1.0.0", c.Sources()[1].Format, "and the overlay applied to it second")
-	assert.Equal(t, "patch.yaml", c.Sources()[1].Path)
+	require.Len(t, serviceContext.Sources(), 2)
+	assert.Equal(t, src, serviceContext.Sources()[0], "the source being lowered comes first")
+	assert.Equal(t, "overlay@1.0.0", serviceContext.Sources()[1].Format, "and the overlay applied to it second")
+	assert.Equal(t, "patch.yaml", serviceContext.Sources()[1].Path)
 }
 
 // TestSources_ListsOnlyTheSourceWhenNoOverlayApplied is the control for the case
@@ -248,9 +248,9 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
+	serviceContext := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
 
-	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
+	assert.Equal(t, []ir.SourceInfo{src}, serviceContext.Sources())
 }
 
 // TestPlace_NamesTheOverlayForThePositionsItIntroduced pins the one place
@@ -264,14 +264,14 @@ func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
+	serviceContext := service.New(0, &load.LoadedOpenAPIDocument{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
-		c.Place().At("/info/description"), "the overlay wrote this position of the source")
+		serviceContext.Place().At("/info/description"), "the overlay wrote this position of the source")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
-		c.Place().At("/info/title"), "and left this one alone")
+		serviceContext.Place().At("/info/title"), "and left this one alone")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
-		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
+		serviceContext.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
 }
 

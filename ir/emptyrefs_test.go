@@ -21,14 +21,14 @@ func emptyReferencesOf(doc *ir.Document) []ir.EmptyReference {
 	return found.List()
 }
 
-// emptyRefService wraps s as the one service of a document.
-func emptyRefService(s ir.Service) *ir.Document {
-	return &ir.Document{Services: []ir.Service{s}}
+// emptyRefService wraps service as the one service of a document.
+func emptyRefService(service ir.Service) *ir.Document {
+	return &ir.Document{Services: []ir.Service{service}}
 }
 
-// emptyRefOperation wraps op in one service and group.
-func emptyRefOperation(op ir.Operation) *ir.Document {
-	return emptyRefService(ir.Service{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}})
+// emptyRefOperation wraps operation in one service and group.
+func emptyRefOperation(operation ir.Operation) *ir.Document {
+	return emptyRefService(ir.Service{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}})
 }
 
 // TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn walks one document per shape
@@ -38,7 +38,7 @@ func emptyRefOperation(op ir.Operation) *ir.Document {
 // the path of the walk that reaches it, spelled as irverify spells it.
 func TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn(t *testing.T) {
 	t.Parallel()
-	overload := ir.OpID("")
+	overload := ir.OperationID("")
 	for _, tc := range []struct {
 		name  string
 		doc   *ir.Document
@@ -49,33 +49,33 @@ func TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn(t *testing.T) {
 			name:  "scalar",
 			doc:   emptyRefService(ir.Service{Auth: []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ""}}}}}),
 			class: reflect.TypeFor[ir.AuthID](),
-			path:  "doc.Services[0].Auth[0].Schemes[0].Scheme",
+			path:  "document.Services[0].Auth[0].Schemes[0].Scheme",
 		},
 		{
 			name:  "pointer",
 			doc:   emptyRefOperation(ir.Operation{OverloadOf: &overload}),
-			class: reflect.TypeFor[ir.OpID](),
-			path:  "doc.Services[0].Groups[0].Operations[0].OverloadOf",
+			class: reflect.TypeFor[ir.OperationID](),
+			path:  "document.Services[0].Groups[0].Operations[0].OverloadOf",
 		},
 		{
 			name:  "slice element",
 			doc:   emptyRefService(ir.Service{Servers: []ir.ServerID{""}}),
 			class: reflect.TypeFor[ir.ServerID](),
-			path:  "doc.Services[0].Servers[0]",
+			path:  "document.Services[0].Servers[0]",
 		},
 		{
 			name:  "map key",
 			doc:   emptyRefService(ir.Service{Renames: map[ir.TypeID]ir.Naming{"": {Source: "x", Canonical: "x"}}}),
 			class: reflect.TypeFor[ir.TypeID](),
-			path:  "doc.Services[0].Renames[].key",
+			path:  "document.Services[0].Renames[].key",
 		},
 		{
 			name: "map value",
 			doc: emptyRefService(ir.Service{Groups: []ir.OperationGroup{{
-				Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"read": ""}},
+				Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OperationID{"read": ""}},
 			}}}),
-			class: reflect.TypeFor[ir.OpID](),
-			path:  "doc.Services[0].Groups[0].Resource.Lifecycle[read]",
+			class: reflect.TypeFor[ir.OperationID](),
+			path:  "document.Services[0].Groups[0].Resource.Lifecycle[read]",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,13 +94,13 @@ func TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn(t *testing.T) {
 // discriminator that names no property, no wire name and no index.
 func TestEmptyReferences_ADiscriminatorLocatingNothingIsALocator(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{}}}}
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{}}}}
 
 	got := emptyReferencesOf(doc)
 
 	require.Len(t, got, 1)
-	assert.Equal(t, reflect.TypeFor[ir.PropID](), got[0].Class)
-	assert.Equal(t, "doc.Types[t/x/Base].Discriminator.Property", got[0].Path)
+	assert.Equal(t, reflect.TypeFor[ir.PropertyID](), got[0].Class)
+	assert.Equal(t, "document.Types[type/x/Base].Discriminator.Property", got[0].Path)
 	assert.True(t, got[0].Locator())
 }
 
@@ -117,20 +117,20 @@ func TestEmptyReferences_ADocumentedEmptyIsNone(t *testing.T) {
 	}{
 		{
 			name: "Discriminator.Default",
-			doc: &ir.Document{Types: ir.TypeRegistry{"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{
+			doc: &ir.Document{Types: ir.TypeRegistry{"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{
 				PropertyName: "k", Default: "",
 			}}}},
 		},
 		{
 			name: "Discriminator.Property located by PropertyName",
-			doc: &ir.Document{Types: ir.TypeRegistry{"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{
-				PropertyName: "k", Mapping: map[string]ir.TypeID{"a": "t/x/A"},
+			doc: &ir.Document{Types: ir.TypeRegistry{"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{
+				PropertyName: "k", Mapping: map[string]ir.TypeID{"a": "type/x/A"},
 			}}}},
 		},
 		{
 			name: "Discriminator.Property located by Index",
-			doc: &ir.Document{Types: ir.TypeRegistry{"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{
-				Index: &index,
+			doc: &ir.Document{Types: ir.TypeRegistry{"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{
+				TupleElementIndex: &index,
 			}}}},
 		},
 		{
@@ -164,29 +164,29 @@ func TestEmptyReferences_ListIsInWalkOrder(t *testing.T) {
 
 	first := emptyReferencesOf(doc)
 	paths := make([]string, 0, len(first))
-	for _, e := range first {
-		paths = append(paths, e.Path)
+	for _, emptyReference := range first {
+		paths = append(paths, emptyReference.Path)
 	}
 
 	assert.Equal(t, []string{
-		"doc.Services[0].Servers[1]",
-		"doc.Services[0].Servers[2]",
-		"doc.Services[0].Auth[0].Schemes[0].Scheme",
+		"document.Services[0].Servers[1]",
+		"document.Services[0].Servers[2]",
+		"document.Services[0].Auth[0].Schemes[0].Scheme",
 	}, paths, "a struct's own fields are read as the walk enters it, before what it holds")
 	second := emptyReferencesOf(doc)
 	assert.Equal(t, first, second, "a second walk reads the same list")
 
 	lifecycle := emptyRefService(ir.Service{Groups: []ir.OperationGroup{{
-		Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"update": "", "delete": "", "read": ""}},
+		Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OperationID{"update": "", "delete": "", "read": ""}},
 	}}})
 	listed := emptyReferencesOf(lifecycle)
 	keyed := make([]string, 0, len(listed))
-	for _, e := range listed {
-		keyed = append(keyed, e.Path)
+	for _, emptyReference := range listed {
+		keyed = append(keyed, emptyReference.Path)
 	}
 	assert.Equal(t, []string{
-		"doc.Services[0].Groups[0].Resource.Lifecycle[delete]",
-		"doc.Services[0].Groups[0].Resource.Lifecycle[read]",
-		"doc.Services[0].Groups[0].Resource.Lifecycle[update]",
+		"document.Services[0].Groups[0].Resource.Lifecycle[delete]",
+		"document.Services[0].Groups[0].Resource.Lifecycle[read]",
+		"document.Services[0].Groups[0].Resource.Lifecycle[update]",
 	}, keyed, "a map's empty values are listed in key order, as the walk ranges it")
 }

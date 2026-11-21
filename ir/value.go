@@ -14,13 +14,14 @@ const (
 	ValueNull ValueKind = "null"
 	// ValueBool is a boolean value carried in Value.Bool.
 	ValueBool ValueKind = "bool"
-	// ValueString is a string value carried in Value.Str.
+	// ValueString is a string value carried in Value.String.
 	ValueString ValueKind = "string"
-	// ValueNumber is an arbitrary-precision numeric value carried in Value.Num.
+	// ValueNumber is an arbitrary-precision numeric value carried in
+	// Value.Number.
 	ValueNumber ValueKind = "number"
 	// ValueBytes is a byte-string value carried in Value.Bytes.
 	ValueBytes ValueKind = "bytes"
-	// ValueSymbol is an interned-symbol value carried in Value.Str, distinct
+	// ValueSymbol is an interned-symbol value carried in Value.String, distinct
 	// from ValueString (Erlang atoms: on the native wire ok != <<"ok">>).
 	ValueSymbol ValueKind = "symbol"
 	// ValueList is an ordered sequence of values carried in Value.List.
@@ -30,15 +31,16 @@ const (
 	// ValueRefKind is a reference to a declared constant carried in Value.Ref.
 	// Its string form is "ref"; the constant is named ValueRefKind because
 	// ValueRef is the referenced struct.
-	ValueRefKind ValueKind = "ref"
-	// ValueCtor is a value built by a named scalar constructor, carried in
-	// Value.Ctor (TypeSpec scalar constructors such as plainDate.fromISO).
-	ValueCtor ValueKind = "ctor"
-	// ValueInf is IEEE 754 positive infinity, which no BigVal holds and which
-	// carries no payload (a protobuf `[default = inf]`).
-	ValueInf ValueKind = "inf"
-	// ValueNegInf is IEEE 754 negative infinity, carrying no payload.
-	ValueNegInf ValueKind = "neginf"
+	ValueRefKind ValueKind = "reference"
+	// ValueConstructor is a value built by a named scalar constructor, carried
+	// in Value.Constructor (TypeSpec scalar constructors such as
+	// plainDate.fromISO).
+	ValueConstructor ValueKind = "constructor"
+	// ValueInfinity is IEEE 754 positive infinity, which no BigVal holds and
+	// which carries no payload (a protobuf `[default = inf]`).
+	ValueInfinity ValueKind = "infinity"
+	// ValueNegativeInfinity is IEEE 754 negative infinity, carrying no payload.
+	ValueNegativeInfinity ValueKind = "negative-infinity"
 	// ValueNaN is an IEEE 754 not-a-number, carrying no payload: the IR keeps
 	// no NaN payload bits, which no source format states.
 	ValueNaN ValueKind = "nan"
@@ -52,17 +54,19 @@ const (
 //
 // irverify holds this contract: a populated field the kind does not select is
 // ir/value-stray-payload, an absent one it does select is
-// ir/value-missing-payload (number, ref and ctor only; the other kinds' zero
-// payload is a real value), and an undeclared kind is ir/unknown-value-kind.
+// ir/value-missing-payload (number, reference and constructor only; the other
+// kinds' zero payload is a real value), and an undeclared kind is
+// ir/unknown-value-kind.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`
 	// Bool is the payload for ValueBool.
 	Bool bool `json:"bool,omitzero"`
-	// Str is the payload for ValueString and ValueSymbol.
-	Str string `json:"str,omitempty"`
-	// Num is the payload for ValueNumber, an arbitrary-precision decimal string.
-	Num BigVal `json:"num,omitempty"`
+	// String is the payload for ValueString and ValueSymbol.
+	String string `json:"string,omitempty"`
+	// Number is the payload for ValueNumber, an arbitrary-precision decimal
+	// string.
+	Number BigVal `json:"number,omitempty"`
 	// Bytes is the payload for ValueBytes, base64-encoded in JSON form.
 	Bytes []byte `json:"bytes,omitempty"`
 	// List is the payload for ValueList, an ordered sequence of values.
@@ -72,8 +76,9 @@ type Value struct {
 	Object []Field `json:"object,omitempty"`
 	// Ref is the payload for ValueRefKind, a reference to a declared constant.
 	Ref *ValueRef `json:"ref,omitzero"`
-	// Ctor is the payload for ValueCtor, a constructor-built value.
-	Ctor *CtorValue `json:"ctor,omitzero"`
+	// Constructor is the payload for ValueConstructor, a constructor-built
+	// value.
+	Constructor *ConstructorValue `json:"constructor,omitzero"`
 }
 
 // Field is one named member of a ValueObject, in source order.
@@ -93,10 +98,10 @@ type ValueRef struct {
 	Member string `json:"member,omitempty"`
 }
 
-// CtorValue captures a value built by a named scalar constructor, such as
-// utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
+// ConstructorValue captures a value built by a named scalar constructor, such
+// as utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
 // inherently non-literal, so compilers must not fold them (docs/ir/values.md).
-type CtorValue struct {
+type ConstructorValue struct {
 	// Scalar identifies the scalar whose constructor is invoked; never empty.
 	Scalar TypeID `json:"scalar,omitempty"`
 	// Name is the constructor name ("fromISO", "now", custom inits).

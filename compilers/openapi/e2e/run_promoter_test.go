@@ -72,32 +72,33 @@ func runPromoterPolicy() openapi.ExtensionPromotions {
 	}
 }
 
-// runPromoterOps compiles runPromoterSpec under promotions and returns its
-// operations by ID, its api_key parameter, and its unread-extension reports.
-func runPromoterOps(t *testing.T, promotions openapi.ExtensionPromotions) (map[ir.OpID]ir.Operation, ir.Parameter, int) {
+// runPromoterOperations compiles runPromoterSpec under promotions and returns
+// its operations by ID, its api_key parameter, and its unread-extension
+// reports.
+func runPromoterOperations(t *testing.T, promotions openapi.ExtensionPromotions) (map[ir.OperationID]ir.Operation, ir.Parameter, int) {
 	t.Helper()
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(runPromoterSpec)},
 		compilers.Options{FormatOptions: openapi.Options{Promotions: promotions}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	ops := map[ir.OpID]ir.Operation{}
-	for _, op := range allOperations(doc) {
-		ops[op.ID] = op
+	operations := map[ir.OperationID]ir.Operation{}
+	for _, operation := range allOperations(doc) {
+		operations[operation.ID] = operation
 	}
 	var key ir.Parameter
-	for _, p := range ops["op/openapi/paths/~1x/post"].Params {
-		if p.Name.Source == "api_key" {
-			key = p
+	for _, parameter := range operations["operation/openapi/paths/~1x/post"].Params {
+		if parameter.Name.Source == "api_key" {
+			key = parameter
 		}
 	}
 	require.NotEmpty(t, key.ID, "the spec's api_key parameter")
 	unread := 0
-	for _, d := range diags {
-		if d.Code == "openapi/unread-extension" {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/unread-extension" {
 			unread++
 		}
 	}
-	return ops, key, unread
+	return operations, key, unread
 }
 
 // TestRun_EveryWholeDocumentReaderReadsTheRunsPromotionPolicy pins the policy
@@ -106,26 +107,26 @@ func runPromoterOps(t *testing.T, promotions openapi.ExtensionPromotions) (map[i
 // reads any, though the credential's name then asks for its redaction.
 func TestRun_EveryWholeDocumentReaderReadsTheRunsPromotionPolicy(t *testing.T) {
 	t.Parallel()
-	ops, key, unread := runPromoterOps(t, runPromoterPolicy())
-	x, old := ops["op/openapi/paths/~1x/post"], ops["op/openapi/paths/~1old/get"]
-	require.NotNil(t, x.Pagination, "pagination")
-	assert.Equal(t, ir.PageStrategyNextLink, x.Pagination.Strategy)
-	assert.Len(t, x.ParamChoices, 1, "parameter choices")
-	require.NotNil(t, x.ResponseStream, "stream")
-	require.NotNil(t, x.ResponseStream.Terminator, "stream terminator")
-	assert.Equal(t, "[DONE]", *x.ResponseStream.Terminator)
+	operations, key, unread := runPromoterOperations(t, runPromoterPolicy())
+	operation, old := operations["operation/openapi/paths/~1x/post"], operations["operation/openapi/paths/~1old/get"]
+	require.NotNil(t, operation.Pagination, "pagination")
+	assert.Equal(t, ir.PageStrategyNextLink, operation.Pagination.Strategy)
+	assert.Len(t, operation.ParamChoices, 1, "parameter choices")
+	require.NotNil(t, operation.ResponseStream, "stream")
+	require.NotNil(t, operation.ResponseStream.Terminator, "stream terminator")
+	assert.Equal(t, "[DONE]", *operation.ResponseStream.Terminator)
 	require.NotNil(t, old.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Operation: "op/openapi/paths/~1new/get"}}, old.Deprecation.ReplacedBy,
+	assert.Equal(t, []ir.EntityRef{{Operation: "operation/openapi/paths/~1new/get"}}, old.Deprecation.ReplacedBy,
 		"the key names the replacement, and the message's is not read beside it")
 	assert.False(t, key.Secret, "the key says the credential is not redacted")
 	assert.NotContains(t, string(key.Provenance.Inferred), "secret-inference")
 	assert.Equal(t, 1, unread, "x-acme-unread is under the owned prefix and read by nothing")
 
-	ops, key, unread = runPromoterOps(t, openapi.ExtensionPromotions{Disabled: true})
-	x, old = ops["op/openapi/paths/~1x/post"], ops["op/openapi/paths/~1old/get"]
-	assert.Nil(t, x.Pagination)
-	assert.Empty(t, x.ParamChoices)
-	assert.True(t, x.ResponseStream == nil || x.ResponseStream.Terminator == nil, "no terminator")
+	operations, key, unread = runPromoterOperations(t, openapi.ExtensionPromotions{Disabled: true})
+	operation, old = operations["operation/openapi/paths/~1x/post"], operations["operation/openapi/paths/~1old/get"]
+	assert.Nil(t, operation.Pagination)
+	assert.Empty(t, operation.ParamChoices)
+	assert.True(t, operation.ResponseStream == nil || operation.ResponseStream.Terminator == nil, "no terminator")
 	assert.True(t, old.Deprecation == nil || old.Deprecation.ReplacedBy == nil, "no replacement")
 	assert.True(t, key.Secret, "no key is read, so the credential's name asks for its redaction")
 	assert.Contains(t, string(key.Provenance.Inferred), "secret-inference")

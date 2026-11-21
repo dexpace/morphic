@@ -73,7 +73,7 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 	return p.targets[target]
 }
 
-// PageStatementOf reads what src, a source p reads the pagination target
+// PageStatementOf reads what src, a source promoter reads the pagination target
 // target from, says on the node keeping unmodeled
 // (docs/compilers/openapi.md#extension-pagination): the expression its value
 // spells where it lists no Values, and whether its value is one of them where
@@ -82,15 +82,15 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 // worded alike for each, so one report stands per node. root is the document
 // root's Unmodeled where the node is an operation, and nil otherwise, as an
 // operation's true reads the root's (rootStatement).
-func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+func PageStatementOf(promoter Promoter, target ExtensionTarget, src ExtensionSource, unmodeled, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	entry, written := unmodeled[extensionKeyPrefix+src.Key]
 	if !written {
 		return PageStatement{}, nil
 	}
 	if root != nil && src.Member != "" && len(src.Values) == 0 && entry.Value.Kind() == 't' {
-		return rootStatement(p, target, src, entry, unmodeled, root)
+		return rootStatement(promoter, target, src, entry, unmodeled, root)
 	}
-	return pageStatement(p, target, src, entry)
+	return pageStatement(promoter, target, src, entry)
 }
 
 // pathItemKeyPrefix starts the key an operation keeps a vendor extension its
@@ -104,7 +104,7 @@ const pathItemKeyPrefix = extensionKeyPrefix + "pathItem/"
 // way. A root writing none, or a statement that is no object, states nothing
 // and is reported, the latter at its own key, so every operation writing true
 // shares one finding.
-func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+func rootStatement(promoter Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
 	stated, ok := own[pathItemKeyPrefix+src.Key]
 	if !ok {
@@ -120,11 +120,11 @@ func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entr
 		return st, []ir.Diagnostic{Unpromoted(src.Key, stated.Provenance,
 			"is "+ShapeOf(stated.Value)+", not an object", "it states no walk for the operations that write true")}
 	}
-	return pageStatement(p, target, src, stated)
+	return pageStatement(promoter, target, src, stated)
 }
 
 // pageStatement reads what src says in entry, a node's value of its key.
-func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry) (PageStatement, []ir.Diagnostic) {
+func pageStatement(promoter Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
 	raw, at, held, located := src.value(entry)
 	switch {
@@ -137,9 +137,9 @@ func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entr
 		return st, []ir.Diagnostic{unreadPage(src, src.Key, at,
 			"is "+ShapeOf(entry.Value)+", not an object", "value of a walk")}
 	case located == statesNothing:
-		return st, p.unreadMembers(src, held, at)
+		return st, promoter.unreadMembers(src, held, at)
 	case len(src.Values) > 0:
-		return st, p.unlistedWord(src, raw, at)
+		return st, promoter.unlistedWord(src, raw, at)
 	}
 	text, ok := extensionText(raw)
 	switch {
@@ -165,9 +165,9 @@ func (p Promoter) pageSources(src ExtensionSource) []ExtensionSource {
 		if !isPaginationTarget(target) {
 			continue
 		}
-		for _, s := range sources {
-			if s.Key == src.Key && (len(s.Values) > 0) == (len(src.Values) > 0) && (s.Member == "") == (src.Member == "") {
-				out = append(out, s)
+		for _, extensionSource := range sources {
+			if extensionSource.Key == src.Key && (len(extensionSource.Values) > 0) == (len(src.Values) > 0) && (extensionSource.Member == "") == (src.Member == "") {
+				out = append(out, extensionSource)
 			}
 		}
 	}
@@ -178,11 +178,11 @@ func (p Promoter) pageSources(src ExtensionSource) []ExtensionSource {
 // them is one a pagination source of the key reads.
 func (p Promoter) unreadMembers(src ExtensionSource, held map[string]ir.RawValue, at ir.Provenance) []ir.Diagnostic {
 	var read []string
-	for _, s := range p.pageSources(src) {
-		if _, ok := held[s.Member]; ok {
+	for _, extensionSource := range p.pageSources(src) {
+		if _, ok := held[extensionSource.Member]; ok {
 			return nil
 		}
-		read = append(read, s.Member)
+		read = append(read, extensionSource.Member)
 	}
 	return []ir.Diagnostic{unreadPage(src, src.Key, at,
 		"holds none of the members the policy reads ("+joinSorted(read)+")", "value of a walk")}
@@ -192,14 +192,14 @@ func (p Promoter) unreadMembers(src ExtensionSource, held map[string]ir.RawValue
 // pagination source of the same member lists it either.
 func (p Promoter) unlistedWord(src ExtensionSource, raw ir.RawValue, at ir.Provenance) []ir.Diagnostic {
 	var words []string
-	for _, s := range p.pageSources(src) {
-		if s.Member != src.Member {
+	for _, extensionSource := range p.pageSources(src) {
+		if extensionSource.Member != src.Member {
 			continue
 		}
-		if listsWord(s, raw) {
+		if listsWord(extensionSource, raw) {
 			return nil
 		}
-		words = append(words, s.Values...)
+		words = append(words, extensionSource.Values...)
 	}
 	return []ir.Diagnostic{unreadPage(src, src.String(), at,
 		"holds none of the words the policy lists ("+joinSorted(words)+")", "value of a walk")}

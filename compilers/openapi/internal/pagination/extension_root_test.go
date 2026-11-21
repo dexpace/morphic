@@ -23,15 +23,15 @@ const rootWalk = `x-fern-pagination:
 `
 
 // rootDoc is a document of the paths /things and, where more is set, /other,
-// each one GET whose operation entry is op, written at the indent of its
+// each one GET whose operation entry is operation, written at the indent of its
 // operationId, under the document-root entries root and the path item
 // entries item of /things. Each GET takes page_token and answers with data
 // and next_page_token.
-func rootDoc(root, item, op string, more bool) string {
+func rootDoc(root, item, operation string, more bool) string {
 	get := func(name string) string {
 		return `    get:
       operationId: ` + name + `
-` + op + `      parameters: [{name: page_token, in: query, schema: {type: string}}]
+` + operation + `      parameters: [{name: page_token, in: query, schema: {type: string}}]
       responses:
         "200":
           description: ok
@@ -67,17 +67,17 @@ func TestPromote_ReadsTheRootForTrue(t *testing.T) {
 		doc, diags := compile(t, written, openapi.Options{})
 		assert.Empty(t, diags)
 
-		op := openapitest.FindOp(t, doc, "listThings")
+		operation := openapitest.FindOperation(t, doc, "listThings")
 		assert.Equal(t, &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
 			Inferred:    true,
 			InputCursor: inputPath(queryParam("things", "page_token")),
-			Items:       propPath(bodyProps("things", "get") + "/data"),
-			NextCursor:  propPath(bodyProps("things", "get") + "/next_page_token"),
-		}, op.Pagination)
-		assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+			Items:       propertyPath(bodyProperties("things", "get") + "/data"),
+			NextCursor:  propertyPath(bodyProperties("things", "get") + "/next_page_token"),
+		}, operation.Pagination)
+		assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 		assert.Contains(t, doc.Unmodeled, "openapi:x-fern-pagination", "the root's entry stays kept")
-		assert.Contains(t, op.Unmodeled, "openapi:x-fern-pagination", "the operation's key stays kept")
+		assert.Contains(t, operation.Unmodeled, "openapi:x-fern-pagination", "the operation's key stays kept")
 	}
 }
 
@@ -92,18 +92,18 @@ func TestPromote_ReadsTheRootForTrue(t *testing.T) {
 func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 	t.Parallel()
 	const (
-		opKey       = "/paths/~1things/get/x-fern-pagination"
-		onTrue      = "      x-fern-pagination: true\n"
-		pathItemKey = "    x-fern-pagination: cursor\n"
+		operationKey = "/paths/~1things/get/x-fern-pagination"
+		onTrue       = "      x-fern-pagination: true\n"
+		pathItemKey  = "    x-fern-pagination: cursor\n"
 	)
 	type finding struct{ pointer, message string }
-	trueNoRoot := finding{opKey, `extension "x-fern-pagination" is true, which reads the walk its path item, else ` +
+	trueNoRoot := finding{operationKey, `extension "x-fern-pagination" is true, which reads the walk its path item, else ` +
 		`the document's root, states under the same key, and neither writes one, so no pagination is inferred for ` +
 		`the operation`}
 	for _, tc := range []struct {
-		name, root, item, op string
-		more                 bool
-		want                 []finding
+		name, root, item, operation string
+		more                        bool
+		want                        []finding
 	}{
 		{"no root key", "", "", onTrue, false, []finding{trueNoRoot}},
 		{"a root that is a string, two operations writing true", "x-fern-pagination: cursor\n", "", onTrue, true,
@@ -117,22 +117,22 @@ func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			for _, src := range inEitherOrder(t, rootDoc(tc.root, tc.item, tc.op, tc.more)) {
+			for _, src := range inEitherOrder(t, rootDoc(tc.root, tc.item, tc.operation, tc.more)) {
 				doc, diags := compile(t, src, openapi.Options{})
 				got := make([]finding, 0, len(diags))
-				for _, d := range diags {
-					assert.Equal(t, "openapi/unpromoted-extension", d.Code)
-					assert.Equal(t, ir.SeverityInfo, d.Severity)
-					got = append(got, finding{string(d.Provenance.Pointer), d.Message})
+				for _, diagnostic := range diags {
+					assert.Equal(t, "openapi/unpromoted-extension", diagnostic.Code)
+					assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+					got = append(got, finding{string(diagnostic.Provenance.Pointer), diagnostic.Message})
 				}
 				assert.ElementsMatch(t, tc.want, got)
 				for _, name := range []string{"listThings", "listOther"} {
 					if name == "listOther" && !tc.more {
 						continue
 					}
-					op := openapitest.FindOp(t, doc, name)
-					assert.Nil(t, op.Pagination, "%s: its own statement speaks of a walk, and no inference fills it", name)
-					assert.Empty(t, op.Provenance.Inferred, name)
+					operation := openapitest.FindOperation(t, doc, name)
+					assert.Nil(t, operation.Pagination, "%s: its own statement speaks of a walk, and no inference fills it", name)
+					assert.Empty(t, operation.Provenance.Inferred, name)
 				}
 			}
 		})
@@ -144,17 +144,17 @@ func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 			doc, diags := compile(t, src, openapi.Options{})
 			assert.Empty(t, diags, "no operation opted in: the root's entry stays kept, and nothing is reported")
 
-			op := openapitest.FindOp(t, doc, "listThings")
-			require.NotNil(t, op.Pagination)
+			operation := openapitest.FindOperation(t, doc, "listThings")
+			require.NotNil(t, operation.Pagination)
 			assert.Equal(t, &ir.Pagination{
 				Strategy:    ir.PageStrategyToken,
 				Inferred:    true,
 				InputCursor: inputPath(queryParam("things", "page_token")),
-				Items:       propPath(bodyProps("things", "get") + "/data"),
-				NextCursor:  propPath(bodyProps("things", "get") + "/next_page_token"),
+				Items:       propertyPath(bodyProperties("things", "get") + "/data"),
+				NextCursor:  propertyPath(bodyProperties("things", "get") + "/next_page_token"),
 				Stop:        []ir.PageStop{ir.PageStopNoNext},
-			}, op.Pagination)
-			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+			}, operation.Pagination)
+			assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 			assert.Contains(t, doc.Unmodeled, "openapi:x-fern-pagination")
 		}
 	})

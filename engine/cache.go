@@ -36,17 +36,18 @@ type cacheBinding struct {
 	build string
 }
 
-// WithCache answers a run from c when an earlier one had the same inputs, and
-// stores what a run compiled there. A run's result is the same either way, bar
-// the work and Result.CacheErr: architecture.md §2.6 says what a key covers. A
-// run setting Verify or FormatOptions takes no part, nor does RunDocument.
+// WithCache answers a run from cacheValue when an earlier one had the same
+// inputs, and stores what a run compiled there. A run's result is the same
+// either way, bar the work and Result.CacheErr: architecture.md §2.6 says what
+// a key covers. A run setting Verify or FormatOptions takes no part, nor does
+// RunDocument.
 //
 // build names everything that decides what this engine compiles, its compilers
 // and passes among them, as cache.BuildID does for a whole executable. Reusing
 // one across two builds serves one's documents to the other. New refuses a nil
-// c and an empty build.
-func WithCache(c Cache, build string) Option {
-	return func(cfg *config) { cfg.cache = &cacheBinding{store: c, build: build} }
+// cacheValue and an empty build.
+func WithCache(cacheValue Cache, build string) Option {
+	return func(cfg *config) { cfg.cache = &cacheBinding{store: cacheValue, build: build} }
 }
 
 // check refuses a binding no run could use.
@@ -71,12 +72,12 @@ func cacheable(opts RunOptions) bool {
 // part, which skips detection too: that parses the spec. A failed lookup or
 // store costs the work and goes on Result.CacheErr, and never fails the run.
 func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts RunOptions,
-	docs compilers.DocumentReader, p plan,
+	docs compilers.DocumentReader, planValue plan,
 ) (*Result, error) {
 	if e.cache == nil || !cacheable(opts) {
-		return e.compile(ctx, spec, configuration(opts, docs), p)
+		return e.compile(ctx, spec, configuration(opts, docs), planValue)
 	}
-	key := e.cache.runKey(spec, opts, p)
+	key := e.cache.runKey(spec, opts, planValue)
 	res, hit, lookupErr := e.cache.fetch(ctx, key, docs)
 	if hit {
 		// A run cancelled meanwhile returns no document, as one cancelled in a
@@ -87,7 +88,7 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 		return res, nil
 	}
 	reads := newRecorder(docs)
-	res, err := e.compile(ctx, spec, configuration(opts, reads), p)
+	res, err := e.compile(ctx, spec, configuration(opts, reads), planValue)
 	if err != nil {
 		return nil, err
 	}

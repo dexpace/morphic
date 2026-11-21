@@ -19,8 +19,8 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 // satisfies match. It walks each node once, never through an alias, so its
 // cost is the node count the source budget already bounds.
 func anyNode(ctx context.Context, root *yaml.Node, match func(*yaml.Node) bool) bool {
-	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Kind != yaml.AliasNode && match(n) {
+	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Kind != yaml.AliasNode && match(node) {
 			return nodeview.Stop
 		}
 		return nodeview.Descend

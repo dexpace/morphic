@@ -53,10 +53,10 @@ type replacement struct {
 	with         *yaml.Node
 }
 
-// newGrafter returns a grafter of the rules of version v over root, its node
-// budget unbounded until the sequence sets it.
-func newGrafter(v version, root *yaml.Node) *grafter {
-	return &grafter{version: v, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
+// newGrafter returns a grafter of the rules of version versionValue over root,
+// its node budget unbounded until the sequence sets it.
+func newGrafter(versionValue version, root *yaml.Node) *grafter {
+	return &grafter{version: versionValue, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
 		copies: map[*yaml.Node]bool{}}
 }
 
@@ -74,9 +74,9 @@ const (
 	shapeNone
 )
 
-// shapeOf returns n's shape.
-func shapeOf(n *yaml.Node) shape {
-	switch n.Kind {
+// shapeOf returns node's shape.
+func shapeOf(node *yaml.Node) shape {
+	switch node.Kind {
 	case yaml.MappingNode:
 		return shapeObject
 	case yaml.SequenceNode:
@@ -110,8 +110,8 @@ func (s shape) String() string {
 // declared, so the names do not turn on the order the nodes are selected in.
 func shapesOf(nodes []*yaml.Node) []string {
 	var present [shapeNone + 1]bool
-	for _, n := range nodes {
-		present[shapeOf(n)] = true
+	for _, node := range nodes {
+		present[shapeOf(node)] = true
 	}
 	var names []string
 	for s, held := range present {
@@ -122,13 +122,13 @@ func shapesOf(nodes []*yaml.Node) []string {
 	return names
 }
 
-// where names n's place in the tree for a finding: the line and column the
+// where names node's place in the tree for a finding: the line and column the
 // source writes it at, or that the overlay built it.
-func where(n *yaml.Node) string {
-	if n.Line == 0 {
+func where(node *yaml.Node) string {
+	if node.Line == 0 {
 		return "a position the overlay built"
 	}
-	return fmt.Sprintf("line %d, column %d", n.Line, n.Column)
+	return fmt.Sprintf("line %d, column %d", node.Line, node.Column)
 }
 
 // write writes payload into each of targets, and reports whether that changed
@@ -145,8 +145,8 @@ func (g *grafter) write(ctx context.Context, targets []*yaml.Node, payload *yaml
 			strings.Join(kinds, " and "))
 	}
 	changed := false
-	for _, t := range targets {
-		c, err := g.writeInto(ctx, t, payload)
+	for _, node := range targets {
+		c, err := g.writeInto(ctx, node, payload)
 		if err != nil {
 			return false, err
 		}
@@ -293,39 +293,39 @@ func (g *grafter) appendTo(target, value *yaml.Node, depth int) (bool, error) {
 
 // attach adds a copy of the member key: value to the object target.
 func (g *grafter) attach(target, key, value *yaml.Node, depth int) error {
-	k, err := g.clone(key, depth+1)
+	clonedKey, err := g.clone(key, depth+1)
 	if err != nil {
 		return err
 	}
-	v, err := g.clone(value, depth+1)
+	clonedValue, err := g.clone(value, depth+1)
 	if err != nil {
 		return err
 	}
-	target.Content = append(target.Content, k, v)
+	target.Content = append(target.Content, clonedKey, clonedValue)
 	return nil
 }
 
-// clone returns a copy of n for the tree, depth levels below the selected
+// clone returns a copy of node for the tree, depth levels below the selected
 // node, recording each node it builds as written.
-func (g *grafter) clone(n *yaml.Node, depth int) (*yaml.Node, error) {
-	return copyOf(n, nil, depth, func(_, _, built *yaml.Node) bool {
+func (g *grafter) clone(node *yaml.Node, depth int) (*yaml.Node, error) {
+	return copyOf(node, nil, depth, func(_, _, built *yaml.Node) bool {
 		g.written[built] = true
 		return true
 	})
 }
 
-// copyOf returns a copy of n, which holder is to hold, depth levels below the
-// node an action selected. The copy holds no alias: an alias is replaced by a
-// copy of what it names, the value it stands for. It keeps no anchor, since
-// the node it named is not the one being written, and no line and column,
-// since the document it lands in does not write it there. built, when set, is
-// handed each node built, the node it copies and its holder, nil for the root,
-// and stops the copy by answering false.
-func copyOf(n, holder *yaml.Node, depth int, built func(from, holder, n *yaml.Node) bool) (*yaml.Node, error) {
+// copyOf returns a copy of node, which holder is to hold, depth levels below
+// the node an action selected. The copy holds no alias: an alias is replaced by
+// a copy of what it names, the value it stands for. It keeps no anchor, since
+// the node it named is not the one being written, and no line and column, since
+// the document it lands in does not write it there. built, when set, is handed
+// each node built, the node it copies and its holder, nil for the root, and
+// stops the copy by answering false.
+func copyOf(node, holder *yaml.Node, depth int, built func(from, holder, copied *yaml.Node) bool) (*yaml.Node, error) {
 	if depth > maxPayloadDepth {
 		return nil, fmt.Errorf("it writes a value nested past %d levels", maxPayloadDepth)
 	}
-	from := nodeview.Deref(n)
+	from := nodeview.Deref(node)
 	if from == nil || from.Kind == yaml.AliasNode {
 		return nil, errors.New("it writes an alias that names nothing")
 	}
@@ -338,11 +338,11 @@ func copyOf(n, holder *yaml.Node, depth int, built func(from, holder, n *yaml.No
 	}
 	out.Content = make([]*yaml.Node, len(from.Content))
 	for i, child := range from.Content {
-		c, err := copyOf(child, out, depth+1, built)
+		copiedChild, err := copyOf(child, out, depth+1, built)
 		if err != nil {
 			return nil, err
 		}
-		out.Content[i] = c
+		out.Content[i] = copiedChild
 	}
 	return out, nil
 }
@@ -359,15 +359,15 @@ func (g *grafter) remove(positions []position) error {
 	doomed := make(map[*yaml.Node]bool, len(positions))
 	var holders []*yaml.Node
 	seen := map[*yaml.Node]bool{}
-	for _, p := range positions {
-		if p.holder == nil {
+	for _, position := range positions {
+		if position.holder == nil {
 			return errors.New("it selects the document's root, which no object or array holds")
 		}
-		if !seen[p.holder] {
-			seen[p.holder] = true
-			holders = append(holders, p.holder)
+		if !seen[position.holder] {
+			seen[position.holder] = true
+			holders = append(holders, position.holder)
 		}
-		doomed[p.raw] = true
+		doomed[position.raw] = true
 	}
 	for _, holder := range holders {
 		detach(holder, doomed)
@@ -395,9 +395,9 @@ func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
 			kept = append(kept, holder.Content[i:min(i+2, len(holder.Content))]...)
 		}
 	case yaml.SequenceNode:
-		for _, n := range holder.Content {
-			if !doomed[n] {
-				kept = append(kept, n)
+		for _, node := range holder.Content {
+			if !doomed[node] {
+				kept = append(kept, node)
 			}
 		}
 	default:

@@ -9,38 +9,40 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
 // reading is what a Namer reads of the way to one position: how the grammar
-// reads each position on it (bind.Table.Kinds) and the node written at each,
-// the root's first, so kinds[k] and path[k] are what tokens[:k] leads to. path
-// ends early where the document holds no node further on.
+// reads each position on it (reftable.ReferenceTargetTable.Kinds) and the node
+// written at each, the root's first, so kinds[k] and path[k] are what
+// tokens[:k] leads to. path ends early where the document holds no node further
+// on.
 type reading struct {
-	kinds []bind.Kind
+	kinds []reftable.Kind
 	path  []*yaml.Node
 }
 
-// read returns the reading of the way to p, empty for a Namer with no table.
-func (n *Namer) read(p bind.Position) reading {
+// read returns the reading of the way to documentPointer, empty for a Namer
+// with no table.
+func (n *Namer) read(documentPointer reftable.DocumentPointer) reading {
 	if n.table == nil {
 		return reading{}
 	}
-	r := reading{kinds: n.table.Kinds(p)}
-	if p.Doc >= 0 && int(p.Doc) < n.table.Documents() {
-		r.path, _ = n.view(p.Doc).DocumentPath(n.table.Document(p.Doc).Root, p.Pointer)
+	readingValue := reading{kinds: n.table.Kinds(documentPointer)}
+	if documentPointer.Doc >= 0 && int(documentPointer.Doc) < n.table.Documents() {
+		readingValue.path, _ = n.view(documentPointer.Doc).DocumentPath(n.table.Document(documentPointer.Doc).Root, documentPointer.Pointer)
 	}
-	return r
+	return readingValue
 }
 
-// Title returns the name the title of the schema at p gives the node built
-// there (titles.at), and false where it gives none, as walking the structure
-// to p reads it.
-func (n *Namer) Title(p bind.Position) (string, bool) {
-	hint, _, titled := n.walk(p)
+// Title returns the name the title of the schema at documentPointer gives the
+// node built there (titles.at), and false where it gives none, as walking the
+// structure to documentPointer reads it.
+func (n *Namer) Title(documentPointer reftable.DocumentPointer) (string, bool) {
+	hint, _, titled := n.walk(documentPointer)
 	if !titled {
 		return "", false
 	}
@@ -54,29 +56,29 @@ func (n *Namer) Title(p bind.Position) (string, bool) {
 // positions beneath it are named: like a name, none reads more than the
 // documents.
 type titles struct {
-	table      *bind.Table
+	table      *reftable.ReferenceTargetTable
 	read       map[*yaml.Node]string
-	lists      map[bind.Position]map[string]int
+	lists      map[reftable.DocumentPointer]map[string]int
 	components map[string]bool
 }
 
 // at returns the words of the title the schema tokens leads to in doc writes,
-// as r reads the way there, where they name the node built there; union marks
-// a oneOf or anyOf branch. They name none where the grammar reads no schema
-// there or the document holds no node; at a component schema, which its key
-// names; where the title has no word; and where its words are a component
-// schema's name, or another branch's of the list a branch is in (collides).
-// The position then keeps the name it has without a title.
-func (t *titles) at(doc bind.DocID, tokens []string, r reading, union bool) string {
+// as readingValue reads the way there, where they name the node built there;
+// union marks a oneOf or anyOf branch. They name none where the grammar reads
+// no schema there or the document holds no node; at a component schema, which
+// its key names; where the title has no word; and where its words are a
+// component schema's name, or another branch's of the list a branch is in
+// (collides). The position then keeps the name it has without a title.
+func (t *titles) at(doc reftable.DocID, tokens []string, readingValue reading, union bool) string {
 	k := len(tokens)
-	if k >= len(r.path) || k >= len(r.kinds) || r.kinds[k] != bind.KindSchema || componentRoot(tokens) {
+	if k >= len(readingValue.path) || k >= len(readingValue.kinds) || readingValue.kinds[k] != reftable.KindSchema || componentRoot(tokens) {
 		return ""
 	}
-	words := t.words(r.path[k])
+	words := t.words(readingValue.path[k])
 	if words == "" || t.componentNames()[words] {
 		return ""
 	}
-	if union && t.collides(doc, tokens, r.path[k-1], words) {
+	if union && t.collides(doc, tokens, readingValue.path[k-1], words) {
 		return ""
 	}
 	return words
@@ -94,7 +96,7 @@ func componentRoot(tokens []string) bool {
 // first, and one spelling a branch's positional name (positionalBranch) is
 // that branch's, its own included, which the title would name as its position
 // does.
-func (t *titles) collides(doc bind.DocID, tokens []string, list *yaml.Node, words string) bool {
+func (t *titles) collides(doc reftable.DocID, tokens []string, list *yaml.Node, words string) bool {
 	if t.listed(doc, tokens[:len(tokens)-1], list)[words] > 1 {
 		return true
 	}
@@ -105,8 +107,8 @@ func (t *titles) collides(doc bind.DocID, tokens []string, list *yaml.Node, word
 
 // listed returns how many branches of the list written as list at holder in
 // doc write a title of each set of words, read once per list.
-func (t *titles) listed(doc bind.DocID, holder []string, list *yaml.Node) map[string]int {
-	at := bind.Position{Doc: doc, Pointer: pointerOf(holder)}
+func (t *titles) listed(doc reftable.DocID, holder []string, list *yaml.Node) map[string]int {
+	at := reftable.DocumentPointer{Doc: doc, Pointer: pointerOf(holder)}
 	if counted, ok := t.lists[at]; ok {
 		return counted
 	}
@@ -129,7 +131,7 @@ func (t *titles) componentNames() map[string]bool {
 	}
 	t.components = map[string]bool{}
 	for id := range t.table.Documents() {
-		root := t.table.Document(bind.DocID(id)).Root
+		root := t.table.Document(reftable.DocID(id)).Root
 		for _, pair := range nodeview.Pairs(nodeview.Child(nodeview.Child(root, "components"), "schemas")) {
 			if words := ir.CanonicalWords(pair.Key); words != "" {
 				t.components[words] = true
@@ -139,15 +141,15 @@ func (t *titles) componentNames() map[string]bool {
 	return t.components
 }
 
-// items returns the items of the sequence n stands for, none where it is no
+// items returns the items of the sequence node stands for, none where it is no
 // sequence: a oneOf or an allOf written as a mapping, which load reports, has
 // no branches to read.
-func items(n *yaml.Node) []*yaml.Node {
-	n = nodeview.Deref(n)
-	if n == nil || n.Kind != yaml.SequenceNode {
+func items(node *yaml.Node) []*yaml.Node {
+	node = nodeview.Deref(node)
+	if node == nil || node.Kind != yaml.SequenceNode {
 		return nil
 	}
-	return n.Content
+	return node.Content
 }
 
 // words returns titleWords of node, read once per node.

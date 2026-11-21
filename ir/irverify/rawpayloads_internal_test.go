@@ -26,11 +26,11 @@ import (
 // the process.
 func TestCheckRawPayloads_VisitingCostsNoAllocation(t *testing.T) {
 	kept := func(keys ...string) ir.Unmodeled {
-		u := ir.Unmodeled{}
+		unmodeled := ir.Unmodeled{}
 		for _, key := range keys {
-			u[key] = ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"kept":[1,"a"]}`)}
+			unmodeled[key] = ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"kept":[1,"a"]}`)}
 		}
-		return u
+		return unmodeled
 	}
 	many := make([]string, 0, 40)
 	for i := range 40 {
@@ -39,8 +39,8 @@ func TestCheckRawPayloads_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{
 		Unmodeled: kept(many...),
 		Types: ir.TypeRegistry{
-			"t/a": &ir.Model{ID: "t/a", Unmodeled: kept("openapi:x-d")},
-			"t/b": &ir.Model{ID: "t/b", Unmodeled: kept("openapi:x-e", "openapi:x-f")},
+			"type/a": &ir.Model{ID: "type/a", Unmodeled: kept("openapi:x-d")},
+			"type/b": &ir.Model{ID: "type/b", Unmodeled: kept("openapi:x-e", "openapi:x-f")},
 		},
 		Channels: map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Bindings: map[string]ir.RawConfig{
 			"kafka": {"topic": ir.RawValue(`"t"`), "partitions": ir.RawValue(`3`)},

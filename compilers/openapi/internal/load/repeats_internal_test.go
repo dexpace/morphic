@@ -34,11 +34,11 @@ func repeatsAt(t *testing.T, src string) map[jsontext.Pointer]string {
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{})
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]string{}
-	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "the table leaves the rule to this check: %+v", d)
-		if d.Code == diag.DuplicateParameter {
-			assert.Equal(t, ir.SeverityError, d.Severity)
-			got[d.Provenance.Pointer] = d.Message
+	for _, diagnostic := range diags {
+		assert.False(t, strings.HasPrefix(diagnostic.Code, diag.Validation), "the table leaves the rule to this check: %+v", diagnostic)
+		if diagnostic.Code == diag.DuplicateParameter {
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+			got[diagnostic.Provenance.Pointer] = diagnostic.Message
 		}
 	}
 	return got
@@ -197,7 +197,7 @@ webhooks:
 func TestListRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
-	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
+	at := func(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} }
 	diags := listRepeats(at, Siblings{}, nil, panics)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -215,10 +215,10 @@ func serverRepeatsAt(t *testing.T, src string) map[jsontext.Pointer]string {
 	require.NoError(t, err)
 	require.NotNil(t, loaded, "load refused the document: %+v", diags)
 	got := map[jsontext.Pointer]string{}
-	for _, d := range diags {
-		if d.Code == diag.DuplicateServerName {
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
-			got[d.Provenance.Pointer] = d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateServerName {
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+			got[diagnostic.Provenance.Pointer] = diagnostic.Message
 		}
 	}
 	return got

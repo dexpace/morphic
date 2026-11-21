@@ -40,9 +40,9 @@ func TestNewDiagnostic_CoercesMessageToValidUTF8(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			d := ir.NewDiagnostic(ir.SeverityError, "openapi/validation", tt.in, ir.Provenance{})
-			assert.Equal(t, tt.want, d.Message)
-			assert.True(t, utf8.ValidString(d.Message), "coerced message must be valid UTF-8")
+			diagnostic := ir.NewDiagnostic(ir.SeverityError, "openapi/validation", tt.in, ir.Provenance{})
+			assert.Equal(t, tt.want, diagnostic.Message)
+			assert.True(t, utf8.ValidString(diagnostic.Message), "coerced message must be valid UTF-8")
 		})
 	}
 }
@@ -52,11 +52,11 @@ func TestNewDiagnostic_CoercesMessageToValidUTF8(t *testing.T) {
 func TestNewDiagnostic_PreservesOtherFields(t *testing.T) {
 	t.Parallel()
 	prov := ir.Provenance{Source: 2, Pointer: "/paths/~1x", Inferred: "pagination-name-match"}
-	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/degraded-construct", "fine", prov)
-	assert.Equal(t, ir.SeverityWarning, d.Severity)
-	assert.Equal(t, "openapi/degraded-construct", d.Code)
-	assert.Equal(t, "fine", d.Message)
-	assert.Equal(t, prov, d.Provenance)
+	diagnostic := ir.NewDiagnostic(ir.SeverityWarning, "openapi/degraded-construct", "fine", prov)
+	assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
+	assert.Equal(t, "openapi/degraded-construct", diagnostic.Code)
+	assert.Equal(t, "fine", diagnostic.Message)
+	assert.Equal(t, prov, diagnostic.Provenance)
 }
 
 // TestNewDiagnostic_RoundTripsByteForByte is the invariant #7 property: a
@@ -64,12 +64,12 @@ func TestNewDiagnostic_PreservesOtherFields(t *testing.T) {
 // Without coercion, marshaling the raw ill-formed bytes would fail outright —
 // encoding/json/v2 refuses invalid UTF-8 rather than substituting U+FFFD — so
 // the round trip depends entirely on NewDiagnostic having already made
-// d.Message valid before either marshal runs.
+// diagnostic.Message valid before either marshal runs.
 func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	t.Parallel()
-	d := ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "bad \xe0\xa5 byte", ir.Provenance{})
+	diagnostic := ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "bad \xe0\xa5 byte", ir.Provenance{})
 
-	first, err := json.Marshal(d)
+	first, err := json.Marshal(diagnostic)
 	require.NoError(t, err)
 	var back ir.Diagnostic
 	require.NoError(t, json.Unmarshal(first, &back))
@@ -77,7 +77,7 @@ func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, string(first), string(second), "re-encoding is byte-for-byte stable")
-	assert.Equal(t, d, back, "the in-memory diagnostic survives a JSON round-trip")
+	assert.Equal(t, diagnostic, back, "the in-memory diagnostic survives a JSON round-trip")
 }
 
 // TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey pins the wire shape
@@ -111,8 +111,8 @@ func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
 		},
 		{
 			name: "node only",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
-			want: `{"source":-1,"node":"op/x"}`,
+			prov: ir.Provenance{Source: ir.NoSource, Node: "operation/x"},
+			want: `{"source":-1,"node":"operation/x"}`,
 		},
 		{
 			name: "zero value",
@@ -185,8 +185,8 @@ func TestSeverities_ListsEveryConstant(t *testing.T) {
 	consts := declaredConstsOfType(t, "Severity")
 	require.NotEmpty(t, consts, "the ir sources must declare Severity constants")
 	declared := make([]ir.Severity, 0, len(consts))
-	for _, c := range consts {
-		declared = append(declared, ir.Severity(c.Value))
+	for _, declaredConst := range consts {
+		declared = append(declared, ir.Severity(declaredConst.Value))
 	}
 	slices.Sort(declared)
 
@@ -310,10 +310,10 @@ func TestMergeDiagnostics_KeepsEachFindingOnceInOrder(t *testing.T) {
 	t.Parallel()
 	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
 	b := ir.NewDiagnostic(ir.SeverityWarning, "x/b", "b", ir.Provenance{})
-	c := ir.NewDiagnostic(ir.SeverityInfo, "x/c", "c", ir.Provenance{Source: 1})
+	diagnostic := ir.NewDiagnostic(ir.SeverityInfo, "x/c", "c", ir.Provenance{Source: 1})
 
-	assert.Equal(t, []ir.Diagnostic{a, b, c}, ir.MergeDiagnostics([]ir.Diagnostic{a, b}, []ir.Diagnostic{b, c}))
-	assert.Equal(t, []ir.Diagnostic{c, a}, ir.MergeDiagnostics(nil, []ir.Diagnostic{c, a}))
+	assert.Equal(t, []ir.Diagnostic{a, b, diagnostic}, ir.MergeDiagnostics([]ir.Diagnostic{a, b}, []ir.Diagnostic{b, diagnostic}))
+	assert.Equal(t, []ir.Diagnostic{diagnostic, a}, ir.MergeDiagnostics(nil, []ir.Diagnostic{diagnostic, a}))
 	stored := []ir.Diagnostic{a}
 	assert.Equal(t, stored, ir.MergeDiagnostics(stored, nil), "nothing produced leaves the stored list as it is")
 }
@@ -326,13 +326,13 @@ func TestMergeDiagnostics_KeepsEachFindingOnceInOrder(t *testing.T) {
 func TestMergeDiagnostics_NeverWritesThroughAnAliasedList(t *testing.T) {
 	t.Parallel()
 	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
-	c := ir.NewDiagnostic(ir.SeverityError, "x/c", "c", ir.Provenance{})
-	backing := []ir.Diagnostic{a, a, c}
+	diagnostic := ir.NewDiagnostic(ir.SeverityError, "x/c", "c", ir.Provenance{})
+	backing := []ir.Diagnostic{a, a, diagnostic}
 
 	merged := ir.MergeDiagnostics(backing[:1], backing[1:])
 
-	assert.Equal(t, []ir.Diagnostic{a, c}, merged)
-	assert.Equal(t, []ir.Diagnostic{a, a, c}, backing, "the lists merged from are left as they were")
+	assert.Equal(t, []ir.Diagnostic{a, diagnostic}, merged)
+	assert.Equal(t, []ir.Diagnostic{a, a, diagnostic}, backing, "the lists merged from are left as they were")
 }
 
 // TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone pins both edges of a
@@ -400,13 +400,13 @@ func TestSourceInfo_IsOverlayReadsTheFormatTag(t *testing.T) {
 
 // relatedDiagnostic is a finding concerning a second place and two nodes.
 func relatedDiagnostic() ir.Diagnostic {
-	d := ir.NewDiagnostic(ir.SeverityWarning, "x/conflict", "m", ir.Provenance{Pointer: "/a"})
-	d.Related = []ir.Related{
+	diagnostic := ir.NewDiagnostic(ir.SeverityWarning, "x/conflict", "m", ir.Provenance{Pointer: "/a"})
+	diagnostic.Related = []ir.Related{
 		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/b", WrittenBy: 1, Position: ir.Position{Line: 2, Column: 3}}},
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/m"}},
-		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/n", Inferred: "h"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/m"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "property/x/n", Inferred: "h"}},
 	}
-	return d
+	return diagnostic
 }
 
 // TestDiagnostic_RelatedRoundTripsAndIsAbsentWhenEmpty pins the member's
@@ -454,23 +454,25 @@ func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
 	assert.Equal(t, plain.Key(), ir.Diagnostic{Code: "x/y", Related: []ir.Related{}}.Key(), "no entry and an empty list are one")
 
 	changes := map[string]func(*ir.Diagnostic){
-		"severity":         func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
-		"code":             func(d *ir.Diagnostic) { d.Code = "x/other" },
-		"message":          func(d *ir.Diagnostic) { d.Message = "n" },
-		"provenance":       func(d *ir.Diagnostic) { d.Provenance.Pointer = "/c" },
-		"no entries":       func(d *ir.Diagnostic) { d.Related = nil },
-		"one entry fewer":  func(d *ir.Diagnostic) { d.Related = d.Related[:2] },
-		"entries swapped":  func(d *ir.Diagnostic) { d.Related[1], d.Related[2] = d.Related[2], d.Related[1] },
-		"role":             func(d *ir.Diagnostic) { d.Related[0].Role = ir.RelatedDecided },
-		"related source":   func(d *ir.Diagnostic) { d.Related[0].Provenance.Source = 1 },
-		"related pointer":  func(d *ir.Diagnostic) { d.Related[0].Provenance.Pointer = "/c" },
-		"related writer":   func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 2 },
-		"related line":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Line = 9 },
-		"related column":   func(d *ir.Diagnostic) { d.Related[0].Provenance.Position.Column = 9 },
-		"related node":     func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "p/x/o" },
-		"related inferred": func(d *ir.Diagnostic) { d.Related[2].Provenance.Inferred = "g" },
-		"text moved between fields": func(d *ir.Diagnostic) {
-			d.Related[1].Provenance.Pointer, d.Related[1].Provenance.Node = "p", "/x/m"
+		"severity":        func(diagnostic *ir.Diagnostic) { diagnostic.Severity = ir.SeverityInfo },
+		"code":            func(diagnostic *ir.Diagnostic) { diagnostic.Code = "x/other" },
+		"message":         func(diagnostic *ir.Diagnostic) { diagnostic.Message = "n" },
+		"provenance":      func(diagnostic *ir.Diagnostic) { diagnostic.Provenance.Pointer = "/c" },
+		"no entries":      func(diagnostic *ir.Diagnostic) { diagnostic.Related = nil },
+		"one entry fewer": func(diagnostic *ir.Diagnostic) { diagnostic.Related = diagnostic.Related[:2] },
+		"entries swapped": func(diagnostic *ir.Diagnostic) {
+			diagnostic.Related[1], diagnostic.Related[2] = diagnostic.Related[2], diagnostic.Related[1]
+		},
+		"role":             func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Role = ir.RelatedDecided },
+		"related source":   func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Source = 1 },
+		"related pointer":  func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Pointer = "/c" },
+		"related writer":   func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.WrittenBy = 2 },
+		"related line":     func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Position.Line = 9 },
+		"related column":   func(diagnostic *ir.Diagnostic) { diagnostic.Related[0].Provenance.Position.Column = 9 },
+		"related node":     func(diagnostic *ir.Diagnostic) { diagnostic.Related[1].Provenance.Node = "property/x/o" },
+		"related inferred": func(diagnostic *ir.Diagnostic) { diagnostic.Related[2].Provenance.Inferred = "g" },
+		"text moved between fields": func(diagnostic *ir.Diagnostic) {
+			diagnostic.Related[1].Provenance.Pointer, diagnostic.Related[1].Provenance.Node = "p", "/x/m"
 		},
 	}
 	for name, change := range changes {
@@ -485,7 +487,7 @@ func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
 	spaced := func(node string, inferred ir.Inferred) ir.DiagnosticKey {
 		return ir.Diagnostic{Related: []ir.Related{{Provenance: ir.Provenance{Node: node, Inferred: inferred}}}}.Key()
 	}
-	assert.NotEqual(t, spaced("p/x b", "c"), spaced("p/x", "b c"), "a space between two neighbouring fields is no boundary")
+	assert.NotEqual(t, spaced("p/x b", "c"), spaced("property/x", "b c"), "a space between two neighbouring fields is no boundary")
 }
 
 // TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries holds the merge

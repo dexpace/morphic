@@ -33,14 +33,14 @@ func TestCompile_ABaseTenIntegerIsReadInBaseTen(t *testing.T) {
 	assert.Empty(t, byCode(diags, srVersionReading), "a document declaring nothing draws no warning")
 	assert.Empty(t, diags)
 	tree := irTree(t, doc)
-	mode := findByID(tree, "p/openapi/components/schemas/S/properties/mode")
+	mode := findByID(tree, "property/openapi/components/schemas/S/properties/mode")
 	require.NotNil(t, mode)
-	assert.Equal(t, map[string]any{"kind": "number", "num": "644"}, mode["default"], "0644 is 644, not 420")
+	assert.Equal(t, map[string]any{"kind": "number", "number": "644"}, mode["default"], "0644 is 644, not 420")
 	assert.True(t, containsJSON(t, doc, `"max":"777"`), "0777 is 777, not 511")
-	assert.Equal(t, map[string]any{"kind": "string", "str": "0b1010"},
-		findByID(tree, "p/openapi/components/schemas/S/properties/mask")["default"])
-	assert.Equal(t, map[string]any{"kind": "string", "str": "1_000"},
-		findByID(tree, "p/openapi/components/schemas/S/properties/big")["default"])
+	assert.Equal(t, map[string]any{"kind": "string", "string": "0b1010"},
+		findByID(tree, "property/openapi/components/schemas/S/properties/mask")["default"])
+	assert.Equal(t, map[string]any{"kind": "string", "string": "1_000"},
+		findByID(tree, "property/openapi/components/schemas/S/properties/big")["default"])
 	assert.Equal(t, jsonOf(t, twin), jsonOf(t, doc))
 	assert.Equal(t, lines(twinDiags), lines(diags))
 }
@@ -60,10 +60,10 @@ func TestCompile_NoScalarTextOrKeyIsRewrittenByTheCoreSchema(t *testing.T) {
 	assert.Empty(t, diags)
 	tree := irTree(t, doc)
 	for _, k := range []string{"007", "1", "01"} {
-		assert.NotNil(t, findByID(tree, "p/openapi/components/schemas/S/properties/"+k), k)
+		assert.NotNil(t, findByID(tree, "property/openapi/components/schemas/S/properties/"+k), k)
 	}
-	assert.Equal(t, true, findByID(tree, "p/openapi/components/schemas/S/properties/007")["required"])
-	assert.NotNil(t, findByID(tree, "t/openapi/components/schemas/T"), "the reference to 007 resolves")
+	assert.Equal(t, true, findByID(tree, "property/openapi/components/schemas/S/properties/007")["required"])
+	assert.NotNil(t, findByID(tree, "type/openapi/components/schemas/T"), "the reference to 007 resolves")
 
 	version := "openapi: 3.1.0\ninfo: {title: t, version: 007}\npaths: {}\ncomponents:\n  schemas:\n    S:\n" +
 		"      type: object\n      required: [007]\n      properties:\n        007: {type: string}\n"
@@ -72,7 +72,7 @@ func TestCompile_NoScalarTextOrKeyIsRewrittenByTheCoreSchema(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, "007", doc.Version)
 	tree = irTree(t, doc)
-	assert.Equal(t, true, findByID(tree, "p/openapi/components/schemas/S/properties/007")["required"])
+	assert.Equal(t, true, findByID(tree, "property/openapi/components/schemas/S/properties/007")["required"])
 	require.Len(t, diags, 2, "%+v", diags)
 	for i, pointer := range []string{"/info/version", "/components/schemas/S/required/0"} {
 		assert.Equal(t, "openapi/validation/validation-type-mismatch", diags[i].Code)
@@ -93,7 +93,7 @@ func TestCompile_ADiscriminatorMappingKeepsItsNumberLikeKeys(t *testing.T) {
 
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
-	assert.True(t, containsJSON(t, doc, `"mapping":{"01":"t/openapi/components/schemas/A","02":"t/openapi/components/schemas/B"}`))
+	assert.True(t, containsJSON(t, doc, `"mapping":{"01":"type/openapi/components/schemas/A","02":"type/openapi/components/schemas/B"}`))
 }
 
 // TestCompile_ACoreScalarReadsTheSameWrittenQuotedOrAsItsTwin holds each
@@ -122,7 +122,7 @@ func TestCompile_ACoreScalarReadsTheSameWrittenQuotedOrAsItsTwin(t *testing.T) {
 	assert.Empty(t, byCode(diags, srVersionReading))
 	assert.Equal(t, jsonOf(t, twinDoc), jsonOf(t, doc))
 	assert.True(t, containsJSON(t, doc, `"openapi:minimum":{"reason":"degraded_lowering","value":15`), "0o17 is 15")
-	assert.True(t, containsJSON(t, doc, `"value":{"kind":"number","num":"644"}`), "!!int 0644 is 644, not 420")
+	assert.True(t, containsJSON(t, doc, `"value":{"kind":"number","number":"644"}`), "!!int 0644 is 644, not 420")
 }
 
 // TestCompile_ACountIsTakenFromItsLiteral holds a count to the literal written:
@@ -136,7 +136,7 @@ func TestCompile_ACountIsTakenFromItsLiteral(t *testing.T) {
 	doc, diags := compileText(t, "counts.yaml", src, openapi.Options{})
 
 	require.NotNil(t, doc)
-	s := findByID(irTree(t, doc), "t/openapi/components/schemas/S")
+	s := findByID(irTree(t, doc), "type/openapi/components/schemas/S")
 	require.NotNil(t, s)
 	c, ok := s["constraints"].(map[string]any)
 	require.True(t, ok, "the schema holds constraints")

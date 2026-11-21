@@ -163,13 +163,14 @@ in the docs.
 barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
              quotes what that code says on one bounded line. Outside tests, the one package
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
-reuse/       Layer 0 — scratch state a check reads one collection after another through: the
+scratchstate/
+             Layer 0 — scratch state a check reads one collection after another through: the
              map both checkers empty between collections. Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion, correlation keys), derived on demand and never stored. Imports
              ir only.
-  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir and reuse.
+  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir and scratchstate.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
@@ -185,7 +186,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
-pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and reuse.
+pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
@@ -309,7 +310,7 @@ These all exist already — extend them rather than building a parallel mechanis
   `kind-inference` is excused: that policy, on by default, narrows a schema naming no kind to one,
   and the suite's groups compile under it). The gate checks the core cases, each axis value whose
   `Like` is empty, in `go test ./internal/harness/openapicases`; `make cases` checks every case, as
-  the nightly job does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by
+  the nightly job does, and `go run ./cmd/morphic-harness -cases full -case-index N` reproduces one by
   index. A case is written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
   neither side compiled, has made a finding its record must list. The same tests also compile each
   core case, and at each version outside the core the first case writing each other axis value,
@@ -448,6 +449,10 @@ departs from it, with what holds each difference.
   mechanism; `errgroup` for groups; bounded fan-out.
 - **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
+  Names are long, literal and plain, in the specification's words: no figurative or abbreviated
+  name, and one letter only for a loop counter, a receiver, a comparison pair or a standard-library
+  convention such as `t *testing.T`
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#name-what-it-holds`).
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
   preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
   no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex

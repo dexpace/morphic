@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "YamlTimestampScalars",
         "canonical": "yaml_timestamp_scalars"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1items/get",
+              "id": "operation/openapi/paths/~1items/get",
               "name": {
                 "source": "getItem",
                 "canonical": "get_item"
@@ -85,14 +85,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/prim/date",
+                          "target": "type/primitive/date",
                           "nullable": false
                         },
                         "examples": [
                           {
                             "value": {
                               "kind": "string",
-                              "str": "2021-01-01"
+                              "string": "2021-01-01"
                             }
                           }
                         ]
@@ -133,9 +133,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/D": {
+    "type/openapi/components/schemas/D": {
       "kind": "enum",
-      "id": "t/openapi/components/schemas/D",
+      "id": "type/openapi/components/schemas/D",
       "name": {
         "source": "D",
         "canonical": "d"
@@ -150,26 +150,26 @@
       "valueType": "date",
       "members": [
         {
-          "id": "e/openapi/components/schemas/D/s:2021-01-01",
+          "id": "enum-member/openapi/components/schemas/D/string:2021-01-01",
           "name": {
             "source": "2021-01-01",
             "canonical": "2021_01_01"
           },
           "value": {
             "kind": "string",
-            "str": "2021-01-01"
+            "string": "2021-01-01"
           },
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/D/s:2022-02-02",
+          "id": "enum-member/openapi/components/schemas/D/string:2022-02-02",
           "name": {
             "source": "2022-02-02",
             "canonical": "2022_02_02"
           },
           "value": {
             "kind": "string",
-            "str": "2022-02-02"
+            "string": "2022-02-02"
           },
           "docs": {}
         }
@@ -177,9 +177,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/K": {
+    "type/openapi/components/schemas/K": {
       "kind": "literal",
-      "id": "t/openapi/components/schemas/K",
+      "id": "type/openapi/components/schemas/K",
       "name": {
         "source": "K",
         "canonical": "k"
@@ -193,13 +193,13 @@
       },
       "value": {
         "kind": "string",
-        "str": "2021-01-01"
+        "string": "2021-01-01"
       },
       "valueType": "string"
     },
-    "t/openapi/components/schemas/R": {
+    "type/openapi/components/schemas/R": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/R",
+      "id": "type/openapi/components/schemas/R",
       "name": {
         "source": "R",
         "canonical": "r"
@@ -246,9 +246,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/S": {
+    "type/openapi/components/schemas/S": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/S",
+      "id": "type/openapi/components/schemas/S",
       "name": {
         "source": "S",
         "canonical": "s"
@@ -262,25 +262,25 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/S/properties/d",
+          "id": "property/openapi/components/schemas/S/properties/d",
           "name": {
             "source": "d",
             "canonical": "d"
           },
           "wireName": "d",
           "type": {
-            "target": "t/prim/date",
+            "target": "type/primitive/date",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "default": {
             "kind": "string",
-            "str": "2021-01-01"
+            "string": "2021-01-01"
           },
           "flatten": false,
           "eventHeader": false,
@@ -290,7 +290,7 @@
             {
               "value": {
                 "kind": "string",
-                "str": "2021-01-01"
+                "string": "2021-01-01"
               }
             }
           ],
@@ -305,9 +305,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/date": {
+    "type/primitive/date": {
       "kind": "primitive",
-      "id": "t/prim/date",
+      "id": "type/primitive/date",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -315,7 +315,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "date"
+      "primitiveKind": "date"
     }
   },
   "servers": {

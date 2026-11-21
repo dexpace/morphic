@@ -18,8 +18,8 @@ import (
 // walk's depth cap, so a walk of it stops.
 func cutDoc() *ir.Document {
 	deep := irtest.NestedListValue(ir.MaxWalkDepth)
-	return irtest.DocOf(irtest.ModelOf("t/x/M", func(m *ir.Model) {
-		m.Examples = []ir.Example{{Value: &deep}}
+	return irtest.DocOf(irtest.ModelOf("type/x/M", func(model *ir.Model) {
+		model.Examples = []ir.Example{{Value: &deep}}
 	}))
 }
 
@@ -41,7 +41,7 @@ func TestSpacesUsed_SaysWhenTheWalkWasCut(t *testing.T) {
 func TestAllocatingVisits_ListsACutWalkAsAPath(t *testing.T) {
 	nothing := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 
-	assert.Empty(t, irtest.AllocatingVisits(irtest.DocOf(irtest.ModelOf("t/x/M", nil)), nothing),
+	assert.Empty(t, irtest.AllocatingVisits(irtest.DocOf(irtest.ModelOf("type/x/M", nil)), nothing),
 		"the control: a whole walk of a visitor doing nothing lists nothing")
 	paths := irtest.AllocatingVisits(cutDoc(), nothing)
 

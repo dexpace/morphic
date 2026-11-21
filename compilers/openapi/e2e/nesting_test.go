@@ -64,8 +64,8 @@ func codes(t *testing.T, data []byte) []string {
 	_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "deep.yaml", Data: data}}, compilers.Options{})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code)
 	}
 	return out
 }
@@ -133,9 +133,9 @@ func TestMaxNesting_AnAbsentRestPastTheBoundDrawsNoReport(t *testing.T) {
 			_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "deep.yaml", Data: data}}, compilers.Options{})
 			require.NoError(t, err)
 			var at []string
-			for _, d := range diags {
-				if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityError {
-					at = append(at, string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Code == "openapi/degraded-construct" && diagnostic.Severity == ir.SeverityError {
+					at = append(at, string(diagnostic.Provenance.Pointer))
 				}
 			}
 			require.Len(t, at, 1, "one report: %v", at)

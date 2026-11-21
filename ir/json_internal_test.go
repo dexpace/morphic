@@ -151,18 +151,18 @@ func TestDecodeTypeDef(t *testing.T) {
 
 	t.Run("decodes a known kind", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"primitive","prim":"string"}`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`{"kind":"primitive","primitiveKind":"string"}`), nil)
 		require.NoError(t, err)
 		require.NotNil(t, td)
 		assert.Equal(t, KindPrimitive, td.Kind())
-		prim, ok := td.(*Primitive)
+		primitive, ok := td.(*Primitive)
 		require.True(t, ok)
-		assert.Equal(t, PrimString, prim.Prim)
+		assert.Equal(t, PrimitiveString, primitive.PrimitiveKind)
 	})
 
 	t.Run("refuses an entry with no kind member", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`{}`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`{}`), nil)
 		require.Error(t, err)
 		assert.Nil(t, td)
 		assert.ErrorContains(t, err, `no "kind" member`)
@@ -170,7 +170,7 @@ func TestDecodeTypeDef(t *testing.T) {
 
 	t.Run("refuses a non-string kind", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":123}`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`{"kind":123}`), nil)
 		require.Error(t, err)
 		assert.Nil(t, td)
 		assert.ErrorContains(t, err, `is a JSON number, not a string`)
@@ -178,7 +178,7 @@ func TestDecodeTypeDef(t *testing.T) {
 
 	t.Run("refuses a non-object entry", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`123`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`123`), nil)
 		require.Error(t, err)
 		assert.Nil(t, td)
 		assert.ErrorContains(t, err, "reading kind tag:")
@@ -186,7 +186,7 @@ func TestDecodeTypeDef(t *testing.T) {
 
 	t.Run("refuses an unknown kind", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"nope"}`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`{"kind":"nope"}`), nil)
 		require.Error(t, err)
 		assert.Nil(t, td)
 		assert.ErrorContains(t, err, `unknown kind "nope"`)
@@ -194,21 +194,21 @@ func TestDecodeTypeDef(t *testing.T) {
 
 	t.Run("prefixes a body mismatch with the id and kind", func(t *testing.T) {
 		t.Parallel()
-		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"primitive","prim":123}`), nil)
+		td, err := decodeTypeDef("type/x", jsontext.Value(`{"kind":"primitive","primitiveKind":123}`), nil)
 		require.Error(t, err)
 		assert.Nil(t, td)
-		assert.ErrorContains(t, err, "t/x (primitive):")
+		assert.ErrorContains(t, err, "type/x (primitive):")
 	})
 
 	t.Run("threads opts through to the body decode", func(t *testing.T) {
 		t.Parallel()
-		raw := jsontext.Value(`{"kind":"primitive","prim":"string","bogus":1}`)
+		raw := jsontext.Value(`{"kind":"primitive","primitiveKind":"string","bogus":1}`)
 
-		_, err := decodeTypeDef("t/x", raw, nil)
+		_, err := decodeTypeDef("type/x", raw, nil)
 		assert.NoError(t, err, "an unknown member is ignored when opts carries no RejectUnknownMembers")
 
-		_, err = decodeTypeDef("t/x", raw, json.RejectUnknownMembers(true))
+		_, err = decodeTypeDef("type/x", raw, json.RejectUnknownMembers(true))
 		require.Error(t, err, "the same unknown member must be refused once opts asks for it")
-		assert.ErrorContains(t, err, "t/x (primitive):")
+		assert.ErrorContains(t, err, "type/x (primitive):")
 	})
 }

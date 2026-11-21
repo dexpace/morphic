@@ -60,17 +60,17 @@ type ctsCase struct {
 // the suite's snake_case names are the file's, not this package's.
 func readCase(t testing.TB, members map[string]jsontext.Value) ctsCase {
 	t.Helper()
-	var c ctsCase
+	var ctsCaseValue ctsCase
 	for name, into := range map[string]any{
-		"name": &c.Name, "selector": &c.Selector, "result": &c.Result, "result_paths": &c.ResultPaths,
-		"results": &c.Results, "results_paths": &c.ResultsPaths, "invalid_selector": &c.Invalid,
+		"name": &ctsCaseValue.Name, "selector": &ctsCaseValue.Selector, "result": &ctsCaseValue.Result, "result_paths": &ctsCaseValue.ResultPaths,
+		"results": &ctsCaseValue.Results, "results_paths": &ctsCaseValue.ResultsPaths, "invalid_selector": &ctsCaseValue.Invalid,
 	} {
 		if raw, ok := members[name]; ok {
 			require.NoError(t, json.Unmarshal(raw, into), "the member %q of a case", name)
 		}
 	}
-	c.Document = members["document"]
-	return c
+	ctsCaseValue.Document = members["document"]
+	return ctsCaseValue
 }
 
 // alternatives returns each acceptable answer of a valid case: its values and
@@ -136,7 +136,7 @@ func TestCompliance(t *testing.T) {
 // case can be told to fail and a skip that no longer does can be reported.
 func checkCase(t *testing.T, tc ctsCase) error {
 	t.Helper()
-	q, err := jsonpath.Parse(tc.Selector)
+	query, err := jsonpath.Parse(tc.Selector)
 	if tc.Invalid {
 		if err == nil {
 			return fmt.Errorf("the selector %q is no RFC 9535 query, and Parse accepted it", tc.Selector)
@@ -152,15 +152,15 @@ func checkCase(t *testing.T, tc ctsCase) error {
 
 	root := jsonTree(t, tc.Document)
 	b := budget.New(budget.Unbounded())
-	got, err := q.Select(t.Context(), nodeview.New(), root, &b)
+	got, err := query.Select(t.Context(), nodeview.New(), root, &b)
 	if err != nil {
 		return fmt.Errorf("selecting: %w", err)
 	}
 	gotValues := make([]string, len(got))
 	gotPaths := make([]string, len(got))
-	for i, l := range got {
-		gotValues[i] = string(canonical(t, renderJSON(t, l.Node)))
-		gotPaths[i] = l.Path.String()
+	for i, located := range got {
+		gotValues[i] = string(canonical(t, renderJSON(t, located.Node)))
+		gotPaths[i] = located.Path.String()
 	}
 
 	values, paths := tc.alternatives()
@@ -198,15 +198,15 @@ func jsonTree(t testing.TB, doc []byte) *yaml.Node {
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		n := tokenNode(tok)
+		node := tokenNode(tok)
 		if len(stack) == 0 {
-			root = n
+			root = node
 		} else {
 			top := stack[len(stack)-1]
-			top.Content = append(top.Content, n)
+			top.Content = append(top.Content, node)
 		}
-		if n.Kind != yaml.ScalarNode {
-			stack = append(stack, n)
+		if node.Kind != yaml.ScalarNode {
+			stack = append(stack, node)
 		}
 	}
 	require.NotNil(t, root, "the document holds a value")
@@ -235,50 +235,50 @@ func tokenNode(tok jsontext.Token) *yaml.Node {
 	}
 }
 
-// renderJSON writes the tree under n as JSON, by its tags alone: the second
+// renderJSON writes the tree under node as JSON, by its tags alone: the second
 // reading of a tree the suite's comparison rests on, which shares nothing with
 // the evaluator's own. A mapping's members are written as the tree holds them.
-func renderJSON(t testing.TB, n *yaml.Node) jsontext.Value {
+func renderJSON(t testing.TB, node *yaml.Node) jsontext.Value {
 	t.Helper()
 	var out bytes.Buffer
-	writeJSON(t, &out, n)
+	writeJSON(t, &out, node)
 	return jsontext.Value(out.Bytes())
 }
 
-// writeJSON appends the JSON of the tree under n to out.
-func writeJSON(t testing.TB, out *bytes.Buffer, n *yaml.Node) {
+// writeJSON appends the JSON of the tree under node to out.
+func writeJSON(t testing.TB, out *bytes.Buffer, node *yaml.Node) {
 	t.Helper()
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.MappingNode:
 		out.WriteByte('{')
-		for i := 0; i+1 < len(n.Content); i += 2 {
+		for i := 0; i+1 < len(node.Content); i += 2 {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			writeJSON(t, out, n.Content[i])
+			writeJSON(t, out, node.Content[i])
 			out.WriteByte(':')
-			writeJSON(t, out, n.Content[i+1])
+			writeJSON(t, out, node.Content[i+1])
 		}
 		out.WriteByte('}')
 	case yaml.SequenceNode:
 		out.WriteByte('[')
-		for i, c := range n.Content {
+		for i, child := range node.Content {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			writeJSON(t, out, c)
+			writeJSON(t, out, child)
 		}
 		out.WriteByte(']')
 	case yaml.ScalarNode:
-		if n.Tag == "!!str" {
-			enc, err := json.Marshal(n.Value)
+		if node.Tag == "!!str" {
+			enc, err := json.Marshal(node.Value)
 			require.NoError(t, err)
 			out.Write(enc)
 			return
 		}
-		out.WriteString(n.Value)
+		out.WriteString(node.Value)
 	default:
-		t.Fatalf("a result node of kind %d: the evaluator returns values, never aliases or documents", n.Kind)
+		t.Fatalf("a result node of kind %d: the evaluator returns values, never aliases or documents", node.Kind)
 	}
 }
 

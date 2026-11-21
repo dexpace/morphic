@@ -4,8 +4,8 @@
 package operation
 
 import (
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,8 +26,8 @@ func (k partKeys) settleCatchAlls(reg ir.TypeRegistry, node func(ir.TypeID) (ir.
 		rules:     service.EncodingRules(k.c),
 		encodedBy: readContentEncoding(k.c, k.catchAllValues),
 	}
-	for _, h := range holders {
-		for _, id := range ir.CatchAllHolders(reg, h) {
+	for _, typeID := range holders {
+		for _, id := range ir.CatchAllHolders(reg, typeID) {
 			if parts, says := read.parts(reg[id]); says {
 				k.catchAll[id] = parts
 			}
@@ -42,7 +42,7 @@ func (k partKeys) settleCatchAlls(reg ir.TypeRegistry, node func(ir.TypeID) (ir.
 type catchAllReading struct {
 	unions    *partUnions
 	node      func(ir.TypeID) (ir.TypeDef, bool)
-	rules     oas.EncodingRules
+	rules     specrules.EncodingRules
 	encodedBy contentEncoding
 	multipart bool
 }
@@ -55,15 +55,15 @@ func (r catchAllReading) parts(holder ir.TypeDef) (parts ir.CatchAllParts, says 
 	case *ir.MapT:
 		parts.Value = r.value(h.Value)
 	case *ir.Model:
-		if h.AdditionalProps.Value != nil {
-			parts.Value = r.value(*h.AdditionalProps.Value)
+		if h.AdditionalProperties.Value != nil {
+			parts.Value = r.value(*h.AdditionalProperties.Value)
 		}
-		for _, p := range h.AdditionalProps.Patterns {
-			if pe := r.part(p.Value); !partEncodingEmpty(pe) {
+		for _, patternProperties := range h.AdditionalProperties.Patterns {
+			if pe := r.part(patternProperties.Value); !partEncodingEmpty(pe) {
 				if parts.Patterns == nil {
 					parts.Patterns = map[string]ir.PartEncoding{}
 				}
-				parts.Patterns[p.Pattern] = pe
+				parts.Patterns[patternProperties.Pattern] = pe
 			}
 		}
 	default:
@@ -88,6 +88,6 @@ func (r catchAllReading) value(ref ir.TypeRef) *ir.PartEncoding {
 // Headers are the entry's to state, and a catch-all's part has none.
 func (r catchAllReading) part(ref ir.TypeRef) ir.PartEncoding {
 	var pe ir.PartEncoding
-	pe.Multi, pe.Filename, _ = partTypeFlags(r.unions, r.node, ref, r.multipart)
+	pe.RepeatsPerArrayItem, pe.HasFilename, _ = partTypeFlags(r.unions, r.node, ref, r.multipart)
 	return withDefaultContentType(r.unions, r.node, r.rules, &ir.Property{Type: ref}, r.encodedBy, pe)
 }

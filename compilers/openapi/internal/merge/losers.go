@@ -34,7 +34,7 @@ var errNoSource = errors.New("no source was recorded for the declaration")
 // A declaration with no pointer is skipped, since PreserveInto overwrites a
 // collapsed key; no production path produces one. A source that will not
 // render is reported as an error (GitHub #144).
-func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, source Source) []ir.Diagnostic {
+func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, source DeclarationConstructRenderer) []ir.Diagnostic {
 	pointer := loser.Pointer
 	if pointer == "" {
 		return nil
@@ -55,7 +55,7 @@ func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, so
 }
 
 // render calls source, or fails with errNoSource when there is none.
-func render(source Source) (ir.RawValue, error) {
+func render(source DeclarationConstructRenderer) (ir.RawValue, error) {
 	if source == nil {
 		return nil, errNoSource
 	}

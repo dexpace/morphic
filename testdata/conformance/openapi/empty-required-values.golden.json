@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -47,14 +47,14 @@
   "license": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "hint": "empty"
       },
       "docs": {},
       "groups": [
         {
-          "id": "g/tags",
+          "id": "operation-group/tags",
           "name": {
             "hint": "empty"
           },
@@ -65,7 +65,7 @@
           },
           "operations": [
             {
-              "id": "op/openapi/paths/~1items/get",
+              "id": "operation/openapi/paths/~1items/get",
               "name": {
                 "source": "listItems",
                 "canonical": "list_items"
@@ -77,12 +77,12 @@
               },
               "params": [
                 {
-                  "id": "param/openapi/paths/~1items/get/parameters//query",
+                  "id": "parameter/openapi/paths/~1items/get/parameters//query",
                   "name": {
                     "hint": "empty"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -121,7 +121,7 @@
                     "uriTemplate": "/items",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1items/get/parameters//query",
+                        "param": "parameter/openapi/paths/~1items/get/parameters//query",
                         "location": "query",
                         "style": "form",
                         "allowReserved": false,
@@ -160,9 +160,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -170,7 +170,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "auth": {

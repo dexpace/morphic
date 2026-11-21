@@ -20,12 +20,12 @@ import (
 // deepDoc returns a document whose one example value nests past ir.MaxWalkDepth,
 // so a walk over it is cut short.
 func deepDoc() *ir.Document {
-	v := ir.Value{Kind: ir.ValueNull}
+	value := ir.Value{Kind: ir.ValueNull}
 	for range ir.MaxWalkDepth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+		value = ir.Value{Kind: ir.ValueList, List: []ir.Value{value}}
 	}
-	m := &ir.Model{ID: "t/x/M", Examples: []ir.Example{{Value: &v}}}
-	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	model := &ir.Model{ID: "type/x/M", Examples: []ir.Example{{Value: &value}}}
+	return &ir.Document{Types: ir.TypeRegistry{model.ID: model}}
 }
 
 // TestVerify_ReportsTruncationOnce holds Verify to stating a cut-short walk once:
@@ -34,14 +34,14 @@ func deepDoc() *ir.Document {
 func TestVerify_ReportsTruncationOnce(t *testing.T) {
 	t.Parallel()
 	var truncations int
-	for _, v := range Verify(deepDoc()) {
-		if v.Code != "ir/walk-truncated" {
+	for _, violation := range Verify(deepDoc()) {
+		if violation.Code != "ir/walk-truncated" {
 			continue
 		}
 		truncations++
-		assert.Equal(t, "doc", v.Path, "truncation is a fact about the document, not about a node")
+		assert.Equal(t, "document", violation.Path, "truncation is a fact about the document, not about a node")
 		assert.Equal(t, "document nests deeper or unfolds larger than the bounded walk reads; part of it went unchecked",
-			v.Message)
+			violation.Message)
 	}
 	assert.Equal(t, 1, truncations)
 }
@@ -97,8 +97,8 @@ func TestWalkWith_ReportsInTheOrderGiven(t *testing.T) {
 // which hand it on.
 func TestVerify_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
-	p := verifyDecls(t)
-	irAsSeen, reaches := p.Imported(irPath)
+	loadedPackage := verifyDecls(t)
+	irAsSeen, reaches := loadedPackage.Imported(irPath)
 	require.True(t, reaches, "this package must import ir")
 	for traversal, want := range map[string][]string{
 		"WalkValues":       {"Verify", "VerifyFindings"},
@@ -107,7 +107,7 @@ func TestVerify_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	} {
 		obj := irAsSeen.Scope().Lookup(traversal)
 		require.NotNil(t, obj, "the ir package must declare %s", traversal)
-		assert.Equal(t, want, p.FuncsUsing(obj), "the functions that walk the document through ir.%s", traversal)
+		assert.Equal(t, want, loadedPackage.FuncsUsing(obj), "the functions that walk the document through ir.%s", traversal)
 	}
 }
 
@@ -154,15 +154,15 @@ type packageFunc struct {
 // sources, methods included.
 func packageFuncs(t *testing.T) []packageFunc {
 	t.Helper()
-	p := verifyDecls(t)
+	loadedPackage := verifyDecls(t)
 	var out []packageFunc
-	for _, f := range p.Syntax {
+	for _, f := range loadedPackage.Syntax {
 		for _, decl := range f.Decls {
 			fn, isFunc := decl.(*ast.FuncDecl)
 			if !isFunc {
 				continue
 			}
-			obj, isFuncObj := p.Info.Defs[fn.Name].(*types.Func)
+			obj, isFuncObj := loadedPackage.Info.Defs[fn.Name].(*types.Func)
 			require.True(t, isFuncObj, "%s declares no function object", fn.Name.Name)
 			sig, isSig := obj.Type().(*types.Signature)
 			require.True(t, isSig, "%s has no signature", fn.Name.Name)

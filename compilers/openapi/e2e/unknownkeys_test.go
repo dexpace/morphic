@@ -62,22 +62,22 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		want    string
 		carrier string
 	}{
-		{"openapi root", "openapi:basePath", `"ROOT"`, "doc.Unmodeled"},
-		{"info", "openapi:info/contactEmail", `"INFO"`, "doc.Unmodeled"},
-		{"contact", "openapi:info/contact/slack", `"CONTACT"`, "doc.Unmodeled"},
-		{"license", "openapi:info/license/spdx", `"LICENSE"`, "doc.Unmodeled"},
-		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "doc.Unmodeled"},
-		{"server", "openapi:host", `"SERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
-		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
+		{"openapi root", "openapi:basePath", `"ROOT"`, "document.Unmodeled"},
+		{"info", "openapi:info/contactEmail", `"INFO"`, "document.Unmodeled"},
+		{"contact", "openapi:info/contact/slack", `"CONTACT"`, "document.Unmodeled"},
+		{"license", "openapi:info/license/spdx", `"LICENSE"`, "document.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "document.Unmodeled"},
+		{"server", "openapi:host", `"SERVER"`, "document.Servers[server/openapi/servers/0].Unmodeled"},
+		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "document.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
 		// A path item's and an operation's servers are Server Objects lowered as
 		// the document's are, each into the registry at its own pointer.
 		{"path item server", "openapi:host", `"PATHITEMSERVER"`,
-			"doc.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
+			"document.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
 		{"operation server", "openapi:host", `"OPERATIONSERVER"`,
-			"doc.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
-		{"tag", "openapi:color", `"TAG"`, "doc.TagDefs[0].Unmodeled"},
-		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
-		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
+			"document.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
+		{"tag", "openapi:color", `"TAG"`, "document.TagDefs[0].Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "document.Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "document.TagDefs[0].Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
 		// On each operation of the item, like its servers and its x-*: the path
 		// item lowers to no node of its own, so the scope is what tells its keys
@@ -100,20 +100,20 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"response", "openapi:status", `"RESPONSE"`, ".Responses[0].Unmodeled"},
 		{"error response", "openapi:status", `"ERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:in", `"HEADER"`, ".Headers[0].Unmodeled"},
-		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "document.Unmodeled"},
 		{"security scheme", "openapi:tokenUrl", `"SECURITYSCHEME"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
 		{"oauth flows", "openapi:flows/application", `"OAUTHFLOWS"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
 		{"oauth flow", "openapi:scope", `"OAUTHFLOW"`,
-			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+			"document.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 		{"schema", "openapi:additionalItems", `"SCHEMA"`,
-			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Unmodeled"},
 		// The property's schema reduced to a shared primitive, so it owns no node
 		// and its keywords stay on the declaring property — the carrier rule
 		// fillPropertyAnnotations already applies to every other annotation.
 		{"property schema", "openapi:divisibleBy", `"PROPERTYSCHEMA"`,
-			"doc.Types[t/openapi/components/schemas/S].Properties[0].Unmodeled"},
+			"document.Types[type/openapi/components/schemas/S].Properties[0].Unmodeled"},
 	} {
 		site, found := findUnmodeled(sites, tc.key, tc.want)
 		if !assert.True(t, found, "%s drops %s = %s: it is nowhere in the document",
@@ -138,7 +138,7 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	doc, diags := compileAnnotationSpec(t, "unknown-keys", unknownKeysSpec(t))
 	requireNoErrorDiagnostics(t, diags)
 
-	schema, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	schema, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")]
 	require.True(t, ok)
 	keyword := unmodeledEntry(t, schema.Common().Unmodeled, "openapi:additionalItems")
 	assert.Equal(t, ir.ReasonOutOfScope, keyword.Reason,
@@ -147,9 +147,9 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/unknown-schema-keyword", "/components/schemas/S/additionalItems"))
 
-	op, ok := opByName(doc, "listWidgets")
+	operation, ok := operationByName(doc, "listWidgets")
 	require.True(t, ok)
-	key := unmodeledEntry(t, op.Unmodeled, "openapi:operationid")
+	key := unmodeledEntry(t, operation.Unmodeled, "openapi:operationid")
 	assert.Equal(t, ir.ReasonOutOfScope, key.Reason,
 		"OpenAPI defines no such key, so no IR node is coming for it either")
 	assert.Equal(t, jsontext.Pointer("/paths/~1widgets/get/operationid"), key.Provenance.Pointer)
@@ -211,7 +211,7 @@ func TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart(t *testing.T) {
 		{"header", "/paths/~1widgets/get/responses/200/headers/X-Trace/schema/divisibleBy",
 			"/paths/~1widgets/get/responses/200/headers/X-Trace/divisibleBy"},
 	} {
-		assert.Empty(t, diagsAt(diags, "openapi/unknown-key-entry-taken", tc.object), tc.carrier)
+		assert.Empty(t, diagsAt(diags, "openapi/unknown-key-entry-already-claimed", tc.object), tc.carrier)
 		object, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
 		if assert.True(t, found, "the %s's own key is kept unscoped", tc.carrier) {
 			assert.Equal(t, tc.object, string(object.entry.Provenance.Pointer))
@@ -243,8 +243,8 @@ components:
 	requireNoErrorDiagnostics(t, diags)
 
 	assert.Empty(t, unmodeledSites(doc), "nothing undeclared, so nothing kept")
-	for _, d := range diags {
-		assert.NotContains(t, d.Code, "unknown-", "a well-formed document reports no unknown key: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Code, "unknown-", "a well-formed document reports no unknown key: %+v", diagnostic)
 	}
 }
 
@@ -270,7 +270,7 @@ components:
       externalDocs: {url: 'https://d.example', title: SCHEMAEXTERNALDOCS}
       properties: {k: {type: string}}
 `)
-	schema, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	schema, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/S")]
 	require.True(t, ok)
 
 	// assert rather than require on the lookup, so a keyword missing from the map
@@ -382,7 +382,7 @@ components:
 		{"U", "openapi:allOf/0/discriminator/x-b", "5"},
 		{"V", "openapi:discriminator/x-v", "6"},
 	} {
-		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+tc.schema)]
+		node, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/"+tc.schema)]
 		require.True(t, ok, tc.schema)
 		entry, found := node.Common().Unmodeled[tc.key]
 		if assert.True(t, found, "%s keeps %s", tc.schema, tc.key) {
@@ -408,10 +408,10 @@ paths:
     bogusPathItem: 1
     get: {operationId: getX, responses: {"200": {description: ok}}}
 `)
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
 
-	entry := unmodeledEntry(t, op.Unmodeled, "openapi:pathItem/bogusPathItem")
+	entry := unmodeledEntry(t, operation.Unmodeled, "openapi:pathItem/bogusPathItem")
 	assert.JSONEq(t, `1`, string(entry.Value), "the key keeps the value the source wrote")
 	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
 		"OpenAPI defines no such key on a path item, so no IR node is coming for it")
@@ -459,9 +459,9 @@ components:
 `)
 	requireNoErrorDiagnostics(t, diags)
 
-	for _, d := range diags {
-		assert.NotEqual(t, "openapi/unknown-object-key", d.Code,
-			"every key here is one a path item declares: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "openapi/unknown-object-key", diagnostic.Code,
+			"every key here is one a path item declares: %+v", diagnostic)
 	}
 	for _, site := range unmodeledSites(doc) {
 		// The summary and description are kept beneath the same scope by their own
@@ -475,7 +475,7 @@ components:
 	// for each mount the walk reaches. Both items here have to reach it, the
 	// $ref'd one included, or the rows above hold over a walk that never looked.
 	for _, name := range []string{"getP", "getY"} {
-		_, ok := opByName(doc, name)
+		_, ok := operationByName(doc, name)
 		assert.True(t, ok, "%s lowers, so the census ran on the path item declaring it", name)
 	}
 }
@@ -484,8 +484,8 @@ components:
 // diagnostic, naming it.
 func requireNoErrorDiagnostics(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
-	d, ok := ir.FirstError(diags)
-	require.False(t, ok, "unexpected error diagnostic: %+v", d)
+	diagnostic, ok := ir.FirstError(diags)
+	require.False(t, ok, "unexpected error diagnostic: %+v", diagnostic)
 }
 
 // TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote covers a path item
@@ -536,11 +536,11 @@ webhooks:
 	// And the loss is announced rather than merely repaired: a reader finding
 	// these on the service needs to know why they are not on an operation.
 	var announced int
-	for _, d := range diags {
-		if d.Code == "openapi/degraded-construct" &&
-			strings.Contains(d.Message, "declares no operation this compiler lowers") {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == "openapi/degraded-construct" &&
+			strings.Contains(diagnostic.Message, "declares no operation this compiler lowers") {
 			announced++
-			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			assert.Equal(t, ir.SeverityWarning, diagnostic.Severity)
 		}
 	}
 	assert.Equal(t, 2, announced, "one per unmounted item: the path and the webhook")

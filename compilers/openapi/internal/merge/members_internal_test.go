@@ -20,103 +20,103 @@ import (
 
 // declared is wire's declaration of target, written at pointer.
 func declared(wire string, target ir.TypeID, pointer string) ir.Property {
-	return ir.Property{ID: ir.PropID("p" + pointer), Name: ir.NamingFor(wire), WireName: wire,
+	return ir.Property{ID: ir.PropertyID("property" + pointer), Name: ir.NamingFor(wire), WireName: wire,
 		Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer(pointer))}
 }
 
 // membersRegistry holds A and B declaring p apart, Sub composing A with a p of
 // its own, and C and D declaring z and y apart.
 func membersRegistry() ir.TypeRegistry {
-	model := func(id ir.TypeID, base *ir.TypeRef, props ...ir.Property) *ir.Model {
-		return &ir.Model{ID: id, Base: base, Properties: props}
+	model := func(id ir.TypeID, base *ir.TypeRef, properties ...ir.Property) *ir.Model {
+		return &ir.Model{ID: id, Base: base, Properties: properties}
 	}
 	return ir.TypeRegistry{
-		"t/prim/string":  &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString},
-		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
-		"t/A":            model("t/A", nil, declared("p", "t/prim/string", "/A/p")),
-		"t/B":            model("t/B", nil, declared("p", "t/prim/integer", "/B/p")),
-		"t/Sub":          model("t/Sub", &ir.TypeRef{Target: "t/A"}, declared("p", "t/prim/string", "/Sub/p")),
-		"t/C":            model("t/C", nil, declared("z", "t/prim/string", "/C/z"), declared("y", "t/prim/string", "/C/y")),
-		"t/D":            model("t/D", nil, declared("z", "t/prim/integer", "/D/z"), declared("y", "t/prim/integer", "/D/y")),
+		"type/primitive/string":  &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString},
+		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
+		"type/A":                 model("type/A", nil, declared("p", "type/primitive/string", "/A/p")),
+		"type/B":                 model("type/B", nil, declared("p", "type/primitive/integer", "/B/p")),
+		"type/Sub":               model("type/Sub", &ir.TypeRef{Target: "type/A"}, declared("p", "type/primitive/string", "/Sub/p")),
+		"type/C":                 model("type/C", nil, declared("z", "type/primitive/string", "/C/z"), declared("y", "type/primitive/string", "/C/y")),
+		"type/D":                 model("type/D", nil, declared("z", "type/primitive/integer", "/D/z"), declared("y", "type/primitive/integer", "/D/y")),
 	}
 }
 
 // settled builds model M in reg as compose does, by the steps the walk takes,
 // settles it, and returns it with what it reports.
-func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *PropIndex)) (*ir.Model, []ir.Diagnostic) {
+func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *ModelPropertyDeclarations)) (*ir.Model, []ir.Diagnostic) {
 	t.Helper()
-	m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
-	reg["t/M"] = m
-	idx := NewPropIndex(m)
+	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+	reg["type/M"] = model
+	idx := NewModelPropertyDeclarations(model)
 	for _, step := range steps {
 		step(idx)
 	}
-	g, _ := stubMerger(reg)
-	return m, settleFlat(g, idx, reg)
+	stubbed, _ := stubMerger(reg)
+	return model, settleFlat(stubbed, idx, reg)
 }
 
 // settleFlat settles idx's model against reg, reading each part as its
 // flattening stands and every name as shared, as a run reads a part it has
 // not settled.
-func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic {
-	parts, shared := map[ir.TypeID]Table{}, map[string]bool{}
+func settleFlat(stubbedValue *stubbed, idx *ModelPropertyDeclarations, reg ir.TypeRegistry) []ir.Diagnostic {
+	parts, shared := map[ir.TypeID]RedeclaredWireNameTable{}, map[string]bool{}
 	for _, target := range ComposedOf(idx.m) {
-		parts[target] = Table{}
+		parts[target] = RedeclaredWireNameTable{}
 		for _, member := range ir.FlattenedProperties(reg, target).Properties {
-			if d, ok := TakenOutside(member, idx.m.ID); ok {
-				parts[target][member.Property.WireName] = DeclaredAt(d)
+			if propertyDecl, ok := TakenOutside(member, idx.m.ID); ok {
+				parts[target][member.Property.WireName] = DeclaredAt(propertyDecl)
 			}
 		}
 	}
 	for _, td := range reg {
-		if m, ok := td.(*ir.Model); ok {
-			for _, p := range m.Properties {
-				shared[p.WireName] = true
+		if model, ok := td.(*ir.Model); ok {
+			for _, property := range model.Properties {
+				shared[property.WireName] = true
 			}
 		}
 	}
-	diags, _ := idx.Settle(g.Merger, parts, shared)
+	diags, _ := idx.Settle(stubbedValue.Merger, parts, shared)
 	return diags
 }
 
 // composes composes target as written at /M/allOf/<n>, recording it as Mixins.
-func composes(target ir.TypeID, n string) func(idx *PropIndex) {
-	return func(idx *PropIndex) {
+func composes(target ir.TypeID, n string) func(idx *ModelPropertyDeclarations) {
+	return func(idx *ModelPropertyDeclarations) {
 		idx.m.Mixins = append(idx.m.Mixins, ir.TypeRef{Target: target})
 		idx.Compose(target, jsontext.Pointer("/M/allOf/"+n))
 	}
 }
 
 // own declares wire as target in the model's own entry n.
-func own(wire string, target ir.TypeID, n string) func(idx *PropIndex) {
-	return func(idx *PropIndex) {
+func own(wire string, target ir.TypeID, n string) func(idx *ModelPropertyDeclarations) {
+	return func(idx *ModelPropertyDeclarations) {
 		idx.MergeProperty(declared(wire, target, "/M/allOf/"+n+"/properties/"+wire), written(`{"own":true}`), "")
 	}
 }
 
-// TestPropIndex_SettlesAMemberItsEntriesDeclareApart pins a member two entries
-// declare apart, in either entry order: the model declares the later's at
-// <model>/allOf/properties/<name> in the composed namespace, reports where the
-// one that lost is written, naming the property, and keeps nothing, the loser
-// staying declared on its model.
-func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
+// TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart pins a member two
+// entries declare apart, in either entry order: the model declares the later's
+// at <model>/allOf/properties/<name> in the composed namespace, reports where
+// the one that lost is written, naming the property, and keeps nothing, the
+// loser staying declared on its model.
+func TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	t.Parallel()
-	id := ids.Document{}.ComposedProp("/M/allOf/properties/p")
+	id := ids.DocumentIDNamespace{}.ComposedProperty("/M/allOf/properties/p")
 	for _, tc := range []struct {
 		first, second ir.TypeID
 		want          ir.TypeID
 		lost          jsontext.Pointer
 	}{
-		{"t/A", "t/B", "t/prim/integer", "/A/p"},
-		{"t/B", "t/A", "t/prim/string", "/B/p"},
+		{"type/A", "type/B", "type/primitive/integer", "/A/p"},
+		{"type/B", "type/A", "type/primitive/string", "/B/p"},
 	} {
-		m, diags := settled(t, membersRegistry(), composes(tc.first, "0"), composes(tc.second, "1"))
+		model, diags := settled(t, membersRegistry(), composes(tc.first, "0"), composes(tc.second, "1"))
 
-		require.Len(t, m.Properties, 1, "%v", tc)
-		p := m.Properties[0]
-		assert.Equal(t, id, p.ID)
-		assert.Equal(t, tc.want, p.Type.Target, "the later entry's")
-		assert.Empty(t, p.Unmodeled)
+		require.Len(t, model.Properties, 1, "%v", tc)
+		property := model.Properties[0]
+		assert.Equal(t, id, property.ID)
+		assert.Equal(t, tc.want, property.Type.Target, "the later entry's")
+		assert.Empty(t, property.Unmodeled)
 		require.Len(t, diags, 1, "%v", tc)
 		assert.Equal(t, diag.ConflictingRedecl, diags[0].Code)
 		assert.Equal(t, tc.lost, diags[0].Provenance.Pointer)
@@ -124,122 +124,122 @@ func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	}
 }
 
-// TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper pins where a
+// TestPropertyIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper pins where a
 // model the merge composed declares a member its entries declare apart: an
 // allOf deeper than a model a schema names, since the schema written at its
 // pointer may settle a member of that name too.
-func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
+func TestPropertyIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
-	id := ids.Document{}.ComposedType("/M")
-	m := &ir.Model{ID: id, Provenance: ptrAt("/M")}
-	reg[id] = m
-	idx := NewPropIndex(m)
-	composes("t/A", "0")(idx)
-	composes("t/B", "1")(idx)
-	g, _ := stubMerger(reg)
+	id := ids.DocumentIDNamespace{}.ComposedType("/M")
+	model := &ir.Model{ID: id, Provenance: ptrAt("/M")}
+	reg[id] = model
+	idx := NewModelPropertyDeclarations(model)
+	composes("type/A", "0")(idx)
+	composes("type/B", "1")(idx)
+	stubbed, _ := stubMerger(reg)
 
-	settleFlat(g, idx, reg)
+	settleFlat(stubbed, idx, reg)
 
-	require.Len(t, m.Properties, 1)
-	assert.Equal(t, ids.Document{}.ComposedProp("/M/allOf/allOf/properties/p"), m.Properties[0].ID)
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, ids.DocumentIDNamespace{}.ComposedProperty("/M/allOf/allOf/properties/p"), model.Properties[0].ID)
 }
 
-// TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
+// TestPropertyIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
 // declaration beside an entry's, read where the walk met each: the later wins
 // a tie, and the result replaces the own declaration at the composed identity,
 // which, losing, is kept verbatim; a name the model requires and declares only
 // through an entry is the member's, leaving Requires.
-func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
+func TestPropertyIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 	t.Parallel()
-	m, diags := settled(t, membersRegistry(), own("p", "t/prim/string", "0"), composes("t/B", "1"))
-	require.Len(t, m.Properties, 1)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target)
-	assert.Contains(t, m.Properties[0].Unmodeled, losingDeclarationKey+"/M/allOf/0/properties/p", "the own declaration is kept")
+	model, diags := settled(t, membersRegistry(), own("p", "type/primitive/string", "0"), composes("type/B", "1"))
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), model.Properties[0].Type.Target)
+	assert.Contains(t, model.Properties[0].Unmodeled, losingDeclarationKey+"/M/allOf/0/properties/p", "the own declaration is kept")
 	require.Len(t, diags, 1)
 	assert.Equal(t, jsontext.Pointer("/M/allOf/0/properties/p"), diags[0].Provenance.Pointer, "where the own one is written")
 
-	m, _ = settled(t, membersRegistry(), composes("t/B", "0"), own("p", "t/prim/string", "1"))
-	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target, "the own declaration, written later")
+	model, _ = settled(t, membersRegistry(), composes("type/B", "0"), own("p", "type/primitive/string", "1"))
+	assert.Equal(t, ir.TypeID("type/primitive/string"), model.Properties[0].Type.Target, "the own declaration, written later")
 
 	reg := membersRegistry()
-	m, _ = settled(t, reg, func(idx *PropIndex) { idx.m.Requires = []string{"p"} }, composes("t/A", "0"), composes("t/B", "1"))
-	assert.True(t, m.Properties[0].Required)
-	assert.Empty(t, m.Requires)
+	model, _ = settled(t, reg, func(idx *ModelPropertyDeclarations) { idx.m.Requires = []string{"p"} }, composes("type/A", "0"), composes("type/B", "1"))
+	assert.True(t, model.Properties[0].Required)
+	assert.Empty(t, model.Requires)
 }
 
-// TestPropIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
+// TestPropertyIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
 // declaration is read: at the entry naming its owner or a type composing it,
 // and at the model, read first, where no entry does, a conflict over it sitting
 // where it is written either way; an owner
 // another entry's composes brings nothing, Sub's p standing within A's, but
 // one of two models composing each other does, and a declaration two entries
 // bring is read once.
-func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
+func TestPropertyIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
-	reg["t/viaSub"] = &ir.Model{ID: "t/viaSub", Base: &ir.TypeRef{Target: "t/B"}}
-	m, diags := settled(t, reg, composes("t/viaSub", "0"), composes("t/A", "1"))
-	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target)
+	reg["type/viaSub"] = &ir.Model{ID: "type/viaSub", Base: &ir.TypeRef{Target: "type/B"}}
+	model, diags := settled(t, reg, composes("type/viaSub", "0"), composes("type/A", "1"))
+	assert.Equal(t, ir.TypeID("type/primitive/string"), model.Properties[0].Type.Target)
 	require.Len(t, diags, 1)
 	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer, "B's, through the entry composing it")
 
 	reg = membersRegistry()
-	m, diags = settled(t, reg, func(idx *PropIndex) { idx.m.Base = &ir.TypeRef{Target: "t/B"} }, composes("t/A", "0"))
-	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target, "B's, read first at the model")
+	model, diags = settled(t, reg, func(idx *ModelPropertyDeclarations) { idx.m.Base = &ir.TypeRef{Target: "type/B"} }, composes("type/A", "0"))
+	assert.Equal(t, ir.TypeID("type/primitive/string"), model.Properties[0].Type.Target, "B's, read first at the model")
 	require.Len(t, diags, 1)
 	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer)
 
-	m, diags = settled(t, membersRegistry(), composes("t/Sub", "0"), composes("t/A", "1"))
-	assert.Empty(t, m.Properties, "Sub's p stands within A's, so one declaration decides")
+	model, diags = settled(t, membersRegistry(), composes("type/Sub", "0"), composes("type/A", "1"))
+	assert.Empty(t, model.Properties, "Sub's p stands within A's, so one declaration decides")
 	assert.Empty(t, diags)
 
 	reg = membersRegistry()
-	for _, via := range []ir.TypeID{"t/viaA1", "t/viaA2"} {
-		reg[via] = &ir.Model{ID: via, Base: &ir.TypeRef{Target: "t/A"}}
+	for _, via := range []ir.TypeID{"type/viaA1", "type/viaA2"} {
+		reg[via] = &ir.Model{ID: via, Base: &ir.TypeRef{Target: "type/A"}}
 	}
-	m, diags = settled(t, reg, composes("t/viaA1", "0"), composes("t/viaA2", "1"))
-	assert.Empty(t, m.Properties, "A's p, which both entries bring, is one declaration")
+	model, diags = settled(t, reg, composes("type/viaA1", "0"), composes("type/viaA2", "1"))
+	assert.Empty(t, model.Properties, "A's p, which both entries bring, is one declaration")
 	assert.Empty(t, diags)
-	m, diags = settled(t, membersRegistry(), composes("t/A", "0"), composes("t/A", "1"))
-	assert.Empty(t, m.Properties, "A written twice brings its p once")
+	model, diags = settled(t, membersRegistry(), composes("type/A", "0"), composes("type/A", "1"))
+	assert.Empty(t, model.Properties, "A written twice brings its p once")
 	assert.Empty(t, diags)
 
 	reg = membersRegistry()
-	reg["t/P"] = &ir.Model{ID: "t/P", Base: &ir.TypeRef{Target: "t/Q"}, Properties: []ir.Property{declared("p", "t/prim/string", "/P/p")}}
-	reg["t/Q"] = &ir.Model{ID: "t/Q", Base: &ir.TypeRef{Target: "t/P"}, Properties: []ir.Property{declared("p", "t/prim/integer", "/Q/p")}}
-	m, diags = settled(t, reg, composes("t/P", "0"), composes("t/Q", "1"))
-	require.Len(t, m.Properties, 1, "two models composing each other each bring theirs")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target)
+	reg["type/P"] = &ir.Model{ID: "type/P", Base: &ir.TypeRef{Target: "type/Q"}, Properties: []ir.Property{declared("p", "type/primitive/string", "/P/p")}}
+	reg["type/Q"] = &ir.Model{ID: "type/Q", Base: &ir.TypeRef{Target: "type/P"}, Properties: []ir.Property{declared("p", "type/primitive/integer", "/Q/p")}}
+	model, diags = settled(t, reg, composes("type/P", "0"), composes("type/Q", "1"))
+	require.Len(t, model.Properties, 1, "two models composing each other each bring theirs")
+	assert.Equal(t, ir.TypeID("type/primitive/integer"), model.Properties[0].Type.Target)
 	assert.Len(t, diags, 1)
 }
 
-// TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the order
-// members only entries declare are appended in: by wire name, not as an entry
-// lists them.
-func TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.T) {
+// TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the
+// order members only entries declare are appended in: by wire name, not as an
+// entry lists them.
+func TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.T) {
 	t.Parallel()
-	m, _ := settled(t, membersRegistry(), composes("t/C", "0"), composes("t/D", "1"))
-	require.Len(t, m.Properties, 2)
-	assert.Equal(t, []string{"y", "z"}, []string{m.Properties[0].WireName, m.Properties[1].WireName})
+	model, _ := settled(t, membersRegistry(), composes("type/C", "0"), composes("type/D", "1"))
+	require.Len(t, model.Properties, 2)
+	assert.Equal(t, []string{"y", "z"}, []string{model.Properties[0].WireName, model.Properties[1].WireName})
 }
 
-// TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an entry
-// whose declaration a promotion made secret beside one declaring nothing: the
-// field is secret and carries the promotion's marker whichever is written
+// TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an
+// entry whose declaration a promotion made secret beside one declaring nothing:
+// the field is secret and carries the promotion's marker whichever is written
 // later.
-func TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) {
+func TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const promoted ir.Inferred = "extension-promotion"
-	for _, order := range [][2]ir.TypeID{{"t/A", "t/B"}, {"t/B", "t/A"}} {
+	for _, order := range [][2]ir.TypeID{{"type/A", "type/B"}, {"type/B", "type/A"}} {
 		reg := membersRegistry()
-		a := reg["t/A"].(*ir.Model)
-		a.Properties[0].Type.Target, a.Properties[0].Secret = "t/prim/integer", true
+		a := reg["type/A"].(*ir.Model)
+		a.Properties[0].Type.Target, a.Properties[0].Secret = "type/primitive/integer", true
 		a.Properties[0].Provenance.Inferred = promoted
-		m, _ := settled(t, reg, composes(order[0], "0"), composes(order[1], "1"))
-		require.Len(t, m.Properties, 1)
-		assert.True(t, m.Properties[0].Secret, "%v", order)
-		assert.Equal(t, promoted, m.Properties[0].Provenance.Inferred, "%v", order)
+		model, _ := settled(t, reg, composes(order[0], "0"), composes(order[1], "1"))
+		require.Len(t, model.Properties, 1)
+		assert.True(t, model.Properties[0].Secret, "%v", order)
+		assert.Equal(t, promoted, model.Properties[0].Provenance.Inferred, "%v", order)
 	}
 }
 
@@ -250,49 +250,49 @@ func TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) 
 func TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID, at jsontext.Pointer) *ir.Enum {
-		return &ir.Enum{ID: id, Anonymous: true, Provenance: ptrAt(at), ValueType: ir.PrimString,
-			Members: []ir.EnumMember{{Value: ir.Value{Kind: ir.ValueString, Str: "x"}}}}
+		return &ir.Enum{ID: id, Anonymous: true, Provenance: ptrAt(at), ValueType: ir.PrimitiveString,
+			Members: []ir.EnumMember{{Value: ir.Value{Kind: ir.ValueString, String: "x"}}}}
 	}
 	reg := ir.TypeRegistry{
-		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
-		"t/u/0":          enum("t/u/0", "/d0/anyOf/0"),
-		"t/u":            &ir.Union{ID: "t/u", Anonymous: true, Provenance: ptrAt("/d0"), Variants: variantsOf("t/u/0", "t/prim/integer")},
-		"t/e":            enum("t/e", "/d1"),
+		"type/primitive/integer": &ir.Primitive{ID: "type/primitive/integer", PrimitiveKind: ir.PrimitiveInteger},
+		"type/u/0":               enum("type/u/0", "/d0/anyOf/0"),
+		"type/u":                 &ir.Union{ID: "type/u", Anonymous: true, Provenance: ptrAt("/d0"), Variants: variantsOf("type/u/0", "type/primitive/integer")},
+		"type/e":                 enum("type/e", "/d1"),
 	}
-	g, _ := stubMerger(reg)
-	union, copied := ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/e"}
+	stubbed, _ := stubMerger(reg)
+	union, copied := ir.TypeRef{Target: "type/u"}, ir.TypeRef{Target: "type/e"}
 
-	assert.Equal(t, relBNarrower, g.judgeAt(sitesAt("/d0"), sitesAt("/d1")).relateFrom(union, copied, 0))
-	assert.Equal(t, relANarrower, g.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
+	assert.Equal(t, secondTypeIsNarrower, stubbed.judgeAt(sitesAt("/d0"), sitesAt("/d1")).relateFrom(union, copied, 0))
+	assert.Equal(t, firstTypeIsNarrower, stubbed.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
 }
 
-// TestPropIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
+// TestPropertyIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
 // declare as two models: the field composes them in the order the entries are
 // written, recording where each part was brought, so the composed model's own
 // members report at those entries and read the later as the specialization.
-func TestPropIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
+func TestPropertyIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
 	t.Parallel()
-	for _, order := range [][2]ir.TypeID{{"t/E", "t/F"}, {"t/F", "t/E"}} {
+	for _, order := range [][2]ir.TypeID{{"type/E", "type/F"}, {"type/F", "type/E"}} {
 		reg := membersRegistry()
 		for _, owner := range []string{"E", "F"} {
-			part := ir.TypeID("t/" + owner + "part")
-			reg[part] = &ir.Model{ID: part, Properties: []ir.Property{declared(owner, "t/prim/string", "/"+owner+"part/"+owner)}}
-			reg[ir.TypeID("t/"+owner)] = &ir.Model{ID: ir.TypeID("t/" + owner), Properties: []ir.Property{declared("p", part, "/"+owner+"/p")}}
+			part := ir.TypeID("type/" + owner + "part")
+			reg[part] = &ir.Model{ID: part, Properties: []ir.Property{declared(owner, "type/primitive/string", "/"+owner+"part/"+owner)}}
+			reg[ir.TypeID("type/"+owner)] = &ir.Model{ID: ir.TypeID("type/" + owner), Properties: []ir.Property{declared("p", part, "/"+owner+"/p")}}
 		}
-		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
-		reg["t/M"] = m
-		idx := NewPropIndex(m)
+		model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+		reg["type/M"] = model
+		idx := NewModelPropertyDeclarations(model)
 		composes(order[0], "0")(idx)
 		composes(order[1], "1")(idx)
-		g, _ := stubMerger(reg)
+		stubbed, _ := stubMerger(reg)
 
-		diags := settleFlat(g, idx, reg)
+		diags := settleFlat(stubbed, idx, reg)
 
 		require.Empty(t, diags, "%v", order)
-		minted, ok := reg[m.Properties[0].Type.Target].(*ir.Model)
+		minted, ok := reg[model.Properties[0].Type.Target].(*ir.Model)
 		require.True(t, ok, "%v", order)
 		assert.Equal(t, []ir.TypeRef{{Target: order[0] + "part"}, {Target: order[1] + "part"}}, minted.Mixins, "%v", order)
-		assert.Equal(t, []jsontext.Pointer{"/M/allOf/0", "/M/allOf/1"}, g.walk.brought[minted.ID], "%v", order)
+		assert.Equal(t, []jsontext.Pointer{"/M/allOf/0", "/M/allOf/1"}, stubbed.walk.brought[minted.ID], "%v", order)
 	}
 }
 
@@ -303,13 +303,13 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	t.Parallel()
 	decls := make([]declaration, 0, maxFoldDeclarations+1)
 	for range maxFoldDeclarations {
-		decls = append(decls, nthDecl(0, "t/prim/string"))
+		decls = append(decls, nthDecl(0, "type/primitive/string"))
 	}
-	past := declared("data", "t/prim/string", "/B/data")
-	decls = append(decls, declaration{prop: past, via: &composedEntry{target: "t/B", at: "/M/allOf/9"}})
-	g, _ := stubMerger(membersRegistry())
+	past := declared("data", "type/primitive/string", "/B/data")
+	decls = append(decls, declaration{property: past, via: &composedEntry{target: "type/B", at: "/M/allOf/9"}})
+	stubbed, _ := stubMerger(membersRegistry())
 
-	got, diags := g.foldAt(decls, "/M/allOf/properties/data", nil)
+	got, diags := stubbed.foldAt(decls, "/M/allOf/properties/data", nil)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -317,45 +317,45 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	assert.NotContains(t, got.Unmodeled, losingDeclarationKey+"/B/data")
 }
 
-// TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
-// of a member the model declares beside an entry's declaration: its own
-// declaration's, where that is written, unless another model holds that
-// declaration too, as a node interned at the allOf entry writing it does, or
-// it is written outside the model's schema, as the body a distributed variant
+// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the
+// identity of a member the model declares beside an entry's declaration: its
+// own declaration's, where that is written, unless another model holds that
+// declaration too, as a node interned at the allOf entry writing it does, or it
+// is written outside the model's schema, as the body a distributed variant
 // shares is; then one in the composed namespace. The conflict over the entry's
 // declaration sits where that is written either way, naming the member.
-func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
+func TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 	t.Parallel()
 	const composedAt jsontext.Pointer = "/M/allOf/properties/p"
-	composed := ids.Document{}.ComposedProp(composedAt)
+	composed := ids.DocumentIDNamespace{}.ComposedProperty(composedAt)
 	for name, tc := range map[string]struct {
 		at, wantAt jsontext.Pointer
 		interned   []jsontext.Pointer
-		want       ir.PropID
+		want       ir.PropertyID
 	}{
-		"held alone":         {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "p/M/allOf/1/properties/p"},
+		"held alone":         {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "property/M/allOf/1/properties/p"},
 		"its entry interned": {"/M/allOf/1/properties/p", composedAt, []jsontext.Pointer{"/M/allOf/1"}, composed},
 		"outside the model":  {"/body/properties/p", composedAt, nil, composed},
 	} {
 		reg := membersRegistry()
-		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
-		reg["t/M"] = m
-		idx := NewPropIndex(m)
-		composes("t/B", "0")(idx)
-		idx.MergeProperty(declared("p", "t/prim/string", string(tc.at)), written(`{}`), "")
-		g, _ := stubMerger(reg)
-		g.walk.interned = tc.interned
+		model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+		reg["type/M"] = model
+		idx := NewModelPropertyDeclarations(model)
+		composes("type/B", "0")(idx)
+		idx.MergeProperty(declared("p", "type/primitive/string", string(tc.at)), written(`{}`), "")
+		stubbed, _ := stubMerger(reg)
+		stubbed.walk.interned = tc.interned
 
-		diags := settleFlat(g, idx, reg)
+		diags := settleFlat(stubbed, idx, reg)
 
-		require.Len(t, m.Properties, 1, name)
-		p := m.Properties[0]
-		assert.Equal(t, tc.want, p.ID, name)
-		assert.Equal(t, tc.wantAt, p.Provenance.Pointer, "%s: where the identity says", name)
-		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%s: the own declaration, written later", name)
+		require.Len(t, model.Properties, 1, name)
+		property := model.Properties[0]
+		assert.Equal(t, tc.want, property.ID, name)
+		assert.Equal(t, tc.wantAt, property.Provenance.Pointer, "%s: where the identity says", name)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "%s: the own declaration, written later", name)
 		require.Len(t, diags, 1, name)
 		assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer, name)
-		assert.Equal(t, string(p.ID), diags[0].Provenance.Node, name)
+		assert.Equal(t, string(property.ID), diags[0].Provenance.Node, name)
 	}
 }
 
@@ -367,17 +367,17 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 // in the document the report is in.
 func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(membersRegistry())
-	g.Sources = []ir.SourceInfo{{Path: "root.yaml"}, {Path: "other.yaml"}}
-	theirs := declared("p", "t/prim/integer", "/B/p")
+	stubbed, _ := stubMerger(membersRegistry())
+	stubbed.Sources = []ir.SourceInfo{{Path: "root.yaml"}, {Path: "other.yaml"}}
+	theirs := declared("p", "type/primitive/integer", "/B/p")
 	theirs.Provenance.Source, theirs.Provenance.WrittenBy = 1, 2
-	entry := &composedEntry{target: "t/B", at: "/M/allOf/0", order: 1}
+	entry := &composedEntry{target: "type/B", at: "/M/allOf/0", order: 1}
 	decls := []declaration{
-		{prop: theirs, order: 1, via: entry},
-		{prop: declared("p", "t/prim/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
+		{property: theirs, order: 1, via: entry},
+		{property: declared("p", "type/primitive/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
 	}
 
-	_, diags := g.foldAt(decls, "/M/allOf/1/properties/p", nil)
+	_, diags := stubbed.foldAt(decls, "/M/allOf/1/properties/p", nil)
 
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
@@ -393,9 +393,9 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
 	t.Parallel()
 	at := func(target ir.TypeID, pointer string, source int) declaration {
-		d := declared("p", target, pointer)
-		d.Provenance.Source = source
-		return declaration{prop: d, via: &composedEntry{target: "t/E", at: "/M/allOf/0", order: 1}}
+		property := declared("p", target, pointer)
+		property.Provenance.Source = source
+		return declaration{property: property, via: &composedEntry{target: "type/E", at: "/M/allOf/0", order: 1}}
 	}
 	for name, tc := range map[string]struct {
 		sources     []string
@@ -407,40 +407,40 @@ func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
 	}{
 		"the loser in another document": {
 			sources: []string{"root.yaml", "other.yaml"},
-			lost:    at("t/prim/integer", "/B/p", 1), kept: at("t/prim/string", "/A/p", 0),
+			lost:    at("type/primitive/integer", "/B/p", 1), kept: at("type/primitive/string", "/A/p", 0),
 			message: "kept what the declaration at /A/p in root.yaml says over the one at /B/p,", lostIn: 1, keptIn: 0, keptNamesIn: true,
 		},
 		"the winner in another document": {
 			sources: []string{"root.yaml", "other.yaml"},
-			lost:    at("t/prim/integer", "/A/p", 0), kept: at("t/prim/string", "/B/p", 1),
+			lost:    at("type/primitive/integer", "/A/p", 0), kept: at("type/primitive/string", "/B/p", 1),
 			message: "kept what the declaration at /B/p in other.yaml says over the one at /A/p,", lostIn: 0, keptIn: 1, keptNamesIn: true,
 		},
 		"both in the model's document": {
 			sources: []string{"root.yaml"},
-			lost:    at("t/prim/integer", "/A/p", 0), kept: at("t/prim/string", "/B/p", 0),
+			lost:    at("type/primitive/integer", "/A/p", 0), kept: at("type/primitive/string", "/B/p", 0),
 			message: "kept what the declaration at /B/p says over the one at /A/p,", lostIn: 0, keptIn: 0,
 		},
 		"each in a document of its own": {
 			sources: []string{"root.yaml", "a.yaml", "b.yaml"},
-			lost:    at("t/prim/integer", "/A/p", 1), kept: at("t/prim/string", "/B/p", 2),
+			lost:    at("type/primitive/integer", "/A/p", 1), kept: at("type/primitive/string", "/B/p", 2),
 			message: "kept what the declaration at /B/p in b.yaml says over the one at /A/p,", lostIn: 1, keptIn: 2, keptNamesIn: true,
 		},
 	} {
-		g, _ := stubMerger(membersRegistry())
+		stubbed, _ := stubMerger(membersRegistry())
 		for _, path := range tc.sources {
-			g.Sources = append(g.Sources, ir.SourceInfo{Path: path})
+			stubbed.Sources = append(stubbed.Sources, ir.SourceInfo{Path: path})
 		}
 		lost, kept := tc.lost, tc.kept
 		lost.order, kept.order = 1, 2
 
-		_, diags := g.foldAt([]declaration{lost, kept}, "/M/allOf/properties/p", nil)
+		_, diags := stubbed.foldAt([]declaration{lost, kept}, "/M/allOf/properties/p", nil)
 
 		require.Len(t, diags, 1, name)
 		assert.Contains(t, diags[0].Message, tc.message, name)
 		assert.Equal(t, tc.lostIn, diags[0].Provenance.Source, "%s: the report stands in the losing declaration's document", name)
 		require.Len(t, diags[0].Related, 1, name)
 		listed := diags[0].Related[0].Provenance
-		assert.Equal(t, ir.Provenance{Source: tc.keptIn, Pointer: kept.prop.Provenance.Pointer}, listed, name)
+		assert.Equal(t, ir.Provenance{Source: tc.keptIn, Pointer: kept.property.Provenance.Pointer}, listed, name)
 		assert.Equal(t, tc.keptNamesIn, listed.Source != diags[0].Provenance.Source, "%s: the message names a document where the entry lists another", name)
 		assert.Equal(t, tc.keptNamesIn, strings.Contains(diags[0].Message, string(listed.Pointer)+" in "+tc.sources[listed.Source]), name)
 	}
@@ -460,45 +460,45 @@ func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at)}
 	}
 	reg := membersRegistry()
-	reg["t/enum"] = &ir.Enum{TypeCommon: hoisted("t/enum", "/part/allOf/1/p/items")}
-	reg["t/reached"] = &ir.List{TypeCommon: hoisted("t/reached", "/elsewhere/q"), Elem: ir.TypeRef{Target: "t/within"}}
-	reg["t/within"] = &ir.Enum{TypeCommon: hoisted("t/within", "/part/allOf/0/p/items")}
-	held, lacking := ir.TypeRef{Target: "t/enum"}, ir.TypeRef{Target: "t/unregistered"}
-	reg["t/built"] = &ir.Tuple{TypeCommon: hoisted("t/built", "/M/p"),
-		Elems: []ir.TypeRef{held, {Target: "t/prim/string"}, {Target: "t/reached"}, lacking, held}}
-	reg["t/built-list"] = &ir.List{TypeCommon: hoisted("t/built-list", "/M/p"), Elem: held}
-	reg["t/built-map"] = &ir.MapT{TypeCommon: hoisted("t/built-map", "/M/p"), Value: held}
-	reg["t/built-rest"] = &ir.Tuple{TypeCommon: hoisted("t/built-rest", "/M/p"), Rest: &held}
-	reg["t/built-model"] = &ir.Model{TypeCommon: hoisted("t/built-model", "/M/p"), Mixins: []ir.TypeRef{held}}
-	reg["t/built-items"] = &ir.List{TypeCommon: hoisted("t/built-items", "/M/p/items"), Elem: held}
-	reg["t/built-nested"] = &ir.List{TypeCommon: hoisted("t/built-nested", "/M/p"), Elem: ir.TypeRef{Target: "t/built-items"}}
-	reg["t/built-cycle"] = &ir.Tuple{TypeCommon: hoisted("t/built-cycle", "/M/p"), Elems: []ir.TypeRef{{Target: "t/built-cycle"}, held}}
-	g, _ := stubMerger(reg)
-	part := &composedEntry{target: "t/part", at: "/M/allOf/0"}
+	reg["type/enum"] = &ir.Enum{TypeCommon: hoisted("type/enum", "/part/allOf/1/p/items")}
+	reg["type/reached"] = &ir.List{TypeCommon: hoisted("type/reached", "/elsewhere/q"), ElementType: ir.TypeRef{Target: "type/within"}}
+	reg["type/within"] = &ir.Enum{TypeCommon: hoisted("type/within", "/part/allOf/0/p/items")}
+	held, lacking := ir.TypeRef{Target: "type/enum"}, ir.TypeRef{Target: "type/unregistered"}
+	reg["type/built"] = &ir.Tuple{TypeCommon: hoisted("type/built", "/M/p"),
+		ElementTypes: []ir.TypeRef{held, {Target: "type/primitive/string"}, {Target: "type/reached"}, lacking, held}}
+	reg["type/built-list"] = &ir.List{TypeCommon: hoisted("type/built-list", "/M/p"), ElementType: held}
+	reg["type/built-map"] = &ir.MapT{TypeCommon: hoisted("type/built-map", "/M/p"), Value: held}
+	reg["type/built-rest"] = &ir.Tuple{TypeCommon: hoisted("type/built-rest", "/M/p"), Rest: &held}
+	reg["type/built-model"] = &ir.Model{TypeCommon: hoisted("type/built-model", "/M/p"), Mixins: []ir.TypeRef{held}}
+	reg["type/built-items"] = &ir.List{TypeCommon: hoisted("type/built-items", "/M/p/items"), ElementType: held}
+	reg["type/built-nested"] = &ir.List{TypeCommon: hoisted("type/built-nested", "/M/p"), ElementType: ir.TypeRef{Target: "type/built-items"}}
+	reg["type/built-cycle"] = &ir.Tuple{TypeCommon: hoisted("type/built-cycle", "/M/p"), ElementTypes: []ir.TypeRef{{Target: "type/built-cycle"}, held}}
+	stubbed, _ := stubMerger(reg)
+	part := &composedEntry{target: "type/part", at: "/M/allOf/0"}
 	partSites := append([]ir.Provenance{ptrAt("/part/allOf/0/p")}, sitesAt("/part/allOf/1/p")...)
 	for i := range maxTypeSites {
 		partSites = append(partSites, ptrAt(jsontext.Pointer(fmt.Sprintf("/part/deeper/%d", i))))
 	}
-	brought := declaration{prop: declared("p", "t/prim/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
-	own := declaration{prop: declared("p", "t/prim/integer", "/M/p")}
-	twin := declaration{prop: declared("p", "t/prim/string", "/M/q")}
+	brought := declaration{property: declared("p", "type/primitive/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
+	own := declaration{property: declared("p", "type/primitive/integer", "/M/p")}
+	twin := declaration{property: declared("p", "type/primitive/string", "/M/q")}
 	field := func(target ir.TypeID) ir.Property { return declared("p", target, "/M/p") }
 
-	kept := g.typeSites(field("t/prim/string"), []declaration{own, brought})
+	kept := stubbed.typeSites(field("type/primitive/string"), []declaration{own, brought})
 	assert.Equal(t, partSites, kept)
 	assert.Same(t, &partSites[0], &kept[0], "one declaration's list is the member's, uncopied")
-	assert.Nil(t, g.typeSites(field("t/prim/string"), []declaration{brought, own, twin}), "no declaration writes a primitive")
-	assert.Nil(t, g.typeSites(field("t/unregistered"), []declaration{own}))
+	assert.Nil(t, stubbed.typeSites(field("type/primitive/string"), []declaration{brought, own, twin}), "no declaration writes a primitive")
+	assert.Nil(t, stubbed.typeSites(field("type/unregistered"), []declaration{own}))
 
-	named := func(pointer string) declaration { return declaration{prop: declared("p", "t/enum", pointer)} }
+	named := func(pointer string) declaration { return declaration{property: declared("p", "type/enum", pointer)} }
 	assert.Equal(t, sitesAt("/part/allOf/1/p"),
-		g.typeSites(field("t/enum"), []declaration{named("/M/a"), own, named("/part/allOf/1/p")}), "the one whose place holds the node")
+		stubbed.typeSites(field("type/enum"), []declaration{named("/M/a"), own, named("/part/allOf/1/p")}), "the one whose place holds the node")
 	assert.Equal(t, sitesAt("/M/a"),
-		g.typeSites(field("t/enum"), []declaration{named("/M/a"), named("/M/b")}), "the first, where a $ref brought it to each")
-	for _, built := range []ir.TypeID{"t/built", "t/built-list", "t/built-map", "t/built-rest", "t/built-model",
-		"t/built-nested", "t/built-cycle"} {
+		stubbed.typeSites(field("type/enum"), []declaration{named("/M/a"), named("/M/b")}), "the first, where a $ref brought it to each")
+	for _, built := range []ir.TypeID{"type/built", "type/built-list", "type/built-map", "type/built-rest", "type/built-model",
+		"type/built-nested", "type/built-cycle"} {
 		assert.Equal(t, []ir.Provenance{ptrAt("/M/p"), ptrAt("/part/allOf/1/p")},
-			g.typeSites(field(built), []declaration{own, brought}), "%s: where it stands, then where what it holds is written", built)
+			stubbed.typeSites(field(built), []declaration{own, brought}), "%s: where it stands, then where what it holds is written", built)
 	}
 }
 
@@ -511,20 +511,20 @@ func TestBuiltSites_ReadsNoMoreNodesThanItsBound(t *testing.T) {
 	t.Parallel()
 	for _, held := range []int{maxTypeSites, maxTypeSites + 1} {
 		reg := membersRegistry()
-		built := &ir.Tuple{ID: "t/built", Anonymous: true, Provenance: ptrAt("/M/p")}
+		built := &ir.Tuple{ID: "type/built", Anonymous: true, Provenance: ptrAt("/M/p")}
 		decls := make([]declaration, held)
 		for i := range decls {
 			at := jsontext.Pointer(fmt.Sprintf("/part%d/p", i))
-			id := ir.TypeID(fmt.Sprintf("t/held-%d", i))
+			id := ir.TypeID(fmt.Sprintf("type/held-%d", i))
 			reg[id] = &ir.Enum{ID: id, Anonymous: true, Provenance: ptrAt(at)}
-			built.Elems = append(built.Elems, ir.TypeRef{Target: id})
-			decls[i] = declaration{prop: declared("p", id, string(at))}
+			built.ElementTypes = append(built.ElementTypes, ir.TypeRef{Target: id})
+			decls[i] = declaration{property: declared("p", id, string(at))}
 		}
-		built.Elems = append([]ir.TypeRef{built.Elems[0]}, built.Elems...)
-		reg["t/built"] = built
-		g, _ := stubMerger(reg)
+		built.ElementTypes = append([]ir.TypeRef{built.ElementTypes[0]}, built.ElementTypes...)
+		reg["type/built"] = built
+		stubbed, _ := stubMerger(reg)
 
-		got := g.typeSites(declared("p", "t/built", "/M/p"), decls)
+		got := stubbed.typeSites(declared("p", "type/built", "/M/p"), decls)
 
 		require.Len(t, got, 1+maxTypeSites, "%d held", held)
 		assert.Equal(t, ptrAt(jsontext.Pointer(fmt.Sprintf("/part%d/p", maxTypeSites-1))), got[maxTypeSites], "%d held", held)
@@ -541,29 +541,29 @@ func TestBuiltSites_ReadsNoMoreNodesThanItsBound(t *testing.T) {
 func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
-	reg["t/part"] = &ir.Model{ID: "t/part", Provenance: ptrAt("/part")}
-	g, _ := stubMerger(reg)
-	entry := &composedEntry{target: "t/part", at: "/M/allOf/0"}
+	reg["type/part"] = &ir.Model{ID: "type/part", Provenance: ptrAt("/part")}
+	stubbed, _ := stubMerger(reg)
+	entry := &composedEntry{target: "type/part", at: "/M/allOf/0"}
 	built := []ir.Provenance{ptrAt("/part/p"), ptrAt("/part/allOf/0/p"), ptrAt("/part/allOf/1/p")}
 	brought := func(owner ir.TypeID, pointer string, typeAt []ir.Provenance) declaration {
-		p := declared("p", "t/prim/string", pointer)
-		return broughtDeclaration(Declared{Owner: owner, Property: &p, TypeAt: typeAt}, entry)
+		property := declared("p", "type/primitive/string", pointer)
+		return broughtDeclaration(Declared{Owner: owner, Property: &property, TypeAt: typeAt}, entry)
 	}
-	f := &folding{g: &g.Merger, decls: []declaration{
-		brought("t/part", "/part/allOf/0/p", sitesAt("/part/allOf/1/p")),
-		brought("t/part", "/part/allOf/0/p", built),
-		brought("t/part", "/part/allOf/properties/p", built),
-		brought("t/part", "/part/allOf/allOf/properties/p", built),
-		brought("t/part", "/part/allOf/properties/p", sitesAt("/part/allOf/1/p")),
-		brought("t/part", "/part/allOf/properties/p", sitesAt("/part/allOf/properties/p")),
-		brought("t/part", "/part/allOf/0/p", nil),
-		brought("t/prim/string", "/part/allOf/properties/p", built),
-		{prop: declared("p", "t/prim/string", "/M/allOf/properties/p")},
+	foldingValue := &folding{g: &stubbed.Merger, decls: []declaration{
+		brought("type/part", "/part/allOf/0/p", sitesAt("/part/allOf/1/p")),
+		brought("type/part", "/part/allOf/0/p", built),
+		brought("type/part", "/part/allOf/properties/p", built),
+		brought("type/part", "/part/allOf/allOf/properties/p", built),
+		brought("type/part", "/part/allOf/properties/p", sitesAt("/part/allOf/1/p")),
+		brought("type/part", "/part/allOf/properties/p", sitesAt("/part/allOf/properties/p")),
+		brought("type/part", "/part/allOf/0/p", nil),
+		brought("type/primitive/string", "/part/allOf/properties/p", built),
+		{property: declared("p", "type/primitive/string", "/M/allOf/properties/p")},
 	}}
 
 	for i, want := range []string{"/part/allOf/1/p", "/part/allOf/0/p", "/M/allOf/0", "/M/allOf/0", "/part/allOf/1/p",
 		"/M/allOf/0", "/part/allOf/0/p", "/part/allOf/properties/p", "/M/allOf/properties/p"} {
-		assert.Equal(t, want, f.at(i), "declaration %d", i)
+		assert.Equal(t, want, foldingValue.at(i), "declaration %d", i)
 	}
 }
 
@@ -594,17 +594,17 @@ func TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType(t *testing.T) {
 func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 	t.Parallel()
 	brought := func(source, order int) declaration {
-		p := declared("p", "t/prim/string", "/properties/p")
-		p.Provenance.Source = source
+		property := declared("p", "type/primitive/string", "/properties/p")
+		property.Provenance.Source = source
 		at := ir.Provenance{Source: source, Pointer: "/properties/p/x-tag"}
-		p.Unmodeled = ir.Unmodeled{"openapi:x-tag": {Value: ir.RawValue(`"same"`), Provenance: at}}
-		entry := &composedEntry{target: "t/part", at: "/M/allOf/0", order: order}
-		return broughtDeclaration(DeclaredAt(ir.PropertyDecl{Owner: "t/part", Property: &p}), entry)
+		property.Unmodeled = ir.Unmodeled{"openapi:x-tag": {Value: ir.RawValue(`"same"`), Provenance: at}}
+		entry := &composedEntry{target: "type/part", at: "/M/allOf/0", order: order}
+		return broughtDeclaration(DeclaredAt(ir.PropertyDecl{Owner: "type/part", Property: &property}), entry)
 	}
 
 	for _, sources := range [][2]int{{1, 2}, {2, 1}} {
-		g, _ := stubMerger(membersRegistry())
-		got, diags := g.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p", nil)
+		stubbed, _ := stubMerger(membersRegistry())
+		got, diags := stubbed.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p", nil)
 
 		assert.Empty(t, diags, "entries written alike say one thing")
 		assert.Equal(t, 1, got.Unmodeled["openapi:x-tag"].Provenance.Source, "entries from %v", sources)
@@ -620,27 +620,27 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 	t.Parallel()
 	reads := func(n int) int {
-		reg := map[ir.TypeID]ir.TypeDef{"t/link-0": declaring("t/link-0")}
+		reg := map[ir.TypeID]ir.TypeDef{"type/link-0": declaring("type/link-0")}
 		for i := 1; i <= maxComposedParts; i++ {
-			id := ir.TypeID(fmt.Sprintf("t/link-%d", i))
-			reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/link-%d", i-1))}}
+			id := ir.TypeID(fmt.Sprintf("type/link-%d", i))
+			reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/link-%d", i-1))}}
 		}
 		cs := make([]candidate, n)
 		for i := range cs {
-			owner := ir.TypeID(fmt.Sprintf("t/owner-%d", i))
-			p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
-			last := ir.TypeID(fmt.Sprintf("t/link-%d", maxComposedParts))
-			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: last}, Properties: []ir.Property{p}}
-			cs[i] = candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: owner, Property: &p}), part: i}
+			owner := ir.TypeID(fmt.Sprintf("type/owner-%d", i))
+			property := declared("p", "type/primitive/string", "/"+string(owner)+"/p")
+			last := ir.TypeID(fmt.Sprintf("type/link-%d", maxComposedParts))
+			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: last}, Properties: []ir.Property{property}}
+			cs[i] = candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: owner, Property: &property}), part: i}
 		}
 		count := 0
-		o := newOwnership(registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		ownership := newOwnership(registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			count++
 			td, ok := reg[id]
 			return td, ok
 		}}, nil)
 
-		require.Len(t, o.left(cs), n, "no model composes another")
+		require.Len(t, ownership.left(cs), n, "no model composes another")
 		return count
 	}
 	a, b := reads(50), reads(100)
@@ -652,7 +652,7 @@ func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 func chainTo(reg map[ir.TypeID]ir.TypeDef, base ir.TypeID, depth int) ir.TypeID {
 	below := base
 	for i := 1; i <= depth; i++ {
-		id := ir.TypeID(fmt.Sprintf("t/level-%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/level-%d", i))
 		reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: below}}
 		below = id
 	}
@@ -674,18 +674,18 @@ func countingRegistry(reg map[ir.TypeID]ir.TypeDef) (registry, *int) {
 // where direct, as a mixin too, and a candidate of each, Leaf's part first.
 func leafOver(depth int, direct bool) (map[ir.TypeID]ir.TypeDef, []candidate) {
 	reg := map[ir.TypeID]ir.TypeDef{}
-	baseP := declared("p", "t/prim/integer", "/Base/p")
-	reg["t/Base"] = &ir.Model{ID: "t/Base", Properties: []ir.Property{baseP}}
-	top := chainTo(reg, "t/Base", depth)
-	leafP := declared("p", "t/prim/integer", "/Leaf/p")
-	leaf := &ir.Model{ID: "t/Leaf", Base: &ir.TypeRef{Target: top}, Properties: []ir.Property{leafP}}
+	baseP := declared("p", "type/primitive/integer", "/Base/p")
+	reg["type/Base"] = &ir.Model{ID: "type/Base", Properties: []ir.Property{baseP}}
+	top := chainTo(reg, "type/Base", depth)
+	leafP := declared("p", "type/primitive/integer", "/Leaf/p")
+	leaf := &ir.Model{ID: "type/Leaf", Base: &ir.TypeRef{Target: top}, Properties: []ir.Property{leafP}}
 	if direct {
-		leaf.Mixins = []ir.TypeRef{{Target: "t/Base"}}
+		leaf.Mixins = []ir.TypeRef{{Target: "type/Base"}}
 	}
-	reg["t/Leaf"] = leaf
+	reg["type/Leaf"] = leaf
 	return reg, []candidate{
-		{decl: DeclaredAt(ir.PropertyDecl{Owner: "t/Leaf", Property: &leafP}), part: 0},
-		{decl: DeclaredAt(ir.PropertyDecl{Owner: "t/Base", Property: &baseP}), part: 1},
+		{decl: DeclaredAt(ir.PropertyDecl{Owner: "type/Leaf", Property: &leafP}), part: 0},
+		{decl: DeclaredAt(ir.PropertyDecl{Owner: "type/Base", Property: &baseP}), part: 1},
 	}
 }
 
@@ -697,12 +697,12 @@ func TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth(t *testing.T) 
 	t.Parallel()
 	for _, depth := range []int{1, maxComposedParts, 4 * maxComposedParts} {
 		reg, cs := leafOver(depth, false)
-		r, _ := countingRegistry(reg)
+		registry, _ := countingRegistry(reg)
 
-		left := newOwnership(r, nil).left(cs)
+		left := newOwnership(registry, nil).left(cs)
 
 		require.Len(t, left, 1, "at depth %d", depth)
-		assert.Equal(t, ir.TypeID("t/Leaf"), left[0].decl.Owner, "at depth %d", depth)
+		assert.Equal(t, ir.TypeID("type/Leaf"), left[0].decl.Owner, "at depth %d", depth)
 	}
 }
 
@@ -712,16 +712,16 @@ func TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth(t *testing.T) 
 func TestOwnership_ReadsPastAPartNamingNoType(t *testing.T) {
 	t.Parallel()
 	reg, cs := leafOver(3, false)
-	leaf, ok := reg["t/Leaf"].(*ir.Model)
+	leaf, ok := reg["type/Leaf"].(*ir.Model)
 	require.True(t, ok)
 	leaf.Mixins = []ir.TypeRef{*leaf.Base}
-	leaf.Base = &ir.TypeRef{Target: "t/missing"}
-	r, _ := countingRegistry(reg)
+	leaf.Base = &ir.TypeRef{Target: "type/missing"}
+	registry, _ := countingRegistry(reg)
 
-	left := newOwnership(r, nil).left(cs)
+	left := newOwnership(registry, nil).left(cs)
 
 	require.Len(t, left, 1)
-	assert.Equal(t, ir.TypeID("t/Leaf"), left[0].decl.Owner)
+	assert.Equal(t, ir.TypeID("type/Leaf"), left[0].decl.Owner)
 }
 
 // TestOwnership_AWalkReturningToItsModelReadsOnToTheOthers pins a walk whose
@@ -732,23 +732,23 @@ func TestOwnership_AWalkReturningToItsModelReadsOnToTheOthers(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{}
 	declaring := func(id ir.TypeID, parts ...ir.TypeID) candidate {
-		m := &ir.Model{ID: id, Properties: []ir.Property{declared("p", "t/prim/string", "/"+string(id)+"/p")}}
+		model := &ir.Model{ID: id, Properties: []ir.Property{declared("p", "type/primitive/string", "/"+string(id)+"/p")}}
 		for _, part := range parts {
-			m.Mixins = append(m.Mixins, ir.TypeRef{Target: part})
+			model.Mixins = append(model.Mixins, ir.TypeRef{Target: part})
 		}
-		reg[id] = m
-		return candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: id, Property: &m.Properties[0]})}
+		reg[id] = model
+		return candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: id, Property: &model.Properties[0]})}
 	}
-	top := declaring("t/top", "t/loop")
-	reg["t/loop"] = &ir.Model{ID: "t/loop", Mixins: []ir.TypeRef{{Target: "t/top"}, {Target: "t/near"}, {Target: "t/mid"}}}
-	reg["t/mid"] = &ir.Model{ID: "t/mid", Base: &ir.TypeRef{Target: "t/far"}}
-	near, far := declaring("t/near"), declaring("t/far")
+	top := declaring("type/top", "type/loop")
+	reg["type/loop"] = &ir.Model{ID: "type/loop", Mixins: []ir.TypeRef{{Target: "type/top"}, {Target: "type/near"}, {Target: "type/mid"}}}
+	reg["type/mid"] = &ir.Model{ID: "type/mid", Base: &ir.TypeRef{Target: "type/far"}}
+	near, far := declaring("type/near"), declaring("type/far")
 	near.part, far.part = 1, 2
 
 	left := newOwnership(registry{resolve: stubResolve(reg)}, nil).left([]candidate{top, near, far})
 
 	require.Len(t, left, 1, "each other declaration stands within the first's composition")
-	assert.Equal(t, ir.TypeID("t/top"), left[0].decl.Owner)
+	assert.Equal(t, ir.TypeID("type/top"), left[0].decl.Owner)
 }
 
 // TestOwnership_StopsOnceItReachesEveryOtherModel pins what telling one
@@ -759,9 +759,9 @@ func TestOwnership_StopsOnceItReachesEveryOtherModel(t *testing.T) {
 	t.Parallel()
 	reads := func(depth int) int {
 		reg, cs := leafOver(depth, true)
-		r, count := countingRegistry(reg)
+		registry, count := countingRegistry(reg)
 
-		require.Len(t, newOwnership(r, nil).left(cs), 1, "at depth %d", depth)
+		require.Len(t, newOwnership(registry, nil).left(cs), 1, "at depth %d", depth)
 		return *count
 	}
 	assert.Equal(t, reads(10), reads(1000), "reads at depth 10 and 1,000")
@@ -774,32 +774,32 @@ func TestOwnership_StopsOnceItReachesEveryOtherModel(t *testing.T) {
 func TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses(t *testing.T) {
 	t.Parallel()
 	reg, cs := leafOver(100, false)
-	r, _ := countingRegistry(reg)
+	registry, _ := countingRegistry(reg)
 	reads := budget.New(budget.AtMost(50))
 
-	left := newOwnership(r, &reads).left(cs)
+	left := newOwnership(registry, &reads).left(cs)
 
 	assert.Len(t, left, 2, "a cut walk shows no candidate within another")
 	assert.True(t, reads.Exhausted(), "the walk charged its reads")
 }
 
-// TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID pins the
+// TestPropertyIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID pins the
 // locator a discriminator takes once the settlement appends the member it names
 // by name: the member's ID alone, as for a member the model declares, while one
 // naming another member keeps its name.
-func TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) {
+func TestPropertyIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]ir.Discriminator{
-		"kind":  {Property: "p/composed/M/allOf/properties/kind"},
+		"kind":  {Property: "property/composed/M/allOf/properties/kind"},
 		"other": {PropertyName: "other"},
 	} {
-		m := &ir.Model{ID: "t/M", Discriminator: &ir.Discriminator{PropertyName: name}}
-		member := declared("kind", "t/prim/string", "/M/allOf/properties/kind")
-		member.ID = "p/composed/M/allOf/properties/kind"
+		model := &ir.Model{ID: "type/M", Discriminator: &ir.Discriminator{PropertyName: name}}
+		member := declared("kind", "type/primitive/string", "/M/allOf/properties/kind")
+		member.ID = "property/composed/M/allOf/properties/kind"
 
-		NewPropIndex(m).place(-1, member)
+		NewModelPropertyDeclarations(model).place(-1, member)
 
-		assert.Equal(t, want, *m.Discriminator, name)
+		assert.Equal(t, want, *model.Discriminator, name)
 	}
 }
 
@@ -810,45 +810,45 @@ func TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) 
 func TestTakenOutside_LeavesOutTheComposingModelsOwn(t *testing.T) {
 	t.Parallel()
 	decl := func(owner ir.TypeID) ir.PropertyDecl {
-		p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
-		return ir.PropertyDecl{Owner: owner, Property: &p}
+		property := declared("p", "type/primitive/string", "/"+string(owner)+"/p")
+		return ir.PropertyDecl{Owner: owner, Property: &property}
 	}
 	for name, tc := range map[string]struct {
 		member ir.FlatProperty
 		want   ir.TypeID
 		ok     bool
 	}{
-		"another's":        {ir.FlatProperty{PropertyDecl: decl("t/A")}, "t/A", true},
-		"the last other":   {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/A"), decl("t/B"), decl("t/M")}}, "t/B", true},
-		"only the model's": {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/M")}}, "", false},
+		"another's":        {ir.FlatProperty{PropertyDecl: decl("type/A")}, "type/A", true},
+		"the last other":   {ir.FlatProperty{PropertyDecl: decl("type/M"), Overridden: []ir.PropertyDecl{decl("type/A"), decl("type/B"), decl("type/M")}}, "type/B", true},
+		"only the model's": {ir.FlatProperty{PropertyDecl: decl("type/M"), Overridden: []ir.PropertyDecl{decl("type/M")}}, "", false},
 	} {
-		got, ok := TakenOutside(tc.member, "t/M")
+		got, ok := TakenOutside(tc.member, "type/M")
 		assert.Equal(t, tc.ok, ok, name)
 		assert.Equal(t, tc.want, got.Owner, name)
 	}
 }
 
-// TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
-// whose Table holds the model's own declaration: it is the model's, so the
-// model brings nothing from that part, folds nothing, and keeps the member's
-// identity, which a fold would move to the composed namespace, as an interned
-// entry writes the declaration.
-func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
+// TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
+// whose RedeclaredWireNameTable holds the model's own declaration: it is the
+// model's, so the model brings nothing from that part, folds nothing, and keeps
+// the member's identity, which a fold would move to the composed namespace, as
+// an interned entry writes the declaration.
+func TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
-	m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
-	reg["t/M"] = m
-	idx := NewPropIndex(m)
-	composes("t/A", "0")(idx)
-	idx.MergeProperty(declared("p", "t/prim/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
-	g, _ := stubMerger(reg)
-	g.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
-	parts := map[ir.TypeID]Table{"t/A": {"p": DeclaredAt(ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]})}}
+	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+	reg["type/M"] = model
+	idx := NewModelPropertyDeclarations(model)
+	composes("type/A", "0")(idx)
+	idx.MergeProperty(declared("p", "type/primitive/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
+	stubbed, _ := stubMerger(reg)
+	stubbed.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
+	parts := map[ir.TypeID]RedeclaredWireNameTable{"type/A": {"p": DeclaredAt(ir.PropertyDecl{Owner: "type/M", Property: &model.Properties[0]})}}
 
-	diags, table := idx.Settle(g.Merger, parts, map[string]bool{"p": true})
+	diags, table := idx.Settle(stubbed.Merger, parts, map[string]bool{"p": true})
 
 	assert.Empty(t, diags)
-	require.Len(t, m.Properties, 1)
-	assert.Equal(t, ir.PropID("p/M/allOf/1/properties/p"), m.Properties[0].ID)
-	assert.Equal(t, ir.TypeID("t/M"), table["p"].Owner)
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, ir.PropertyID("property/M/allOf/1/properties/p"), model.Properties[0].ID)
+	assert.Equal(t, ir.TypeID("type/M"), table["p"].Owner)
 }

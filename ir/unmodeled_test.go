@@ -102,18 +102,18 @@ const reasonTypeName = "UnmodeledReason"
 // have it, so an untyped one written there fails rather than passing as a string.
 func declaredReasons(t *testing.T) []string {
 	t.Helper()
-	p := irDecls(t)
-	named, err := p.Named(reasonTypeName)
+	loadedPackage := irDecls(t)
+	named, err := loadedPackage.Named(reasonTypeName)
 	require.NoError(t, err)
-	home := p.Fset.Position(named.Obj().Pos()).Filename
+	home := loadedPackage.Fset.Position(named.Obj().Pos()).Filename
 
-	for obj := range p.Objects[types.Object]() {
+	for obj := range loadedPackage.Objects[types.Object]() {
 		ofType := types.Identical(obj.Type(), named)
 		switch obj.(type) {
 		case *types.Var:
 			assert.False(t, ofType, "%s is a var of %s; a reason must be a constant", obj.Name(), reasonTypeName)
 		case *types.Const:
-			if p.Fset.Position(obj.Pos()).Filename == home {
+			if loadedPackage.Fset.Position(obj.Pos()).Filename == home {
 				assert.True(t, ofType, "%s in %s does not have type %s; every constant in the reason type's file must have it",
 					obj.Name(), filepath.Base(home), reasonTypeName)
 			}
@@ -122,24 +122,24 @@ func declaredReasons(t *testing.T) []string {
 		}
 	}
 
-	consts, err := p.StringConsts(reasonTypeName)
+	consts, err := loadedPackage.StringConsts(reasonTypeName)
 	require.NoError(t, err)
 	require.NotEmpty(t, consts, "no UnmodeledReason constants found; the load went wrong")
 	out := make([]string, len(consts))
-	for i, c := range consts {
-		out[i] = c.Value
+	for i, declaredConst := range consts {
+		out[i] = declaredConst.Value
 	}
 	return out
 }
 
 func TestUnmodeled_DeterministicKeyOrder(t *testing.T) {
 	t.Parallel()
-	p := ir.Unmodeled{
+	unmodeled := ir.Unmodeled{
 		"graphql:@key":         {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"id"`)},
 		"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 		"erlang:opaque":        {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`true`)},
 	}
-	got := assertDeterministicMarshal(t, p)
+	got := assertDeterministicMarshal(t, unmodeled)
 	assert.Equal(t,
 		`{"erlang:opaque":{"reason":"degraded_lowering","value":true,"provenance":{"source":0}},`+
 			`"graphql:@key":{"reason":"vendor_extension","value":"id","provenance":{"source":0}},`+

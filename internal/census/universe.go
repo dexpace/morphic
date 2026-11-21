@@ -80,21 +80,22 @@ func NewUniverse() (Universe, error) {
 // be of the IRVersion version.
 func newUniverse(version string) (Universe, error) {
 	root := reflect.TypeFor[ir.Document]()
-	p, err := decls.Load(root.PkgPath())
+	loadedPackage, err := decls.Load(root.PkgPath())
 	if err != nil {
 		return Universe{}, fmt.Errorf("census: %w", err)
 	}
-	if err := checkVersion(p, version); err != nil {
+	if err := checkVersion(loadedPackage, version); err != nil {
 		return Universe{}, err
 	}
-	return universeOf(p, root.Name())
+	return universeOf(loadedPackage, root.Name())
 }
 
-// checkVersion refuses the package p unless its IRVersion constant is want.
-func checkVersion(p *decls.Package, want string) error {
-	c, isConst := p.Types.Scope().Lookup("IRVersion").(*types.Const)
+// checkVersion refuses the package loadedPackage unless its IRVersion constant
+// is want.
+func checkVersion(loadedPackage *decls.Package, want string) error {
+	c, isConst := loadedPackage.Types.Scope().Lookup("IRVersion").(*types.Const)
 	if !isConst || c.Val().Kind() != constant.String {
-		return fmt.Errorf("census: %s declares no IRVersion string constant", p.Types.Path())
+		return fmt.Errorf("census: %s declares no IRVersion string constant", loadedPackage.Types.Path())
 	}
 	if got := constant.StringVal(c.Val()); got != want {
 		return fmt.Errorf("census: this build reads IRVersion %s, but the declarations it read are of %s: "+
@@ -103,68 +104,70 @@ func checkVersion(p *decls.Package, want string) error {
 	return nil
 }
 
-// universeOf derives the universe of the named type root, which p declares.
-// A type of another package that the root reaches is no fact of this one.
-func universeOf(p *decls.Package, root string) (Universe, error) {
-	shape, err := jsonshape.Read(p, root)
+// universeOf derives the universe of the named type root, which loadedPackage
+// declares. A type of another package that the root reaches is no fact of this
+// one.
+func universeOf(loadedPackage *decls.Package, root string) (Universe, error) {
+	shape, err := jsonshape.Read(loadedPackage, root)
 	if err != nil {
 		return Universe{}, fmt.Errorf("census: %w", err)
 	}
-	u := Universe{
-		pkgPath: p.Types.Path(),
+	universe := Universe{
+		pkgPath: loadedPackage.Types.Path(),
 		structs: map[string]*structFacts{},
 		sums:    map[string]map[variantKey]valueKey{},
 		enums:   map[string]*enumeration{},
 	}
 	var sums []jsonshape.Type
-	for _, t := range shape.Types {
-		if t.Named.Obj().Pkg() != p.Types {
+	for _, jsonshapeType := range shape.Types {
+		if jsonshapeType.Named.Obj().Pkg() != loadedPackage.Types {
 			continue
 		}
-		if err := u.add(t); err != nil {
+		if err := universe.add(jsonshapeType); err != nil {
 			return Universe{}, err
 		}
-		if t.Tag != nil {
-			sums = append(sums, t)
+		if jsonshapeType.Tag != nil {
+			sums = append(sums, jsonshapeType)
 		}
 	}
 	// A tag names its enumeration, which may sort after the sum.
-	for _, t := range sums {
-		if err := u.addSum(t); err != nil {
+	for _, jsonshapeType := range sums {
+		if err := universe.addSum(jsonshapeType); err != nil {
 			return Universe{}, err
 		}
 	}
-	slices.SortFunc(u.facts, func(a, b memberFact) int { return strings.Compare(a.name, b.name) })
-	return u, nil
+	slices.SortFunc(universe.facts, func(a, b memberFact) int { return strings.Compare(a.name, b.name) })
+	return universe, nil
 }
 
-// add records the facts the type t declares: a struct's members and an
-// enumeration's values.
-func (u *Universe) add(t jsonshape.Type) error {
-	if s, isStruct := t.Named.Underlying().(*types.Struct); isStruct {
-		return u.addStruct(t, s)
+// add records the facts the type jsonshapeType declares: a struct's members and
+// an enumeration's values.
+func (u *Universe) add(jsonshapeType jsonshape.Type) error {
+	if s, isStruct := jsonshapeType.Named.Underlying().(*types.Struct); isStruct {
+		return u.addStruct(jsonshapeType, s)
 	}
-	if len(t.Constants) > 0 {
-		return u.addEnum(t)
+	if len(jsonshapeType.Constants) > 0 {
+		return u.addEnum(jsonshapeType)
 	}
 	return nil
 }
 
-// addStruct records the members of the struct t, each under its JSON name,
-// leaving out an embedding, whose members are its own. Every field must be
-// one the encoder reads, since the walk a census counts by reads every field.
-func (u *Universe) addStruct(t jsonshape.Type, s *types.Struct) error {
-	name := t.Named.Obj().Name()
+// addStruct records the members of the struct jsonshapeType, each under its
+// JSON name, leaving out an embedding, whose members are its own. Every field
+// must be one the encoder reads, since the walk a census counts by reads every
+// field.
+func (u *Universe) addStruct(jsonshapeType jsonshape.Type, s *types.Struct) error {
+	name := jsonshapeType.Named.Obj().Name()
 	sf := &structFacts{fields: make([]string, s.NumFields())}
 	read := make([]bool, s.NumFields())
-	for _, m := range t.Members {
-		read[m.Index] = true
-		if m.Embedded {
+	for _, jsonshapeMember := range jsonshapeType.Members {
+		read[jsonshapeMember.Index] = true
+		if jsonshapeMember.Embedded {
 			continue
 		}
-		f := memberFact{name: name + "." + m.Name, emptiable: emptiable(m)}
-		sf.members = append(sf.members, member{index: m.Index, memberFact: f})
-		u.facts = append(u.facts, f)
+		memberFactValue := memberFact{name: name + "." + jsonshapeMember.Name, emptiable: emptiable(jsonshapeMember)}
+		sf.members = append(sf.members, member{index: jsonshapeMember.Index, memberFact: memberFactValue})
+		u.facts = append(u.facts, memberFactValue)
 	}
 	for i := range s.NumFields() {
 		sf.fields[i] = s.Field(i).Name()
@@ -177,53 +180,54 @@ func (u *Universe) addStruct(t jsonshape.Type, s *types.Struct) error {
 	return nil
 }
 
-// emptiable reports whether an empty value of the member m means something its
-// absence does not: m is a slice or a map tagged omitzero, which the encoder
-// writes as [] or {} when it is empty and leaves out only when it is nil.
-func emptiable(m jsonshape.Member) bool {
-	switch m.Field.Type().Underlying().(type) {
+// emptiable reports whether an empty value of the member member means something
+// its absence does not: member is a slice or a map tagged omitzero, which the
+// encoder writes as [] or {} when it is empty and leaves out only when it is
+// nil.
+func emptiable(member jsonshape.Member) bool {
+	switch member.Field.Type().Underlying().(type) {
 	case *types.Slice, *types.Map:
-		return slices.Contains(m.Options, "omitzero")
+		return slices.Contains(member.Options, "omitzero")
 	default:
 		return false
 	}
 }
 
-// addEnum records the values the constants of t give it. It refuses a
-// constant that is neither a string nor an integer, since no value of it could
-// be counted.
-func (u *Universe) addEnum(t jsonshape.Type) error {
-	e := &enumeration{name: t.Named.Obj().Name(), declared: map[string]constant.Value{}}
-	for _, c := range t.Constants {
+// addEnum records the values the constants of jsonshapeType give it. It refuses
+// a constant that is neither a string nor an integer, since no value of it
+// could be counted.
+func (u *Universe) addEnum(jsonshapeType jsonshape.Type) error {
+	enumerationValue := &enumeration{name: jsonshapeType.Named.Obj().Name(), declared: map[string]constant.Value{}}
+	for _, c := range jsonshapeType.Constants {
 		if k := c.Val().Kind(); k != constant.String && k != constant.Int {
 			return fmt.Errorf("census: constant %s has kind %s, want String or Int", c.Name(), k)
 		}
-		e.declared[c.Val().ExactString()] = c.Val()
+		enumerationValue.declared[c.Val().ExactString()] = c.Val()
 	}
-	u.enums[e.name] = e
-	u.all = append(u.all, e)
+	u.enums[enumerationValue.name] = enumerationValue
+	u.all = append(u.all, enumerationValue)
 	return nil
 }
 
-// addSum records the variants of the sealed sum t, each with the value of its
-// tag, which no field holds. The tag must be one of the package's
+// addSum records the variants of the sealed sum jsonshapeType, each with the
+// value of its tag, which no field holds. The tag must be one of the package's
 // enumerations, which is where a report lists its values.
-func (u *Universe) addSum(t jsonshape.Type) error {
-	pkg := t.Named.Obj().Pkg()
-	spelled := types.TypeString(t.Tag, types.RelativeTo(pkg))
-	tag, isNamed := types.Unalias(t.Tag).(*types.Named)
+func (u *Universe) addSum(jsonshapeType jsonshape.Type) error {
+	pkg := jsonshapeType.Named.Obj().Pkg()
+	spelled := types.TypeString(jsonshapeType.Tag, types.RelativeTo(pkg))
+	tag, isNamed := types.Unalias(jsonshapeType.Tag).(*types.Named)
 	if !isNamed || tag.Obj().Pkg() != pkg {
-		return fmt.Errorf("census: %s is tagged by %s, which is no type of its package", t.Named.Obj().Name(), spelled)
+		return fmt.Errorf("census: %s is tagged by %s, which is no type of its package", jsonshapeType.Named.Obj().Name(), spelled)
 	}
 	if _, isEnum := u.enums[tag.Obj().Name()]; !isEnum {
-		return fmt.Errorf("census: %s is tagged by %s, which declares no constants", t.Named.Obj().Name(), spelled)
+		return fmt.Errorf("census: %s is tagged by %s, which declares no constants", jsonshapeType.Named.Obj().Name(), spelled)
 	}
 	variants := map[variantKey]valueKey{}
-	for _, v := range t.Variants {
-		key := variantKey{name: v.Named.Obj().Name(), byPointer: v.ByPointer}
-		variants[key] = valueKey{enum: tag.Obj().Name(), spelling: v.Tag.ExactString()}
+	for _, variant := range jsonshapeType.Variants {
+		key := variantKey{name: variant.Named.Obj().Name(), byPointer: variant.ByPointer}
+		variants[key] = valueKey{enum: tag.Obj().Name(), spelling: variant.Tag.ExactString()}
 	}
-	u.sums[t.Named.Obj().Name()] = variants
+	u.sums[jsonshapeType.Named.Obj().Name()] = variants
 	return nil
 }
 

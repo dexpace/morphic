@@ -112,20 +112,21 @@ func TestRegistry_RejectsCompilerWithNoFormats(t *testing.T) {
 }
 
 // TestRegistry_RejectsNilCompiler covers both spellings of a nil compiler. Each
-// case asserts an error rather than a panic: Register's only use of its argument
-// is the c.Formats() call, so before the guard existed both of these were a
-// segmentation fault raised inside this package and delivered to the caller.
+// case asserts an error rather than a panic: Register's only use of its
+// argument is the compiler.Formats() call, so before the guard existed both of
+// these were a segmentation fault raised inside this package and delivered to
+// the caller.
 func TestRegistry_RejectsNilCompiler(t *testing.T) {
 	t.Parallel()
 	cases := map[string]compilers.Compiler{
 		"untyped nil interface": nil,
 		"typed nil pointer":     (*stubCompiler)(nil),
 	}
-	for name, c := range cases {
+	for name, compiler := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			reg := compilers.NewRegistry()
-			err := reg.Register(c)
+			err := reg.Register(compiler)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "nil compiler")
 		})

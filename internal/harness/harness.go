@@ -83,8 +83,8 @@ type Result struct {
 // found something is one, so a reader judging r by its findings alone would
 // lose the panic.
 func (r Result) Faulted() bool {
-	return r.Outcome != OutcomeOK && !slices.ContainsFunc(r.Verdicts, func(v Verdict) bool {
-		return v.Found() && v.Outcome == r.Outcome
+	return r.Outcome != OutcomeOK && !slices.ContainsFunc(r.Verdicts, func(verdict Verdict) bool {
+		return verdict.Found() && verdict.Outcome == r.Outcome
 	})
 }
 
@@ -106,7 +106,7 @@ func Check(ctx context.Context, spec string, data []byte) Result {
 	var verdicts []Verdict
 	var fault error
 	if err := barrier.Catch(func() {
-		fault = check(ctx, spec, data, func(v Verdict) { verdicts = append(verdicts, v) })
+		fault = check(ctx, spec, data, func(verdict Verdict) { verdicts = append(verdicts, verdict) })
 	}); err != nil {
 		return judge(spec, append([]Verdict{found(OracleNoPanic, panicDetail(err))}, verdicts...))
 	}
@@ -140,19 +140,19 @@ func judge(spec string, verdicts []Verdict) Result {
 // finding, in the order of oracles, as its outcome.
 func judgeAmong(spec string, oracles []Oracle, verdicts []Verdict, missing func(Oracle) Decline) Result {
 	answered := make(map[Oracle]Verdict, len(verdicts))
-	for _, v := range verdicts {
-		answered[v.Oracle] = v
+	for _, verdict := range verdicts {
+		answered[verdict.Oracle] = verdict
 	}
 	res := Result{Spec: spec, Outcome: OutcomeOK}
-	for _, o := range oracles {
-		v, ok := answered[o]
+	for _, oracle := range oracles {
+		verdict, ok := answered[oracle]
 		if !ok {
-			v = declined(o, missing(o))
+			verdict = declined(oracle, missing(oracle))
 		}
-		if v.Found() && res.Outcome == OutcomeOK {
-			res.Outcome, res.Detail = v.Outcome, v.Detail
+		if verdict.Found() && res.Outcome == OutcomeOK {
+			res.Outcome, res.Detail = verdict.Outcome, verdict.Detail
 		}
-		res.Verdicts = append(res.Verdicts, v)
+		res.Verdicts = append(res.Verdicts, verdict)
 	}
 	return res
 }
@@ -256,11 +256,11 @@ func runOptions() engine.RunOptions { return engine.RunOptions{Verify: true} }
 // newEngine builds the engine a sweep runs: the registered compilers, and ps
 // as its passes, in order.
 func newEngine(ps []pass.Pass) (*engine.Engine, error) {
-	e, err := engine.New(engine.WithCompilers(registered()...), engine.WithPasses(ps...))
+	compileEngine, err := engine.New(engine.WithCompilers(registered()...), engine.WithPasses(ps...))
 	if err != nil {
 		return nil, fmt.Errorf("harness: %w", err)
 	}
-	return e, nil
+	return compileEngine, nil
 }
 
 // compile runs one in-memory source through compileSources at the default
@@ -282,31 +282,31 @@ func compile(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir
 var compileSources = func(ctx context.Context, sources []compilers.Source, options map[string]string,
 	ps []pass.Pass,
 ) (*ir.Document, []ir.Diagnostic, error) {
-	e, err := newEngine(ps)
+	compileEngine, err := newEngine(ps)
 	if err != nil {
 		return nil, nil, err
 	}
-	res, err := runOn(ctx, e, sources, options)
+	res, err := runOn(ctx, compileEngine, sources, options)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
-	if d, ok := ir.FirstError(res.Diagnostics); ok && undetected(d.Code) {
-		return nil, nil, fmt.Errorf("%s: %w", d.Message, errUnrecognized)
+	if diagnostic, ok := ir.FirstError(res.Diagnostics); ok && undetected(diagnostic.Code) {
+		return nil, nil, fmt.Errorf("%s: %w", diagnostic.Message, errUnrecognized)
 	}
 	return res.Document, res.Diagnostics, nil
 }
 
-// runOn runs sources through e under runOptions and options. One source is a
-// spec on disk, held in memory: what its references name is read from disk
-// beside it, as a corpus spec split across files needs. More are every
-// document the run may read, held in memory, and nothing else is read.
-func runOn(ctx context.Context, e *engine.Engine, sources []compilers.Source, options map[string]string) (*engine.Result, error) {
+// runOn runs sources through compileEngine under runOptions and options. One
+// source is a spec on disk, held in memory: what its references name is read
+// from disk beside it, as a corpus spec split across files needs. More are
+// every document the run may read, held in memory, and nothing else is read.
+func runOn(ctx context.Context, compileEngine *engine.Engine, sources []compilers.Source, options map[string]string) (*engine.Result, error) {
 	opts := runOptions()
 	opts.CompilerOptions = options
 	if len(sources) == 1 {
-		return e.RunSpec(ctx, sources[0], opts)
+		return compileEngine.RunSpec(ctx, sources[0], opts)
 	}
-	return e.RunSources(ctx, sources, opts)
+	return compileEngine.RunSources(ctx, sources, opts)
 }
 
 // undetected reports whether code is one the engine raises, with no document,
@@ -412,20 +412,20 @@ func Report(results []Result) string {
 	slices.SortStableFunc(sorted, func(a, b Result) int { return cmp.Compare(a.Spec, b.Spec) })
 
 	lines := make([]reportLine, 0, len(sorted)) // a line per result at least
-	for _, r := range sorted {
-		lines = append(lines, linesOf(r)...)
+	for _, result := range sorted {
+		lines = append(lines, linesOf(result)...)
 	}
 	specWidth, outcomeWidth := columnWidths(lines)
 
 	var b strings.Builder
-	for _, l := range lines {
+	for _, reportLine := range lines {
 		// strings.Builder.Write never returns an error; the discard is explicit
 		// so no write in this codebase is dropped silently.
-		if l.detail == "" {
-			_, _ = fmt.Fprintf(&b, "%-*s %s\n", specWidth, l.spec, l.outcome)
+		if reportLine.detail == "" {
+			_, _ = fmt.Fprintf(&b, "%-*s %s\n", specWidth, reportLine.spec, reportLine.outcome)
 			continue
 		}
-		_, _ = fmt.Fprintf(&b, "%-*s %-*s %s\n", specWidth, l.spec, outcomeWidth, l.outcome, l.detail)
+		_, _ = fmt.Fprintf(&b, "%-*s %-*s %s\n", specWidth, reportLine.spec, outcomeWidth, reportLine.outcome, reportLine.detail)
 	}
 	return b.String()
 }
@@ -436,18 +436,18 @@ type reportLine struct {
 	outcome      Outcome
 }
 
-// linesOf is what Report renders for r: a line per finding among its verdicts,
-// in Check's order, then the fault that ended its run (Faulted); or its
-// outcome alone.
-func linesOf(r Result) []reportLine {
+// linesOf is what Report renders for result: a line per finding among its
+// verdicts, in Check's order, then the fault that ended its run (Faulted); or
+// its outcome alone.
+func linesOf(result Result) []reportLine {
 	var lines []reportLine
-	for _, v := range r.Verdicts {
-		if v.Found() {
-			lines = append(lines, reportLine{spec: r.Spec, outcome: v.Outcome, detail: v.Detail})
+	for _, verdict := range result.Verdicts {
+		if verdict.Found() {
+			lines = append(lines, reportLine{spec: result.Spec, outcome: verdict.Outcome, detail: verdict.Detail})
 		}
 	}
-	if len(lines) == 0 || r.Faulted() {
-		lines = append(lines, reportLine{spec: r.Spec, outcome: r.Outcome, detail: r.Detail})
+	if len(lines) == 0 || result.Faulted() {
+		lines = append(lines, reportLine{spec: result.Spec, outcome: result.Outcome, detail: result.Detail})
 	}
 	return lines
 }
@@ -460,12 +460,12 @@ func linesOf(r Result) []reportLine {
 //
 // Widths are counted in runes because that is the unit fmt's %-*s pads in.
 func columnWidths(lines []reportLine) (spec, outcome int) {
-	for _, l := range lines {
-		spec = max(spec, utf8.RuneCountInString(l.spec))
-		if l.detail == "" {
+	for _, reportLine := range lines {
+		spec = max(spec, utf8.RuneCountInString(reportLine.spec))
+		if reportLine.detail == "" {
 			continue
 		}
-		outcome = max(outcome, utf8.RuneCountInString(string(l.outcome)))
+		outcome = max(outcome, utf8.RuneCountInString(string(reportLine.outcome)))
 	}
 	return spec, outcome
 }

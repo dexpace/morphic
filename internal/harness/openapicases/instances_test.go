@@ -33,10 +33,10 @@ func TestCore_ValidInstancesAreAdmitted(t *testing.T) {
 	t.Parallel()
 	results := groupResults(t)
 	require.NotEmpty(t, results)
-	for _, r := range results {
-		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)
+	for _, result := range results {
+		require.False(t, result.Faulted(), "%s: %s: %s", result.Spec, result.Outcome, result.Detail)
 		assert.Equal(t, harness.Verdict{Oracle: harness.OraclePresence, Declined: harness.DeclineNoConstruct},
-			r.Verdicts[1], r.Spec)
+			result.Verdicts[1], result.Spec)
 	}
 
 	found := harness.Findings(results, harness.OracleInstance)

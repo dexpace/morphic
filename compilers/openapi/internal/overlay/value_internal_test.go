@@ -27,22 +27,22 @@ func TestLocator_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
 	list := ynode.Seq(ynode.Scalar("x"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("a"), list)}}
 	steps := budget.New(budget.Unbounded())
-	l := newLocator(newGrafter(v11, root), &steps)
+	locator := newLocator(newGrafter(v11, root), &steps)
 
-	_, err := l.slot(t.Context(), l.prefixes[0].node, jsonpath.Step{Name: "missing", Member: true}, false)
+	_, err := locator.slot(t.Context(), locator.prefixes[0].node, jsonpath.Step{Name: "missing", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "missing"`)
 
-	_, err = l.slot(t.Context(), list, jsonpath.Step{Index: 5}, false)
+	_, err = locator.slot(t.Context(), list, jsonpath.Step{Index: 5}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the element 5")
 
-	_, err = l.slot(t.Context(), list, jsonpath.Step{Name: "x", Member: true}, false)
+	_, err = locator.slot(t.Context(), list, jsonpath.Step{Name: "x", IsObjectMemberStep: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "x"`, "an array has no member")
 
-	l.prefixes[0].node = nil
-	_, err = l.own(t.Context(), 0)
+	locator.prefixes[0].node = nil
+	_, err = locator.own(t.Context(), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the document holds none")
 }
@@ -65,14 +65,14 @@ func TestGrafter_RefusesToWriteWhatIsNoValue(t *testing.T) {
 // once, so this test reads the finding alone.
 func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 	t.Parallel()
-	s := &sequence{}
+	sequenceValue := &sequence{}
 	a := action{index: 0, of: 1, target: "$..*", kind: kindUpdate, overlay: ir.Provenance{Source: 1}}
 
-	d := s.unselectable(a, errors.Join(jsonpath.ErrResults))
+	diagnostic := sequenceValue.unselectable(a, errors.Join(jsonpath.ErrResults))
 
-	assert.Equal(t, diag.BudgetExceeded, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Contains(t, d.Message, "nodes an evaluation's nodelists may hold at once")
+	assert.Equal(t, diag.BudgetExceeded, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Contains(t, diagnostic.Message, "nodes an evaluation's nodelists may hold at once")
 }
 
 // TestLocator_ChargesAnIndexBeforeBuildingIt pins the charge for locating a
@@ -81,22 +81,22 @@ func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 // a merge's members are made the mapping's own.
 func TestLocator_ChargesAnIndexBeforeBuildingIt(t *testing.T) {
 	t.Parallel()
-	m := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
-	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{m}}
+	node := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{node}}
 	var merged yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("m: &m {a: 1, b: 2}\nx: {<<: *m, c: 3}\n"), &merged))
 	merging := merged.Content[0].Content[3]
 
 	twoSteps := budget.New(budget.AtMost(2))
-	_, err := newLocator(newGrafter(v11, &merged), &twoSteps).slot(t.Context(), merging, jsonpath.Step{Name: "a", Member: true}, false)
+	_, err := newLocator(newGrafter(v11, &merged), &twoSteps).slot(t.Context(), merging, jsonpath.Step{Name: "a", IsObjectMemberStep: true}, false)
 	require.ErrorIs(t, err, jsonpath.ErrSteps, "the index rebuilt once the merge is flattened is charged too")
 
 	short := budget.New(budget.AtMost(1))
-	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), node, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.ErrorIs(t, err, jsonpath.ErrSteps)
 
 	enough := budget.New(budget.AtMost(2))
-	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), node, jsonpath.Step{Name: "b", IsObjectMemberStep: true}, false)
 	require.NoError(t, err)
 	assert.Equal(t, 3, slot)
 }

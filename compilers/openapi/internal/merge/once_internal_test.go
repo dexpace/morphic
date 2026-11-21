@@ -23,46 +23,46 @@ import (
 // keeping different declarations are two.
 func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 	t.Parallel()
-	conflict := func(source int, node, msg string) ir.Diagnostic {
-		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: diag.ConflictingRedecl, Message: msg,
+	conflict := func(source int, node, message string) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: diag.ConflictingRedecl, Message: message,
 			Provenance: ir.Provenance{Source: source, Pointer: "/C/properties/p", Node: node}}
 	}
 	other := ir.Diagnostic{Severity: ir.SeverityInfo, Code: diag.DegradedConstruct, Message: "o",
-		Provenance: ir.Provenance{Pointer: "/M/allOf/0", Node: "p/M"}}
+		Provenance: ir.Provenance{Pointer: "/M/allOf/0", Node: "property/M"}}
 	for name, tc := range map[string]struct{ in, want []ir.Diagnostic }{
 		"none": {in: []ir.Diagnostic{other, other}, want: []ir.Diagnostic{other, other}},
 		"one model": {
-			in:   []ir.Diagnostic{conflict(0, "p/M", "x")},
-			want: []ir.Diagnostic{conflict(0, "p/M", "x")},
+			in:   []ir.Diagnostic{conflict(0, "property/M", "x")},
+			want: []ir.Diagnostic{conflict(0, "property/M", "x")},
 		},
 		"three models": {
-			in: []ir.Diagnostic{other, conflict(0, "p/M", "x"), other, conflict(0, "p/N", "x"), conflict(0, "p/O", "x")},
+			in: []ir.Diagnostic{other, conflict(0, "property/M", "x"), other, conflict(0, "property/N", "x"), conflict(0, "property/O", "x")},
 			want: []ir.Diagnostic{other, conflict(0, "", "x; the same holds at each of 3 models composing both"),
 				other},
 		},
 		"what they say differs": {
-			in:   []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(0, "p/N", "y")},
-			want: []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(0, "p/N", "y")},
+			in:   []ir.Diagnostic{conflict(0, "property/M", "x"), conflict(0, "property/N", "y")},
+			want: []ir.Diagnostic{conflict(0, "property/M", "x"), conflict(0, "property/N", "y")},
 		},
 		"where they sit differs": {
-			in:   []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(1, "p/N", "x")},
-			want: []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(1, "p/N", "x")},
+			in:   []ir.Diagnostic{conflict(0, "property/M", "x"), conflict(1, "property/N", "x")},
+			want: []ir.Diagnostic{conflict(0, "property/M", "x"), conflict(1, "property/N", "x")},
 		},
 		"the members each decided are listed in order": {
 			in: []ir.Diagnostic{
-				concerning(conflict(0, "p/N", "x"), "/K", "p/N"), other, concerning(conflict(0, "p/M", "x"), "/K", "p/M"),
+				concerning(conflict(0, "property/N", "x"), "/K", "property/N"), other, concerning(conflict(0, "property/M", "x"), "/K", "property/M"),
 			},
 			want: []ir.Diagnostic{
-				concerning(conflict(0, "", "x; the same holds at each of 2 models composing both"), "/K", "p/M", "p/N"), other,
+				concerning(conflict(0, "", "x; the same holds at each of 2 models composing both"), "/K", "property/M", "property/N"), other,
 			},
 		},
 		"one model keeps the member it lists": {
-			in:   []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M")},
-			want: []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M")},
+			in:   []ir.Diagnostic{concerning(conflict(0, "property/M", "x"), "/K", "property/M")},
+			want: []ir.Diagnostic{concerning(conflict(0, "property/M", "x"), "/K", "property/M")},
 		},
 		"what they kept differs": {
-			in:   []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M"), concerning(conflict(0, "p/N", "x"), "/L", "p/N")},
-			want: []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M"), concerning(conflict(0, "p/N", "x"), "/L", "p/N")},
+			in:   []ir.Diagnostic{concerning(conflict(0, "property/M", "x"), "/K", "property/M"), concerning(conflict(0, "property/N", "x"), "/L", "property/N")},
+			want: []ir.Diagnostic{concerning(conflict(0, "property/M", "x"), "/K", "property/M"), concerning(conflict(0, "property/N", "x"), "/L", "property/N")},
 		},
 	} {
 		if diff := cmp.Diff(tc.want, ReportOnce(tc.in)); diff != "" {
@@ -71,12 +71,12 @@ func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 	}
 }
 
-// concerning is d concerning the declaration kept at kept and the members
-// decided, in the order a fold and ReportOnce list them.
-func concerning(d ir.Diagnostic, kept jsontext.Pointer, decided ...string) ir.Diagnostic {
-	d.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: kept}}}
+// concerning is diagnostic concerning the declaration kept at kept and the
+// members decided, in the order a fold and ReportOnce list them.
+func concerning(diagnostic ir.Diagnostic, kept jsontext.Pointer, decided ...string) ir.Diagnostic {
+	diagnostic.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: kept}}}
 	for _, node := range decided {
-		d.Related = append(d.Related, ir.Related{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: node}})
+		diagnostic.Related = append(diagnostic.Related, ir.Related{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: node}})
 	}
-	return d
+	return diagnostic
 }

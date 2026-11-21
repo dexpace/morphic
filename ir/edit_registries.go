@@ -26,7 +26,7 @@ func (e *Editor) servers() registry[ServerID, Server] {
 
 // serverKind is what an update knows of a server.
 func serverKind() nodeKind[*Server] {
-	return nodeKind[*Server]{method: "UpdateServer", id: func(s *Server) string { return string(s.ID) }}
+	return nodeKind[*Server]{method: "UpdateServer", id: func(server *Server) string { return string(server.ID) }}
 }
 
 // channels is the edit's view of Document.Channels.
@@ -36,7 +36,7 @@ func (e *Editor) channels() registry[ChannelID, Channel] {
 
 // channelKind is what an update knows of a channel.
 func channelKind() nodeKind[*Channel] {
-	return nodeKind[*Channel]{method: "UpdateChannel", id: func(c *Channel) string { return string(c.ID) }}
+	return nodeKind[*Channel]{method: "UpdateChannel", id: func(channel *Channel) string { return string(channel.ID) }}
 }
 
 // messages is the edit's view of Document.Messages.
@@ -46,7 +46,7 @@ func (e *Editor) messages() registry[MessageID, Message] {
 
 // messageKind is what an update knows of a message.
 func messageKind() nodeKind[*Message] {
-	return nodeKind[*Message]{method: "UpdateMessage", id: func(m *Message) string { return string(m.ID) }}
+	return nodeKind[*Message]{method: "UpdateMessage", id: func(message *Message) string { return string(message.ID) }}
 }
 
 // authSchemes is the edit's view of Document.Auth.
@@ -62,8 +62,8 @@ func authSchemeKind() nodeKind[*AuthScheme] {
 // Server returns the server the edit holds at id. It is shared, so it is read
 // and never changed; UpdateServer changes a copy.
 func (e *Editor) Server(id ServerID) (Server, bool) {
-	s, held := e.out.Servers[id]
-	return s, held
+	server, held := e.out.Servers[id]
+	return server, held
 }
 
 // UpdateServer hands change a deep copy of the server at id, to alter in any
@@ -82,8 +82,8 @@ func (e *Editor) RemoveServer(id ServerID) {
 // Channel returns the channel the edit holds at id. It is shared, so it is
 // read and never changed; UpdateChannel changes a copy.
 func (e *Editor) Channel(id ChannelID) (Channel, bool) {
-	c, held := e.out.Channels[id]
-	return c, held
+	channel, held := e.out.Channels[id]
+	return channel, held
 }
 
 // UpdateChannel hands change a deep copy of the channel at id, to alter in any
@@ -102,8 +102,8 @@ func (e *Editor) RemoveChannel(id ChannelID) {
 // Message returns the message the edit holds at id. It is shared, so it is
 // read and never changed; UpdateMessage changes a copy.
 func (e *Editor) Message(id MessageID) (Message, bool) {
-	m, held := e.out.Messages[id]
-	return m, held
+	message, held := e.out.Messages[id]
+	return message, held
 }
 
 // UpdateMessage hands change a deep copy of the message at id, to alter in any
@@ -140,45 +140,45 @@ func (e *Editor) RemoveAuthScheme(id AuthID) {
 }
 
 // updateEntry is UpdateServer, UpdateChannel, UpdateMessage and
-// UpdateAuthScheme over r, and refuses a node off its own ID's key besides what
-// updated refuses.
-func updateEntry[K ~string, V any](e *Editor, r registry[K, V], kind nodeKind[*V], id K, change func(*V)) {
-	current, ok := entryAt(e, r, "update", id)
+// UpdateAuthScheme over registryValue, and refuses a node off its own ID's key
+// besides what updated refuses.
+func updateEntry[K ~string, V any](editor *Editor, registryValue registry[K, V], kind nodeKind[*V], id K, change func(*V)) {
+	current, ok := entryAt(editor, registryValue, "update", id)
 	if !ok {
 		return
 	}
 	if at := kind.id(&current); at != string(id) {
-		e.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, at)
+		editor.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, at)
 		return
 	}
-	if next, taken := updated(e, kind, string(id), subjectAt(id), &current, change); taken {
-		r.write()[id] = *next
+	if next, taken := updated(editor, kind, string(id), subjectAt(id), &current, change); taken {
+		registryValue.write()[id] = *next
 	}
 }
 
-// removeEntry removes the node the edit holds at id in r.
-func removeEntry[K ~string, V any](e *Editor, r registry[K, V], id K) {
-	if _, ok := entryAt(e, r, "remove", id); !ok {
+// removeEntry removes the node the edit holds at id in registryValue.
+func removeEntry[K ~string, V any](editor *Editor, registryValue registry[K, V], id K) {
+	if _, ok := entryAt(editor, registryValue, "remove", id); !ok {
 		return
 	}
-	held := r.write()
+	held := registryValue.write()
 	delete(held, id)
 	if len(held) == 0 {
-		*r.held = nil
+		*registryValue.held = nil
 	}
 }
 
-// entryAt returns the node the edit holds at id in r for a write verb names.
-// It refuses one the edit does not take (open), and an id it holds no node
-// at: an edit adds no ID.
-func entryAt[K ~string, V any](e *Editor, r registry[K, V], verb string, id K) (V, bool) {
-	if !e.open(verb, subjectAt(id)) {
+// entryAt returns the node the edit holds at id in registryValue for a write
+// verb names. It refuses one the edit does not take (open), and an id it holds
+// no node at: an edit adds no ID.
+func entryAt[K ~string, V any](editor *Editor, registryValue registry[K, V], verb string, id K) (V, bool) {
+	if !editor.open(verb, subjectAt(id)) {
 		var none V
 		return none, false
 	}
-	v, held := (*r.held)[id]
+	v, held := (*registryValue.held)[id]
 	if !held {
-		e.refuse("%s rejected: no %s %q to %s; an edit adds no %s", verb, r.noun, id, verb, r.noun)
+		editor.refuse("%s rejected: no %s %q to %s; an edit adds no %s", verb, registryValue.noun, id, verb, registryValue.noun)
 	}
 	return v, held
 }

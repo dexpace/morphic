@@ -19,7 +19,7 @@ func TestVerify_DocRefs(t *testing.T) {
 	t.Parallel()
 	const pet = "see Pet" // 7 bytes
 	const accented = "é and Pet"
-	span := func(start, end int) ir.DocRef { return ir.DocRef{StartByte: start, EndByte: end, Type: "t/x/Leaf"} }
+	span := func(start, end int) ir.DocRef { return ir.DocRef{StartByte: start, EndByte: end, Type: "type/x/Leaf"} }
 	for _, tc := range []struct {
 		name string
 		docs ir.Docs
@@ -59,16 +59,16 @@ func TestVerify_DocRefs(t *testing.T) {
 			map[string]int{"ir/doc-ref-span": 1}},
 		{"a span naming no type", ir.Docs{Description: pet, Refs: []ir.DocRef{{StartByte: 0, EndByte: 3}}},
 			map[string]int{"ir/empty-type-ref": 1}},
-		{"a span naming a type nothing declares", ir.Docs{Description: pet, Refs: []ir.DocRef{{StartByte: 0, EndByte: 3, Type: "t/x/Gone"}}},
+		{"a span naming a type nothing declares", ir.Docs{Description: pet, Refs: []ir.DocRef{{StartByte: 0, EndByte: 3, Type: "type/x/Gone"}}},
 			map[string]int{"ir/dangling-type-ref": 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}, Docs: tc.docs}
+			model := &ir.Model{ID: "type/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}, Docs: tc.docs}
 			got := map[string]int{}
-			for _, v := range irverify.Verify(closedDoc(m)) {
-				if strings.Contains(v.Path, ".Refs") {
-					got[v.Code]++
+			for _, violation := range irverify.Verify(closedDoc(model)) {
+				if strings.Contains(violation.Path, ".Refs") {
+					got[violation.Code]++
 				}
 			}
 			if tc.want == nil {
@@ -85,17 +85,17 @@ func TestVerify_DocRefs(t *testing.T) {
 // a server, whose field is not even named Docs.
 func TestVerify_DocRefsAreHeldWhereverDocsSit(t *testing.T) {
 	t.Parallel()
-	bad := ir.Docs{Description: "x", Refs: []ir.DocRef{{StartByte: 0, EndByte: 9, Type: "t/x/Leaf"}}}
+	bad := ir.Docs{Description: "x", Refs: []ir.DocRef{{StartByte: 0, EndByte: 9, Type: "type/x/Leaf"}}}
 	doc := closedDoc(&ir.Enum{
-		ID:      "t/x/E",
+		ID:      "type/x/E",
 		Name:    ir.Naming{Source: "E", Canonical: "e"},
 		Docs:    bad,
-		Members: []ir.EnumMember{{ID: "t/x/E#m", Name: ir.Naming{Source: "m", Canonical: "m"}, Docs: bad}},
+		Members: []ir.EnumMember{{ID: "type/x/E#m", Name: ir.Naming{Source: "m", Canonical: "m"}, Docs: bad}},
 	})
 	doc.Servers = map[ir.ServerID]ir.Server{"server/a": {ID: "server/a", URLTemplate: "https://a.example", Description: bad}}
 	assert.ElementsMatch(t, []string{
-		`doc.Types[t/x/E].Docs.Refs[0]`,
-		`doc.Types[t/x/E].Members[0].Docs.Refs[0]`,
-		`doc.Servers[server/a].Description.Refs[0]`,
+		`document.Types[type/x/E].Docs.Refs[0]`,
+		`document.Types[type/x/E].Members[0].Docs.Refs[0]`,
+		`document.Servers[server/a].Description.Refs[0]`,
 	}, violationPaths(irverify.Verify(doc), "ir/doc-ref-span"))
 }

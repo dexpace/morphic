@@ -37,14 +37,14 @@ const writtenFixture = `paths:
   /s: [1, 2]
 `
 
-// writtenOp parses writtenFixture, returning its root and the node declaring
-// its one operation.
-func writtenOp(t *testing.T) (root, op *yaml.Node) {
+// writtenOperation parses writtenFixture, returning its root and the node
+// declaring its one operation.
+func writtenOperation(t *testing.T) (root, operation *yaml.Node) {
 	t.Helper()
 	root = openapitest.YAMLNode(t, writtenFixture)
-	op = nodeview.WrittenChildren(nodeview.WrittenChildren(nodeview.WrittenChildren(root)["paths"])["/z"])["get"]
-	require.NotNil(t, op, "the fixture writes its operation at /z")
-	return root, op
+	operation = nodeview.WrittenChildren(nodeview.WrittenChildren(nodeview.WrittenChildren(root)["paths"])["/z"])["get"]
+	require.NotNil(t, operation, "the fixture writes its operation at /z")
+	return root, operation
 }
 
 // TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt pins the walk declare
@@ -53,17 +53,17 @@ func writtenOp(t *testing.T) (root, op *yaml.Node) {
 // $ref does, which is what tells a declaration from its reuses.
 func TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt(t *testing.T) {
 	t.Parallel()
-	root, op := writtenOp(t)
-	w := newWrittenTree(root)
+	root, operation := writtenOperation(t)
+	writtenTree := newWrittenTree(root)
 
-	assert.True(t, w.holds("/paths/~1z/get", op), "the text writes the operation at /z")
+	assert.True(t, writtenTree.holds("/paths/~1z/get", operation), "the text writes the operation at /z")
 	for _, reuse := range []jsontext.Pointer{"/paths/~1a/get", "/paths/~1m/get", "/paths/~1r/get", "/paths/~1o/get"} {
-		assert.False(t, w.holds(reuse, op), "%s reuses the operation rather than writing it", reuse)
+		assert.False(t, writtenTree.holds(reuse, operation), "%s reuses the operation rather than writing it", reuse)
 	}
-	assert.False(t, w.holds("/paths/~1s/0", op), "a walk reads mappings only")
-	assert.False(t, newWrittenTree(nil).holds("/paths/~1z/get", op), "a tree with no text holds nothing")
+	assert.False(t, writtenTree.holds("/paths/~1s/0", operation), "a walk reads mappings only")
+	assert.False(t, newWrittenTree(nil).holds("/paths/~1z/get", operation), "a tree with no text holds nothing")
 
-	_, indexed := w.children[nodeview.WrittenChildren(root)["paths"]]
+	_, indexed := writtenTree.children[nodeview.WrittenChildren(root)["paths"]]
 	assert.True(t, indexed, "the paths mapping is indexed for the walks after the first")
 }
 
@@ -74,7 +74,7 @@ func TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt(t *testing.T) {
 // case runs its claims in both orders.
 func TestDeclare_ReadsWhereADeclarationIsWritten(t *testing.T) {
 	t.Parallel()
-	root, op := writtenOp(t)
+	root, operation := writtenOperation(t)
 	for _, tc := range []struct {
 		name   string
 		claims []operationIDClaim
@@ -83,32 +83,32 @@ func TestDeclare_ReadsWhereADeclarationIsWritten(t *testing.T) {
 		{
 			name: "an alias site sorting first",
 			claims: []operationIDClaim{
-				{node: op, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
-				{node: op, ptrs: opPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
 			},
 			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1z/get", "/paths/~1a/get"}},
 		},
 		{
 			name: "a ref sorting first",
 			claims: []operationIDClaim{
-				{node: op, ptrs: opPointers{mount: "/paths/~1r/get", decl: "/paths/~1z/get"}},
-				{node: op, ptrs: opPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1r/get", decl: "/paths/~1z/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
 			},
 			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1z/get", "/paths/~1r/get"}},
 		},
 		{
 			name: "written where no claim is mounted",
 			claims: []operationIDClaim{
-				{node: op, ptrs: opPointers{mount: "/paths/~1y/get", decl: "/paths/~1z/get"}},
-				{node: op, ptrs: opPointers{mount: "/paths/~1x/get", decl: "/paths/~1z/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1y/get", decl: "/paths/~1z/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1x/get", decl: "/paths/~1z/get"}},
 			},
 			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1x/get", "/paths/~1y/get"}},
 		},
 		{
 			name: "written nowhere the tree holds",
 			claims: []operationIDClaim{
-				{node: op, ptrs: opPointers{mount: "/paths/~1y/get", decl: "/paths/~1y/get"}},
-				{node: op, ptrs: opPointers{mount: "/paths/~1x/get", decl: "/paths/~1x/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1y/get", decl: "/paths/~1y/get"}},
+				{node: operation, ptrs: operationPointers{mount: "/paths/~1x/get", decl: "/paths/~1x/get"}},
 			},
 			want: declaration{at: "/paths/~1x/get", mounts: []jsontext.Pointer{"/paths/~1x/get", "/paths/~1y/get"}},
 		},
@@ -127,19 +127,20 @@ func TestDeclare_ReadsWhereADeclarationIsWritten(t *testing.T) {
 
 // TestByDeclaration_GroupsByNodeOrDeclarationPointer pins both ways claims
 // mount one declaration, and that grouping follows a chain of them: a shares a
-// node with b, and b a declaration pointer with c, so the three are one
-// declaration. The c-first order is the one that splits them when each claim
-// joins the first group it matches, and every order gives one answer.
+// node with b, and b a declaration pointer with operationIDClaimValue, so the
+// three are one declaration. The c-first order is the one that splits them when
+// each claim joins the first group it matches, and every order gives one
+// answer.
 func TestByDeclaration_GroupsByNodeOrDeclarationPointer(t *testing.T) {
 	t.Parallel()
 	shared, copied, other := &yaml.Node{}, &yaml.Node{}, &yaml.Node{}
-	a := operationIDClaim{node: shared, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}}
-	b := operationIDClaim{node: shared, ptrs: opPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}}
-	c := operationIDClaim{node: copied, ptrs: opPointers{mount: "/paths/~1c/get", decl: "/components/pathItems/S/get"}}
-	d := operationIDClaim{node: other, ptrs: opPointers{mount: "/paths/~1d/get", decl: "/paths/~1d/get"}}
+	a := operationIDClaim{node: shared, ptrs: operationPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}}
+	b := operationIDClaim{node: shared, ptrs: operationPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}}
+	operationIDClaimValue := operationIDClaim{node: copied, ptrs: operationPointers{mount: "/paths/~1c/get", decl: "/components/pathItems/S/get"}}
+	otherOperationIDClaim := operationIDClaim{node: other, ptrs: operationPointers{mount: "/paths/~1d/get", decl: "/paths/~1d/get"}}
 	want := [][]jsontext.Pointer{{"/paths/~1a/get", "/paths/~1b/get", "/paths/~1c/get"}, {"/paths/~1d/get"}}
 
-	for _, claims := range [][]operationIDClaim{{a, b, c, d}, {c, a, d, b}, {d, c, b, a}} {
+	for _, claims := range [][]operationIDClaim{{a, b, operationIDClaimValue, otherOperationIDClaim}, {operationIDClaimValue, a, otherOperationIDClaim, b}, {otherOperationIDClaim, operationIDClaimValue, b, a}} {
 		var got [][]jsontext.Pointer
 		for _, group := range byDeclaration(claims) {
 			var mounts []jsontext.Pointer
@@ -149,7 +150,9 @@ func TestByDeclaration_GroupsByNodeOrDeclarationPointer(t *testing.T) {
 			slices.Sort(mounts)
 			got = append(got, mounts)
 		}
-		slices.SortFunc(got, func(x, y []jsontext.Pointer) int { return strings.Compare(string(x[0]), string(y[0])) })
+		slices.SortFunc(got, func(pointers, pointersValue []jsontext.Pointer) int {
+			return strings.Compare(string(pointers[0]), string(pointersValue[0]))
+		})
 		assert.Empty(t, cmp.Diff(want, got))
 	}
 }
@@ -160,14 +163,14 @@ func TestByDeclaration_GroupsByNodeOrDeclarationPointer(t *testing.T) {
 func TestByDeclaration_ANilNodeGroupsByDeclarationPointerAlone(t *testing.T) {
 	t.Parallel()
 	apart := byDeclaration([]operationIDClaim{
-		{ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
-		{ptrs: opPointers{mount: "/paths/~1b/get", decl: "/paths/~1b/get"}},
+		{ptrs: operationPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+		{ptrs: operationPointers{mount: "/paths/~1b/get", decl: "/paths/~1b/get"}},
 	})
 	assert.Len(t, apart, 2, "two claims with no node are two declarations")
 
 	together := byDeclaration([]operationIDClaim{
-		{ptrs: opPointers{mount: "/paths/~1a/get", decl: "/components/pathItems/S/get"}},
-		{ptrs: opPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}},
+		{ptrs: operationPointers{mount: "/paths/~1a/get", decl: "/components/pathItems/S/get"}},
+		{ptrs: operationPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}},
 	})
 	assert.Len(t, together, 1, "unless they resolve to one declaration pointer")
 }
@@ -218,7 +221,7 @@ func TestDeclaringNode_FollowsAnAliasOneHop(t *testing.T) {
 func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 	t.Parallel()
 	claims := newOperationIDClaims()
-	claims.add(&soa.Operation{}, opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"})
+	claims.add(&soa.Operation{}, operationPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"})
 
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
 	assert.Empty(t, claims.report(newRawLowerer(&soa.OpenAPI{}).ctx))

@@ -26,22 +26,22 @@ import (
 // "args". It is a decision per field, so a field cannot join a kind without
 // someone saying what it is to the type graph.
 var partRoles = map[string]string{
-	"Model.Properties/Property.Type":                                    "held",
-	"Model.Properties/Property.Encoding/Encoding.Schema":                "held",
-	"Model.Properties/Property.Args/Parameter.Type":                     "args",
-	"Model.Properties/Property.Args/Parameter.Encoding/Encoding.Schema": "args",
-	"Model.AdditionalProps/AdditionalProps.Value":                       "held",
-	"Model.AdditionalProps/AdditionalProps.Key":                         "held",
-	"Model.AdditionalProps/AdditionalProps.Patterns/PatternProps.Value": "held",
+	"Model.Properties/Property.Type":                                                   "held",
+	"Model.Properties/Property.Encoding/Encoding.Schema":                               "held",
+	"Model.Properties/Property.Args/Parameter.Type":                                    "args",
+	"Model.Properties/Property.Args/Parameter.Encoding/Encoding.Schema":                "args",
+	"Model.AdditionalProperties/AdditionalProperties.Value":                            "held",
+	"Model.AdditionalProperties/AdditionalProperties.Key":                              "held",
+	"Model.AdditionalProperties/AdditionalProperties.Patterns/PatternProperties.Value": "held",
 	"Model.Base":                      "composed",
 	"Model.Implements":                "composed",
 	"Model.Mixins":                    "composed",
 	"Union.Variants/Variant.Type":     "held",
-	"List.Elem":                       "held",
+	"List.ElementType":                "held",
 	"List.Encoding/Encoding.Schema":   "held",
 	"MapT.Key":                        "held",
 	"MapT.Value":                      "held",
-	"Tuple.Elems":                     "held",
+	"Tuple.ElementTypes":              "held",
 	"Tuple.Rest":                      "held",
 	"Scalar.Base":                     "alias",
 	"Scalar.Encoding/Encoding.Schema": "held",
@@ -53,7 +53,7 @@ var notParts = map[reflect.Type]string{
 	reflect.TypeFor[ir.Value]():                 "a value names the type it was written against",
 	reflect.TypeFor[ir.Example]():               "an example illustrates a value; it holds none",
 	reflect.TypeFor[ir.Availability]():          "a type changed from is one an older version used",
-	reflect.TypeFor[ir.PropPath]():              "a path locates a member inside a value another position carries",
+	reflect.TypeFor[ir.PropertyPath]():          "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.Discriminator]():         "a discriminator routes to a type; only a subtype is one a value may be",
 	reflect.TypeFor[ir.TemplateInstantiation](): "a template argument made the type; a value of it holds none",
 	reflect.TypeFor[ir.DocRef]():                "prose naming a type holds no value of it",
@@ -75,19 +75,19 @@ type partWalk struct {
 	steps     map[string]bool        // the keys of notFields the walk met
 }
 
-// walkParts fills a value of kind k and reads the positions in it that name a
-// type, by roles and notFields.
-func walkParts(t *testing.T, k ir.TypeKind, roles, notFields map[string]string) partWalk {
+// walkParts fills a value of kind typeKind and reads the positions in it that
+// name a type, by roles and notFields.
+func walkParts(t *testing.T, typeKind ir.TypeKind, roles, notFields map[string]string) partWalk {
 	t.Helper()
-	td, ok := ir.NewTypeDef(k)
-	require.True(t, ok, "no concrete type for kind %q", k)
+	td, ok := ir.NewTypeDef(typeKind)
+	require.True(t, ok, "no concrete type for kind %q", typeKind)
 	irtest.Fill(t, td)
-	w := &positionWalk{types: notParts, fields: notFields, out: map[ir.TypeID]position{}}
-	w.walk(reflect.ValueOf(td).Elem(), nil, "")
-	delete(w.out, td.Common().ID)
+	positionWalkValue := &positionWalk{types: notParts, fields: notFields, out: map[ir.TypeID]position{}}
+	positionWalkValue.walk(reflect.ValueOf(td).Elem(), nil, "")
+	delete(positionWalkValue.out, td.Common().ID)
 
-	out := partWalk{td: td, want: map[string][]ir.TypeID{}, roles: map[string]bool{}, steps: w.read}
-	for id, at := range w.out {
+	out := partWalk{td: td, want: map[string][]ir.TypeID{}, roles: map[string]bool{}, steps: positionWalkValue.read}
+	for id, at := range positionWalkValue.out {
 		if at.excluded != "" {
 			continue
 		}
@@ -110,14 +110,14 @@ type readKeys struct {
 }
 
 // add records what one walk read.
-func (r *readKeys) add(p partWalk) {
+func (r *readKeys) add(partWalkValue partWalk) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.roles == nil {
 		r.roles, r.steps = map[string]bool{}, map[string]bool{}
 	}
-	maps.Copy(r.roles, p.roles)
-	maps.Copy(r.steps, p.steps)
+	maps.Copy(r.roles, partWalkValue.roles)
+	maps.Copy(r.steps, partWalkValue.steps)
 }
 
 // TestIndex_EveryKindNamesItsPartsByRole fills every field of each kind and
@@ -130,13 +130,13 @@ func TestIndex_EveryKindNamesItsPartsByRole(t *testing.T) {
 	// The subtests run in parallel inside the group, which returns once all
 	// have, so the staleness checks below see what every kind read.
 	t.Run("kinds", func(t *testing.T) {
-		for _, k := range declaredKinds(t) {
-			t.Run(string(k), func(t *testing.T) {
+		for _, typeKind := range declaredKinds(t) {
+			t.Run(string(typeKind), func(t *testing.T) {
 				t.Parallel()
-				p := walkParts(t, k, partRoles, notPartFields)
-				assert.Empty(t, p.undecided, "these name a type: give each a role in partRoles or say why it is none")
-				read.add(p)
-				held, composed, alias, args := irfacts.Parts(p.td)
+				partWalk := walkParts(t, typeKind, partRoles, notPartFields)
+				assert.Empty(t, partWalk.undecided, "these name a type: give each a role in partRoles or say why it is none")
+				read.add(partWalk)
+				held, composed, alias, args := irfacts.Parts(partWalk.td)
 				got := map[string][]ir.TypeID{"held": held, "composed": composed, "args": args}
 				if alias != "" {
 					got["alias"] = []ir.TypeID{alias}
@@ -147,7 +147,7 @@ func TestIndex_EveryKindNamesItsPartsByRole(t *testing.T) {
 					}
 				}
 				sorted := cmp.Transformer("sort", func(ids []ir.TypeID) []ir.TypeID { return slices.Sorted(slices.Values(ids)) })
-				assert.Empty(t, cmp.Diff(p.want, got, sorted))
+				assert.Empty(t, cmp.Diff(partWalk.want, got, sorted))
 			})
 		}
 	})
@@ -176,15 +176,15 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 	self := ir.TypeRef{Target: "x"}
 	selfValue := &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "x"}}
 	for name, td := range map[string]ir.TypeDef{
-		"model discriminator mapping": irtest.ModelOf("x", func(m *ir.Model) {
-			m.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}, Default: "x"}
+		"model discriminator mapping": irtest.ModelOf("x", func(model *ir.Model) {
+			model.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}, Default: "x"}
 		}),
 		"union discriminator mapping": &ir.Union{ID: "x", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}}},
-		"property default":            irtest.ModelOf("x", func(m *ir.Model) { m.Properties = []ir.Property{{Default: selfValue}} }),
-		"property wire type": irtest.ModelOf("x", func(m *ir.Model) {
-			m.Properties = []ir.Property{{Encoding: &ir.Encoding{WireType: &self}}}
+		"property default":            irtest.ModelOf("x", func(model *ir.Model) { model.Properties = []ir.Property{{Default: selfValue}} }),
+		"property wire type": irtest.ModelOf("x", func(model *ir.Model) {
+			model.Properties = []ir.Property{{Encoding: &ir.Encoding{WireType: &self}}}
 		}),
-		"field argument":       irtest.ModelOf("x", func(m *ir.Model) { m.Properties = []ir.Property{{Args: []ir.Parameter{{Type: self}}}} }),
+		"field argument":       irtest.ModelOf("x", func(model *ir.Model) { model.Properties = []ir.Property{{Args: []ir.Parameter{{Type: self}}}} }),
 		"scalar wire type":     &ir.Scalar{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
 		"list wire type":       &ir.List{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
 		"literal value":        &ir.Literal{ID: "x", Value: *selfValue},
@@ -206,12 +206,12 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 func componentsTree(hold func() ir.Property, extra ...ir.TypeDef) *ir.Document {
 	defs := make([]ir.TypeDef, 0, 3+len(extra))
 	defs = append(defs,
-		irtest.ModelOf("node", func(m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "kind"} }),
-		irtest.ModelOf("branch", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{Target: "node"}
-			m.Properties = []ir.Property{hold()}
+		irtest.ModelOf("node", func(model *ir.Model) { model.Discriminator = &ir.Discriminator{PropertyName: "kind"} }),
+		irtest.ModelOf("branch", func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "node"}
+			model.Properties = []ir.Property{hold()}
 		}),
-		irtest.ModelOf("leaf", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "node"} }),
+		irtest.ModelOf("leaf", func(model *ir.Model) { model.Base = &ir.TypeRef{Target: "node"} }),
 	)
 	return irtest.DocOf(append(defs, extra...)...)
 }
@@ -219,9 +219,9 @@ func componentsTree(hold func() ir.Property, extra ...ir.TypeDef) *ir.Document {
 func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 	t.Parallel()
 	for name, doc := range map[string]*ir.Document{
-		"held directly":      componentsTree(func() ir.Property { return useProp("node") }),
-		"held in a list":     componentsTree(func() ir.Property { return useProp("children") }, &ir.List{ID: "children", Elem: useRef("node")}),
-		"held through alias": componentsTree(func() ir.Property { return useProp("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
+		"held directly":      componentsTree(func() ir.Property { return useProperty("node") }),
+		"held in a list":     componentsTree(func() ir.Property { return useProperty("children") }, &ir.List{ID: "children", ElementType: useRef("node")}),
+		"held through alias": componentsTree(func() ir.Property { return useProperty("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -236,7 +236,7 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 
 	t.Run("a plain base is no route back", func(t *testing.T) {
 		t.Parallel()
-		doc := componentsTree(func() ir.Property { return useProp("node") })
+		doc := componentsTree(func() ir.Property { return useProperty("node") })
 		doc.Types["node"].(*ir.Model).Discriminator = nil
 		assert.False(t, irfacts.New(doc).Recursive("branch"), "a value of a plain base is of exactly its shape")
 	})
@@ -244,9 +244,9 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 
 func TestIndex_ABaseAndItsSubtypesAreNotRecursive(t *testing.T) {
 	t.Parallel()
-	doc := irtest.DocOf(usagePets(func(id ir.TypeID, m *ir.Model) {
+	doc := irtest.DocOf(usagePets(func(id ir.TypeID, model *ir.Model) {
 		if id == "pet" {
-			m.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "cat", "dog": "dog"}}
+			model.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "cat", "dog": "dog"}}
 		}
 	})...)
 	facts := irfacts.New(doc)
@@ -260,7 +260,7 @@ func TestIndex_MutualContainmentIsOneComponent(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
 		useHolder("a", "items"),
-		&ir.List{ID: "items", Elem: useRef("b")},
+		&ir.List{ID: "items", ElementType: useRef("b")},
 		useHolder("b", "a", "leaf"),
 		useType("leaf"),
 	)
@@ -320,9 +320,9 @@ func TestIndex_ComponentIsSortedAndTheCallersOwn(t *testing.T) {
 func factsLongContainment(n int) *ir.Document {
 	defs := make([]ir.TypeDef, 0, n)
 	for i := range n {
-		defs = append(defs, irtest.ModelOf(factsLongID(i), func(m *ir.Model) {
+		defs = append(defs, irtest.ModelOf(factsLongID(i), func(model *ir.Model) {
 			if i+1 < n {
-				m.Properties = []ir.Property{useProp(factsLongID(i + 1))}
+				model.Properties = []ir.Property{useProperty(factsLongID(i + 1))}
 			}
 		}))
 	}
@@ -342,7 +342,7 @@ func TestIndex_AVeryLongChainNeedsNoRecursion(t *testing.T) {
 
 	// Closing the chain on itself makes every model one component.
 	last := doc.Types[factsLongID(n-1)].(*ir.Model)
-	last.Properties = []ir.Property{useProp(factsLongID(0))}
+	last.Properties = []ir.Property{useProperty(factsLongID(0))}
 	ring := irfacts.New(doc)
 	assert.True(t, ring.Recursive(factsLongID(n-1)))
 	members := ring.Component(factsLongID(n / 2))
@@ -355,7 +355,7 @@ func TestIndex_AVeryLongChainNeedsNoRecursion(t *testing.T) {
 func TestIndex_AVeryDeepHierarchyNeedsNoRecursion(t *testing.T) {
 	t.Parallel()
 	const n = 100_000
-	doc := irtest.DocOf(factsChain(n, func(_ int, m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "k"} })...)
+	doc := irtest.DocOf(factsChain(n, func(_ int, model *ir.Model) { model.Discriminator = &ir.Discriminator{PropertyName: "k"} })...)
 	facts := irfacts.New(doc)
 	assert.True(t, facts.IsSubtype(factsChainID(n), factsChainID(0)))
 	assert.False(t, facts.IsSubtype(factsChainID(0), factsChainID(n)))
@@ -382,20 +382,20 @@ func componentsRandom(rng *rand.Rand) (doc *ir.Document, ids []ir.TypeID, held, 
 	held, composed = map[ir.TypeID][]ir.TypeID{}, map[ir.TypeID][]ir.TypeID{}
 	defs := make([]ir.TypeDef, 0, n)
 	for _, id := range ids {
-		m := useHolder(id)
+		model := useHolder(id)
 		for range rng.IntN(4) {
 			target := pick()
-			m.Properties = append(m.Properties, useProp(target))
+			model.Properties = append(model.Properties, useProperty(target))
 			held[id] = append(held[id], target)
 		}
 		if rng.IntN(3) == 0 {
-			m.Base = &ir.TypeRef{Target: pick()}
-			composed[id] = append(composed[id], m.Base.Target)
+			model.Base = &ir.TypeRef{Target: pick()}
+			composed[id] = append(composed[id], model.Base.Target)
 		}
 		if rng.IntN(4) == 0 {
-			m.Discriminator = &ir.Discriminator{PropertyName: "k"}
+			model.Discriminator = &ir.Discriminator{PropertyName: "k"}
 		}
-		defs = append(defs, m)
+		defs = append(defs, model)
 	}
 	return irtest.DocOf(defs...), ids, held, composed
 }
@@ -407,11 +407,11 @@ func componentsRandom(rng *rand.Rand) (doc *ir.Document, ids []ir.TypeID, held, 
 func componentsOracle(doc *ir.Document, ids []ir.TypeID, held, composed map[ir.TypeID][]ir.TypeID, dispatch bool) map[ir.TypeID]map[ir.TypeID]bool {
 	step := func(from ir.TypeID) []ir.TypeID {
 		next := slices.Clone(composed[from])
-		for _, h := range held[from] {
-			next = append(next, h)
-			if m, ok := doc.Types[h].(*ir.Model); ok && m.Discriminator != nil && dispatch {
+		for _, typeID := range held[from] {
+			next = append(next, typeID)
+			if model, ok := doc.Types[typeID].(*ir.Model); ok && model.Discriminator != nil && dispatch {
 				for _, sub := range ids {
-					if ir.IsSubtype(doc, sub, h) {
+					if ir.IsSubtype(doc, sub, typeID) {
 						next = append(next, sub)
 					}
 				}

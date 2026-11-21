@@ -342,11 +342,11 @@ func TestRawConv_RendersWithinItsNodeBudget(t *testing.T) {
 // nestedNode is d mappings each nested in the one above it, each writing its
 // keys out of order so that rendering it sorts them.
 func nestedNode(d int) *yaml.Node {
-	n := ynode.Scalar("leaf")
+	node := ynode.Scalar("leaf")
 	for range d {
-		n = ynode.Map(ynode.Scalar("z"), n, ynode.Scalar("a"), ynode.Seq(ynode.Scalar("1")))
+		node = ynode.Map(ynode.Scalar("z"), node, ynode.Scalar("a"), ynode.Seq(ynode.Scalar("1")))
 	}
-	return n
+	return node
 }
 
 // renderBytes returns the fewest bytes one RawFromNode of a node d levels deep
@@ -610,8 +610,8 @@ func mappingOf(key, val *yaml.Node) *yaml.Node {
 func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
-	c := newRawConv()
-	got, err := c.node(nil, nil, 0)
+	rawConv := newRawConv()
+	got, err := rawConv.node(nil, nil, 0)
 	require.Error(t, err, "a nil node is a caller bug, not an absent construct")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")

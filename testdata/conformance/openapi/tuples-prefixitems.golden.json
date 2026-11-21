@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "TuplesPrefixItems",
         "canonical": "tuples_prefix_items"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/PairWithRest/items": {
+    "type/anonymous/components/schemas/PairWithRest/items": {
       "kind": "model",
-      "id": "t/anon/components/schemas/PairWithRest/items",
+      "id": "type/anonymous/components/schemas/PairWithRest/items",
       "name": {
         "hint": "pair_with_rest_item"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/PairWithRest/items/properties/flag",
+          "id": "property/openapi/components/schemas/PairWithRest/items/properties/flag",
           "name": {
             "source": "flag",
             "canonical": "flag"
           },
           "wireName": "flag",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -105,9 +105,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/BoundedClosedPair": {
+    "type/openapi/components/schemas/BoundedClosedPair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/BoundedClosedPair",
+      "id": "type/openapi/components/schemas/BoundedClosedPair",
       "name": {
         "source": "BoundedClosedPair",
         "canonical": "bounded_closed_pair"
@@ -119,13 +119,13 @@
         "source": 0,
         "pointer": "/components/schemas/BoundedClosedPair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ],
@@ -135,9 +135,9 @@
         "uniqueItems": true
       }
     },
-    "t/openapi/components/schemas/ClosedPair": {
+    "type/openapi/components/schemas/ClosedPair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/ClosedPair",
+      "id": "type/openapi/components/schemas/ClosedPair",
       "name": {
         "source": "ClosedPair",
         "canonical": "closed_pair"
@@ -149,20 +149,20 @@
         "source": 0,
         "pointer": "/components/schemas/ClosedPair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ]
     },
-    "t/openapi/components/schemas/ExactPair": {
+    "type/openapi/components/schemas/ExactPair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/ExactPair",
+      "id": "type/openapi/components/schemas/ExactPair",
       "name": {
         "source": "ExactPair",
         "canonical": "exact_pair"
@@ -174,13 +174,13 @@
         "source": 0,
         "pointer": "/components/schemas/ExactPair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ],
@@ -189,9 +189,9 @@
         "uniqueItems": false
       }
     },
-    "t/openapi/components/schemas/InertList": {
+    "type/openapi/components/schemas/InertList": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/InertList",
+      "id": "type/openapi/components/schemas/InertList",
       "name": {
         "source": "InertList",
         "canonical": "inert_list"
@@ -220,14 +220,14 @@
         "source": 0,
         "pointer": "/components/schemas/InertList"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/InertPair": {
+    "type/openapi/components/schemas/InertPair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/InertPair",
+      "id": "type/openapi/components/schemas/InertPair",
       "name": {
         "source": "InertPair",
         "canonical": "inert_pair"
@@ -252,20 +252,20 @@
         "source": 0,
         "pointer": "/components/schemas/InertPair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/LiveList": {
+    "type/openapi/components/schemas/LiveList": {
       "kind": "list",
-      "id": "t/openapi/components/schemas/LiveList",
+      "id": "type/openapi/components/schemas/LiveList",
       "name": {
         "source": "LiveList",
         "canonical": "live_list"
@@ -301,14 +301,14 @@
         "source": 0,
         "pointer": "/components/schemas/LiveList"
       },
-      "elem": {
-        "target": "t/prim/any",
+      "elementType": {
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/LivePair": {
+    "type/openapi/components/schemas/LivePair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/LivePair",
+      "id": "type/openapi/components/schemas/LivePair",
       "name": {
         "source": "LivePair",
         "canonical": "live_pair"
@@ -332,20 +332,20 @@
         "source": 0,
         "pointer": "/components/schemas/LivePair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/Pair": {
+    "type/openapi/components/schemas/Pair": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/Pair",
+      "id": "type/openapi/components/schemas/Pair",
       "name": {
         "source": "Pair",
         "canonical": "pair"
@@ -357,24 +357,24 @@
         "source": 0,
         "pointer": "/components/schemas/Pair"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         },
         {
-          "target": "t/prim/integer",
+          "target": "type/primitive/integer",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/prim/any",
+        "target": "type/primitive/any",
         "nullable": false
       }
     },
-    "t/openapi/components/schemas/PairWithRest": {
+    "type/openapi/components/schemas/PairWithRest": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/PairWithRest",
+      "id": "type/openapi/components/schemas/PairWithRest",
       "name": {
         "source": "PairWithRest",
         "canonical": "pair_with_rest"
@@ -386,20 +386,20 @@
         "source": 0,
         "pointer": "/components/schemas/PairWithRest"
       },
-      "elems": [
+      "elementTypes": [
         {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       ],
       "rest": {
-        "target": "t/anon/components/schemas/PairWithRest/items",
+        "target": "type/anonymous/components/schemas/PairWithRest/items",
         "nullable": false
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -407,11 +407,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -419,11 +419,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -431,11 +431,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -443,7 +443,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

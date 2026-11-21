@@ -14,8 +14,8 @@ import (
 
 func TestEncodingConfig_NilEncoding(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	pe, unmodeled, diags := encodingConfig(l.ctx, l.serviceWalk(), nil, "/mp", "itemEncoding", "multipart/mixed")
+	lowerer := newRawLowerer(&soa.OpenAPI{})
+	pe, unmodeled, diags := encodingConfig(lowerer.ctx, lowerer.serviceWalk(), nil, "/mp", "itemEncoding", "multipart/mixed")
 	assert.Equal(t, ir.PartEncoding{}, pe)
 	assert.Nil(t, unmodeled)
 	assert.Empty(t, diags)

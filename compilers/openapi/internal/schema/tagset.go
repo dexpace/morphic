@@ -97,17 +97,17 @@ func leaf(td ir.TypeDef) tagSet {
 		if n == nil || n.Value.Kind != ir.ValueString {
 			return anyString()
 		}
-		return tagSet{strings: []string{n.Value.Str}, closed: true}
+		return tagSet{strings: []string{n.Value.String}, closed: true}
 	case *ir.Enum:
 		if n == nil || !n.Closed || n.Flags {
 			return anyString()
 		}
 		tags := make([]string, 0, len(n.Members))
-		for _, m := range n.Members {
-			if m.Value.Kind != ir.ValueString {
+		for _, enumMember := range n.Members {
+			if enumMember.Value.Kind != ir.ValueString {
 				return anyString()
 			}
-			tags = append(tags, m.Value.Str)
+			tags = append(tags, enumMember.Value.String)
 		}
 		slices.Sort(tags)
 		return tagSet{strings: slices.Compact(tags), closed: true}
@@ -121,25 +121,25 @@ func leaf(td ir.TypeDef) tagSet {
 func throughAliases(reg ir.TypeRegistry, id ir.TypeID) (ir.TypeID, bool) {
 	null := false
 	for range maxTagAliasHops {
-		s, alias := reg[id].(*ir.Scalar)
-		if !alias || s == nil || s.Base == nil {
+		scalar, alias := reg[id].(*ir.Scalar)
+		if !alias || scalar == nil || scalar.Base == nil {
 			break
 		}
-		id, null = s.Base.Target, null || s.Base.Nullable
+		id, null = scalar.Base.Target, null || scalar.Base.Nullable
 	}
 	return id, null
 }
 
 // unionNode returns the union the type id is, nil where it is none.
 func unionNode(reg ir.TypeRegistry, id ir.TypeID) *ir.Union {
-	u, _ := reg[id].(*ir.Union)
-	return u
+	union, _ := reg[id].(*ir.Union)
+	return union
 }
 
 // flatMember returns the member of flat whose wire name is property.
 func flatMember(flat ir.Flattening, property string) (ir.FlatProperty, bool) {
-	i := slices.IndexFunc(flat.Properties, func(p ir.FlatProperty) bool {
-		return p.Property.EffectiveWireName() == property
+	i := slices.IndexFunc(flat.Properties, func(flatProperty ir.FlatProperty) bool {
+		return flatProperty.Property.EffectiveWireName() == property
 	})
 	if i < 0 {
 		return ir.FlatProperty{}, false

@@ -16,11 +16,11 @@ import (
 // writes none, nor does a schema writing no `$ref`.
 func TestWritesRef_ReadsARefAsTheBinderDoes(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-r: &r '#/components/schemas/N'\n"+
+	lowerer, _ := LoweredFor(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-r: &r '#/components/schemas/N'\n"+
 		"components:\n  schemas:\n    N: {}\n"+
 		"    S: {$ref: '#/components/schemas/N'}\n    E: {$ref: ''}\n    A: {$ref: *r}\n"+
 		"    Null: {$ref: null}\n    M: {$ref: {a: b}}\n    L: {$ref: [x]}\n    None: {type: string}\n")
 	for name, want := range map[string]bool{"S": true, "E": true, "A": true, "Null": false, "M": false, "L": false, "None": false} {
-		assert.Equal(t, want, writesRef(StatedIn(l, componentSchema(t, l, name))), name)
+		assert.Equal(t, want, writesRef(StatedIn(lowerer, componentSchema(t, lowerer, name))), name)
 	}
 }

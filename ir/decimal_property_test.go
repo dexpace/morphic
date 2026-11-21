@@ -38,8 +38,8 @@ func FuzzParseDecimal_ReadsWhatNewBigValKeeps(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, s string) {
-		v, newErr := ir.NewBigVal(s)
-		d, parseErr := ir.ParseDecimal(s)
+		bigVal, newErr := ir.NewBigVal(s)
+		decimal, parseErr := ir.ParseDecimal(s)
 		if (newErr == nil) != (parseErr == nil) {
 			t.Fatalf("NewBigVal(%q) error %v, ParseDecimal error %v", s, newErr, parseErr)
 		}
@@ -51,13 +51,13 @@ func FuzzParseDecimal_ReadsWhatNewBigValKeeps(f *testing.F) {
 			}
 			return
 		}
-		kept, err := ir.ParseDecimal(string(v))
-		if err != nil || kept != d {
-			t.Fatalf("NewBigVal(%q) = %q reads to %v (%v), but the input reads to %v", s, v, kept, err, d)
+		kept, err := ir.ParseDecimal(string(bigVal))
+		if err != nil || kept != decimal {
+			t.Fatalf("NewBigVal(%q) = %q reads to %v (%v), but the input reads to %v", s, bigVal, kept, err, decimal)
 		}
-		again, err := ir.NewBigVal(string(v))
-		if err != nil || again != v {
-			t.Fatalf("NewBigVal(%q) = %q, and storing it again gives %q (%v)", s, v, again, err)
+		again, err := ir.NewBigVal(string(bigVal))
+		if err != nil || again != bigVal {
+			t.Fatalf("NewBigVal(%q) = %q, and storing it again gives %q (%v)", s, bigVal, again, err)
 		}
 	})
 }
@@ -142,13 +142,13 @@ func checkAgainstRationals(t *testing.T, a, b string, da, db ir.Decimal) {
 
 // rationalOf builds the rational NewBigVal's spelling of x denotes, and reports
 // false when the value is past maxRationalExp powers of ten from one.
-func rationalOf(x string, d ir.Decimal) (*big.Rat, bool) {
-	if d.Exponent() > maxRationalExp || d.Exponent() < -maxRationalExp {
+func rationalOf(x string, decimal ir.Decimal) (*big.Rat, bool) {
+	if decimal.Exponent() > maxRationalExp || decimal.Exponent() < -maxRationalExp {
 		return nil, false
 	}
-	v, err := ir.NewBigVal(x)
+	bigVal, err := ir.NewBigVal(x)
 	if err != nil {
 		return nil, false
 	}
-	return new(big.Rat).SetString(string(v))
+	return new(big.Rat).SetString(string(bigVal))
 }

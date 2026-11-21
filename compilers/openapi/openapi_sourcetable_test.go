@@ -145,12 +145,12 @@ x-a: &a [*a]
 func assertSourcesResolve(t *testing.T, table []ir.SourceInfo, diags []ir.Diagnostic) {
 	t.Helper()
 	require.NotEmpty(t, diags, "a refusal reports at least one finding")
-	for _, d := range diags {
-		if d.Provenance.Source == ir.NoSource {
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Source == ir.NoSource {
 			continue
 		}
-		assert.True(t, d.Provenance.Source >= 0 && d.Provenance.Source < len(table),
-			"diagnostic %+v must index table %+v or carry ir.NoSource", d, table)
+		assert.True(t, diagnostic.Provenance.Source >= 0 && diagnostic.Provenance.Source < len(table),
+			"diagnostic %+v must index table %+v or carry ir.NoSource", diagnostic, table)
 	}
 }
 
@@ -158,25 +158,25 @@ func assertSourcesResolve(t *testing.T, table []ir.SourceInfo, diags []ir.Diagno
 // apart from whether they would also compile.
 func TestCompiler_SourceTableDirectly(t *testing.T) {
 	t.Parallel()
-	c := openapi.New()
+	compiler := openapi.New()
 
 	t.Run("FormatOptions of the wrong type names the sources alone", func(t *testing.T) {
 		t.Parallel()
-		table := c.SourceTable([]compilers.Source{{Path: "spec.yaml"}},
+		table := compiler.SourceTable([]compilers.Source{{Path: "spec.yaml"}},
 			compilers.Options{FormatOptions: "not an openapi.Options"})
 		assert.Equal(t, []ir.SourceInfo{{Path: "spec.yaml"}}, table)
 	})
 
 	t.Run("a nil overlay adds nothing", func(t *testing.T) {
 		t.Parallel()
-		table := c.SourceTable([]compilers.Source{{Path: "spec.yaml"}},
+		table := compiler.SourceTable([]compilers.Source{{Path: "spec.yaml"}},
 			compilers.Options{FormatOptions: openapi.Options{Overlay: nil}})
 		assert.Equal(t, []ir.SourceInfo{{Path: "spec.yaml"}}, table)
 	})
 
 	t.Run("multiple sources are listed in order", func(t *testing.T) {
 		t.Parallel()
-		table := c.SourceTable(
+		table := compiler.SourceTable(
 			[]compilers.Source{{Path: "a.yaml"}, {Path: "b.yaml"}, {Path: "c.yaml"}},
 			compilers.Options{})
 		assert.Equal(t, []ir.SourceInfo{{Path: "a.yaml"}, {Path: "b.yaml"}, {Path: "c.yaml"}}, table)

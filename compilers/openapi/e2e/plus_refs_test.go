@@ -54,11 +54,11 @@ paths:
 `)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	want := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	want := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
 	assert.Contains(t, string(want), "~1a+b")
 	require.NotNil(t, doc.Types[want], "the type is interned at the key the pointer names")
-	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "h").Responses[0].Payload))
-	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "g").Responses[0].Payload))
+	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "h").Responses[0].Payload))
+	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, "g").Responses[0].Payload))
 }
 
 // plusCollisionSpec holds the paths "/a b" and "/a+b", each with an object of
@@ -114,14 +114,14 @@ func viewOf(t *testing.T, src string) plusView {
 		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Provenance.Pointer, b.Provenance.Pointer),
 			cmp.Compare(a.Message, b.Message))
 	})
-	v := plusView{Types: doc.Types, Diagnostics: diags, Responses: map[string]ir.TypeID{}, Components: map[string]ir.TypeID{}}
+	plusViewValue := plusView{Types: doc.Types, Diagnostics: diags, Responses: map[string]ir.TypeID{}, Components: map[string]ir.TypeID{}}
 	for _, name := range []string{"sp", "pl"} {
-		v.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOp(t, doc, name).Responses[0].Payload)
+		plusViewValue.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOperation(t, doc, name).Responses[0].Payload)
 	}
 	for _, name := range []string{"Plus", "Escaped", "Space"} {
-		v.Components[name] = useTarget(t, doc, name)
+		plusViewValue.Components[name] = useTarget(t, doc, name)
 	}
-	return v
+	return plusViewValue
 }
 
 // TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder pins
@@ -133,8 +133,8 @@ func viewOf(t *testing.T, src string) plusView {
 // compiled and compared.
 func TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder(t *testing.T) {
 	t.Parallel()
-	plusType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
-	spaceType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a b")...))
+	plusType := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	spaceType := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a b")...))
 	orders := []struct {
 		name        string
 		paths, uses []string
@@ -189,9 +189,9 @@ x-defs:
 `)
 
 	messages := map[string]string{}
-	for _, d := range diags {
-		messages[string(d.Provenance.Pointer)] = d.Message
-		assert.NotContains(t, d.Message, "%2B", "%s", d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		messages[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
+		assert.NotContains(t, diagnostic.Message, "%2B", "%s", diagnostic.Provenance.Pointer)
 	}
 	assert.True(t, strings.HasPrefix(messages["/paths/~1a/get/parameters/0"], `unresolved $ref "#/paths/~1nope+x/get": `))
 	const nothing = ": it names nothing in the document it points into"
@@ -235,7 +235,7 @@ components:
 `+tc.schemas)
 
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), useTarget(t, doc, "Plus"))
+			assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), useTarget(t, doc, "Plus"))
 			for _, name := range []string{"Named", "Text"} {
 				assert.Equal(t, text, typeByName(doc, name).Common().Docs.Description, name)
 			}
@@ -254,20 +254,20 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 	doc, diags := parseFull(t, string(readReproducer(t, "ref_fragment_plus")))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	relay := openapitest.FindOp(t, doc, "relay")
+	relay := openapitest.FindOperation(t, doc, "relay")
 	require.Len(t, relay.Params, 1)
 	assert.Equal(t, "/paths/~1a+b/get/parameters/0", string(relay.Params[0].Provenance.Pointer), "the parameter")
 	require.Len(t, relay.Responses, 1)
 	require.Len(t, relay.Responses[0].Headers, 1)
-	assert.Equal(t, ir.PropID("p/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
-	assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
+	assert.Equal(t, ir.PropertyID("property/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
+	assert.Equal(t, ids.DocumentIDNamespace{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
 		openapitest.BodyTarget(t, &ir.Payload{Contents: relay.Responses[0].Payload.Contents[:1]}), "the response")
 
 	var mounted []string
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if strings.HasPrefix(string(op.ID), "op/openapi/paths/~1c/") {
-				mounted = append(mounted, string(op.Provenance.Pointer))
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if strings.HasPrefix(string(operation.ID), "operation/openapi/paths/~1c/") {
+				mounted = append(mounted, string(operation.Provenance.Pointer))
 			}
 		}
 	}
@@ -343,14 +343,14 @@ components:
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		got := make([]string, 0, len(diags))
-		for _, d := range diags {
-			got = append(got, string(d.Provenance.Pointer)+" "+d.Message)
+		for _, diagnostic := range diags {
+			got = append(got, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Message)
 		}
 		slices.Sort(got)
 		reported = append(reported, got)
-		body, ok := doc.Types[theirs.AnonType(schema)].(*ir.Model)
+		body, ok := doc.Types[theirs.AnonymousType(schema)].(*ir.Model)
 		require.True(t, ok, "ext.yaml's /a schema is lowered where ext.yaml declares it")
-		pet, ok := propByWire(body, "pet")
+		pet, ok := propertyByWire(body, "pet")
 		require.True(t, ok)
 		assert.Equal(t, theirs.NamedType("/components/schemas/Pet"), pet.Type.Target, "ext.yaml's Pet, not the source's")
 	}
@@ -395,10 +395,10 @@ paths:
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
-	put := opWithID(t, doc, "op/openapi/paths/~1m/put")
+	put := operationWithID(t, doc, "operation/openapi/paths/~1m/put")
 	assert.Equal(t, "putBeside", put.Name.Source)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1a/x-n/put"}, put.Provenance)
-	for _, d := range diags {
-		assert.NotEqual(t, "/paths/~1m", string(d.Provenance.Pointer), "%+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, "/paths/~1m", string(diagnostic.Provenance.Pointer), "%+v", diagnostic)
 	}
 }

@@ -33,13 +33,13 @@ func reverseSequences(src []byte) ([]byte, permutation, Decline) {
 	if why != "" {
 		return nil, permutation{}, why
 	}
-	w := sequenceWalk{pointed: map[string]bool{}, written: map[string]int{}}
+	sequenceWalkValue := sequenceWalk{pointed: map[string]bool{}, written: map[string]int{}}
 	for _, doc := range docs {
-		if why := w.walk(doc, asKeywords, 0); why != "" {
+		if why := sequenceWalkValue.walk(doc, asKeywords, 0); why != "" {
 			return nil, permutation{}, why
 		}
 	}
-	perm := w.reverse()
+	perm := sequenceWalkValue.reverse()
 	if len(perm.written) == 0 {
 		return nil, permutation{}, DeclineNothingToPermute
 	}
@@ -93,42 +93,42 @@ type sequenceWalk struct {
 // there: what the IR says at it names one of them, not which.
 func (w *sequenceWalk) reverse() permutation {
 	perm := permutation{written: sequences{}, moved: sequences{}}
-	for _, c := range w.candidates {
-		if w.written[c.pointer] == 1 && !w.held(c.pointer) {
-			perm.written[c.pointer] = len(c.node.Content)
+	for _, candidate := range w.candidates {
+		if w.written[candidate.pointer] == 1 && !w.held(candidate.pointer) {
+			perm.written[candidate.pointer] = len(candidate.node.Content)
 		}
 	}
-	for _, c := range w.candidates {
-		n, reversed := perm.written[c.pointer]
+	for _, candidate := range w.candidates {
+		n, reversed := perm.written[candidate.pointer]
 		if !reversed {
 			continue
 		}
-		moved, _ := rewriteFrom(c.pointer, 0, perm.written, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
+		moved, _ := rewriteFrom(candidate.pointer, 0, perm.written, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
 		perm.moved[moved] = n
-		slices.Reverse(c.node.Content)
+		slices.Reverse(candidate.node.Content)
 	}
 	return perm
 }
 
-// walk visits n, read as mode says, recording each scalar's pointer prefixes
+// walk visits node, read as mode says, recording each scalar's pointer prefixes
 // (point) and each candidate. An anchored node is read as data, since an
 // alias names it in either order, and an alias is not entered: the node it
 // names is visited where it is written.
-func (w *sequenceWalk) walk(n *yaml.Node, mode reading, depth int) Decline {
+func (w *sequenceWalk) walk(node *yaml.Node, mode reading, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	if n.Anchor != "" {
+	if node.Anchor != "" {
 		mode = asData
 	}
-	switch n.Kind {
+	switch node.Kind {
 	case yaml.ScalarNode:
-		w.point(n.Value)
+		w.point(node.Value)
 		return ""
 	case yaml.MappingNode:
-		return w.mapping(n, mode, depth)
+		return w.mapping(node, mode, depth)
 	case yaml.SequenceNode, yaml.DocumentNode:
-		return w.sequence(n, mode, depth)
+		return w.sequence(node, mode, depth)
 	default:
 		return ""
 	}
@@ -139,9 +139,9 @@ func (w *sequenceWalk) walk(n *yaml.Node, mode reading, depth int) Decline {
 // requirement of a security list, since a scheme may be called required; an
 // allOf or required sequence of two or more is a candidate. A names mapping's
 // values are read as keywords, whatever their keys.
-func (w *sequenceWalk) mapping(n *yaml.Node, mode reading, depth int) Decline {
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, v := n.Content[i], n.Content[i+1]
+func (w *sequenceWalk) mapping(node *yaml.Node, mode reading, depth int) Decline {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key, value := node.Content[i], node.Content[i+1]
 		if key.Kind == yaml.ScalarNode {
 			w.point(key.Value)
 		}
@@ -152,10 +152,10 @@ func (w *sequenceWalk) mapping(n *yaml.Node, mode reading, depth int) Decline {
 			w.written[string(w.pointer)]++
 		}
 		if mode == asKeywords && orderFreeKeyword(k) &&
-			v.Kind == yaml.SequenceNode && len(v.Content) >= 2 && v.Anchor == "" {
-			w.candidates = append(w.candidates, candidate{node: v, pointer: string(w.pointer)})
+			value.Kind == yaml.SequenceNode && len(value.Content) >= 2 && value.Anchor == "" {
+			w.candidates = append(w.candidates, candidate{node: value, pointer: string(w.pointer)})
 		}
-		why := w.walk(v, valueReading(mode, k, v), depth+1)
+		why := w.walk(value, valueReading(mode, k, value), depth+1)
 		w.pointer = w.pointer[:mark]
 		if why != "" {
 			return why
@@ -164,8 +164,9 @@ func (w *sequenceWalk) mapping(n *yaml.Node, mode reading, depth int) Decline {
 	return ""
 }
 
-// valueReading is how the value v of key k is read in a mapping read as mode.
-func valueReading(mode reading, k string, v *yaml.Node) reading {
+// valueReading is how the value node of key k is read in a mapping read as
+// mode.
+func valueReading(mode reading, k string, node *yaml.Node) reading {
 	switch {
 	case mode == asData:
 		return asData
@@ -173,7 +174,7 @@ func valueReading(mode reading, k string, v *yaml.Node) reading {
 		return asKeywords
 	case data(k):
 		return asData
-	case nameMap(k) && v.Kind == yaml.MappingNode, k == "security" && v.Kind == yaml.SequenceNode:
+	case nameMap(k) && node.Kind == yaml.MappingNode, k == "security" && node.Kind == yaml.SequenceNode:
 		return asNames
 	default:
 		return asKeywords
@@ -182,10 +183,10 @@ func valueReading(mode reading, k string, v *yaml.Node) reading {
 
 // sequence visits each entry of a sequence, read as the sequence is, or a
 // document's root, which adds no token to the pointer.
-func (w *sequenceWalk) sequence(n *yaml.Node, mode reading, depth int) Decline {
-	for i, entry := range n.Content {
+func (w *sequenceWalk) sequence(node *yaml.Node, mode reading, depth int) Decline {
+	for i, entry := range node.Content {
 		mark := len(w.pointer)
-		if n.Kind == yaml.SequenceNode {
+		if node.Kind == yaml.SequenceNode {
 			w.pointer = appendToken(w.pointer, strconv.Itoa(i))
 		}
 		why := w.walk(entry, mode, depth+1)

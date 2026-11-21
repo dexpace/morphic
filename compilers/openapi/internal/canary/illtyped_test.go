@@ -26,10 +26,10 @@ func nilPopulatePanic(t *testing.T) {
 	for name, input := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			r := probe(t, "unmarshal", input)
-			require.Equal(t, returned, r.outcome, revisit(t, r))
-			assert.True(t, strings.HasPrefix(r.report, recoveredMark), revisit(t, r))
-			assert.Contains(t, r.report, "nil pointer dereference", revisit(t, r))
+			result := probe(t, "unmarshal", input)
+			require.Equal(t, returned, result.outcome, revisit(t, result))
+			assert.True(t, strings.HasPrefix(result.report, recoveredMark), revisit(t, result))
+			assert.Contains(t, result.report, "nil pointer dereference", revisit(t, result))
 		})
 	}
 }

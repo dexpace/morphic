@@ -93,7 +93,7 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 		"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
 		"          oneOf: [{required: [kind]}, {required: [x]}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
-		assertMovedToMap(t, doc.Types["t/anon"+at])
+		assertMovedToMap(t, doc.Types["type/anonymous"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
 			"not a subtype", "one move, reported once")
 		assert.Empty(t, unreadReports(doc.Diagnostics, at), "the map homes all that would otherwise be kept unread")
@@ -121,11 +121,11 @@ func TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range discriminatedOrders(t, "3.1.0", tc.pet, cat+subDog) {
-				m, ok := doc.Types[tc.node].(*ir.Model)
+				model, ok := doc.Types[tc.node].(*ir.Model)
 				require.True(t, ok, "a required name keeps the body a Model; got %T", doc.Types[tc.node])
-				assert.Nil(t, m.Discriminator, "the discriminator moved")
-				assert.Equal(t, []string{"a"}, m.Requires)
-				assert.NotContains(t, m.Unmodeled, "openapi:required")
+				assert.Nil(t, model.Discriminator, "the discriminator moved")
+				assert.Equal(t, []string{"a"}, model.Requires)
+				assert.NotContains(t, model.Unmodeled, "openapi:required")
 				assert.Empty(t, unreadReports(doc.Diagnostics, pointer))
 			}
 		})
@@ -139,7 +139,7 @@ func TestDiscriminatorBesideUnion_KeepsARoutingMapAModel(t *testing.T) {
 	t.Parallel()
 	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, subtypes) {
 		assertStayed(t, doc)
-		assert.NotNil(t, petModel(t, doc).AdditionalProps, "the catch-all stays beside the discriminator")
+		assert.NotNil(t, petModel(t, doc).AdditionalProperties, "the catch-all stays beside the discriminator")
 	}
 }
 
@@ -273,8 +273,8 @@ func TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied(t *testing.T) {
 	assert.NotContains(t, pet.Unmodeled, "openapi:discriminator")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, movedPointer),
 		"the failed copy is reported: %+v", diags)
-	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return strings.Contains(d.Message, "beside the union it was written for")
+	assert.False(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return strings.Contains(diagnostic.Message, "beside the union it was written for")
 	}), "no move is announced")
 }
 
@@ -388,7 +388,7 @@ func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst(t *testin
 		"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
 		"          oneOf: [{required: [kind]}, {required: [x]}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
-		pet, ok := doc.Types["t/anon"+at].(*ir.Model)
+		pet, ok := doc.Types["type/anonymous"+at].(*ir.Model)
 		require.True(t, ok)
 		assert.Nil(t, pet.Discriminator)
 		assert.Contains(t, pet.Unmodeled, "openapi:discriminator")
@@ -464,10 +464,10 @@ const mapPet = "    Pet:\n      type: object\n      additionalProperties: {type:
 // pointer, each naming the keywords that position kept for want of a home.
 func unreadReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
 	var out []string
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == pointer &&
-			strings.HasPrefix(d.Message, "this position lowered to ") {
-			out = append(out, d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == pointer &&
+			strings.HasPrefix(diagnostic.Message, "this position lowered to ") {
+			out = append(out, diagnostic.Message)
 		}
 	}
 	return out
@@ -479,7 +479,7 @@ func assertMovedToMap(t *testing.T, td ir.TypeDef) {
 	t.Helper()
 	mt, ok := td.(*ir.MapT)
 	require.True(t, ok, "got %T", td)
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, mt.Value)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/string"}, mt.Value)
 	assert.Contains(t, mt.Unmodeled, "openapi:oneOf", "the union is kept beside it")
 	assert.Contains(t, mt.Unmodeled, "openapi:discriminator", "and the discriminator with it")
 }

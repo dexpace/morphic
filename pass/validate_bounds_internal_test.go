@@ -13,21 +13,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPrimShapes_EveryPrimKindHasARow holds primShape to the kinds ir declares:
-// a kind added there with no case here would be judged by no check, and
-// nothing else would say so.
-func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
+// TestPrimitiveShapes_EveryPrimitiveKindHasARow holds primitiveShape to the
+// kinds ir declares: a kind added there with no case here would be judged by no
+// check, and nothing else would say so.
+func TestPrimitiveShapes_EveryPrimitiveKindHasARow(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("PrimKind")
+	kinds, err := loadedPackage.StringConsts("PrimitiveKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds)
 
-	for _, k := range kinds {
-		assert.NotEqual(t, shapeUnjudged, primShape(ir.PrimKind(k.Value)), "%s has no shape", k.Value)
+	for _, declaredConst := range kinds {
+		assert.NotEqual(t, shapeNotChecked, primitiveShape(ir.PrimitiveKind(declaredConst.Value)), "%s has no shape", declaredConst.Value)
 	}
-	assert.Equal(t, shapeUnjudged, primShape("no-such-kind"))
+	assert.Equal(t, shapeNotChecked, primitiveShape("no-such-kind"))
 }
 
 // TestKindWords_NamesEveryKind holds the words a value is described in to
@@ -35,15 +35,15 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 // included.
 func TestKindWords_NamesEveryKind(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")
 	require.NoError(t, err)
-	kinds, err := p.StringConsts("ValueKind")
+	kinds, err := loadedPackage.StringConsts("ValueKind")
 	require.NoError(t, err)
 	require.NotEmpty(t, kinds)
 
-	for _, k := range kinds {
-		assert.NotEmpty(t, kindWords(ir.ValueKind(k.Value)), k.Value)
+	for _, declaredConst := range kinds {
+		assert.NotEmpty(t, kindWords(ir.ValueKind(declaredConst.Value)), declaredConst.Value)
 	}
 	assert.Equal(t, "a null", kindWords(ir.ValueNull))
-	assert.Equal(t, "an infinity", kindWords(ir.ValueNegInf))
+	assert.Equal(t, "an infinity", kindWords(ir.ValueNegativeInfinity))
 }

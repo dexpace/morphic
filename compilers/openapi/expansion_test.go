@@ -59,31 +59,31 @@ func weightAt(t *testing.T, src, pointer string) int {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	n := root.Content[0]
+	node := root.Content[0]
 	for _, token := range strings.Split(pointer, "/")[1:] {
 		key := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
-		i := slices.IndexFunc(n.Content, func(k *yaml.Node) bool { return k.Value == key })
+		i := slices.IndexFunc(node.Content, func(child *yaml.Node) bool { return child.Value == key })
 		require.True(t, i >= 0 && i%2 == 0, "%s has no %q", pointer, key)
-		n = n.Content[i+1]
+		node = node.Content[i+1]
 	}
 	var weigh func(*yaml.Node) int
-	weigh = func(n *yaml.Node) int {
-		if n.Kind == yaml.AliasNode {
-			return weigh(n.Alias)
+	weigh = func(weighed *yaml.Node) int {
+		if weighed.Kind == yaml.AliasNode {
+			return weigh(weighed.Alias)
 		}
-		w := 1 + len(n.Value)
-		for i, c := range n.Content {
-			schema := n.Kind == yaml.MappingNode && i%2 == 1 &&
-				(n.Content[i-1].Value == "schema" || n.Content[i-1].Value == "itemSchema")
+		w := 1 + len(weighed.Value)
+		for i, otherNode := range weighed.Content {
+			schema := weighed.Kind == yaml.MappingNode && i%2 == 1 &&
+				(weighed.Content[i-1].Value == "schema" || weighed.Content[i-1].Value == "itemSchema")
 			if schema {
 				w++
 				continue
 			}
-			w += weigh(c)
+			w += weigh(otherNode)
 		}
 		return w
 	}
-	return weigh(n)
+	return weigh(node)
 }
 
 // pathsWith returns a 3.1 document of the paths given, or of none, then the
@@ -123,7 +123,7 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	doc, diags := compileExpanding(t, src, 2*(25+bareUse))
 	require.NotNil(t, doc, "copies weighing the budget are within it")
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Len(t, openapitest.FindOp(t, doc, "b").Params, 1, "the second copy is lowered")
+	assert.Len(t, openapitest.FindOperation(t, doc, "b").Params, 1, "the second copy is lowered")
 
 	doc, diags = compileExpanding(t, src, 2*(25+bareUse)-1)
 	assertRefused(t, doc, diags, 2*(25+bareUse)-1)
@@ -246,21 +246,21 @@ func TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull(t *testing.T) {
 // would cross this budget at the first $ref.
 func TestCompile_ASchemaIsChargedAsOneNode(t *testing.T) {
 	t.Parallel()
-	props := make([]string, 20)
-	for j := range props {
-		props[j] = fmt.Sprintf("p%d: {type: string}", j)
+	properties := make([]string, 20)
+	for j := range properties {
+		properties[j] = fmt.Sprintf("p%d: {type: string}", j)
 	}
 	use := "      responses: {'200': {$ref: '#/components/responses/R'}}\n"
 	src := pathsWith(getWith("/a", "      operationId: a\n"+use)+getWith("/b", "      operationId: b\n"+use),
 		"  responses:\n    R: {description: ok, content: {application/json: {schema: {type: object, properties: {"+
-			strings.Join(props, ", ")+"}}}}}\n")
+			strings.Join(properties, ", ")+"}}}}}\n")
 	weight := weightAt(t, src, "/components/responses/R") + bareUse
 
 	doc, diags := compileExpanding(t, src, 2*weight)
 	require.NotNil(t, doc, "%+v", diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
-	bodyType := func(op string) ir.TypeRef {
-		resps := openapitest.FindOp(t, doc, op).Responses
+	bodyType := func(operation string) ir.TypeRef {
+		resps := openapitest.FindOperation(t, doc, operation).Responses
 		require.Len(t, resps, 1)
 		require.NotNil(t, resps[0].Payload)
 		require.Len(t, resps[0].Payload.Contents, 1)
@@ -362,7 +362,7 @@ func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.
 
 	doc, diags, _ := compile(-1)
 	require.NotNil(t, doc)
-	require.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Provenance.Source == 1 }),
+	require.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Source == 1 }),
 		"the load phase reports in ext.yaml: %+v", diags)
 
 	doc, diags, table := compile(1)
@@ -377,14 +377,14 @@ func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.
 
 // itemWith returns a 3.2 document whose path item /p writes item, its own
 // fields, and mounts a get and the additional operations LINK and UNLINK, each
-// writing what ops gives it, beside the components.
-func itemWith(item string, ops [3]string, components string) string {
+// writing what operations gives it, beside the components.
+func itemWith(item string, operations [3]string, components string) string {
 	src := "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" + item +
-		"    get: {operationId: g, responses: {'200': {description: ok}}" + ops[0] + "}\n" +
+		"    get: {operationId: g, responses: {'200': {description: ok}}" + operations[0] + "}\n" +
 		"    additionalOperations:\n"
 	for i, method := range []string{"LINK", "UNLINK"} {
 		src += fmt.Sprintf("      %s: {operationId: %s, responses: {'200': {description: ok}}%s}\n",
-			method, strings.ToLower(method), ops[i+1])
+			method, strings.ToLower(method), operations[i+1])
 	}
 	return src + "components:\n" + components
 }
@@ -419,8 +419,8 @@ func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing
 			doc, diags := compileExpanding(t, tc.src, -1)
 			require.NotNil(t, doc)
 			openapitest.RequireNoErrorDiags(t, diags)
-			require.NotEmpty(t, openapitest.FindOp(t, doc, "link").Servers)
-			want := tc.want(len(openapitest.FindOp(t, doc, "link").Servers[0]))
+			require.NotEmpty(t, openapitest.FindOperation(t, doc, "link").Servers)
+			want := tc.want(len(openapitest.FindOperation(t, doc, "link").Servers[0]))
 
 			doc, diags = compileExpanding(t, tc.src, want)
 			require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
@@ -437,20 +437,20 @@ func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing
 // parameter, a kept extension and a server, spends the budget at all.
 func TestCompile_APathItemsFixedMethodsAreNotCharged(t *testing.T) {
 	t.Parallel()
-	var ops strings.Builder
+	var operations strings.Builder
 	for _, method := range []string{"get", "put", "post", "delete", "patch"} {
-		fmt.Fprintf(&ops, "    %s: {operationId: %s, responses: {'200': {description: ok}}}\n", method, method)
+		fmt.Fprintf(&operations, "    %s: {operationId: %s, responses: {'200': {description: ok}}}\n", method, method)
 	}
 	for _, version := range []string{"3.1.0", "3.2.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			src := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
 				"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
-				"    parameters: [{name: q, in: query, schema: {type: string}}]\n" + ops.String()
+				"    parameters: [{name: q, in: query, schema: {type: string}}]\n" + operations.String()
 			doc, diags := compileExpanding(t, src, 1)
 			require.NotNil(t, doc, "%v", diags)
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.NotEmpty(t, openapitest.FindOp(t, doc, "patch").Servers)
+			assert.NotEmpty(t, openapitest.FindOperation(t, doc, "patch").Servers)
 		})
 	}
 }
@@ -476,8 +476,8 @@ func TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder(t *testing.T) {
 			doc, diags := compileExpanding(t, src, -1)
 			require.NotNil(t, doc)
 			openapitest.RequireNoErrorDiags(t, diags)
-			require.NotEmpty(t, openapitest.FindOp(t, doc, "unlink").Servers)
-			want := 3 + 1 + 3 + 25 + 3 + 1 + 3 + len(openapitest.FindOp(t, doc, "unlink").Servers[0])
+			require.NotEmpty(t, openapitest.FindOperation(t, doc, "unlink").Servers)
+			want := 3 + 1 + 3 + 25 + 3 + 1 + 3 + len(openapitest.FindOperation(t, doc, "unlink").Servers[0])
 
 			doc, diags = compileExpanding(t, src, want)
 			require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
@@ -517,7 +517,7 @@ func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
 	doc, diags := compile(want)
 	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
 	openapitest.RequireNoErrorDiags(t, diags)
-	require.Len(t, openapitest.FindOp(t, doc, "link").Params, 1, "LINK takes the parameter")
+	require.Len(t, openapitest.FindOperation(t, doc, "link").Params, 1, "LINK takes the parameter")
 	doc, diags = compile(want - 1)
 	assertRefused(t, doc, diags, want-1)
 }

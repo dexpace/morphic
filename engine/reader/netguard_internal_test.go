@@ -34,17 +34,17 @@ type probeServer struct {
 // nil.
 func newProbeServer(t *testing.T, useTLS bool, handle http.HandlerFunc) *probeServer {
 	t.Helper()
-	p := &probeServer{}
+	probeServerValue := &probeServer{}
 	if handle == nil {
 		handle = func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("document")) }
 	}
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p.requests.Add(1)
+		probeServerValue.requests.Add(1)
 		handle(w, r)
 	}))
 	srv.Config.ConnState = func(_ net.Conn, s http.ConnState) {
 		if s == http.StateNew {
-			p.conns.Add(1)
+			probeServerValue.conns.Add(1)
 		}
 	}
 	if useTLS {
@@ -53,8 +53,8 @@ func newProbeServer(t *testing.T, useTLS bool, handle http.HandlerFunc) *probeSe
 		srv.Start()
 	}
 	t.Cleanup(srv.Close)
-	p.Server = srv
-	return p
+	probeServerValue.Server = srv
+	return probeServerValue
 }
 
 // port is the port the server listens on.
@@ -72,8 +72,8 @@ func (p *probeServer) port(t *testing.T) uint16 {
 // address is public.
 func placing(spaces map[uint16]compilers.AddressSpace) func(netip.AddrPort) compilers.AddressSpace {
 	return func(ap netip.AddrPort) compilers.AddressSpace {
-		if s, ok := spaces[ap.Port()]; ok {
-			return s
+		if addressSpace, ok := spaces[ap.Port()]; ok {
+			return addressSpace
 		}
 		return compilers.SpacePublic
 	}
@@ -94,9 +94,9 @@ func guarded(client *http.Client, spaces map[uint16]compilers.AddressSpace) Disk
 func TestDisk_ABoundedReadIsJudgedBeforeAnythingIsRequested(t *testing.T) {
 	t.Parallel()
 	srv := newProbeServer(t, false, nil)
-	d := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+	disk := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+	got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
 	past, ok := errors.AsType[*compilers.AddressSpaceError](err)
 	require.True(t, ok, "the refusal names the address and its space")
@@ -106,7 +106,7 @@ func TestDisk_ABoundedReadIsJudgedBeforeAnythingIsRequested(t *testing.T) {
 	assert.Zero(t, srv.requests.Load(), "the address was refused before the request was sent")
 
 	for _, reach := range []compilers.AddressSpace{compilers.SpacePrivate, compilers.SpaceUnstated} {
-		got, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: reach})
+		got, err = disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: reach})
 		require.NoError(t, err, "reach %d", reach)
 		assert.Equal(t, "document", string(got.Data), "reach %d", reach)
 		assert.Equal(t, compilers.SpacePrivate, got.Space, "reach %d: the read states where it was answered from", reach)
@@ -197,19 +197,19 @@ func TestDisk_ARedirectedReadIsBoundedByEveryHop(t *testing.T) {
 func TestDisk_NoConnectionIsKeptBetweenReads(t *testing.T) {
 	t.Parallel()
 	pub := newProbeServer(t, false, nil)
-	d := guarded(nil, map[uint16]compilers.AddressSpace{pub.port(t): compilers.SpacePublic})
+	disk := guarded(nil, map[uint16]compilers.AddressSpace{pub.port(t): compilers.SpacePublic})
 	for range 2 {
-		_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: pub.URL, Reach: compilers.SpacePublic})
+		_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: pub.URL, Reach: compilers.SpacePublic})
 		require.NoError(t, err)
 	}
 	assert.EqualValues(t, 2, pub.conns.Load(), "one connection per read")
 
 	priv := newProbeServer(t, false, nil)
-	d = guarded(nil, map[uint16]compilers.AddressSpace{priv.port(t): compilers.SpacePrivate})
-	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: priv.URL})
+	disk = guarded(nil, map[uint16]compilers.AddressSpace{priv.port(t): compilers.SpacePrivate})
+	_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: priv.URL})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, priv.conns.Load())
-	_, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: priv.URL, Reach: compilers.SpacePublic})
+	_, err = disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: priv.URL, Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
 	assert.EqualValues(t, 1, priv.conns.Load(), "the refused read dialled nothing and rode nothing")
 	assert.EqualValues(t, 1, priv.requests.Load(), "the server saw the first read only")
@@ -255,17 +255,17 @@ func proxied(t *testing.T) (Disk, *probeServer) {
 // host is never sent to the proxy.
 func TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites(t *testing.T) {
 	t.Parallel()
-	d, proxy := proxied(t)
+	disk, proxy := proxied(t)
 	for _, refused := range []string{
 		"http://10.0.0.5/x", "http://localhost/x", "http://LOCALHOST./x", "http://127.1/x", "http://0177.0.0.1/x",
 		"http://2130706433/x", "http://0x7f.1/x", "http://[::ffff:10.0.0.1]/x", "http://a.localhost/x",
 	} {
-		_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: refused, Reach: compilers.SpacePublic})
+		_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: refused, Reach: compilers.SpacePublic})
 		assert.ErrorIs(t, err, compilers.ErrAddressSpace, refused)
 	}
 	assert.Zero(t, proxy.requests.Load(), "the proxy saw nothing")
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
+	got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
 	require.NoError(t, err)
 	assert.Equal(t, "proxied", string(got.Data))
 	assert.Equal(t, compilers.SpaceUnstated, got.Space, "the address the proxy dialled is out of sight")
@@ -343,11 +343,11 @@ func TestDisk_AReadThroughATransportItCannotHookFailsBeforeDialling(t *testing.T
 		"Dial":           withField("Dial", plainNoContext),
 	}
 	for name, rt := range transports {
-		d := guarded(&http.Client{Transport: rt}, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+		disk := guarded(&http.Client{Transport: rt}, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
 		calls.Store(0)
 		conns := srv.conns.Load()
 
-		_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+		_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
 		require.ErrorIs(t, err, compilers.ErrUnboundedRead, name)
 		assert.Zero(t, calls.Load(), "%s: the transport was not called", name)
 		assert.Equal(t, conns, srv.conns.Load(), "%s: nothing was dialled", name)
@@ -355,7 +355,7 @@ func TestDisk_AReadThroughATransportItCannotHookFailsBeforeDialling(t *testing.T
 		if name == "a round tripper" {
 			continue
 		}
-		got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL})
+		got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL})
 		require.NoError(t, err, name)
 		assert.Equal(t, "document", string(got.Data), name)
 		assert.Equal(t, compilers.SpaceUnstated, got.Space, "%s: an unbounded read through it states no space", name)
@@ -383,8 +383,8 @@ func TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked(t *testing.T) {
 	http.DefaultTransport = tr
 	t.Cleanup(func() { http.DefaultTransport = old })
 
-	d := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
-	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+	disk := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+	_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
 
 	require.ErrorIs(t, err, compilers.ErrUnboundedRead)
 	assert.Zero(t, calls.Load(), "the process's TLS dialer was not called")
@@ -398,16 +398,16 @@ func TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked(t *testing.T) {
 // literal address, which the proxy dials as written, its space as both.
 func TestDisk_AProxiedReadStatesNoSpaceItCannotSee(t *testing.T) {
 	t.Parallel()
-	d, _ := proxied(t)
-	d.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
+	disk, _ := proxied(t)
+	disk.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
 		"private.example": {{netip.MustParseAddr("10.0.0.5")}},
 	}}).resolver()
 	read := func(location string, reach compilers.AddressSpace) compilers.DocumentRead {
-		got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: reach})
+		got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: reach})
 		require.NoError(t, err, location)
 		return got
 	}
-	unasked := Disk{Client: d.Client, resolver: &net.Resolver{PreferGo: true,
+	unasked := Disk{Client: disk.Client, resolver: &net.Resolver{PreferGo: true,
 		Dial: func(context.Context, string, string) (net.Conn, error) {
 			t.Error("an unbounded read asked the resolver")
 			return nil, errors.New("not to be asked")

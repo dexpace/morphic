@@ -131,18 +131,18 @@ func collectorQueries(ir *decls.Package) []string {
 	return queries
 }
 
-// walkUses returns, for one package p outside ir, the functions naming each of
-// names in p's own copy of ir, keyed as the table is: a name with no dot is a
-// package-level object, and "Type.Method" a method.
-func walkUses(p *decls.Package, names []string) map[string][]string {
-	rel := strings.TrimPrefix(p.Types.Path(), module+"/")
+// walkUses returns, for one package loadedPackage outside ir, the functions
+// naming each of names in loadedPackage's own copy of ir, keyed as the table
+// is: a name with no dot is a package-level object, and "Type.Method" a method.
+func walkUses(loadedPackage *decls.Package, names []string) map[string][]string {
+	rel := strings.TrimPrefix(loadedPackage.Types.Path(), module+"/")
 	// Only a direct import names a walk, and only its own copy of ir holds the
 	// objects: one reached through another package may be a stub.
-	i := slices.IndexFunc(p.Types.Imports(), func(imp *types.Package) bool { return imp.Path() == module+"/ir" })
+	i := slices.IndexFunc(loadedPackage.Types.Imports(), func(imp *types.Package) bool { return imp.Path() == module+"/ir" })
 	if rel == "ir" || i < 0 {
 		return nil
 	}
-	scope := p.Types.Imports()[i].Scope()
+	scope := loadedPackage.Types.Imports()[i].Scope()
 	uses := map[string][]string{}
 	for _, name := range names {
 		typ, method, isMethod := strings.Cut(name, ".")
@@ -153,20 +153,21 @@ func walkUses(p *decls.Package, names []string) map[string][]string {
 		if obj == nil {
 			continue
 		}
-		for _, fn := range p.FuncsUsing(obj) {
+		for _, fn := range loadedPackage.FuncsUsing(obj) {
 			uses[name] = append(uses[name], rel+"."+fn)
 		}
-		uses[name] = append(uses[name], valuesNaming(p, rel, obj)...)
+		uses[name] = append(uses[name], valuesNaming(loadedPackage, rel, obj)...)
 	}
 	return uses
 }
 
-// valuesNaming returns rel.<name> for each package-level var or const of p whose
-// declaration names obj: a walk held in a func value is called through the
-// value, which no function names the walk for, so the value answers for a stop.
-func valuesNaming(p *decls.Package, rel string, obj types.Object) []string {
+// valuesNaming returns rel.<name> for each package-level var or const of
+// loadedPackage whose declaration names obj: a walk held in a func value is
+// called through the value, which no function names the walk for, so the value
+// answers for a stop.
+func valuesNaming(loadedPackage *decls.Package, rel string, obj types.Object) []string {
 	var out []string
-	for _, f := range p.Syntax {
+	for _, f := range loadedPackage.Syntax {
 		for _, decl := range f.Decls {
 			gen, isGen := decl.(*ast.GenDecl)
 			if !isGen {
@@ -174,7 +175,7 @@ func valuesNaming(p *decls.Package, rel string, obj types.Object) []string {
 			}
 			for _, spec := range gen.Specs {
 				value, isValue := spec.(*ast.ValueSpec)
-				if isValue && namesObject(p, value, obj) {
+				if isValue && namesObject(loadedPackage, value, obj) {
 					out = append(out, rel+"."+value.Names[0].Name)
 				}
 			}
@@ -184,9 +185,9 @@ func valuesNaming(p *decls.Package, rel string, obj types.Object) []string {
 }
 
 // namesObject reports whether node names obj anywhere in it.
-func namesObject(p *decls.Package, node ast.Node, obj types.Object) bool {
+func namesObject(loadedPackage *decls.Package, node ast.Node, obj types.Object) bool {
 	for n := range ast.Preorder(node) {
-		if ident, isIdent := n.(*ast.Ident); isIdent && p.Info.Uses[ident] == obj {
+		if ident, isIdent := n.(*ast.Ident); isIdent && loadedPackage.Info.Uses[ident] == obj {
 			return true
 		}
 	}
@@ -200,8 +201,8 @@ func namesObject(p *decls.Package, node ast.Node, obj types.Object) bool {
 func walkCallerFindings(pkgs []*decls.Package, walks, queries []string, table map[string]walkCaller) []string {
 	var findings []string
 	found, read := map[string]bool{}, map[string]bool{}
-	for _, p := range pkgs {
-		for name, fns := range walkUses(p, walks) {
+	for _, loadedPackage := range pkgs {
+		for name, fns := range walkUses(loadedPackage, walks) {
 			for _, key := range fns {
 				found[key] = true
 				if _, listed := table[key]; !listed {
@@ -209,7 +210,7 @@ func walkCallerFindings(pkgs []*decls.Package, walks, queries []string, table ma
 				}
 			}
 		}
-		for name, fns := range walkUses(p, queries) {
+		for name, fns := range walkUses(loadedPackage, queries) {
 			for _, key := range fns {
 				read[key] = true
 				if !listsReader(table, key) {
@@ -234,8 +235,8 @@ func walkCallerFindings(pkgs []*decls.Package, walks, queries []string, table ma
 
 // listsReader reports whether an entry of table lists key among its readers.
 func listsReader(table map[string]walkCaller, key string) bool {
-	for _, c := range table {
-		if slices.Contains(c.readers, key) {
+	for _, walkCaller := range table {
+		if slices.Contains(walkCaller.readers, key) {
 			return true
 		}
 	}
@@ -245,7 +246,7 @@ func listsReader(table map[string]walkCaller, key string) bool {
 // irDecls returns ir's own load among pkgs.
 func irDecls(t *testing.T, pkgs []*decls.Package) *decls.Package {
 	t.Helper()
-	i := slices.IndexFunc(pkgs, func(p *decls.Package) bool { return p.Types.Path() == module+"/ir" })
+	i := slices.IndexFunc(pkgs, func(loadedPackage *decls.Package) bool { return loadedPackage.Types.Path() == module+"/ir" })
 	require.GreaterOrEqual(t, i, 0, "the load holds ir")
 	return pkgs[i]
 }
@@ -270,8 +271,8 @@ func TestWalks_EveryCallerAnswersForAStop(t *testing.T) {
 	for _, finding := range walkCallerFindings(pkgs, walks, queries, walkCallers) {
 		t.Error(finding)
 	}
-	for key, c := range walkCallers {
-		assert.NotEmpty(t, c.answer, "%s gives no answer", key)
+	for key, walkCaller := range walkCallers {
+		assert.NotEmpty(t, walkCaller.answer, "%s gives no answer", key)
 	}
 }
 
@@ -298,9 +299,9 @@ func plantedReader(refs *ir.IDReferences) bool { return refs.Declares(nil, "") }
 `)
 
 	table := map[string]walkCaller{"pass.ghost": {answer: "none", readers: []string{"pass.ghostReader"}}}
-	for key, c := range walkCallers {
+	for key, walkCaller := range walkCallers {
 		if strings.HasPrefix(key, "pass.") {
-			table[key] = c
+			table[key] = walkCaller
 		}
 	}
 

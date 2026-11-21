@@ -12,12 +12,12 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// primSourceCode is what a primitive credited to a source draws.
-const primSourceCode = "ir/prim-names-source"
+// primitiveSourceCode is what a primitive credited to a source draws.
+const primitiveSourceCode = "ir/primitive-names-source"
 
 // primitiveOf returns the one primitive of scenarioBase.
 func primitiveOf(doc *ir.Document) *ir.Primitive {
-	return doc.Types["t/prim/string"].(*ir.Primitive)
+	return doc.Types["type/primitive/string"].(*ir.Primitive)
 }
 
 // TestVerify_PrimitiveNamesNoSource pins that a primitive is shared by every
@@ -31,21 +31,21 @@ func TestVerify_PrimitiveNamesNoSource(t *testing.T) {
 		prov    ir.Provenance
 		want    []string
 	}{
-		{"credited to the first source", oneSource(), ir.Provenance{Source: 0}, []string{"types[t/prim/string]"}},
+		{"credited to the first source", oneSource(), ir.Provenance{Source: 0}, []string{"types[type/primitive/string]"}},
 		{"credited to a later source", append(oneSource(), oneSource()...), ir.Provenance{Source: 1},
-			[]string{"types[t/prim/string]"}},
+			[]string{"types[type/primitive/string]"}},
 		{"shared, sources declared", oneSource(), ir.Provenance{Source: ir.NoSource}, nil},
 		{"shared, no sources declared", nil, ir.Provenance{Source: ir.NoSource}, nil},
 		{"zero provenance, no sources declared", nil, ir.Provenance{}, nil},
 		{"a pointer on the first source, no sources declared", nil, ir.Provenance{Pointer: "/components/schemas/S"},
-			[]string{"types[t/prim/string]"}},
+			[]string{"types[type/primitive/string]"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := scenarioBase()
 			doc.Sources = tc.sources
 			primitiveOf(doc).Provenance = tc.prov
-			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), primSourceCode))
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), primitiveSourceCode))
 		})
 	}
 }
@@ -58,9 +58,9 @@ func TestVerify_PrimitiveSourceMessage(t *testing.T) {
 	doc.Sources = oneSource()
 	primitiveOf(doc).Provenance = ir.Provenance{Source: 0}
 	var got []string
-	for _, v := range irverify.Verify(doc) {
-		if v.Code == primSourceCode {
-			got = append(got, v.Message)
+	for _, violation := range irverify.Verify(doc) {
+		if violation.Code == primitiveSourceCode {
+			got = append(got, violation.Message)
 		}
 	}
 	assert.Equal(t, []string{"primitive is credited to source 0, and a primitive shared by every source names none"}, got)
@@ -72,6 +72,6 @@ func TestVerify_OnlyAPrimitiveIsHeldToNoSource(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
 	doc.Sources = oneSource()
-	doc.Types["t/x/M"].Common().Provenance = ir.Provenance{Source: 0}
-	assert.Empty(t, violationPaths(irverify.Verify(doc), primSourceCode))
+	doc.Types["type/x/M"].Common().Provenance = ir.Provenance{Source: 0}
+	assert.Empty(t, violationPaths(irverify.Verify(doc), primitiveSourceCode))
 }

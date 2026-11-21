@@ -67,8 +67,8 @@ func TestReadSelector_SelectsWhatRFC9535sExamplesSelect(t *testing.T) {
 			continue
 		}
 		values := make([]string, 0, len(got))
-		for _, l := range got {
-			values = append(values, l.Node.Value)
+		for _, located := range got {
+			values = append(values, located.Node.Value)
 		}
 		assert.Equal(t, want.holds, values, selector)
 	}

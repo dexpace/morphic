@@ -22,24 +22,24 @@ import (
 // TestPositions_EachPointerNamesTheSchemaItPlaces resolves each position's
 // pointer in the document its place writes: it is the schema placed.
 func TestPositions_EachPointerNamesTheSchemaItPlaces(t *testing.T) {
-	for _, p := range positions() {
-		paths, schemas := p.place(object{{"x-mark", "here"}})
+	for _, position := range positions() {
+		paths, schemas := position.place(object{{"x-mark", "here"}})
 		data, err := encode(object{{"paths", paths}, {"components", object{{"schemas", schemas}}}})
 		require.NoError(t, err)
 		var v any
 		require.NoError(t, json.Unmarshal(data, &v))
-		for token := range jsontext.Pointer(p.pointer).Tokens() {
+		for token := range jsontext.Pointer(position.pointer).Tokens() {
 			switch node := v.(type) {
 			case map[string]any:
 				v = node[token]
 			case []any:
-				require.Equal(t, "0", token, p.name)
+				require.Equal(t, "0", token, position.name)
 				v = node[0]
 			default:
-				t.Fatalf("%s: %q reaches no node", p.name, p.pointer)
+				t.Fatalf("%s: %q reaches no node", position.name, position.pointer)
 			}
 		}
-		assert.Equal(t, map[string]any{"x-mark": "here"}, v, p.name)
+		assert.Equal(t, map[string]any{"x-mark": "here"}, v, position.name)
 	}
 }
 
@@ -47,33 +47,33 @@ func TestRelocation_ErasesEachAllOfIndexAfterTheUse(t *testing.T) {
 	use := "/components/schemas/C"
 	relocate := relocation(use)
 	for in, want := range map[string]string{
-		"t/openapi/components/schemas/C/allOf/1/properties/x": "t/openapi/components/schemas/C/properties/x",
-		use + "/allOf/0/allOf/1/minLength":                    use + "/minLength",
-		use + "/allOf/1":                                      use,
-		"/components/schemas/CX/allOf/1":                      "/components/schemas/CX/allOf/1",
-		"/components/schemas/CX/allOf/1 " + use + "/allOf/2":  "/components/schemas/CX/allOf/1 " + use,
-		use + "/allOf/x/allOf":                                use + "/allOf/x/allOf",
-		"openapi:allOf/1":                                     "openapi:",
-		"openapi:schema/allOf/1":                              "openapi:schema",
-		"openapi:contentMediaType":                            "openapi:contentMediaType",
-		"^a3":                                                 "^a3",
-		"/components/schemas/CX":                              "/components/schemas/CX",
+		"type/openapi/components/schemas/C/allOf/1/properties/x": "type/openapi/components/schemas/C/properties/x",
+		use + "/allOf/0/allOf/1/minLength":                       use + "/minLength",
+		use + "/allOf/1":                                         use,
+		"/components/schemas/CX/allOf/1":                         "/components/schemas/CX/allOf/1",
+		"/components/schemas/CX/allOf/1 " + use + "/allOf/2":     "/components/schemas/CX/allOf/1 " + use,
+		use + "/allOf/x/allOf":                                   use + "/allOf/x/allOf",
+		"openapi:allOf/1":                                        "openapi:",
+		"openapi:schema/allOf/1":                                 "openapi:schema",
+		"openapi:contentMediaType":                               "openapi:contentMediaType",
+		"^a3":                                                    "^a3",
+		"/components/schemas/CX":                                 "/components/schemas/CX",
 	} {
 		assert.Equal(t, want, relocate(in), in)
 	}
 	assert.PanicsWithValue(t, "openapicases: a relocation of no use", func() { relocation("") })
 
 	beneath := relocation("/components/schemas/C/properties/")
-	assert.Equal(t, "p/openapi/components/schemas/C/properties/t1", beneath("p/openapi/components/schemas/C/properties/t1/allOf/0"))
+	assert.Equal(t, "property/openapi/components/schemas/C/properties/t1", beneath("property/openapi/components/schemas/C/properties/t1/allOf/0"))
 }
 
 // caseAt returns the coordinates of the case naming each axis's value by name.
-func caseAt(t *testing.T, c cases, names ...string) []int {
+func caseAt(t *testing.T, casesValue cases, names ...string) []int {
 	t.Helper()
-	axes := c.Axes()
+	axes := casesValue.Axes()
 	out := make([]int, len(axes))
 	for k, a := range axes {
-		out[k] = slices.IndexFunc(a.Values, func(v harness.Value) bool { return v.Name == names[k] })
+		out[k] = slices.IndexFunc(a.Values, func(value harness.Value) bool { return value.Name == names[k] })
 		require.GreaterOrEqual(t, out[k], 0, names[k])
 	}
 	return out
@@ -85,7 +85,7 @@ func caseAt(t *testing.T, c cases, names ...string) []int {
 // apart in two spellings, and the reports a 3.0 use states, a nullable:
 // true's beside the allOf only where no type is written with it.
 func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
-	c := New().(cases)
+	casesValue := New().(cases)
 	for _, tc := range []struct {
 		at      []string
 		written bool
@@ -119,18 +119,18 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 		{[]string{"3.0.3", "string", "nullable", "targetType", "items", "entry"}, true, wrap},
 		{[]string{"3.0.3", "string", "nullable~", "targetType", "items", "besideEntry"}, true, entry},
 	} {
-		doc, ok := c.Write(caseAt(t, c, tc.at...))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, tc.at...))
 		require.Equal(t, tc.written, ok, "%v", tc.at)
 		if tc.partner == "" {
 			assert.Nil(t, doc.Equal, "%v", tc.at)
 			continue
 		}
 		require.NotNil(t, doc.Equal, "%v", tc.at)
-		assert.Equal(t, tc.partner, c.spellings[doc.Equal.To[5]], "%v", tc.at)
+		assert.Equal(t, tc.partner, casesValue.spellings[doc.Equal.To[5]], "%v", tc.at)
 	}
 
 	eq := func(names ...string) *harness.Equal {
-		doc, ok := c.Write(caseAt(t, c, names...))
+		doc, ok := casesValue.Write(caseAt(t, casesValue, names...))
 		require.True(t, ok)
 		require.NotNil(t, doc.Equal)
 		return doc.Equal
@@ -182,29 +182,29 @@ func TestSpell_RefusesAUseWritingAKeyTwice(t *testing.T) {
 // since a group's target is named by $ref alone, and each other one naming its
 // partner, its uses relocated beneath the carriers the position writes.
 func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
-	c := Groups().(groupCases)
-	require.NotContains(t, c.spellings, inline)
+	groupCasesValue := Groups().(groupCases)
+	require.NotContains(t, groupCasesValue.spellings, inline)
 	want := map[string]string{"property": "/components/schemas/C/properties/",
 		"parameter": "/paths/~1c/get/parameters/", "header": "/paths/~1c/get/responses/200/headers/"}
-	for i, p := range c.positions {
-		assert.Equal(t, want[p.name], carriersOf(p), p.name)
-		for k, s := range c.spellings {
-			doc, ok := c.Write([]int{0, 0, i, k})
-			require.True(t, ok, "%s %s", p.name, s)
+	for i, position := range groupCasesValue.positions {
+		assert.Equal(t, want[position.name], carriersOf(position), position.name)
+		for k, s := range groupCasesValue.spellings {
+			doc, ok := groupCasesValue.Write([]int{0, 0, i, k})
+			require.True(t, ok, "%s %s", position.name, s)
 			partner, _, named := partnerOf(s)
 			if !named {
 				assert.Nil(t, doc.Equal, s)
 				continue
 			}
 			require.NotNil(t, doc.Equal, s)
-			assert.Equal(t, partner, c.spellings[doc.Equal.To[3]])
-			assert.Equal(t, want[p.name]+"t0", doc.Equal.Relocate(want[p.name]+"t0/allOf/1"), "%s %s", p.name, s)
+			assert.Equal(t, partner, groupCasesValue.spellings[doc.Equal.To[3]])
+			assert.Equal(t, want[position.name]+"t0", doc.Equal.Relocate(want[position.name]+"t0/allOf/1"), "%s %s", position.name, s)
 		}
 	}
-	_, ok := c.Write([]int{0, 0, 0, len(c.spellings)})
+	_, ok := groupCasesValue.Write([]int{0, 0, 0, len(groupCasesValue.spellings)})
 	assert.False(t, ok)
-	c.spellings = append(c.spellings, inline)
-	_, ok = c.Write([]int{0, 0, 0, len(c.spellings) - 1})
+	groupCasesValue.spellings = append(groupCasesValue.spellings, inline)
+	_, ok = groupCasesValue.Write([]int{0, 0, 0, len(groupCasesValue.spellings) - 1})
 	assert.False(t, ok, "a spelling writing no use of a group's target writes nothing")
 }
 
@@ -217,22 +217,22 @@ func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
 // (docs/compilers/openapi.md#allof-classification).
 func TestWrite_TwoSpellingsDifferInTheUseAlone(t *testing.T) {
 	t.Parallel()
-	c, ok := New().(cases)
+	casesValue, ok := New().(cases)
 	require.True(t, ok)
-	each, err := harness.Each(c)
+	each, err := harness.Each(casesValue)
 	require.NoError(t, err)
-	axes := c.Axes()
+	axes := casesValue.Axes()
 	var pairs int
 	var differ []string
 	for _, at := range each {
-		if c.positions[at[4]].name != "component" {
+		if casesValue.positions[at[4]].name != "component" {
 			continue
 		}
-		doc, ok := c.Write(at)
+		doc, ok := casesValue.Write(at)
 		if !ok || doc.Equal == nil {
 			continue
 		}
-		partner, ok := c.Write(doc.Equal.To)
+		partner, ok := casesValue.Write(doc.Equal.To)
 		require.True(t, ok, "%v", at)
 		pairs++
 		if diff := gocmp.Diff(useOf(t, partner), useOf(t, doc)); diff != "" {
@@ -261,7 +261,7 @@ type said struct {
 }
 
 // useOf reads doc, a case at the component position, as said.
-func useOf(t *testing.T, doc harness.Document) said {
+func useOf(t *testing.T, doc harness.CaseDocument) said {
 	t.Helper()
 	data := doc.Sources[0].Data
 	var out said

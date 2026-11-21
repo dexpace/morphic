@@ -51,12 +51,12 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 	spec32 := func(schemas string) string { return openapitest.ComponentSpecVer("3.2.0", schemas) }
 
 	const (
-		propTarget    = "/components/schemas/Kennel/properties/Dog"
-		itemsTarget   = "/components/schemas/Kennel/items"
-		keywordTarget = "/components/schemas/Kennel/properties/items/items"
-		defsTarget    = "/components/schemas/Kennel/$defs/Dog"
-		pathsBase     = "/paths/~1a/get/responses/200/content/application~1json/schema"
-		pathsTarget   = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+		propertyTarget = "/components/schemas/Kennel/properties/Dog"
+		itemsTarget    = "/components/schemas/Kennel/items"
+		keywordTarget  = "/components/schemas/Kennel/properties/items/items"
+		defsTarget     = "/components/schemas/Kennel/$defs/Dog"
+		pathsBase      = "/paths/~1a/get/responses/200/content/application~1json/schema"
+		pathsTarget    = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
 	)
 	ownerProperty := `    Kennel:
       type: object
@@ -114,18 +114,18 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 		baseID, targetID ir.TypeID
 		wantDefault      bool
 	}{
-		{"a property", openapitest.ComponentSpec, mapping(propTarget), ownerProperty,
-			componentID("Pet"), "t/anon" + propTarget, false},
+		{"a property", openapitest.ComponentSpec, mapping(propertyTarget), ownerProperty,
+			componentID("Pet"), "type/anonymous" + propertyTarget, false},
 		{"items", openapitest.ComponentSpec, mapping(itemsTarget), ownerItems,
-			componentID("Pet"), "t/anon" + itemsTarget, false},
+			componentID("Pet"), "type/anonymous" + itemsTarget, false},
 		{"a keyword-named key", openapitest.ComponentSpec, mapping(keywordTarget), ownerKeywordKey,
-			componentID("Pet"), "t/anon" + keywordTarget, false},
+			componentID("Pet"), "type/anonymous" + keywordTarget, false},
 		{"a $defs entry", openapitest.ComponentSpec, mapping(defsTarget), ownerDefs,
-			componentID("Pet"), "t/anon" + defsTarget, false},
-		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propTarget + `'`), ownerProperty,
-			componentID("Pet"), "t/anon" + propTarget, true},
+			componentID("Pet"), "type/anonymous" + defsTarget, false},
+		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propertyTarget + `'`), ownerProperty,
+			componentID("Pet"), "type/anonymous" + propertyTarget, true},
 		{"a /paths inline subtype", openapitest.PathsSpec, pathBase, pathOwner,
-			"t/anon" + pathsBase, "t/anon" + pathsTarget, false},
+			"type/anonymous" + pathsBase, "type/anonymous" + pathsTarget, false},
 	}
 
 	for _, tc := range cases {
@@ -197,7 +197,7 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 				"c: '#/components/schemas/Pet/oneOf/0', d: '#/components/schemas/Pet/oneOf/1'"),
 			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n",
 			want: map[string]ir.TypeID{"c": componentID("Cat"),
-				"d": "t/anon/components/schemas/Pet/oneOf/1"},
+				"d": "type/anonymous/components/schemas/Pet/oneOf/1"},
 		},
 		{
 			name: "a chain of such positions",
@@ -220,7 +220,7 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 			base: fmt.Sprintf(union, "{$ref: '#/components/schemas/'}", "c: '#/components/schemas/'"),
 			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n" +
 				"    '': {$ref: '#/components/schemas/Cat'}\n",
-			want: map[string]ir.TypeID{"c": "t/anon/components/schemas/"},
+			want: map[string]ir.TypeID{"c": "type/anonymous/components/schemas/"},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -265,7 +265,7 @@ func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
 			fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Dog'}\n", links-1)
 			return kennel.String()
 		}, func(i int) ir.TypeID {
-			return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Kennel/properties/a%d", i))
+			return ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/Kennel/properties/a%d", i))
 		}},
 		{"components", "C0", func(links int) string {
 			var chain strings.Builder
@@ -326,7 +326,7 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 			"      $defs: {Broken: {$ref: '#/components/schemas/Ghost', description: kept}}\n" +
 			"      discriminator: {propertyName: k, mapping: {" + mapping + "}}\n"
 	}
-	top := map[string]ir.TypeID{"a": "t/prim/any"}
+	top := map[string]ir.TypeID{"a": "type/primitive/any"}
 	tests := []struct {
 		name, version, owner string
 		blocks               []string
@@ -340,7 +340,7 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 		{"an anyOf branch", "3.1.0", "M", union("anyOf", ref(m+"anyOf/0"), "mapping: {a: '#"+m+"anyOf/0'}"),
 			[]string{"error openapi/cyclic-ref " + m + "anyOf/0"}, top},
 		{"a 3.2 defaultMapping", "3.2.0", "M", union("oneOf", ref(m+"oneOf/0"), "defaultMapping: '#"+m+"oneOf/0'"),
-			[]string{"error openapi/cyclic-ref " + m + "oneOf/0"}, map[string]ir.TypeID{"default": "t/prim/any"}},
+			[]string{"error openapi/cyclic-ref " + m + "oneOf/0"}, map[string]ir.TypeID{"default": "type/primitive/any"}},
 		{"a branch to nothing", "3.1.0", "M", union("oneOf", ref("/components/schemas/Ghost"),
 			"mapping: {a: '#"+m+"oneOf/0'}"), []string{"error openapi/unresolved-ref " + m + "oneOf/0"}, top},
 		{"a branch to a document not read", "3.1.0", "M", union("oneOf", "{$ref: 'other.yaml#/X'}",
@@ -362,20 +362,20 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 			for _, reversed := range []bool{false, true} {
 				doc, diags := parseFull(t, rawSpec(tc.version, tc.blocks, "", reversed))
 				var got []string
-				for _, d := range append(diags, validated(t, doc)...) {
-					if d.Severity == ir.SeverityError {
-						got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+				for _, diagnostic := range append(diags, validated(t, doc)...) {
+					if diagnostic.Severity == ir.SeverityError {
+						got = append(got, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 					}
 				}
 				slices.Sort(got)
 				assert.Equal(t, tc.want, got, "reversed %t", reversed)
-				d := discriminatorOf(t, doc, componentID(tc.owner))
-				routes := maps.Clone(d.Mapping)
+				discriminator := discriminatorOf(t, doc, componentID(tc.owner))
+				routes := maps.Clone(discriminator.Mapping)
 				if routes == nil {
 					routes = map[string]ir.TypeID{}
 				}
-				if d.Default != "" {
-					routes["default"] = d.Default
+				if discriminator.Default != "" {
+					routes["default"] = discriminator.Default
 				}
 				assert.Equal(t, tc.routes, routes, "reversed %t", reversed)
 			}
@@ -384,7 +384,7 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 	t.Run("the last position is lowered", func(t *testing.T) {
 		t.Parallel()
 		doc, _ := parseFull(t, openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'")))
-		broken, ok := doc.Types["t/anon/components/schemas/B/$defs/Broken"]
+		broken, ok := doc.Types["type/anonymous/components/schemas/B/$defs/Broken"]
 		require.True(t, ok, "only the mapping reaches $defs/Broken")
 		assert.Equal(t, "kept", broken.Common().Docs.Description, "what is written beside its $ref")
 	})
@@ -409,7 +409,7 @@ func TestDiscriminatorMapping_ThroughARefNamingTheSourceByItsFileName(t *testing
 		doc, diags := parseFull(t, openapitest.ComponentSpec(pet(mapping))+lib)
 		openapitest.RequireNoErrorDiags(t, diags)
 		got := discriminatorOf(t, doc, componentID("Pet")).Mapping
-		assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat", "alias": "t/anon/x-lib/Cat"}, got, mapping)
+		assert.Equal(t, map[string]ir.TypeID{"cat": "type/anonymous/x-lib/Cat", "alias": "type/anonymous/x-lib/Cat"}, got, mapping)
 	}
 }
 
@@ -495,41 +495,41 @@ func TestDiscriminatorMapping_NamesTheVariantNamingThePosition(t *testing.T) {
 			name:       "an extension's value",
 			components: []string{union("#/x-lib/CatRef", "mapping: {c: '#/x-lib/CatRef'}"), cat},
 			tail:       catRef,
-			variant:    "t/anon/x-lib/CatRef",
+			variant:    "type/anonymous/x-lib/CatRef",
 		},
 		{
 			name: "a property",
 			components: []string{union("#/components/schemas/Lib/properties/c",
 				"mapping: {c: '#/components/schemas/Lib/properties/c'}"), cat,
 				"    Lib: {type: object, properties: {c: {$ref: '#/components/schemas/Cat'}}}\n"},
-			variant: "t/anon/components/schemas/Lib/properties/c",
+			variant: "type/anonymous/components/schemas/Lib/properties/c",
 		},
 		{
 			name: "a $defs entry",
 			components: []string{union("#/$defs/C", "mapping: {c: '#/$defs/C'}") +
 				"      $defs: {C: {$ref: '#/components/schemas/Cat'}}\n", cat},
-			variant: "t/anon/components/schemas/Pet/$defs/C",
+			variant: "type/anonymous/components/schemas/Pet/$defs/C",
 		},
 		{
 			name: "another union's branch",
 			components: []string{union("#/components/schemas/Other/oneOf/0",
 				"mapping: {c: '#/components/schemas/Other/oneOf/0'}"), cat,
 				"    Other: {oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]}\n"},
-			variant: "t/anon/components/schemas/Other/oneOf/0",
+			variant: "type/anonymous/components/schemas/Other/oneOf/0",
 		},
 		{
 			name:       "a 3.2 defaultMapping",
 			version:    "3.2.0",
 			components: []string{union("#/x-lib/CatRef", "defaultMapping: '#/x-lib/CatRef'"), cat},
 			tail:       catRef,
-			variant:    "t/anon/x-lib/CatRef",
+			variant:    "type/anonymous/x-lib/CatRef",
 			isDefault:  true,
 		},
 		{
 			name:       "the union's own branch, through to the position its $ref names",
 			components: []string{union("#/x-lib/A", "mapping: {c: '#/components/schemas/Pet/oneOf/0'}"), cat},
 			tail:       "x-lib:\n  A: {$ref: '#/x-lib/B'}\n  B: {$ref: '#/components/schemas/Cat'}\n",
-			variant:    "t/anon/x-lib/A",
+			variant:    "type/anonymous/x-lib/A",
 		},
 		{
 			name: "a position no variant names, read through to the variant",
@@ -596,8 +596,8 @@ func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok, "Pet is a model")
 	require.NotNil(t, pet.Discriminator)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/not"), pet.Discriminator.Mapping["n"])
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/if"), pet.Discriminator.Default)
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Kennel/not"), pet.Discriminator.Mapping["n"])
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Kennel/if"), pet.Discriminator.Default)
 
 	for _, pointer := range []string{"/components/schemas/Kennel/not", "/components/schemas/Kennel/if"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
@@ -646,9 +646,9 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 		cat    = "  Cat: {" + petSub + ", properties: {meow: {type: string}}}\n"
 	)
 	pet := componentID("Pet")
-	anon := func(pointer string) ir.TypeID { return ir.TypeID("t/anon/" + pointer) }
+	anonymous := func(pointer string) ir.TypeID { return ir.TypeID("type/anonymous/" + pointer) }
 	model := func(base ir.TypeID, tag, pointer string) wantMapping {
-		return wantMapping{base: base, tag: tag, target: anon(pointer), kind: ir.KindModel}
+		return wantMapping{base: base, tag: tag, target: anonymous(pointer), kind: ir.KindModel}
 	}
 	tests := []struct {
 		name       string
@@ -681,7 +681,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 			},
 			// A member that is an object is lowered to a literal, which no model
 			// subtypes, so only the resolution is pinned here, not a variant.
-			wants: []wantMapping{{pet, "e", anon("components/schemas/Kennel/properties/e/enum/0"), ir.KindLiteral}},
+			wants: []wantMapping{{pet, "e", anonymous("components/schemas/Kennel/properties/e/enum/0"), ir.KindLiteral}},
 		},
 		{
 			name:       "a defaultMapping to an extension's value",
@@ -697,7 +697,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 				"  Inner:\n    type: object\n    required: [tag]\n    properties: {tag: {type: string}}\n" +
 				"    discriminator: {propertyName: tag, mapping: {d: '#/x-lib/Dog'}}\n" +
 				"  Dog: {allOf: [{$ref: '#/x-lib/Inner'}], type: object}\n",
-			wants: []wantMapping{model(anon("x-lib/Inner"), "d", "x-lib/Dog")},
+			wants: []wantMapping{model(anonymous("x-lib/Inner"), "d", "x-lib/Dog")},
 		},
 		{
 			name:       "a mapping in a raw schema only another mapping reaches",
@@ -709,7 +709,7 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 				"  Dog: {allOf: [{$ref: '#/x-lib/Inner'}], type: object}\n",
 			wants: []wantMapping{
 				model(pet, "i", "x-lib/Inner"),
-				model(anon("x-lib/Inner"), "d", "x-lib/Dog"),
+				model(anonymous("x-lib/Inner"), "d", "x-lib/Dog"),
 			},
 		},
 	}
@@ -845,27 +845,27 @@ func TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference(t *testin
         defaultMapping: dog2.yaml
 `, "    Tabby2: {$id: 'https://x.test/cat2', type: object, properties: {kind: {type: string}}}\n"}
 	want := map[ir.TypeID]*ir.Discriminator{
-		componentID("Pet"): {Mapping: map[string]ir.TypeID{"f": "t/anon@cat.yaml", "g": "t/anon@cat.yaml",
-			"x": "t/anon@other.yaml/X"}, Default: "t/anon@dog.yaml"},
+		componentID("Pet"): {Mapping: map[string]ir.TypeID{"f": "type/anonymous@cat.yaml", "g": "type/anonymous@cat.yaml",
+			"x": "type/anonymous@other.yaml/X"}, Default: "type/anonymous@dog.yaml"},
 		componentID("Animal"): {Mapping: map[string]ir.TypeID{"c": componentID("Tabby"), "r": componentID("Tabby")}},
-		componentID("Pets"): {Mapping: map[string]ir.TypeID{"c": componentID("Tabby2"), "f": "t/anon@cat2.yaml",
-			"g": "t/anon@cat2.yaml", "y": "t/anon@other.yaml/Y"}, Default: "t/anon@dog2.yaml"},
+		componentID("Pets"): {Mapping: map[string]ir.TypeID{"c": componentID("Tabby2"), "f": "type/anonymous@cat2.yaml",
+			"g": "type/anonymous@cat2.yaml", "y": "type/anonymous@other.yaml/Y"}, Default: "type/anonymous@dog2.yaml"},
 	}
-	tags := map[ir.TypeID]string{"t/anon@cat.yaml": "f", "t/anon@other.yaml/X": "x", componentID("Tabby"): "c"}
+	tags := map[ir.TypeID]string{"type/anonymous@cat.yaml": "f", "type/anonymous@other.yaml/X": "x", componentID("Tabby"): "c"}
 
 	docs := make([]*ir.Document, 0, 2)
 	for _, reversed := range []bool{false, true} {
 		doc, diags, _ := compileFiles(t, valueFiles, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})
 		openapitest.RequireNoErrorDiags(t, diags)
-		for id, d := range want {
+		for id, discriminator := range want {
 			got := discriminatorOf(t, doc, id)
-			assert.Equal(t, d.Mapping, got.Mapping, "%s, reversed %t", id, reversed)
-			assert.Equal(t, d.Default, got.Default, "%s, reversed %t", id, reversed)
+			assert.Equal(t, discriminator.Mapping, got.Mapping, "%s, reversed %t", id, reversed)
+			assert.Equal(t, discriminator.Default, got.Default, "%s, reversed %t", id, reversed)
 		}
 		for id, tag := range tags {
-			m, ok := doc.Types[id].(*ir.Model)
+			model, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s is a model", id)
-			assert.Equal(t, tag, m.DiscriminatorValue, "%s, reversed %t", id, reversed)
+			assert.Equal(t, tag, model.DiscriminatorValue, "%s, reversed %t", id, reversed)
 		}
 		assert.Empty(t, validated(t, doc), "every route is a subtype or a variant")
 		docs = append(docs, doc)
@@ -891,7 +891,7 @@ func TestDiscriminatorMapping_ReadsAComponentsNameFirst(t *testing.T) {
       discriminator: {propertyName: kind, mapping: {d: Dog, s: a/b, h: 'a#b', e: ''}}
 `, "    Dog: " + kind + "\n", "    a/b: " + kind + "\n", "    'a#b': " + kind + "\n", "    '': " + kind + "\n"}
 	want := map[string]ir.TypeID{"d": componentID("Dog"), "s": componentID("a~1b"), "h": componentID("a#b"),
-		"e": "t/anon/components/schemas/"}
+		"e": "type/anonymous/components/schemas/"}
 	for _, reversed := range []bool{false, true} {
 		doc, diags, _ := compileFiles(t, map[string]string{"Dog": "type: object\nproperties: {bark: {type: boolean}}\n"},
 			rawSpec("3.1.0", blocks, "", reversed), openapi.Options{})
@@ -1038,7 +1038,7 @@ func TestDiscriminatorMapping_RoutesToTheNearestVariant(t *testing.T) {
 		aliasCat  = "{$ref: '#/components/schemas/Cat', description: a cat}"
 		catAlias  = "{$ref: '#/components/schemas/CatAlias'}"
 		inline    = "{type: object, properties: {kind: {type: string}}}"
-		branchOne = "t/anon/components/schemas/Pet/oneOf/0"
+		branchOne = "type/anonymous/components/schemas/Pet/oneOf/0"
 	)
 	for _, c := range []struct {
 		name, branches, value string
@@ -1050,7 +1050,7 @@ func TestDiscriminatorMapping_RoutesToTheNearestVariant(t *testing.T) {
 		{"a component a branch has", catAlias, "CatAlias", componentID("CatAlias")},
 		{"a branch by its pointer", catAlias, "'#/components/schemas/Pet/oneOf/0'", componentID("CatAlias")},
 		{"an inline branch by its pointer", cat + ", " + inline, "'#/components/schemas/Pet/oneOf/1'",
-			"t/anon/components/schemas/Pet/oneOf/1"},
+			"type/anonymous/components/schemas/Pet/oneOf/1"},
 		{"the one branch passing a type", aliasCat, "Cat", branchOne},
 		{"the one branch passing what a component names", aliasCat, "CatAlias", branchOne},
 	} {
@@ -1091,12 +1091,12 @@ func TestDiscriminatorMapping_LeavesAValueNamingNoVariantToValidate(t *testing.T
 		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Pet")).Mapping["b"])
 		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Base")).Mapping["b"])
 		var got []string
-		for _, d := range validated(t, doc) {
-			got = append(got, d.Code+": "+d.Message)
+		for _, diagnostic := range validated(t, doc) {
+			got = append(got, diagnostic.Code+": "+diagnostic.Message)
 		}
 		slices.Sort(got)
 		const missing = "pass/discriminator-missing-variant: discriminator mapping \"b\" on "
-		const bird = " references \"t/openapi/components/schemas/Bird\", which is not a variant of it"
+		const bird = " references \"type/openapi/components/schemas/Bird\", which is not a variant of it"
 		assert.Equal(t, []string{missing + string(componentID("Base")) + bird, missing + string(componentID("Pet")) + bird},
 			got, "reversed %t", reversed)
 	}

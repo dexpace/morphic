@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -46,7 +46,7 @@
   },
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Extension groups",
         "canonical": "extension_groups"
@@ -56,7 +56,7 @@
       },
       "groups": [
         {
-          "id": "g/extension/accounts",
+          "id": "operation-group/extension/accounts",
           "name": {
             "source": "accounts",
             "canonical": "accounts"
@@ -64,7 +64,7 @@
           "docs": {},
           "groups": [
             {
-              "id": "g/extension/accounts/members",
+              "id": "operation-group/extension/accounts/members",
               "name": {
                 "source": "members",
                 "canonical": "members"
@@ -72,7 +72,7 @@
               "docs": {},
               "operations": [
                 {
-                  "id": "op/openapi/paths/~1accounts~1{account_id}~1members/get",
+                  "id": "operation/openapi/paths/~1accounts~1{account_id}~1members/get",
                   "name": {
                     "source": "listMembers",
                     "canonical": "list_members"
@@ -80,13 +80,13 @@
                   "docs": {},
                   "params": [
                     {
-                      "id": "param/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
+                      "id": "parameter/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
                       "name": {
                         "source": "account_id",
                         "canonical": "account_id"
                       },
                       "type": {
-                        "target": "t/prim/string",
+                        "target": "type/primitive/string",
                         "nullable": false
                       },
                       "required": true,
@@ -124,7 +124,7 @@
                         "uriTemplate": "/accounts/{account_id}/members",
                         "paramBindings": [
                           {
-                            "param": "param/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
+                            "param": "parameter/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
                             "location": "path",
                             "wireName": "account_id",
                             "style": "simple",
@@ -158,7 +158,7 @@
           ],
           "operations": [
             {
-              "id": "op/openapi/paths/~1accounts/get",
+              "id": "operation/openapi/paths/~1accounts/get",
               "name": {
                 "source": "listAccounts",
                 "canonical": "list_accounts"
@@ -194,7 +194,7 @@
                         "name": "changed",
                         "expression": "{$request.query.callback}",
                         "operations": [
-                          "op/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post"
+                          "operation/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post"
                         ]
                       }
                     ],
@@ -236,7 +236,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post",
+              "id": "operation/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post",
               "name": {
                 "source": "accountsChanged",
                 "canonical": "accounts_changed"
@@ -282,7 +282,7 @@
           ]
         },
         {
-          "id": "g/extension/iam",
+          "id": "operation-group/extension/iam",
           "name": {
             "source": "iam",
             "canonical": "iam"
@@ -290,7 +290,7 @@
           "docs": {},
           "groups": [
             {
-              "id": "g/extension/iam/accounts",
+              "id": "operation-group/extension/iam/accounts",
               "name": {
                 "source": "accounts",
                 "canonical": "accounts"
@@ -300,7 +300,7 @@
           ]
         },
         {
-          "id": "g/extension/zero-trust",
+          "id": "operation-group/extension/zero-trust",
           "name": {
             "source": "zero-trust",
             "canonical": "zero_trust"
@@ -308,7 +308,7 @@
           "docs": {},
           "groups": [
             {
-              "id": "g/extension/zero-trust/devices",
+              "id": "operation-group/extension/zero-trust/devices",
               "name": {
                 "source": "devices",
                 "canonical": "devices"
@@ -316,7 +316,7 @@
               "docs": {},
               "groups": [
                 {
-                  "id": "g/extension/zero-trust/devices/policies",
+                  "id": "operation-group/extension/zero-trust/devices/policies",
                   "name": {
                     "source": "policies",
                     "canonical": "policies"
@@ -324,7 +324,7 @@
                   "docs": {},
                   "operations": [
                     {
-                      "id": "op/openapi/paths/~1zero-trust~1devices~1policies/get",
+                      "id": "operation/openapi/paths/~1zero-trust~1devices~1policies/get",
                       "name": {
                         "source": "listDevicePolicies",
                         "canonical": "list_device_policies"
@@ -386,7 +386,7 @@
           ]
         },
         {
-          "id": "g/tags/misc",
+          "id": "operation-group/tags/misc",
           "name": {
             "source": "misc",
             "canonical": "misc"
@@ -394,7 +394,7 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1status/get",
+              "id": "operation/openapi/paths/~1status/get",
               "name": {
                 "source": "getStatus",
                 "canonical": "get_status"
@@ -439,7 +439,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1legacy/get",
+              "id": "operation/openapi/paths/~1legacy/get",
               "name": {
                 "source": "getLegacy",
                 "canonical": "get_legacy"
@@ -496,14 +496,14 @@
           ]
         },
         {
-          "id": "g/webhooks",
+          "id": "operation-group/webhooks",
           "name": {
             "hint": "webhooks"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/webhooks/accountCreated/post",
+              "id": "operation/openapi/webhooks/accountCreated/post",
               "name": {
                 "source": "accountCreated",
                 "canonical": "account_created"
@@ -567,9 +567,9 @@
     }
   ],
   "types": {
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -577,7 +577,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

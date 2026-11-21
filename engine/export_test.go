@@ -41,11 +41,11 @@ var ErrDiagnosticsChanged = errDiagnosticsChanged
 // handed fails a verified run with.
 var ErrInputChanged = errInputChanged
 
-// OnVerify makes e call f each time a verified run is about to hold a document
-// to the IR's invariants, whatever irverify then says of it.
-func OnVerify(e *Engine, f func()) {
-	inner := e.verifier
-	e.verifier = func(doc *ir.Document) []irverify.Violation {
+// OnVerify makes compileEngine call f each time a verified run is about to hold
+// a document to the IR's invariants, whatever irverify then says of it.
+func OnVerify(compileEngine *Engine, f func()) {
+	inner := compileEngine.verifier
+	compileEngine.verifier = func(doc *ir.Document) []irverify.Violation {
 		f()
 		return inner(doc)
 	}
@@ -58,11 +58,11 @@ type KeyInputs = keyInputs
 // DeriveKey exposes deriveKey.
 func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
 
-// FailLocate makes e unable to place a spec's Path, as where the working
-// directory cannot be named, which a test cannot rely on a system to refuse:
-// removing it leaves some still naming it.
-func FailLocate(e *Engine, err error) {
-	e.locate = func(string) (string, error) { return "", err }
+// FailLocate makes compileEngine unable to place a spec's Path, as where the
+// working directory cannot be named, which a test cannot rely on a system to
+// refuse: removing it leaves some still naming it.
+func FailLocate(compileEngine *Engine, err error) {
+	compileEngine.locate = func(string) (string, error) { return "", err }
 }
 
 // Recorder exposes the reader a cached compile reads through.
@@ -73,10 +73,10 @@ func NewRecorder(docs compilers.DocumentReader) *Recorder {
 	return newRecorder(docs)
 }
 
-// SettledLocations returns where r read, in the order an entry lists them, and
-// whether r could vouch for them.
-func SettledLocations(r *Recorder) ([]string, bool) {
-	reads, sound := r.settled()
+// SettledLocations returns where recorder read, in the order an entry lists
+// them, and whether recorder could vouch for them.
+func SettledLocations(recorder *Recorder) ([]string, bool) {
+	reads, sound := recorder.settled()
 	locations := make([]string, 0, len(reads))
 	for _, read := range reads {
 		locations = append(locations, read.Request.Location)
@@ -84,9 +84,10 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 	return locations, sound
 }
 
-// SettledRequests returns what r was asked, in the order an entry lists it.
-func SettledRequests(r *Recorder) []compilers.DocumentRequest {
-	reads, _ := r.settled()
+// SettledRequests returns what recorder was asked, in the order an entry lists
+// it.
+func SettledRequests(recorder *Recorder) []compilers.DocumentRequest {
+	reads, _ := recorder.settled()
 	requests := make([]compilers.DocumentRequest, 0, len(reads))
 	for _, read := range reads {
 		requests = append(requests, read.Request)
@@ -94,13 +95,13 @@ func SettledRequests(r *Recorder) []compilers.DocumentRequest {
 	return requests
 }
 
-// SettledDirectories returns each directory r placed and where, in the order
-// an entry lists them.
-func SettledDirectories(r *Recorder) [][2]string {
-	dirs := r.directories()
+// SettledDirectories returns each directory recorder placed and where, in the
+// order an entry lists them.
+func SettledDirectories(recorder *Recorder) [][2]string {
+	dirs := recorder.directories()
 	out := make([][2]string, 0, len(dirs))
-	for _, d := range dirs {
-		out = append(out, [2]string{d.Directory, d.Located})
+	for _, locatedDirectory := range dirs {
+		out = append(out, [2]string{locatedDirectory.Directory, locatedDirectory.Located})
 	}
 	return out
 }
@@ -114,13 +115,15 @@ func SealedEntry(key cache.Key, head, body string) []byte {
 // Verdict exposes the verdict at failOn over findings rated by hand, for a test
 // that rates one at a severity no rule could set.
 func Verdict(failOn FailOn, doc *ir.Document, findings []triage.Finding) (bool, error) {
-	t, err := failOn.resolve()
+	threshold, err := failOn.resolve()
 	if err != nil {
 		return false, err
 	}
-	return t.verdict(doc, findings)
+	return threshold.verdict(doc, findings)
 }
 
-// ReadUnder makes e read every document but a run's spec through r, under the
-// record a cached run keeps of its reads.
-func ReadUnder(e *Engine, r compilers.DocumentReader) { e.under = r }
+// ReadUnder makes compileEngine read every document but a run's spec through
+// documentReader, under the record a cached run keeps of its reads.
+func ReadUnder(compileEngine *Engine, documentReader compilers.DocumentReader) {
+	compileEngine.under = documentReader
+}

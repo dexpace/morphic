@@ -82,14 +82,14 @@ func TestLowerNullAlone_EveryPositionNamesAnEnumWithNoMember(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, fmt.Sprintf(nullAlonePositions, tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
-			for _, p := range nullAloneUses(t, doc) {
-				if p.label == "allOfNil" && !tc.nullable {
+			for _, nullAloneUse := range nullAloneUses(t, doc) {
+				if nullAloneUse.label == "allOfNil" && !tc.nullable {
 					continue
 				}
-				assertNullAloneAt(t, doc, p.label, p.ref)
-				assert.Equal(t, tc.nullable, p.ref.Nullable, "%s: the reference alone says the null", p.label)
-				if p.carried {
-					assert.Equal(t, p.wantRequired, p.required, "%s keeps its own presence", p.label)
+				assertNullAloneAt(t, doc, nullAloneUse.label, nullAloneUse.ref)
+				assert.Equal(t, tc.nullable, nullAloneUse.ref.Nullable, "%s: the reference alone says the null", nullAloneUse.label)
+				if nullAloneUse.carried {
+					assert.Equal(t, nullAloneUse.wantRequired, nullAloneUse.required, "%s keeps its own presence", nullAloneUse.label)
 				}
 			}
 		})
@@ -112,33 +112,33 @@ func nullAloneUses(t *testing.T, doc *ir.Document) []nullAloneUse {
 		uses = append(uses, nullAloneUse{label: label, ref: ref, carried: true, required: required, wantRequired: want})
 	}
 	for wire, want := range map[string]bool{"req": true, "opt": false, "reqRef": true, "optChain": false, "allOfNil": false} {
-		p := propertyOf(t, doc, "Holder", wire)
-		carried(wire, p.Type, p.Required, want)
+		property := propertyOf(t, doc, "Holder", wire)
+		carried(wire, property.Type, property.Required, want)
 	}
 	for wire, want := range map[string]bool{"extraReq": true, "extraOpt": false} {
-		p := propertyOf(t, doc, "Composed", wire)
-		carried(wire, p.Type, p.Required, want)
+		property := propertyOf(t, doc, "Composed", wire)
+		carried(wire, property.Type, property.Required, want)
 	}
 	list, ok := doc.Types[propertyOf(t, doc, "Holder", "list").Type.Target].(*ir.List)
 	require.True(t, ok)
-	uses = append(uses, nullAloneUse{label: "list element", ref: list.Elem})
-	m, ok := doc.Types[propertyOf(t, doc, "Holder", "map").Type.Target].(*ir.MapT)
+	uses = append(uses, nullAloneUse{label: "list element", ref: list.ElementType})
+	mapT, ok := doc.Types[propertyOf(t, doc, "Holder", "map").Type.Target].(*ir.MapT)
 	require.True(t, ok)
-	uses = append(uses, nullAloneUse{label: "map value", ref: m.Value})
-	u, ok := doc.Types[propertyOf(t, doc, "Holder", "variant").Type.Target].(*ir.Union)
+	uses = append(uses, nullAloneUse{label: "map value", ref: mapT.Value})
+	union, ok := doc.Types[propertyOf(t, doc, "Holder", "variant").Type.Target].(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 2, "a $ref naming a schema of null alone stays a variant")
-	uses = append(uses, nullAloneUse{label: "union variant", ref: u.Variants[1].Type})
+	require.Len(t, union.Variants, 2, "a $ref naming a schema of null alone stays a variant")
+	uses = append(uses, nullAloneUse{label: "union variant", ref: union.Variants[1].Type})
 
-	op := openapitest.FindOp(t, doc, "getP")
+	operation := openapitest.FindOperation(t, doc, "getP")
 	for name, want := range map[string]bool{"id": true, "q": false, "qr": true} {
-		param, found := openapitest.ParamBySource(op, name)
+		param, found := openapitest.ParamBySource(operation, name)
 		require.True(t, found, name)
 		carried("parameter "+name, param.Type, param.Required, want)
 	}
-	require.Len(t, op.Responses, 1)
-	for _, h := range op.Responses[0].Headers {
-		carried("header "+h.WireName, h.Type, h.Required, h.WireName == "X-Req")
+	require.Len(t, operation.Responses, 1)
+	for _, header := range operation.Responses[0].Headers {
+		carried("header "+header.WireName, header.Type, header.Required, header.WireName == "X-Req")
 	}
 	require.Len(t, uses, 15, "every position is read")
 	return uses
@@ -156,10 +156,10 @@ func assertNullAloneAt(t *testing.T, doc *ir.Document, label string, ref ir.Type
 		}
 		td = doc.Types[alias.Base.Target]
 	}
-	e, ok := td.(*ir.Enum)
+	enum, ok := td.(*ir.Enum)
 	require.True(t, ok, "%s names an Enum, got %T", label, td)
-	assert.Empty(t, e.Members, "%s: the Enum has no member", label)
-	assert.True(t, e.Closed, label)
+	assert.Empty(t, enum.Members, "%s: the Enum has no member", label)
+	assert.True(t, enum.Closed, label)
 }
 
 // TestLowerNullAlone_IsToldFromTheTopType pins that a schema of null alone and
@@ -176,8 +176,8 @@ func TestLowerNullAlone_IsToldFromTheTopType(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	onlyNull, anything := propertyOf(t, doc, "Holder", "onlyNull"), propertyOf(t, doc, "Holder", "anything")
-	assert.Equal(t, ir.TypeRef{Target: "t/prim/any", Nullable: true}, anything.Type)
-	assert.Equal(t, ir.TypeRef{Target: "t/anon/components/schemas/Holder/properties/onlyNull", Nullable: true}, onlyNull.Type)
+	assert.Equal(t, ir.TypeRef{Target: "type/primitive/any", Nullable: true}, anything.Type)
+	assert.Equal(t, ir.TypeRef{Target: "type/anonymous/components/schemas/Holder/properties/onlyNull", Nullable: true}, onlyNull.Type)
 	assertNullAloneAt(t, doc, "onlyNull", onlyNull.Type)
 }
 
@@ -204,11 +204,11 @@ func TestLowerNullAlone_KeepsWhatTheEnumCannotHold(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			e, ok := doc.Types[componentID("S")].(*ir.Enum)
+			enum, ok := doc.Types[componentID("S")].(*ir.Enum)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			assert.Empty(t, e.Members)
+			assert.Empty(t, enum.Members)
 			var keys []string
-			for key, entry := range e.Unmodeled {
+			for key, entry := range enum.Unmodeled {
 				keys = append(keys, key)
 				assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, key)
 			}
@@ -219,8 +219,8 @@ func TestLowerNullAlone_KeepsWhatTheEnumCannotHold(t *testing.T) {
 			assert.ElementsMatch(t, want, keys, "only what the Enum cannot hold is kept, never the type")
 			got := codesAt(diags, "/components/schemas/S")
 			assert.Len(t, got, tc.infos, "each keeping is reported once, and nothing else is")
-			for _, d := range got {
-				assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityInfo, Code: diag.DegradedConstruct}, d)
+			for _, diagnostic := range got {
+				assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityInfo, Code: diag.DegradedConstruct}, diagnostic)
 			}
 		})
 	}

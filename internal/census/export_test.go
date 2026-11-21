@@ -14,9 +14,10 @@ import (
 // declarations do not describe.
 var ErrNoDeclaration = errNoDeclaration
 
-// UniverseOf derives the universe of the named type root, which p declares.
-func UniverseOf(p *decls.Package, root string) (Universe, error) {
-	return universeOf(p, root)
+// UniverseOf derives the universe of the named type root, which loadedPackage
+// declares.
+func UniverseOf(loadedPackage *decls.Package, root string) (Universe, error) {
+	return universeOf(loadedPackage, root)
 }
 
 // NewUniverseOfVersion derives the IR's universe from declarations that must
@@ -25,9 +26,9 @@ func NewUniverseOfVersion(version string) (Universe, error) {
 	return newUniverse(version)
 }
 
-// CheckVersion refuses p unless its IRVersion constant is want.
-func CheckVersion(p *decls.Package, want string) error {
-	return checkVersion(p, want)
+// CheckVersion refuses loadedPackage unless its IRVersion constant is want.
+func CheckVersion(loadedPackage *decls.Package, want string) error {
+	return checkVersion(loadedPackage, want)
 }
 
 // AddAny counts the facts root holds, whatever its type.

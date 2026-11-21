@@ -8,7 +8,7 @@ package ir
 // in Bindings maps the core onto a concrete protocol.
 type Operation struct {
 	// ID is the operation's stable synthetic identity.
-	ID OpID `json:"id,omitempty"`
+	ID OperationID `json:"id,omitempty"`
 	// Name is the operation's naming.
 	Name Naming `json:"name"`
 	// Docs is the operation's documentation.
@@ -80,10 +80,10 @@ type Operation struct {
 	ReturnTypeVisibility []Lifecycle `json:"returnTypeVisibility,omitempty"`
 	// OverloadOf points at the operation this one overloads (TypeSpec @overload);
 	// when set, never empty.
-	OverloadOf *OpID `json:"overloadOf,omitzero"`
+	OverloadOf *OperationID `json:"overloadOf,omitzero"`
 	// Bindings describes how the neutral core maps onto concrete protocols
 	// (docs/ir/bindings.md).
-	Bindings OpBindings `json:"bindings"`
+	Bindings OperationBindings `json:"bindings"`
 	// Examples are operation-scenario examples.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -100,7 +100,7 @@ type Parameter struct {
 	// pagination inputs, the inputs selecting a stream and the idempotency token
 	// name a parameter by it, not by its name, which two locations of one
 	// operation may share.
-	ID ParamID `json:"id"`
+	ID ParameterID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
 	// Type is the parameter's type.
@@ -125,7 +125,7 @@ type Parameter struct {
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
 	// expressions); SDKs may auto-fill it. nil = caller-supplied.
-	ValueFrom *PropPath `json:"valueFrom,omitzero"`
+	ValueFrom *PropertyPath `json:"valueFrom,omitzero"`
 	// Docs is the parameter's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the parameter as deprecated.
@@ -200,13 +200,13 @@ type Content struct {
 	// alike; positional per-item encoding has no form here and stays in
 	// Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
-	// Encoding holds multipart/form per-property (part) wire config, keyed by the
-	// part property's PropID: of a part several declarations name, the one the
-	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
-	// body, each variant's declaring it, through nested unions, each entry as
-	// that variant declares the part, as of each shape a model narrowing a union
-	// takes. No key is empty.
-	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
+	// Encoding holds multipart/form per-property (part) wire config, keyed by
+	// the part property's PropertyID: of a part several declarations name, the
+	// one the flattening of Type takes (docs/ir/models.md#the-flattening), and
+	// of a union body, each variant's declaring it, through nested unions, each
+	// entry as that variant declares the part, as of each shape a model
+	// narrowing a union takes. No key is empty.
+	Encoding map[PropertyID]PartEncoding `json:"encoding,omitempty"`
 	// CatchAllEncoding is the part encoding of the parts a catch-all admits,
 	// keyed by the map or model holding the catch-all: the body's type, each
 	// variant through its unions, and each model a model's flattening reads
@@ -261,11 +261,12 @@ type PartEncoding struct {
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
 	Headers []Header `json:"headers,omitempty"`
-	// Multi reports that the part repeats (array member → repeated parts).
-	Multi bool `json:"multi"`
-	// Filename reports that the part carries a filename (file part), which no
-	// part of a url-encoded body does.
-	Filename bool `json:"filename"`
+	// RepeatsPerArrayItem reports that the part repeats (array member →
+	// repeated parts).
+	RepeatsPerArrayItem bool `json:"repeatsPerArrayItem"`
+	// HasFilename reports that the part carries a filename (file part), which
+	// no part of a url-encoded body does.
+	HasFilename bool `json:"hasFilename"`
 	// AllowReserved writes the part's value as HTTPParamBinding.AllowReserved
 	// writes a parameter's: reserved characters and percent-encoded triples pass
 	// unescaped (OpenAPI Encoding allowReserved). It is set only beside Style.
@@ -276,10 +277,10 @@ type PartEncoding struct {
 // (docs/ir/payloads.md#a-catch-alls-parts). At least one member is set.
 type CatchAllParts struct {
 	// Value is the encoding of a part no pattern matches: MapT.Value's, or
-	// AdditionalProps.Value's; nil = the source states none.
+	// AdditionalProperties.Value's; nil = the source states none.
 	Value *PartEncoding `json:"value,omitzero"`
 	// Patterns is the encoding of a part a pattern matches, keyed by
-	// PatternProps.Pattern as the holder lists it.
+	// PatternProperties.Pattern as the holder lists it.
 	Patterns map[string]PartEncoding `json:"patterns,omitempty"`
 }
 
@@ -319,10 +320,10 @@ type Response struct {
 	Headers []Header `json:"headers,omitempty"`
 	// Links are the requests the response leads to, in source order.
 	Links []OperationLink `json:"links,omitempty"`
-	// StatusCodeProp is the output member populated from the runtime HTTP status
-	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
-	// member is suppressed from the body.
-	StatusCodeProp *PropPath `json:"statusCodeProp,omitzero"`
+	// StatusCodeProperty is the output member populated from the runtime HTTP
+	// status line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
+	// the member is suppressed from the body.
+	StatusCodeProperty *PropertyPath `json:"statusCodeProperty,omitzero"`
 	// Docs is the response's documentation.
 	Docs Docs `json:"docs"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -352,10 +353,10 @@ type StatusRange struct {
 // the failure classification below them is what separates the two nodes.
 //
 // The sharing is those four fields, not everything [Response] holds:
-// StatusCodeProp stays success-only, because the formats that populate an output
-// member from the status line (Smithy @httpResponseCode, TypeSpec's non-literal
-// @statusCode) classify errors by @httpError instead, so an error case has no
-// runtime status to bind a member to.
+// StatusCodeProperty stays success-only, because the formats that populate an
+// output member from the status line (Smithy @httpResponseCode, TypeSpec's
+// non-literal @statusCode) classify errors by @httpError instead, so an error
+// case has no runtime status to bind a member to.
 type ErrorCase struct {
 	// Name is the error naming for formats with named errors; Hint elsewhere —
 	// for OpenAPI, the responses-map key as declared and then neutralized ("404",
@@ -405,8 +406,8 @@ const (
 	StreamingClient StreamingMode = "client"
 	// StreamingServer means the server streams to the client.
 	StreamingServer StreamingMode = "server"
-	// StreamingBidi means both directions stream.
-	StreamingBidi StreamingMode = "bidi"
+	// StreamingBidirectional means both directions stream.
+	StreamingBidirectional StreamingMode = "bidirectional"
 )
 
 // Valid reports whether m is one of the modes declared above. StreamingMode is a
@@ -414,7 +415,7 @@ const (
 // irverify calls this so that one is reported rather than switched on.
 func (m StreamingMode) Valid() bool {
 	switch m {
-	case StreamingNone, StreamingClient, StreamingServer, StreamingBidi:
+	case StreamingNone, StreamingClient, StreamingServer, StreamingBidirectional:
 		return true
 	default:
 		return false
@@ -532,7 +533,7 @@ type Idempotency struct {
 	Kind IdempotencyKind `json:"kind,omitempty"`
 	// TokenParam is the ID of the idempotency-token parameter; set only when
 	// Kind is IdempotencyToken.
-	TokenParam ParamID `json:"tokenParam,omitempty"`
+	TokenParam ParameterID `json:"tokenParam,omitempty"`
 }
 
 // PageStrategy names the pagination mechanism of an Operation
@@ -582,24 +583,24 @@ type Pagination struct {
 	// InputLimit is the page-size input, a parameter or a request-body field.
 	InputLimit *InputPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
-	Items *PropPath `json:"items,omitzero"`
+	Items *PropertyPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
-	NextCursor *PropPath `json:"nextCursor,omitzero"`
+	NextCursor *PropertyPath `json:"nextCursor,omitzero"`
 	// HasMore is the response's flag saying another page follows: true
 	// continues. nil = the source states none.
-	HasMore *PropPath `json:"hasMore,omitzero"`
+	HasMore *PropertyPath `json:"hasMore,omitzero"`
 	// NextLink is the next-page link in the response.
-	NextLink *PropPath `json:"nextLink,omitzero"`
+	NextLink *PropertyPath `json:"nextLink,omitzero"`
 	// PrevLink is the previous-page navigation link.
-	PrevLink *PropPath `json:"prevLink,omitzero"`
+	PrevLink *PropertyPath `json:"prevLink,omitzero"`
 	// FirstLink is the first-page navigation link.
-	FirstLink *PropPath `json:"firstLink,omitzero"`
+	FirstLink *PropertyPath `json:"firstLink,omitzero"`
 	// LastLink is the last-page navigation link.
-	LastLink *PropPath `json:"lastLink,omitzero"`
+	LastLink *PropertyPath `json:"lastLink,omitzero"`
 	// TotalCount is the total-count source in the response, counting items.
-	TotalCount *PropPath `json:"totalCount,omitzero"`
+	TotalCount *PropertyPath `json:"totalCount,omitzero"`
 	// TotalPages is the page-count source in the response, counting pages.
-	TotalPages *PropPath `json:"totalPages,omitzero"`
+	TotalPages *PropertyPath `json:"totalPages,omitzero"`
 	// Stop lists when iteration ends, each once, any one ending it; empty = the
 	// source states no rule, which a consumer does not guess.
 	Stop []PageStop `json:"stop,omitempty"`
@@ -640,9 +641,9 @@ func (s PageStop) Valid() bool {
 	}
 }
 
-// PropPath addresses a member within a type by identity, not by name
+// PropertyPath addresses a member within a type by identity, not by name
 // (docs/ir/interaction-patterns.md).
-type PropPath struct {
+type PropertyPath struct {
 	// Root is the type the path roots in; nil = determined by context (the
 	// enclosing response body, message payload, …).
 	Root *TypeRef `json:"root,omitzero"`
@@ -651,7 +652,7 @@ type PropPath struct {
 	In string `json:"in,omitempty"`
 	// Segments are the ordered property IDs walked from the root; no entry is
 	// empty.
-	Segments []PropID `json:"segments,omitempty"`
+	Segments []PropertyID `json:"segments,omitempty"`
 }
 
 // InputPath addresses a value an operation's request carries: a parameter or a
@@ -660,10 +661,10 @@ type PropPath struct {
 type InputPath struct {
 	// Param is the ID of the parameter the path roots in; nil = the request
 	// body, which Segments then walk into, of an operation that sends one.
-	Param *ParamID `json:"param,omitzero"`
+	Param *ParameterID `json:"param,omitzero"`
 	// Segments are the ordered property IDs walked from the parameter or the
 	// body; no entry is empty, and none at all addresses the root whole.
-	Segments []PropID `json:"segments,omitempty"`
+	Segments []PropertyID `json:"segments,omitempty"`
 }
 
 // LongRunning describes long-running-operation semantics
@@ -674,16 +675,16 @@ type LongRunning struct {
 	FinalStateVia string `json:"finalStateVia,omitempty"`
 	// PollingOperation is the declared poll op (Azure.Core @pollingOperation — a
 	// library convention, not core TypeSpec); when set, never empty.
-	PollingOperation *OpID `json:"pollingOperation,omitzero"`
+	PollingOperation *OperationID `json:"pollingOperation,omitzero"`
 	// FinalOperation is the declared final-result op (Azure.Core @finalOperation);
 	// when set, never empty.
-	FinalOperation *OpID `json:"finalOperation,omitzero"`
+	FinalOperation *OperationID `json:"finalOperation,omitzero"`
 	// PollingType is the status-monitor type.
 	PollingType *TypeRef `json:"pollingType,omitzero"`
 	// FinalType is the final-result type.
 	FinalType *TypeRef `json:"finalType,omitzero"`
 	// ResultPath locates the final result within the polling response.
-	ResultPath *PropPath `json:"resultPath,omitzero"`
+	ResultPath *PropertyPath `json:"resultPath,omitzero"`
 }
 
 // ParamChoice is one choice among alternative sets of an operation's
@@ -706,5 +707,5 @@ type ParamVariant struct {
 	Name Naming `json:"name"`
 	// Params are the parameters of the operation a request picking the variant
 	// may carry, one or more, each once. Nothing says they travel together.
-	Params []ParamID `json:"params,omitempty"`
+	Params []ParameterID `json:"params,omitempty"`
 }

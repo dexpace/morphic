@@ -221,12 +221,12 @@ func FuzzCatch_MessageIsOneBoundedLine(f *testing.F) {
 	f.Fuzz(func(t *testing.T, in string) {
 		perr := caught(t, func() { panic(in) })
 
-		msg := perr.Error()
-		assert.True(t, utf8.ValidString(msg), "message %q is not valid UTF-8", msg)
-		assert.False(t, strings.ContainsFunc(msg, unicode.IsControl), "message %q holds a control character", msg)
-		assert.False(t, strings.ContainsAny(msg, lineBreaks), "message %q spans lines", msg)
-		assert.True(t, strings.HasPrefix(msg, "panic: "), "message %q does not open as a panic's does", msg)
-		assert.LessOrEqual(t, len(msg), len("panic: ")+barrier.MaxText+len(barrier.ElidedMarker)+400,
+		message := perr.Error()
+		assert.True(t, utf8.ValidString(message), "message %q is not valid UTF-8", message)
+		assert.False(t, strings.ContainsFunc(message, unicode.IsControl), "message %q holds a control character", message)
+		assert.False(t, strings.ContainsAny(message, lineBreaks), "message %q spans lines", message)
+		assert.True(t, strings.HasPrefix(message, "panic: "), "message %q does not open as a panic's does", message)
+		assert.LessOrEqual(t, len(message), len("panic: ")+barrier.MaxText+len(barrier.ElidedMarker)+400,
 			"the message is bounded whatever the value was")
 		assert.Equal(t, in, perr.Value())
 

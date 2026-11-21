@@ -20,9 +20,9 @@ const cutPoints = 16
 // findingKeys counts diags by code and message, leaving out ir/walk-truncated.
 func findingKeys(diags []ir.Diagnostic) map[string]int {
 	keys := map[string]int{}
-	for _, d := range diags {
-		if d.Code != "ir/walk-truncated" {
-			keys[d.Code+": "+d.Message]++
+	for _, diagnostic := range diags {
+		if diagnostic.Code != "ir/walk-truncated" {
+			keys[diagnostic.Code+": "+diagnostic.Message]++
 		}
 	}
 	return keys

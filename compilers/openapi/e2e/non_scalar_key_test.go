@@ -50,12 +50,12 @@ func TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut(t *testing.T) {
 		at      ir.Position
 	}
 	got := make([]site, 0, len(diags))
-	for _, d := range diags {
-		assert.Equal(t, typeMismatch, d.Code)
-		assert.Equal(t, ir.SeverityError, d.Severity)
-		assert.Contains(t, d.Message, "a mapping key must be a string in OpenAPI 3.1 (Format)")
-		assert.True(t, strings.HasSuffix(d.Message, "; the entry is read as left out"), d.Message)
-		got = append(got, site{string(d.Provenance.Pointer), d.Provenance.Position})
+	for _, diagnostic := range diags {
+		assert.Equal(t, typeMismatch, diagnostic.Code)
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		assert.Contains(t, diagnostic.Message, "a mapping key must be a string in OpenAPI 3.1 (Format)")
+		assert.True(t, strings.HasSuffix(diagnostic.Message, "; the entry is read as left out"), diagnostic.Message)
+		got = append(got, site{string(diagnostic.Provenance.Pointer), diagnostic.Provenance.Position})
 	}
 	assert.ElementsMatch(t, []site{
 		{"/paths", ir.Position{Line: 4, Column: 5}},
@@ -64,7 +64,7 @@ func TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut(t *testing.T) {
 	}, got, "at the mapping's pointer, with the key's own line and column")
 	assert.Len(t, allOperations(doc), 1, "the path whose key is a list lowers no operation")
 	for id := range doc.Types {
-		assert.False(t, strings.HasPrefix(string(id), "t/openapi/components/schemas/"), "no schema is named: %s", id)
+		assert.False(t, strings.HasPrefix(string(id), "type/openapi/components/schemas/"), "no schema is named: %s", id)
 	}
 }
 
@@ -103,12 +103,12 @@ func TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder(t *testing.T
 	assert.Empty(t, cmp.Diff(lines(diagsAB), lines(diagsBA)), "and the same findings")
 	require.Len(t, diagsAB, 2, "%+v", diagsAB)
 	assert.Equal(t, []int{6, 8}, []int{diagsAB[0].Provenance.Position.Line, diagsAB[1].Provenance.Position.Line})
-	for _, d := range diagsAB {
-		assert.Equal(t, typeMismatch, d.Code)
-		assert.Equal(t, "/components/schemas", string(d.Provenance.Pointer))
+	for _, diagnostic := range diagsAB {
+		assert.Equal(t, typeMismatch, diagnostic.Code)
+		assert.Equal(t, "/components/schemas", string(diagnostic.Provenance.Pointer))
 	}
 	for id := range docAB.Types {
-		assert.False(t, strings.HasPrefix(string(id), "t/openapi/components/schemas/"), "no type under components/schemas: %s", id)
+		assert.False(t, strings.HasPrefix(string(id), "type/openapi/components/schemas/"), "no type under components/schemas: %s", id)
 	}
 }
 
@@ -125,11 +125,11 @@ func TestCompile_AKeyThatIsNoScalarInAnotherDocumentIsReportedWhereItIsWritten(t
 	diags := compileBesideExpectingErrors(t, ext, root)
 
 	require.Len(t, diags, 1, "%+v", diags)
-	d := diags[0]
-	assert.Equal(t, typeMismatch, d.Code)
-	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Contains(t, d.Message, "a mapping key must be a string in OpenAPI 3.2 (Format)")
-	assert.Equal(t, 1, d.Provenance.Source, "in the file the reference reads")
-	assert.Equal(t, "/p", string(d.Provenance.Pointer))
-	assert.Equal(t, ir.Position{Line: 3, Column: 5}, d.Provenance.Position)
+	diagnostic := diags[0]
+	assert.Equal(t, typeMismatch, diagnostic.Code)
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+	assert.Contains(t, diagnostic.Message, "a mapping key must be a string in OpenAPI 3.2 (Format)")
+	assert.Equal(t, 1, diagnostic.Provenance.Source, "in the file the reference reads")
+	assert.Equal(t, "/p", string(diagnostic.Provenance.Pointer))
+	assert.Equal(t, ir.Position{Line: 3, Column: 5}, diagnostic.Provenance.Position)
 }

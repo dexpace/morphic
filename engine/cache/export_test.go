@@ -18,32 +18,33 @@ const MaxRecords = maxRecords
 // NewDirLimited returns the Dir at path holding limit bytes, in place of
 // MaxBytes.
 func NewDirLimited(path string, limit int) *Dir {
-	return &Dir{path: path, limit: limit, ops: fileOps{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}
+	return &Dir{path: path, limit: limit, operations: fileOperations{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}
 }
 
-// Ops are a Dir's file operations a test replaces, a nil one keeping the
+// Operations are a Dir's file operations a test replaces, a nil one keeping the
 // system's.
-type Ops struct {
+type Operations struct {
 	List   func(dir string) ([]fs.DirEntry, error)
 	Remove func(name string) error
 	Mark   func(name string, atime, mtime time.Time) error
 }
 
-// UseOps makes d call the operations ops sets in place of the system's.
-func UseOps(d *Dir, ops Ops) {
-	if ops.List != nil {
-		d.ops.list = ops.List
+// UseOperations makes dir call the operations operations sets in place of the
+// system's.
+func UseOperations(dir *Dir, operations Operations) {
+	if operations.List != nil {
+		dir.operations.list = operations.List
 	}
-	if ops.Remove != nil {
-		d.ops.remove = ops.Remove
+	if operations.Remove != nil {
+		dir.operations.remove = operations.Remove
 	}
-	if ops.Mark != nil {
-		d.ops.mark = ops.Mark
+	if operations.Mark != nil {
+		dir.operations.mark = operations.Mark
 	}
 }
 
-// Prune prunes d now, whatever its ledger says.
-func Prune(d *Dir) error { return d.prune(time.Now()) }
+// Prune prunes dir now, whatever its ledger says.
+func Prune(dir *Dir) error { return dir.prune(time.Now()) }
 
 // TallyDue exposes tallyDue, so a test can hand it ledgers no Store would read.
 func TallyDue(data []byte, limit int) bool { return tallyDue(data, limit) }

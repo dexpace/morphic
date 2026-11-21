@@ -17,9 +17,9 @@ import (
 // the set into each union naming it, which a document can make grow with the
 // square of its size.
 type unionValues struct {
-	union *ir.Union
-	prim  ir.PrimKind
-	parts []valuePart
+	union     *ir.Union
+	primitive ir.PrimitiveKind
+	parts     []valuePart
 	// n is how many values it holds, and keys the key of each, which the one
 	// union taking these values takes over (distinct).
 	n    int
@@ -34,49 +34,50 @@ type valuePart struct {
 	of     *unionValues
 }
 
-// valuesOf returns the values u holds, where u is a closed union saying
-// nothing an Enum cannot (plainUnion) whose every variant names values a
-// member can hold (appendValues), no value twice and all of one ValueType, and
-// false otherwise. Its members take IDs beneath u, which needs u's namespace
+// valuesOf returns the values union holds, where union is a closed union saying
+// nothing an Enum cannot (plainUnion) whose every variant names values a member
+// can hold (appendValues), no value twice and all of one ValueType, and false
+// otherwise. Its members take IDs beneath union, which needs union's namespace
 // among spaces, those declared for members. Its values being distinct, an
-// instance matches one variant at most, so u's Exclusive says nothing lost.
-func (r *unionReading) valuesOf(u *ir.Union) (*unionValues, bool) {
-	space, spaced := ir.IDSpace(ir.IDKindType, string(u.ID))
-	if len(u.Variants) == 0 || !u.Closed || !plainUnion(*u) || !spaced || !slices.Contains(r.spaces, space) {
+// instance matches one variant at most, so union's Exclusive says nothing lost.
+func (r *unionReading) valuesOf(union *ir.Union) (*unionValues, bool) {
+	space, spaced := ir.IDSpace(ir.IDKindType, string(union.ID))
+	if len(union.Variants) == 0 || !union.Closed || !plainUnion(*union) || !spaced || !slices.Contains(r.spaces, space) {
 		return nil, false
 	}
-	vs := &unionValues{union: u, parts: make([]valuePart, 0, len(u.Variants))}
-	for i, v := range u.Variants {
-		parts, prim, ok := r.appendValues(vs.parts, v)
-		if !ok || (i > 0 && prim != vs.prim) {
+	vs := &unionValues{union: union, parts: make([]valuePart, 0, len(union.Variants))}
+	for i, variant := range union.Variants {
+		parts, primitive, ok := r.appendValues(vs.parts, variant)
+		if !ok || (i > 0 && primitive != vs.primitive) {
 			return nil, false
 		}
-		vs.parts, vs.prim = parts, prim
+		vs.parts, vs.primitive = parts, primitive
 	}
 	return vs, r.distinct(vs)
 }
 
-// plainUnion reports whether u says nothing beside its common part, its
+// plainUnion reports whether union says nothing beside its common part, its
 // variants, whether it is closed and whether it is exclusive: no tag, no
 // discriminator, no input-only identity, nor a field ir adds later, none of
 // which an Enum holds.
-func plainUnion(u ir.Union) bool {
-	u.TypeCommon, u.Variants, u.Exclusive, u.Closed = ir.TypeCommon{}, nil, false, false
-	return reflect.ValueOf(u).IsZero()
+func plainUnion(union ir.Union) bool {
+	union.TypeCommon, union.Variants, union.Exclusive, union.Closed = ir.TypeCommon{}, nil, false, false
+	return reflect.ValueOf(union).IsZero()
 }
 
-// appendValues appends to parts the values v names, and returns them with the
-// primitive typing them, where v says nothing but what it says of a value
-// (variantFacts) and names an anonymous type of strings saying nothing else
-// (branchValues, commonFacts). One value takes what v and its type say of it.
-// Several are a set of their own, which branchValues gives only where v is
-// their type's one reference, taken where neither says anything of them all.
-func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePart, ir.PrimKind, bool) {
-	said, plain := variantFacts(v)
+// appendValues appends to parts the values variant names, and returns them with
+// the primitive typing them, where variant says nothing but what it says of a
+// value (variantFacts) and names an anonymous type of strings saying nothing
+// else (branchValues, commonFacts). One value takes what variant and its type
+// say of it. Several are a set of their own, which branchValues gives only
+// where variant is their type's one reference, taken where neither says
+// anything of them all.
+func (r *unionReading) appendValues(parts []valuePart, variant ir.Variant) ([]valuePart, ir.PrimitiveKind, bool) {
+	said, plain := variantFacts(variant)
 	if !plain {
 		return parts, "", false
 	}
-	values, prim, common, ok := r.branchValues(v.Type.Target)
+	values, primitive, common, ok := r.branchValues(variant.Type.Target)
 	if !ok {
 		return parts, "", false
 	}
@@ -88,7 +89,7 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 		if !said.none() || !typed.none() {
 			return parts, "", false
 		}
-		return append(parts, values...), prim, true
+		return append(parts, values...), primitive, true
 	}
 	said, ok = said.with(typed)
 	if !ok {
@@ -97,7 +98,7 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 	one := values[0]
 	said, ok = said.with(factsOf(one.member))
 	one.member = said.onto(one.member)
-	return append(parts, one), prim, ok
+	return append(parts, one), primitive, ok
 }
 
 // branchValues returns the values the type at id holds, its primitive and its
@@ -107,7 +108,7 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 // are copies of its own; a union of one value gives its one member, and one of
 // several the values it holds. A type of several values gives them only to
 // the variant that is its one reference (typeRefs.sole).
-func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.TypeCommon, bool) {
+func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimitiveKind, ir.TypeCommon, bool) {
 	switch t := r.types[id].(type) {
 	case *ir.Literal:
 		if t == nil || t.Value.Kind != ir.ValueString || t.ValueType == "" {
@@ -115,20 +116,20 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.
 		}
 		rest := *t
 		rest.TypeCommon, rest.Value, rest.ValueType = ir.TypeCommon{}, ir.Value{}, ""
-		one := ir.EnumMember{Name: ir.NamingFor(t.Value.Str), Value: t.Value}
+		one := ir.EnumMember{Name: ir.NamingFor(t.Value.String), Value: t.Value}
 		return []valuePart{{key: valueKey(t.Value), member: one}}, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	case *ir.Enum:
 		if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" ||
 			(len(t.Members) > 1 && !r.refs.sole(id)) ||
-			slices.ContainsFunc(t.Members, func(m ir.EnumMember) bool { return m.Value.Kind != ir.ValueString }) {
+			slices.ContainsFunc(t.Members, func(enumMember ir.EnumMember) bool { return enumMember.Value.Kind != ir.ValueString }) {
 			return nil, "", ir.TypeCommon{}, false
 		}
 		r.work += len(t.Members)
 		rest := *t
 		rest.TypeCommon, rest.ValueType, rest.Members, rest.Closed = ir.TypeCommon{}, "", nil, false
 		values := make([]valuePart, len(t.Members))
-		for i, m := range t.Members {
-			values[i] = valuePart{key: valueKey(m.Value), member: m}
+		for i, enumMember := range t.Members {
+			values[i] = valuePart{key: valueKey(enumMember.Value), member: enumMember}
 		}
 		return values, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	case *ir.Union:
@@ -137,21 +138,21 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.
 		case !read:
 			return nil, "", ir.TypeCommon{}, false
 		case vs.n == 1:
-			return vs.parts, vs.prim, vs.union.TypeCommon, true
+			return vs.parts, vs.primitive, vs.union.TypeCommon, true
 		case !r.refs.sole(id):
 			return nil, "", ir.TypeCommon{}, false
 		default:
-			return []valuePart{{of: vs}}, vs.prim, vs.union.TypeCommon, true
+			return []valuePart{{of: vs}}, vs.primitive, vs.union.TypeCommon, true
 		}
 	default:
 		return nil, "", ir.TypeCommon{}, false
 	}
 }
 
-// valueKey returns the key of the string v (ir.EnumMemberKey), which every
+// valueKey returns the key of the string value (ir.EnumMemberKey), which every
 // string has.
-func valueKey(v ir.Value) string {
-	key, _ := ir.EnumMemberKey(v)
+func valueKey(value ir.Value) string {
+	key, _ := ir.EnumMemberKey(value)
 	return key
 }
 
@@ -163,17 +164,17 @@ func valueKey(v ir.Value) string {
 // square.
 func (r *unionReading) distinct(vs *unionValues) bool {
 	var largest *unionValues
-	for _, p := range vs.parts {
-		if p.of != nil && (largest == nil || p.of.n > largest.n) {
-			largest = p.of
+	for _, valuePart := range vs.parts {
+		if valuePart.of != nil && (largest == nil || valuePart.of.n > largest.n) {
+			largest = valuePart.of
 		}
 	}
 	keys := map[string]bool{}
 	if largest != nil {
 		keys = largest.keys
 	}
-	for _, p := range vs.parts {
-		if !r.addPart(keys, p, largest) {
+	for _, valuePart := range vs.parts {
+		if !r.addPart(keys, valuePart, largest) {
 			return false
 		}
 	}
@@ -181,16 +182,16 @@ func (r *unionReading) distinct(vs *unionValues) bool {
 	return true
 }
 
-// addPart adds to keys the key of each value p holds, bar those of taken,
-// whose keys keys holds already, and reports whether none was there.
-func (r *unionReading) addPart(keys map[string]bool, p valuePart, taken *unionValues) bool {
-	switch p.of {
+// addPart adds to keys the key of each value valuePartValue holds, bar those of
+// taken, whose keys keys holds already, and reports whether none was there.
+func (r *unionReading) addPart(keys map[string]bool, valuePartValue valuePart, taken *unionValues) bool {
+	switch valuePartValue.of {
 	case nil:
-		return r.addKey(keys, p.key)
+		return r.addKey(keys, valuePartValue.key)
 	case taken:
 		return true
 	}
-	for key := range p.of.keys {
+	for key := range valuePartValue.of.keys {
 		if !r.addKey(keys, key) {
 			return false
 		}
@@ -225,63 +226,63 @@ func (r *unionReading) enum(vs *unionValues) *ir.Enum {
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		p := top.vs.parts[top.next]
+		valuePart := top.vs.parts[top.next]
 		top.next++
-		if p.of != nil {
-			stack = append(stack, frame{vs: p.of})
+		if valuePart.of != nil {
+			stack = append(stack, frame{vs: valuePart.of})
 			continue
 		}
 		r.work++
-		m := p.member
-		m.ID, _ = ir.EnumMemberIDFor(vs.union.ID, p.key, 1 /* occurrence */)
-		members = append(members, m)
+		enumMember := valuePart.member
+		enumMember.ID, _ = ir.EnumMemberIDFor(vs.union.ID, valuePart.key, 1 /* occurrence */)
+		members = append(members, enumMember)
 	}
-	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.prim, Members: members, Closed: true}
+	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.primitive, Members: members, Closed: true}
 }
 
-// commonFacts returns what c, the common part of a variant's type, says of a
-// value, and whether it says nothing else: the type is anonymous, named only by
-// the hint its position gives it, keeps no construct but vendor extensions, and
-// no heuristic inferred it, whose mark no member could carry. Its provenance
-// goes with the type.
-func commonFacts(c ir.TypeCommon) (memberFacts, bool) {
-	f := memberFacts{docs: c.Docs, deprecation: c.Deprecation, availability: c.Availability,
-		examples: c.Examples, unmodeled: c.Unmodeled}
-	if !c.Anonymous || !declaresNoName(c.Name) || !extensionsOnly(c.Unmodeled) || c.Provenance.Inferred != "" {
-		return f, false
+// commonFacts returns what typeCommon, the common part of a variant's type,
+// says of a value, and whether it says nothing else: the type is anonymous,
+// named only by the hint its position gives it, keeps no construct but vendor
+// extensions, and no heuristic inferred it, whose mark no member could carry.
+// Its provenance goes with the type.
+func commonFacts(typeCommon ir.TypeCommon) (memberFacts, bool) {
+	memberFactsValue := memberFacts{docs: typeCommon.Docs, deprecation: typeCommon.Deprecation, availability: typeCommon.Availability,
+		examples: typeCommon.Examples, unmodeled: typeCommon.Unmodeled}
+	if !typeCommon.Anonymous || !declaresNoName(typeCommon.Name) || !extensionsOnly(typeCommon.Unmodeled) || typeCommon.Provenance.Inferred != "" {
+		return memberFactsValue, false
 	}
-	c.ID, c.Anonymous, c.Name, c.Provenance = "", false, ir.Naming{}, ir.Provenance{}
-	c.Docs, c.Deprecation, c.Availability, c.Examples, c.Unmodeled = ir.Docs{}, nil, nil, nil, nil
-	return f, reflect.ValueOf(c).IsZero()
+	typeCommon.ID, typeCommon.Anonymous, typeCommon.Name, typeCommon.Provenance = "", false, ir.Naming{}, ir.Provenance{}
+	typeCommon.Docs, typeCommon.Deprecation, typeCommon.Availability, typeCommon.Examples, typeCommon.Unmodeled = ir.Docs{}, nil, nil, nil, nil
+	return memberFactsValue, reflect.ValueOf(typeCommon).IsZero()
 }
 
-// variantFacts returns what v says of its value, and whether it says nothing
-// else: no name a source declared, no construct kept but vendor extensions, no
-// nullable reference, no wire tag or number, XML hint or event, nor a field ir
-// adds later.
-func variantFacts(v ir.Variant) (memberFacts, bool) {
-	f := memberFacts{docs: v.Docs, deprecation: v.Deprecation, availability: v.Availability,
-		examples: v.Examples, unmodeled: v.Unmodeled}
-	if !declaresNoName(v.Name) || !extensionsOnly(v.Unmodeled) {
-		return f, false
+// variantFacts returns what variant says of its value, and whether it says
+// nothing else: no name a source declared, no construct kept but vendor
+// extensions, no nullable reference, no wire tag or number, XML hint or event,
+// nor a field ir adds later.
+func variantFacts(variant ir.Variant) (memberFacts, bool) {
+	memberFactsValue := memberFacts{docs: variant.Docs, deprecation: variant.Deprecation, availability: variant.Availability,
+		examples: variant.Examples, unmodeled: variant.Unmodeled}
+	if !declaresNoName(variant.Name) || !extensionsOnly(variant.Unmodeled) {
+		return memberFactsValue, false
 	}
-	v.Name, v.Type.Target = ir.Naming{}, ""
-	v.Docs, v.Deprecation, v.Availability, v.Examples, v.Unmodeled = ir.Docs{}, nil, nil, nil, nil
-	return f, reflect.ValueOf(v).IsZero()
+	variant.Name, variant.Type.Target = ir.Naming{}, ""
+	variant.Docs, variant.Deprecation, variant.Availability, variant.Examples, variant.Unmodeled = ir.Docs{}, nil, nil, nil, nil
+	return memberFactsValue, reflect.ValueOf(variant).IsZero()
 }
 
-// declaresNoName reports whether n names nothing a source declared, only the
-// hint a position gives an anonymous type or a bare branch.
-func declaresNoName(n ir.Naming) bool {
-	return n.Source == "" && n.Canonical == "" && len(n.Aliases) == 0
+// declaresNoName reports whether naming names nothing a source declared, only
+// the hint a position gives an anonymous type or a bare branch.
+func declaresNoName(naming ir.Naming) bool {
+	return naming.Source == "" && naming.Canonical == "" && len(naming.Aliases) == 0
 }
 
-// extensionsOnly reports whether every construct u keeps is a vendor
+// extensionsOnly reports whether every construct unmodeled keeps is a vendor
 // extension, which says something of a value a member can say too. One kept
 // for another reason, a constraint a Literal has no home for say, narrows the
 // type holding it, which a member holding it would not.
-func extensionsOnly(u ir.Unmodeled) bool {
-	for _, entry := range u {
+func extensionsOnly(unmodeled ir.Unmodeled) bool {
+	for _, entry := range unmodeled {
 		if entry.Reason != ir.ReasonVendorExtension {
 			return false
 		}
@@ -299,31 +300,31 @@ type memberFacts struct {
 	unmodeled    ir.Unmodeled
 }
 
-// factsOf returns what m holds of its value.
-func factsOf(m ir.EnumMember) memberFacts {
-	return memberFacts{docs: m.Docs, deprecation: m.Deprecation, availability: m.Availability,
-		examples: m.Examples, unmodeled: m.Unmodeled}
+// factsOf returns what enumMember holds of its value.
+func factsOf(enumMember ir.EnumMember) memberFacts {
+	return memberFacts{docs: enumMember.Docs, deprecation: enumMember.Deprecation, availability: enumMember.Availability,
+		examples: enumMember.Examples, unmodeled: enumMember.Unmodeled}
 }
 
 // none reports whether f says nothing.
 func (f memberFacts) none() bool { return reflect.ValueOf(f).IsZero() }
 
-// onto returns m holding f.
-func (f memberFacts) onto(m ir.EnumMember) ir.EnumMember {
-	m.Docs, m.Deprecation, m.Availability, m.Examples, m.Unmodeled =
+// onto returns enumMember holding f.
+func (f memberFacts) onto(enumMember ir.EnumMember) ir.EnumMember {
+	enumMember.Docs, enumMember.Deprecation, enumMember.Availability, enumMember.Examples, enumMember.Unmodeled =
 		f.docs, f.deprecation, f.availability, f.examples, f.unmodeled
-	return m
+	return enumMember
 }
 
-// with returns f joined with g, and whether no fact is said by both: a member
-// holds one of each, so choosing between two would drop one.
-func (f memberFacts) with(g memberFacts) (memberFacts, bool) {
+// with returns f joined with memberFactsValue, and whether no fact is said by
+// both: a member holds one of each, so choosing between two would drop one.
+func (f memberFacts) with(memberFactsValue memberFacts) (memberFacts, bool) {
 	var ok [5]bool
-	f.docs, ok[0] = either(f.docs, g.docs)
-	f.deprecation, ok[1] = either(f.deprecation, g.deprecation)
-	f.availability, ok[2] = either(f.availability, g.availability)
-	f.examples, ok[3] = either(f.examples, g.examples)
-	f.unmodeled, ok[4] = either(f.unmodeled, g.unmodeled)
+	f.docs, ok[0] = either(f.docs, memberFactsValue.docs)
+	f.deprecation, ok[1] = either(f.deprecation, memberFactsValue.deprecation)
+	f.availability, ok[2] = either(f.availability, memberFactsValue.availability)
+	f.examples, ok[3] = either(f.examples, memberFactsValue.examples)
+	f.unmodeled, ok[4] = either(f.unmodeled, memberFactsValue.unmodeled)
 	return f, !slices.Contains(ok[:], false)
 }
 

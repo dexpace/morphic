@@ -130,49 +130,49 @@ type pairView struct {
 // target's kind, the properties and required ones a model holds with those
 // of what it composes, a scalar's base and an enum's members.
 type variantView struct {
-	Nullable bool
-	Kind     ir.TypeKind
-	Props    []string
-	Required []string
-	Base     string
-	Members  []string
+	Nullable   bool
+	Kind       ir.TypeKind
+	Properties []string
+	Required   []string
+	Base       string
+	Members    []string
 }
 
 // viewOfVariant reads what the variant ref names in doc is.
 func viewOfVariant(doc *ir.Document, ref ir.TypeRef) variantView {
-	v := variantView{Nullable: ref.Nullable}
+	variantViewValue := variantView{Nullable: ref.Nullable}
 	td := doc.Types[ref.Target]
 	if td == nil {
-		v.Base = string(ref.Target)
-		return v
+		variantViewValue.Base = string(ref.Target)
+		return variantViewValue
 	}
-	v.Kind = td.Kind()
+	variantViewValue.Kind = td.Kind()
 	switch n := td.(type) {
 	case *ir.Model:
 		models := []*ir.Model{n}
-		for _, r := range slices.Concat(n.Mixins, baseOf(n.Base)) {
-			if m, ok := doc.Types[r.Target].(*ir.Model); ok {
-				models = append(models, m)
+		for _, typeRef := range slices.Concat(n.Mixins, baseOf(n.Base)) {
+			if model, ok := doc.Types[typeRef.Target].(*ir.Model); ok {
+				models = append(models, model)
 			}
 		}
-		for _, m := range models {
-			for _, prop := range m.Properties {
-				v.Props = append(v.Props, prop.Name.Source)
-				if prop.Required {
-					v.Required = append(v.Required, prop.Name.Source)
+		for _, model := range models {
+			for _, property := range model.Properties {
+				variantViewValue.Properties = append(variantViewValue.Properties, property.Name.Source)
+				if property.Required {
+					variantViewValue.Required = append(variantViewValue.Required, property.Name.Source)
 				}
 			}
 		}
-		slices.Sort(v.Props)
-		slices.Sort(v.Required)
+		slices.Sort(variantViewValue.Properties)
+		slices.Sort(variantViewValue.Required)
 	case *ir.Scalar:
-		v.Base = strings.TrimPrefix(string(n.Base.Target), "t/prim/")
+		variantViewValue.Base = strings.TrimPrefix(string(n.Base.Target), "type/primitive/")
 	case *ir.Enum:
-		for _, m := range n.Members {
-			v.Members = append(v.Members, fmt.Sprint(m.Value))
+		for _, enumMember := range n.Members {
+			variantViewValue.Members = append(variantViewValue.Members, fmt.Sprint(enumMember.Value))
 		}
 	}
-	return v
+	return variantViewValue
 }
 
 // baseOf is base as a list, empty where there is none.
@@ -186,43 +186,43 @@ func baseOf(base *ir.TypeRef) []ir.TypeRef {
 // viewOfPair reads the view of the component name in doc.
 func viewOfPair(doc *ir.Document, diags []ir.Diagnostic, name string) pairView {
 	pointer := "/components/schemas/" + name
-	td := doc.Types[ir.TypeID("t/openapi"+pointer)]
+	td := doc.Types[ir.TypeID("type/openapi"+pointer)]
 	if td == nil {
 		return pairView{}
 	}
-	v := pairView{Kind: td.Kind(), Kept: map[string]ir.UnmodeledReason{}}
-	if u, ok := td.(*ir.Union); ok {
-		for _, variant := range u.Variants {
-			v.Variants = append(v.Variants, viewOfVariant(doc, variant.Type))
+	pairViewValue := pairView{Kind: td.Kind(), Kept: map[string]ir.UnmodeledReason{}}
+	if union, ok := td.(*ir.Union); ok {
+		for _, variant := range union.Variants {
+			pairViewValue.Variants = append(pairViewValue.Variants, viewOfVariant(doc, variant.Type))
 		}
 	}
 	for key, entry := range td.Common().Unmodeled {
-		v.Kept[entryNodes.ReplaceAllString(key, "")] = entry.Reason
+		pairViewValue.Kept[entryNodes.ReplaceAllString(key, "")] = entry.Reason
 	}
 	infos := map[string]bool{}
-	for _, d := range diags {
-		at := string(d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		at := string(diagnostic.Provenance.Pointer)
 		if at != pointer && !strings.HasPrefix(at, pointer+"/") {
 			continue
 		}
-		finding := string(d.Severity) + " " + d.Code
-		if d.Severity == ir.SeverityInfo {
+		finding := string(diagnostic.Severity) + " " + diagnostic.Code
+		if diagnostic.Severity == ir.SeverityInfo {
 			infos[finding] = true
 			continue
 		}
-		v.Findings = append(v.Findings, finding)
+		pairViewValue.Findings = append(pairViewValue.Findings, finding)
 	}
-	slices.Sort(v.Findings)
-	v.Findings = slices.Concat(slices.Sorted(maps.Keys(infos)), v.Findings)
-	return v
+	slices.Sort(pairViewValue.Findings)
+	pairViewValue.Findings = slices.Concat(slices.Sorted(maps.Keys(infos)), pairViewValue.Findings)
+	return pairViewValue
 }
 
 // isInfo reports whether finding, a severity and a code, is an info.
 func isInfo(finding string) bool { return strings.HasPrefix(finding, string(ir.SeverityInfo)+" ") }
 
-// infosOf is the infos of v's findings.
-func infosOf(v pairView) []string {
-	return slices.DeleteFunc(slices.Clone(v.Findings), func(f string) bool { return !isInfo(f) })
+// infosOf is the infos of pairViewValue's findings.
+func infosOf(pairViewValue pairView) []string {
+	return slices.DeleteFunc(slices.Clone(pairViewValue.Findings), func(f string) bool { return !isInfo(f) })
 }
 
 // facets names the facets of two views that differ, the warnings and errors

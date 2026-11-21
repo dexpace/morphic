@@ -18,13 +18,13 @@ import (
 // node with an Unmodeled map for all of them, so each object's entries are keyed
 // under the source path it was written at — see annotation.ExtensionsUnder for
 // why one unscoped key for all of them would not do.
-func documentExtensions(c service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
-	all := sites(c)
+func documentExtensions(serviceContext service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+	all := sites(serviceContext)
 	ext := make([]annotation.ExtensionSite, 0, len(all))
-	for _, s := range all {
-		ext = append(ext, annotation.ExtensionSite{Scope: s.scope, Owner: s.owner, Ext: s.model.GetExtensions()})
+	for _, metadataObjectSite := range all {
+		ext = append(ext, annotation.ExtensionSite{Scope: metadataObjectSite.scope, Owner: metadataObjectSite.owner, Ext: metadataObjectSite.model.GetExtensions()})
 	}
-	return annotation.ExtensionsAt(c.Place(), ext...)
+	return annotation.ExtensionsAt(serviceContext.Place(), ext...)
 }
 
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
@@ -34,23 +34,24 @@ func documentExtensions(c service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 // object's keys are scoped by the source path they were written at. One unscoped
 // "openapi:status" would be a single key for every object, and the entry that
 // survived would be whichever site ran last.
-func documentUnknownKeys(c service.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	all := sites(c)
+func documentUnknownKeys(serviceContext service.Ctx, unmodeled *ir.Unmodeled) []ir.Diagnostic {
+	all := sites(serviceContext)
 	diags := make([]ir.Diagnostic, 0, len(all))
-	for _, s := range all {
-		diags = append(diags, annotation.UnknownKeysUnder(p, s.model, c.Place(), s.owner, s.scope, s.taken...)...)
+	for _, metadataObjectSite := range all {
+		diags = append(diags, annotation.UnknownKeysUnder(unmodeled, metadataObjectSite.model, serviceContext.Place(), metadataObjectSite.owner, metadataObjectSite.scope, metadataObjectSite.taken...)...)
 	}
 	return diags
 }
 
-// site is one object around the document metadata that lowers to no node of
-// its own, so its x-* and its undeclared keys ride on ir.Document, keyed under
-// scope: the path from the root down to the object, empty for the root itself,
-// which ir.Document stands for. A tag's path holds its index rather than its
-// name, which is the pointer it is written at: OpenAPI's requirement that tag
-// names be unique is the document's to keep, not this compiler's to rely on,
-// and two tags spelled alike would silently leave one entry.
-type site struct {
+// metadataObjectSite is one object around the document metadata that lowers to
+// no node of its own, so its x-* and its undeclared keys ride on ir.Document,
+// keyed under scope: the path from the root down to the object, empty for the
+// root itself, which ir.Document stands for. A tag's path holds its index
+// rather than its name, which is the pointer it is written at: OpenAPI's
+// requirement that tag names be unique is the document's to keep, not this
+// compiler's to rely on, and two tags spelled alike would silently leave one
+// entry.
+type metadataObjectSite struct {
 	scope string
 	owner jsontext.Pointer
 	model extensible
@@ -73,18 +74,18 @@ type extensible interface {
 // is an entry of it (docs/parser-library.md#embedded-map-keys), while the
 // Components Object is a fixed-field struct and a key it does not define is as
 // undeclared as one on any other site.
-func sites(c service.Ctx) []site {
-	info := c.Doc.GetInfo()
+func sites(serviceContext service.Ctx) []metadataObjectSite {
+	info := serviceContext.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
-	out := []site{
-		{scope: "", owner: "", model: c.Doc},
+	out := []metadataObjectSite{
+		{scope: "", owner: "", model: serviceContext.Doc},
 		{scope: "info", owner: infoPtr, model: info},
 		{scope: "info/contact", owner: infoPtr + ids.Ptr("contact"), model: info.GetContact()},
 		{scope: "info/license", owner: infoPtr + ids.Ptr("license"), model: info.GetLicense()},
-		{scope: "externalDocs", owner: ids.Ptr("externalDocs"), model: c.Doc.GetExternalDocs()},
+		{scope: "externalDocs", owner: ids.Ptr("externalDocs"), model: serviceContext.Doc.GetExternalDocs()},
 		// The load phase reads OpenAPI 3.2's mediaTypes at every version, and
 		// retainUnreferencedComponents keeps each entry no reference reached.
-		{scope: "components", owner: ids.Ptr("components"), model: c.Doc.GetComponents(),
+		{scope: "components", owner: ids.Ptr("components"), model: serviceContext.Doc.GetComponents(),
 			taken: []string{"mediaTypes"}},
 	}
 	return out

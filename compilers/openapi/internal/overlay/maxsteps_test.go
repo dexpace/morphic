@@ -29,10 +29,10 @@ func TestApply_HoldsAnApplicationsSelectorsToMaxSteps(t *testing.T) {
 	query := "$[?search(@, '" + strings.TrimSuffix(strings.Repeat("[a-z]{999}b|", 8), "|") + "')]"
 	src := func(n int) string { return head + "x-s: " + strings.Repeat("a", n) + "\n" }
 	need := func(n int) int {
-		q, err := jsonpath.Parse(query)
+		jsonpathQuery, err := jsonpath.Parse(query)
 		require.NoError(t, err)
 		b := budget.New(budget.Unbounded())
-		_, err = q.Select(t.Context(), nodeview.New(), decoded(t, src(n)), &b)
+		_, err = jsonpathQuery.Select(t.Context(), nodeview.New(), decoded(t, src(n)), &b)
 		require.NoError(t, err)
 		return b.Spent()
 	}

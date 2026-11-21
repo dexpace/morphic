@@ -26,23 +26,23 @@ import (
 // taken, and leaves the node as it is.
 func TestSubtypeTagReading_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
-	cat := &ir.Literal{ID: "t/cat", Value: ir.Value{Kind: ir.ValueString, Str: "cat"}}
+	cat := &ir.Literal{ID: "type/cat", Value: ir.Value{Kind: ir.ValueString, String: "cat"}}
 	pinned := func(tag string) *ir.Model {
-		return &ir.Model{ID: "t/s", DiscriminatorValue: tag, Properties: []ir.Property{{
-			ID: "p/kind", Name: ir.Naming{Source: "kind"}, Type: ir.TypeRef{Target: "t/cat"},
+		return &ir.Model{ID: "type/s", DiscriminatorValue: tag, Properties: []ir.Property{{
+			ID: "property/kind", Name: ir.Naming{Source: "kind"}, Type: ir.TypeRef{Target: "type/cat"},
 		}}}
 	}
 	retagged := pinned("Other")
 	for name, reg := range map[string]ir.TypeRegistry{
-		"missing":  {"t/cat": cat},
-		"nil":      {"t/s": (*ir.Model)(nil), "t/cat": cat},
-		"no model": {"t/s": &ir.Union{ID: "t/s"}, "t/cat": cat},
-		"retagged": {"t/s": retagged, "t/cat": cat},
+		"missing":  {"type/cat": cat},
+		"nil":      {"type/s": (*ir.Model)(nil), "type/cat": cat},
+		"no model": {"type/s": &ir.Union{ID: "type/s"}, "type/cat": cat},
+		"retagged": {"type/s": retagged, "type/cat": cat},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			reading := subtypeTagReading{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx,
-				id: "t/s", pointer: "/components/schemas/S", property: "kind", name: "S"}
+				id: "type/s", pointer: "/components/schemas/S", property: "kind", name: "S"}
 			diags := reading.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -85,18 +85,18 @@ func routesAllocs(t *testing.T, width int) float64 {
 	for i := range width {
 		fmt.Fprintf(&spec, "    S%d: {allOf: [{$ref: '#/components/schemas/Pet'}]}\n", i)
 	}
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
 	schemaNamed := func(name string) *statement.Schema {
-		js, ok := l.Doc.Components.Schemas.Get(name)
+		js, ok := lowerer.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		return l.Ctx.Statements().Of(js).Schema
+		return lowerer.Ctx.Statements().Of(js).Schema
 	}
 	pet, last := schemaNamed("Pet"), schemaNamed(fmt.Sprintf("S%d", width-1))
-	require.True(t, routesByName(l.Ctx, pet, last), "a listed subtype is routed by name")
+	require.True(t, routesByName(lowerer.Ctx, pet, last), "a listed subtype is routed by name")
 
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { routesByName(l.Ctx, pet, last) }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { routesByName(lowerer.Ctx, pet, last) }))
 	}
 	return fewest
 }

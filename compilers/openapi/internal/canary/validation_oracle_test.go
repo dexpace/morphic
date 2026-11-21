@@ -4,8 +4,8 @@
 package canary_test
 
 // The validation oracle (GitHub #918): the compiler holds a document to the
-// OpenAPI Specification's rules itself (compilers/openapi/internal/oas), and
-// this holds what it finds to what the parser library's validation finds in
+// OpenAPI Specification's rules itself (compilers/openapi/internal/specrules),
+// and this holds what it finds to what the parser library's validation finds in
 // the same document. The two agree except where the library reads the
 // specification otherwise, or where another package owns a rule; each such
 // disagreement is listed in validationDisagreements with the reason, and one
@@ -31,13 +31,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -222,13 +222,13 @@ func (r validationRow) key() string {
 func TestValidationOracle_AgreesWithTheLibrary(t *testing.T) {
 	t.Parallel()
 	var rows []validationRow
-	for _, d := range validationDocs(t) {
-		library, compiler, skipped := compareDocument(t, d)
+	for _, validationDoc := range validationDocs(t) {
+		library, compiler, skipped := compareDocument(t, validationDoc)
 		if skipped != "" {
-			t.Logf("skipped %s: %s", d.name, skipped)
+			t.Logf("skipped %s: %s", validationDoc.name, skipped)
 			continue
 		}
-		rows = append(rows, onlyOneSide(d.name, library, compiler)...)
+		rows = append(rows, onlyOneSide(validationDoc.name, library, compiler)...)
 	}
 	listed := readValidationRows(t)
 	if *update {
@@ -296,9 +296,9 @@ func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 		return "", nil, false
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		v := root.Content[i+1]
-		if root.Content[i].Value == "openapi" && v.Kind == yaml.ScalarNode && strings.HasPrefix(v.Value, "3.") {
-			return v.Value, parsed.Root(), true
+		node := root.Content[i+1]
+		if root.Content[i].Value == "openapi" && node.Kind == yaml.ScalarNode && strings.HasPrefix(node.Value, "3.") {
+			return node.Value, parsed.Root(), true
 		}
 	}
 	return "", nil, false
@@ -307,18 +307,18 @@ func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 // compareDocument returns the findings of the library and of the table over
 // one document, or why it is skipped: a version the table does not cover, or
 // a document the library will not build.
-func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding, skipped string) {
+func compareDocument(t *testing.T, validationDocValue validationDoc) (library, compiler []finding, skipped string) {
 	t.Helper()
-	version, root, _ := declaredVersion(t, d.data)
-	if _, ok := oas.ParseMinor(version); !ok {
+	version, root, _ := declaredVersion(t, validationDocValue.data)
+	if _, ok := specrules.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}
-	doc, refused := loaded(t, d)
+	doc, refused := loaded(t, validationDocValue)
 	if refused != "" {
 		return nil, nil, refused
 	}
 	compiler = tableFindings(t, root, version, doc)
-	library, err := libraryFindings(t, d.data, root)
+	library, err := libraryFindings(t, validationDocValue.data, root)
 	if err != nil {
 		return nil, nil, err.Error()
 	}
@@ -329,9 +329,9 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 // it before it validates it, empty when it does not: a document it never
 // validates has no findings to compare, and some, such as an alias bomb, must
 // not reach the library at all.
-func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
+func loaded(t *testing.T, validationDocValue validationDoc) (*load.LoadedOpenAPIDocument, string) {
 	t.Helper()
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: d.name, Data: d.data}, load.Options{})
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: validationDocValue.name, Data: validationDocValue.data}, load.Options{})
 	if err != nil {
 		return nil, "load fails: " + err.Error()
 	}
@@ -350,7 +350,7 @@ func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
 // Schema Object read with the rows of the dialect doc, the load of the same
 // document, reads it in: its own or a dialect root's at or above it, which
 // gives every schema the rows the compiler's check reads it with.
-func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Document) []finding {
+func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.LoadedOpenAPIDocument) []finding {
 	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
@@ -361,13 +361,13 @@ func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Docu
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
-		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-			return doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: at})
+	diags := specrules.NewChecker().Check(t.Context(), root, version, specrules.Options{Locate: locate, Rows: doc.Rows.Schema,
+		RootRows: func(at jsontext.Pointer) (specrules.SchemaRules, bool) {
+			return doc.Dialects.RootAt(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at})
 		}})
 	out := make([]finding, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, finding{class: classOf(d.Code), line: d.Provenance.Position.Line, column: d.Provenance.Position.Column})
+	for _, diagnostic := range diags {
+		out = append(out, finding{class: classOf(diagnostic.Code), line: diagnostic.Provenance.Position.Line, column: diagnostic.Provenance.Position.Column})
 	}
 	return out
 }
@@ -423,11 +423,11 @@ func libraryFinding(err error) finding {
 }
 
 // findingAt is a finding of the rule at the node, or at no position.
-func findingAt(rule string, n *yaml.Node) finding {
-	if n == nil {
+func findingAt(rule string, node *yaml.Node) finding {
+	if node == nil {
 		return finding{class: rule}
 	}
-	return finding{class: rule, line: n.Line, column: n.Column}
+	return finding{class: rule, line: node.Line, column: node.Column}
 }
 
 // onlyOneSide returns a row for each finding of one side that the other lacks,
@@ -435,20 +435,20 @@ func findingAt(rule string, n *yaml.Node) finding {
 // leaves one row.
 func onlyOneSide(doc string, library, compiler []finding) []validationRow {
 	count := map[finding]int{}
-	for _, f := range library {
-		count[f]++
+	for _, finding := range library {
+		count[finding]++
 	}
-	for _, f := range compiler {
-		count[f]--
+	for _, finding := range compiler {
+		count[finding]--
 	}
 	var rows []validationRow
-	for f, n := range count {
+	for finding, n := range count {
 		side := sideLibrary
 		if n < 0 {
 			side, n = sideCompiler, -n
 		}
 		for range n {
-			rows = append(rows, validationRow{doc: doc, f: f, side: side})
+			rows = append(rows, validationRow{doc: doc, f: finding, side: side})
 		}
 	}
 	slices.SortFunc(rows, cmpRows)
@@ -499,8 +499,8 @@ func readValidationRows(t *testing.T) map[string][]string {
 func checkValidationRows(t *testing.T, found []validationRow, listed map[string][]string) {
 	t.Helper()
 	seen := map[string]int{}
-	for _, r := range found {
-		key := r.key()
+	for _, validationRow := range found {
+		key := validationRow.key()
 		i := seen[key]
 		seen[key]++
 		if !assert.Greater(t, len(listed[key]), i, "a disagreement %s does not list: %s", validationDisagreements, key) {
@@ -541,8 +541,8 @@ func writeValidationRows(t *testing.T, found []validationRow, listed map[string]
 	var b strings.Builder
 	b.WriteString(validationHeader)
 	seen := map[string]int{}
-	for _, r := range found {
-		key := r.key()
+	for _, validationRow := range found {
+		key := validationRow.key()
 		reason := unclassified
 		if i := seen[key]; i < len(listed[key]) {
 			reason = listed[key][i]

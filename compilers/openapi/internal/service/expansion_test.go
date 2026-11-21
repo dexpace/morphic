@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -23,7 +23,7 @@ import (
 )
 
 // raw reads a tree as raw YAML, where no position holds a schema.
-var raw = bind.Reading{}
+var raw = reftable.Reading{}
 
 // declaration is a tree weighing 14 read as raw YAML: a mapping (1), the keys
 // a and b (2 each), the scalar xyz (4), a sequence (1) and its items 1 and 2
@@ -37,30 +37,30 @@ func declaration() *yaml.Node {
 // so on levels deep, down to one scalar: a few nodes written that the model
 // builds as 2^levels copies of the scalar.
 func doubling(levels int) *yaml.Node {
-	n := ynode.Scalar("x")
+	node := ynode.Scalar("x")
 	for range levels {
-		n = ynode.Seq(ynode.Alias(n), ynode.Alias(n))
+		node = ynode.Seq(ynode.Alias(node), ynode.Alias(node))
 	}
-	return n
+	return node
 }
 
 // reading returns how the grammar reads the source position pointer, which
 // holds an object a $ref can name.
-func reading(t *testing.T, pointer string) bind.Reading {
+func reading(t *testing.T, pointer string) reftable.Reading {
 	t.Helper()
-	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), bind.Config{Self: "spec.yaml"})
-	r := table.ReadingAt(bind.Position{Pointer: jsontext.Pointer(pointer)})
-	require.True(t, r.Referable())
-	return r
+	table := reftable.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), reftable.Config{Self: "spec.yaml"})
+	reftableReading := table.ReadingAt(reftable.DocumentPointer{Pointer: jsontext.Pointer(pointer)})
+	require.True(t, reftableReading.Referable())
+	return reftableReading
 }
 
 // parameter returns how the grammar reads a component parameter.
-func parameter(t *testing.T) bind.Reading {
+func parameter(t *testing.T) reftable.Reading {
 	t.Helper()
 	return reading(t, "/components/parameters/P")
 }
 
-func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
+func TestReferenceExpansionSize_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	t.Parallel()
 	pair := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	tests := []struct {
@@ -79,17 +79,17 @@ func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, service.WeightOf(tc.root, raw, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.ReferenceExpansionSize(tc.root, raw, budget.Unbounded()))
 		})
 	}
 }
 
-// TestWeightOf_CountsASchemaAsOneNode pins what a copy of a parameter is
-// charged for its schema: one node whatever the schema holds, written inline,
-// as a scalar or behind an alias, since it lowers once, to a type every copy
-// refers to. A schema key in an example's value is data the copy holds, so it
-// is weighed in full.
-func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
+// TestReferenceExpansionSize_CountsASchemaAsOneNode pins what a copy of a
+// parameter is charged for its schema: one node whatever the schema holds,
+// written inline, as a scalar or behind an alias, since it lowers once, to a
+// type every copy refers to. A schema key in an example's value is data the
+// copy holds, so it is weighed in full.
+func TestReferenceExpansionSize_CountsASchemaAsOneNode(t *testing.T) {
 	t.Parallel()
 	big := ynode.Map(ynode.Scalar("type"), ynode.Scalar("object"), ynode.Scalar("properties"), declaration())
 	withSchema := func(schema *yaml.Node) *yaml.Node {
@@ -103,7 +103,7 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 	tests := []struct {
 		name string
 		root *yaml.Node
-		at   bind.Reading
+		at   reftable.Reading
 		want int
 	}{
 		{"an inline schema", withSchema(big), param, asOne},
@@ -119,10 +119,10 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, service.WeightOf(tc.root, tc.at, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.ReferenceExpansionSize(tc.root, tc.at, budget.Unbounded()))
 		})
 	}
-	assert.Greater(t, service.WeightOf(withSchema(big), raw, budget.Unbounded()), asOne,
+	assert.Greater(t, service.ReferenceExpansionSize(withSchema(big), raw, budget.Unbounded()), asOne,
 		"read as raw YAML, the same tree holds no schema")
 
 	headers := ynode.Map(ynode.Scalar("headers"), ynode.Map(ynode.Scalar("H"), withSchema(big)))
@@ -131,19 +131,19 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 			ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("f"), encoding))))
 	}
 	outer, nested := inContent(headers), inContent(ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("g"), headers)))
-	assert.Less(t, service.WeightOf(outer, param, budget.Unbounded()), service.WeightOf(outer, raw, budget.Unbounded()),
+	assert.Less(t, service.ReferenceExpansionSize(outer, param, budget.Unbounded()), service.ReferenceExpansionSize(outer, raw, budget.Unbounded()),
 		"a header's schema beneath an Encoding Object is one node")
-	assert.Equal(t, service.WeightOf(nested, raw, budget.Unbounded()), service.WeightOf(nested, param, budget.Unbounded()),
+	assert.Equal(t, service.ReferenceExpansionSize(nested, raw, budget.Unbounded()), service.ReferenceExpansionSize(nested, param, budget.Unbounded()),
 		"beneath one another nests, which a copy keeps verbatim, it is weighed in full")
 }
 
-// TestWeightOf_CostsTheBudgetNotTheDeclaration pins the bound: weighing a
-// declaration the model builds as 2^22 nodes visits a node past what is left,
-// and says no more of it than that it weighs past it.
-func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
+// TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration pins the bound:
+// weighing a declaration the model builds as 2^22 nodes visits a node past what
+// is left, and says no more of it than that it weighs past it.
+func TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 	t.Parallel()
 	const within = 1000
-	got := service.WeightOf(doubling(22), raw, budget.AtMost(within))
+	got := service.ReferenceExpansionSize(doubling(22), raw, budget.AtMost(within))
 	assert.Greater(t, got, within, "a declaration past what is left weighs past it")
 	assert.LessOrEqual(t, got, 2*(within+1), "no more than one node past it is visited, each weighing 2 at most")
 }
@@ -151,17 +151,17 @@ func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 func TestExpansion_ChargesEveryCopy(t *testing.T) {
 	t.Parallel()
 	root := declaration()
-	e := service.NewExpansion(budget.AtMost(28))
-	assert.True(t, e.Admit(raw, root))
-	assert.True(t, e.Admit(raw, root), "a second copy reaching the budget is within it")
-	_, refused := e.Refusal(0)
+	expansion := service.NewExpansion(budget.AtMost(28))
+	assert.True(t, expansion.Admit(raw, root))
+	assert.True(t, expansion.Admit(raw, root), "a second copy reaching the budget is within it")
+	_, refused := expansion.Refusal(0)
 	assert.False(t, refused)
 
-	assert.False(t, e.Admit(raw, root), "a third crosses it")
-	_, refused = e.Refusal(0)
+	assert.False(t, expansion.Admit(raw, root), "a third crosses it")
+	_, refused = expansion.Refusal(0)
 	assert.True(t, refused)
-	assert.False(t, e.Admit(raw, ynode.Map()), "once crossed, nothing is admitted")
-	assert.Equal(t, 42, e.Spent(), "every copy is charged in full, the first among them")
+	assert.False(t, expansion.Admit(raw, ynode.Map()), "once crossed, nothing is admitted")
+	assert.Equal(t, 42, expansion.Spent(), "every copy is charged in full, the first among them")
 }
 
 // TestExpansion_ChargesEachDeclarationOfAChain pins a copy lowered from
@@ -171,13 +171,13 @@ func TestExpansion_ChargesEveryCopy(t *testing.T) {
 func TestExpansion_ChargesEachDeclarationOfAChain(t *testing.T) {
 	t.Parallel()
 	alias := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/x"))
-	e := service.NewExpansion(budget.AtMost(2 * (14 + 1)))
-	assert.True(t, e.Admit(raw, declaration(), alias))
-	assert.Equal(t, 14+1, e.Spent(), "the end (14) and the alias, a mapping (1) and nothing beside its $ref")
-	assert.True(t, e.Admit(raw, declaration(), alias))
+	expansion := service.NewExpansion(budget.AtMost(2 * (14 + 1)))
+	assert.True(t, expansion.Admit(raw, declaration(), alias))
+	assert.Equal(t, 14+1, expansion.Spent(), "the end (14) and the alias, a mapping (1) and nothing beside its $ref")
+	assert.True(t, expansion.Admit(raw, declaration(), alias))
 
-	assert.False(t, e.Admit(raw, ynode.Scalar(""), declaration()), "a chain crossing at its second declaration")
-	_, refused := e.Refusal(0)
+	assert.False(t, expansion.Admit(raw, ynode.Scalar(""), declaration()), "a chain crossing at its second declaration")
+	_, refused := expansion.Refusal(0)
 	assert.True(t, refused)
 }
 
@@ -188,28 +188,28 @@ func TestExpansion_ChargesEachDeclarationOfAChain(t *testing.T) {
 func TestExpansion_WeighsADeclarationOnce(t *testing.T) {
 	t.Parallel()
 	root := declaration()
-	e := service.NewExpansion(budget.AtMost(100))
-	assert.True(t, e.Admit(raw, root))
+	expansion := service.NewExpansion(budget.AtMost(100))
+	assert.True(t, expansion.Admit(raw, root))
 	root.Content = append(root.Content, ynode.Scalar("c"), ynode.Scalar("d"))
-	assert.True(t, e.Admit(raw, root))
-	assert.True(t, e.Admit(raw, ynode.Alias(root)))
-	assert.Equal(t, 42, e.Spent())
-	assert.Equal(t, 1, e.Weighed())
+	assert.True(t, expansion.Admit(raw, root))
+	assert.True(t, expansion.Admit(raw, ynode.Alias(root)))
+	assert.Equal(t, 42, expansion.Spent())
+	assert.Equal(t, 1, expansion.Weighed())
 
-	assert.True(t, e.Admit(parameter(t), root))
-	assert.Equal(t, 42+18, e.Spent(), "read as a parameter, the grown tree, holding no schema, weighs 18")
-	assert.Equal(t, 2, e.Weighed())
+	assert.True(t, expansion.Admit(parameter(t), root))
+	assert.Equal(t, 42+18, expansion.Spent(), "read as a parameter, the grown tree, holding no schema, weighs 18")
+	assert.Equal(t, 2, expansion.Weighed())
 }
 
 func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 	t.Parallel()
-	e := service.NewExpansion(budget.Unbounded())
+	expansion := service.NewExpansion(budget.Unbounded())
 	for range 3 {
-		assert.True(t, e.Admit(raw, declaration()))
+		assert.True(t, expansion.Admit(raw, declaration()))
 	}
-	assert.Zero(t, e.Spent())
-	assert.Zero(t, e.Weighed())
-	_, refused := e.Refusal(0)
+	assert.Zero(t, expansion.Spent())
+	assert.Zero(t, expansion.Weighed())
+	_, refused := expansion.Refusal(0)
 	assert.False(t, refused)
 }
 
@@ -218,9 +218,9 @@ func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 // follows the walk's order.
 func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	t.Parallel()
-	e := service.NewExpansion(budget.AtMost(5))
-	assert.False(t, e.Admit(raw, declaration()))
-	got, refused := e.Refusal(3)
+	expansion := service.NewExpansion(budget.AtMost(5))
+	assert.False(t, expansion.Admit(raw, declaration()))
+	got, refused := expansion.Refusal(3)
 	assert.True(t, refused)
 	assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded,
 		Provenance: ir.Provenance{Source: 3},
@@ -257,29 +257,29 @@ components:
   parameters:
     P: {name: q, in: query}
 `
-	c := loaded(t, src, budget.AtMost(17+1))
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext := loaded(t, src, budget.AtMost(17+1))
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	params := a.GetObject().Get().GetParameters()
 	const usePtr = "/paths/~1a/get/parameters/0"
 
-	p, _, at := service.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at := service.Declared[soa.Parameter](serviceContext, params[0], usePtr)
 	require.NotNil(t, p, "a copy weighing the budget is within it")
 	assert.Equal(t, "/components/parameters/P", string(at))
-	_, refused := c.ExpansionRefusal()
+	_, refused := serviceContext.ExpansionRefusal()
 	assert.False(t, refused)
 
-	p, _, at = service.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at = service.Declared[soa.Parameter](serviceContext, params[0], usePtr)
 	assert.Nil(t, p, "a second copy crosses it")
 	assert.Equal(t, usePtr, string(at))
-	_, refused = c.ExpansionRefusal()
+	_, refused = serviceContext.ExpansionRefusal()
 	assert.True(t, refused)
 
-	p, _, at = service.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at = service.Declared[soa.Parameter](serviceContext, params[0], usePtr)
 	assert.Nil(t, p, "a copy past the crossing resolves to nothing")
 	assert.Equal(t, usePtr, string(at))
 
-	inline, _, _ := service.Declared[soa.Parameter](c, params[1], "/paths/~1a/get/parameters/1")
+	inline, _, _ := service.Declared[soa.Parameter](serviceContext, params[1], "/paths/~1a/get/parameters/1")
 	require.NotNil(t, inline)
 	assert.Equal(t, "r", inline.GetName())
 }
@@ -309,12 +309,12 @@ components:
 	const usePtr = "/paths/~1a/get/parameters/0"
 	// The use's own mapping, writing nothing beside its $ref, is charged 1.
 	for limit, admitted := range map[int]bool{2*16 + 25 + 1: true, 2*16 + 25: false} {
-		c := loaded(t, src, budget.AtMost(limit))
-		a, ok := c.Doc.Paths.Get("/a")
+		serviceContext := loaded(t, src, budget.AtMost(limit))
+		a, ok := serviceContext.Doc.Paths.Get("/a")
 		require.True(t, ok)
-		p, _, _ := service.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], usePtr)
+		p, _, _ := service.Declared[soa.Parameter](serviceContext, a.GetObject().Get().GetParameters()[0], usePtr)
 		assert.Equal(t, admitted, p != nil, "under %d", limit)
-		_, refused := c.ExpansionRefusal()
+		_, refused := serviceContext.ExpansionRefusal()
 		assert.Equal(t, !admitted, refused, "under %d", limit)
 	}
 }
@@ -324,11 +324,11 @@ components:
 // that is no object a $ref names.
 func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	t.Parallel()
-	c := loaded(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", budget.Unbounded())
-	param := service.ReadingOf(c, "/paths/~1a/get/parameters/0")
+	serviceContext := loaded(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", budget.Unbounded())
+	param := service.ReadingOf(serviceContext, "/paths/~1a/get/parameters/0")
 	assert.True(t, param.Referable())
 	assert.True(t, param.Below("schema").Schema())
-	assert.Equal(t, bind.Reading{}, service.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
+	assert.Equal(t, reftable.Reading{}, service.ReadingOf(serviceContext, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
 }
 
@@ -345,18 +345,18 @@ paths:
     parameters: [{name: q, in: query, schema: {type: string}}]
     get: {responses: {"200": {description: ok}}}
 `
-	c := loaded(t, src, budget.AtMost(25+3))
-	a, ok := c.Doc.Paths.Get("/a")
+	serviceContext := loaded(t, src, budget.AtMost(25+3))
+	a, ok := serviceContext.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
 
-	service.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
-	service.ChargeExpansion(c, 3)
-	_, refused := c.ExpansionRefusal()
+	service.ChargeExpansionAt(serviceContext, "/paths/~1a/parameters/0", param)
+	service.ChargeExpansion(serviceContext, 3)
+	_, refused := serviceContext.ExpansionRefusal()
 	assert.False(t, refused, "a copy weighing 25 and three raw bytes beside it reach the budget of 28")
-	assert.False(t, service.ExpansionCrossed(c), "a budget reached is not crossed")
-	service.ChargeExpansion(c, 1)
-	_, refused = c.ExpansionRefusal()
+	assert.False(t, service.ExpansionCrossed(serviceContext), "a budget reached is not crossed")
+	service.ChargeExpansion(serviceContext, 1)
+	_, refused = serviceContext.ExpansionRefusal()
 	assert.True(t, refused, "one more crosses it")
-	assert.True(t, service.ExpansionCrossed(c))
+	assert.True(t, service.ExpansionCrossed(serviceContext))
 }

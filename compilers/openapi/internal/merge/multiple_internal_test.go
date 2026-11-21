@@ -55,12 +55,12 @@ func TestIsMultipleOf_JudgesExactly(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.ParseDecimal(tc.v)
+			decimal, err := ir.ParseDecimal(tc.v)
 			require.NoError(t, err, "%q is a decimal in range", tc.v)
-			m, err := ir.ParseDecimal(tc.m)
+			irDecimal, err := ir.ParseDecimal(tc.m)
 			require.NoError(t, err, "%q is a decimal in range", tc.m)
 
-			multiple, ok := isMultipleOf(v, m)
+			multiple, ok := isMultipleOf(decimal, irDecimal)
 
 			assert.Equal(t, tc.ok, ok)
 			assert.Equal(t, tc.multiple, multiple)
@@ -129,14 +129,14 @@ func TestCommonStep_MatchesTheIntegerLeastCommonMultiple(t *testing.T) {
 	for a := int64(1); a <= 36; a++ {
 		for b := int64(1); b <= 36; b++ {
 			for _, scale := range [][2]int{{0, 0}, {0, 2}, {2, 0}, {-2, 1}, {1, -2}, {-1, -1}} {
-				x := ir.BigVal(fmt.Sprintf("%de%d", a, scale[0]))
-				y := ir.BigVal(fmt.Sprintf("%de%d", b, scale[1]))
+				bigVal := ir.BigVal(fmt.Sprintf("%de%d", a, scale[0]))
+				irBigVal := ir.BigVal(fmt.Sprintf("%de%d", b, scale[1]))
 				want := wholeMultiple(a, scale[0], b, scale[1])
 
-				got, ok := commonStep(x, y)
+				got, ok := commonStep(bigVal, irBigVal)
 
-				require.True(t, ok, "%s and %s", x, y)
-				assert.True(t, sameNumber(want, got), "%s and %s make %s, not %s", x, y, want, got)
+				require.True(t, ok, "%s and %s", bigVal, irBigVal)
+				assert.True(t, sameNumber(want, got), "%s and %s make %s, not %s", bigVal, irBigVal, want, got)
 			}
 		}
 	}

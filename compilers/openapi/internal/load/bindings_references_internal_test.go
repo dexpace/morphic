@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -152,12 +152,12 @@ func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 	require.NoError(t, err)
 
 	found := map[jsontext.Pointer]string{}
-	for _, d := range diags {
-		if d.Code != diag.UnresolvedRef {
+	for _, diagnostic := range diags {
+		if diagnostic.Code != diag.UnresolvedRef {
 			continue
 		}
-		found[d.Provenance.Pointer] = d.Message
-		assert.Equal(t, 1, d.Provenance.WrittenBy, "the overlay introduced this $ref, so it is named its writer: %+v", d)
+		found[diagnostic.Provenance.Pointer] = diagnostic.Message
+		assert.Equal(t, 1, diagnostic.Provenance.WrittenBy, "the overlay introduced this $ref, so it is named its writer: %+v", diagnostic)
 	}
 	assert.Equal(t, map[jsontext.Pointer]string{
 		"/components/schemas/Ghost": `unresolved $ref "#/components/schemas/Missing": it names nothing in the ` +
@@ -204,12 +204,12 @@ func TestResolve_AMappingChainReadsADefinitionWhereItIsWritten(t *testing.T) {
 		require.NotNil(t, doc, name)
 
 		assert.Equal(t, tc.want, severityLines(diags), name)
-		m, ok := doc.Bindings.Table().Mapping(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/S")
+		mapping, ok := doc.Bindings.Table().Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/S")
 		require.True(t, ok, name)
 		if len(tc.want) == 0 {
-			assert.Equal(t, bind.Position{Pointer: "/components/schemas/Holder/$defs/X"}, m.Chain.End, name)
+			assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/schemas/Holder/$defs/X"}, mapping.Chain.End, name)
 		} else {
-			assert.Equal(t, bind.Unresolved, m.Chain.Status, name)
+			assert.Equal(t, reftable.Unresolved, mapping.Chain.Status, name)
 		}
 	}
 }
@@ -217,8 +217,8 @@ func TestResolve_AMappingChainReadsADefinitionWhereItIsWritten(t *testing.T) {
 // severityLines renders diags as "pointer severity code", sorted.
 func severityLines(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Severity, d.Code))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Provenance.Pointer, diagnostic.Severity, diagnostic.Code))
 	}
 	slices.Sort(out)
 	return out
@@ -229,15 +229,15 @@ func severityLines(diags []ir.Diagnostic) []string {
 func assertFailures(t *testing.T, got []ir.Diagnostic, want map[jsontext.Pointer]string) {
 	t.Helper()
 	seen := make(map[jsontext.Pointer]int, len(got))
-	for _, d := range got {
-		seen[d.Provenance.Pointer]++
-		message, ok := want[d.Provenance.Pointer]
-		if !assert.True(t, ok, "a report at %s: %+v", d.Provenance.Pointer, got) {
+	for _, diagnostic := range got {
+		seen[diagnostic.Provenance.Pointer]++
+		message, ok := want[diagnostic.Provenance.Pointer]
+		if !assert.True(t, ok, "a report at %s: %+v", diagnostic.Provenance.Pointer, got) {
 			continue
 		}
-		assert.Equal(t, diag.UnresolvedRef, d.Code)
-		assert.Equal(t, ir.SeverityError, d.Severity)
-		assert.Equal(t, message, d.Message)
+		assert.Equal(t, diag.UnresolvedRef, diagnostic.Code)
+		assert.Equal(t, ir.SeverityError, diagnostic.Severity)
+		assert.Equal(t, message, diagnostic.Message)
 	}
 	for pointer := range want {
 		assert.Equal(t, 1, seen[pointer], "one report at %s: %+v", pointer, got)

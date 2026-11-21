@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Discriminated union beside a body it distributes",
         "canonical": "discriminated_union_beside_a_body_it_distributes"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/composed/components/schemas/Payment/oneOf/0": {
+    "type/composed/components/schemas/Payment/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Payment/oneOf/0",
+      "id": "type/composed/components/schemas/Payment/oneOf/0",
       "name": {
         "hint": "payment_card"
       },
@@ -74,21 +74,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Payment/properties/amount",
+          "id": "property/openapi/components/schemas/Payment/properties/amount",
           "name": {
             "source": "amount",
             "canonical": "amount"
           },
           "wireName": "amount",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -102,16 +102,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Card",
+        "target": "type/openapi/components/schemas/Card",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/Payment/oneOf/1": {
+    "type/composed/components/schemas/Payment/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Payment/oneOf/1",
+      "id": "type/composed/components/schemas/Payment/oneOf/1",
       "name": {
         "hint": "payment_bank"
       },
@@ -124,21 +124,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Payment/properties/amount",
+          "id": "property/openapi/components/schemas/Payment/properties/amount",
           "name": {
             "source": "amount",
             "canonical": "amount"
           },
           "wireName": "amount",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -152,16 +152,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Bank",
+        "target": "type/openapi/components/schemas/Bank",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/Refund/oneOf/0": {
+    "type/composed/components/schemas/Refund/oneOf/0": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Refund/oneOf/0",
+      "id": "type/composed/components/schemas/Refund/oneOf/0",
       "name": {
         "hint": "refund_card"
       },
@@ -174,21 +174,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Refund/properties/reason",
+          "id": "property/openapi/components/schemas/Refund/properties/reason",
           "name": {
             "source": "reason",
             "canonical": "reason"
           },
           "wireName": "reason",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -202,16 +202,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Card",
+        "target": "type/openapi/components/schemas/Card",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/Refund/oneOf/1": {
+    "type/composed/components/schemas/Refund/oneOf/1": {
       "kind": "model",
-      "id": "t/composed/components/schemas/Refund/oneOf/1",
+      "id": "type/composed/components/schemas/Refund/oneOf/1",
       "name": {
         "hint": "refund_bank"
       },
@@ -224,21 +224,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Refund/properties/reason",
+          "id": "property/openapi/components/schemas/Refund/properties/reason",
           "name": {
             "source": "reason",
             "canonical": "reason"
           },
           "wireName": "reason",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -252,16 +252,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Bank",
+        "target": "type/openapi/components/schemas/Bank",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Bank": {
+    "type/openapi/components/schemas/Bank": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Bank",
+      "id": "type/openapi/components/schemas/Bank",
       "name": {
         "source": "Bank",
         "canonical": "bank"
@@ -275,21 +275,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Bank/properties/method",
+          "id": "property/openapi/components/schemas/Bank/properties/method",
           "name": {
             "source": "method",
             "canonical": "method"
           },
           "wireName": "method",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -302,21 +302,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Bank/properties/iban",
+          "id": "property/openapi/components/schemas/Bank/properties/iban",
           "name": {
             "source": "iban",
             "canonical": "iban"
           },
           "wireName": "iban",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -333,9 +333,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Card": {
+    "type/openapi/components/schemas/Card": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Card",
+      "id": "type/openapi/components/schemas/Card",
       "name": {
         "source": "Card",
         "canonical": "card"
@@ -349,21 +349,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Card/properties/method",
+          "id": "property/openapi/components/schemas/Card/properties/method",
           "name": {
             "source": "method",
             "canonical": "method"
           },
           "wireName": "method",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -376,21 +376,21 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Card/properties/last4",
+          "id": "property/openapi/components/schemas/Card/properties/last4",
           "name": {
             "source": "last4",
             "canonical": "last_4"
           },
           "wireName": "last4",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -407,9 +407,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Payment": {
+    "type/openapi/components/schemas/Payment": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Payment",
+      "id": "type/openapi/components/schemas/Payment",
       "name": {
         "source": "Payment",
         "canonical": "payment"
@@ -437,7 +437,7 @@
             "hint": "card"
           },
           "type": {
-            "target": "t/composed/components/schemas/Payment/oneOf/0",
+            "target": "type/composed/components/schemas/Payment/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -447,7 +447,7 @@
             "hint": "bank"
           },
           "type": {
-            "target": "t/composed/components/schemas/Payment/oneOf/1",
+            "target": "type/composed/components/schemas/Payment/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -458,17 +458,17 @@
       "discriminator": {
         "propertyName": "method",
         "mapping": {
-          "bank": "t/composed/components/schemas/Payment/oneOf/1",
-          "card": "t/composed/components/schemas/Payment/oneOf/0"
+          "bank": "type/composed/components/schemas/Payment/oneOf/1",
+          "card": "type/composed/components/schemas/Payment/oneOf/0"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Refund": {
+    "type/openapi/components/schemas/Refund": {
       "kind": "union",
-      "id": "t/openapi/components/schemas/Refund",
+      "id": "type/openapi/components/schemas/Refund",
       "name": {
         "source": "Refund",
         "canonical": "refund"
@@ -486,7 +486,7 @@
             "hint": "card"
           },
           "type": {
-            "target": "t/composed/components/schemas/Refund/oneOf/0",
+            "target": "type/composed/components/schemas/Refund/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -496,7 +496,7 @@
             "hint": "bank"
           },
           "type": {
-            "target": "t/composed/components/schemas/Refund/oneOf/1",
+            "target": "type/composed/components/schemas/Refund/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -507,17 +507,17 @@
       "discriminator": {
         "propertyName": "method",
         "mapping": {
-          "Bank": "t/composed/components/schemas/Refund/oneOf/1",
-          "Card": "t/composed/components/schemas/Refund/oneOf/0"
+          "Bank": "type/composed/components/schemas/Refund/oneOf/1",
+          "Card": "type/composed/components/schemas/Refund/oneOf/0"
         },
         "inferred": false
       },
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -525,11 +525,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -537,7 +537,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

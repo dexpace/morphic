@@ -62,9 +62,9 @@ func namesOf(t *testing.T, doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// inGroup is a document whose one service holds g.
-func inGroup(g ir.OperationGroup) *ir.Document {
-	return &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}}
+// inGroup is a document whose one service holds operationGroup.
+func inGroup(operationGroup ir.OperationGroup) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{operationGroup}}}}
 }
 
 // withTypes is a document holding types.
@@ -85,61 +85,61 @@ func TestNames_ReportsEachScope(t *testing.T) {
 		doc  *ir.Document
 		want []ir.Diagnostic
 	}{
-		{"services", &ir.Document{Services: []ir.Service{{ID: "s/a", Name: named("Billing")}, {ID: "s/b", Name: named("billing")}}},
-			[]ir.Diagnostic{collision("doc", `services s/a ("Billing") and s/b ("billing") share the neutral name "billing"`)}},
+		{"services", &ir.Document{Services: []ir.Service{{ID: "service/a", Name: named("Billing")}, {ID: "service/b", Name: named("billing")}}},
+			[]ir.Diagnostic{collision("document", `services service/a ("Billing") and service/b ("billing") share the neutral name "billing"`)}},
 		{"a hint beside the source spelling it", &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
-			{ID: "g/tags/default", Name: named("default")}, {ID: "g/default", Name: hinted("default")}}}}},
+			{ID: "operation-group/tags/default", Name: named("default")}, {ID: "operation-group/default", Name: hinted("default")}}}}},
 			[]ir.Diagnostic{collision("s",
-				`in service s, operation groups g/tags/default ("default") and g/default share the neutral name "default"`)}},
-		{"a group's groups", inGroup(ir.OperationGroup{ID: "g/p", Groups: []ir.OperationGroup{
-			{ID: "g/p/1", Name: named("Admin")}, {ID: "g/p/2", Name: named("admin")}}}),
-			[]ir.Diagnostic{collision("g/p",
-				`in operation group g/p, operation groups g/p/1 ("Admin") and g/p/2 ("admin") share the neutral name "admin"`)}},
+				`in service s, operation groups operation-group/tags/default ("default") and operation-group/default share the neutral name "default"`)}},
+		{"a group's groups", inGroup(ir.OperationGroup{ID: "operation-group/p", Groups: []ir.OperationGroup{
+			{ID: "operation-group/p/1", Name: named("Admin")}, {ID: "operation-group/p/2", Name: named("admin")}}}),
+			[]ir.Diagnostic{collision("operation-group/p",
+				`in operation group operation-group/p, operation groups operation-group/p/1 ("Admin") and operation-group/p/2 ("admin") share the neutral name "admin"`)}},
 		{"a group's operations", inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{
-			{ID: "op/1", Name: named("getUser")}, {ID: "op/2", Name: named("get_user")}, {ID: "op/3", Name: named("GetUser")}}}),
-			[]ir.Diagnostic{collision("g", `in operation group g, operations op/1 ("getUser"), op/2 ("get_user") `+
-				`and op/3 ("GetUser") share the neutral name "get_user"`)}},
+			{ID: "operation/1", Name: named("getUser")}, {ID: "operation/2", Name: named("get_user")}, {ID: "operation/3", Name: named("GetUser")}}}),
+			[]ir.Diagnostic{collision("g", `in operation group g, operations operation/1 ("getUser"), operation/2 ("get_user") `+
+				`and operation/3 ("GetUser") share the neutral name "get_user"`)}},
 		{"an operation's parameters", inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{{ID: "op", Params: []ir.Parameter{
-			{ID: "param/a", Name: named("account_id")}, {ID: "param/b", Name: named("limit")}, {ID: "param/c", Name: named("accountId")}}}}}),
+			{ID: "parameter/a", Name: named("account_id")}, {ID: "parameter/b", Name: named("limit")}, {ID: "parameter/c", Name: named("accountId")}}}}}),
 			[]ir.Diagnostic{collision("op",
-				`in operation op, parameters param/a ("account_id") and param/c ("accountId") share the neutral name "account_id"`)}},
+				`in operation op, parameters parameter/a ("account_id") and parameter/c ("accountId") share the neutral name "account_id"`)}},
 		{"declared types, past those left out", withTypes(
-			&ir.Model{ID: "t/b", Name: named("pet")},
-			&ir.Enum{ID: "t/a", Name: named("Pet")},
-			&ir.Model{ID: "t/0", Anonymous: true, Name: hinted("pet")},
-			&ir.Primitive{ID: "t/1", Name: named("pet"), Prim: ir.PrimString}),
-			[]ir.Diagnostic{collision("doc", `types t/a ("Pet") and t/b ("pet") share the neutral name "pet"`)}},
-		{"a model's properties", withTypes(&ir.Model{ID: "t/m", Anonymous: true, Name: hinted("m"),
-			Properties: []ir.Property{{ID: "p/a", Name: named("userId")}, {ID: "p/b", Name: named("user_id")}}}),
-			[]ir.Diagnostic{collision("t/m",
-				`in model t/m, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`)}},
-		{"an enum's members", withTypes(&ir.Enum{ID: "t/e", Name: named("Sign"),
-			Members: []ir.EnumMember{{ID: "e/-1", Name: named("-1")}, {ID: "e/1", Name: named("1")}}}),
-			[]ir.Diagnostic{collision("t/e", `in enum t/e, members 0 ("-1") and 1 ("1") share the neutral name "1"`)}},
-		{"members whose values hold a control character, which their IDs repeat", withTypes(&ir.Enum{ID: "t/e",
-			Name: named("E"), Members: []ir.EnumMember{{ID: "e/s:a\nb", Name: named("a\nb")}, {ID: "e/s:A\nb", Name: named("A\nb")}}}),
-			[]ir.Diagnostic{collision("t/e", `in enum t/e, members 0 ("a\nb") and 1 ("A\nb") share the neutral name "a_b"`)}},
-		{"a union's variants", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
-			Variants: []ir.Variant{{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/a"}},
-				{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/b"}}}}),
-			[]ir.Diagnostic{collision("t/u", `in union t/u, variants t/a and t/b share the neutral name "a_model"`)}},
+			&ir.Model{ID: "type/b", Name: named("pet")},
+			&ir.Enum{ID: "type/a", Name: named("Pet")},
+			&ir.Model{ID: "type/0", Anonymous: true, Name: hinted("pet")},
+			&ir.Primitive{ID: "type/1", Name: named("pet"), PrimitiveKind: ir.PrimitiveString}),
+			[]ir.Diagnostic{collision("document", `types type/a ("Pet") and type/b ("pet") share the neutral name "pet"`)}},
+		{"a model's properties", withTypes(&ir.Model{ID: "type/m", Anonymous: true, Name: hinted("m"),
+			Properties: []ir.Property{{ID: "property/a", Name: named("userId")}, {ID: "property/b", Name: named("user_id")}}}),
+			[]ir.Diagnostic{collision("type/m",
+				`in model type/m, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`)}},
+		{"an enum's members", withTypes(&ir.Enum{ID: "type/e", Name: named("Sign"),
+			Members: []ir.EnumMember{{ID: "enum-member/-1", Name: named("-1")}, {ID: "enum-member/1", Name: named("1")}}}),
+			[]ir.Diagnostic{collision("type/e", `in enum type/e, members 0 ("-1") and 1 ("1") share the neutral name "1"`)}},
+		{"members whose values hold a control character, which their IDs repeat", withTypes(&ir.Enum{ID: "type/e",
+			Name: named("E"), Members: []ir.EnumMember{{ID: "enum-member/s:a\nb", Name: named("a\nb")}, {ID: "enum-member/s:A\nb", Name: named("A\nb")}}}),
+			[]ir.Diagnostic{collision("type/e", `in enum type/e, members 0 ("a\nb") and 1 ("A\nb") share the neutral name "a_b"`)}},
+		{"a union's variants", withTypes(&ir.Union{ID: "type/u", Name: named("U"),
+			Variants: []ir.Variant{{Name: hinted("a_model"), Type: ir.TypeRef{Target: "type/a"}},
+				{Name: hinted("a_model"), Type: ir.TypeRef{Target: "type/b"}}}}),
+			[]ir.Diagnostic{collision("type/u", `in union type/u, variants type/a and type/b share the neutral name "a_model"`)}},
 		{"a service's groups whose words break apart", &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
-			{ID: "g/1", Name: named("custom-hostname")}, {ID: "g/2", Name: named("customhostname")}}}}},
-			[]ir.Diagnostic{brokenApart("s", `in service s, operation groups g/1 ("custom-hostname") and g/2 ("customhostname") `+
+			{ID: "operation-group/1", Name: named("custom-hostname")}, {ID: "operation-group/2", Name: named("customhostname")}}}}},
+			[]ir.Diagnostic{brokenApart("s", `in service s, operation groups operation-group/1 ("custom-hostname") and operation-group/2 ("customhostname") `+
 				`have the neutral names "custom_hostname" and "customhostname"`)}},
-		{"a group's groups whose words break apart", inGroup(ir.OperationGroup{ID: "g/p", Groups: []ir.OperationGroup{
-			{ID: "g/p/1", Name: named("SetUp")}, {ID: "g/p/2", Name: named("Setup")}}}),
-			[]ir.Diagnostic{brokenApart("g/p", `in operation group g/p, operation groups g/p/1 ("SetUp") and g/p/2 ("Setup") `+
+		{"a group's groups whose words break apart", inGroup(ir.OperationGroup{ID: "operation-group/p", Groups: []ir.OperationGroup{
+			{ID: "operation-group/p/1", Name: named("SetUp")}, {ID: "operation-group/p/2", Name: named("Setup")}}}),
+			[]ir.Diagnostic{brokenApart("operation-group/p", `in operation group operation-group/p, operation groups operation-group/p/1 ("SetUp") and operation-group/p/2 ("Setup") `+
 				`have the neutral names "set_up" and "setup"`)}},
 		{"declared types whose words break apart, a hint and digits among them", withTypes(
-			&ir.Model{ID: "t/a", Name: named("Setup")},
-			&ir.Model{ID: "t/b", Name: named("v1.2")},
-			&ir.Model{ID: "t/c", Name: named("SetUp")},
-			&ir.Model{ID: "t/d", Name: named("v12")},
-			&ir.Model{ID: "t/e", Name: hinted("set_up")}),
+			&ir.Model{ID: "type/a", Name: named("Setup")},
+			&ir.Model{ID: "type/b", Name: named("v1.2")},
+			&ir.Model{ID: "type/c", Name: named("SetUp")},
+			&ir.Model{ID: "type/d", Name: named("v12")},
+			&ir.Model{ID: "type/e", Name: hinted("set_up")}),
 			[]ir.Diagnostic{
-				brokenApart("doc", `types t/a ("Setup"), t/c ("SetUp") and t/e have the neutral names "setup" and "set_up"`),
-				brokenApart("doc", `types t/b ("v1.2") and t/d ("v12") have the neutral names "v_1_2" and "v_12"`),
+				brokenApart("document", `types type/a ("Setup"), type/c ("SetUp") and type/e have the neutral names "setup" and "set_up"`),
+				brokenApart("document", `types type/b ("v1.2") and type/d ("v12") have the neutral names "v_1_2" and "v_12"`),
 			}},
 		{"an operation's parameter choices, and a choice's variants", inGroup(ir.OperationGroup{ID: "g",
 			Operations: []ir.Operation{{ID: "op", ParamChoices: []ir.ParamChoice{
@@ -151,34 +151,34 @@ func TestNames_ReportsEachScope(t *testing.T) {
 				byPosition("op", `in parameter choice 0 of operation op, variants 0 ("fromTo") and 1 ("from_to") share the `+
 					`neutral name "from_to"`),
 			}},
-		{"a union's variants whose words break apart", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
-			Variants: []ir.Variant{{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "t/a"}},
-				{Name: hinted("creditcard"), Type: ir.TypeRef{Target: "t/b"}}}}),
-			[]ir.Diagnostic{brokenApart("t/u",
-				`in union t/u, variants t/a and t/b have the neutral names "credit_card" and "creditcard"`)}},
+		{"a union's variants whose words break apart", withTypes(&ir.Union{ID: "type/u", Name: named("U"),
+			Variants: []ir.Variant{{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "type/a"}},
+				{Name: hinted("creditcard"), Type: ir.TypeRef{Target: "type/b"}}}}),
+			[]ir.Diagnostic{brokenApart("type/u",
+				`in union type/u, variants type/a and type/b have the neutral names "credit_card" and "creditcard"`)}},
 		{"spellings with no word character, compared as they are where words are joined", withTypes(
-			&ir.Model{ID: "t/1", Name: named("_-")}, &ir.Model{ID: "t/2", Name: named("-")}),
-			[]ir.Diagnostic{wordless("doc", `type t/1 ("_-")`), wordless("doc", `type t/2 ("-")`)}},
+			&ir.Model{ID: "type/1", Name: named("_-")}, &ir.Model{ID: "type/2", Name: named("-")}),
+			[]ir.Diagnostic{wordless("document", `type type/1 ("_-")`), wordless("document", `type type/2 ("-")`)}},
 		{"auth schemes, in ID order", &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
 			"auth/b": {ID: "auth/b", Name: named("APIToken")}, "auth/a": {ID: "auth/a", Name: named("api_token")}}},
-			[]ir.Diagnostic{collision("doc",
+			[]ir.Diagnostic{collision("document",
 				`auth schemes auth/a ("api_token") and auth/b ("APIToken") share the neutral name "api_token"`)}},
 		{"a name with no word character", withTypes(
-			&ir.Model{ID: "t/***", Name: named("***")},
-			&ir.Enum{ID: "t/ops", Name: named("Ops"),
-				Members: []ir.EnumMember{{ID: "e/a", Name: named("a")}, {ID: "e/<", Name: named("<")}, {ID: "e/A", Name: named("A")}}}),
+			&ir.Model{ID: "type/***", Name: named("***")},
+			&ir.Enum{ID: "type/ops", Name: named("Ops"),
+				Members: []ir.EnumMember{{ID: "enum-member/a", Name: named("a")}, {ID: "enum-member/<", Name: named("<")}, {ID: "enum-member/A", Name: named("A")}}}),
 			[]ir.Diagnostic{
-				collision("t/ops", `in enum t/ops, members 0 ("a") and 2 ("A") share the neutral name "a"`),
-				wordless("t/ops", `in enum t/ops, member 1 ("<")`),
-				wordless("doc", `type t/*** ("***")`),
+				collision("type/ops", `in enum type/ops, members 0 ("a") and 2 ("A") share the neutral name "a"`),
+				wordless("type/ops", `in enum type/ops, member 1 ("<")`),
+				wordless("document", `type type/*** ("***")`),
 			}},
-		{"a name with no word character, repeated", withTypes(&ir.Enum{ID: "t/ops", Name: named("Ops"), Members: []ir.EnumMember{
-			{ID: "e/>=", Name: named(">=")}, {ID: "e/=", Name: named("=")}, {ID: "e/>=/2", Name: named(">=")}}}),
+		{"a name with no word character, repeated", withTypes(&ir.Enum{ID: "type/ops", Name: named("Ops"), Members: []ir.EnumMember{
+			{ID: "enum-member/>=", Name: named(">=")}, {ID: "enum-member/=", Name: named("=")}, {ID: "enum-member/>=/2", Name: named(">=")}}}),
 			[]ir.Diagnostic{
-				collision("t/ops", `in enum t/ops, members 0 (">=") and 2 (">=") share the spelling ">=", which has no word character`),
-				wordless("t/ops", `in enum t/ops, member 0 (">=")`),
-				wordless("t/ops", `in enum t/ops, member 1 ("=")`),
-				wordless("t/ops", `in enum t/ops, member 2 (">=")`),
+				collision("type/ops", `in enum type/ops, members 0 (">=") and 2 (">=") share the spelling ">=", which has no word character`),
+				wordless("type/ops", `in enum type/ops, member 0 (">=")`),
+				wordless("type/ops", `in enum type/ops, member 1 ("=")`),
+				wordless("type/ops", `in enum type/ops, member 2 (">=")`),
 			}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -198,14 +198,14 @@ func TestNames_ReportsEachScope(t *testing.T) {
 // first party would report first.
 func TestNames_ReportsAScopesSharedNamesInTheOrderEachIsRepeated(t *testing.T) {
 	t.Parallel()
-	doc := withTypes(&ir.Enum{ID: "t/e", Name: named("E"), Members: []ir.EnumMember{
-		{ID: "e/0", Name: named("a")}, {ID: "e/1", Name: named("b")}, {ID: "e/2", Name: named("B")},
-		{ID: "e/3", Name: named("A")}, {ID: "e/4", Name: named("b_")},
+	doc := withTypes(&ir.Enum{ID: "type/e", Name: named("E"), Members: []ir.EnumMember{
+		{ID: "enum-member/0", Name: named("a")}, {ID: "enum-member/1", Name: named("b")}, {ID: "enum-member/2", Name: named("B")},
+		{ID: "enum-member/3", Name: named("A")}, {ID: "enum-member/4", Name: named("b_")},
 	}})
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{
-		collision("t/e", `in enum t/e, members 1 ("b"), 2 ("B") and 4 ("b_") share the neutral name "b"`),
-		collision("t/e", `in enum t/e, members 0 ("a") and 3 ("A") share the neutral name "a"`),
+		collision("type/e", `in enum type/e, members 1 ("b"), 2 ("B") and 4 ("b_") share the neutral name "b"`),
+		collision("type/e", `in enum type/e, members 0 ("a") and 3 ("A") share the neutral name "a"`),
 	}, namesOf(t, doc)))
 }
 
@@ -217,58 +217,58 @@ func TestNames_LeavesWhatNoTargetRendersAlikeAlone(t *testing.T) {
 	}{
 		{"no document", nil},
 		{"names that differ", inGroup(ir.OperationGroup{ID: "g", Name: named("users"), Operations: []ir.Operation{
-			{ID: "op/1", Name: named("getUser"), Params: []ir.Parameter{{ID: "param/1", Name: named("id")}}},
-			{ID: "op/2", Name: named("getUsers"), Params: []ir.Parameter{{ID: "param/2", Name: named("id")}}},
+			{ID: "operation/1", Name: named("getUser"), Params: []ir.Parameter{{ID: "parameter/1", Name: named("id")}}},
+			{ID: "operation/2", Name: named("getUsers"), Params: []ir.Parameter{{ID: "parameter/2", Name: named("id")}}},
 		}})},
 		{"one name in two scopes", &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
-			{ID: "g/1", Operations: []ir.Operation{{ID: "op/1", Name: named("list")}}},
-			{ID: "g/2", Operations: []ir.Operation{{ID: "op/2", Name: named("list")}},
-				Groups: []ir.OperationGroup{{ID: "g/2/1", Operations: []ir.Operation{{ID: "op/3", Name: named("list")}}}}},
+			{ID: "operation-group/1", Operations: []ir.Operation{{ID: "operation/1", Name: named("list")}}},
+			{ID: "operation-group/2", Operations: []ir.Operation{{ID: "operation/2", Name: named("list")}},
+				Groups: []ir.OperationGroup{{ID: "operation-group/2/1", Operations: []ir.Operation{{ID: "operation/3", Name: named("list")}}}}},
 		}}}, Types: ir.TypeRegistry{
-			"t/a": &ir.Model{ID: "t/a", Name: named("A"), Properties: []ir.Property{{ID: "p/a", Name: named("id")}}},
-			"t/b": &ir.Model{ID: "t/b", Name: named("B"), Properties: []ir.Property{{ID: "p/b", Name: named("id")}}},
+			"type/a": &ir.Model{ID: "type/a", Name: named("A"), Properties: []ir.Property{{ID: "property/a", Name: named("id")}}},
+			"type/b": &ir.Model{ID: "type/b", Name: named("B"), Properties: []ir.Property{{ID: "property/b", Name: named("id")}}},
 		}}},
 		{"words that break apart where a scope's targets keep the breaks", &ir.Document{
-			Services: []ir.Service{{ID: "s/1", Name: named("set_up"), Groups: []ir.OperationGroup{{ID: "g",
+			Services: []ir.Service{{ID: "service/1", Name: named("set_up"), Groups: []ir.OperationGroup{{ID: "g",
 				Operations: []ir.Operation{
-					{ID: "op/1", Name: named("setUp"), Params: []ir.Parameter{
-						{ID: "param/1", Name: named("page_size")}, {ID: "param/2", Name: named("pagesize")}}},
-					{ID: "op/2", Name: named("setup")},
-				}}}}, {ID: "s/2", Name: named("setup")}},
+					{ID: "operation/1", Name: named("setUp"), Params: []ir.Parameter{
+						{ID: "parameter/1", Name: named("page_size")}, {ID: "parameter/2", Name: named("pagesize")}}},
+					{ID: "operation/2", Name: named("setup")},
+				}}}}, {ID: "service/2", Name: named("setup")}},
 			Types: ir.TypeRegistry{
-				"t/m": &ir.Model{ID: "t/m", Name: named("M"), Properties: []ir.Property{
-					{ID: "p/1", Name: named("user_name")}, {ID: "p/2", Name: named("username")}}},
-				"t/e": &ir.Enum{ID: "t/e", Name: named("E"), Members: []ir.EnumMember{
-					{ID: "e/1", Name: named("SET_UP")}, {ID: "e/2", Name: named("SETUP")}}},
+				"type/m": &ir.Model{ID: "type/m", Name: named("M"), Properties: []ir.Property{
+					{ID: "property/1", Name: named("user_name")}, {ID: "property/2", Name: named("username")}}},
+				"type/e": &ir.Enum{ID: "type/e", Name: named("E"), Members: []ir.EnumMember{
+					{ID: "enum-member/1", Name: named("SET_UP")}, {ID: "enum-member/2", Name: named("SETUP")}}},
 			},
 			Auth: map[ir.AuthID]ir.AuthScheme{
 				"auth/1": {ID: "auth/1", Name: named("api_key")}, "auth/2": {ID: "auth/2", Name: named("apikey")}},
 		}},
 		{"names whose joined words differ, where words are joined", &ir.Document{
 			Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
-				{ID: "g/1", Name: named("custom_host"), Groups: []ir.OperationGroup{
-					{ID: "g/1/1", Name: named("set_up")}, {ID: "g/1/2", Name: named("setups")}}},
-				{ID: "g/2", Name: named("customhostname")}}}},
+				{ID: "operation-group/1", Name: named("custom_host"), Groups: []ir.OperationGroup{
+					{ID: "operation-group/1/1", Name: named("set_up")}, {ID: "operation-group/1/2", Name: named("setups")}}},
+				{ID: "operation-group/2", Name: named("customhostname")}}}},
 			Types: ir.TypeRegistry{
-				"t/a": &ir.Model{ID: "t/a", Name: named("SetUp")},
-				"t/b": &ir.Model{ID: "t/b", Name: named("Setups")},
-				"t/u": &ir.Union{ID: "t/u", Name: named("U"), Variants: []ir.Variant{
-					{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "t/a"}},
-					{Name: hinted("credit_cards"), Type: ir.TypeRef{Target: "t/b"}}}},
+				"type/a": &ir.Model{ID: "type/a", Name: named("SetUp")},
+				"type/b": &ir.Model{ID: "type/b", Name: named("Setups")},
+				"type/u": &ir.Union{ID: "type/u", Name: named("U"), Variants: []ir.Variant{
+					{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "type/a"}},
+					{Name: hinted("credit_cards"), Type: ir.TypeRef{Target: "type/b"}}}},
 			},
 		}},
 		{"anonymous types sharing a hint, or a declared type's name", withTypes(
-			&ir.Model{ID: "t/1", Anonymous: true, Name: hinted("direction")},
-			&ir.Enum{ID: "t/2", Anonymous: true, Name: hinted("direction")},
-			&ir.Enum{ID: "t/3", Name: named("Direction")})},
+			&ir.Model{ID: "type/1", Anonymous: true, Name: hinted("direction")},
+			&ir.Enum{ID: "type/2", Anonymous: true, Name: hinted("direction")},
+			&ir.Enum{ID: "type/3", Name: named("Direction")})},
 		{"a type the type table resolves, named as a declared one is", withTypes(
-			&ir.Primitive{ID: "t/prim/string", Name: named("string"), Prim: ir.PrimString},
-			&ir.Any{ID: "t/any", Name: named("String")},
-			&ir.External{ID: "t/external", Name: named("STRING"), Identity: "x:string"},
-			&ir.Scalar{ID: "t/string", Name: named("string_")})},
+			&ir.Primitive{ID: "type/primitive/string", Name: named("string"), PrimitiveKind: ir.PrimitiveString},
+			&ir.Any{ID: "type/any", Name: named("String")},
+			&ir.External{ID: "type/external", Name: named("STRING"), Identity: "bytes:string"},
+			&ir.Scalar{ID: "type/string", Name: named("string_")})},
 		{"names naming nothing, which irverify reports", inGroup(ir.OperationGroup{ID: "g",
-			Operations: []ir.Operation{{ID: "op/1"}, {ID: "op/2"}}})},
-		{"a nil entry of the registry", &ir.Document{Types: ir.TypeRegistry{"t/nil": (*ir.Model)(nil)}}},
+			Operations: []ir.Operation{{ID: "operation/1"}, {ID: "operation/2"}}})},
+		{"a nil entry of the registry", &ir.Document{Types: ir.TypeRegistry{"type/nil": (*ir.Model)(nil)}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -316,16 +316,16 @@ func soundNames(n int) *ir.Document {
 	doc := &ir.Document{Types: ir.TypeRegistry{}, Auth: map[ir.AuthID]ir.AuthScheme{}}
 	for i := range n {
 		word := fmt.Sprintf("n%d", i)
-		doc.Services = append(doc.Services, ir.Service{ID: ir.ServiceID("s/" + word), Name: named(word),
-			Groups: []ir.OperationGroup{{ID: ir.GroupID("g/" + word), Name: named(word),
-				Operations: []ir.Operation{{ID: ir.OpID("op/" + word), Name: named(word),
-					Params: []ir.Parameter{{ID: ir.ParamID("param/" + word), Name: named(word)}}}}}}})
+		doc.Services = append(doc.Services, ir.Service{ID: ir.ServiceID("service/" + word), Name: named(word),
+			Groups: []ir.OperationGroup{{ID: ir.GroupID("operation-group/" + word), Name: named(word),
+				Operations: []ir.Operation{{ID: ir.OperationID("operation/" + word), Name: named(word),
+					Params: []ir.Parameter{{ID: ir.ParameterID("parameter/" + word), Name: named(word)}}}}}}})
 		for _, td := range []ir.TypeDef{
-			&ir.Model{ID: ir.TypeID("t/m/" + word), Name: named("m" + word),
-				Properties: []ir.Property{{ID: ir.PropID("p/" + word), Name: named(word)}}},
-			&ir.Enum{ID: ir.TypeID("t/e/" + word), Name: named("e" + word),
-				Members: []ir.EnumMember{{ID: ir.EnumMemberID("e/" + word), Name: named(word)}}},
-			&ir.Union{ID: ir.TypeID("t/u/" + word), Name: named("u" + word),
+			&ir.Model{ID: ir.TypeID("type/m/" + word), Name: named("m" + word),
+				Properties: []ir.Property{{ID: ir.PropertyID("property/" + word), Name: named(word)}}},
+			&ir.Enum{ID: ir.TypeID("type/e/" + word), Name: named("e" + word),
+				Members: []ir.EnumMember{{ID: ir.EnumMemberID("enum-member/" + word), Name: named(word)}}},
+			&ir.Union{ID: ir.TypeID("type/u/" + word), Name: named("u" + word),
 				Variants: []ir.Variant{{Name: hinted(word)}}},
 		} {
 			doc.Types[td.Common().ID] = td

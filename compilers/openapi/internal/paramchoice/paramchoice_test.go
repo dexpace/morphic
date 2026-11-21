@@ -49,13 +49,13 @@ func compile(t *testing.T, src string) (ir.Operation, map[string]string) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	found := map[string]string{}
-	for _, d := range diags {
-		if d.Code == diag.UnpromotedExtension {
-			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			found[string(d.Provenance.Pointer)] = d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnpromotedExtension {
+			assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+			found[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
 		}
 	}
-	return openapitest.FindOp(t, doc, "getR"), found
+	return openapitest.FindOperation(t, doc, "getR"), found
 }
 
 // TestPromote_ReadsEachChoiceWholeOrNotAtAll pins each way a choice is
@@ -87,13 +87,13 @@ func TestPromote_ReadsEachChoiceWholeOrNotAtAll(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			op, found := compile(t, spec(tc.choice+good))
-			require.Len(t, op.ParamChoices, 1, "the readable choice stands")
-			assert.Equal(t, "good", op.ParamChoices[0].Name.Source)
+			operation, found := compile(t, spec(tc.choice+good))
+			require.Len(t, operation.ParamChoices, 1, "the readable choice stands")
+			assert.Equal(t, "good", operation.ParamChoices[0].Name.Source)
 			assert.Equal(t, map[string]string{key + tc.at: found[key+tc.at]}, found)
 			assert.Contains(t, found[key+tc.at], tc.why)
 			assert.Contains(t, found[key+tc.at], `so the choice "bad" is not filled`)
-			assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+			assert.Equal(t, ir.Inferred("extension-promotion"), operation.Provenance.Inferred)
 		})
 	}
 }
@@ -104,12 +104,12 @@ func TestPromote_ReadsEachChoiceWholeOrNotAtAll(t *testing.T) {
 // choice's required flag is the negation of optional.
 func TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter(t *testing.T) {
 	t.Parallel()
-	op, found := compile(t, spec("        both: {optional: false, variants: {x: [req, a], y: [req, b]}}\n"))
+	operation, found := compile(t, spec("        both: {optional: false, variants: {x: [req, a], y: [req, b]}}\n"))
 	assert.Empty(t, found)
-	require.Len(t, op.ParamChoices, 1)
-	assert.True(t, op.ParamChoices[0].Required)
-	assert.Equal(t, []ir.ParamID{"param/openapi/paths/~1r/get/parameters/req/query",
-		"param/openapi/paths/~1r/get/parameters/a/query"}, op.ParamChoices[0].Variants[0].Params)
+	require.Len(t, operation.ParamChoices, 1)
+	assert.True(t, operation.ParamChoices[0].Required)
+	assert.Equal(t, []ir.ParameterID{"parameter/openapi/paths/~1r/get/parameters/req/query",
+		"parameter/openapi/paths/~1r/get/parameters/a/query"}, operation.ParamChoices[0].Variants[0].Params)
 }
 
 // TestPromote_ReadsNoKeyThatIsNoObject pins that a key holding no object of
@@ -117,9 +117,9 @@ func TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter(t *tes
 // shape the document should write instead.
 func TestPromote_ReadsNoKeyThatIsNoObject(t *testing.T) {
 	t.Parallel()
-	op, found := compile(t, spec("        - [a]\n        - [b]\n"))
-	assert.Empty(t, op.ParamChoices)
-	assert.Empty(t, op.Provenance.Inferred)
+	operation, found := compile(t, spec("        - [a]\n        - [b]\n"))
+	assert.Empty(t, operation.ParamChoices)
+	assert.Empty(t, operation.Provenance.Inferred)
 	assert.Equal(t, map[string]string{key: `extension "x-mutually-exclusive-parameter-groups" is a list, ` +
 		`not an object from each choice's name to a boolean "optional" and "variants", an object from each ` +
 		`variant's name to a list of parameter names, so no choice is filled`}, found)
@@ -129,7 +129,7 @@ func TestPromote_ReadsNoKeyThatIsNoObject(t *testing.T) {
 // no key the policy maps states no choice and is not marked.
 func TestPromote_ReadsNothingWhereNoKeyIsWritten(t *testing.T) {
 	t.Parallel()
-	op, found := compile(t, `openapi: 3.1.0
+	operation, found := compile(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
   /r:
@@ -139,7 +139,7 @@ paths:
         - {name: a, in: query, schema: {type: string}}
       responses: {"204": {description: ok}}
 `)
-	assert.Empty(t, op.ParamChoices)
-	assert.Empty(t, op.Provenance.Inferred)
+	assert.Empty(t, operation.ParamChoices)
+	assert.Empty(t, operation.Provenance.Inferred)
 	assert.Empty(t, found)
 }

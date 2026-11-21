@@ -14,9 +14,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 )
 
-// Document is one input's bytes read into the tree of its first document that
-// holds content.
-type Document struct {
+// ParsedYAMLDocument is one input's bytes read into the tree of its first
+// document that holds content.
+type ParsedYAMLDocument struct {
 	// Root is a document node, or a node of no kind for a stream holding none.
 	Root *yaml.Node
 	// Directive is the %YAML directive governing Root, or nil.
@@ -94,16 +94,16 @@ var errCut = errors.New("doctree: the walk of the tree was cut short")
 // the UTF-8 it encodes (transcoded), as JSON or YAML alike. A tree
 // past maxNodes is a *PastNodesError. Bytes the parser refuses are its error,
 // unwrapped, a done ctx's error is ctx's, and either way no tree is returned.
-func Read(ctx context.Context, data []byte, maxNodes budget.Limit) (Document, error) {
+func Read(ctx context.Context, data []byte, maxNodes budget.Limit) (ParsedYAMLDocument, error) {
 	if text, ok := transcoded(data); ok {
 		data = text
 	}
 	root, nodes, err := readJSON(ctx, data, maxNodes)
 	switch {
 	case err == nil:
-		return Document{Root: root, Nodes: nodes}, nil
+		return ParsedYAMLDocument{Root: root, Nodes: nodes}, nil
 	case !errors.Is(err, errNotJSON):
-		return Document{}, stopped(ctx, err)
+		return ParsedYAMLDocument{}, stopped(ctx, err)
 	default:
 		return readYAML(ctx, data, maxNodes)
 	}
@@ -113,25 +113,25 @@ func Read(ctx context.Context, data []byte, maxNodes budget.Limit) (Document, er
 // lexed as YAML 1.2 (respell), what the stream holds past it (readTail), and
 // the tree settled, its text restored and its plain scalars resolved by the
 // core schema (settle). The tree is counted once parsed and held to maxNodes.
-func readYAML(ctx context.Context, data []byte, maxNodes budget.Limit) (Document, error) {
-	text, r, dirs := respell(data)
+func readYAML(ctx context.Context, data []byte, maxNodes budget.Limit) (ParsedYAMLDocument, error) {
+	text, respelling, dirs := respell(data)
 	dec := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(text)})
 	root, err := firstWithContent(dec)
 	if err != nil {
-		return Document{}, stopped(ctx, err)
+		return ParsedYAMLDocument{}, stopped(ctx, err)
 	}
 	rest := readTail(dec)
 	// A tail cut short reads as one that did not parse, which it is not.
 	if err := ctx.Err(); err != nil {
-		return Document{}, err
+		return ParsedYAMLDocument{}, err
 	}
 
-	doc := Document{Root: root, Rest: rest, Directive: governing(dirs, root)}
-	if err := settle(ctx, &doc, r); err != nil {
-		return Document{}, err
+	doc := ParsedYAMLDocument{Root: root, Rest: rest, Directive: governing(dirs, root)}
+	if err := settle(ctx, &doc, respelling); err != nil {
+		return ParsedYAMLDocument{}, err
 	}
 	if !maxNodes.Admits(doc.Nodes) {
-		return Document{}, &PastNodesError{Nodes: doc.Nodes, Limit: maxNodes, Whole: true}
+		return ParsedYAMLDocument{}, &PastNodesError{Nodes: doc.Nodes, Limit: maxNodes, Whole: true}
 	}
 	return doc, nil
 }
@@ -144,9 +144,9 @@ func governing(dirs []Directive, root *yaml.Node) *Directive {
 	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
 		return nil
 	}
-	for _, d := range dirs {
-		if d.Line >= root.Line && d.Line < root.Content[0].Line {
-			return &d
+	for _, directive := range dirs {
+		if directive.Line >= root.Line && directive.Line < root.Content[0].Line {
+			return &directive
 		}
 	}
 	return nil

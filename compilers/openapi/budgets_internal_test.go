@@ -20,12 +20,12 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -64,9 +64,9 @@ func compileBounded(t *testing.T, src string, limits Limits) (*ir.Document, []ir
 // messageOf returns the message of the first diagnostic carrying code.
 func messageOf(t *testing.T, diags []ir.Diagnostic, code string) string {
 	t.Helper()
-	for _, d := range diags {
-		if d.Code == code {
-			return d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return diagnostic.Message
 		}
 	}
 	t.Fatalf("no diagnostic with code %q in %+v", code, diags)
@@ -251,10 +251,10 @@ func TestCompile_AnUnboundedAliasBudgetStillRefusesABomb(t *testing.T) {
 func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	t.Parallel()
 	src := compilers.Source{Path: "spec.yaml"}
-	resolved := func(l Limits) []budget.Limit {
-		o := Options{Limits: l}.withDefaults()
-		phase := loadOptions(o, nil, src)
-		lowered := loweringPolicy(o)
+	resolved := func(limits Limits) []budget.Limit {
+		options := Options{Limits: limits}.withDefaults()
+		phase := loadOptions(options, nil, src)
+		lowered := loweringPolicy(options)
 		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.Schema.Limits.MaxEnumMembers,
 			phase.MaxAliasSurplus, phase.MaxExternalDocuments, lowered.MaxReferenceExpansion}
 	}
@@ -387,7 +387,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
 			doc, diags, err := run(ctx, servicetest.Context(t, openapitest.EmptySpec, service.Policy{}), inferences{},
-				compile.NewTypes(), whole.New)
+				compile.NewTypes(), compileddoc.New)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
@@ -424,7 +424,7 @@ components:
 		require.NoError(t, err)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
 		_, diags, err := run(ctx, service.New(rootSrcIndex, loaded, loweringPolicy(Options{}.withDefaults())), inferencesOf(Options{}.withDefaults()),
-			compile.NewTypes(), whole.New)
+			compile.NewTypes(), compileddoc.New)
 		return ctx.Calls, diags, err
 	}
 	moved := func(diags []ir.Diagnostic) bool {

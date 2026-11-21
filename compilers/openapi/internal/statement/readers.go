@@ -59,7 +59,7 @@ func (s *Schema) LogicKeywords() Logic {
 }
 
 // Types returns the types s's `type` names, as written, nil for none.
-func (s *Schema) Types() []Kind {
+func (s *Schema) Types() []JSONSchemaTypeName {
 	if s == nil || s.Kinds == nil {
 		return nil
 	}
@@ -92,7 +92,7 @@ func (s *Schema) FormatName() string {
 }
 
 // PrefixItems returns the schemas s writes `prefixItems` as, nil for none.
-func (s *Schema) PrefixItems() []Sub {
+func (s *Schema) PrefixItems() []Subschema {
 	if s == nil || s.Array == nil {
 		return nil
 	}

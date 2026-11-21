@@ -87,11 +87,11 @@ throughout these documents.
     by reflection and fails on one [annotations](../../ir/annotations.md#decorators) has not
     classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
-    every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
-    row under its key whole; an encoding with no row is typed as its value travels and reported once
-    (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a
-    Go `Codec` is an options error; and two rows that spell one name for two packages generate code
-    that compiles in a file using both ([type table](../contract/type-table.md)).
+    every `PrimitiveKind` `ir` declares, read through `internal/decls`; a user row replaces the
+    built-in row under its key whole; an encoding with no row is typed as its value travels and
+    reported once (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does
+    not use, or a Go `Codec` is an options error; and two rows that spell one name for two packages
+    generate code that compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
@@ -208,19 +208,19 @@ throughout these documents.
     sending it; a frame whose data is the `Terminator` of a side the client reads ends the stream
     undecoded, a side it writes sends it last, and a `bytes` side draws `terminator-unframed`; a
     line under a content with no `Item` and a `string` root reaches the caller as text, where a
-    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `Elem`, one
-    frame at a time, a `string` `Elem` decoding as JSON on a line and arriving as `data` on an SSE
-    frame; an SSE element, a union of event shapes among them, reads the frame's fields under
-    `FrameMembers` and the frame's `data` otherwise; an `sse` reader ends a line at a CR, an LF and
-    a CRLF, skips a comment line and yields nothing for a frame with no `data` line; a `json_lines`
-    reader ends a line at an LF alone, so `a\rb` is one frame, `[DONE]\r\n` matches a `[DONE]`
-    `Terminator` and a blank line yields nothing; over HTTP a stream whose `Initial` is set reads
-    its first frame as an element, sends the initial request's members as the binding places them
-    and gives the initial response's members as declared headers; a stream method gives a caller in
-    another unit the declared headers of the response it reads, typed, before its first frame,
-    against a server holding that frame back until they are read, those of the `Others` entry whose
-    content streams where `Return` declares others, each collection of one Kotlin `Flow` given its
-    own response's, a Kotlin caller leaving `onHeaders` out building, and a Swift caller, whom
+    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `ElementType`,
+    one frame at a time, a `string` `ElementType` decoding as JSON on a line and arriving as `data`
+    on an SSE frame; an SSE element, a union of event shapes among them, reads the frame's fields
+    under `FrameMembers` and the frame's `data` otherwise; an `sse` reader ends a line at a CR, an
+    LF and a CRLF, skips a comment line and yields nothing for a frame with no `data` line; a
+    `json_lines` reader ends a line at an LF alone, so `a\rb` is one frame, `[DONE]\r\n` matches a
+    `[DONE]` `Terminator` and a blank line yields nothing; over HTTP a stream whose `Initial` is set
+    reads its first frame as an element, sends the initial request's members as the binding places
+    them and gives the initial response's members as declared headers; a stream method gives a
+    caller in another unit the declared headers of the response it reads, typed, before its first
+    frame, against a server holding that frame back until they are read, those of the `Others` entry
+    whose content streams where `Return` declares others, each collection of one Kotlin `Flow` given
+    its own response's, a Kotlin caller leaving `onHeaders` out building, and a Swift caller, whom
     `tailMetricsStream(onHeaders:)` has pass a block, given them, and a response's first declared
     header adds a field and changes no signature; a stream under a binding other than HTTP draws no
     `unframed-stream`; a media type only a compiler option names gets the one stream method, as
@@ -297,12 +297,12 @@ throughout these documents.
     merge-patch body and read in a response, is inclusive in its patch shape and a closed sum where
     it is read, and adding the `PATCH` operation changes no other declaration; sent as that body's
     list, its elements keep the member and it stays closed. A required member no shape holds
-    (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
-    positions and one with one and no `Rest`, each admits only its own length. A `null` that two
-    nullable variants admit, one of them a nullable reference to an enum with no member, or a
-    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
-    variant admits takes the fallback on an open union and is a coded error on a closed one
-    ([unions](../refine/unions.md#a-value-several-variants-admit),
+    (`Visibility.InvisibleInEveryLifecycle`) is required of no value, and of two tuple variants, one
+    with two required positions and one with one and no `Rest`, each admits only its own length. A
+    `null` that two nullable variants admit, one of them a nullable reference to an enum with no
+    member, or a variant that is such a union does, is held by the reference, as a nullable one's
+    is. A value no variant admits takes the fallback on an open union and is a coded error on a
+    closed one ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
     and a map of models with a `readOnly` and a `writeOnly` member each, sent in a `POST`, a `PUT`
@@ -661,7 +661,7 @@ throughout these documents.
     where every required input's set holds a value, one assembled, each value shown through the
     shape its operation sends it in, from its required parameters' sets, its optional parameters'
     declared ones, its body's, required or not, and its return content's, after those it declares,
-    always `Inferred`, its `Input` a `ScenarioInput` keyed by `ParamID` with the body in `Body`,
+    always `Inferred`, its `Input` a `ScenarioInput` keyed by `ParameterID` with the body in `Body`,
     save on an operation binding a parameter into its body, where those parameters state it and
     `Body` is nil, and none with `Assemble` off, a position whose type is a decorator its own
     examples, else the nearest decorator's, else, adding no constraint, its `Alias`'s set, a
@@ -694,7 +694,7 @@ throughout these documents.
     larger of `MaxItems` and its minimum, or past its minimum deeper than `ExamplePolicy.MaxDepth`
     or on a recurrence of its type, so a model requiring a list of itself and a recursion through no
     model, as `cws_JSONValue`'s, end, so a required member nested deeper than
-    `ExamplePolicy.MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the
+    `ExamplePolicy.MaxDepth` and a `minItems` or `minProperties` above `MaxItems` are met; one the
     synthesizer cannot make valid, a required cycle among them, or holding more than
     `plan.MaxExampleValues` values is `emitters/plan/example-unsynthesized` and left out; with
     `Synthesize` and `Assemble` off, no entry of `Plan.Examples` is `Inferred`, and with
@@ -888,7 +888,7 @@ throughout these documents.
     into the content's fields, `metadata` as pairs, and a JSON one into the model's own field, each
     leaving the other's unset; a form body's catch-all of objects is one list of pairs, marked in
     `Rest`; a multipart response holding such a part is `raw`, its `Text.Content` set; and a `string
-    | list of string` part under `Multi` holding the string is one part, and a form field of it
+    | list of string` part under `RepeatsPerArrayItem` holding the string is one part, and a form field of it
     under `style: form, explode: false` holding `a` and `b` one field `u=a,b`. A `text/plain`
     response declaring an object, and a response header of a list of objects, each return their text
     as a string, the mock answers the first with no body and a warning
@@ -1352,11 +1352,11 @@ throughout these documents.
     ends a page short before the last, sizes a page by a limit of 0, names no size in a link's
     value, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
-68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
-    field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through
-    it, a GraphQL and an OTP one as the IR types it and not as `RawConfig`, an RPC binding of every
-    `System` `rpc` with the system in `RPC.System`; `All` holds the RPC binding, then the HTTP
-    bindings in their order, then the message, GraphQL and OTP ones, whatever order the source
+68. **T-68 · Bindings a target covers** — a plan binding of each `OperationBindings` field carries
+    that field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached
+    through it, a GraphQL and an OTP one as the IR types it and not as `RawConfig`, an RPC binding
+    of every `System` `rpc` with the system in `RPC.System`; `All` holds the RPC binding, then the
+    HTTP bindings in their order, then the message, GraphQL and OTP ones, whatever order the source
     declared them in; a `ParamBind` carries its binding's `ParamPath`, a transcoding's `{book.name}`
     sending that member of its parameter and one naming none the whole parameter; an operation bound
     as a gRPC method and two HTTP transcodings of it lowers through the first transcoding on a

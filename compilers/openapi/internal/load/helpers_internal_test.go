@@ -20,8 +20,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -54,7 +54,7 @@ func petMapping(mapping string) string {
 
 // loadTargets loads spec at path, external references allowed or not, and
 // requires it to load.
-func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
+func loadTargets(t *testing.T, path, spec string, external bool) (*LoadedOpenAPIDocument, []ir.Diagnostic) {
 	t.Helper()
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)},
 		readingIf(external))
@@ -84,8 +84,8 @@ const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '
 // makes.
 func countErrorsAt(diags []ir.Diagnostic, code string) int {
 	var n int
-	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Severity == ir.SeverityError {
 			n++
 		}
 	}
@@ -96,8 +96,8 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 // comparison and an expectation both need.
 func diagLines(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Provenance.Pointer)+" "+d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Provenance.Pointer)+" "+diagnostic.Code)
 	}
 	slices.Sort(out)
 	return out
@@ -169,7 +169,7 @@ paths:
 // through its bindings, carries both of anchoredExternalDoc's anchored
 // operations: the outcome that fails silently, an empty or half-populated path
 // item, where a document was read without the anchor release.
-func assertRecoveredAt(t *testing.T, loaded *Document, path string) {
+func assertRecoveredAt(t *testing.T, loaded *LoadedOpenAPIDocument, path string) {
 	t.Helper()
 	ref, ok := loaded.Doc.Paths.Get(path)
 	require.True(t, ok, "%s is in the document", path)

@@ -66,14 +66,14 @@ type keptEntry struct{ key, value, at string }
 // provenance whole, so a position or an inference set on it fails too.
 func assertKept(t *testing.T, kept ir.Unmodeled, want []keptEntry) {
 	t.Helper()
-	for _, w := range want {
-		entry, ok := kept[w.key]
-		if !assert.True(t, ok, "%s is kept", w.key) {
+	for _, keptEntry := range want {
+		entry, ok := kept[keptEntry.key]
+		if !assert.True(t, ok, "%s is kept", keptEntry.key) {
 			continue
 		}
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, w.key)
-		assert.JSONEq(t, w.value, string(entry.Value), w.key)
-		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(w.at)}, entry.Provenance, w.key)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, keptEntry.key)
+		assert.JSONEq(t, keptEntry.value, string(entry.Value), keptEntry.key)
+		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(keptEntry.at)}, entry.Provenance, keptEntry.key)
 	}
 }
 
@@ -101,7 +101,7 @@ func TestPathItem_WithNoOperationKeepsItsDocs(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	const callback = "/paths/~1q/post/callbacks/onEvent/{$request.body#~1url}"
-	binding := openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled
+	binding := openapitest.FindOperation(t, doc, "postQ").Bindings.HTTP[0].Unmodeled
 	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
 		{"openapi:pathItem/paths/~1p/summary", `"path summary"`, "/paths/~1p/summary"},
 		{"openapi:pathItem/paths/~1p/description", `"path description"`, "/paths/~1p/description"},
@@ -115,8 +115,8 @@ func TestPathItem_WithNoOperationKeepsItsDocs(t *testing.T) {
 	assertScoped(t, doc.Services[0].Unmodeled, "/paths/~1p", "/webhooks/hooked")
 	assertScoped(t, binding, callback)
 
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "path-item documentation kept under Unmodeled",
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "path-item documentation kept under Unmodeled",
 			"the item's announcement covers its documentation, so it draws no finding of its own")
 	}
 }
@@ -142,11 +142,11 @@ func TestPathItem_WithNoOperationKeepsItsParameters(t *testing.T) {
 		{"openapi:pathItem/webhooks/hooked/parameters/signature/header",
 			`{"name": "signature", "in": "header", "schema": {"type": "string"}}`, "/webhooks/hooked/parameters/0"},
 	})
-	assertKept(t, openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled, []keptEntry{
+	assertKept(t, openapitest.FindOperation(t, doc, "postQ").Bindings.HTTP[0].Unmodeled, []keptEntry{
 		{"openapi:pathItem" + callback + "/parameters/event/query",
 			`{"name": "event", "in": "query", "schema": {"type": "string"}}`, callback + "/parameters/0"},
 	})
-	assert.Empty(t, openapitest.FindOp(t, doc, "postQ").Params,
+	assert.Empty(t, openapitest.FindOperation(t, doc, "postQ").Params,
 		"the callback item's parameter is not taken for the operation declaring the callback")
 }
 
@@ -168,9 +168,9 @@ func TestPathItem_WithNoOperationNumbersARepeatedParameter(t *testing.T) {
 			`{"name": "x", "in": "query", "description": "second", "schema": {"type": "string"}}`, "/paths/~1p/parameters/1"},
 	})
 	var repeats []string
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
-			repeats = append(repeats, string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
+			repeats = append(repeats, string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/paths/~1p/parameters/1"}, repeats)
@@ -211,9 +211,9 @@ paths:
 		assert.Equal(t, ir.Provenance{Source: 1, Pointer: jsontext.Pointer(at)}, kept[key].Provenance, key)
 	}
 	var repeats []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DuplicateParameter {
-			repeats = append(repeats, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DuplicateParameter {
+			repeats = append(repeats, diagnostic)
 		}
 	}
 	require.Len(t, repeats, 1)
@@ -233,12 +233,12 @@ func TestPathItem_WithNoOperationKeepsNoUnresolvedParameter(t *testing.T) {
 
 	assert.Empty(t, doc.Services[0].Unmodeled)
 	var unresolved int
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
 			unresolved++
-			assert.Equal(t, jsontext.Pointer("/paths/~1p/parameters/0"), d.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/paths/~1p/parameters/0"), diagnostic.Provenance.Pointer)
 		}
-		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
+		assert.NotContains(t, diagnostic.Message, "declares no operation this compiler lowers",
 			"nothing was kept, so nothing is announced")
 	}
 	assert.Equal(t, 1, unresolved)

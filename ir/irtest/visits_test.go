@@ -21,21 +21,21 @@ import (
 // process.
 func TestAllocatingVisits_FindsEachVisitRenderingItsPath(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{
-		Operations: []ir.Operation{{ID: "op/x/A"}, {ID: "op/x/B"}},
+		Operations: []ir.Operation{{ID: "operation/x/A"}, {ID: "operation/x/B"}},
 	}}}}}
 	var last string
-	renderOpIDs := ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
-		if v.Type() == reflect.TypeFor[ir.OpID]() {
+	renderOperationIDs := ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		if v.Type() == reflect.TypeFor[ir.OperationID]() {
 			last = at.String()
 		}
 		return true
 	})
 
 	assert.Equal(t, []string{
-		"doc.Services[0].Groups[0].Operations[0].ID",
-		"doc.Services[0].Groups[0].Operations[1].ID",
-	}, irtest.AllocatingVisits(doc, renderOpIDs))
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[1].ID", last)
+		"document.Services[0].Groups[0].Operations[0].ID",
+		"document.Services[0].Groups[0].Operations[1].ID",
+	}, irtest.AllocatingVisits(doc, renderOperationIDs))
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[1].ID", last)
 	assert.Empty(t, irtest.AllocatingVisits(doc, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool {
 		return true
 	})), "a visitor doing nothing allocates nothing")
@@ -48,11 +48,11 @@ func TestAllocatingVisits_FindsEachVisitRenderingItsPath(t *testing.T) {
 // value below the root, and reported a document clean. It is not run in
 // parallel: AllocsPerRun measures the process.
 func TestAllocatingVisits_PrunesForEachVisitorAlone(t *testing.T) {
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x"}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x"}}}
 	var pruned, recorded []string
 	pruneServices := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		pruned = append(pruned, at.String())
-		return at.String() != "doc.Services"
+		return at.String() != "document.Services"
 	})
 	record := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		recorded = append(recorded, at.String())
@@ -60,11 +60,11 @@ func TestAllocatingVisits_PrunesForEachVisitorAlone(t *testing.T) {
 	})
 
 	irtest.AllocatingVisits(doc, ir.VisitFunc(nil), pruneServices, nil, record)
-	assert.Contains(t, pruned, "doc.Services")
+	assert.Contains(t, pruned, "document.Services")
 	for _, at := range pruned {
-		assert.False(t, strings.HasPrefix(at, "doc.Services["), "%s lies under a value this visitor pruned", at)
+		assert.False(t, strings.HasPrefix(at, "document.Services["), "%s lies under a value this visitor pruned", at)
 	}
-	assert.Contains(t, recorded, "doc.Services[0].ID", "what other visitors prune is shown to this one")
+	assert.Contains(t, recorded, "document.Services[0].ID", "what other visitors prune is shown to this one")
 }
 
 // TestAllocatingVisits_ListsAValueForEachVisitorAllocating holds the report to
@@ -72,7 +72,7 @@ func TestAllocatingVisits_PrunesForEachVisitorAlone(t *testing.T) {
 // twice, and one only a visitor that does not prune it allocates for, once.
 // It is not run in parallel: AllocsPerRun measures the process.
 func TestAllocatingVisits_ListsAValueForEachVisitorAllocating(t *testing.T) {
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x"}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x"}}}
 	var kept []string
 	rendering := func(prune bool) ir.Visitor {
 		return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
@@ -83,7 +83,7 @@ func TestAllocatingVisits_ListsAValueForEachVisitorAllocating(t *testing.T) {
 		})
 	}
 
-	assert.Equal(t, []string{"doc.Services[0]", "doc.Services[0]", "doc.Services[0].ID"},
+	assert.Equal(t, []string{"document.Services[0]", "document.Services[0]", "document.Services[0].ID"},
 		irtest.AllocatingVisits(doc, rendering(false), rendering(true)))
 }
 
@@ -111,7 +111,7 @@ func TestAllocatingVisits_MeasuresACleanVisitOnce(t *testing.T) {
 	allocating, allocatingCalls := counting(true)
 
 	assert.Empty(t, irtest.AllocatingVisits(doc, clean))
-	assert.Equal(t, []string{"doc.Name"}, irtest.AllocatingVisits(doc, allocating))
+	assert.Equal(t, []string{"document.Name"}, irtest.AllocatingVisits(doc, allocating))
 	assert.Equal(t, 1+2, *cleanCalls, "the walk's visit, then one measurement")
 	assert.Equal(t, 1+2*irtest.VisitMeasurements, *allocatingCalls, "the walk's visit, then every measurement")
 	assert.Len(t, kept, 64, "the allocating visit kept what it made")
@@ -124,8 +124,8 @@ func TestAllocatingVisits_MeasuresACleanVisitOnce(t *testing.T) {
 func TestAllocatingVisits_TellsACycleVisitorOfACycle(t *testing.T) {
 	list := make([]ir.Value, 1)
 	list[0] = ir.Value{Kind: ir.ValueList, List: list}
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-		ID: "t/x/M", Examples: []ir.Example{{Value: &list[0]}},
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+		ID: "type/x/M", Examples: []ir.Example{{Value: &list[0]}},
 	}}}
 	cycles := &cycleCounter{}
 

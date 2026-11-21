@@ -24,11 +24,11 @@ func idsDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{
-			"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/a"}, {ID: "p/b"}}},
-			"t/e": &ir.Enum{ID: "t/e", Members: []ir.EnumMember{{ID: "e/a"}}},
+			"type/m": &ir.Model{ID: "type/m", Properties: []ir.Property{{ID: "property/a"}, {ID: "property/b"}}},
+			"type/e": &ir.Enum{ID: "type/e", Members: []ir.EnumMember{{ID: "enum-member/a"}}},
 		},
-		Services: []ir.Service{{ID: "s/a", CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{ID: "p/h"}}}},
-			Groups: []ir.OperationGroup{{ID: "g/a", Resource: &ir.ResourceInfo{Properties: []ir.Property{{ID: "p/r"}}},
+		Services: []ir.Service{{ID: "service/a", CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{ID: "property/h"}}}},
+			Groups: []ir.OperationGroup{{ID: "operation-group/a", Resource: &ir.ResourceInfo{Properties: []ir.Property{{ID: "property/r"}}},
 				Operations: []ir.Operation{{ID: "o/a", Params: []ir.Parameter{{ID: "q/a"}}}}}}}},
 	}
 }
@@ -36,9 +36,9 @@ func idsDoc() *ir.Document {
 // model returns the model td is, failing the test when it is none.
 func model(t *testing.T, td ir.TypeDef) *ir.Model {
 	t.Helper()
-	m, ok := td.(*ir.Model)
+	modelValue, ok := td.(*ir.Model)
 	require.True(t, ok, "%T is no model", td)
-	return m
+	return modelValue
 }
 
 // TestEditor_UpdateRefusesAChangeAddingAnID pins that a change may declare no
@@ -50,59 +50,59 @@ func TestEditor_UpdateRefusesAChangeAddingAnID(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
-		write func(t *testing.T, e *ir.Editor)
+		write func(t *testing.T, editor *ir.Editor)
 		want  string
 	}{
-		{"a property added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/m", func(td ir.TypeDef) {
-				m := model(t, td)
-				m.Properties = append(m.Properties, ir.Property{ID: "p/new"})
+		{"a property added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/m", func(td ir.TypeDef) {
+				modelValue := model(t, td)
+				modelValue.Properties = append(modelValue.Properties, ir.Property{ID: "property/new"})
 			})
-		}, `the change of "t/m" declares the ir.PropID "p/new", which the node does not`},
-		{"a property's ID changed", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/m", func(td ir.TypeDef) { model(t, td).Properties[1].ID = "p/c" })
-		}, `the change of "t/m" declares the ir.PropID "p/c", which the node does not`},
-		{"a property repeated", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/m", func(td ir.TypeDef) { model(t, td).Properties[1].ID = "p/a" })
-		}, `the change of "t/m" declares the ir.PropID "p/a" 2 times, where the node does 1 times`},
-		{"an enum member added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/e", func(td ir.TypeDef) {
+		}, `the change of "type/m" declares the ir.PropertyID "property/new", which the node does not`},
+		{"a property's ID changed", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/m", func(td ir.TypeDef) { model(t, td).Properties[1].ID = "property/c" })
+		}, `the change of "type/m" declares the ir.PropertyID "property/c", which the node does not`},
+		{"a property repeated", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/m", func(td ir.TypeDef) { model(t, td).Properties[1].ID = "property/a" })
+		}, `the change of "type/m" declares the ir.PropertyID "property/a" 2 times, where the node does 1 times`},
+		{"an enum member added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/e", func(td ir.TypeDef) {
 				enum, _ := td.(*ir.Enum)
-				enum.Members = append(enum.Members, ir.EnumMember{ID: "e/b"})
+				enum.Members = append(enum.Members, ir.EnumMember{ID: "enum-member/b"})
 			})
-		}, `the change of "t/e" declares the ir.EnumMemberID "e/b", which the node does not`},
-		{"the least of several added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/m", func(td ir.TypeDef) {
-				m := model(t, td)
-				m.Properties = append(m.Properties, ir.Property{ID: "p/z", Args: []ir.Parameter{{ID: "q/z"}}},
-					ir.Property{ID: "p/y"})
+		}, `the change of "type/e" declares the ir.EnumMemberID "enum-member/b", which the node does not`},
+		{"the least of several added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/m", func(td ir.TypeDef) {
+				modelValue := model(t, td)
+				modelValue.Properties = append(modelValue.Properties, ir.Property{ID: "property/z", Args: []ir.Parameter{{ID: "q/z"}}},
+					ir.Property{ID: "property/y"})
 			})
-		}, `the change of "t/m" declares the ir.ParamID "q/z", which the node does not`},
-		{"the least of several of one class added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateType("t/m", func(td ir.TypeDef) {
-				m := model(t, td)
-				m.Properties = append(m.Properties, ir.Property{ID: "p/z"}, ir.Property{ID: "p/y"})
+		}, `the change of "type/m" declares the ir.ParameterID "q/z", which the node does not`},
+		{"the least of several of one class added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateType("type/m", func(td ir.TypeDef) {
+				modelValue := model(t, td)
+				modelValue.Properties = append(modelValue.Properties, ir.Property{ID: "property/z"}, ir.Property{ID: "property/y"})
 			})
-		}, `the change of "t/m" declares the ir.PropID "p/y", which the node does not`},
-		{"a parameter added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateOperation("o/a", func(op *ir.Operation) { op.Params = append(op.Params, ir.Parameter{ID: "q/b"}) })
-		}, `the change of "o/a" declares the ir.ParamID "q/b", which the node does not`},
-		{"a resource property added", func(t *testing.T, e *ir.Editor) {
-			e.UpdateGroup("g/a", func(g *ir.OperationGroup) {
-				g.Resource.Identifiers = []ir.Property{{ID: "p/r2"}}
+		}, `the change of "type/m" declares the ir.PropertyID "property/y", which the node does not`},
+		{"a parameter added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateOperation("o/a", func(operation *ir.Operation) { operation.Params = append(operation.Params, ir.Parameter{ID: "q/b"}) })
+		}, `the change of "o/a" declares the ir.ParameterID "q/b", which the node does not`},
+		{"a resource property added", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateGroup("operation-group/a", func(operationGroup *ir.OperationGroup) {
+				operationGroup.Resource.Identifiers = []ir.Property{{ID: "property/r2"}}
 			})
-		}, `the change of "g/a" declares the ir.PropID "p/r2", which the node does not`},
-		{"a service's error header renamed", func(t *testing.T, e *ir.Editor) {
-			e.UpdateService("s/a", func(s *ir.Service) { s.CommonErrors[0].Headers[0].ID = "p/h2" })
-		}, `the change of "s/a" declares the ir.PropID "p/h2", which the node does not`},
+		}, `the change of "operation-group/a" declares the ir.PropertyID "property/r2", which the node does not`},
+		{"a service's error header renamed", func(t *testing.T, editor *ir.Editor) {
+			editor.UpdateService("service/a", func(service *ir.Service) { service.CommonErrors[0].Headers[0].ID = "property/h2" })
+		}, `the change of "service/a" declares the ir.PropertyID "property/h2", which the node does not`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := idsDoc()
-			e := ir.NewEditor(doc)
-			tt.write(t, e)
-			out, diags := e.Finish()
+			editor := ir.NewEditor(doc)
+			tt.write(t, editor)
+			out, diags := editor.Finish()
 
 			assert.Equal(t, []string{"internal: edit: update rejected: " + tt.want + "; an edit adds no ID"},
 				refusals(t, diags))
@@ -116,16 +116,16 @@ func TestEditor_UpdateRefusesAChangeAddingAnID(t *testing.T) {
 // empty, which irverify reports and nothing can reference.
 func TestEditor_UpdateTakesAChangeAddingNoID(t *testing.T) {
 	t.Parallel()
-	e := ir.NewEditor(idsDoc())
-	e.UpdateType("t/m", func(td ir.TypeDef) {
-		m := model(t, td)
-		m.Properties = []ir.Property{m.Properties[1], {}}
+	editor := ir.NewEditor(idsDoc())
+	editor.UpdateType("type/m", func(td ir.TypeDef) {
+		modelValue := model(t, td)
+		modelValue.Properties = []ir.Property{modelValue.Properties[1], {}}
 	})
-	e.UpdateOperation("o/a", func(op *ir.Operation) { op.Params = nil })
-	out, diags := e.Finish()
+	editor.UpdateOperation("o/a", func(operation *ir.Operation) { operation.Params = nil })
+	out, diags := editor.Finish()
 
 	require.Empty(t, diags)
-	assert.Equal(t, []ir.Property{{ID: "p/b"}, {}}, model(t, out.Types["t/m"]).Properties)
+	assert.Equal(t, []ir.Property{{ID: "property/b"}, {}}, model(t, out.Types["type/m"]).Properties)
 }
 
 // TestEditor_ReplaceRefusesANodeAddingAnID pins that a replacement may declare
@@ -136,30 +136,30 @@ func TestEditor_UpdateTakesAChangeAddingNoID(t *testing.T) {
 func TestEditor_ReplaceRefusesANodeAddingAnID(t *testing.T) {
 	t.Parallel()
 	doc := idsDoc()
-	doc.Types["t/nil"] = nil
-	doc.Types["t/off"] = &ir.Model{ID: "t/other", Properties: []ir.Property{{ID: "p/o"}}}
+	doc.Types["type/nil"] = nil
+	doc.Types["type/off"] = &ir.Model{ID: "type/other", Properties: []ir.Property{{ID: "property/o"}}}
 	doc.Types[""] = &ir.Model{}
 
-	e := ir.NewEditor(doc)
-	e.ReplaceType(&ir.Any{})
-	e.ReplaceType(&ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/b"}, {ID: "p/new"}}})
-	e.ReplaceType(&ir.Model{ID: "t/e", Properties: []ir.Property{{ID: "e/a"}}})
-	e.ReplaceType(&ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/b"}, {ID: "p/a"}}})
-	e.ReplaceType(&ir.Primitive{ID: "t/e", Prim: ir.PrimString})
-	e.ReplaceType(&ir.Any{ID: "t/nil"})
-	e.ReplaceType(&ir.Model{ID: "t/off", Properties: []ir.Property{{ID: "p/o"}}})
-	out, diags := e.Finish()
+	editor := ir.NewEditor(doc)
+	editor.ReplaceType(&ir.Any{})
+	editor.ReplaceType(&ir.Model{ID: "type/m", Properties: []ir.Property{{ID: "property/b"}, {ID: "property/new"}}})
+	editor.ReplaceType(&ir.Model{ID: "type/e", Properties: []ir.Property{{ID: "enum-member/a"}}})
+	editor.ReplaceType(&ir.Model{ID: "type/m", Properties: []ir.Property{{ID: "property/b"}, {ID: "property/a"}}})
+	editor.ReplaceType(&ir.Primitive{ID: "type/e", PrimitiveKind: ir.PrimitiveString})
+	editor.ReplaceType(&ir.Any{ID: "type/nil"})
+	editor.ReplaceType(&ir.Model{ID: "type/off", Properties: []ir.Property{{ID: "property/o"}}})
+	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{
-		`internal: edit: replace rejected: the node for "t/m" declares the ir.PropID "p/new", ` +
+		`internal: edit: replace rejected: the node for "type/m" declares the ir.PropertyID "property/new", ` +
 			`which the node it replaces does not; an edit adds no ID`,
-		`internal: edit: replace rejected: the node for "t/e" declares the ir.PropID "e/a", ` +
+		`internal: edit: replace rejected: the node for "type/e" declares the ir.PropertyID "enum-member/a", ` +
 			`which the node it replaces does not; an edit adds no ID`,
 	}, refusals(t, diags))
-	assert.Equal(t, []ir.Property{{ID: "p/b"}, {ID: "p/a"}}, model(t, out.Types["t/m"]).Properties)
-	assert.Equal(t, ir.KindPrimitive, out.Types["t/e"].Kind())
-	assert.Equal(t, ir.KindAny, out.Types["t/nil"].Kind())
-	assert.Equal(t, ir.TypeID("t/off"), out.Types["t/off"].Common().ID)
+	assert.Equal(t, []ir.Property{{ID: "property/b"}, {ID: "property/a"}}, model(t, out.Types["type/m"]).Properties)
+	assert.Equal(t, ir.KindPrimitive, out.Types["type/e"].Kind())
+	assert.Equal(t, ir.KindAny, out.Types["type/nil"].Kind())
+	assert.Equal(t, ir.TypeID("type/off"), out.Types["type/off"].Common().ID)
 }
 
 // membersDoc returns a document declaring the namespace x for types and enum
@@ -170,15 +170,15 @@ func membersDoc() *ir.Document {
 		IRVersion: ir.IRVersion,
 		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}, ir.IDKindEnumMember: {"x"}},
 		Types: ir.TypeRegistry{
-			"t/x/u": &ir.Union{ID: "t/x/u"},
-			"t/x/e": &ir.Enum{ID: "t/x/e", Members: []ir.EnumMember{member("e/x/e/s:a", "a")}},
+			"type/x/u": &ir.Union{ID: "type/x/u"},
+			"type/x/e": &ir.Enum{ID: "type/x/e", Members: []ir.EnumMember{member("enum-member/x/e/string:a", "a")}},
 		},
 	}
 }
 
 // member returns the enum member identified by id holding the string value.
 func member(id ir.EnumMemberID, value string) ir.EnumMember {
-	return ir.EnumMember{ID: id, Value: ir.Value{Kind: ir.ValueString, Str: value}}
+	return ir.EnumMember{ID: id, Value: ir.Value{Kind: ir.ValueString, String: value}}
 }
 
 // TestEditor_TakesAnEnumMembersOwnID pins the one ID an edit may add: an enum
@@ -187,21 +187,21 @@ func member(id ir.EnumMemberID, value string) ir.EnumMember {
 // does an update adding a member.
 func TestEditor_TakesAnEnumMembersOwnID(t *testing.T) {
 	t.Parallel()
-	enum := &ir.Enum{ID: "t/x/u", Members: []ir.EnumMember{
-		member("e/x/u/s:a", "a"), member("e/x/u/s:a/2", "a"), member("e/x/u/s:b", "b"),
+	enum := &ir.Enum{ID: "type/x/u", Members: []ir.EnumMember{
+		member("enum-member/x/u/string:a", "a"), member("enum-member/x/u/string:a/2", "a"), member("enum-member/x/u/string:b", "b"),
 	}}
-	e := ir.NewEditor(membersDoc())
-	e.ReplaceType(enum)
-	e.UpdateType("t/x/e", func(td ir.TypeDef) {
+	editor := ir.NewEditor(membersDoc())
+	editor.ReplaceType(enum)
+	editor.UpdateType("type/x/e", func(td ir.TypeDef) {
 		added, _ := td.(*ir.Enum)
-		added.Members = append(added.Members, member("e/x/e/s:c", "c"))
+		added.Members = append(added.Members, member("enum-member/x/e/string:c", "c"))
 	})
-	out, diags := e.Finish()
+	out, diags := editor.Finish()
 
 	require.Empty(t, diags)
-	assert.Same(t, enum, out.Types["t/x/u"])
-	updated, _ := out.Types["t/x/e"].(*ir.Enum)
-	assert.Equal(t, []ir.EnumMember{member("e/x/e/s:a", "a"), member("e/x/e/s:c", "c")}, updated.Members)
+	assert.Same(t, enum, out.Types["type/x/u"])
+	updated, _ := out.Types["type/x/e"].(*ir.Enum)
+	assert.Equal(t, []ir.EnumMember{member("enum-member/x/e/string:a", "a"), member("enum-member/x/e/string:c", "c")}, updated.Members)
 }
 
 // TestEditor_RefusesAMemberIDNotItsOwn pins what keeps the exemption to the
@@ -219,44 +219,44 @@ func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
 		memberNS []string
 		want     string
 	}{
-		{"another value's ID", []ir.EnumMember{member("e/x/u/s:a", "b")}, []string{"x"},
-			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
-		{"an ID beneath another enum", []ir.EnumMember{member("e/x/e/s:a", "a")}, []string{"x"},
-			`the ir.EnumMemberID "e/x/e/s:a", which %s does not`},
-		{"two values' IDs swapped", []ir.EnumMember{member("e/x/u/s:b", "a"), member("e/x/u/s:a", "b")},
-			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
-		{"the first value's ID worn by its repeat", []ir.EnumMember{member("e/x/u/s:a", "a"), member("e/x/u/s:a", "a")},
-			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a" 2 times, where %s does 1 times`},
-		{"a value with no key, under the ID an empty key gives", []ir.EnumMember{{ID: "e/x/u/", Value: list}},
-			[]string{"x"}, `the ir.EnumMemberID "e/x/u/", which %s does not`},
-		{"a namespace not declared for members", []ir.EnumMember{member("e/x/u/s:a", "a")}, []string{"y"},
-			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
+		{"another value's ID", []ir.EnumMember{member("enum-member/x/u/string:a", "b")}, []string{"x"},
+			`the ir.EnumMemberID "enum-member/x/u/string:a", which %s does not`},
+		{"an ID beneath another enum", []ir.EnumMember{member("enum-member/x/e/string:a", "a")}, []string{"x"},
+			`the ir.EnumMemberID "enum-member/x/e/string:a", which %s does not`},
+		{"two values' IDs swapped", []ir.EnumMember{member("enum-member/x/u/string:b", "a"), member("enum-member/x/u/string:a", "b")},
+			[]string{"x"}, `the ir.EnumMemberID "enum-member/x/u/string:a", which %s does not`},
+		{"the first value's ID worn by its repeat", []ir.EnumMember{member("enum-member/x/u/string:a", "a"), member("enum-member/x/u/string:a", "a")},
+			[]string{"x"}, `the ir.EnumMemberID "enum-member/x/u/string:a" 2 times, where %s does 1 times`},
+		{"a value with no key, under the ID an empty key gives", []ir.EnumMember{{ID: "enum-member/x/u/", Value: list}},
+			[]string{"x"}, `the ir.EnumMemberID "enum-member/x/u/", which %s does not`},
+		{"a namespace not declared for members", []ir.EnumMember{member("enum-member/x/u/string:a", "a")}, []string{"y"},
+			`the ir.EnumMemberID "enum-member/x/u/string:a", which %s does not`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := membersDoc()
 			doc.IDSpaces[ir.IDKindEnumMember] = tc.memberNS
-			doc.Types["t/x/v"] = &ir.Enum{ID: "t/x/v"}
-			e := ir.NewEditor(doc)
-			e.ReplaceType(&ir.Enum{ID: "t/x/u", Members: tc.members})
-			e.UpdateType("t/x/v", func(td ir.TypeDef) {
+			doc.Types["type/x/v"] = &ir.Enum{ID: "type/x/v"}
+			editor := ir.NewEditor(doc)
+			editor.ReplaceType(&ir.Enum{ID: "type/x/u", Members: tc.members})
+			editor.UpdateType("type/x/v", func(td ir.TypeDef) {
 				enum, _ := td.(*ir.Enum)
 				enum.Members = slices.Clone(tc.members)
 				for i := range enum.Members {
 					enum.Members[i].ID = ir.EnumMemberID(strings.Replace(string(enum.Members[i].ID), "/u/", "/v/", 1))
 				}
 			})
-			out, diags := e.Finish()
+			out, diags := editor.Finish()
 
 			replaced := fmt.Sprintf(tc.want, "the node it replaces")
 			changed := strings.ReplaceAll(fmt.Sprintf(tc.want, "the node"), "/u/", "/v/")
 			assert.Equal(t, []string{
-				`internal: edit: replace rejected: the node for "t/x/u" declares ` + replaced + `; an edit adds no ID`,
-				`internal: edit: update rejected: the change of "t/x/v" declares ` + changed + `; an edit adds no ID`,
+				`internal: edit: replace rejected: the node for "type/x/u" declares ` + replaced + `; an edit adds no ID`,
+				`internal: edit: update rejected: the change of "type/x/v" declares ` + changed + `; an edit adds no ID`,
 			}, refusals(t, diags))
-			assert.Equal(t, ir.KindUnion, out.Types["t/x/u"].Kind())
-			assert.Empty(t, out.Types["t/x/v"].(*ir.Enum).Members)
+			assert.Equal(t, ir.KindUnion, out.Types["type/x/u"].Kind())
+			assert.Empty(t, out.Types["type/x/v"].(*ir.Enum).Members)
 		})
 	}
 }
@@ -267,18 +267,18 @@ func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
 // value, is refused, by an update and by a replacement alike.
 func TestEditor_RefusesAMemberIDItsNodeDeclaresAlready(t *testing.T) {
 	t.Parallel()
-	e := ir.NewEditor(membersDoc())
-	e.UpdateType("t/x/e", func(td ir.TypeDef) {
+	editor := ir.NewEditor(membersDoc())
+	editor.UpdateType("type/x/e", func(td ir.TypeDef) {
 		enum, _ := td.(*ir.Enum)
-		enum.Members = append(enum.Members, member("e/x/e/s:a", "a"))
+		enum.Members = append(enum.Members, member("enum-member/x/e/string:a", "a"))
 	})
-	e.ReplaceType(&ir.Enum{ID: "t/x/e", Members: []ir.EnumMember{member("e/x/e/s:a", "a"), member("e/x/e/s:a", "b")}})
-	out, diags := e.Finish()
+	editor.ReplaceType(&ir.Enum{ID: "type/x/e", Members: []ir.EnumMember{member("enum-member/x/e/string:a", "a"), member("enum-member/x/e/string:a", "b")}})
+	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{
-		`internal: edit: update rejected: the change of "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+		`internal: edit: update rejected: the change of "type/x/e" declares the ir.EnumMemberID "enum-member/x/e/string:a" 2 times, ` +
 			`where the node does 1 times; an edit adds no ID`,
-		`internal: edit: replace rejected: the node for "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+		`internal: edit: replace rejected: the node for "type/x/e" declares the ir.EnumMemberID "enum-member/x/e/string:a" 2 times, ` +
 			`where the node it replaces does 1 times; an edit adds no ID`,
 	}, refusals(t, diags))
 	assert.Equal(t, irtest.Encoded(t, membersDoc()), irtest.Encoded(t, out))
@@ -289,17 +289,19 @@ func TestEditor_RefusesAMemberIDItsNodeDeclaresAlready(t *testing.T) {
 // node, which does not, still may not add.
 func TestEditor_HoldsEachNodeToItsOwnIDs(t *testing.T) {
 	t.Parallel()
-	e := ir.NewEditor(idsDoc())
-	e.UpdateType("t/m", func(ir.TypeDef) {})
-	e.UpdateGroup("g/a", func(g *ir.OperationGroup) { g.Resource.Identifiers = []ir.Property{{ID: "p/a"}} })
-	e.UpdateType("t/m", func(ir.TypeDef) {})
-	e.ReplaceType(&ir.Model{ID: "t/e", Properties: []ir.Property{{ID: "p/a"}}})
-	out, diags := e.Finish()
+	editor := ir.NewEditor(idsDoc())
+	editor.UpdateType("type/m", func(ir.TypeDef) {})
+	editor.UpdateGroup("operation-group/a", func(operationGroup *ir.OperationGroup) {
+		operationGroup.Resource.Identifiers = []ir.Property{{ID: "property/a"}}
+	})
+	editor.UpdateType("type/m", func(ir.TypeDef) {})
+	editor.ReplaceType(&ir.Model{ID: "type/e", Properties: []ir.Property{{ID: "property/a"}}})
+	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{
-		`internal: edit: update rejected: the change of "g/a" declares the ir.PropID "p/a", ` +
+		`internal: edit: update rejected: the change of "operation-group/a" declares the ir.PropertyID "property/a", ` +
 			`which the node does not; an edit adds no ID`,
-		`internal: edit: replace rejected: the node for "t/e" declares the ir.PropID "p/a", ` +
+		`internal: edit: replace rejected: the node for "type/e" declares the ir.PropertyID "property/a", ` +
 			`which the node it replaces does not; an edit adds no ID`,
 	}, refusals(t, diags))
 	assert.Equal(t, irtest.Encoded(t, idsDoc()), irtest.Encoded(t, out))
@@ -312,41 +314,41 @@ func TestEditor_HoldsEachNodeToItsOwnIDs(t *testing.T) {
 // read at all, so neither a change nor a replacement nesting one is refused.
 func TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere(t *testing.T) {
 	t.Parallel()
-	deep := []ir.Property{{ID: "p/a", Default: nestedValue(ir.MaxWalkDepth)}}
+	deep := []ir.Property{{ID: "property/a", Default: nestedValue(ir.MaxWalkDepth)}}
 	doc := idsDoc()
-	op := &doc.Services[0].Groups[0].Operations[0]
-	op.Request = &ir.Payload{Contents: []ir.Content{{
-		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{ID: "p/i", Args: []ir.Parameter{{ID: "q/i"}}}}},
-		Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: []ir.Header{{ID: "p/e"}}}},
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Request = &ir.Payload{Contents: []ir.Content{{
+		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{ID: "property/i", Args: []ir.Parameter{{ID: "q/i"}}}}},
+		Encoding:     map[ir.PropertyID]ir.PartEncoding{"property/part": {Headers: []ir.Header{{ID: "property/e"}}}},
 	}}}
 
-	e := ir.NewEditor(doc)
-	e.UpdateOperation("o/a", func(op *ir.Operation) {
-		header := &op.Request.Contents[0].ItemEncoding.Headers[0]
+	editor := ir.NewEditor(doc)
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		header := &irOperation.Request.Contents[0].ItemEncoding.Headers[0]
 		header.Args = append(header.Args, ir.Parameter{ID: "q/minted"})
 	})
-	e.UpdateOperation("o/a", func(op *ir.Operation) {
-		part := op.Request.Contents[0].Encoding["p/part"]
-		part.Headers = append(part.Headers, ir.Header{ID: "p/minted"})
-		op.Request.Contents[0].Encoding["p/part"] = part
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		part := irOperation.Request.Contents[0].Encoding["property/part"]
+		part.Headers = append(part.Headers, ir.Header{ID: "property/minted"})
+		irOperation.Request.Contents[0].Encoding["property/part"] = part
 	})
-	e.UpdateOperation("o/a", func(op *ir.Operation) {
-		part := op.Request.Contents[0].Encoding["p/part"]
-		op.Request.Contents[0].Encoding["p/other"] = part
+	editor.UpdateOperation("o/a", func(irOperation *ir.Operation) {
+		part := irOperation.Request.Contents[0].Encoding["property/part"]
+		irOperation.Request.Contents[0].Encoding["property/other"] = part
 	})
-	e.UpdateType("t/m", func(td ir.TypeDef) { model(t, td).Properties = append(model(t, td).Properties[:0], deep...) })
-	e.ReplaceType(&ir.Model{ID: "t/m", Properties: deep})
-	out, diags := e.Finish()
+	editor.UpdateType("type/m", func(td ir.TypeDef) { model(t, td).Properties = append(model(t, td).Properties[:0], deep...) })
+	editor.ReplaceType(&ir.Model{ID: "type/m", Properties: deep})
+	out, diags := editor.Finish()
 
 	assert.Equal(t, []string{
-		`internal: edit: update rejected: the change of "o/a" declares the ir.ParamID "q/minted", ` +
+		`internal: edit: update rejected: the change of "o/a" declares the ir.ParameterID "q/minted", ` +
 			`which the node does not; an edit adds no ID`,
-		`internal: edit: update rejected: the change of "o/a" declares the ir.PropID "p/minted", ` +
+		`internal: edit: update rejected: the change of "o/a" declares the ir.PropertyID "property/minted", ` +
 			`which the node does not; an edit adds no ID`,
-		`internal: edit: update rejected: the change of "o/a" declares the ir.PropID "p/e" 2 times, ` +
+		`internal: edit: update rejected: the change of "o/a" declares the ir.PropertyID "property/e" 2 times, ` +
 			`where the node does 1 times; an edit adds no ID`,
 	}, refusals(t, diags))
-	assert.Equal(t, deep, model(t, out.Types["t/m"]).Properties)
+	assert.Equal(t, deep, model(t, out.Types["type/m"]).Properties)
 }
 
 // TestEditor_IDCheckEntersOnlyWhatCanDeclare holds the ID check's cost to
@@ -355,16 +357,16 @@ func TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere(t *testing.T) {
 // values than one whose property holds none of them.
 func TestEditor_IDCheckEntersOnlyWhatCanDeclare(t *testing.T) {
 	t.Parallel()
-	scanned := func(p ir.Property) int {
-		e := ir.NewEditor(&ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{p}}}})
-		e.UpdateType("t/m", func(ir.TypeDef) {})
-		_, diags := e.Finish()
+	scanned := func(property ir.Property) int {
+		editor := ir.NewEditor(&ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Properties: []ir.Property{property}}}})
+		editor.UpdateType("type/m", func(ir.TypeDef) {})
+		_, diags := editor.Finish()
 		require.Empty(t, diags)
-		return ir.IDsScanned(e)
+		return ir.IDsScanned(editor)
 	}
 
-	bare := scanned(ir.Property{ID: "p/a"})
-	full := scanned(ir.Property{ID: "p/a", Default: nestedValue(1000), Constraints: &ir.Constraints{Pattern: "^a$"},
+	bare := scanned(ir.Property{ID: "property/a"})
+	full := scanned(ir.Property{ID: "property/a", Default: nestedValue(1000), Constraints: &ir.Constraints{Pattern: "^a$"},
 		Examples: []ir.Example{{Value: nestedValue(10)}}})
 
 	assert.Positive(t, bare)
@@ -376,15 +378,15 @@ func TestEditor_IDCheckEntersOnlyWhatCanDeclare(t *testing.T) {
 // them be costs no sort, and one reordering them is checked by sorting.
 func TestEditor_IDCheckSortsOnlyWhatChangedOrder(t *testing.T) {
 	t.Parallel()
-	e := ir.NewEditor(idsDoc())
-	e.UpdateType("t/m", func(td ir.TypeDef) { td.Common().Docs.Summary = "kept in order" })
-	untouched := ir.IDListsSorted(e)
-	e.UpdateType("t/m", func(td ir.TypeDef) { slices.Reverse(model(t, td).Properties) })
-	_, diags := e.Finish()
+	editor := ir.NewEditor(idsDoc())
+	editor.UpdateType("type/m", func(td ir.TypeDef) { td.Common().Docs.Summary = "kept in order" })
+	untouched := ir.IDListsSorted(editor)
+	editor.UpdateType("type/m", func(td ir.TypeDef) { slices.Reverse(model(t, td).Properties) })
+	_, diags := editor.Finish()
 
 	require.Empty(t, diags)
 	assert.Zero(t, untouched, "a change keeping the order was sorted")
-	assert.Positive(t, ir.IDListsSorted(e), "a reordering change was not checked by sorting")
+	assert.Positive(t, ir.IDListsSorted(editor), "a reordering change was not checked by sorting")
 }
 
 // TestEditor_IDCheckReadsABoundedPartOfANode holds the IR's types to what
@@ -447,8 +449,8 @@ func TestEditor_IDCheckReadsABoundedPartOfANode(t *testing.T) {
 	roots = append(roots, reflect.TypeFor[ir.Document](), reflect.TypeFor[ir.Service](),
 		reflect.TypeFor[ir.OperationGroup](), reflect.TypeFor[ir.Operation](), reflect.TypeFor[ir.Server](),
 		reflect.TypeFor[ir.Channel](), reflect.TypeFor[ir.Message](), reflect.TypeFor[ir.AuthScheme]())
-	for _, k := range allKinds {
-		td, ok := ir.NewTypeDef(k)
+	for _, typeKind := range allKinds {
+		td, ok := ir.NewTypeDef(typeKind)
 		require.True(t, ok)
 		roots = append(roots, reflect.TypeOf(td))
 	}

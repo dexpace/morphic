@@ -144,13 +144,13 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 		"        - {additionalProperties: false, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
-	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
+	diagnostic, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
-	assert.Equal(t, ir.SeverityError, d.Severity,
+	assert.Equal(t, ir.SeverityError, diagnostic.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0"), diagnostic.Provenance.Pointer,
 		"the diagnostic locates the construct that was lost, not its owner")
-	assert.Contains(t, d.Message, "no form at all")
+	assert.Contains(t, diagnostic.Message, "no form at all")
 }
 
 // TestUnpreservable_AbsentConstructIsSilent is the control for the two tests
@@ -177,7 +177,7 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 
 	_, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible arm is reported: %+v", diags)
-	for key, entry := range typeUnmodeled(t, doc, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "C"))) {
+	for key, entry := range typeUnmodeled(t, doc, ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "C"))) {
 		assert.NotContains(t, key, "if-then-else",
 			"a combination missing an arm is not the verbatim source: %s", entry.Value)
 	}
@@ -252,7 +252,7 @@ paths:
 	// It replaced the response's links map when ir.Response gained a field for
 	// links, as that replaced a parameter's allowEmptyValue when the HTTP binding
 	// gained its field, so this reason rides on what still has no typed home.
-	responses := openapitest.FirstOp(t, svc).Responses
+	responses := openapitest.FirstOperation(t, svc).Responses
 	require.Len(t, responses, 1, "the operation must own the response writing links")
 	for _, entry := range responses[0].Unmodeled {
 		seen[entry.Reason] = true

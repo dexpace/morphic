@@ -32,7 +32,7 @@ const unvisited = -1
 
 // newTarjan returns a search over adj.
 func newTarjan(adj [][]int) *tarjan {
-	t := &tarjan{
+	tarjanValue := &tarjan{
 		adj:     adj,
 		order:   make([]int, len(adj)),
 		low:     make([]int, len(adj)),
@@ -40,10 +40,10 @@ func newTarjan(adj [][]int) *tarjan {
 		members: make([]int, 0, len(adj)),
 		ends:    make([]int, 0, len(adj)),
 	}
-	for v := range t.order {
-		t.order[v] = unvisited
+	for v := range tarjanValue.order {
+		tarjanValue.order[v] = unvisited
 	}
-	return t
+	return tarjanValue
 }
 
 // run searches from each vertex in turn and returns the components in the

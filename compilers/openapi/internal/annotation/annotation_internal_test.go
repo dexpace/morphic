@@ -32,7 +32,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: standaloneSchema(ref), Referents: []*statement.Schema{standaloneSchema(tgt)}}, "/p", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(ref), Referents: []*statement.Schema{standaloneSchema(tgt)}}, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -48,20 +48,20 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: standaloneSchema(node), Referents: []*statement.Schema{standaloneSchema(stray)}}, "/p", sourced(0))
+	got, _ := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(node), Referents: []*statement.Schema{standaloneSchema(stray)}}, "/p", sourced(0))
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
 	assert.False(t, got.Deprecated)
 }
 
-// TestAnnotations_AVoiceReadsAsTheSiteDoes pins what a voice lends a site: each
-// annotation it writes, read at its own pointer, under what the site writes
-// itself, and over its referents.
-func TestAnnotations_AVoiceReadsAsTheSiteDoes(t *testing.T) {
+// TestAnnotations_AFoldedEntryReadsAsTheSiteDoes pins what a foldedEntry
+// lends a site: each annotation it writes, read at its own pointer, under what
+// the site writes itself, and over its referents.
+func TestAnnotations_AFoldedEntryReadsAsTheSiteDoes(t *testing.T) {
 	t.Parallel()
 	node := schemaFromYAML(t, "description: site\nx-site: 1\n")
-	voice := Voice{At: "/p/allOf/1", Node: standaloneSchema(schemaFromYAML(t, `description: voice
+	foldedEntry := FoldedAllOfEntry{At: "/p/allOf/1", Node: standaloneSchema(schemaFromYAML(t, `description: voice
 title: voice
 deprecated: true
 format: password
@@ -71,7 +71,7 @@ x-kept: 1
 x-site: 1
 not: {type: string}
 `))}
-	second := Voice{At: "/p/allOf/2", Node: standaloneSchema(schemaFromYAML(t, `example: 2
+	second := FoldedAllOfEntry{At: "/p/allOf/2", Node: standaloneSchema(schemaFromYAML(t, `example: 2
 xml: {name: other}
 x-kept: 2
 $id: 'https://example.com/s'
@@ -79,7 +79,7 @@ discriminator: {propertyName: kind, x-d: 1}
 `))}
 	referent := schemaFromYAML(t, "title: referent\nexternalDocs: {url: 'https://x'}\n")
 
-	got, _ := Read(Site{Kind: Reference, Node: standaloneSchema(node), Voices: []Voice{voice, second},
+	got, _ := Read(SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(node), FoldedAllOfEntries: []FoldedAllOfEntry{foldedEntry, second},
 		Referents: []*statement.Schema{standaloneSchema(referent)}}, "/p", sourced(0))
 
 	assert.Equal(t, "site", got.Docs.Description, "the site writes one")
@@ -101,15 +101,16 @@ discriminator: {propertyName: kind, x-d: 1}
 	assert.NotContains(t, got.Unmodeled, "openapi:discriminator/x-d")
 }
 
-// TestSite_ChainIsNearestFirst pins the order everything a site falls back to is
-// read in, and that a declaration has no referent in it.
-func TestSite_ChainIsNearestFirst(t *testing.T) {
+// TestSchemaPositionAnnotationSources_ChainIsNearestFirst pins the order
+// everything a site falls back to is read in, and that a declaration has no
+// referent in it.
+func TestSchemaPositionAnnotationSources_ChainIsNearestFirst(t *testing.T) {
 	t.Parallel()
-	node, voice, referent := standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{})
-	st := Site{Kind: Reference, Node: node, Voices: []Voice{{Node: voice}}, Referents: []*statement.Schema{referent}}
-	assertSameSchemas(t, []*statement.Schema{node, voice, referent}, st.Chain())
+	node, foldedEntry, referent := standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{})
+	st := SchemaPositionAnnotationSources{Kind: Reference, Node: node, FoldedAllOfEntries: []FoldedAllOfEntry{{Node: foldedEntry}}, Referents: []*statement.Schema{referent}}
+	assertSameSchemas(t, []*statement.Schema{node, foldedEntry, referent}, st.Chain())
 	st.Kind = Declaration
-	assertSameSchemas(t, []*statement.Schema{node, voice}, st.Chain())
+	assertSameSchemas(t, []*statement.Schema{node, foldedEntry}, st.Chain())
 }
 
 // assertSameSchemas asserts got holds the schemas of want, in order.
@@ -130,15 +131,15 @@ func TestAnnotations_RedactionFromTheSiteOrItsReferent(t *testing.T) {
 	password, byteFormat := &oas3.Schema{Format: new("password")}, &oas3.Schema{Format: new("byte")}
 	for _, tc := range []struct {
 		name string
-		site Site
+		site SchemaPositionAnnotationSources
 		want bool
 	}{
-		{"the site writes it", Site{Kind: Reference, Node: standaloneSchema(password)}, true},
-		{"the referent writes it", Site{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
-		{"another format at the site", Site{Kind: Reference, Node: standaloneSchema(byteFormat), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
-		{"a declaration's stray referent", Site{Kind: Declaration, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, false},
-		{"another format alone", Site{Kind: Reference, Node: standaloneSchema(byteFormat)}, false},
-		{"neither", Site{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(&oas3.Schema{})}}, false},
+		{"the site writes it", SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(password)}, true},
+		{"the referent writes it", SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
+		{"another format at the site", SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(byteFormat), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
+		{"a declaration's stray referent", SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, false},
+		{"another format alone", SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(byteFormat)}, false},
+		{"neither", SchemaPositionAnnotationSources{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(&oas3.Schema{})}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -157,7 +158,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(node)}, "/components/schemas/S", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(node)}, "/components/schemas/S", sourced(0))
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -215,8 +216,8 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	_, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), Dialect{})
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
-	for _, d := range diags {
-		said[d.Provenance.Pointer] = d.Message
+	for _, diagnostic := range diags {
+		said[diagnostic.Provenance.Pointer] = diagnostic.Message
 	}
 	assert.Contains(t, said["/components/schemas/S/$id"], "is read only for reference resolution")
 	assert.Contains(t, said["/components/schemas/S/$schema"],
@@ -235,8 +236,8 @@ func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
 	saidOf := func(dialect Dialect) (ir.Unmodeled, map[jsontext.Pointer]string) {
 		got, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), dialect)
 		said := map[jsontext.Pointer]string{}
-		for _, d := range diags {
-			said[d.Provenance.Pointer] = d.Message
+		for _, diagnostic := range diags {
+			said[diagnostic.Provenance.Pointer] = diagnostic.Message
 		}
 		return got, said
 	}
@@ -313,7 +314,7 @@ func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 
 	require.NotNil(t, got.XML)
 	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
@@ -329,7 +330,7 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 
 	assert.Nil(t, got.XML)
 	assert.Empty(t, diags)
@@ -368,7 +369,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
-			got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
+			got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 			require.NotNil(t, got.XML)
 			assert.Equal(t, tc.nodeType, got.XML.NodeType)
 			assert.Equal(t, tc.attr, got.XML.Attribute, "the attribute flag, placed only where no nodeType contradicts it")
@@ -395,7 +396,7 @@ func TestRead_SubObjectsKeepTheKeysTheirModelsLeaveOut(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nxml: {name: s, a: 1}\n"+
 		"discriminator: {propertyName: k, b: 2}\nexternalDocs: {url: 'https://x', c: 3}\n")
-	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/S", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: standaloneSchema(s)}, "/S", sourced(0))
 	for key, want := range map[string]string{
 		"openapi:xml/a": "1", "openapi:discriminator/b": "2", "openapi:externalDocs/c": "3",
 	} {
@@ -483,7 +484,7 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
-	none := ir.Visibility{None: true}
+	none := ir.Visibility{InvisibleInEveryLifecycle: true}
 
 	tests := []struct {
 		name         string
@@ -564,13 +565,13 @@ func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "title: T\ndescription: D\nexternalDocs: {url: 'https://x', description: E}\n")
 
-	var d ir.Docs
-	FillTypeDocs(&d, standaloneSchema(s))
-	FillTypeDocs(&d, standaloneSchema(s))
+	var docs ir.Docs
+	FillTypeDocs(&docs, standaloneSchema(s))
+	FillTypeDocs(&docs, standaloneSchema(s))
 
-	assert.Equal(t, "T", d.Summary)
-	assert.Equal(t, "D", d.Description)
-	assert.Equal(t, []ir.Link{{URL: "https://x", Description: "E"}}, d.ExternalDocs)
+	assert.Equal(t, "T", docs.Summary)
+	assert.Equal(t, "D", docs.Description)
+	assert.Equal(t, []ir.Link{{URL: "https://x", Description: "E"}}, docs.ExternalDocs)
 }
 
 // TestFillTypeDocs_AnAbsentFieldOverwritesNothing pins the other half: a schema
@@ -578,11 +579,11 @@ func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
 // which is what makes the field-by-field merge in FillCarrierDocs work.
 func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 	t.Parallel()
-	d := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
+	docs := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
 
-	FillTypeDocs(&d, standaloneSchema(schemaFromYAML(t, "type: string\n")))
+	FillTypeDocs(&docs, standaloneSchema(schemaFromYAML(t, "type: string\n")))
 
-	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, d)
+	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, docs)
 }
 
 // TestFillCarrierDocs_MergesFieldByField pins the rule
@@ -592,15 +593,15 @@ func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 // rather than replacing the whole set.
 func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 	t.Parallel()
-	var d ir.Docs
+	var docs ir.Docs
 
-	FillCarrierDocs(&d, []*statement.Schema{
+	FillCarrierDocs(&docs, []*statement.Schema{
 		standaloneSchema(schemaFromYAML(t, "description: fromSite\n")),
 		standaloneSchema(schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n")),
 	})
 
-	assert.Equal(t, "fromTarget", d.Summary, "the title has no site-local answer")
-	assert.Equal(t, "fromSite", d.Description, "the site wrote one, so it wins")
+	assert.Equal(t, "fromTarget", docs.Summary, "the title has no site-local answer")
+	assert.Equal(t, "fromSite", docs.Description, "the site wrote one, so it wins")
 }
 
 // TestXMLHints_ReadsEveryFieldDirectly pins the fields read off the XML object
@@ -639,7 +640,7 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 	require.Len(t, got, 3)
 	for i, want := range []string{"one", "two", "three"} {
 		require.NotNil(t, got[i].Value)
-		assert.Equal(t, want, got[i].Value.Str, "example %d", i)
+		assert.Equal(t, want, got[i].Value.String, "example %d", i)
 	}
 }
 
@@ -665,12 +666,12 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
-	out, diags := AppendExample(nil, proto, openapitest.StrNode("hello"), sourced(0), "/p", "examples", "n")
+	out, diags := AppendExample(nil, proto, openapitest.StringNode("hello"), sourced(0), "/p", "examples", "n")
 
 	assert.Empty(t, diags, "a convertible node is announced by nothing")
 	require.Len(t, out, 1)
 	require.NotNil(t, out[0].Value)
-	assert.Equal(t, "hello", out[0].Value.Str)
+	assert.Equal(t, "hello", out[0].Value.String)
 	got := out[0]
 	got.Value = nil
 	assert.Equal(t, proto, got, "the prototype's own fields survive unchanged")
@@ -701,9 +702,9 @@ func sourced(index int) provenance.Doc { return provenance.Doc{Source: index} }
 // in source 0, the base document.
 func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
 	touched := provenance.NewPositions()
-	for _, p := range pointers {
+	for _, pointer := range pointers {
 		at := touched.Root()
-		for token := range p.Tokens() {
+		for token := range pointer.Tokens() {
 			at = touched.Child(at, token)
 		}
 		at.Write()
@@ -731,31 +732,32 @@ func standaloneSchema(s *oas3.Schema) *statement.Schema {
 // schemas of a site write: an entry the site keeps is the site's alone, so a
 // voice writing it draws no second report, a keyword of several folded in one
 // entry among them; and a keyword the site leaves to an allOf entry its position
-// keeps whole (Site.Leaves) is kept and reported by neither reading here.
+// keeps whole (SchemaPositionAnnotationSources.Leaves) is kept and reported by
+// neither reading here.
 func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
 	t.Parallel()
 	const written = "not: {type: string}\nif: {type: string}\nthen: {minLength: 1}\nx-a: 1\n"
 	site := standaloneSchema(schemaFromYAML(t, written))
-	voice := Voice{At: "/p/allOf/0", Node: standaloneSchema(schemaFromYAML(t, written+"propertyNames: {maxLength: 3}\n"))}
+	foldedEntry := FoldedAllOfEntry{At: "/p/allOf/0", Node: standaloneSchema(schemaFromYAML(t, written+"propertyNames: {maxLength: 3}\n"))}
 
-	got, diags := Read(Site{Kind: Declaration, Node: site, Voices: []Voice{voice}}, "/p", sourced(0))
+	got, diags := Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: site, FoldedAllOfEntries: []FoldedAllOfEntry{foldedEntry}}, "/p", sourced(0))
 	assert.Contains(t, got.Unmodeled, "openapi:not")
 	assert.Contains(t, got.Unmodeled, "openapi:if-then-else")
 	assert.Equal(t, jsontext.Pointer("/p/allOf/0/propertyNames"), got.Unmodeled["openapi:propertyNames"].Provenance.Pointer)
 	at := map[jsontext.Pointer]int{}
-	for _, d := range diags {
-		at[d.Provenance.Pointer]++
+	for _, diagnostic := range diags {
+		at[diagnostic.Provenance.Pointer]++
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/p": 2, "/p/allOf/0": 1}, at, "the site reports its two, the voice the one it alone writes")
 
-	got, diags = Read(Site{Kind: Declaration, Node: site, Leaves: []string{"not", "x-a", "title", "if"}}, "/p", sourced(0))
+	got, diags = Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: site, Leaves: []string{"not", "x-a", "title", "if"}}, "/p", sourced(0))
 	assert.NotContains(t, got.Unmodeled, "openapi:not")
 	assert.NotContains(t, got.Unmodeled, "openapi:x-a")
 	assert.Contains(t, got.Unmodeled, "openapi:if-then-else", "an entry of several keywords is kept while it leaves but one")
 	assert.Len(t, diags, 1)
 
 	both := standaloneSchema(schemaFromYAML(t, written+"contains: {type: string}\nminContains: 2\n"))
-	got, diags = Read(Site{Kind: Declaration, Node: both, Leaves: []string{"if", "then", "contains", "minContains"}}, "/p", sourced(0))
+	got, diags = Read(SchemaPositionAnnotationSources{Kind: Declaration, Node: both, Leaves: []string{"if", "then", "contains", "minContains"}}, "/p", sourced(0))
 	assert.NotContains(t, got.Unmodeled, "openapi:if-then-else", "and left where it leaves every one it writes")
 	assert.NotContains(t, got.Unmodeled, "openapi:contains")
 	assert.Contains(t, got.Unmodeled, "openapi:not")

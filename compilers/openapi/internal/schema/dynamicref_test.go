@@ -91,16 +91,16 @@ components:
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: inner}, diags[0].Provenance, "placed in ext.yaml")
 	assert.True(t, strings.HasPrefix(diags[0].Message, `unresolved $dynamicRef "#node": `), diags[0].Message)
 
-	held := useTargetOf(t, doc.Types[ids.Document{}.NamedType("/components/schemas/Held")])
-	assert.Equal(t, ext.AnonType("/Param/schema"), held, "Held names the schema ext.yaml declares")
+	held := useTargetOf(t, doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/Held")])
+	assert.Equal(t, ext.AnonymousType("/Param/schema"), held, "Held names the schema ext.yaml declares")
 	model, ok := doc.Types[held].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/Param/schema"}, model.Provenance)
 	require.Len(t, model.Properties, 1)
-	prop := model.Properties[0]
-	assert.Equal(t, ext.Prop(inner), prop.ID)
-	assert.Equal(t, ir.TypeID("t/prim/any"), prop.Type.Target)
-	assert.NotContains(t, prop.Unmodeled, "openapi:$dynamicRef")
+	property := model.Properties[0]
+	assert.Equal(t, ext.Property(inner), property.ID)
+	assert.Equal(t, ir.TypeID("type/primitive/any"), property.Type.Target)
+	assert.NotContains(t, property.Unmodeled, "openapi:$dynamicRef")
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
@@ -117,12 +117,12 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 	assert.Equal(t, componentID("Meta"), propertyOf(t, doc, "Uses", "m").Type.Target,
 		"the reference resolves to the anchor's own component, not to the top type")
 
-	kids, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Tree/properties/kids")].(*ir.List)
+	kids, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Tree/properties/kids")].(*ir.List)
 	require.True(t, ok)
-	elem, ok := doc.Types[kids.Elem.Target].(*ir.Scalar)
+	element, ok := doc.Types[kids.ElementType.Target].(*ir.Scalar)
 	require.True(t, ok, "the items position keeps a node of its own")
-	require.NotNil(t, elem.Base)
-	assert.Equal(t, componentID("Tree"), elem.Base.Target,
+	require.NotNil(t, element.Base)
+	assert.Equal(t, componentID("Tree"), element.Base.Target,
 		"a self-recursive dynamic reference terminates on the interned component ID")
 
 	for _, td := range doc.Types {
@@ -179,7 +179,7 @@ func TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing(t *testing.T) {
 	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 	require.True(t, ok, "the reference position owns a node")
 	require.NotNil(t, sc.Base)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), sc.Base.Target)
+	assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveAny), sc.Base.Target)
 	assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef")
 	assertDiagContains(t, diags, "/components/schemas/A", `unresolved $dynamicRef "#pct%25name": `)
 }
@@ -294,13 +294,13 @@ func TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells(t *testing.T) {
 				at = "/components/schemas/A"
 			}
 			var errs []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					errs = append(errs, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 				}
-				assert.NotEqual(t, diag.DynamicRefExpanded, d.Code, "%+v", d)
-				if d.Severity == ir.SeverityInfo {
-					assert.False(t, strings.HasSuffix(string(d.Provenance.Pointer), "/$dynamicRef"), "nothing is kept: %+v", d)
+				assert.NotEqual(t, diag.DynamicRefExpanded, diagnostic.Code, "%+v", diagnostic)
+				if diagnostic.Severity == ir.SeverityInfo {
+					assert.False(t, strings.HasSuffix(string(diagnostic.Provenance.Pointer), "/$dynamicRef"), "nothing is kept: %+v", diagnostic)
 				}
 			}
 			want := []string{"openapi/unresolved-ref at " + at}
@@ -351,14 +351,14 @@ func TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept(t *testing.T) 
 		openapitest.ComponentSpec("    StrList: {$id: 'https://example.com/strlist', $ref: 'list', "+
 			"$defs: {items: {$dynamicAnchor: items, type: string}}}\n    Plain: {$ref: './ext.yaml#/List'}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	items, ok := doc.Types[ids.In("ext.yaml").AnonType("/List/items")].(*ir.Scalar)
+	items, ok := doc.Types[ids.In("ext.yaml").AnonymousType("/List/items")].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, ir.ReasonDegradedLowering, items.Unmodeled["openapi:$dynamicRef"].Reason)
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DynamicRefExpanded))
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/List/items/$dynamicRef" {
-			assert.Equal(t, 1, d.Provenance.Source)
-			assert.Contains(t, d.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == "/List/items/$dynamicRef" {
+			assert.Equal(t, 1, diagnostic.Provenance.Source)
+			assert.Contains(t, diagnostic.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
 				"document that reaches this one")
 		}
 	}
@@ -441,8 +441,8 @@ func TestDynamicRef_RestsOnNoReadTheMergeBoundCut(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, sc.Unmodeled["openapi:$dynamicRef"].Reason)
 	assert.NotContains(t, irtest.DiagCodes(diags), "openapi/dynamic-ref-expanded")
 	messages := make([]string, 0, len(diags))
-	for _, d := range diags {
-		messages = append(messages, d.Message)
+	for _, diagnostic := range diags {
+		messages = append(messages, diagnostic.Message)
 	}
 	joined := strings.Join(messages, "\n")
 	assert.Contains(t, joined, "not read whole")
@@ -468,7 +468,7 @@ func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
 		require.True(t, ok, "%s still owns a node", name)
 		require.NotNil(t, sc.Base)
-		assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target,
+		assert.Equal(t, ir.TypeID("type/primitive/any"), sc.Base.Target,
 			"%s aliases the top type, never a link of the cycle", name)
 		assert.Contains(t, sc.Unmodeled, "openapi:$dynamicRef",
 			"%s keeps the reference it could not take", name)
@@ -579,8 +579,8 @@ func mergeBoundOrderSpec(pFirst bool) string {
 // diagnostics of two orders of one document.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -591,8 +591,8 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 // reported.
 func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr string) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) && strings.Contains(d.Message, substr) {
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) && strings.Contains(diagnostic.Message, substr) {
 			return
 		}
 	}
@@ -640,13 +640,13 @@ func TestDynamicRef_ExpandsToAnyPositionARefNames(t *testing.T) {
 			docs := make([]*ir.Document, 0, 2)
 			for _, first := range []bool{false, true} {
 				doc, diags := parseFull(t, dynamicAtSpec(tc.holder, uses, first))
-				for _, d := range diags {
-					assert.NotEqual(t, ir.SeverityError, d.Severity, "%+v", d)
+				for _, diagnostic := range diags {
+					assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "%+v", diagnostic)
 				}
-				m, r := propertyOf(t, doc, "Uses", "m"), propertyOf(t, doc, "Uses", "r")
-				assert.Equal(t, r.Type.Target, m.Type.Target, "the expansion names what the $ref names")
-				assert.Equal(t, ids.In("").ForPointer(jsontext.Pointer(tc.pointer)), m.Type.Target)
-				assert.NotContains(t, m.Unmodeled, "openapi:$dynamicRef")
+				property, irProperty := propertyOf(t, doc, "Uses", "m"), propertyOf(t, doc, "Uses", "r")
+				assert.Equal(t, irProperty.Type.Target, property.Type.Target, "the expansion names what the $ref names")
+				assert.Equal(t, ids.In("").ForPointer(jsontext.Pointer(tc.pointer)), property.Type.Target)
+				assert.NotContains(t, property.Unmodeled, "openapi:$dynamicRef")
 				assert.Equal(t, []jsontext.Pointer{"/components/schemas/Uses/properties/m/$dynamicRef"},
 					openapitest.PointersOf(diags, diag.DynamicRefExpanded))
 				docs = append(docs, doc)
@@ -671,14 +671,14 @@ func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
 			"      properties: {children: {type: array, items: {$dynamicRef: '#node'}}}\n"+
 			"    Split:\n      $dynamicAnchor: split\n      type: object\n"+
 			"      properties: {c: {$id: 'https://example.com/c', type: array, items: {$dynamicRef: '#split'}}}\n"))
-	items, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
+	items, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, items.Base)
 	assert.Equal(t, componentID("Dyn"), items.Base.Target)
 	var errs []string
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			errs = append(errs, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"openapi/unresolved-ref at /components/schemas/Split/properties/c/items"}, errs,
@@ -757,7 +757,7 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 			src := strings.Replace(openapitest.ComponentSpec(tc.schemas), "components:", tc.extra+"components:", 1)
 			doc, diags := parseFull(t, src)
 			pointer := fmt.Sprintf(at, tc.model)
-			node := doc.Types[ir.TypeID("t/anon"+pointer)]
+			node := doc.Types[ir.TypeID("type/anonymous"+pointer)]
 			require.NotNil(t, node, "the items position owns a node")
 			if tc.expandsTo != "" {
 				scalar, ok := node.(*ir.Scalar)
@@ -790,7 +790,7 @@ func TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt(t *testing.T) {
 			"    Anchored: {"+d2019+", $id: 'https://example.com/a', $recursiveAnchor: true, type: object}\n"+
 			"    Both: {"+d2019+", $dynamicAnchor: n, type: object, properties: {c: {$dynamicRef: '#n', $recursiveRef: '#'}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	items := doc.Types[ir.TypeID("t/anon/components/schemas/Modern/properties/c/items")]
+	items := doc.Types[ir.TypeID("type/anonymous/components/schemas/Modern/properties/c/items")]
 	require.NotNil(t, items)
 	assert.Equal(t, ir.ReasonOutOfScope, items.Common().Unmodeled["openapi:$recursiveRef"].Reason)
 	assert.Equal(t, ir.ReasonOutOfScope, doc.Types[componentID("Modern")].Common().Unmodeled["openapi:$recursiveAnchor"].Reason)
@@ -812,13 +812,13 @@ func TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces(t *testing.T) {
 		"definitions: {Inner: {$dynamicAnchor: n, type: object}}}\n    D: {$dynamicRef: '#n'}\n"
 	doc, diags := parseFull(t, openapitest.ComponentSpec(outer))
 	openapitest.RequireNoErrorDiags(t, diags)
-	inner := ir.TypeID("t/anon/components/schemas/Outer/definitions/Inner")
+	inner := ir.TypeID("type/anonymous/components/schemas/Outer/definitions/Inner")
 	_, built := doc.Types[inner].(*ir.Model)
 	assert.True(t, built)
-	d, ok := doc.Types[componentID("D")].(*ir.Scalar)
+	scalar, ok := doc.Types[componentID("D")].(*ir.Scalar)
 	require.True(t, ok)
-	require.NotNil(t, d.Base)
-	assert.Equal(t, inner, d.Base.Target)
+	require.NotNil(t, scalar.Base)
+	assert.Equal(t, inner, scalar.Base.Target)
 
 	doc, diags = parseFull(t, openapitest.ComponentSpec(outer+"    Twin: {$anchor: n, type: string}\n"))
 	assert.NotContains(t, doc.Types, inner)

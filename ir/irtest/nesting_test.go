@@ -25,24 +25,24 @@ func TestNestedOverloadDoc_NestsTheDeclarationAsDeepAsAsked(t *testing.T) {
 	require.Len(t, groups[0].Operations, 1)
 	assert.Equal(t, &target, groups[0].Operations[0].OverloadOf)
 
-	g := groups[1]
+	operationGroup := groups[1]
 	for range 3 {
-		require.Len(t, g.Groups, 1)
-		g = g.Groups[0]
+		require.Len(t, operationGroup.Groups, 1)
+		operationGroup = operationGroup.Groups[0]
 	}
-	require.Len(t, g.Operations, 1)
-	assert.Equal(t, target, g.Operations[0].ID)
+	require.Len(t, operationGroup.Operations, 1)
+	assert.Equal(t, target, operationGroup.Operations[0].ID)
 }
 
 // TestNestedListValue_WrapsANumberInDepthLists pins the depth: each level is a
 // one-element list, and the number sits at the bottom.
 func TestNestedListValue_WrapsANumberInDepthLists(t *testing.T) {
 	t.Parallel()
-	v := irtest.NestedListValue(3)
+	value := irtest.NestedListValue(3)
 	for range 3 {
-		require.Equal(t, ir.ValueList, v.Kind)
-		require.Len(t, v.List, 1)
-		v = v.List[0]
+		require.Equal(t, ir.ValueList, value.Kind)
+		require.Len(t, value.List, 1)
+		value = value.List[0]
 	}
-	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0")}, v)
+	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Number: ir.BigVal("0")}, value)
 }

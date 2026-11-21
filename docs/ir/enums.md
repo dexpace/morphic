@@ -6,7 +6,7 @@ decides the kind, and the union of strings that becomes one.
 ```go
 type Enum struct {
     TypeCommon
-    ValueType PrimKind      // string | int32 | int64 | float64 …
+    ValueType PrimitiveKind // string | int32 | int64 | float64 …
     Members   []EnumMember
     Closed    bool          // false = open/extensible: unknown values must be representable
     Flags     bool          // bitfield semantics
@@ -40,20 +40,19 @@ canonical for serialization, and the validate pass must not reject them.
 
 A member's `ID` is keyed by the value it holds, never by its name or its position: `a-b` and `a_b`
 render from the same words and are still two members, and reordering a list that holds each value
-once renames none. The key
-is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string, `y`
-symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
-and the number `1` are two members. A number's payload is its canonical decimal
-(`ir.Decimal.String`): the leading significant digit, any others after a point, and the power of ten
-that digit carries, so `1500`, `1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the
-key is canonical: the member's `Value` is unchanged. A list, object, reference or constructor value
-has no key, and an enum holding one is not an `Enum`. A value held twice keeps every member: the
-first has the bare key, and each repeat appends its occurrence number as one more token
-(`…/<key>/2`), as a repeated parameter does ([identity](./identity.md#parameters)), which no key can
-be, since every key opens with its tag and a colon. The OpenAPI compiler reports each repeat in the
-list as written (`openapi/duplicate-enum-value`), whether the list lowers to an `Enum` or degrades
-to a `Union`. Which repeat holds the bare ID follows source order, so a reorder keeps the set of IDs
-and may move that one. `pass.Validate` reports an ID repeated within one enum as
+once renames none. The key is one RFC 6901 token, `<tag>:<payload>`, where the tag is the name of
+the kind of value — `string`, `symbol`, `number`, `bool`, `bytes` as unpadded URL-safe base64, or
+`null` — so the string `1` and the number `1` are two members. A number's payload is its canonical
+decimal (`ir.Decimal.String`): the leading significant digit, any others after a point, and the
+power of ten that digit carries, so `1500`, `1500.0` and `15e2` are all `1.5e3` and every zero is
+`0`. Only the key is canonical: the member's `Value` is unchanged. A list, object, reference or
+constructor value has no key, and an enum holding one is not an `Enum`. A value held twice keeps
+every member: the first has the bare key, and each repeat appends its occurrence number as one more
+token (`…/<key>/2`), as a repeated parameter does ([identity](./identity.md#parameters)), which no
+key can be, since every key opens with its tag and a colon. The OpenAPI compiler reports each repeat
+in the list as written (`openapi/duplicate-enum-value`), whether the list lowers to an `Enum` or
+degrades to a `Union`. Which repeat holds the bare ID follows source order, so a reorder keeps the
+set of IDs and may move that one. `pass.Validate` reports an ID repeated within one enum as
 `pass/duplicate-enum-member-id`.
 
 ## Member values
@@ -70,7 +69,8 @@ value.
 | `int8` to `int64`, `uint8` to `uint64`, `integer`, `float32`, `float64`, `float`, `number`, `decimal`, `decimal128` | `number` |
 | `any` | `bool`, `string`, `symbol`, `number`, `bytes`, `null` |
 
-A value type no `PrimKind` declares has no row, and is reported as `ir/unknown-prim-kind` alone.
+A value type no `PrimitiveKind` declares has no row, and is reported as `ir/unknown-primitive-kind`
+alone.
 
 ## The empty enum
 

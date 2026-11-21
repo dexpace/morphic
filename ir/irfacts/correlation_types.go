@@ -19,8 +19,8 @@ func (c *correlator) seedTypes() {
 		if ir.IsNilTypeDef(td) {
 			continue
 		}
-		if prim, ok := td.(*ir.Primitive); ok {
-			c.offerType(segment("prim", string(prim.Prim)), id, td)
+		if primitive, ok := td.(*ir.Primitive); ok {
+			c.offerType(segment("prim", string(primitive.PrimitiveKind)), id, td)
 			continue
 		}
 		common := td.Common()
@@ -44,7 +44,7 @@ func namespaced(namespace []string, key string) string {
 // offerType offers key to the type id, and, when it takes it, keys what td
 // names.
 func (c *correlator) offerType(key string, id ir.TypeID, td ir.TypeDef) {
-	c.offer(key, string(id), func(c *correlator, key string) { c.typeParts(key, td) })
+	c.offer(key, string(id), func(correlatorValue *correlator, key string) { correlatorValue.typeParts(key, td) })
 }
 
 // ref offers key to the type ref names, when the type is anonymous: a named
@@ -74,14 +74,14 @@ func (c *correlator) typeParts(key string, td ir.TypeDef) {
 	case *ir.Enum:
 		c.members(key, t)
 	case *ir.List:
-		c.ref(part(key, "elem"), &t.Elem)
+		c.ref(part(key, "elem"), &t.ElementType)
 		c.decoded(key, t.Encoding)
 	case *ir.MapT:
 		c.ref(part(key, "key"), t.Key)
 		c.ref(part(key, "value"), &t.Value)
 	case *ir.Tuple:
-		for i := range t.Elems {
-			c.ref(child(key, "elem", strconv.Itoa(i)), &t.Elems[i])
+		for i := range t.ElementTypes {
+			c.ref(child(key, "elem", strconv.Itoa(i)), &t.ElementTypes[i])
 		}
 		c.ref(part(key, "rest"), t.Rest)
 	case *ir.Scalar:
@@ -93,38 +93,38 @@ func (c *correlator) typeParts(key string, td ir.TypeDef) {
 }
 
 // decoded offers the type an encoding says a value holds once decoded.
-func (c *correlator) decoded(key string, e *ir.Encoding) {
-	if e != nil {
-		c.ref(part(key, "decoded"), e.Schema)
+func (c *correlator) decoded(key string, encoding *ir.Encoding) {
+	if encoding != nil {
+		c.ref(part(key, "decoded"), encoding.Schema)
 	}
 }
 
-// model offers the keys of m's members. The anonymous models m composes in
-// place are part of it, so their members are keyed as m's own, each wire name
-// keying the declaration m's flattening takes and none it overrides, and each
-// such model itself is keyed by m's key and allOf. Every catch-all among them
-// is keyed as m's.
-func (c *correlator) model(key string, m *ir.Model) {
-	own := c.composedInPlace(m)
-	flat := ir.FlattenedProperties(c.doc.Types, m.ID)
+// model offers the keys of irModel's members. The anonymous models irModel
+// composes in place are part of it, so their members are keyed as irModel's
+// own, each wire name keying the declaration irModel's flattening takes and
+// none it overrides, and each such model itself is keyed by irModel's key and
+// allOf. Every catch-all among them is keyed as irModel's.
+func (c *correlator) model(key string, irModel *ir.Model) {
+	own := c.composedInPlace(irModel)
+	flat := ir.FlattenedProperties(c.doc.Types, irModel.ID)
 	for i := range flat.Properties {
 		if decl := flat.Properties[i].PropertyDecl; own[decl.Owner] != nil {
 			c.property(key, decl.Property)
 		}
 	}
 	for id, model := range own {
-		c.additional(key, model.AdditionalProps)
-		if id != m.ID {
+		c.additional(key, model.AdditionalProperties)
+		if id != irModel.ID {
 			c.offerType(part(key, "allOf"), id, model)
 		}
 	}
 }
 
-// composedInPlace returns m and every anonymous model it composes in place,
+// composedInPlace returns model and every anonymous model it composes in place,
 // directly or through another such model, by ID.
-func (c *correlator) composedInPlace(m *ir.Model) map[ir.TypeID]*ir.Model {
-	own := map[ir.TypeID]*ir.Model{m.ID: m}
-	queue := []*ir.Model{m}
+func (c *correlator) composedInPlace(model *ir.Model) map[ir.TypeID]*ir.Model {
+	own := map[ir.TypeID]*ir.Model{model.ID: model}
+	queue := []*ir.Model{model}
 	for len(queue) > 0 {
 		next := queue[0]
 		queue = queue[1:]
@@ -140,11 +140,11 @@ func (c *correlator) composedInPlace(m *ir.Model) map[ir.TypeID]*ir.Model {
 	return own
 }
 
-// composed lists what m composes: its Base, Implements and Mixins.
-func composed(m *ir.Model) []ir.TypeRef {
-	refs := slices.Concat(m.Implements, m.Mixins)
-	if m.Base != nil {
-		refs = append(refs, *m.Base)
+// composed lists what model composes: its Base, Implements and Mixins.
+func composed(model *ir.Model) []ir.TypeRef {
+	refs := slices.Concat(model.Implements, model.Mixins)
+	if model.Base != nil {
+		refs = append(refs, *model.Base)
 	}
 	return refs
 }
@@ -154,11 +154,11 @@ func composed(m *ir.Model) []ir.TypeRef {
 func inlineConjuncts(types ir.TypeRegistry) map[ir.TypeID]bool {
 	inline := map[ir.TypeID]bool{}
 	for _, td := range types {
-		m, ok := td.(*ir.Model)
-		if !ok || m == nil {
+		model, ok := td.(*ir.Model)
+		if !ok || model == nil {
 			continue
 		}
-		for _, ref := range composed(m) {
+		for _, ref := range composed(model) {
 			target, ok := types[ref.Target].(*ir.Model)
 			if ok && target != nil && target.Anonymous {
 				inline[ref.Target] = true
@@ -168,35 +168,35 @@ func inlineConjuncts(types ir.TypeRegistry) map[ir.TypeID]bool {
 	return inline
 }
 
-// members offers each member of e its key, key then the member's key, which
+// members offers each member of enum its key, key then the member's key, which
 // its ID holds beneath the enum's namespace and path (docs/ir/identity.md#enum-members).
-func (c *correlator) members(key string, e *ir.Enum) {
-	scope, ok := strings.CutPrefix(string(e.ID), ir.IDKindType+ir.IDSeparator)
+func (c *correlator) members(key string, enum *ir.Enum) {
+	scope, ok := strings.CutPrefix(string(enum.ID), ir.IDKindType+ir.IDSeparator)
 	if !ok {
 		return
 	}
 	prefix := ir.IDKindEnumMember + ir.IDSeparator + scope + ir.IDSeparator
-	for i := range e.Members {
-		id := string(e.Members[i].ID)
+	for i := range enum.Members {
+		id := string(enum.Members[i].ID)
 		if rest, ok := strings.CutPrefix(id, prefix); ok {
 			c.offer(child(key, "member", rest), id, nil)
 		}
 	}
 }
 
-// property offers p its key, and, when p takes it, keys p's type, what its
-// encoding decodes to, the headers of a multipart part encoding it and its
-// field arguments.
-func (c *correlator) property(key string, p *ir.Property) {
-	c.offer(child(key, "prop", p.EffectiveWireName()), string(p.ID), func(c *correlator, key string) {
-		c.ref(part(key, "type"), &p.Type)
-		c.decoded(key, p.Encoding)
-		c.headers(key, c.partHeaders[p.ID])
-		for i := range p.Args {
-			arg := &p.Args[i]
-			c.offer(child(key, "arg", arg.Name.Source), string(arg.ID), func(c *correlator, key string) {
-				c.ref(part(key, "schema"), &arg.Type)
-				c.decoded(key, arg.Encoding)
+// property offers property its key, and, when property takes it, keys
+// property's type, what its encoding decodes to, the headers of a multipart
+// part encoding it and its field arguments.
+func (c *correlator) property(key string, property *ir.Property) {
+	c.offer(child(key, "prop", property.EffectiveWireName()), string(property.ID), func(correlatorValue *correlator, key string) {
+		correlatorValue.ref(part(key, "type"), &property.Type)
+		correlatorValue.decoded(key, property.Encoding)
+		correlatorValue.headers(key, correlatorValue.partHeaders[property.ID])
+		for i := range property.Args {
+			arg := &property.Args[i]
+			correlatorValue.offer(child(key, "arg", arg.Name.Source), string(arg.ID), func(otherCorrelator *correlator, key string) {
+				otherCorrelator.ref(part(key, "schema"), &arg.Type)
+				otherCorrelator.decoded(key, arg.Encoding)
 			})
 		}
 	})
@@ -204,7 +204,7 @@ func (c *correlator) property(key string, p *ir.Property) {
 
 // additional keys the types a model's catch-all names: its value, its key and
 // each pattern's value.
-func (c *correlator) additional(key string, extra *ir.AdditionalProps) {
+func (c *correlator) additional(key string, extra *ir.AdditionalProperties) {
 	if extra == nil {
 		return
 	}
@@ -219,21 +219,21 @@ func (c *correlator) additional(key string, extra *ir.AdditionalProps) {
 // variant: the tag a discriminator maps to it, the least where several do, or
 // its wire name in a key-tagged union, else its declared name. A variant with
 // none of these keys nothing.
-func (c *correlator) variants(key string, u *ir.Union) {
-	for i := range u.Variants {
-		v := &u.Variants[i]
-		if seg := variantSegment(u, v); seg != "" {
-			c.ref(key+"/"+seg, &v.Type)
+func (c *correlator) variants(key string, union *ir.Union) {
+	for i := range union.Variants {
+		variant := &union.Variants[i]
+		if seg := variantSegment(union, variant); seg != "" {
+			c.ref(key+"/"+seg, &variant.Type)
 		}
 	}
 }
 
-// variantSegment is the segment naming v in u, "" when nothing does.
-func variantSegment(u *ir.Union, v *ir.Variant) string {
-	if u.WireTagged && u.Discriminator != nil {
+// variantSegment is the segment naming variant in union, "" when nothing does.
+func variantSegment(union *ir.Union, variant *ir.Variant) string {
+	if union.WireTagged && union.Discriminator != nil {
 		var tags []string
-		for tag, target := range u.Discriminator.Mapping {
-			if target == v.Type.Target {
+		for tag, target := range union.Discriminator.Mapping {
+			if target == variant.Type.Target {
 				tags = append(tags, tag)
 			}
 		}
@@ -241,14 +241,14 @@ func variantSegment(u *ir.Union, v *ir.Variant) string {
 			return segment("tag", slices.Min(tags))
 		}
 	}
-	if u.WireTagged && u.Discriminator == nil {
-		wire := v.WireName
+	if union.WireTagged && union.Discriminator == nil {
+		wire := variant.WireName
 		if wire == "" {
-			wire = v.Name.Source
+			wire = variant.Name.Source
 		}
 		if wire != "" {
 			return segment("tag", wire)
 		}
 	}
-	return named("variant", v.Name)
+	return named("variant", variant.Name)
 }

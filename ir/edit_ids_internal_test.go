@@ -15,10 +15,10 @@ import (
 // ID check costs an update its values alone. It is not run in parallel:
 // AllocsPerRun measures the process.
 func TestIDCounts_ScanReadsEachTypeOnce(t *testing.T) {
-	td := &Model{ID: "t/m", Properties: []Property{{ID: "p/a", Args: []Parameter{{ID: "q/a"}}}, {ID: "p/b"}}}
-	var c idCounts
-	list := c.scan(nil, td)
+	td := &Model{ID: "type/m", Properties: []Property{{ID: "property/a", Args: []Parameter{{ID: "q/a"}}}, {ID: "property/b"}}}
+	var idCountsValue idCounts
+	list := idCountsValue.scan(nil, td)
 	require.Len(t, list, 4)
 
-	assert.Zero(t, testing.AllocsPerRun(10, func() { list = c.scan(list[:0], td) }))
+	assert.Zero(t, testing.AllocsPerRun(10, func() { list = idCountsValue.scan(list[:0], td) }))
 }

@@ -33,8 +33,8 @@ func TestLoad_Minimal31(t *testing.T) {
 	assert.Equal(t, "openapi@3.1", got.Source.Format, "3.1.0 normalizes to 3.1")
 	assert.Equal(t, "spec.yaml", got.Source.Path)
 	assert.Len(t, got.Source.Hash, 64)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "unexpected error diagnostic: %+v", diagnostic)
 	}
 }
 

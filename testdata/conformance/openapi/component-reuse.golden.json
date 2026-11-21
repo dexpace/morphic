@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Component Reuse",
         "canonical": "component_reuse"
@@ -52,27 +52,27 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1widgets/get",
+              "id": "operation/openapi/paths/~1widgets/get",
               "name": {
                 "hint": "get_widgets"
               },
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1widgets/get/parameters/sort/query",
+                  "id": "parameter/openapi/paths/~1widgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
                   },
                   "type": {
-                    "target": "t/anon/components/parameters/Sort/schema",
+                    "target": "type/anonymous/components/parameters/Sort/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -101,7 +101,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "target": "type/anonymous/components/responses/Listed/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -109,21 +109,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "id": "property/openapi/components/responses/Listed/headers/X-Rate-Unit",
                       "name": {
                         "source": "X-Rate-Unit",
                         "canonical": "x_rate_unit"
                       },
                       "wireName": "X-Rate-Unit",
                       "type": {
-                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "target": "type/anonymous/components/headers/RateUnit/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -150,7 +150,7 @@
                     "uriTemplate": "/widgets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1widgets/get/parameters/sort/query",
+                        "param": "parameter/openapi/paths/~1widgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -169,20 +169,20 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1gadgets/get",
+              "id": "operation/openapi/paths/~1gadgets/get",
               "name": {
                 "hint": "get_gadgets"
               },
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
+                  "id": "parameter/openapi/paths/~1gadgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
                   },
                   "type": {
-                    "target": "t/anon/components/parameters/Sort/schema",
+                    "target": "type/anonymous/components/parameters/Sort/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -211,7 +211,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "target": "type/anonymous/components/responses/Listed/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -219,21 +219,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "id": "property/openapi/components/responses/Listed/headers/X-Rate-Unit",
                       "name": {
                         "source": "X-Rate-Unit",
                         "canonical": "x_rate_unit"
                       },
                       "wireName": "X-Rate-Unit",
                       "type": {
-                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "target": "type/anonymous/components/headers/RateUnit/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -260,7 +260,7 @@
                     "uriTemplate": "/gadgets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
+                        "param": "parameter/openapi/paths/~1gadgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -279,7 +279,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1orders/post",
+              "id": "operation/openapi/paths/~1orders/post",
               "name": {
                 "source": "createOrder",
                 "canonical": "create_order"
@@ -290,7 +290,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "target": "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema",
                       "nullable": false
                     }
                   }
@@ -315,7 +315,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "target": "type/anonymous/components/responses/Listed/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -323,21 +323,21 @@
                   },
                   "headers": [
                     {
-                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "id": "property/openapi/components/responses/Listed/headers/X-Rate-Unit",
                       "name": {
                         "source": "X-Rate-Unit",
                         "canonical": "x_rate_unit"
                       },
                       "wireName": "X-Rate-Unit",
                       "type": {
-                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "target": "type/anonymous/components/headers/RateUnit/schema",
                         "nullable": false
                       },
                       "required": false,
                       "clientOptional": false,
                       "defaultAdded": false,
                       "visibility": {
-                        "none": false
+                        "invisibleInEveryLifecycle": false
                       },
                       "flatten": false,
                       "eventHeader": false,
@@ -372,7 +372,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/anon/components/responses/Failure/content/application~1json/schema",
+                        "target": "type/anonymous/components/responses/Failure/content/application~1json/schema",
                         "nullable": false
                       }
                     }
@@ -397,7 +397,7 @@
                         "name": "onShipped",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
-                          "op/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post"
+                          "operation/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post"
                         ]
                       }
                     ],
@@ -412,7 +412,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post",
+              "id": "operation/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post",
               "name": {
                 "source": "onShipped",
                 "canonical": "on_shipped"
@@ -466,9 +466,9 @@
     }
   ],
   "types": {
-    "t/anon/components/headers/RateUnit/schema": {
+    "type/anonymous/components/headers/RateUnit/schema": {
       "kind": "enum",
-      "id": "t/anon/components/headers/RateUnit/schema",
+      "id": "type/anonymous/components/headers/RateUnit/schema",
       "name": {
         "hint": "rate_unit"
       },
@@ -482,26 +482,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/headers/RateUnit/schema/s:second",
+          "id": "enum-member/anonymous/components/headers/RateUnit/schema/string:second",
           "name": {
             "source": "second",
             "canonical": "second"
           },
           "value": {
             "kind": "string",
-            "str": "second"
+            "string": "second"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/headers/RateUnit/schema/s:minute",
+          "id": "enum-member/anonymous/components/headers/RateUnit/schema/string:minute",
           "name": {
             "source": "minute",
             "canonical": "minute"
           },
           "value": {
             "kind": "string",
-            "str": "minute"
+            "string": "minute"
           },
           "docs": {}
         }
@@ -509,9 +509,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/parameters/Sort/schema": {
+    "type/anonymous/components/parameters/Sort/schema": {
       "kind": "enum",
-      "id": "t/anon/components/parameters/Sort/schema",
+      "id": "type/anonymous/components/parameters/Sort/schema",
       "name": {
         "hint": "sort"
       },
@@ -525,26 +525,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/parameters/Sort/schema/s:asc",
+          "id": "enum-member/anonymous/components/parameters/Sort/schema/string:asc",
           "name": {
             "source": "asc",
             "canonical": "asc"
           },
           "value": {
             "kind": "string",
-            "str": "asc"
+            "string": "asc"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/components/parameters/Sort/schema/s:desc",
+          "id": "enum-member/anonymous/components/parameters/Sort/schema/string:desc",
           "name": {
             "source": "desc",
             "canonical": "desc"
           },
           "value": {
             "kind": "string",
-            "str": "desc"
+            "string": "desc"
           },
           "docs": {}
         }
@@ -552,9 +552,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/requestBodies/OrderBody/content/application~1json/schema": {
+    "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+      "id": "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema",
       "name": {
         "hint": "order_body"
       },
@@ -567,21 +567,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
+          "id": "property/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
           "name": {
             "source": "sku",
             "canonical": "sku"
           },
           "wireName": "sku",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -598,9 +598,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/responses/Failure/content/application~1json/schema": {
+    "type/anonymous/components/responses/Failure/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/components/responses/Failure/content/application~1json/schema",
+      "id": "type/anonymous/components/responses/Failure/content/application~1json/schema",
       "name": {
         "hint": "failure"
       },
@@ -613,21 +613,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/responses/Failure/content/application~1json/schema/properties/message",
+          "id": "property/openapi/components/responses/Failure/content/application~1json/schema/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -644,9 +644,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/responses/Listed/content/application~1json/schema": {
+    "type/anonymous/components/responses/Listed/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/components/responses/Listed/content/application~1json/schema",
+      "id": "type/anonymous/components/responses/Listed/content/application~1json/schema",
       "name": {
         "hint": "listed"
       },
@@ -659,21 +659,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/responses/Listed/content/application~1json/schema/properties/items",
+          "id": "property/openapi/components/responses/Listed/content/application~1json/schema/properties/items",
           "name": {
             "source": "items",
             "canonical": "items"
           },
           "wireName": "items",
           "type": {
-            "target": "t/anon/components/responses/Listed/content/application~1json/schema/properties/items",
+            "target": "type/anonymous/components/responses/Listed/content/application~1json/schema/properties/items",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -690,9 +690,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/responses/Listed/content/application~1json/schema/properties/items": {
+    "type/anonymous/components/responses/Listed/content/application~1json/schema/properties/items": {
       "kind": "list",
-      "id": "t/anon/components/responses/Listed/content/application~1json/schema/properties/items",
+      "id": "type/anonymous/components/responses/Listed/content/application~1json/schema/properties/items",
       "name": {
         "hint": "items"
       },
@@ -703,14 +703,14 @@
         "source": 0,
         "pointer": "/components/responses/Listed/content/application~1json/schema/properties/items"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -718,7 +718,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

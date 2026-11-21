@@ -76,8 +76,8 @@ import (
 		// Not in parallel: go/types can race when two checks share an
 		// import (golang/go#81122).
 		t.Run(tc.name, func(t *testing.T) {
-			p := checkPlanted(t, base, filepath.Join(root, "pass", file), head+tc.src+tail)
-			got, _ := missingAssertions(p, root)
+			loadedPackage := checkPlanted(t, base, filepath.Join(root, "pass", file), head+tc.src+tail)
+			got, _ := missingAssertions(loadedPackage, root)
 			var want []string
 			for _, what := range tc.want {
 				want = append(want, fmt.Sprintf("pass/%s:%d: %s with no compile-time assertion in its package", file, line, what))

@@ -15,9 +15,9 @@ import (
 // declaredIn returns a declaration of string type at each pointer.
 func declaredIn(pointers ...jsontext.Pointer) []declaration {
 	decls := make([]declaration, 0, len(pointers))
-	for _, p := range pointers {
-		decls = append(decls, declaration{prop: ir.Property{
-			ID: ir.PropID("p/test" + p), WireName: "p", Provenance: ptrAt(p), Type: ir.TypeRef{Target: "t/prim/string"},
+	for _, pointer := range pointers {
+		decls = append(decls, declaration{property: ir.Property{
+			ID: ir.PropertyID("property/test" + pointer), WireName: "p", Provenance: ptrAt(pointer), Type: ir.TypeRef{Target: "type/primitive/string"},
 		}, source: written(`{}`)})
 	}
 	return decls
@@ -84,50 +84,50 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		name    string
 		decls   []jsontext.Pointer
 		nodes   []jsontext.Pointer
-		id      ir.PropID
+		id      ir.PropertyID
 		pointer jsontext.Pointer
 	}{
-		{"no other node", []jsontext.Pointer{first, later}, nil, "p/test" + first, first},
-		{"the entry holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
-		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProp(later), later},
-		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "p/test" + first, first},
-		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "p/test" + first, first},
-		{"an entry holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
+		{"no other node", []jsontext.Pointer{first, later}, nil, "property/test" + first, first},
+		{"the entry holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProperty(later), later},
+		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProperty(later), later},
+		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "property/test" + first, first},
+		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "property/test" + first, first},
+		{"an entry holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "property/test" + first, first},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
-		g.walk.interned = tc.nodes
+		stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
+		stubbed.walk.interned = tc.nodes
 
-		got := g.fold(declaredIn(tc.decls...))
+		got := stubbed.fold(declaredIn(tc.decls...))
 
 		assert.Equal(t, tc.pointer, got.Provenance.Pointer, tc.name)
 		assert.Equal(t, tc.id, got.ID, tc.name)
 	}
 }
 
-// TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity pins the one
+// TestPropertyIndex_ADiscriminatorFollowsItsFieldToANewIdentity pins the one
 // reference the walk takes off a field before it folds: a model's discriminator
 // keeps naming the property, and one naming another field is left alone.
-func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
+func TestPropertyIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 	t.Parallel()
 	const first, later = "/s/allOf/0/properties/p", "/s/allOf/1/properties/p"
 	for _, tc := range []struct {
 		name  string
-		names ir.PropID
-		want  ir.PropID
+		names ir.PropertyID
+		want  ir.PropertyID
 	}{
-		{"the folded field", "p/test" + first, mintedProp(later)},
-		{"another field", "p/test/other", "p/test/other"},
+		{"the folded field", "property/test" + first, mintedProperty(later)},
+		{"another field", "property/test/other", "property/test/other"},
 	} {
-		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
-		g.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
-		m := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
-		idx, settle := indexOver(m, g)
-		for _, d := range declaredIn(first, later) {
-			idx.MergeProperty(d.prop, d.source, d.secretBy)
+		stubbed, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: ir.PrimitiveString}})
+		stubbed.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
+		model := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
+		idx, settle := indexOver(model, stubbed)
+		for _, declaration := range declaredIn(first, later) {
+			idx.MergeProperty(declaration.property, declaration.source, declaration.secretBy)
 		}
 
 		settle()
 
-		assert.Equal(t, tc.want, m.Discriminator.Property, tc.name)
+		assert.Equal(t, tc.want, model.Discriminator.Property, tc.name)
 	}
 }

@@ -36,11 +36,11 @@ type entryValueSet struct {
 // over a string target, an enum outside the values its target holds, and an
 // enum and a const of objects over an object target.
 func entryValueSets() []entryValueSet {
-	str := "T: {type: string}"
+	stringSchema := "T: {type: string}"
 	obj := "T: {type: object, properties: {a: {type: string}}}"
 	return []entryValueSet{
-		{name: "enum", target: str, keyword: "enum: [a]", kind: ir.KindEnum, check: requireEntryEnum("a")},
-		{name: "const", target: str, keyword: "const: a", only31: true, kind: ir.KindLiteral, check: requireEntryLiteral("a")},
+		{name: "enum", target: stringSchema, keyword: "enum: [a]", kind: ir.KindEnum, check: requireEntryEnum("a")},
+		{name: "const", target: stringSchema, keyword: "const: a", only31: true, kind: ir.KindLiteral, check: requireEntryLiteral("a")},
 		{
 			name: "enum outside the target", target: "T: {type: string, enum: [low, mid]}", keyword: "enum: [other]",
 			apart: true, kind: ir.KindEnum, check: requireEntryEnum("other"),
@@ -57,8 +57,8 @@ func requireEntryEnum(member string) func(t *testing.T, doc *ir.Document, node i
 		enum, ok := node.(*ir.Enum)
 		require.True(t, ok, "an enum")
 		require.Len(t, enum.Members, 1)
-		assert.Equal(t, member, enum.Members[0].Value.Str)
-		assert.Equal(t, ir.PrimString, enum.ValueType)
+		assert.Equal(t, member, enum.Members[0].Value.String)
+		assert.Equal(t, ir.PrimitiveString, enum.ValueType)
 	}
 }
 
@@ -68,8 +68,8 @@ func requireEntryLiteral(value string) func(t *testing.T, doc *ir.Document, node
 		t.Helper()
 		literal, ok := node.(*ir.Literal)
 		require.True(t, ok, "a literal")
-		assert.Equal(t, value, literal.Value.Str)
-		assert.Equal(t, ir.PrimString, literal.ValueType)
+		assert.Equal(t, value, literal.Value.String)
+		assert.Equal(t, ir.PrimitiveString, literal.ValueType)
 	}
 }
 
@@ -81,7 +81,7 @@ func requireEntryObjectLiteral(t *testing.T, _ *ir.Document, node ir.TypeDef) {
 	assert.Equal(t, ir.ValueObject, literal.Value.Kind)
 	require.Len(t, literal.Value.Object, 1)
 	assert.Equal(t, "a", literal.Value.Object[0].Name)
-	assert.Equal(t, "x", literal.Value.Object[0].Value.Str)
+	assert.Equal(t, "x", literal.Value.Object[0].Value.String)
 }
 
 // requireEntryObjectUnion holds a node to be the union of the one literal
@@ -108,7 +108,7 @@ func entryPositionID(at jsontext.Pointer) ir.TypeID {
 	if name, ok := strings.CutPrefix(string(at), "/components/schemas/"); ok && !strings.Contains(name, "/") {
 		return componentID(name)
 	}
-	return ir.TypeID("t/anon" + string(at))
+	return ir.TypeID("type/anonymous" + string(at))
 }
 
 // entryTree is doc as its JSON encodes it, without the hash of its source and
@@ -228,8 +228,8 @@ func requireEntryNodeAt(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	refAt := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", ref))
 	assert.Equal(t, refAt, entry.Provenance.Pointer, "the entry kept is the one writing the $ref")
 	n := 0
-	for _, p := range degradedUnder(diags, at) {
-		if p == refAt {
+	for _, pointer := range degradedUnder(diags, at) {
+		if pointer == refAt {
 			n++
 		}
 	}
@@ -328,18 +328,18 @@ func TestEntryValueSet_AReferenceToThePositionReadsItsNode(t *testing.T) {
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, position).Kind(), "the position's node")
 				assert.Equal(t, ir.KindEnum, kindNode(t, doc, componentID("Comp")).Kind(), "the component is the enum")
 				holder := requireEntryModelOf(t, doc, "Holder")
-				p, ok := propByWire(holder, "p")
+				property, ok := propertyByWire(holder, "p")
 				require.True(t, ok)
-				assert.Equal(t, position, p.Type.Target)
-				assert.Empty(t, p.Unmodeled, "the property keeps nothing the enum holds")
+				assert.Equal(t, position, property.Type.Target)
+				assert.Empty(t, property.Unmodeled, "the property keeps nothing the enum holds")
 
 				requireEntryScalarOver(t, doc, "ToPosition", position)
 				requireEntryScalarOver(t, doc, "ToComp", componentID("Comp"))
 				uses := requireEntryModelOf(t, doc, "Uses")
-				q, _ := propByWire(uses, "q")
-				r, _ := propByWire(uses, "r")
-				assert.Equal(t, position, q.Type.Target)
-				assert.Equal(t, componentID("Comp"), r.Type.Target)
+				irProperty, _ := propertyByWire(uses, "q")
+				propertyValue, _ := propertyByWire(uses, "r")
+				assert.Equal(t, position, irProperty.Type.Target)
+				assert.Equal(t, componentID("Comp"), propertyValue.Type.Target)
 			})
 		})
 	}
@@ -371,7 +371,7 @@ func TestEntryValueSet_AReferenceToAnEntryNamesTheEntryAlone(t *testing.T) {
 					assert.Equal(t, ir.KindEnum, position.Kind(), "the position is the enum")
 					assert.Contains(t, keptOn(position), "openapi:$ref")
 
-					entry := ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Comp/allOf/%d", enumAt))
+					entry := ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/Comp/allOf/%d", enumAt))
 					alias := requireEntryScalarOver(t, doc, "ToEntry", entry)
 					require.NotNil(t, alias)
 					node := kindNode(t, doc, entry)

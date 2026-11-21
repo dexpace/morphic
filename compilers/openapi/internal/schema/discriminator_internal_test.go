@@ -18,14 +18,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestPropIDByName_NotFound(t *testing.T) {
+func TestPropertyIDByName_NotFound(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
-	_, ok := propIDByName(m, "missing")
+	model := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
+	_, ok := propertyIDByName(model, "missing")
 	assert.False(t, ok)
-	id, ok := propIDByName(m, "a")
+	id, ok := propertyIDByName(model, "a")
 	assert.True(t, ok)
-	assert.Equal(t, ir.PropID("p1"), id)
+	assert.Equal(t, ir.PropertyID("p1"), id)
 }
 
 // TestDiscriminatorMapping_DefsValueNamesItsOwnInternedSibling drives the
@@ -37,33 +37,33 @@ func TestPropIDByName_NotFound(t *testing.T) {
 func TestDiscriminatorMapping_DefsValueNamesItsOwnInternedSibling(t *testing.T) {
 	t.Parallel()
 	doc, diags := LowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, ir.SeverityError, diagnostic.Severity, "unexpected error diagnostic: %+v", diagnostic)
 	}
 
-	petID := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Pet"))
-	u, ok := doc.Types[petID].(*ir.Union)
+	petID := ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "Pet"))
+	union, ok := doc.Types[petID].(*ir.Union)
 	require.True(t, ok, "a discriminated oneOf lowers to a Union")
-	require.NotNil(t, u.Discriminator)
+	require.NotNil(t, union.Discriminator)
 
-	catID, ok := u.Discriminator.Mapping["cat"]
+	catID, ok := union.Discriminator.Mapping["cat"]
 	require.True(t, ok)
-	dogID, ok := u.Discriminator.Mapping["dog"]
+	dogID, ok := union.Discriminator.Mapping["dog"]
 	require.True(t, ok)
 	assert.NotEqual(t, catID, dogID, "each mapping value names its own definition, not a shared one")
 
 	catModel, ok := doc.Types[catID].(*ir.Model)
 	require.True(t, ok)
-	_, hasMeow := propIDByName(catModel, "meow")
+	_, hasMeow := propertyIDByName(catModel, "meow")
 	assert.True(t, hasMeow, "cat's own property, not dog's")
 
 	dogModel, ok := doc.Types[dogID].(*ir.Model)
 	require.True(t, ok)
-	_, hasBark := propIDByName(dogModel, "bark")
+	_, hasBark := propertyIDByName(dogModel, "bark")
 	assert.True(t, hasBark, "dog's own property, not cat's")
 
-	require.Len(t, u.Variants, 2)
-	variantTargets := []ir.TypeID{u.Variants[0].Type.Target, u.Variants[1].Type.Target}
+	require.Len(t, union.Variants, 2)
+	variantTargets := []ir.TypeID{union.Variants[0].Type.Target, union.Variants[1].Type.Target}
 	assert.Contains(t, variantTargets, catID, "the mapping names the node its oneOf branch names")
 	assert.Contains(t, variantTargets, dogID)
 }
@@ -86,12 +86,12 @@ func TestDiscriminatorMapping_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, owner := range []string{"Pet", "Toy"} {
-				m, ok := doc.Types[ids.Document{}.NamedType(ids.Ptr("components", "schemas", owner))].(*ir.Model)
+				model, ok := doc.Types[ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", owner))].(*ir.Model)
 				require.True(t, ok, owner)
-				require.NotNil(t, m.Discriminator, owner)
+				require.NotNil(t, model.Discriminator, owner)
 
-				want := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", owner, "$defs", "cat"))
-				assert.Equal(t, map[string]ir.TypeID{"cat": want}, m.Discriminator.Mapping, owner)
+				want := ids.DocumentIDNamespace{}.ForPointer(ids.Ptr("components", "schemas", owner, "$defs", "cat"))
+				assert.Equal(t, map[string]ir.TypeID{"cat": want}, model.Discriminator.Mapping, owner)
 				_, interned := doc.Types[want]
 				assert.True(t, interned, "%s's definition is interned where it is written", owner)
 			}
@@ -106,17 +106,17 @@ func TestDiscriminatorMapping_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"model missing": {"t/other": &ir.Model{ID: "t/other"}},
-		"no model":      {"t/ghost": &ir.Scalar{ID: "t/ghost"}},
-		"nil model":     {"t/ghost": (*ir.Model)(nil)},
-		"nil map":       {"t/ghost": (*ir.MapT)(nil)},
+		"model missing": {"type/other": &ir.Model{ID: "type/other"}},
+		"no model":      {"type/ghost": &ir.Scalar{ID: "type/ghost"}},
+		"nil model":     {"type/ghost": (*ir.Model)(nil)},
+		"nil map":       {"type/ghost": (*ir.MapT)(nil)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-			d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Ghost", model: "t/ghost"}
+			serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+			besideUnionDiscriminatorValue := besideUnionDiscriminator{c: serviceContext.Ctx, pointer: "/components/schemas/Ghost", model: "type/ghost"}
 
-			diags := d.Settle(t.Context(), reg)
+			diags := besideUnionDiscriminatorValue.Settle(t.Context(), reg)
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -130,24 +130,24 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 // so the second has nothing to settle and reports nothing.
 func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
-	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
-	reg := ir.TypeRegistry{"t/pet": mt}
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Pet", model: "t/pet"}
+	mt := &ir.MapT{ID: "type/pet", Value: ir.TypeRef{Target: "type/primitive/string"}}
+	reg := ir.TypeRegistry{"type/pet": mt}
+	serviceContext := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	besideUnionDiscriminatorValue := besideUnionDiscriminator{c: serviceContext.Ctx, pointer: "/components/schemas/Pet", model: "type/pet"}
 
-	assert.Empty(t, d.Settle(t.Context(), reg))
-	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
+	assert.Empty(t, besideUnionDiscriminatorValue.Settle(t.Context(), reg))
+	assert.Same(t, mt, reg["type/pet"], "the map is left in place")
 }
 
 // petDiscriminator returns the discriminator the component schema Pet holds
-// in l's document.
-func petDiscriminator(t *testing.T, l *Lowerer) *statement.Discriminator {
+// in lowerer's document.
+func petDiscriminator(t *testing.T, lowerer *Lowerer) *statement.Discriminator {
 	t.Helper()
-	js, ok := l.Doc.Components.GetSchemas().Get("Pet")
+	js, ok := lowerer.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := (l.Ctx.Statements().Of(js).Schema).Discriminator()
-	require.NotNil(t, d)
-	return d
+	discriminator := (lowerer.Ctx.Statements().Of(js).Schema).Discriminator()
+	require.NotNil(t, discriminator)
+	return discriminator
 }
 
 // defsSiblingMappingSchemas is the discriminator-mapping shape of GitHub #557:

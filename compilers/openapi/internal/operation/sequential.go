@@ -20,51 +20,52 @@ import (
 )
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
-// element type, and itemEncoding becomes Content.ItemEncoding, with Multi set
-// because the construct describes a repeated tail by definition, and Filename
-// where each item is a file (itemFile). Each item of a multipart body is a
-// part, so such a body gets an item encoding where it writes none, which takes
-// its item's default content type where it names none (itemDefault).
+// element type, and itemEncoding becomes Content.ItemEncoding, with
+// RepeatsPerArrayItem set because the construct describes a repeated tail by
+// definition, and HasFilename where each item is a file (itemFile). Each item
+// of a multipart body is a part, so such a body gets an item encoding where it
+// writes none, which takes its item's default content type where it names none
+// (itemDefault).
 //
 // That lowering only holds when no prefixEncoding accompanies it: prefixes make
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c service.Ctx, w walk, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func fillSequential(serviceContext service.Ctx, loweringState operationLoweringState, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(item), mediaPtr+ids.Ptr("itemSchema"))
+		ref, itemDiags := schema.Ref(serviceContext.Ctx, loweringState.types, schema.TopLevelDepth, serviceContext.Statements().Of(item), mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
-		diags = append(diags, itemsOfOneDocument(c, content.MediaType, mediaPtr)...)
+		diags = append(diags, itemsOfOneDocument(serviceContext, content.MediaType, mediaPtr)...)
 	}
 	if len(media.GetPrefixEncoding()) > 0 {
-		return append(diags, positionalEncoding(c, content, media, mediaPtr)...)
+		return append(diags, positionalEncoding(serviceContext, content, media, mediaPtr)...)
 	}
 	enc := media.GetItemEncoding()
 	mt := service.NormalizeMediaType(content.MediaType)
 	if enc != nil && !isMultipart(mt) {
-		return append(diags, keepItemEncoding(c, content, media, mediaPtr)...)
+		return append(diags, keepItemEncoding(serviceContext, content, media, mediaPtr)...)
 	}
 	pe := ir.PartEncoding{}
 	if enc != nil {
 		var unmodeled ir.Unmodeled
 		var encDiags []ir.Diagnostic
-		pe, unmodeled, encDiags = encodingConfig(c, w, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding", mt)
+		pe, unmodeled, encDiags = encodingConfig(serviceContext, loweringState, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding", mt)
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 		diags = append(diags, encDiags...)
 	}
-	file := itemFile(c, media.GetItemSchema(), content.MediaType, pe.ContentTypes)
+	file := itemFile(serviceContext, media.GetItemSchema(), content.MediaType, pe.ContentTypes)
 	parts := isMultipart(content.MediaType) && content.Item != nil
 	if enc == nil && !file.file && !parts {
 		return diags
 	}
-	pe.Multi = true
+	pe.RepeatsPerArrayItem = true
 	pe = file.apply(pe)
 	content.ItemEncoding = &pe
-	if parts && (enc == nil || takesDefault(service.EncodingRules(c), enc, mt)) {
-		w.types.Defer(itemDefault{c: c, encoding: content.ItemEncoding, item: *content.Item,
-			encoded: readContentEncoding(c, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})
+	if parts && (enc == nil || takesDefault(service.EncodingRules(serviceContext), enc, mt)) {
+		loweringState.types.Defer(itemDefault{c: serviceContext, encoding: content.ItemEncoding, item: *content.Item,
+			encoded: readContentEncoding(serviceContext, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})
 	}
 	return diags
 }
@@ -73,14 +74,14 @@ func fillSequential(c service.Ctx, w walk, content *ir.Content, media *soa.Media
 // multipart, where OpenAPI gives it no effect, under the content's Unmodeled
 // at openapi:itemEncoding, with one info: Content.ItemEncoding would type an
 // encoding of parts a body with none does not have. Load warns of the field.
-func keepItemEncoding(c service.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func keepItemEncoding(serviceContext service.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	at := mediaPtr + ids.Ptr("itemEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		nodeview.Child(media.GetRootNode(), "itemEncoding"), ir.ReasonNoIRHome, c.Place().At(at))
+		nodeview.Child(media.GetRootNode(), "itemEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(at))
 	if !kept {
 		return diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"itemEncoding belongs to a media type that is not multipart, where it has no effect, so Content.ItemEncoding "+
 			"has none; kept verbatim under Unmodeled"))
 }
@@ -89,21 +90,21 @@ func keepItemEncoding(c service.Ctx, content *ir.Content, media *soa.MediaType, 
 // item, as files, as a multipart part's declaration reads (fileFor): an item is
 // one value, not the repetition an array part declares. Only a multipart body
 // carries raw bytes, and an item no schema describes is said to be nothing.
-func itemFile(c service.Ctx, item *oas3.JSONSchema[oas3.Referenceable], mt string, contentTypes []string) partFile {
-	if !isMultipart(mt) || c.Statements().Of(item).Truth == statement.Unwritten {
+func itemFile(serviceContext service.Ctx, item *oas3.JSONSchema[oas3.Referenceable], mt string, contentTypes []string) partFile {
+	if !isMultipart(mt) || serviceContext.Statements().Of(item).Truth == statement.Unwritten {
 		return partFile{}
 	}
-	return fileFor(c, readFile(c, item), contentTypes)
+	return fileFor(serviceContext, readFile(serviceContext, item), contentTypes)
 }
 
 // itemsOfOneDocument reports an itemSchema on a media type whose body is one
 // document. Which media types repeat a structure is no closed set, so it fires only
 // where the syntax says, and never on one the caller's policy calls a stream.
-func itemsOfOneDocument(c service.Ctx, mediaType string, mediaPtr jsontext.Pointer) []ir.Diagnostic {
-	if !service.HoldsOneDocument(mediaType) || c.MediaTypeStreams(mediaType) {
+func itemsOfOneDocument(serviceContext service.Ctx, mediaType string, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+	if !service.HoldsOneDocument(mediaType) || serviceContext.MediaTypeStreams(mediaType) {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ItemSchemaOnDocument, mediaPtr+ids.Ptr("itemSchema"),
+	return []ir.Diagnostic{serviceContext.DiagAt(ir.SeverityWarning, diag.ItemSchemaOnDocument, mediaPtr+ids.Ptr("itemSchema"),
 		"itemSchema describes the items of a sequential media type, and a body of %q is one document; "+
 			"it lowers as a stream, as declared", mediaType)}
 }
@@ -115,26 +116,26 @@ func itemsOfOneDocument(c service.Ctx, mediaType string, mediaPtr jsontext.Point
 // would drop the prefixes and assert their encoding governs every item. The
 // ordinals a positional form needs are a gap the IR can close later, so the
 // entries carry ReasonNoIRHome rather than a degraded lowering.
-func positionalEncoding(c service.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func positionalEncoding(serviceContext service.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	root := media.GetRootNode()
 	// The announcement follows prefixEncoding, the construct that brought this
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
-		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.Place().At(at))
+		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(at))
 	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.Place().At(mediaPtr+ids.Ptr("itemEncoding")))
+		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(mediaPtr+ids.Ptr("itemEncoding")))
 	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
 		// this lowering runs — yet nothing of it was written. Unlike every other
 		// preservation site, an empty payload here cannot mean "there was no
 		// construct", so it is reported rather than passed over (GitHub #144).
-		return append(diags, c.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
+		return append(diags, serviceContext.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
 			"prefixEncoding is declared but its source node could not be read; it is "+
 				"represented in the IR in no form at all"))
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
+	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
 }

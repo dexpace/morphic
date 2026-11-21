@@ -48,10 +48,10 @@ func (l layout) runNameChannels(pass *analysis.Pass) (any, error) {
 		return nil, nil
 	}
 	shape, _ := naming.Type().Underlying().(*types.Struct) // ir declares it a struct
-	c := nameCheck{pass: pass, shape: shape}
+	nameCheckValue := nameCheck{pass: pass, shape: shape}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
-			c.node(n)
+			nameCheckValue.node(n)
 		}
 	}
 	return nil, nil

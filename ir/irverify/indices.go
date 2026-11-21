@@ -39,16 +39,16 @@ func checkIndices(*ir.Document) walkCheck {
 }
 
 // appendResponseIndexViolations appends to vs a violation per SuccessStatus key
-// on one operation's HTTP bindings that addresses no response it declares; r
-// reads each SuccessStatus map. Keys need no sorting first: every violation
-// carries its own key in Path, and Verify orders the whole result by (Code,
-// Path) before returning it.
-func appendResponseIndexViolations(vs []Violation, r *entryReader, op reflect.Value, at ir.WalkPath) []Violation {
-	declared := op.FieldByName("Responses").Len()
-	bindings := op.FieldByName("Bindings").FieldByName("HTTP")
+// on one operation's HTTP bindings that addresses no response it declares;
+// entryReaderValue reads each SuccessStatus map. Keys need no sorting first:
+// every violation carries its own key in Path, and Verify orders the whole
+// result by (Code, Path) before returning it.
+func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader, operation reflect.Value, at ir.WalkPath) []Violation {
+	declared := operation.FieldByName("Responses").Len()
+	bindings := operation.FieldByName("Bindings").FieldByName("HTTP")
 	for i := range bindings.Len() {
 		status := bindings.Index(i).FieldByName("SuccessStatus")
-		held := r.heldFor(status)
+		held := entryReaderValue.heldFor(status)
 		for iter := status.MapRange(); iter.Next(); {
 			key, _ := held.read(iter)
 			if index := int(key.Int()); index < 0 || index >= declared {
@@ -60,13 +60,13 @@ func appendResponseIndexViolations(vs []Violation, r *entryReader, op reflect.Va
 }
 
 // responseIndexViolation reports the SuccessStatus key index, on the binding-th
-// HTTP binding of the operation at op, as addressing none of its declared
-// responses.
-func responseIndexViolation(index, declared int, op ir.WalkPath, binding int) Violation {
+// HTTP binding of the operation at operation, as addressing none of its
+// declared responses.
+func responseIndexViolation(index, declared int, operation ir.WalkPath, binding int) Violation {
 	return Violation{
 		Code: "ir/response-index-out-of-range",
 		Message: "response index " + strconv.Itoa(index) + " addresses none of the " +
 			strconv.Itoa(declared) + " declared responses",
-		Path: op.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
+		Path: operation.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
 	}
 }

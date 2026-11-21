@@ -47,10 +47,10 @@ func TestCompile_AUnionBesideAnyRestDrawsOneWarningAtMost(t *testing.T) {
 	}
 	_, diags := compileAnnotationSpec(t, "grid", admissionSpec("3.1.0", "", schemas...))
 	warned := map[string][]string{}
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			name := strings.TrimPrefix(string(d.Provenance.Pointer), "/components/schemas/")
-			warned[name] = append(warned[name], d.Message)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			name := strings.TrimPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/")
+			warned[name] = append(warned[name], diagnostic.Message)
 		}
 	}
 	for name, messages := range warned {

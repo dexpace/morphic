@@ -185,6 +185,8 @@ var generations = []generation{
 		meaning: "a bound is in Constraints only where its home's kinds take it; an allOf whose conjuncts admit values but no object lowers to its value set or the conjunct elected by what each admits, not by order; a $ref beside keywords lowers as an allOf of the two; Base and Mixins name only objects, an entry whose read is cut short aside; a union beside a body makes no variant of a dead branch; kind-inference marks a node typed off shape keywords; value-set IDs, hoisted nodes and their hints move; kept keys are openapi:<keyword>, openapi:$ref, openapi:oneOf/<i>, openapi:discriminator/mapping/<key> and openapi:nullable; a nullable string is no null; a redeclaration conflict is reported once"},
 	{version: "0.71.0", format: 1, shape: "f935c79fd8db94235ed009e75d16f3dc0b09363be827411fdd9632f6954e8140",
 		names: "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7"},
+	{version: "0.72.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
+		names: "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
@@ -285,26 +287,26 @@ func rowFindings(rows []generation, format int) []string {
 		return []string{"generations is empty"}
 	}
 	var out []string
-	for i, r := range rows {
-		if _, ok := parseVersion(r.version); !ok {
-			out = append(out, fmt.Sprintf("row %d: version %q is not MAJOR.MINOR.PATCH", i, r.version))
+	for i, generation := range rows {
+		if _, ok := parseVersion(generation.version); !ok {
+			out = append(out, fmt.Sprintf("row %d: version %q is not MAJOR.MINOR.PATCH", i, generation.version))
 		}
-		if r.format < 1 || r.format > format {
-			out = append(out, fmt.Sprintf("row %d: format %d is no jsonshape.Format up to %d", i, r.format, format))
+		if generation.format < 1 || generation.format > format {
+			out = append(out, fmt.Sprintf("row %d: format %d is no jsonshape.Format up to %d", i, generation.format, format))
 		}
-		if !isDigest(r.shape) {
-			out = append(out, fmt.Sprintf("row %d: shape %q is not a lower-case hex SHA-256", i, r.shape))
+		if !isDigest(generation.shape) {
+			out = append(out, fmt.Sprintf("row %d: shape %q is not a lower-case hex SHA-256", i, generation.shape))
 		}
-		if r.names != "" && !isDigest(r.names) {
-			out = append(out, fmt.Sprintf("row %d: names %q is not a lower-case hex SHA-256", i, r.names))
+		if generation.names != "" && !isDigest(generation.names) {
+			out = append(out, fmt.Sprintf("row %d: names %q is not a lower-case hex SHA-256", i, generation.names))
 		}
 		if i == 0 {
-			if r.meaning != "" {
-				out = append(out, fmt.Sprintf("row 0: %s has no generation before it to share a shape with", r.version))
+			if generation.meaning != "" {
+				out = append(out, fmt.Sprintf("row 0: %s has no generation before it to share a shape with", generation.version))
 			}
 			continue
 		}
-		if finding := stepFinding(rows[i-1], r); finding != "" {
+		if finding := stepFinding(rows[i-1], generation); finding != "" {
 			out = append(out, fmt.Sprintf("row %d: %s", i, finding))
 		}
 	}
@@ -317,35 +319,36 @@ func isDigest(s string) bool {
 	return err == nil && len(b) == sha256.Size && strings.ToLower(s) == s
 }
 
-// stepFinding returns what is wrong with r following prev, or "" if nothing.
-func stepFinding(prev, r generation) string {
-	order := compareVersions(prev.version, r.version)
+// stepFinding returns what is wrong with generationValue following prev, or ""
+// if nothing.
+func stepFinding(prev, generationValue generation) string {
+	order := compareVersions(prev.version, generationValue.version)
 	switch {
-	case prev.names != "" && r.names == "":
+	case prev.names != "" && generationValue.names == "":
 		return fmt.Sprintf("%s records no names after %s did: the pin holds from the row that began it",
-			r.version, prev.version)
-	case order == 0 && r.names != prev.names:
-		return fmt.Sprintf("%s is described anew with other names: a change of names is a bump", r.version)
+			generationValue.version, prev.version)
+	case order == 0 && generationValue.names != prev.names:
+		return fmt.Sprintf("%s is described anew with other names: a change of names is a bump", generationValue.version)
 	case order > 0:
-		return fmt.Sprintf("%s follows %s, but rows ascend by version", r.version, prev.version)
-	case order == 0 && r.format <= prev.format:
+		return fmt.Sprintf("%s follows %s, but rows ascend by version", generationValue.version, prev.version)
+	case order == 0 && generationValue.format <= prev.format:
 		return fmt.Sprintf("%s is described again in format %d after format %d: "+
-			"a generation is described anew only in a later format", r.version, r.format, prev.format)
-	case order == 0 && r.meaning != "":
+			"a generation is described anew only in a later format", generationValue.version, generationValue.format, prev.format)
+	case order == 0 && generationValue.meaning != "":
 		return fmt.Sprintf("%s in format %d describes a generation anew, which is no bump, "+
-			"so it states no meaning", r.version, r.format)
+			"so it states no meaning", generationValue.version, generationValue.format)
 	case order == 0:
 		return ""
-	case r.format != prev.format:
+	case generationValue.format != prev.format:
 		return fmt.Sprintf("%s is described in format %d and %s in format %d: describe %s anew "+
-			"in format %d first, so the bump compares with it", r.version, r.format, prev.version,
-			prev.format, prev.version, r.format)
-	case r.shape == prev.shape && r.meaning == "":
+			"in format %d first, so the bump compares with it", generationValue.version, generationValue.format, prev.version,
+			prev.format, prev.version, generationValue.format)
+	case generationValue.shape == prev.shape && generationValue.meaning == "":
 		return fmt.Sprintf("%s has %s's shape: a bump that changes no shape states the meaning it "+
-			"changes (docs/ir/ir-version.md); without one, revert the bump", r.version, prev.version)
-	case r.shape != prev.shape && r.meaning != "":
+			"changes (docs/ir/ir-version.md); without one, revert the bump", generationValue.version, prev.version)
+	case generationValue.shape != prev.shape && generationValue.meaning != "":
 		return fmt.Sprintf("%s changes %s's shape, so it states no meaning: "+
-			"its version history entry says what changed", r.version, prev.version)
+			"its version history entry says what changed", generationValue.version, prev.version)
 	default:
 		return ""
 	}
@@ -391,13 +394,13 @@ func historyFindings(history []string, rows []generation, version string) []stri
 		out = append(out, fmt.Sprintf("docs/ir/version-history.md ends at %s, but IRVersion is %s: "+
 			"add an entry saying what %s changed", last, version, version))
 	}
-	for _, r := range rows {
+	for _, generation := range rows {
 		// IRVersion's entry is either the last one or the one asked for above.
-		if r.version == version {
+		if generation.version == version {
 			continue
 		}
-		if !slices.Contains(history, r.version) {
-			out = append(out, fmt.Sprintf("generation %s has no entry in docs/ir/version-history.md", r.version))
+		if !slices.Contains(history, generation.version) {
+			out = append(out, fmt.Sprintf("generation %s has no entry in docs/ir/version-history.md", generation.version))
 		}
 	}
 	return slices.Compact(out)
@@ -461,9 +464,9 @@ func TestRowFindings(t *testing.T) {
 	t.Parallel()
 	a := generation{version: "0.3.0", format: 1, shape: shapeA}
 	b := generation{version: "0.4.0", format: 1, shape: shapeB}
-	with := func(g generation, edit func(*generation)) generation {
-		edit(&g)
-		return g
+	with := func(generationValue generation, edit func(*generation)) generation {
+		edit(&generationValue)
+		return generationValue
 	}
 	for _, tc := range []struct {
 		name string
@@ -471,45 +474,49 @@ func TestRowFindings(t *testing.T) {
 		want string // "" means no finding
 	}{
 		{"a bump that changes the shape", []generation{a, b}, ""},
-		{"a bump for a changed meaning", []generation{a, with(b, func(g *generation) { g.shape, g.meaning = shapeA, "x" })}, ""},
-		{"a generation described anew", []generation{a, with(a, func(g *generation) { g.format, g.shape = 2, shapeB })}, ""},
+		{"a bump for a changed meaning", []generation{a, with(b, func(generationValue *generation) { generationValue.shape, generationValue.meaning = shapeA, "x" })}, ""},
+		{"a generation described anew", []generation{a, with(a, func(generationValue *generation) { generationValue.format, generationValue.shape = 2, shapeB })}, ""},
 		{"an empty table", nil, "generations is empty"},
-		{"a version that is no version", []generation{with(a, func(g *generation) { g.version = "0.3" })},
+		{"a version that is no version", []generation{with(a, func(generationValue *generation) { generationValue.version = "0.3" })},
 			`row 0: version "0.3" is not MAJOR.MINOR.PATCH`},
-		{"no format", []generation{with(a, func(g *generation) { g.format = 0 })}, "row 0: format 0 is no jsonshape.Format up to 2"},
-		{"a format jsonshape has not reached", []generation{with(a, func(g *generation) { g.format = 3 })},
+		{"no format", []generation{with(a, func(generationValue *generation) { generationValue.format = 0 })}, "row 0: format 0 is no jsonshape.Format up to 2"},
+		{"a format jsonshape has not reached", []generation{with(a, func(generationValue *generation) { generationValue.format = 3 })},
 			"row 0: format 3 is no jsonshape.Format up to 2"},
-		{"a short shape", []generation{with(a, func(g *generation) { g.shape = "aa" })},
+		{"a short shape", []generation{with(a, func(generationValue *generation) { generationValue.shape = "aa" })},
 			`row 0: shape "aa" is not a lower-case hex SHA-256`},
-		{"a shape that is not hex", []generation{with(a, func(g *generation) { g.shape = strings.Repeat("g", 64) })},
+		{"a shape that is not hex", []generation{with(a, func(generationValue *generation) { generationValue.shape = strings.Repeat("g", 64) })},
 			`row 0: shape "` + strings.Repeat("g", 64) + `" is not a lower-case hex SHA-256`},
-		{"an upper-case shape", []generation{with(a, func(g *generation) { g.shape = strings.ToUpper(shapeA) })},
+		{"an upper-case shape", []generation{with(a, func(generationValue *generation) { generationValue.shape = strings.ToUpper(shapeA) })},
 			`row 0: shape "` + strings.ToUpper(shapeA) + `" is not a lower-case hex SHA-256`},
-		{"a first row claiming a predecessor's shape", []generation{with(a, func(g *generation) { g.meaning = "x" })},
+		{"a first row claiming a predecessor's shape", []generation{with(a, func(generationValue *generation) { generationValue.meaning = "x" })},
 			"row 0: 0.3.0 has no generation before it to share a shape with"},
 		{"rows out of order", []generation{b, a}, "row 1: 0.3.0 follows 0.4.0, but rows ascend by version"},
-		{"a version listed twice", []generation{a, with(a, func(g *generation) { g.shape = shapeB })},
+		{"a version listed twice", []generation{a, with(a, func(generationValue *generation) { generationValue.shape = shapeB })},
 			"row 1: 0.3.0 is described again in format 1 after format 1: a generation is described anew only in a later format"},
-		{"a description anew claiming a meaning", []generation{a, with(a, func(g *generation) { g.format, g.meaning = 2, "x" })},
+		{"a description anew claiming a meaning", []generation{a, with(a, func(generationValue *generation) { generationValue.format, generationValue.meaning = 2, "x" })},
 			"row 1: 0.3.0 in format 2 describes a generation anew, which is no bump, so it states no meaning"},
-		{"a bump in a new format", []generation{a, with(b, func(g *generation) { g.format = 2 })},
+		{"a bump in a new format", []generation{a, with(b, func(generationValue *generation) { generationValue.format = 2 })},
 			"row 1: 0.4.0 is described in format 2 and 0.3.0 in format 1: describe 0.3.0 anew in format 2 first, so the bump compares with it"},
-		{"a bump that changes no shape", []generation{a, with(b, func(g *generation) { g.shape = shapeA })},
+		{"a bump that changes no shape", []generation{a, with(b, func(generationValue *generation) { generationValue.shape = shapeA })},
 			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape states the meaning it changes (docs/ir/ir-version.md); without one, revert the bump"},
-		{"a meaning claimed by a shape change", []generation{a, with(b, func(g *generation) { g.meaning = "x" })},
+		{"a meaning claimed by a shape change", []generation{a, with(b, func(generationValue *generation) { generationValue.meaning = "x" })},
 			"row 1: 0.4.0 changes 0.3.0's shape, so it states no meaning: its version history entry says what changed"},
-		{"the row that begins the names pin", []generation{a, with(b, func(g *generation) { g.names = shapeA })}, ""},
+		{"the row that begins the names pin", []generation{a, with(b, func(generationValue *generation) { generationValue.names = shapeA })}, ""},
 		{"a bump for changed names", []generation{
-			with(a, func(g *generation) { g.names = shapeA }),
-			with(b, func(g *generation) { g.shape, g.names, g.meaning = shapeA, shapeB, "x" }),
+			with(a, func(generationValue *generation) { generationValue.names = shapeA }),
+			with(b, func(generationValue *generation) {
+				generationValue.shape, generationValue.names, generationValue.meaning = shapeA, shapeB, "x"
+			}),
 		}, ""},
-		{"names that are no digest", []generation{with(a, func(g *generation) { g.names = "aa" })},
+		{"names that are no digest", []generation{with(a, func(generationValue *generation) { generationValue.names = "aa" })},
 			`row 0: names "aa" is not a lower-case hex SHA-256`},
-		{"a pin that lapses", []generation{with(a, func(g *generation) { g.names = shapeA }), b},
+		{"a pin that lapses", []generation{with(a, func(generationValue *generation) { generationValue.names = shapeA }), b},
 			"row 1: 0.4.0 records no names after 0.3.0 did: the pin holds from the row that began it"},
 		{"a generation described anew with other names", []generation{
-			with(a, func(g *generation) { g.names = shapeA }),
-			with(a, func(g *generation) { g.format, g.shape, g.names = 2, shapeB, shapeB }),
+			with(a, func(generationValue *generation) { generationValue.names = shapeA }),
+			with(a, func(generationValue *generation) {
+				generationValue.format, generationValue.shape, generationValue.names = 2, shapeB, shapeB
+			}),
 		}, "row 1: 0.3.0 is described anew with other names: a change of names is a bump"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

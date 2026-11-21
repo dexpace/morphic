@@ -19,8 +19,8 @@ func TestFirstPathSegment_Empty(t *testing.T) {
 
 func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	defs, diags := lowerTagDefs(l.ctx)
+	lowerer := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
+	defs, diags := lowerTagDefs(lowerer.ctx)
 	assert.Len(t, defs, 1, "nil tag entry skipped")
 	assert.Empty(t, diags)
 }
@@ -48,7 +48,7 @@ func TestTagIndex_ChainAgreesWithEveryAncestor(t *testing.T) {
 	tag := func(name, parent, kind string) *soa.Tag {
 		return &soa.Tag{Name: name, Parent: &parent, Kind: &kind}
 	}
-	x := indexTags([]*soa.Tag{
+	tagIndex := indexTags([]*soa.Tag{
 		tag("a", "b", "nav"), tag("b", "a", "nav"), tag("c", "a", "nav"),
 		tag("d", "c", ""), tag("badge", "", "badge"), tag("e", "badge", "nav"),
 	})
@@ -57,10 +57,10 @@ func TestTagIndex_ChainAgreesWithEveryAncestor(t *testing.T) {
 		"e": {"e"}, "undeclared": {"undeclared"},
 	}
 	for name, chain := range want {
-		got := x.chain(name)
+		got := tagIndex.chain(name)
 		assert.Equal(t, chain, got, "chain of %s", name)
 		for i := range got {
-			assert.Equal(t, got[:i+1], x.chain(got[i]), "%s's ancestor %s agrees", name, got[i])
+			assert.Equal(t, got[:i+1], tagIndex.chain(got[i]), "%s's ancestor %s agrees", name, got[i])
 		}
 	}
 }

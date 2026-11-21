@@ -18,8 +18,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - consumed post-check (monomorphized, `isFinished`)
 - template instances → TypeCommon.Instantiation incl. value args → TemplateArg
 - models → Model w/ Base + spread provenance → Mixins
-- `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProps
-- scalars → Scalar chains, constructors in values → Value.Ctor
+- `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProperties
+- scalars → Scalar chains, constructors in values → Value.Constructor
 - `@encode`/`@format` → Encoding triple, an encoding TypeSpec knows under the name the IR documents
   for it ([encodings](../ir/constraints.md#encodings)), which keys an emitter's rows: `rfc3339`,
   `unixTimestamp`, `seconds`, `base64` and `base64url` as written, `rfc7231` → `http-date` and
@@ -32,8 +32,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
-- visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
-  ParameterVisibility/ReturnTypeVisibility
+- visibility classes (incl. custom, `@invisible` → Visibility.InvisibleInEveryLifecycle) →
+  Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility
 - `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality
 - interfaces → OperationGroups (versionable)
 - `@overload` → OverloadOf
@@ -42,21 +42,21 @@ highlights, and the list moves to a specification of its own when the compiler l
 - versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove
   cycles → Availability timeline (on members/variants/params too)
 - pagination decorators incl. prev/first/last links and header continuation tokens → Pagination
-  PropPaths (In:"header"), and a `@continuationToken` or `@pageSize` on a body property → an
+  PropertyPaths (In:"header"), and a `@continuationToken` or `@pageSize` on a body property → an
   `InputPath` with no `Param`
 - Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
   contents chain, filename location)
 - streams/SSE → StreamDetail + the streaming Content's Stream + Variant.Event (contentType,
   terminal)
-- `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.Index.Usage` marks
+- `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.DocumentFacts.Usage` marks
   `UsageError`
 - `@example`/`@opExample` → Examples (Input/Output pairs)
 - `@pattern` message → Constraints.PatternMessage
 - `@mediaTypeHint` → TypeCommon.MediaTypeHint
 - `never` members deleted + diagnostic per
   [boundaries](../ir/boundaries.md#degraded-constructs)
-- tuples → Tuple with `Constraints.MinItems = len(Elems)` and no Rest, since a TypeSpec tuple
+- tuples → Tuple with `Constraints.MinItems = len(ElementTypes)` and no Rest, since a TypeSpec tuple
   requires every position and admits nothing past them
 - TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) →
   namespaced Unmodeled (`out_of_scope`) consumed by emitter policy, never IR semantics
@@ -94,7 +94,7 @@ highlights, and the list moves to a specification of its own when the compiler l
   an input and `@httpQueryParams` → a query binding's Prefix of `""` ([prefix
   bindings](../ir/http-binding.md#prefix-bindings)), and `@httpPrefixHeaders` → a Header's Prefix on
   an output or an error ([prefix headers](../ir/responses.md#prefix-headers)), `@httpResponseCode`
-  → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
+  → Response.StatusCodeProperty, `@requestCompression` → Compression, `@httpChecksumRequired` →
   ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
@@ -137,8 +137,8 @@ highlights, and the list moves to a specification of its own when the compiler l
   ID; a channel's `servers` → Channel.Servers, and one naming none lists every server, which
   AsyncAPI reads it as available on ([servers](../ir/servers.md))
 - operations send/receive → Operation + MessageBinding, no-reply sends → OneWay
-- reply objects → Reply (static channel + dynamic PropPath address + message set)
-- correlation IDs → PropPath (In: header|payload)
+- reply objects → Reply (static channel + dynamic PropertyPath address + message set)
+- correlation IDs → PropertyPath (In: header|payload)
 - message headers → hoisted header model (Headers *TypeRef)
 - message examples → Example{Headers, Value} pairs
 - multi-format payload schemas → Content.SchemaFormat + verbatim schema in Unmodeled (Avro payloads
@@ -180,13 +180,13 @@ highlights, and the list moves to a specification of its own when the compiler l
 
 - [Erlang/OTP binding](../ir/otp-binding.md)
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
-  `Constraints.MinItems = len(Elems)` and no Rest, `tuple()` of any arity → Tuple with no Elems and
-  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.Index, records →
-  Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
-  `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
-  `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, a map of `=>` associations alone →
-  MapT, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` → List of char scalar,
-  parametrized types monomorphized w/ Instantiation
+  `Constraints.MinItems = len(ElementTypes)` and no Rest, `tuple()` of any arity → Tuple with no
+  ElementTypes and a Rest of the top type, tagged-tuple unions → WireTagged Union +
+  Discriminator.TupleElementIndex, records → Model{Positional} w/ 1-based WireIDs, atoms → symbol
+  Values / Literal types / `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer
+  Scalar + Min/Max, maps `:=`/`=>` → Properties(Required)/AdditionalProperties w/ typed keys, a map
+  of `=>` associations alone → MapT, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` →
+  List of char scalar, parametrized types monomorphized w/ Instantiation
 - behaviours: gen_server call/cast → Operations + OTPBinding (cast → OneWay), info → channel
   Messages received, gen_event → Channel w/ N messages, gen_statem states →
   `Unmodeled["otp:states"]`

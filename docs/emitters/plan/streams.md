@@ -47,17 +47,17 @@ beside a `Send`. A `StreamSide` holds:
   The plan, which every target shares, cannot hold one target's binding, and holding `protocol`
   wherever an operation has a binding other than HTTP framed such a transcoding as gRPC.
 - **`Element`**: `Content.Item` where the content declares one; else, on a side framed by its media
-  type, the `Elem` of a content `Type` whose root ([TypePlan](types.md)), read through `Alias`, is a
-  list; else `StreamDetail.Events`; else the content's `Type`, of any kind. OpenAPI applies `schema`
-  to the complete content (OpenAPI 3.2 §4.14.3) and maps a sequential body to an array of its values
-  (§4.14.3.1), so a list describes the body and its `Elem` one frame. A `bytes` side has no
-  `Element`. Nor does a side framed by its media type, with no `Item`, whose content `Type`'s root
-  is `string` or `bytes`: such a schema says the body is text and declares no item, and decoding
-  each line as a JSON string would fail on every line that is not one. Each frame reaches the caller
-  as its text, an SSE frame as its `data`. The compiler names such a `Type` as `Events` all the same
-  ([`streaming-media`](../../compilers/openapi.md#streaming-media)), and keeps it, since what it
-  means is the plan's to read. `Variant.Event` applies where `Element`, read through `Alias`, is a
-  union.
+  type, the `ElementType` of a content `Type` whose root ([TypePlan](types.md)), read through
+  `Alias`, is a list; else `StreamDetail.Events`; else the content's `Type`, of any kind. OpenAPI
+  applies `schema` to the complete content (OpenAPI 3.2 §4.14.3) and maps a sequential body to an
+  array of its values (§4.14.3.1), so a list describes the body and its `ElementType` one frame. A
+  `bytes` side has no `Element`. Nor does a side framed by its media type, with no `Item`, whose
+  content `Type`'s root is `string` or `bytes`: such a schema says the body is text and declares no
+  item, and decoding each line as a JSON string would fail on every line that is not one. Each frame
+  reaches the caller as its text, an SSE frame as its `data`. The compiler names such a `Type` as
+  `Events` all the same ([`streaming-media`](../../compilers/openapi.md#streaming-media)), and keeps
+  it, since what it means is the plan's to read. `Variant.Event` applies where `Element`, read
+  through `Alias`, is a union.
 - **`FrameMembers`**, on an `sse` side with an `Element`. An item of `text/event-stream` is the
   event itself, its `data`, `event`, `id` and `retry` (OpenAPI 3.2 §4.14.4), so a declared `Item`
   sets it, whatever its kind. Below 3.2 a schema may be the event or only what `data` holds, and

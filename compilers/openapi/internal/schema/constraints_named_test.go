@@ -74,19 +74,19 @@ type namedSite struct {
 	base ir.TypeID
 }
 
-// namedSites returns S and the property p of a namedSpec document, p read off
-// the node it owns where it owns one.
+// namedSites returns S and the property property of a namedSpec document,
+// property read off the node it owns where it owns one.
 func namedSites(t *testing.T, doc *ir.Document) []namedSite {
 	t.Helper()
-	s := typeByName(doc, "S")
-	require.NotNil(t, s)
-	p := propertyOf(t, doc, "Holder", "p")
-	site := namedSite{at: namedP, held: p.Constraints, kept: p.Unmodeled, base: p.Type.Target}
-	if own, ok := doc.Types["t/anon"+namedP]; ok && p.Type.Target == own.Common().ID {
+	typeDef := typeByName(doc, "S")
+	require.NotNil(t, typeDef)
+	property := propertyOf(t, doc, "Holder", "p")
+	site := namedSite{at: namedP, held: property.Constraints, kept: property.Unmodeled, base: property.Type.Target}
+	if own, ok := doc.Types["type/anonymous"+namedP]; ok && property.Type.Target == own.Common().ID {
 		// A property owning its node leaves what it says to the node.
 		site.held, site.kept = heldBounds(own), own.Common().Unmodeled
 	}
-	return []namedSite{{at: namedS, held: heldBounds(s), kept: s.Common().Unmodeled, base: baseOf(s)}, site}
+	return []namedSite{{at: namedS, held: heldBounds(typeDef), kept: typeDef.Common().Unmodeled, base: baseOf(typeDef)}, site}
 }
 
 // baseOf returns the type a scalar or a model is declared over, "" for any
@@ -106,9 +106,9 @@ func baseOf(td ir.TypeDef) ir.TypeID {
 // keptAt is an entry a position keeps under Unmodeled["openapi:"+key]. A key
 // naming an allOf entry is reported at the entry, any other at the position.
 type keptAt struct {
-	key   string
-	value string // the entry's JSON, "" where the row does not say
-	msg   string // a substring of its report, "" for "no home for .*key"
+	key     string
+	value   string // the entry's JSON, "" where the row does not say
+	message string // a substring of its report, "" for "no home for .*key"
 	// entry is the path of the inline allOf entry writing key, "" for a
 	// keyword written beside the allOf.
 	entry string
@@ -145,8 +145,8 @@ type namedRow struct {
 	kept []keptAt
 	// base is the type S is declared over, "" where the row does not say.
 	base ir.TypeID
-	// msgs are substrings the report at each position holds.
-	msgs []string
+	// messages are substrings the report at each position holds.
+	messages []string
 	// keptOnS are further keys S alone keeps.
 	keptOnS []string
 	// diags is the number of diagnostics in all, 0 where the row does not say.
@@ -158,9 +158,9 @@ type namedRow struct {
 // keywordsOf returns the entries of kept that are a keyword's.
 func keywordsOf(kept []keptAt) []string {
 	var out []string
-	for _, k := range kept {
-		if k.entry == "" && !strings.HasPrefix(k.key, "allOf/") {
-			out = append(out, k.key)
+	for _, keptAt := range kept {
+		if keptAt.entry == "" && !strings.HasPrefix(keptAt.key, "allOf/") {
+			out = append(out, keptAt.key)
 		}
 	}
 	return out
@@ -190,27 +190,27 @@ func assertNamedRow(t *testing.T, tc namedRow) {
 	}
 	for _, site := range sites {
 		assert.Equal(t, tc.held, site.held, site.at)
-		for _, k := range tc.kept {
-			entry, ok := site.kept["openapi:"+k.key]
-			if !assert.True(t, ok, "%s keeps %s: got %v", site.at, k.key, unmodeledKeys(site.kept)) {
+		for _, keptAt := range tc.kept {
+			entry, ok := site.kept["openapi:"+keptAt.key]
+			if !assert.True(t, ok, "%s keeps %s: got %v", site.at, keptAt.key, unmodeledKeys(site.kept)) {
 				continue
 			}
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s %s", site.at, k.key)
-			assert.Equal(t, k.pointer(site.at), string(entry.Provenance.Pointer), "%s %s", site.at, k.key)
-			if k.value != "" {
-				assert.JSONEq(t, k.value, string(entry.Value), "%s %s", site.at, k.key)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s %s", site.at, keptAt.key)
+			assert.Equal(t, keptAt.pointer(site.at), string(entry.Provenance.Pointer), "%s %s", site.at, keptAt.key)
+			if keptAt.value != "" {
+				assert.JSONEq(t, keptAt.value, string(entry.Value), "%s %s", site.at, keptAt.key)
 			}
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, k.reportAt(site.at))
-			if k.msg != "" {
-				assert.Contains(t, msg, k.msg, "%s %s", site.at, k.key)
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, keptAt.reportAt(site.at))
+			if keptAt.message != "" {
+				assert.Contains(t, message, keptAt.message, "%s %s", site.at, keptAt.key)
 			} else {
-				assert.Regexp(t, "no home for .*"+k.key, msg, "%s %s", site.at, k.key)
+				assert.Regexp(t, "no home for .*"+keptAt.key, message, "%s %s", site.at, keptAt.key)
 			}
 		}
 		if len(keywordsOf(tc.kept)) > 0 {
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.at)
-			for _, want := range tc.msgs {
-				assert.Contains(t, msg, want, site.at)
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, site.at)
+			for _, want := range tc.messages {
+				assert.Contains(t, message, want, site.at)
 			}
 		}
 		if tc.quiet {
@@ -232,11 +232,11 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 2: a $ref site, the conjunction row 1 writes", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 4: a collapsed nullable union", schema: "{anyOf: [" + refTo("Arr") + ", {enum: [null]}], minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a nullable reference to its one non-null branch"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a nullable reference to its one non-null branch"},
 		},
 		{
 			name: "row 5: an expanded $dynamicRef", schema: "{$dynamicRef: '#node', minimum: 1, maxLength: 2}",
@@ -248,7 +248,7 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 7: a refinement of an inline string", schema: "{allOf: [{type: string}], minimum: 1, maxLength: 3}",
-			held: &ir.Constraints{MaxLength: new(int64(3))}, kept: []keptAt{{key: "minimum"}}, base: "t/prim/string",
+			held: &ir.Constraints{MaxLength: new(int64(3))}, kept: []keptAt{{key: "minimum"}}, base: "type/primitive/string",
 		},
 		{
 			name: "row 8: a $ref through an alias", schema: "{$ref: '#/components/schemas/Via', minLength: 1}",
@@ -324,7 +324,7 @@ func TestConstraints_ABoundANamedTypeTakesIsRead(t *testing.T) {
 			name:   "row 17: a schema declaring no type excludes none",
 			schema: "{$ref: '#/components/schemas/Open', minimum: 1, minLength: 2, minProperties: 3, minItems: 4}",
 			held: &ir.Constraints{
-				Min: new(ir.BigVal("1")), MinLength: new(int64(2)), MinProps: new(int64(3)), MinItems: new(int64(4)),
+				Min: new(ir.BigVal("1")), MinLength: new(int64(2)), MinProperties: new(int64(3)), MinItems: new(int64(4)),
 			},
 			quiet: true,
 		},
@@ -344,7 +344,7 @@ func TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, namedSpec("3.1.0", "{type: array, allOf: ["+refTo("Open")+"], minLength: 1, maxItems: 2}", "", false))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "type/anonymous" + namedP} {
 		list, ok := doc.Types[id].(*ir.List)
 		require.True(t, ok, "%s: got %T", at, doc.Types[id])
 		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, list.Constraints, at)
@@ -362,7 +362,7 @@ func TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead(t *testing.T) {
 // a branch takes is held by the union alone.
 func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 	t.Parallel()
-	const union = "t/anon/components/schemas/Holder/properties/p"
+	const union = "type/anonymous/components/schemas/Holder/properties/p"
 	for _, tc := range []struct{ name, schema string }{
 		{"row 19: an array or an object", "{anyOf: [" + refTo("Arr") + ", " + refTo("Obj") + "], minLength: 1}"},
 		{"row 20: an array or null alone", "{anyOf: [" + refTo("Arr") + ", " + refTo("Nil") + "], minLength: 1}"},
@@ -374,15 +374,15 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 			doc, diags := parseFull(t, namedSpec("3.1.0", tc.schema, "", false))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			p := propertyOf(t, doc, "Holder", "p")
-			assert.Equal(t, ir.TypeID(union), p.Type.Target)
-			assert.Nil(t, p.Constraints)
-			assert.Empty(t, p.Unmodeled)
-			u, ok := doc.Types[p.Type.Target].(*ir.Union)
-			require.True(t, ok, "got %T", doc.Types[p.Type.Target])
-			assert.Nil(t, u.Constraints)
-			entry, ok := u.Unmodeled["openapi:minLength"]
-			require.True(t, ok, "got %v", unmodeledKeys(u.Unmodeled))
+			property := propertyOf(t, doc, "Holder", "p")
+			assert.Equal(t, ir.TypeID(union), property.Type.Target)
+			assert.Nil(t, property.Constraints)
+			assert.Empty(t, property.Unmodeled)
+			irUnion, ok := doc.Types[property.Type.Target].(*ir.Union)
+			require.True(t, ok, "got %T", doc.Types[property.Type.Target])
+			assert.Nil(t, irUnion.Constraints)
+			entry, ok := irUnion.Unmodeled["openapi:minLength"]
+			require.True(t, ok, "got %v", unmodeledKeys(irUnion.Unmodeled))
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, namedP),
 				`a node of kind "union"`)
@@ -393,13 +393,13 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 		doc, diags := parseFull(t, namedSpec("3.1.0", "{anyOf: ["+refTo("Str")+", "+refTo("Obj")+"], minLength: 1}", "", false))
 		openapitest.RequireNoErrorDiags(t, diags)
 		want := &ir.Constraints{MinLength: new(int64(1))}
-		p := propertyOf(t, doc, "Holder", "p")
-		assert.Nil(t, p.Constraints)
-		for _, id := range []ir.TypeID{p.Type.Target, componentID("S")} {
-			u, ok := doc.Types[id].(*ir.Union)
+		property := propertyOf(t, doc, "Holder", "p")
+		assert.Nil(t, property.Constraints)
+		for _, id := range []ir.TypeID{property.Type.Target, componentID("S")} {
+			union, ok := doc.Types[id].(*ir.Union)
 			require.True(t, ok, "%s: got %T", id, doc.Types[id])
-			assert.Equal(t, want, u.Constraints, id)
-			assert.Empty(t, u.Unmodeled, id)
+			assert.Equal(t, want, union.Constraints, id)
+			assert.Empty(t, union.Unmodeled, id)
 		}
 	})
 }
@@ -412,11 +412,11 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 	for _, tc := range []namedRow{
 		{
 			name: "row 22: a $ref to a string", schema: "{$ref: '#/components/schemas/Str', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minItems", value: "1"}}, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 23: a refinement of a string", schema: "{allOf: [" + refTo("Str") + "], minItems: 1, uniqueItems: true}",
-			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, msgs: []string{"minItems, uniqueItems"},
+			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, messages: []string{"minItems, uniqueItems"},
 		},
 		{
 			name: "a $ref to an object, the model over it", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
@@ -488,17 +488,17 @@ func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			doc, diags := parseFull(t, namedSpec("3.1.0", "{allOf: ["+strings.Join(order, ", ")+"]}", "", false))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			s, ok := typeByName(doc, "S").(*ir.Model)
+			model, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok, "got %T", typeByName(doc, "S"))
-			require.NotNil(t, s.Base)
-			assert.Equal(t, componentID("Obj"), s.Base.Target)
-			assert.Nil(t, s.Constraints)
-			entry, ok := s.Unmodeled["openapi:minLength"]
-			require.True(t, ok, "got %v", unmodeledKeys(s.Unmodeled))
+			require.NotNil(t, model.Base)
+			assert.Equal(t, componentID("Obj"), model.Base.Target)
+			assert.Nil(t, model.Constraints)
+			entry, ok := model.Unmodeled["openapi:minLength"]
+			require.True(t, ok, "got %v", unmodeledKeys(model.Unmodeled))
 			assert.JSONEq(t, `1`, string(entry.Value))
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				fmt.Sprintf("/components/schemas/S/allOf/%d", at))
-			assert.Contains(t, msg, "no home for minLength written on this inline entry")
+			assert.Contains(t, message, "no home for minLength written on this inline entry")
 		})
 	}
 }
@@ -511,32 +511,32 @@ func TestAllOf_ACompositionReadsBoundsByTheTypesItComposes(t *testing.T) {
 	const schema = "{allOf: [{$ref: '#/components/schemas/Obj'}], minLength: 1, minimum: 2, minProperties: 3}"
 	doc, diags := parseFull(t, namedSpec("3.1.0", schema, "", false))
 	openapitest.RequireNoErrorDiags(t, diags)
-	want := &ir.Constraints{MinProps: new(int64(3))}
+	want := &ir.Constraints{MinProperties: new(int64(3))}
 
 	t.Run("row 30: the model holds what an object takes", func(t *testing.T) {
 		t.Parallel()
-		s, ok := typeByName(doc, "S").(*ir.Model)
+		model, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "got %T", typeByName(doc, "S"))
-		require.NotNil(t, s.Base)
-		assert.Equal(t, componentID("Obj"), s.Base.Target)
-		assert.Equal(t, want, s.Constraints)
+		require.NotNil(t, model.Base)
+		assert.Equal(t, componentID("Obj"), model.Base.Target)
+		assert.Equal(t, want, model.Constraints)
 	})
 	t.Run("row 31: the model keeps what it cannot hold", func(t *testing.T) {
 		t.Parallel()
-		s := typeByName(doc, "S")
-		assert.Subset(t, unmodeledKeys(s.Common().Unmodeled), []string{"openapi:minLength", "openapi:minimum"})
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, namedS)
-		assert.Contains(t, msg, "minLength, minimum")
-		assert.Contains(t, msg, `a node of kind "model"`)
+		typeDef := typeByName(doc, "S")
+		assert.Subset(t, unmodeledKeys(typeDef.Common().Unmodeled), []string{"openapi:minLength", "openapi:minimum"})
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, namedS)
+		assert.Contains(t, message, "minLength, minimum")
+		assert.Contains(t, message, `a node of kind "model"`)
 	})
 	t.Run("row 32: the node a property owns reads the same, and the property none", func(t *testing.T) {
 		t.Parallel()
-		p := propertyOf(t, doc, "Holder", "p")
-		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/properties/p"), p.Type.Target)
-		assert.Nil(t, p.Constraints)
-		assert.Empty(t, p.Unmodeled)
-		node, ok := doc.Types[p.Type.Target].(*ir.Model)
-		require.True(t, ok, "got %T", doc.Types[p.Type.Target])
+		property := propertyOf(t, doc, "Holder", "p")
+		assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/Holder/properties/p"), property.Type.Target)
+		assert.Nil(t, property.Constraints)
+		assert.Empty(t, property.Unmodeled)
+		node, ok := doc.Types[property.Type.Target].(*ir.Model)
+		require.True(t, ok, "got %T", doc.Types[property.Type.Target])
 		assert.Equal(t, want, node.Constraints)
 		assert.Subset(t, unmodeledKeys(node.Unmodeled), []string{"openapi:minLength", "openapi:minimum"})
 	})
@@ -551,16 +551,16 @@ func TestAllOf_AnEmptyConjunctionKeepsEveryBound(t *testing.T) {
 		"    ArrAndObj: {allOf: ["+refTo("Arr")+", "+refTo("Obj")+"]}\n", false))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	s, ok := typeByName(doc, "S").(*ir.Model)
+	model, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "got %T", typeByName(doc, "S"))
-	assert.Nil(t, s.Constraints)
-	assert.Contains(t, s.Unmodeled, "openapi:minLength")
+	assert.Nil(t, model.Constraints)
+	assert.Contains(t, model.Unmodeled, "openapi:minLength")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "p").Constraints)
 
 	var warnings []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			warnings = append(warnings, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityWarning {
+			warnings = append(warnings, diagnostic)
 		}
 	}
 	require.Len(t, warnings, 1, "%+v", diags)
@@ -608,30 +608,30 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 	t.Run("row 34: each variant holds minProperties", func(t *testing.T) {
 		t.Parallel()
 		for _, branch := range []string{"0", "1"} {
-			id := ir.TypeID("t/composed/components/schemas/D/oneOf/" + branch)
-			v, ok := doc.Types[id].(*ir.Model)
+			id := ir.TypeID("type/composed/components/schemas/D/oneOf/" + branch)
+			model, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s: got %T", id, doc.Types[id])
-			assert.Equal(t, &ir.Constraints{MinProps: new(int64(2))}, v.Constraints, id)
+			assert.Equal(t, &ir.Constraints{MinProperties: new(int64(2))}, model.Constraints, id)
 		}
 	})
 	t.Run("row 35: the union keeps minLength and reports it", func(t *testing.T) {
 		t.Parallel()
-		u, ok := typeByName(doc, "D").(*ir.Union)
+		union, ok := typeByName(doc, "D").(*ir.Union)
 		require.True(t, ok, "got %T", typeByName(doc, "D"))
-		assert.Contains(t, u.Unmodeled, "openapi:minLength")
-		assert.NotContains(t, u.Unmodeled, "openapi:minProperties")
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/D")
-		assert.Contains(t, msg, "minLength")
-		assert.NotContains(t, msg, "minProperties")
+		assert.Contains(t, union.Unmodeled, "openapi:minLength")
+		assert.NotContains(t, union.Unmodeled, "openapi:minProperties")
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/D")
+		assert.Contains(t, message, "minLength")
+		assert.NotContains(t, message, "minProperties")
 		assert.NotContains(t, marshalForTest(t, doc), `"openapi:minProperties"`)
 	})
 	t.Run("the union beside a schema admitting every kind holds both", func(t *testing.T) {
 		t.Parallel()
-		e, ok := typeByName(doc, "E").(*ir.Union)
+		union, ok := typeByName(doc, "E").(*ir.Union)
 		require.True(t, ok, "got %T", typeByName(doc, "E"))
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1)), MinProps: new(int64(2))}, e.Constraints)
-		assert.Equal(t, []string{"openapi:$ref"}, unmodeledKeys(e.Unmodeled))
-		assert.EqualValues(t, "/components/schemas/E/allOf/0", e.Unmodeled["openapi:$ref"].Provenance.Pointer)
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1)), MinProperties: new(int64(2))}, union.Constraints)
+		assert.Equal(t, []string{"openapi:$ref"}, unmodeledKeys(union.Unmodeled))
+		assert.EqualValues(t, "/components/schemas/E/allOf/0", union.Unmodeled["openapi:$ref"].Provenance.Pointer)
 	})
 }
 
@@ -659,10 +659,10 @@ func TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder(t *testing.T) {
 			doc, diags := parseFull(t, budgetSpec(n))
 			openapitest.RequireNoErrorDiags(t, diags)
 			for _, wire := range []string{"wideFirst", "arrFirst"} {
-				p := propertyOf(t, doc, "H", wire)
-				assert.Nil(t, p.Constraints, wire)
-				node, ok := doc.Types[p.Type.Target].(*ir.Model)
-				require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
+				property := propertyOf(t, doc, "H", wire)
+				assert.Nil(t, property.Constraints, wire)
+				node, ok := doc.Types[property.Type.Target].(*ir.Model)
+				require.True(t, ok, "%s: got %T", wire, doc.Types[property.Type.Target])
 				assert.Contains(t, node.Unmodeled, "openapi:minLength", wire)
 			}
 		})
@@ -700,13 +700,13 @@ func TestConstraints_AnExpandedReferenceIsNamedByItsKeyword(t *testing.T) {
 		{"/components/schemas/Tree/items", "its $recursiveRef expands to", "$dynamicRef"},
 		{"/components/schemas/Dyn/items", "its $dynamicRef expands to", "$recursiveRef"},
 	} {
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.at)
-		assert.Contains(t, msg, tc.has, tc.at)
-		assert.NotContains(t, msg, tc.hasNot, tc.at)
-		assert.Contains(t, msg, "minLength", tc.at)
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.at)
+		assert.Contains(t, message, tc.has, tc.at)
+		assert.NotContains(t, message, tc.hasNot, tc.at)
+		assert.Contains(t, message, "minLength", tc.at)
 	}
 	for _, name := range []string{"Tree", "Dyn"} {
-		items, ok := doc.Types[ir.TypeID("t/anon/components/schemas/"+name+"/items")]
+		items, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/"+name+"/items")]
 		require.True(t, ok, name)
 		assert.Contains(t, items.Common().Unmodeled, "openapi:minLength", name)
 		assert.Nil(t, heldBounds(items), name)
@@ -717,8 +717,8 @@ func TestConstraints_AnExpandedReferenceIsNamedByItsKeyword(t *testing.T) {
 // what a declaration order must not change.
 func reportedAt(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -769,18 +769,18 @@ func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
 
 	want := &ir.Constraints{MinLength: new(int64(1))}
 	for _, doc := range []*ir.Document{first, later} {
-		u, ok := doc.Types["t/anon/components/schemas/H/properties/u"].(*ir.Union)
-		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/u"])
-		assert.Equal(t, want, u.Constraints)
+		union, ok := doc.Types["type/anonymous/components/schemas/H/properties/u"].(*ir.Union)
+		require.True(t, ok, "got %T", doc.Types["type/anonymous/components/schemas/H/properties/u"])
+		assert.Equal(t, want, union.Constraints)
 		assert.Nil(t, propertyOf(t, doc, "H", "u").Constraints)
-		e, ok := doc.Types["t/anon/components/schemas/H/properties/e"].(*ir.Enum)
-		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/e"])
-		assert.Contains(t, e.Unmodeled, "openapi:minLength")
+		enum, ok := doc.Types["type/anonymous/components/schemas/H/properties/e"].(*ir.Enum)
+		require.True(t, ok, "got %T", doc.Types["type/anonymous/components/schemas/H/properties/e"])
+		assert.Contains(t, enum.Unmodeled, "openapi:minLength")
 		assert.Nil(t, propertyOf(t, doc, "H", "e").Constraints)
 		for _, name := range []string{"qu", "qe"} {
-			q := propertyOf(t, doc, "A", name)
-			assert.Nil(t, q.Constraints, name)
-			assert.Empty(t, q.Unmodeled, name)
+			property := propertyOf(t, doc, "A", name)
+			assert.Nil(t, property.Constraints, name)
+			assert.Empty(t, property.Unmodeled, name)
 		}
 	}
 }
@@ -796,12 +796,12 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	doc, diags := parseFull(t, namedSpec("3.1.0", schema, "", false))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := propertyOf(t, doc, "Holder", "p")
-	assert.Nil(t, p.Constraints)
-	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+	property := propertyOf(t, doc, "Holder", "p")
+	assert.Nil(t, property.Constraints)
+	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "type/anonymous" + namedP} {
 		alias, ok := doc.Types[id].(*ir.Scalar)
 		require.True(t, ok, "%s: got %T", at, doc.Types[id])
-		assert.Equal(t, ir.TypeID("t/prim/string"), alias.Base.Target, at)
+		assert.Equal(t, ir.TypeID("type/primitive/string"), alias.Base.Target, at)
 		assert.Nil(t, alias.Constraints, at)
 		entry, kept := alias.Unmodeled["openapi:minLength"]
 		require.True(t, kept, "%s: got %v", at, unmodeledKeys(alias.Unmodeled))
@@ -809,9 +809,9 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 		assert.Equal(t, at+"/minLength", string(entry.Provenance.Pointer), at)
 		assert.Contains(t, alias.Unmodeled, "openapi:oneOf", at)
 		var bound []string
-		for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, at) {
-			if strings.Contains(d.Message, "minLength") {
-				bound = append(bound, d.Message)
+		for _, diagnostic := range diagsAtPointer(diags, diag.DegradedConstruct, at) {
+			if strings.Contains(diagnostic.Message, "minLength") {
+				bound = append(bound, diagnostic.Message)
 			}
 		}
 		require.Len(t, bound, 1, at)
@@ -843,20 +843,20 @@ func TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			at := namedS + "/allOf/0"
-			assert.NotContains(t, doc.Types, "t/anon"+ir.TypeID(at), "no node at the entry")
-			s, ok := doc.Types[componentID("S")].(*ir.Scalar)
+			assert.NotContains(t, doc.Types, "type/anonymous"+ir.TypeID(at), "no node at the entry")
+			scalar, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
-			assert.Equal(t, tc.held, s.Constraints)
+			assert.Equal(t, tc.held, scalar.Constraints)
 			if tc.held != nil {
-				assert.Empty(t, s.Unmodeled)
+				assert.Empty(t, scalar.Unmodeled)
 				assert.Empty(t, diags)
 				return
 			}
 			// The bound the entry writes beside its $ref is kept on its own, as
 			// an inline entry's is, at the keyword, and reported at the entry.
-			assert.Equal(t, []string{"openapi:" + tc.kept}, unmodeledKeys(s.Unmodeled))
-			assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled["openapi:"+tc.kept].Reason)
-			assert.Equal(t, at+"/"+tc.kept, string(s.Unmodeled["openapi:"+tc.kept].Provenance.Pointer))
+			assert.Equal(t, []string{"openapi:" + tc.kept}, unmodeledKeys(scalar.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, scalar.Unmodeled["openapi:"+tc.kept].Reason)
+			assert.Equal(t, at+"/"+tc.kept, string(scalar.Unmodeled["openapi:"+tc.kept].Provenance.Pointer))
 			reports := diagsAtPointer(diags, diag.DegradedConstruct, at)
 			require.Len(t, reports, 1)
 			assert.Equal(t, ir.SeverityInfo, reports[0].Severity)
@@ -884,18 +884,18 @@ func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			assert.Nil(t, propertyOf(t, doc, "Holder", "p").Constraints)
-			for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
-				u, ok := doc.Types[id].(*ir.Union)
+			for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "type/anonymous" + namedP} {
+				union, ok := doc.Types[id].(*ir.Union)
 				require.True(t, ok, "%s: got %T", at, doc.Types[id])
 				var held []*ir.Constraints
-				for _, v := range u.Variants {
-					if cons := heldBounds(doc.Types[v.Type.Target]); cons != nil {
+				for _, variant := range union.Variants {
+					if cons := heldBounds(doc.Types[variant.Type.Target]); cons != nil {
 						held = append(held, cons)
 					}
 				}
 				assert.Equal(t, []*ir.Constraints{{MinLength: new(int64(2))}}, held, at)
-				entry, kept := u.Unmodeled["openapi:"+tc.key]
-				require.True(t, kept, "%s: got %v", at, unmodeledKeys(u.Unmodeled))
+				entry, kept := union.Unmodeled["openapi:"+tc.key]
+				require.True(t, kept, "%s: got %v", at, unmodeledKeys(union.Unmodeled))
 				assert.JSONEq(t, tc.value, string(entry.Value), at)
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at+tc.reportAt),
 					"minimum", at)
@@ -917,7 +917,7 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 	for _, row := range []namedRow{
 		{
 			name: "beside a $ref", schema: "{$ref: '#/components/schemas/DL', minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "beside a $ref naming a string", schema: "{$ref: '#/components/schemas/DS', minLength: 1}", extra: extra,
@@ -925,7 +925,7 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 		},
 		{
 			name: "beside an allOf naming DL", schema: "{allOf: [" + refTo("DL") + "], minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its allOf conjuncts"},
+			kept: []keptAt{{key: "minLength"}}, messages: []string{"a use of one of its allOf conjuncts"},
 		},
 		{
 			name: "beside an allOf naming DS", schema: "{allOf: [" + refTo("DS") + "], minLength: 1}", extra: extra,
@@ -954,9 +954,9 @@ func TestConstraints_AnInlineEntryIsReadAtItsOwnPointer(t *testing.T) {
 		model       bool
 		errs        []string
 	}{
-		{name: "in the document's resource", entry: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProps: new(int64(1))}},
+		{name: "in the document's resource", entry: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProperties: new(int64(1))}},
 		{name: "in a resource of its own", entry: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
-			held: &ir.Constraints{MinProps: new(int64(1))}, model: true,
+			held: &ir.Constraints{MinProperties: new(int64(1))}, model: true,
 			errs: []string{"openapi/unresolved-ref at /components/schemas/S/allOf/0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -964,9 +964,9 @@ func TestConstraints_AnInlineEntryIsReadAtItsOwnPointer(t *testing.T) {
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.entry+"], minProperties: 1}\n"+
 				"    List: {$dynamicAnchor: list, type: array, items: {type: string}}\n"))
 			var errs []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					errs = append(errs, diagnostic.Code+" at "+string(diagnostic.Provenance.Pointer))
 				}
 			}
 			assert.Equal(t, tc.errs, errs, "%+v", diags)

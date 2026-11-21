@@ -57,11 +57,12 @@ const (
 	objFields
 )
 
-// fieldsOf returns the fixed fields of o, as the Overlay Specification gives
-// them, each with the version that first defines it. An overlay's version and
-// its actions are read apart, since what they refuse is said otherwise.
-func fieldsOf(o object) []field {
-	switch o {
+// fieldsOf returns the fixed fields of objectValue, as the Overlay
+// Specification gives them, each with the version that first defines it. An
+// overlay's version and its actions are read apart, since what they refuse is
+// said otherwise.
+func fieldsOf(objectValue object) []field {
+	switch objectValue {
 	case objOverlay:
 		return []field{{"overlay", formString, v10, false}, {"info", formObject, v10, true},
 			{"extends", formString, v10, false}, {"actions", formList, v10, false},
@@ -82,43 +83,44 @@ func fieldsOf(o object) []field {
 	}
 }
 
-// fieldOf returns the field of o named name, and whether o has one.
-func fieldOf(o object, name string) (field, bool) {
-	for _, f := range fieldsOf(o) {
-		if f.name == name {
-			return f, true
+// fieldOf returns the field of objectValue named name, and whether objectValue
+// has one.
+func fieldOf(objectValue object, name string) (field, bool) {
+	for _, field := range fieldsOf(objectValue) {
+		if field.name == name {
+			return field, true
 		}
 	}
 	return field{}, false
 }
 
-// fits reports whether n, a field's value with its alias followed, takes form
-// f, reading a scalar as the compiler reads one: a timestamp is the string it
-// spells.
-func fits(n *yaml.Node, f form) bool {
-	switch f {
+// fits reports whether node, a field's value with its alias followed, takes
+// form formValue, reading a scalar as the compiler reads one: a timestamp is
+// the string it spells.
+func fits(node *yaml.Node, formValue form) bool {
+	switch formValue {
 	case formAny:
-		return n != nil
+		return node != nil
 	case formObject:
-		return n != nil && n.Kind == yaml.MappingNode
+		return node != nil && node.Kind == yaml.MappingNode
 	case formList:
-		return n != nil && n.Kind == yaml.SequenceNode
+		return node != nil && node.Kind == yaml.SequenceNode
 	default:
 	}
-	s, err := value.Classify(n)
+	scalar, err := value.Classify(node)
 	if err != nil {
 		return false
 	}
-	if f == formBool {
-		return s.Kind == value.ScalarBool
+	if formValue == formBool {
+		return scalar.Kind == value.ScalarBool
 	}
-	return s.Kind == value.ScalarString || s.Kind == value.ScalarTimestamp
+	return scalar.Kind == value.ScalarString || scalar.Kind == value.ScalarTimestamp
 }
 
-// isTrue reports whether n is the boolean true.
-func isTrue(n *yaml.Node) bool {
-	s, err := value.Classify(n)
-	return err == nil && s.Kind == value.ScalarBool && s.Bool
+// isTrue reports whether node is the boolean true.
+func isTrue(node *yaml.Node) bool {
+	scalar, err := value.Classify(node)
+	return err == nil && scalar.Kind == value.ScalarBool && scalar.Bool
 }
 
 // reader reads one overlay document by the fields its version defines,
@@ -138,49 +140,49 @@ func (r *reader) invalid(at jsontext.Pointer, format string, args ...any) {
 		ir.Provenance{Source: r.at.Source, Pointer: at}, "invalid overlay: "+format, args...))
 }
 
-// object reads n, at the pointer at, as the object o, named what in a
-// finding: each fixed field the version defines in its form, each x- field
-// taken as an extension, and any other refused, as is a required field
-// missing. It returns the fields written, a field of the wrong form held as
-// nil, and nil where n is no object.
-func (r *reader) object(n *yaml.Node, at jsontext.Pointer, o object, what string) map[string]*yaml.Node {
-	if n == nil || n.Kind != yaml.MappingNode {
+// object reads node, at the pointer at, as the object objectValue, named what
+// in a finding: each fixed field the version defines in its form, each x- field
+// taken as an extension, and any other refused, as is a required field missing.
+// It returns the fields written, a field of the wrong form held as nil, and nil
+// where node is no object.
+func (r *reader) object(node *yaml.Node, at jsontext.Pointer, objectValue object, what string) map[string]*yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
 		r.invalid(at, "%s is no object", what)
 		return nil
 	}
-	pairs := r.view.MappingPairs(n)
-	if !r.view.Expanded(n) {
+	pairs := r.view.MappingPairs(node)
+	if !r.view.Expanded(node) {
 		r.invalid(at, "%s merges through `<<` deeper than %d levels", what, nodeview.MergeDepthLimit)
 		return nil
 	}
 	got := map[string]*yaml.Node{}
-	for _, p := range pairs {
-		if !strings.HasPrefix(p.Key, "x-") {
-			got[p.Key] = r.field(o, what, at.AppendToken(p.Key), p)
+	for _, pair := range pairs {
+		if !strings.HasPrefix(pair.Key, "x-") {
+			got[pair.Key] = r.field(objectValue, what, at.AppendToken(pair.Key), pair)
 		}
 	}
-	for _, f := range fieldsOf(o) {
-		if _, written := got[f.name]; f.required && f.since <= r.version && !written {
-			r.invalid(at, "%s names no %s", what, f.name)
+	for _, field := range fieldsOf(objectValue) {
+		if _, written := got[field.name]; field.required && field.since <= r.version && !written {
+			r.invalid(at, "%s names no %s", what, field.name)
 		}
 	}
 	return got
 }
 
-// field returns the value p writes for a field of o, or nil, refusing it,
-// where o defines no such field at the version read or p's value is of the
-// wrong form.
-func (r *reader) field(o object, what string, at jsontext.Pointer, p nodeview.Pair) *yaml.Node {
-	f, defined := fieldOf(o, p.Key)
+// field returns the value pair writes for a field of objectValue, or nil,
+// refusing it, where objectValue defines no such field at the version read or
+// pair's value is of the wrong form.
+func (r *reader) field(objectValue object, what string, at jsontext.Pointer, pair nodeview.Pair) *yaml.Node {
+	field, defined := fieldOf(objectValue, pair.Key)
 	switch {
 	case !defined:
-		r.invalid(at, "%s sets %q, a field Overlay 1.%d does not define for it", what, p.Key, r.version)
-	case f.since > r.version:
-		r.invalid(at, "%s sets %s, which Overlay 1.%d introduced; this overlay declares %s", what, p.Key, f.since, r.declared)
-	case !fits(p.Val, f.form):
-		r.invalid(at, "the %s %s sets is not %s", p.Key, what, f.form)
+		r.invalid(at, "%s sets %q, a field Overlay 1.%d does not define for it", what, pair.Key, r.version)
+	case field.since > r.version:
+		r.invalid(at, "%s sets %s, which Overlay 1.%d introduced; this overlay declares %s", what, pair.Key, field.since, r.declared)
+	case !fits(pair.Val, field.form):
+		r.invalid(at, "the %s %s sets is not %s", pair.Key, what, field.form)
 	default:
-		return p.Val
+		return pair.Val
 	}
 	return nil
 }
@@ -201,93 +203,93 @@ func (r *reader) overlay(root *yaml.Node) plan {
 		r.invalid("/overlay", "its overlay version, %s, is not a string", declared.Value)
 		return plan{}
 	}
-	v, known := versionOf(declared.Value)
+	version, known := versionOf(declared.Value)
 	if !known {
 		r.invalid("/overlay", "overlay version %q is not one the compiler applies, which are 1.0.x, 1.1.x and 1.2.x", declared.Value)
 		return plan{}
 	}
-	r.version, r.declared = v, declared.Value
+	r.version, r.declared = version, declared.Value
 	fields := r.object(root, "", objOverlay, "the overlay")
 	if info := fields["info"]; info != nil {
 		r.object(info, "/info", objInfo, "the info object")
 	}
-	p := plan{at: r.at, declared: declared.Value, version: v, selfURI: r.uri(fields, "$self", v12)}
+	planValue := plan{at: r.at, declared: declared.Value, version: version, selfURI: r.uri(fields, "$self", v12)}
 	r.uri(fields, "extends", v12)
 	reusable := r.components(fields["components"])
 	// An actions field of the wrong form is refused where it is read (field),
 	// which says all that its list holding no action would say again.
 	if actions, written := fields["actions"]; actions != nil || !written {
-		p.actions = r.actions(actions, reusable)
+		planValue.actions = r.actions(actions, reusable)
 	}
-	return p
+	return planValue
 }
 
 // uri reads the field name as a URI reference, which from version noFragment
 // on holds no fragment, and returns it as written.
 func (r *reader) uri(fields map[string]*yaml.Node, name string, noFragment version) string {
-	n := fields[name]
-	if n == nil {
+	node := fields[name]
+	if node == nil {
 		return ""
 	}
 	at := jsontext.Pointer("").AppendToken(name)
-	if _, err := url.Parse(n.Value); err != nil {
-		r.invalid(at, "%s %q is no URI reference", name, n.Value)
+	if _, err := url.Parse(node.Value); err != nil {
+		r.invalid(at, "%s %q is no URI reference", name, node.Value)
 		return ""
 	}
-	if r.version >= noFragment && strings.Contains(n.Value, "#") {
-		r.invalid(at, "%s %q holds a fragment, which Overlay 1.2 does not admit", name, n.Value)
+	if r.version >= noFragment && strings.Contains(node.Value, "#") {
+		r.invalid(at, "%s %q holds a fragment, which Overlay 1.2 does not admit", name, node.Value)
 		return ""
 	}
-	return n.Value
+	return node.Value
 }
 
 // components reads the components object and returns the fields of each
 // reusable action it declares, by key.
-func (r *reader) components(n *yaml.Node) map[string]map[string]*yaml.Node {
-	if n == nil {
+func (r *reader) components(node *yaml.Node) map[string]map[string]*yaml.Node {
+	if node == nil {
 		return nil
 	}
-	actions := r.object(n, "/components", objComponents, "the components object")["actions"]
+	actions := r.object(node, "/components", objComponents, "the components object")["actions"]
 	if actions == nil {
 		return nil
 	}
 	out := map[string]map[string]*yaml.Node{}
-	for _, p := range r.view.MappingPairs(actions) {
-		at := jsontext.Pointer("/components/actions").AppendToken(p.Key)
-		what := fmt.Sprintf("reusable action %q", p.Key)
+	for _, pair := range r.view.MappingPairs(actions) {
+		at := jsontext.Pointer("/components/actions").AppendToken(pair.Key)
+		what := fmt.Sprintf("reusable action %q", pair.Key)
 		fields := map[string]*yaml.Node{}
-		if f := r.object(p.Val, at, objReusable, what)["fields"]; f != nil {
-			fields = r.object(f, at.AppendToken("fields"), objFields, "the fields of "+what)
+		if fieldsNode := r.object(pair.Val, at, objReusable, what)["fields"]; fieldsNode != nil {
+			fields = r.object(fieldsNode, at.AppendToken("fields"), objFields, "the fields of "+what)
 		}
-		out[p.Key] = fields
+		out[pair.Key] = fields
 	}
 	return out
 }
 
 // actions reads the list of actions, at least one, each an action or, in an
 // Overlay 1.2 document, a reference to a reusable action.
-func (r *reader) actions(n *yaml.Node, reusable map[string]map[string]*yaml.Node) []action {
-	if n == nil || len(n.Content) == 0 {
+func (r *reader) actions(node *yaml.Node, reusable map[string]map[string]*yaml.Node) []action {
+	if node == nil || len(node.Content) == 0 {
 		r.invalid("", "it holds no action")
 		return nil
 	}
-	out := make([]action, len(n.Content))
-	for i, entry := range n.Content {
-		out[i] = r.action(i, len(n.Content), nodeview.Deref(entry), reusable)
+	out := make([]action, len(node.Content))
+	for i, entry := range node.Content {
+		out[i] = r.action(i, len(node.Content), nodeview.Deref(entry), reusable)
 	}
 	return out
 }
 
 // action reads the action at index i of of, and its selectors.
-func (r *reader) action(i, of int, n *yaml.Node, reusable map[string]map[string]*yaml.Node) action {
+func (r *reader) action(i, of int, node *yaml.Node, reusable map[string]map[string]*yaml.Node) action {
 	at := jsontext.Pointer("/actions/" + strconv.Itoa(i))
 	a := action{index: i, of: of, overlay: ir.Provenance{Source: r.at.Source, Pointer: at}}
 	what := fmt.Sprintf("action %d of %d", i+1, of)
 	var fields map[string]*yaml.Node
-	if r.version == v12 && n != nil && n.Kind == yaml.MappingNode && r.view.ChildByToken(n, "$ref") != nil {
-		fields = r.reference(n, at, what, reusable)
+	if r.version == v12 && node != nil && node.Kind == yaml.MappingNode && r.view.ChildByToken(node, "$ref") != nil {
+		fields = r.reference(node, at, what, reusable)
 	} else {
-		fields = r.object(n, at, objAction, what)
+		fields = r.object(node, at, objAction, what)
 	}
 	if target := fields["target"]; target != nil {
 		a.target = target.Value
@@ -313,8 +315,8 @@ func (r *reader) selectors(a *action, fields map[string]*yaml.Node) {
 		a.targets, found = readSelector(*a, "target", a.target)
 		r.diags = append(r.diags, found...)
 	}
-	if c := fields["copy"]; c != nil {
-		a.sources, found = readSelector(*a, "copy", c.Value)
+	if node := fields["copy"]; node != nil {
+		a.sources, found = readSelector(*a, "copy", node.Value)
 		r.diags = append(r.diags, found...)
 	}
 }
@@ -323,9 +325,9 @@ func (r *reader) selectors(a *action, fields map[string]*yaml.Node) {
 // components.actions by a JSON pointer in the document's own fragment, and
 // the action it stands for is that entry's fields at the reference's own
 // target. A description, the reference's or the entry's, has no effect.
-func (r *reader) reference(n *yaml.Node, at jsontext.Pointer, what string, reusable map[string]map[string]*yaml.Node,
+func (r *reader) reference(node *yaml.Node, at jsontext.Pointer, what string, reusable map[string]map[string]*yaml.Node,
 ) map[string]*yaml.Node {
-	ref := r.object(n, at, objReference, what)
+	ref := r.object(node, at, objReference, what)
 	text := ref["$ref"]
 	if text == nil {
 		return nil

@@ -23,9 +23,9 @@ const (
 // "code path: message", in the order Verify sorts them: by code, then path.
 func exampleFindings(doc *ir.Document) []string {
 	var out []string
-	for _, v := range verifyDeclared(doc) {
-		if v.Code == armMisplaced || v.Code == outcomeTwice {
-			out = append(out, fmt.Sprintf("%s %s: %s", v.Code, v.Path, v.Message))
+	for _, violation := range verifyDeclared(doc) {
+		if violation.Code == armMisplaced || violation.Code == outcomeTwice {
+			out = append(out, fmt.Sprintf("%s %s: %s", violation.Code, violation.Path, violation.Message))
 		}
 	}
 	return out
@@ -33,7 +33,7 @@ func exampleFindings(doc *ir.Document) []string {
 
 // scenarioErrorExample is the error a scenario ends in.
 func scenarioErrorExample() *ir.ErrorExample {
-	return &ir.ErrorExample{Type: ir.TypeRef{Target: "t/x/M"}, Content: scenarioValue}
+	return &ir.ErrorExample{Type: ir.TypeRef{Target: "type/x/M"}, Content: scenarioValue}
 }
 
 // TestVerify_ExampleArms holds an example to the arms its carrier takes. Only an
@@ -44,8 +44,8 @@ func scenarioErrorExample() *ir.ErrorExample {
 // outcomes for one run.
 func TestVerify_ExampleArms(t *testing.T) {
 	t.Parallel()
-	const model = "doc.Types[t/x/M].Examples[0]"
-	op := scenarioOp + ".Examples[0]"
+	const model = "document.Types[type/x/M].Examples[0]"
+	operation := scenarioOperationPath + ".Examples[0]"
 	cases := []struct {
 		name  string
 		owner func(doc *ir.Document) *[]ir.Example
@@ -63,13 +63,13 @@ func TestVerify_ExampleArms(t *testing.T) {
 		{"an operation's example with a value and headers", operationExamples, ir.Example{
 			Value: &scenarioValue, Headers: &scenarioValue, Output: &scenarioValue,
 		}, []string{
-			armMisplaced + " " + op + ".Headers: operation's example holds headers, and a scenario states its input and its outcome",
-			armMisplaced + " " + op + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
+			armMisplaced + " " + operation + ".Headers: operation's example holds headers, and a scenario states its input and its outcome",
+			armMisplaced + " " + operation + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
 		}},
 		{"an operation's example ending in both", operationExamples, ir.Example{
 			Input: &ir.ScenarioInput{}, Output: &scenarioValue, Error: scenarioErrorExample(),
 		}, []string{
-			outcomeTwice + " " + op + ".Error: example ends in both an output and an error",
+			outcomeTwice + " " + operation + ".Error: example ends in both an output and an error",
 		}},
 		// The valid twins: each is what its carrier takes, and draws nothing.
 		{"a model's example holding a value and headers", modelExamples, ir.Example{
@@ -95,7 +95,7 @@ func TestVerify_ExampleArms(t *testing.T) {
 
 // modelExamples is the examples of scenarioBase's model.
 func modelExamples(doc *ir.Document) *[]ir.Example {
-	return &doc.Types["t/x/M"].Common().Examples
+	return &doc.Types["type/x/M"].Common().Examples
 }
 
 // operationExamples is the examples of scenarioBase's first operation.
@@ -111,30 +111,30 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 	t.Parallel()
 	example := []ir.Example{{Output: &scenarioValue}}
 	plant := map[string]func(doc *ir.Document){
-		"doc.Types[t/x/M].Examples[0].Output": func(d *ir.Document) {
-			d.Types["t/x/M"].Common().Examples = example
+		"document.Types[type/x/M].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/M"].Common().Examples = example
 		},
-		"doc.Types[t/x/M].Properties[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["t/x/M"].(*ir.Model).Properties[0].Examples = example
+		"document.Types[type/x/M].Properties[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/M"].(*ir.Model).Properties[0].Examples = example
 		},
-		"doc.Types[t/x/E].Members[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["t/x/E"].(*ir.Enum).Members[0].Examples = example
+		"document.Types[type/x/E].Members[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/E"].(*ir.Enum).Members[0].Examples = example
 		},
-		"doc.Types[t/x/U].Variants[0].Examples[0].Output": func(d *ir.Document) {
-			d.Types["t/x/U"] = &ir.Union{ID: "t/x/U", Name: named("u"), Variants: []ir.Variant{
-				{Name: named("m"), Type: ir.TypeRef{Target: "t/x/M"}, Examples: example},
+		"document.Types[type/x/U].Variants[0].Examples[0].Output": func(document *ir.Document) {
+			document.Types["type/x/U"] = &ir.Union{ID: "type/x/U", Name: named("u"), Variants: []ir.Variant{
+				{Name: named("m"), Type: ir.TypeRef{Target: "type/x/M"}, Examples: example},
 			}}
 		},
-		scenarioOp + ".Params[0].Examples[0].Output": func(d *ir.Document) {
-			scenarioOperation(d).Params[0].Examples = example
+		scenarioOperationPath + ".Params[0].Examples[0].Output": func(document *ir.Document) {
+			scenarioOperation(document).Params[0].Examples = example
 		},
-		scenarioOp + ".Request.Contents[0].Examples[0].Output": func(d *ir.Document) {
-			scenarioOperation(d).Request = &ir.Payload{Contents: []ir.Content{{
-				MediaType: "application/json", Type: ir.TypeRef{Target: "t/x/M"}, Examples: example,
+		scenarioOperationPath + ".Request.Contents[0].Examples[0].Output": func(document *ir.Document) {
+			scenarioOperation(document).Request = &ir.Payload{Contents: []ir.Content{{
+				MediaType: "application/json", Type: ir.TypeRef{Target: "type/x/M"}, Examples: example,
 			}}}
 		},
-		"doc.Messages[msg/x/m].Examples[0].Output": func(d *ir.Document) {
-			d.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m", Examples: example}}
+		"document.Messages[message/x/m].Examples[0].Output": func(document *ir.Document) {
+			document.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Examples: example}}
 		},
 	}
 	for path, mutate := range plant {
@@ -146,9 +146,9 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 			got := verifyDeclared(doc)
 
 			require.Contains(t, violationPaths(got, armMisplaced), path)
-			for _, v := range got {
-				if v.Code == armMisplaced {
-					assert.Equal(t, path, v.Path, "one carrier is planted, so one arm is misplaced")
+			for _, violation := range got {
+				if violation.Code == armMisplaced {
+					assert.Equal(t, path, violation.Path, "one carrier is planted, so one arm is misplaced")
 				}
 			}
 		})
@@ -160,13 +160,13 @@ func TestVerify_ExampleArmsAreHeldAtEveryCarrier(t *testing.T) {
 func exampleGrowth(n int) *ir.Document {
 	doc := scenarioBase()
 	for i := range n {
-		id := ir.TypeID(fmt.Sprintf("t/x/G%d", i))
-		m := &ir.Model{ID: id, Name: named("g"), Properties: []ir.Property{{
-			ID: ir.PropID(fmt.Sprintf("p/x/G%d/a", i)), Name: named("a"), Type: ir.TypeRef{Target: "t/prim/string"},
+		id := ir.TypeID(fmt.Sprintf("type/x/G%d", i))
+		model := &ir.Model{ID: id, Name: named("g"), Properties: []ir.Property{{
+			ID: ir.PropertyID(fmt.Sprintf("property/x/G%d/a", i)), Name: named("a"), Type: ir.TypeRef{Target: "type/primitive/string"},
 			Examples: []ir.Example{{Value: &scenarioValue}},
 		}}}
-		m.Examples = []ir.Example{{Name: "a", Value: &scenarioValue}, {Name: "b", Value: &scenarioValue, Headers: &scenarioValue}}
-		doc.Types[id] = m
+		model.Examples = []ir.Example{{Name: "a", Value: &scenarioValue}, {Name: "b", Value: &scenarioValue, Headers: &scenarioValue}}
+		doc.Types[id] = model
 	}
 	return doc
 }

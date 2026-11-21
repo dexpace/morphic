@@ -33,16 +33,16 @@ type Meta struct {
 // It must run after every lowering that follows a reference, as which
 // components it keeps depends on what they reached (service.Ctx.Reached). The
 // promotions run after it, reading the root's kept keys, and follow none.
-func Lower(c service.Ctx) (Meta, []ir.Diagnostic) {
-	m := lowerInfo(c)
+func Lower(serviceContext service.Ctx) (Meta, []ir.Diagnostic) {
+	meta := lowerInfo(serviceContext)
 
-	ext, diags := documentExtensions(c)
-	m.Unmodeled = ext
+	ext, diags := documentExtensions(serviceContext)
+	meta.Unmodeled = ext
 
-	retained, retainDiags := retainUnreferencedComponents(c)
-	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
+	retained, retainDiags := retainUnreferencedComponents(serviceContext)
+	meta.Unmodeled = annotation.MergeUnmodeled(meta.Unmodeled, retained)
 	diags = append(diags, retainDiags...)
 
-	diags = append(diags, keepJSONSchemaDialect(c, &m.Unmodeled)...)
-	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+	diags = append(diags, keepJSONSchemaDialect(serviceContext, &meta.Unmodeled)...)
+	return meta, append(diags, documentUnknownKeys(serviceContext, &meta.Unmodeled)...)
 }

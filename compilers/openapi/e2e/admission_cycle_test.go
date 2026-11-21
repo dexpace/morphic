@@ -51,7 +51,7 @@ func TestCompile_ATypedCycleBesideBoundsIsCutAlikeFromEveryEntry(t *testing.T) {
 					kept = append(kept, strings.Join(keptEntries(t, doc, "openapi:minimum"), " "))
 					held = append(held, strings.Join(boundHomes(t, doc, "min"), " "))
 					for _, id := range []string{"A", "B"} {
-						raw, err := json.Marshal(doc.Types[ir.TypeID("t/openapi/components/schemas/"+id)], json.Deterministic(true))
+						raw, err := json.Marshal(doc.Types[ir.TypeID("type/openapi/components/schemas/"+id)], json.Deterministic(true))
 						require.NoError(t, err)
 						nodes[id] = append(nodes[id], string(raw))
 					}

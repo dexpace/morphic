@@ -17,9 +17,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -28,7 +28,7 @@ const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
 
 // table loads spec as root.yaml beside others, each written to disk under its
 // name, and returns the table the load bound.
-func table(t *testing.T, spec string, others map[string]string) *bind.Table {
+func table(t *testing.T, spec string, others map[string]string) *reftable.ReferenceTargetTable {
 	t.Helper()
 	dir := t.TempDir()
 	for name, body := range others {
@@ -41,17 +41,17 @@ func table(t *testing.T, spec string, others map[string]string) *bind.Table {
 	return doc.Bindings.Table()
 }
 
-// at is the source's position at pointer.
-func at(pointer string) bind.Position {
-	return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(pointer)}
+// documentPointerAt is the source's position at pointer.
+func documentPointerAt(pointer string) reftable.DocumentPointer {
+	return reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer(pointer)}
 }
 
 // docNamed returns the number of the document the table read as name.
-func docNamed(t *testing.T, tb *bind.Table, name string) bind.DocID {
+func docNamed(t *testing.T, tb *reftable.ReferenceTargetTable, name string) reftable.DocID {
 	t.Helper()
 	for id := range tb.Documents() {
-		if strings.HasSuffix(tb.Document(bind.DocID(id)).Name, "/"+name) {
-			return bind.DocID(id)
+		if strings.HasSuffix(tb.Document(reftable.DocID(id)).Name, "/"+name) {
+			return reftable.DocID(id)
 		}
 	}
 	require.FailNow(t, "the load read no document named "+name)
@@ -130,8 +130,8 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, naming.New(tb, true).At(at(tc.pointer)), "read")
-			assert.Equal(t, tc.want, naming.New(nil, true).At(at(tc.pointer)), "by pointer alone")
+			assert.Equal(t, tc.want, naming.New(tb, true).At(documentPointerAt(tc.pointer)), "read")
+			assert.Equal(t, tc.want, naming.New(nil, true).At(documentPointerAt(tc.pointer)), "by pointer alone")
 		})
 	}
 }
@@ -206,32 +206,32 @@ components:
 func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
-	const op = "/paths/~1a/post"
+	const operation = "/paths/~1a/post"
 	const json = "/content/application~1json/schema"
 	tests := []struct {
 		name, pointer, want string
 	}{
-		{"a request body, by its operation", op + "/requestBody" + json, "postA_request"},
-		{"beneath it, off that name", op + "/requestBody" + json + "/properties/x/items", compile.SubHint("x", "item")},
-		{"a pattern's schema beneath it, off that name", op + "/requestBody" + json + "/patternProperties/a",
+		{"a request body, by its operation", operation + "/requestBody" + json, "postA_request"},
+		{"beneath it, off that name", operation + "/requestBody" + json + "/properties/x/items", compile.SubHint("x", "item")},
+		{"a pattern's schema beneath it, off that name", operation + "/requestBody" + json + "/patternProperties/a",
 			compile.SubHint("postA_request", "pattern")},
-		{"an enum literal of it, off that name", op + "/requestBody" + json + "/enum/1",
+		{"an enum literal of it, off that name", operation + "/requestBody" + json + "/enum/1",
 			compile.SubHint("postA_request", "1")},
-		{"a variant of it multi-typed, by that name", op + "/requestBody" + json + "/type/1", "postA_request"},
-		{"an itemSchema, as its media type's item", op + "/requestBody/content/application~1jsonl/itemSchema",
+		{"a variant of it multi-typed, by that name", operation + "/requestBody" + json + "/type/1", "postA_request"},
+		{"an itemSchema, as its media type's item", operation + "/requestBody/content/application~1jsonl/itemSchema",
 			compile.SubHint("postA_request", "item")},
 		{"a request body no operationId names", "/paths/~1a/put/requestBody" + json, "request"},
 		{"a component request body, by its key", "/components/requestBodies/Body" + json, "Body"},
-		{"a response", op + "/responses/200" + json, "response"},
-		{"a tuple slot beneath it, off that name", op + "/responses/200" + json + "/prefixItems/1",
+		{"a response", operation + "/responses/200" + json, "response"},
+		{"a tuple slot beneath it, off that name", operation + "/responses/200" + json + "/prefixItems/1",
 			compile.SubHint("response", "1")},
 		{"a component response, by its key", "/components/responses/Err" + json, "Err"},
-		{"a parameter, by its name", op + "/parameters/0/schema", "limit"},
-		{"a parameter's content", op + "/parameters/1" + json, "filter"},
+		{"a parameter, by its name", operation + "/parameters/0/schema", "limit"},
+		{"a parameter's content", operation + "/parameters/1" + json, "filter"},
 		{"a path item's parameter", "/paths/~1a/parameters/0/schema", "shared"},
 		{"a component parameter, by its name", "/components/parameters/P/schema", "page"},
-		{"a header, by its key", op + "/responses/200/headers/X-Rate/schema", "X-Rate"},
-		{"a header's content", op + "/responses/200/headers/X-Body" + json, "X-Body"},
+		{"a header, by its key", operation + "/responses/200/headers/X-Rate/schema", "X-Rate"},
+		{"a header's content", operation + "/responses/200/headers/X-Body" + json, "X-Body"},
 		{"a component header, by its key", "/components/headers/Trace/schema", "Trace"},
 		{"a component media type, by its key", "/components/mediaTypes/Events/schema", "Events"},
 		{"a component media type's itemSchema, as its item", "/components/mediaTypes/Events/itemSchema",
@@ -239,17 +239,17 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 		{`a component media type keyed ""`, "/components/mediaTypes//schema", ""},
 		{`its items, off that name`, "/components/mediaTypes//schema/items", compile.SubHint("", "item")},
 		{`its itemSchema, as its item`, "/components/mediaTypes//itemSchema", compile.SubHint("", "item")},
-		{"a callback's request body", op + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
+		{"a callback's request body", operation + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
 			"notify_request"},
 		{"a webhook's request body", "/webhooks/hook/post/requestBody" + json, "onHook_request"},
 		{"a component path item's request body", "/components/pathItems/Item/get/requestBody" + json,
 			"getItem_request"},
-		{"a position the grammar reads as no schema, from its pointer", op + "/responses/200/description", "description"},
+		{"a position the grammar reads as no schema, from its pointer", operation + "/responses/200/description", "description"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, naming.New(tb, true).At(at(tc.pointer)))
+			assert.Equal(t, tc.want, naming.New(tb, true).At(documentPointerAt(tc.pointer)))
 		})
 	}
 }
@@ -259,12 +259,12 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 func TestAt_AnswersAsAFreshNamerWould(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
-	p := at("/paths/~1a/post/requestBody/content/application~1json/schema")
+	documentPointer := documentPointerAt("/paths/~1a/post/requestBody/content/application~1json/schema")
 	read := naming.New(tb, true)
-	first := read.At(p)
+	first := read.At(documentPointer)
 	assert.Equal(t, "postA_request", first)
-	assert.Equal(t, first, read.At(p), "asked again")
-	assert.Equal(t, first, naming.New(tb, true).At(p), "asked of a fresh namer")
+	assert.Equal(t, first, read.At(documentPointer), "asked again")
+	assert.Equal(t, first, naming.New(tb, true).At(documentPointer), "asked of a fresh namer")
 }
 
 // TestAt_ReadsAnOwnerAsTheParserDoes pins that an owner's name is read from
@@ -299,15 +299,15 @@ paths:
         - {name: !local tagged, in: query, schema: {type: object}}
 `
 	read := naming.New(table(t, spec, nil), true)
-	assert.Equal(t, "aliased_request", read.At(at("/paths/~1a/post/requestBody/content/application~1json/schema")))
-	assert.Equal(t, "merged", read.At(at("/paths/~1a/post/parameters/0/schema")))
-	assert.Empty(t, read.At(at("/paths/~1a/post/parameters/1/schema")), "a null name names nothing")
-	assert.Empty(t, read.At(at("/paths/~1a/post/parameters/2/schema")), "nor does one that is no scalar")
-	assert.Equal(t, "7_request", read.At(at("/paths/~1a/put/requestBody/content/application~1json/schema")))
-	assert.Equal(t, "42", read.At(at("/paths/~1a/put/parameters/0/schema")))
-	assert.Equal(t, "request", read.At(at("/paths/~1a/patch/requestBody/content/application~1json/schema")),
+	assert.Equal(t, "aliased_request", read.At(documentPointerAt("/paths/~1a/post/requestBody/content/application~1json/schema")))
+	assert.Equal(t, "merged", read.At(documentPointerAt("/paths/~1a/post/parameters/0/schema")))
+	assert.Empty(t, read.At(documentPointerAt("/paths/~1a/post/parameters/1/schema")), "a null name names nothing")
+	assert.Empty(t, read.At(documentPointerAt("/paths/~1a/post/parameters/2/schema")), "nor does one that is no scalar")
+	assert.Equal(t, "7_request", read.At(documentPointerAt("/paths/~1a/put/requestBody/content/application~1json/schema")))
+	assert.Equal(t, "42", read.At(documentPointerAt("/paths/~1a/put/parameters/0/schema")))
+	assert.Equal(t, "request", read.At(documentPointerAt("/paths/~1a/patch/requestBody/content/application~1json/schema")),
 		"a scalar the parser reads no string from, as !!binary, names nothing")
-	assert.Empty(t, read.At(at("/paths/~1a/patch/parameters/0/schema")), "nor does one under a local tag")
+	assert.Empty(t, read.At(documentPointerAt("/paths/~1a/patch/parameters/0/schema")), "nor does one under a local tag")
 }
 
 // TestAt_NamesABranchAfterItsTarget pins that a composition branch holding a
@@ -357,7 +357,7 @@ func TestAt_NamesABranchAfterItsTarget(t *testing.T) {
 			read := naming.New(table(t, branchSpec(tc.at, tc.to), map[string]string{
 				"other.yaml": "Pet: {type: object}\n",
 			}), true)
-			assert.Equal(t, tc.want, read.At(at(tc.at)))
+			assert.Equal(t, tc.want, read.At(documentPointerAt(tc.at)))
 		})
 	}
 }
@@ -411,7 +411,7 @@ func TestAt_StopsAtTheHopCap(t *testing.T) {
 			}
 			spec.WriteString("    T: {type: object}\n")
 			tb := table(t, spec.String(), nil)
-			first, second := at("/components/schemas/S0/oneOf/0"), at("/components/schemas/S1/oneOf/0")
+			first, second := documentPointerAt("/components/schemas/S0/oneOf/0"), documentPointerAt("/components/schemas/S1/oneOf/0")
 
 			read := naming.New(tb, true)
 			assert.Equal(t, tc.first, read.At(first))
@@ -436,18 +436,19 @@ components:
     "": {type: object}
     C: {$ref: '#/components/schemas/B'}
 `, nil), true)
-	assert.Equal(t, "B", read.Through(at("/components/schemas/A/allOf/0")))
-	assert.Empty(t, read.Through(at("/components/schemas/A/allOf/1")), `a component keyed "" names nothing`)
-	assert.Empty(t, read.Through(at("/components/schemas/A/allOf/2")), "no $ref is written there")
-	assert.Equal(t, "B", read.Through(at("/components/schemas/C")), "a $ref that is no branch suggests a name too")
-	assert.Empty(t, naming.New(nil, true).Through(at("/components/schemas/A/allOf/0")), "a namer with no table reads none")
+	assert.Equal(t, "B", read.Through(documentPointerAt("/components/schemas/A/allOf/0")))
+	assert.Empty(t, read.Through(documentPointerAt("/components/schemas/A/allOf/1")), `a component keyed "" names nothing`)
+	assert.Empty(t, read.Through(documentPointerAt("/components/schemas/A/allOf/2")), "no $ref is written there")
+	assert.Equal(t, "B", read.Through(documentPointerAt("/components/schemas/C")), "a $ref that is no branch suggests a name too")
+	assert.Empty(t, naming.New(nil, true).Through(documentPointerAt("/components/schemas/A/allOf/0")), "a namer with no table reads none")
 }
 
 // TestAt_NamesWhatAReferenceReadsAsASchema pins positions the grammar reads as
-// raw YAML, or in another document, named as the reference reaching them
-// reads them (bind.Table.Kinds): a schema an extension holds is named from
-// its pointer, as no owner names it, a parameter another document holds by
-// its name, and a document a reference reads as a schema after the document.
+// raw YAML, or in another document, named as the reference reaching them reads
+// them (reftable.ReferenceTargetTable.Kinds): a schema an extension holds is
+// named from its pointer, as no owner names it, a parameter another document
+// holds by its name, and a document a reference reads as a schema after the
+// document.
 func TestAt_NamesWhatAReferenceReadsAsASchema(t *testing.T) {
 	t.Parallel()
 	tb := table(t, head+`x-lib: {Thing: {type: object, properties: {p: {type: object}}}}
@@ -469,14 +470,14 @@ components:
 	read := naming.New(tb, true)
 	params, pet, list := docNamed(t, tb, "params.yaml"), docNamed(t, tb, "pet.yaml"), docNamed(t, tb, "list.yaml")
 
-	assert.Equal(t, "Thing", read.At(at("/x-lib/Thing")), "an extension's schema is named from its pointer")
-	assert.Equal(t, "p", read.At(at("/x-lib/Thing/properties/p")))
-	assert.Equal(t, "size", read.At(bind.Position{Doc: params, Pointer: "/Size/schema"}))
+	assert.Equal(t, "Thing", read.At(documentPointerAt("/x-lib/Thing")), "an extension's schema is named from its pointer")
+	assert.Equal(t, "p", read.At(documentPointerAt("/x-lib/Thing/properties/p")))
+	assert.Equal(t, "size", read.At(reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema"}))
 	assert.Equal(t, compile.SubHint("q", "item"),
-		read.At(bind.Position{Doc: params, Pointer: "/Size/schema/properties/q/items"}))
-	assert.Equal(t, "pet.yaml", read.At(bind.Position{Doc: pet}), "a document's root schema is named for the document")
-	assert.Equal(t, compile.SubHint("tag", "item"), read.At(bind.Position{Doc: pet, Pointer: "/properties/tag/items"}))
-	assert.Equal(t, compile.SubHint("list.yaml", "item"), read.At(bind.Position{Doc: list, Pointer: "/items"}),
+		read.At(reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema/properties/q/items"}))
+	assert.Equal(t, "pet.yaml", read.At(reftable.DocumentPointer{Doc: pet}), "a document's root schema is named for the document")
+	assert.Equal(t, compile.SubHint("tag", "item"), read.At(reftable.DocumentPointer{Doc: pet, Pointer: "/properties/tag/items"}))
+	assert.Equal(t, compile.SubHint("list.yaml", "item"), read.At(reftable.DocumentPointer{Doc: list, Pointer: "/items"}),
 		"the root's items are named by role, not as a key")
 }
 
@@ -511,12 +512,12 @@ components:
 	lib := docNamed(t, tb, "lib.yaml")
 	const json = "/content/application~1json/schema"
 
-	assert.Equal(t, "foo", read.At(at("/components/schemas/S/x-param/schema")))
-	assert.Equal(t, "request", read.At(at("/components/schemas/S/x-body"+json)))
-	assert.Equal(t, compile.SubHint("response", "item"), read.At(at("/components/schemas/S/x-resp"+json+"/items")))
-	assert.Equal(t, "page", read.At(bind.Position{Doc: lib, Pointer: "/x-params/P/schema"}),
+	assert.Equal(t, "foo", read.At(documentPointerAt("/components/schemas/S/x-param/schema")))
+	assert.Equal(t, "request", read.At(documentPointerAt("/components/schemas/S/x-body"+json)))
+	assert.Equal(t, compile.SubHint("response", "item"), read.At(documentPointerAt("/components/schemas/S/x-resp"+json+"/items")))
+	assert.Equal(t, "page", read.At(reftable.DocumentPointer{Doc: lib, Pointer: "/x-params/P/schema"}),
 		"a parameter in a document read whole as a schema")
-	assert.Equal(t, "lib.yaml", read.At(bind.Position{Doc: lib}), "the document read whole")
+	assert.Equal(t, "lib.yaml", read.At(reftable.DocumentPointer{Doc: lib}), "the document read whole")
 }
 
 // titlesSpec writes a title at each kind of position a title names, beside one
@@ -605,7 +606,7 @@ func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 	for _, tc := range titleRows {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, naming.New(tb, true).At(at(tc.pointer)))
+			assert.Equal(t, tc.want, naming.New(tb, true).At(documentPointerAt(tc.pointer)))
 		})
 	}
 }
@@ -613,15 +614,15 @@ func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 // titleRows are positions of titlesSpec, each with the name it takes where a
 // title names a schema.
 var titleRows = func() []struct{ name, pointer, want string } {
-	const op, json = "/paths/~1a/post", "/content/application~1json/schema"
+	const operation, json = "/paths/~1a/post", "/content/application~1json/schema"
 	const keyed = "/components/schemas/Keyed"
 	return []struct{ name, pointer, want string }{
-		{"a parameter's schema", op + "/parameters/0/schema", "page_size"},
-		{"a request body's schema", op + "/requestBody" + json, "new_thing"},
-		{"beneath it, a key still names a property", op + "/requestBody" + json + "/properties/x", "x"},
-		{"a header's schema", op + "/responses/200/headers/X-Rate/schema", "rate_window"},
-		{"a response's schema", op + "/responses/200" + json, "thing_page"},
-		{"beneath it, off the title", op + "/responses/200" + json + "/items", "thing_page_item"},
+		{"a parameter's schema", operation + "/parameters/0/schema", "page_size"},
+		{"a request body's schema", operation + "/requestBody" + json, "new_thing"},
+		{"beneath it, a key still names a property", operation + "/requestBody" + json + "/properties/x", "x"},
+		{"a header's schema", operation + "/responses/200/headers/X-Rate/schema", "rate_window"},
+		{"a response's schema", operation + "/responses/200" + json, "thing_page"},
+		{"beneath it, off the title", operation + "/responses/200" + json + "/items", "thing_page_item"},
 		{"a component schema keeps its key", keyed, "Keyed"},
 		{"a property's schema", keyed + "/properties/address", "postal_address"},
 		{"beneath it, a key still names a property", keyed + "/properties/address/properties/lines", "lines"},
@@ -679,19 +680,19 @@ func TestAt_NamesNoSchemaByItsTitleWhereTitlesNameNothing(t *testing.T) {
 	on := naming.New(table(t, titlesSpec, nil), true)
 	differs := 0
 	for _, tc := range titleRows {
-		p := at(tc.pointer)
+		documentPointer := documentPointerAt(tc.pointer)
 		if tc.pointer == "/components/schemas/Lookup/oneOf/8" {
 			// A title beside a $ref makes the branch a node of its own, named by
 			// its position, where the $ref alone is named after its target.
-			assert.Equal(t, "variant_8", off.At(p), tc.name)
-			assert.Equal(t, "Pet", written.At(p), tc.name)
+			assert.Equal(t, "variant_8", off.At(documentPointer), tc.name)
+			assert.Equal(t, "Pet", written.At(documentPointer), tc.name)
 		} else {
-			assert.Equal(t, written.At(p), off.At(p), tc.name)
+			assert.Equal(t, written.At(documentPointer), off.At(documentPointer), tc.name)
 		}
-		title, titled := off.Title(p)
+		title, titled := off.Title(documentPointer)
 		assert.False(t, titled, tc.name)
 		assert.Empty(t, title, tc.name)
-		if on.At(p) != off.At(p) {
+		if on.At(documentPointer) != off.At(documentPointer) {
 			differs++
 		}
 	}
@@ -704,7 +705,7 @@ func TestAt_NamesNoSchemaByItsTitleWhereTitlesNameNothing(t *testing.T) {
 func TestTitle_IsTheNameATitleGives(t *testing.T) {
 	t.Parallel()
 	read := naming.New(table(t, titlesSpec, nil), true)
-	title, ok := read.Title(at("/components/schemas/Lookup/oneOf/0"))
+	title, ok := read.Title(documentPointerAt("/components/schemas/Lookup/oneOf/0"))
 	assert.True(t, ok)
 	assert.Equal(t, "by_name", title)
 	for _, pointer := range []string{
@@ -712,11 +713,11 @@ func TestTitle_IsTheNameATitleGives(t *testing.T) {
 		"/components/schemas/Keyed", "/components/schemas/Keyed/allOf/0",
 		"/components/schemas/Lookup/oneOf/99", "/components/schemas/Lookup/oneOf/0/properties/tags/items/x",
 	} {
-		title, ok := read.Title(at(pointer))
+		title, ok := read.Title(documentPointerAt(pointer))
 		assert.False(t, ok, pointer)
 		assert.Empty(t, title, pointer)
 	}
-	title, ok = naming.New(nil, true).Title(at("/components/schemas/Lookup/oneOf/0"))
+	title, ok = naming.New(nil, true).Title(documentPointerAt("/components/schemas/Lookup/oneOf/0"))
 	assert.False(t, ok, "a namer with no table reads no title")
 	assert.Empty(t, title)
 }
@@ -737,11 +738,11 @@ func TestAt_ATitleNamesAlikeInEitherOrder(t *testing.T) {
 		forward, backward := make([]string, 3), make([]string, 3)
 		read := naming.New(tb, true)
 		for i := range 3 {
-			forward[i] = read.At(at("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
+			forward[i] = read.At(documentPointerAt("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
 		}
 		read = naming.New(tb, true)
 		for i := 2; i >= 0; i-- {
-			backward[i] = read.At(at("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
+			backward[i] = read.At(documentPointerAt("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
 		}
 		assert.Equal(t, forward, backward, branches)
 		assert.Contains(t, forward, "own", branches)
@@ -766,9 +767,9 @@ components:
 	})
 	read := naming.New(tb, true)
 	pet := docNamed(t, tb, "pet.yaml")
-	assert.Equal(t, "domestic_pet", read.At(bind.Position{Doc: pet}), "a document's root, by its title")
-	assert.Equal(t, "tag_line", read.At(bind.Position{Doc: pet, Pointer: "/properties/tag"}))
-	assert.Equal(t, "s", read.At(at("/components/schemas/C/properties/s")),
+	assert.Equal(t, "domestic_pet", read.At(reftable.DocumentPointer{Doc: pet}), "a document's root, by its title")
+	assert.Equal(t, "tag_line", read.At(reftable.DocumentPointer{Doc: pet, Pointer: "/properties/tag"}))
+	assert.Equal(t, "s", read.At(documentPointerAt("/components/schemas/C/properties/s")),
 		"a title another document's component is named by")
 }
 
@@ -826,6 +827,6 @@ func TestAt_NamesAHeaderAnEncodingNests(t *testing.T) {
 		compile.SubHint("X-E", "item"), compile.SubHint("X-F", "item"),
 		compile.SubHint("schema", "item"), "value", compile.SubHint("schema", "item"),
 	} {
-		assert.Equal(t, want, read.At(at(refs[i])), refs[i])
+		assert.Equal(t, want, read.At(documentPointerAt(refs[i])), refs[i])
 	}
 }

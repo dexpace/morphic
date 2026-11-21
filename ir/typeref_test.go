@@ -39,8 +39,8 @@ func TestTypeRef_NullableNeverOmitted(t *testing.T) {
 		nullable bool
 		want     string
 	}{
-		{name: "not nullable", nullable: false, want: `{"target":"t/x","nullable":false}`},
-		{name: "nullable", nullable: true, want: `{"target":"t/x","nullable":true}`},
+		{name: "not nullable", nullable: false, want: `{"target":"type/x","nullable":false}`},
+		{name: "nullable", nullable: true, want: `{"target":"type/x","nullable":true}`},
 	}
 
 	// The distinctness check needs every row's encoding in hand, so it is
@@ -51,7 +51,7 @@ func TestTypeRef_NullableNeverOmitted(t *testing.T) {
 	// an empty result — precisely the bug this two-phase structure avoids.
 	seen := make(map[string]bool, len(tests))
 	for _, tt := range tests {
-		ref := ir.TypeRef{Target: "t/x", Nullable: tt.nullable}
+		ref := ir.TypeRef{Target: "type/x", Nullable: tt.nullable}
 		raw, err := json.Marshal(ref)
 		require.NoError(t, err)
 		seen[string(raw)] = true
@@ -61,7 +61,7 @@ func TestTypeRef_NullableNeverOmitted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ref := ir.TypeRef{Target: "t/x", Nullable: tt.nullable}
+			ref := ir.TypeRef{Target: "type/x", Nullable: tt.nullable}
 
 			raw, err := json.Marshal(ref)
 			require.NoError(t, err)

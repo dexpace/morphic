@@ -19,10 +19,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -96,23 +96,23 @@ type twinDoc struct {
 	// rows' references out name.
 	schemas, headers, responses, top string
 	// header is the header beneath the field; schema its schema's keywords
-	// beside its type and properties, and props its properties beside p.
-	header, schema, props string
+	// beside its type and properties, and properties its properties beside p.
+	header, schema, properties string
 	// encoding replaces the Encoding Object holding the field where set, and
 	// other is other.yaml.
 	encoding, other string
 }
 
-// source writes the source d makes at p.
-func (d twinDoc) source(p twinPlace) string {
-	schema := "{type: object, properties: {p: {type: string}" + d.props + "}" + d.schema + "}"
+// source writes the source d makes at twinPlaceValue.
+func (d twinDoc) source(twinPlaceValue twinPlace) string {
+	schema := "{type: object, properties: {p: {type: string}" + d.properties + "}" + d.schema + "}"
 	header := d.header
 	if header == "" {
 		header = "{schema: " + schema + "}"
 	}
 	encoding := d.encoding
 	if encoding == "" {
-		encoding = p.encoding(header)
+		encoding = twinPlaceValue.encoding(header)
 	}
 	return "openapi: 3.2.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {post: {requestBody: {$ref: " +
 		"'#/components/requestBodies/B'}, responses: {'200': {$ref: '#/components/responses/Ok'}}}}\n" + d.top +
@@ -129,10 +129,10 @@ func (d twinDoc) source(p twinPlace) string {
 // a row names spelled as the nested document spells them.
 type twinRow struct {
 	name string
-	doc  func(p twinPlace) twinDoc
+	doc  func(twinPlaceValue twinPlace) twinDoc
 	// nestedOnly and twinOnly are the prefixes of the answers only the nested
 	// document, or only its twin, gives, each the rule's.
-	nestedOnly, twinOnly func(p twinPlace) []string
+	nestedOnly, twinOnly func(twinPlaceValue twinPlace) []string
 }
 
 // none states that a pair gives the same answers.
@@ -141,61 +141,61 @@ func none(twinPlace) []string { return nil }
 // rawField is what every nested document reports and no twin does: the field,
 // kept under no_ir_home at an info finding
 // (docs/compilers/openapi.md#unmodeled-dialect-fields).
-func rawField(p twinPlace) []string {
-	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.field() + ":",
-		"unmodeled openapi:encoding/f" + p.field() + " no_ir_home"}
+func rawField(twinPlaceValue twinPlace) []string {
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + twinPlaceValue.field() + ":",
+		"unmodeled openapi:encoding/f" + twinPlaceValue.field() + " no_ir_home"}
 }
 
 // rawExtension is what every twin keeps and no nested document does: the
 // field, kept as an extension.
-func rawExtension(p twinPlace) []string {
-	return []string{"unmodeled openapi:encoding/f" + p.field() + " vendor_extension"}
+func rawExtension(twinPlaceValue twinPlace) []string {
+	return []string{"unmodeled openapi:encoding/f" + twinPlaceValue.field() + " vendor_extension"}
 }
 
 // in is the source's $ref to the schema beneath the field.
-func in(p twinPlace) string {
-	return "    In: {$ref: '#" + encodingAt + p.header() + "/schema'}\n"
+func in(twinPlaceValue twinPlace) string {
+	return "    In: {$ref: '#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"
 }
 
 // twinRows are the forms of reference the sweep writes at each field and
 // depth.
 var twinRows = []twinRow{
-	{name: "a $ref in", doc: func(p twinPlace) twinDoc { return twinDoc{schemas: in(p)} }},
-	{name: "a $ref in below the schema", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + p.header() + "/schema/properties/p'}\n"}
+	{name: "a $ref in", doc: func(twinPlaceValue twinPlace) twinDoc { return twinDoc{schemas: in(twinPlaceValue)} }},
+	{name: "a $ref in below the schema", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + twinPlaceValue.header() + "/schema/properties/p'}\n"}
 	}},
 	{
-		name: "a $ref in to YAML shaped as no schema", doc: func(p twinPlace) twinDoc {
-			return twinDoc{schemas: in(p), header: "{schema: text}"}
+		name: "a $ref in to YAML shaped as no schema", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{schemas: in(twinPlaceValue), header: "{schema: text}"}
 		},
 		// The rule table judges the header the grammar places beneath the
 		// field, as it judges each object it gives a document
 		// (unmodeled-dialect-fields, validation), where an extension's value
 		// is judged by no row.
-		nestedOnly: func(p twinPlace) []string {
-			return []string{"diag error openapi/validation/validation-type-mismatch 0" + encodingAt + p.header() +
+		nestedOnly: func(twinPlaceValue twinPlace) []string {
+			return []string{"diag error openapi/validation/validation-type-mismatch 0" + encodingAt + twinPlaceValue.header() +
 				"/schema:"}
 		},
 		twinOnly: none,
 	},
-	{name: "a $ref out", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: in(p), props: ", o: {$ref: '#/components/schemas/T'}"}
+	{name: "a $ref out", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", o: {$ref: '#/components/schemas/T'}"}
 	}},
-	{name: "a $ref out into raw YAML", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: in(p), props: ", o: {$ref: '#/x-raw'}"}
+	{name: "a $ref out into raw YAML", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", o: {$ref: '#/x-raw'}"}
 	}},
-	{name: "a $dynamicRef in", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: "    In: {$dynamicRef: '#" + encodingAt + p.header() + "/schema'}\n"}
+	{name: "a $dynamicRef in", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: "    In: {$dynamicRef: '#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"}
 	}},
-	{name: "a $dynamicRef out", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: in(p), props: ", y: {$dynamicRef: '#/components/schemas/T'}"}
+	{name: "a $dynamicRef out", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", y: {$dynamicRef: '#/components/schemas/T'}"}
 	}},
-	{name: "a $defs pointer", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
+	{name: "a $defs pointer", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: in(twinPlaceValue), properties: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
 	}},
 	{
-		name: "a $defs pointer beneath an $id", doc: func(p twinPlace) twinDoc {
-			return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}",
+		name: "a $defs pointer beneath an $id", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{schemas: in(twinPlaceValue), properties: ", d: {$ref: '#/$defs/n'}",
 				schema: ", $id: 'https://x.test/h', $defs: {n: {type: integer}}"}
 		},
 		// "Identifiers are read only where a schema is placed" (references):
@@ -205,7 +205,7 @@ var twinRows = []twinRow{
 		nestedOnly: definedInResource, twinOnly: definedInRaw,
 	},
 	{
-		name: "a draft 7 $schema naming its dialect", doc: func(p twinPlace) twinDoc {
+		name: "a draft 7 $schema naming its dialect", doc: func(twinPlaceValue twinPlace) twinDoc {
 			return twinDoc{schemas: "    In: {$ref: '#nested'}\n",
 				schema: ", $schema: 'http://json-schema.org/draft-07/schema#', $id: '#nested'"}
 		},
@@ -217,33 +217,33 @@ var twinRows = []twinRow{
 		// above is handed no Config.Dialect, so it reads both as 2020-12 does.
 		nestedOnly: draftIdentifiersKept, twinOnly: draftAnchorUnresolved,
 	},
-	{name: "an escaped pointer token", doc: func(p twinPlace) twinDoc {
-		esc := strings.Replace(p.header(), p.key, p.escaped(), 1)
+	{name: "an escaped pointer token", doc: func(twinPlaceValue twinPlace) twinDoc {
+		esc := strings.Replace(twinPlaceValue.header(), twinPlaceValue.key, twinPlaceValue.escaped(), 1)
 		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + esc + "/schema'}\n"}
 	}},
-	{name: "through an alias", doc: func(p twinPlace) twinDoc {
-		return twinDoc{schemas: in(p), top: "x-anchors: {h: &h {schema: {type: object, properties: {p: {type: string}}}}}\n",
+	{name: "through an alias", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{schemas: in(twinPlaceValue), top: "x-anchors: {h: &h {schema: {type: object, properties: {p: {type: string}}}}}\n",
 			header: "*h"}
 	}},
-	{name: "through a merge key", doc: func(p twinPlace) twinDoc {
-		e := p.encoding("{schema: {type: object, properties: {p: {type: string}}}}")
-		return twinDoc{schemas: in(p), top: "x-anchors: {e: &e " + e + "}\n", encoding: "{<<: *e}"}
+	{name: "through a merge key", doc: func(twinPlaceValue twinPlace) twinDoc {
+		e := twinPlaceValue.encoding("{schema: {type: object, properties: {p: {type: string}}}}")
+		return twinDoc{schemas: in(twinPlaceValue), top: "x-anchors: {e: &e " + e + "}\n", encoding: "{<<: *e}"}
 	}},
-	{name: "through a reference whose target is raw YAML", doc: func(p twinPlace) twinDoc {
+	{name: "through a reference whose target is raw YAML", doc: func(twinPlaceValue twinPlace) twinDoc {
 		return twinDoc{
 			top: "x-resp: {description: d, content: {multipart/form-data: {encoding: {f: " +
-				p.encoding("{schema: {type: object}}") + "}}}}\n",
+				twinPlaceValue.encoding("{schema: {type: object}}") + "}}}}\n",
 			responses: "    RRef: {$ref: '#/x-resp'}\n",
 			schemas: "    In: {$ref: '#/components/responses/RRef/content/multipart~1form-data/encoding/f" +
-				p.header() + "/schema'}\n",
+				twinPlaceValue.header() + "/schema'}\n",
 		}
 	}},
 	{name: "to the field's parent", doc: func(twinPlace) twinDoc {
 		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + "'}\n"}
 	}},
 	{
-		name: "to the field", doc: func(p twinPlace) twinDoc {
-			return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + p.field() + "'}\n"}
+		name: "to the field", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + twinPlaceValue.field() + "'}\n"}
 		},
 		// The field is an object or a list of them the grammar places, which
 		// holds no schema, where under an extension it is raw YAML a $ref
@@ -252,15 +252,15 @@ var twinRows = []twinRow{
 		nestedOnly: listRefused, twinOnly: listLanded,
 	},
 	{
-		name: "to an Encoding Object the field holds", doc: func(p twinPlace) twinDoc {
-			return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + p.field() + p.f.below + "'}\n"}
+		name: "to an Encoding Object the field holds", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + twinPlaceValue.field() + twinPlaceValue.f.below + "'}\n"}
 		},
 		// An Encoding Object the field holds is an object the grammar places,
 		// as the field is.
 		nestedOnly: refusedAt, twinOnly: landedAt,
 	},
 	{
-		name: "an $anchor", doc: func(p twinPlace) twinDoc {
+		name: "an $anchor", doc: func(twinPlaceValue twinPlace) twinDoc {
 			return twinDoc{schemas: "    In: {$ref: '#nested'}\n", schema: ", $anchor: nested"}
 		},
 		// "Identifiers are read only where a schema is placed": the grammar
@@ -269,8 +269,8 @@ var twinRows = []twinRow{
 		nestedOnly: anchorAnswers, twinOnly: anchorUnanswered,
 	},
 	{
-		name: "a header Reference Object in", doc: func(p twinPlace) twinDoc {
-			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + p.header() + "'}\n",
+		name: "a header Reference Object in", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + twinPlaceValue.header() + "'}\n",
 				schemas: "    In: {$ref: '#/components/headers/HRef/schema'}\n"}
 		},
 		// The header is an object the grammar places, so the reference
@@ -280,9 +280,9 @@ var twinRows = []twinRow{
 		nestedOnly: headerHopAt, twinOnly: rawHeaderAt,
 	},
 	{
-		name: "a header Reference Object out", doc: func(p twinPlace) twinDoc {
+		name: "a header Reference Object out", doc: func(twinPlaceValue twinPlace) twinDoc {
 			return twinDoc{header: "{$ref: '#/components/headers/X'}",
-				schemas: "    In: {$ref: '#" + encodingAt + p.header() + "/schema'}\n"}
+				schemas: "    In: {$ref: '#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"}
 		},
 		// "A `$ref` written beneath such a nested Encoding Object, a
 		// schema's or a Reference Object's, is bound and reported", and "A
@@ -291,8 +291,8 @@ var twinRows = []twinRow{
 		nestedOnly: readThroughHeader, twinOnly: unreadHeader,
 	},
 	{
-		name: "a header Reference Object to the schema", doc: func(p twinPlace) twinDoc {
-			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + p.header() + "/schema'}\n",
+		name: "a header Reference Object to the schema", doc: func(twinPlaceValue twinPlace) twinDoc {
+			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + twinPlaceValue.header() + "/schema'}\n",
 				header: "{schema: {description: d, schema: {type: integer}}}"}
 		},
 		// A reference object "lands on an object of its own kind: a position
@@ -301,45 +301,45 @@ var twinRows = []twinRow{
 		// it is reached as" (references): the grammar places the schema.
 		nestedOnly: headerRefused, twinOnly: headerFromSchema,
 	},
-	{name: "a $ref in from a second document", doc: func(p twinPlace) twinDoc {
-		return twinDoc{other: otherOpenAPI(p, ""),
-			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + p.header() + "/schema'}\n"}
+	{name: "a $ref in from a second document", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{other: otherOpenAPI(twinPlaceValue, ""),
+			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"}
 	}},
-	{name: "a $defs pointer in a second document", doc: func(p twinPlace) twinDoc {
-		return twinDoc{other: otherOpenAPI(p, ", properties: {d: {$ref: '#/$defs/n'}}, $defs: {n: {type: integer}}"),
-			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + p.header() + "/schema'}\n"}
+	{name: "a $defs pointer in a second document", doc: func(twinPlaceValue twinPlace) twinDoc {
+		return twinDoc{other: otherOpenAPI(twinPlaceValue, ", properties: {d: {$ref: '#/$defs/n'}}, $defs: {n: {type: integer}}"),
+			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + twinPlaceValue.header() + "/schema'}\n"}
 	}},
-	{name: "through a reference to a second document of no grammar", doc: func(p twinPlace) twinDoc {
+	{name: "through a reference to a second document of no grammar", doc: func(twinPlaceValue twinPlace) twinDoc {
 		return twinDoc{
 			other: "description: d\ncontent: {multipart/form-data: {encoding: {f: " +
-				p.encoding("{schema: {type: object}}") + "}}}\n",
+				twinPlaceValue.encoding("{schema: {type: object}}") + "}}}\n",
 			responses: "    RRef: {$ref: 'other.yaml'}\n",
 			schemas: "    In: {$ref: '#/components/responses/RRef/content/multipart~1form-data/encoding/f" +
-				p.header() + "/schema'}\n",
+				twinPlaceValue.header() + "/schema'}\n",
 		}
 	}},
 }
 
 // otherOpenAPI is an OpenAPI document holding the request body B, its header's
 // schema writing extra beside its type.
-func otherOpenAPI(p twinPlace, extra string) string {
+func otherOpenAPI(twinPlaceValue twinPlace, extra string) string {
 	return "openapi: 3.2.0\ninfo: {title: o, version: '1'}\npaths: {}\ncomponents:\n  requestBodies:\n" +
-		"    B: {content: {multipart/form-data: {encoding: {f: " + p.encoding("{schema: {type: object"+extra+"}}") +
+		"    B: {content: {multipart/form-data: {encoding: {f: " + twinPlaceValue.encoding("{schema: {type: object"+extra+"}}") +
 		"}}}}\n"
 }
 
 // definedInResource is d's "#/$defs/n" read in the resource the schema's $id
 // makes, landing on raw YAML.
-func definedInResource(p twinPlace) []string {
-	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop resolved 0 raw",
-		"landing spec.yaml#" + encodingAt + p.header() + "/schema/$defs/n"}
+func definedInResource(twinPlaceValue twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/properties/d: hop resolved 0 raw",
+		"landing spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/$defs/n"}
 }
 
 // definedInRaw is d's "#/$defs/n" read by the $defs rule, which finds the
 // definition only in raw YAML.
-func definedInRaw(p twinPlace) []string {
-	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop unresolved",
-		"diag error openapi/unresolved-ref 0" + encodingAt + p.header() + "/schema/properties/d:"}
+func definedInRaw(twinPlaceValue twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/properties/d: hop unresolved",
+		"diag error openapi/unresolved-ref 0" + encodingAt + twinPlaceValue.header() + "/schema/properties/d:"}
 }
 
 // headerRefused is HRef refused as naming no header.
@@ -350,9 +350,9 @@ func headerRefused(twinPlace) []string {
 
 // headerFromSchema is HRef landing on the raw YAML at the header's schema,
 // read as a header.
-func headerFromSchema(p twinPlace) []string {
+func headerFromSchema(twinPlaceValue twinPlace) []string {
 	return []string{"reference spec.yaml#/components/headers/HRef header: hop resolved 0 raw",
-		"object-landing spec.yaml#" + encodingAt + p.header() + "/schema header"}
+		"object-landing spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema header"}
 }
 
 // refusedAt is a $ref from In refused as naming no schema.
@@ -370,31 +370,31 @@ func landedAt(twinPlace) []string {
 
 // listRefused is refusedAt where the field holds a mapping, as raw YAML a
 // $ref reads as a schema: a list, prefixEncoding's, is none either way.
-func listRefused(p twinPlace) []string {
-	if p.f.below == "/0" {
+func listRefused(twinPlaceValue twinPlace) []string {
+	if twinPlaceValue.f.below == "/0" {
 		return nil
 	}
-	return refusedAt(p)
+	return refusedAt(twinPlaceValue)
 }
 
 // listLanded is landedAt where the field holds a mapping (listRefused).
-func listLanded(p twinPlace) []string {
-	if p.f.below == "/0" {
+func listLanded(twinPlaceValue twinPlace) []string {
+	if twinPlaceValue.f.below == "/0" {
 		return nil
 	}
-	return landedAt(p)
+	return landedAt(twinPlaceValue)
 }
 
 // anchorAnswers is In's $ref answered by the nested schema's anchor.
-func anchorAnswers(p twinPlace) []string {
+func anchorAnswers(twinPlaceValue twinPlace) []string {
 	return []string{"entry spec.yaml#/components/schemas/In: hop resolved 0 raw spec.yaml#" + encodingAt +
-		p.header() + "/schema", "landing spec.yaml#" + encodingAt + p.header() + "/schema"}
+		twinPlaceValue.header() + "/schema", "landing spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema"}
 }
 
 // draftIdentifiersKept is the schema In lowers reporting the identifiers it
 // keeps, its $id and its $schema.
-func draftIdentifiersKept(p twinPlace) []string {
-	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.header() + "/schema/$"}
+func draftIdentifiersKept(twinPlaceValue twinPlace) []string {
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + twinPlaceValue.header() + "/schema/$"}
 }
 
 // draftAnchorUnresolved is the compile refusing In's $ref.
@@ -403,7 +403,7 @@ func draftAnchorUnresolved(twinPlace) []string {
 }
 
 // anchorUnanswered is In's $ref naming an anchor no schema declares.
-func anchorUnanswered(p twinPlace) []string { return refusedAt(p) }
+func anchorUnanswered(twinPlaceValue twinPlace) []string { return refusedAt(twinPlaceValue) }
 
 // headerHopAt is HRef landing on a header the grammar places.
 func headerHopAt(twinPlace) []string {
@@ -411,43 +411,43 @@ func headerHopAt(twinPlace) []string {
 }
 
 // rawHeaderAt is HRef landing on raw YAML read as a header.
-func rawHeaderAt(p twinPlace) []string {
+func rawHeaderAt(twinPlaceValue twinPlace) []string {
 	return []string{"reference spec.yaml#/components/headers/HRef header: hop resolved 0 raw",
-		"object-landing spec.yaml#" + encodingAt + p.header() + " header"}
+		"object-landing spec.yaml#" + encodingAt + twinPlaceValue.header() + " header"}
 }
 
 // readThroughHeader is the header Reference Object beneath the field, bound,
 // and In's pointer read through it into X's schema.
-func readThroughHeader(p twinPlace) []string {
-	return []string{"reference spec.yaml#" + encodingAt + p.header() + " header",
+func readThroughHeader(twinPlaceValue twinPlace) []string {
+	return []string{"reference spec.yaml#" + encodingAt + twinPlaceValue.header() + " header",
 		"entry spec.yaml#/components/schemas/In: hop resolved 0 schema spec.yaml#/components/headers/X/schema"}
 }
 
 // unreadHeader is In's pointer naming a key the raw mapping does not write.
-func unreadHeader(p twinPlace) []string { return refusedAt(p) }
+func unreadHeader(twinPlaceValue twinPlace) []string { return refusedAt(twinPlaceValue) }
 
 // twinAnswers is what the binder and the compiler say of one document, a line
 // each, its key spelled as the nested document spells it.
-func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
+func twinAnswers(t *testing.T, twinPlaceValue twinPlace, twinDocValue twinDoc, nested string) []string {
 	t.Helper()
-	src := d.source(p)
+	src := twinDocValue.source(twinPlaceValue)
 	files := map[string]string{"main.yaml": src}
-	if d.other != "" {
-		files["other.yaml"] = d.other
+	if twinDocValue.other != "" {
+		files["other.yaml"] = twinDocValue.other
 	}
-	cfg := bind.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
+	cfg := reftable.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		text, ok := files[name]
 		if !ok {
 			return nil, errors.New("no such document")
 		}
-		var n yaml.Node
-		return &n, yaml.Unmarshal([]byte(text), &n)
+		var node yaml.Node
+		return &node, yaml.Unmarshal([]byte(text), &node)
 	}}
 	root := openapitest.YAMLDocument(t, src)
-	table := bind.Bind(t.Context(), root, cfg)
+	table := reftable.Bind(t.Context(), root, cfg)
 	lines := bindAnswers(table)
 	// An incomplete total is never read, so its count says nothing.
-	if named, complete := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
+	if named, complete := reftable.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
 		lines = append(lines, fmt.Sprintf("named pointer bytes %d", named))
 	}
 
@@ -456,14 +456,14 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	doc, diags := compileDir(t, dir, openapi.Options{})
 	lines = append(lines, "compiled "+strconv.FormatBool(doc != nil), fmt.Sprintf("charged %d", charged(t, dir)))
 	lines = append(lines, irAnswers(t, doc)...)
-	for _, d := range diags {
-		lines = append(lines, fmt.Sprintf("diag %s %s %d%s: %s", d.Severity, d.Code, d.Provenance.Source,
-			d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		lines = append(lines, fmt.Sprintf("diag %s %s %d%s: %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Source,
+			diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	for i := range lines {
 		lines[i] = strings.ReplaceAll(lines[i], dir, "DIR")
-		lines[i] = strings.ReplaceAll(lines[i], p.key, nested)
-		lines[i] = strings.ReplaceAll(lines[i], p.escaped(), twinPlace{key: nested}.escaped())
+		lines[i] = strings.ReplaceAll(lines[i], twinPlaceValue.key, nested)
+		lines[i] = strings.ReplaceAll(lines[i], twinPlaceValue.escaped(), twinPlace{key: nested}.escaped())
 	}
 	slices.Sort(lines)
 	return lines
@@ -522,25 +522,29 @@ func irAnswers(t *testing.T, doc *ir.Document) []string {
 // bindAnswers is what table says of every reference it read: each schema
 // $ref's hop and chain, each landing, each reference object's hop and chain,
 // and each object landing.
-func bindAnswers(table *bind.Table) []string {
-	at := func(p bind.Position) string { return table.Document(p.Doc).Name + "#" + string(p.Pointer) }
-	hop := func(h bind.Hop) string {
-		return fmt.Sprintf("hop %s %d %s %s %s | ", h.Status, h.Reason, h.Role, at(h.Target), h.Detail)
+func bindAnswers(table *reftable.ReferenceTargetTable) []string {
+	at := func(documentPointer reftable.DocumentPointer) string {
+		return table.Document(documentPointer.Doc).Name + "#" + string(documentPointer.Pointer)
 	}
-	chain := func(c bind.Chain) string { return fmt.Sprintf("chain %s %s %d", c.Status, at(c.End), c.Hops) }
+	hop := func(hop reftable.Hop) string {
+		return fmt.Sprintf("hop %s %d %s %s %s | ", hop.Status, hop.Reason, hop.Role, at(hop.Target), hop.Detail)
+	}
+	chain := func(chain reftable.Chain) string {
+		return fmt.Sprintf("chain %s %s %d", chain.Status, at(chain.End), chain.Hops)
+	}
 	lines := make([]string, 0, len(table.Entries())+len(table.Landings())+len(table.References())+
 		len(table.ObjectLandings()))
-	for _, e := range table.Entries() {
-		lines = append(lines, "entry "+at(e.Site)+": "+hop(e.Hop)+chain(e.Chain))
+	for _, referenceSite := range table.Entries() {
+		lines = append(lines, "entry "+at(referenceSite.Site)+": "+hop(referenceSite.Hop)+chain(referenceSite.Chain))
 	}
-	for _, l := range table.Landings() {
-		lines = append(lines, fmt.Sprintf("landing %s site %s reached %t", at(l.At), at(l.Site), l.Reached))
+	for _, landing := range table.Landings() {
+		lines = append(lines, fmt.Sprintf("landing %s site %s reached %t", at(landing.At), at(landing.Site), landing.Reached))
 	}
-	for _, r := range table.References() {
-		lines = append(lines, "reference "+at(r.Site)+" "+r.Kind.String()+": "+hop(r.Hop)+chain(r.Chain))
+	for _, reference := range table.References() {
+		lines = append(lines, "reference "+at(reference.Site)+" "+reference.Kind.String()+": "+hop(reference.Hop)+chain(reference.Chain))
 	}
-	for _, l := range table.ObjectLandings() {
-		lines = append(lines, "object-landing "+at(l.At)+" "+l.Kind.String())
+	for _, objectLanding := range table.ObjectLandings() {
+		lines = append(lines, "object-landing "+at(objectLanding.At)+" "+objectLanding.Kind.String())
 	}
 	return lines
 }
@@ -552,7 +556,7 @@ func charged(t *testing.T, dir string) int {
 	t.Helper()
 	within := func(limit int) bool {
 		_, diags := compileDir(t, dir, openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}})
-		return !slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.BudgetExceeded })
+		return !slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.BudgetExceeded })
 	}
 	refused, admitted := 0, 1
 	for !within(admitted) {
@@ -580,14 +584,14 @@ func charged(t *testing.T, dir string) int {
 // apart lowers to.
 func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 	t.Parallel()
-	for _, f := range unheldFields {
+	for _, unheldField := range unheldFields {
 		for _, deep := range []bool{false, true} {
 			for _, row := range twinRows {
-				t.Run(fmt.Sprintf("%s/deep=%t/%s", f.key, deep, row.name), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s/deep=%t/%s", unheldField.key, deep, row.name), func(t *testing.T) {
 					t.Parallel()
-					nested, twin := twinPlace{f: f, key: f.key, deep: deep}, twinPlace{f: f, key: f.twin, deep: deep}
-					got, gotNamed, gotTaken := namedTotal(twinAnswers(t, nested, row.doc(nested), f.key))
-					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), f.key))
+					nested, twin := twinPlace{f: unheldField, key: unheldField.key, deep: deep}, twinPlace{f: unheldField, key: unheldField.twin, deep: deep}
+					got, gotNamed, gotTaken := namedTotal(twinAnswers(t, nested, row.doc(nested), unheldField.key))
+					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), unheldField.key))
 					require.Equal(t, wantTaken, gotTaken, "the pointer bound takes a total of both or neither")
 					// The binder reads each node beneath the field for the references
 					// written there, merged in through `<<` or written, where an

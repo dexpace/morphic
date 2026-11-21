@@ -55,7 +55,7 @@ func TestOperationPath_ListsEveryCarrier(t *testing.T) {
 // same values.
 func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 	t.Parallel()
-	op := func(params ...ir.Parameter) *ir.Document {
+	operation := func(params ...ir.Parameter) *ir.Document {
 		return &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{
 			Operations: []ir.Operation{{Params: params}},
 		}}}}}
@@ -76,16 +76,16 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 			t.Parallel()
 			shown := func(doc *ir.Document) int {
 				visitor, count := check(doc), 0
-				ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+				ir.WalkValues(doc, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 					count++
 					return visitor.visit(v, at)
 				}))
 				return count
 			}
 
-			plain := op()
-			richer := op(ir.Parameter{ID: "p/a"}, ir.Parameter{ID: "p/b"})
-			richer.Types = ir.TypeRegistry{"t/a": &ir.Primitive{}, "t/b": &ir.Primitive{}}
+			plain := operation()
+			richer := operation(ir.Parameter{ID: "property/a"}, ir.Parameter{ID: "property/b"})
+			richer.Types = ir.TypeRegistry{"type/a": &ir.Primitive{}, "type/b": &ir.Primitive{}}
 			assert.Equal(t, shown(plain), shown(richer))
 		})
 	}

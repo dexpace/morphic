@@ -44,9 +44,9 @@ func nodeAtWidthPosition(t *testing.T, doc *ir.Document, at jsontext.Pointer) ir
 	case widthPositions[1]:
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok)
-		p, ok := propByWire(holder, "p")
+		property, ok := propertyByWire(holder, "p")
 		require.True(t, ok)
-		return kindNode(t, doc, p.Type.Target)
+		return kindNode(t, doc, property.Type.Target)
 	case widthPositions[2]:
 		union, ok := kindNode(t, doc, componentID("Br")).(*ir.Union)
 		require.True(t, ok)
@@ -125,7 +125,7 @@ func assertWidthOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	scalar, ok := td.(*ir.Scalar)
 	require.True(t, ok, "%s: the top type, got %s", where, td.Kind())
 	require.NotNil(t, scalar.Base, where)
-	assert.Equal(t, prim(ir.PrimAny), scalar.Base.Target, where)
+	assert.Equal(t, primitive(ir.PrimitiveAny), scalar.Base.Target, where)
 	assert.False(t, markedKindInference(td), where)
 	assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:" + keyword: ir.ReasonDegradedLowering}, keptOn(td), where)
 	assert.Equal(t, []jsontext.Pointer{at}, degradedUnder(diags, at), where)
@@ -155,8 +155,8 @@ func TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind(t *testing.T) {
 					requireErrorsAndWarnings(t, diags, nil)
 					objects, ok := kindNode(t, doc, componentID("Objects")).(*ir.Union)
 					require.True(t, ok, "a bare required distributes across objects")
-					for _, v := range objects.Variants {
-						variant, isModel := kindNode(t, doc, v.Type.Target).(*ir.Model)
+					for _, irVariant := range objects.Variants {
+						variant, isModel := kindNode(t, doc, irVariant.Type.Target).(*ir.Model)
 						require.True(t, isModel)
 						assert.Equal(t, []string{"a"}, variant.Requires)
 						assert.False(t, markedKindInference(variant), "the branches declare the object")
@@ -165,11 +165,11 @@ func TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind(t *testing.T) {
 					narrowings, ok := kindNode(t, doc, componentID("Narrowings")).(*ir.Union)
 					require.True(t, ok)
 					require.Len(t, narrowings.Variants, 2)
-					for i, v := range narrowings.Variants {
-						variant, isScalar := kindNode(t, doc, v.Type.Target).(*ir.Scalar)
+					for i, irVariant := range narrowings.Variants {
+						variant, isScalar := kindNode(t, doc, irVariant.Type.Target).(*ir.Scalar)
 						require.True(t, isScalar, "variant %d", i)
 						require.NotNil(t, variant.Base)
-						assert.Equal(t, prim(ir.PrimAny), variant.Base.Target, "variant %d", i)
+						assert.Equal(t, primitive(ir.PrimitiveAny), variant.Base.Target, "variant %d", i)
 						assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:required": ir.ReasonDegradedLowering},
 							keptOn(variant), "variant %d", i)
 					}
@@ -194,7 +194,7 @@ func TestKindInference_ANarrowingBesideATypingKeywordStaysOnItsModel(t *testing.
 			model, ok := kindNode(t, doc, componentID("Closed")).(*ir.Model)
 			require.True(t, ok)
 			assert.True(t, markedKindInference(model))
-			a, ok := propByWire(model, "a")
+			a, ok := propertyByWire(model, "a")
 			require.True(t, ok)
 			assert.True(t, a.Required, "required names the member")
 			assert.Equal(t, ir.AdditionalClosed, model.Additional)

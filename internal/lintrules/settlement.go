@@ -32,10 +32,10 @@ func (s settlement) inClosure(pos token.Pos) bool {
 // settlements returns what the Settle methods the package declares, on types
 // that are compile.Settlements, may write.
 func settlements(pass *analysis.Pass) settlement {
-	s := settlement{params: map[types.Object]bool{}}
+	settlementValue := settlement{params: map[types.Object]bool{}}
 	tn := typeNamed(pass.Pkg, compilePath, "Settlement")
 	if tn == nil {
-		return s
+		return settlementValue
 	}
 	iface, _ := tn.Type().Underlying().(*types.Interface)
 	for _, f := range productionFiles(pass) {
@@ -49,15 +49,15 @@ func settlements(pass *analysis.Pass) settlement {
 				continue
 			}
 			param := fn.Signature().Params().At(1)
-			s.params[param] = !rebinds(pass.TypesInfo, fd.Body, param)
+			settlementValue.params[param] = !rebinds(pass.TypesInfo, fd.Body, param)
 			for n := range ast.Preorder(fd.Body) {
 				if lit, isLit := n.(*ast.FuncLit); isLit {
-					s.closures = append(s.closures, lit)
+					settlementValue.closures = append(settlementValue.closures, lit)
 				}
 			}
 		}
 	}
-	return s
+	return settlementValue
 }
 
 // rebinds reports whether body assigns param, ranges into it or takes its

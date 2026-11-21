@@ -34,10 +34,10 @@ func TestSites_ListEveryObjectAroundTheMetadata(t *testing.T) {
 		scope string
 		owner jsontext.Pointer
 	}
-	all := sites(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+	all := sites(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc}, service.Policy{}))
 	got := make([]keyed, 0, len(all))
-	for _, s := range all {
-		got = append(got, keyed{s.scope, s.owner})
+	for _, metadataObjectSite := range all {
+		got = append(got, keyed{metadataObjectSite.scope, metadataObjectSite.owner})
 	}
 
 	assert.Equal(t, []keyed{
@@ -54,7 +54,7 @@ func TestSites_ListEveryObjectAroundTheMetadata(t *testing.T) {
 	want := []extensible{doc, &doc.Info, doc.Info.Contact, doc.Info.License,
 		doc.ExternalDocs, doc.Components}
 	require.Len(t, all, len(want))
-	for i, s := range all {
-		assert.Same(t, want[i], s.model, "the site at %q holds the object written there", s.owner)
+	for i, metadataObjectSite := range all {
+		assert.Same(t, want[i], metadataObjectSite.model, "the site at %q holds the object written there", metadataObjectSite.owner)
 	}
 }

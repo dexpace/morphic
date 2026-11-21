@@ -19,8 +19,8 @@ import (
 // it was handed, not on a position in a source.
 func noSourceDiagnostics(doc *ir.Document) int {
 	var n int
-	for _, d := range doc.Diagnostics {
-		if d.Provenance.Source == ir.NoSource {
+	for _, diagnostic := range doc.Diagnostics {
+		if diagnostic.Provenance.Source == ir.NoSource {
 			n++
 		}
 	}

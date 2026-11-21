@@ -16,53 +16,53 @@ import (
 )
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "oldOp")
+	operation, ok := operationByName(doc, "oldOp")
 	require.True(t, ok)
-	assert.NotNil(t, op.Deprecation)
-	m, ok := doc.Types[componentID("OldModel")].(*ir.Model)
+	assert.NotNil(t, operation.Deprecation)
+	model, ok := doc.Types[componentID("OldModel")].(*ir.Model)
 	require.True(t, ok)
-	assert.NotNil(t, m.Deprecation)
-	require.Len(t, m.Properties, 1)
-	assert.NotNil(t, m.Properties[0].Deprecation)
+	assert.NotNil(t, model.Deprecation)
+	require.Len(t, model.Properties, 1)
+	assert.NotNil(t, model.Properties[0].Deprecation)
 
 	// A parameter is its own carrier: deprecated written on the parameter object
 	// reaches it without any schema being involved.
-	legacy, ok := openapitest.ParamBySource(op, "legacy")
+	legacy, ok := openapitest.ParamBySource(operation, "legacy")
 	require.True(t, ok)
 	assert.NotNil(t, legacy.Deprecation)
 }
 
 func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
 	// A schema that reduced to a shared primitive keeps its examples on the
 	// declaring property; one that hoists a node of its own keeps them there.
-	n, ok := propByWire(m, "n")
+	property, ok := propertyByWire(model, "n")
 	require.True(t, ok)
-	assert.Len(t, n.Examples, 2)
-	inner, ok := propByWire(m, "inner")
+	assert.Len(t, property.Examples, 2)
+	inner, ok := propertyByWire(model, "inner")
 	require.True(t, ok)
 	assert.Empty(t, inner.Examples, "an inline object holds its own examples")
 	require.Len(t, doc.Types[inner.Type.Target].Common().Examples, 1)
 
 	// A component's example belongs to the component, not to a use site.
-	c, ok := doc.Types[componentID("C")]
+	typeDef, ok := doc.Types[componentID("C")]
 	require.True(t, ok)
-	require.Len(t, c.Common().Examples, 1)
-	require.NotNil(t, c.Common().Examples[0].Value)
-	assert.Equal(t, "component-level", c.Common().Examples[0].Value.Str)
+	require.Len(t, typeDef.Common().Examples, 1)
+	require.NotNil(t, typeDef.Common().Examples[0].Value)
+	assert.Equal(t, "component-level", typeDef.Common().Examples[0].Value.String)
 
 	// A parameter carries its own examples, keyed by their map key like a media
 	// type's.
-	op, ok := opByName(doc, "getItem")
+	operation, ok := operationByName(doc, "getItem")
 	require.True(t, ok)
-	q, ok := openapitest.ParamBySource(op, "q")
+	parameter, ok := openapitest.ParamBySource(operation, "q")
 	require.True(t, ok)
-	require.Len(t, q.Examples, 1)
-	assert.Equal(t, "one", q.Examples[0].Name)
-	require.NotNil(t, q.Examples[0].Value)
-	assert.Equal(t, "first", q.Examples[0].Value.Str)
+	require.Len(t, parameter.Examples, 1)
+	assert.Equal(t, "one", parameter.Examples[0].Name)
+	require.NotNil(t, parameter.Examples[0].Value)
+	assert.Equal(t, "first", parameter.Examples[0].Value.String)
 
 	assertResponseExamples(t, doc)
 }
@@ -71,19 +71,19 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // a media type, in every spelling the spec allows, and a response header.
 func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	op, ok := opByName(doc, "getItem")
+	operation, ok := operationByName(doc, "getItem")
 	require.True(t, ok)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	ex := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, operation.Responses[0].Payload.Contents, 1)
+	ex := operation.Responses[0].Payload.Contents[0].Examples
 	require.Len(t, ex, 4, "every entry lowers, in source order")
 
 	// An inline entry and one written as a $ref, which must resolve to the
 	// referenced component's value. Both are named by their map key.
 	require.NotNil(t, ex[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "hello"}, *ex[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "hello"}, *ex[0].Value)
 	assert.Equal(t, "inline", ex[0].Name)
 	require.NotNil(t, ex[1].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "world"}, *ex[1].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "world"}, *ex[1].Value)
 	assert.Equal(t, "shared", ex[1].Name)
 
 	// The annotations that surround a value travel with it.
@@ -95,11 +95,11 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	assert.Nil(t, ex[3].Value)
 	assert.Equal(t, "hosted elsewhere", ex[3].Summary)
 
-	headers := op.Responses[0].Headers
+	headers := operation.Responses[0].Headers
 	require.Len(t, headers, 1)
 	require.Len(t, headers[0].Examples, 1)
 	require.NotNil(t, headers[0].Examples[0].Value)
-	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Number)
 }
 
 // assertSelfURI pins that a declared `$self` reaches the source's entry rather
@@ -113,13 +113,13 @@ func assertSelfURI(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "ping")
+	operation, ok := operationByName(doc, "ping")
 	require.True(t, ok)
-	assert.Equal(t, "Ping the server", op.Docs.Summary)
-	assert.Equal(t, "Returns pong", op.Docs.Description)
-	require.Len(t, op.Docs.ExternalDocs, 1)
+	assert.Equal(t, "Ping the server", operation.Docs.Summary)
+	assert.Equal(t, "Returns pong", operation.Docs.Description)
+	require.Len(t, operation.Docs.ExternalDocs, 1)
 	assert.Equal(t, ir.Link{URL: "https://example.com/docs/ping", Description: "Ping reference"},
-		op.Docs.ExternalDocs[0])
+		operation.Docs.ExternalDocs[0])
 
 	// A documented scalar alias is documented too: its docs must not depend on
 	// what its body happens to lower to (GitHub #114).
@@ -147,25 +147,25 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // so the declaration-pointer path is exercised and one declaration is still one
 // type however many mounts read its docs.
 func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	created, ok := opByName(doc, "createOrder")
+	created, ok := operationByName(doc, "createOrder")
 	require.True(t, ok)
 	require.NotNil(t, created.Request)
 	assert.Equal(t, "A shared order body.", created.Request.Docs.Description,
 		"a $ref'd body keeps the component's description")
 
-	replaced, ok := opByName(doc, "replaceOrder")
+	replaced, ok := operationByName(doc, "replaceOrder")
 	require.True(t, ok)
 	require.NotNil(t, replaced.Request)
 	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description,
 		"the second mount reads the same declaration's docs")
 
-	shared := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	shared := ir.TypeID("type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema")
 	assert.Equal(t, shared, openapitest.BodyTarget(t, created.Request),
 		"a shared body interns at its component pointer (issue #107)")
 	assert.Equal(t, shared, openapitest.BodyTarget(t, replaced.Request),
 		"...once, whichever mount lowered it first")
 
-	draft, ok := opByName(doc, "saveDraft")
+	draft, ok := operationByName(doc, "saveDraft")
 	require.True(t, ok)
 	require.NotNil(t, draft.Request)
 	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description,
@@ -180,9 +180,9 @@ func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // different overrides also pins the other half: each mount keeps its own and
 // neither mutates the declaration.
 func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	widgets, ok := opByName(doc, "listWidgets")
+	widgets, ok := operationByName(doc, "listWidgets")
 	require.True(t, ok)
-	gadgets, ok := opByName(doc, "listGadgets")
+	gadgets, ok := operationByName(doc, "listGadgets")
 	require.True(t, ok)
 
 	// parameters — the two-mount case: the first writes both siblings, the second
@@ -245,7 +245,7 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // site's own override them in turn.
 func assertAliasHopDocs(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	sprocket, ok := opByName(doc, "makeSprocket")
+	sprocket, ok := operationByName(doc, "makeSprocket")
 	require.True(t, ok)
 	limit, ok := openapitest.ParamBySource(sprocket, "limit")
 	require.True(t, ok)
@@ -269,39 +269,39 @@ func assertAliasHopDocs(t *testing.T, doc *ir.Document) {
 // and a serializedValue is kept verbatim under Unmodeled wherever it is written,
 // alone or beside a dataValue, rather than dropped.
 func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "list")
+	operation, ok := operationByName(doc, "list")
 	require.True(t, ok)
 
 	// parameters
-	limit, ok := openapitest.ParamBySource(op, "limit")
+	limit, ok := openapitest.ParamBySource(operation, "limit")
 	require.True(t, ok)
 	require.Len(t, limit.Examples, 1)
 	require.NotNil(t, limit.Examples[0].Value, "a parameter's dataValue reaches Example.Value")
-	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Number)
 
 	// headers
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 1)
-	headerExample := op.Responses[0].Headers[0].Examples
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	headerExample := operation.Responses[0].Headers[0].Examples
 	require.Len(t, headerExample, 1)
 	assert.Equal(t, ir.ReasonNoIRHome, headerExample[0].Unmodeled["openapi:serializedValue"].Reason,
 		"a header's serializedValue keeps the entry verbatim")
 
 	// content, and through it components/examples
-	examples := op.Responses[0].Payload.Contents[0].Examples
+	examples := operation.Responses[0].Payload.Contents[0].Examples
 	require.Len(t, examples, 4)
 	byName := map[string]ir.Example{}
-	for _, e := range examples {
-		byName[e.Name] = e
+	for _, example := range examples {
+		byName[example.Name] = example
 	}
 	require.NotNil(t, byName["five"].Value)
-	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Num)
+	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Number)
 	require.NotNil(t, byName["one"].Value, "a $ref'd components/examples entry lowers its dataValue")
-	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Num)
+	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Number)
 	assert.Equal(t, ir.ReasonNoIRHome, byName["serial"].Unmodeled["openapi:serializedValue"].Reason)
 	assert.Nil(t, byName["serial"].Value)
 	require.NotNil(t, byName["both"].Value, "a dataValue beside a serializedValue still lowers")
-	assert.Equal(t, ir.BigVal("2"), byName["both"].Value.Num)
+	assert.Equal(t, ir.BigVal("2"), byName["both"].Value.Number)
 	assert.JSONEq(t, `"\"2\""`, string(byName["both"].Unmodeled["openapi:serializedValue"].Value),
 		"...and the serialized form beside it is kept too")
 
@@ -318,36 +318,36 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // a member the document declares beside it.
 func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const marked = "extension-promotion," + openapi.ReplacementInferenceHeuristic
-	v1, ok := opByName(doc, "listZonesV1")
+	v1, ok := operationByName(doc, "listZonesV1")
 	require.True(t, ok)
 	require.NotNil(t, v1.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Operation: "op/openapi/paths/~1v2~1zones/get"}}, v1.Deprecation.ReplacedBy)
+	assert.Equal(t, []ir.EntityRef{{Operation: "operation/openapi/paths/~1v2~1zones/get"}}, v1.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, v1.Provenance.Inferred)
 	from, ok := openapitest.ParamBySource(v1, "from_date")
 	require.True(t, ok)
 	require.NotNil(t, from.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Param: "param/openapi/paths/~1v1~1zones/get/parameters/start/query"}},
+	assert.Equal(t, []ir.EntityRef{{Param: "parameter/openapi/paths/~1v1~1zones/get/parameters/start/query"}},
 		from.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, from.Provenance.Inferred)
 
-	create, ok := opByName(doc, "createZoneV1")
+	create, ok := operationByName(doc, "createZoneV1")
 	require.True(t, ok)
 	require.NotNil(t, create.Deprecation)
 	assert.Empty(t, create.Deprecation.ReplacedBy, "POST /zones is no route the document declares")
 	assert.Equal(t, "Use POST /zones before 2027-01-01.", create.Deprecation.Message)
 
 	zone := secretModel(t, doc, "Zone")
-	modified, ok := propByWire(zone, "modified")
+	modified, ok := propertyByWire(zone, "modified")
 	require.True(t, ok)
 	require.NotNil(t, modified.Deprecation)
-	assert.Equal(t, []ir.EntityRef{{Property: "p/openapi/components/schemas/Zone/properties/modified_at"}},
+	assert.Equal(t, []ir.EntityRef{{Property: "property/openapi/components/schemas/Zone/properties/modified_at"}},
 		modified.Deprecation.ReplacedBy)
 	assert.Equal(t, marked, modified.Provenance.Inferred)
-	legacy, ok := propByWire(zone, "legacy")
+	legacy, ok := propertyByWire(zone, "legacy")
 	require.True(t, ok)
 	require.NotNil(t, legacy.Deprecation)
 	assert.Empty(t, legacy.Deprecation.ReplacedBy, "gone names no member")
-	created, ok := propByWire(zone, "created")
+	created, ok := propertyByWire(zone, "created")
 	require.True(t, ok)
 	require.NotNil(t, created.Deprecation)
 	assert.Empty(t, created.Deprecation.ReplacedBy, "createdAt names no member, beside created_at")

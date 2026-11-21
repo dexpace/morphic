@@ -63,9 +63,9 @@ func compileDir(t *testing.T, dir string, opts openapi.Options) (*ir.Document, [
 // byCode returns the diagnostics carrying code.
 func byCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -76,8 +76,8 @@ func byCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 // with a different column still compares equal.
 func lines(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %d %s %s", d.Severity, d.Code, d.Provenance.Source, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %d %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Source, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	return out
 }

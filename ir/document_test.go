@@ -14,7 +14,7 @@ import (
 
 func TestDocument_ConstructRepresentative(t *testing.T) {
 	t.Parallel()
-	userID := ir.TypeID("t/openapi/components/schemas/User")
+	userID := ir.TypeID("type/openapi/components/schemas/User")
 	doc := ir.Document{
 		IRVersion: ir.IRVersion,
 		Name:      "Petstore",
@@ -24,21 +24,21 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 				ID:   userID,
 				Name: ir.Naming{Source: "User", Canonical: "user"},
 				Properties: []ir.Property{{
-					ID:       ir.PropID("p/openapi/components/schemas/User/properties/id"),
+					ID:       ir.PropertyID("property/openapi/components/schemas/User/properties/id"),
 					Name:     ir.Naming{Source: "id", Canonical: "id"},
 					WireName: "id",
-					Type:     ir.TypeRef{Target: ir.TypeID("t/openapi/prim/string")},
+					Type:     ir.TypeRef{Target: ir.TypeID("type/openapi/prim/string")},
 					Required: true,
 				}},
 			},
 		},
 		Services: []ir.Service{{
-			ID:   ir.ServiceID("s/openapi/petstore"),
+			ID:   ir.ServiceID("service/openapi/petstore"),
 			Name: ir.Naming{Source: "Petstore", Canonical: "petstore"},
 			Groups: []ir.OperationGroup{{
 				Name: ir.Naming{Source: "users", Canonical: "users"},
 				Operations: []ir.Operation{{
-					ID:   ir.OpID("op/openapi/paths/~1users/get"),
+					ID:   ir.OperationID("operation/openapi/paths/~1users/get"),
 					Name: ir.Naming{Source: "listUsers", Canonical: "list_users"},
 					Responses: []ir.Response{{
 						Conditions: ir.ResponseConditions{
@@ -49,7 +49,7 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 							Type:      ir.TypeRef{Target: userID},
 						}}},
 					}},
-					Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+					Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 						Method:      "GET",
 						URITemplate: "/users",
 					}}},
@@ -79,10 +79,10 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 // literal left behind once asserted that a build rejects its own documents.
 func TestCompatibleVersion(t *testing.T) {
 	t.Parallel()
-	v, ok := parseVersion(ir.IRVersion)
+	semverValue, ok := parseVersion(ir.IRVersion)
 	require.True(t, ok, "IRVersion %q is not MAJOR.MINOR.PATCH", ir.IRVersion)
-	require.NotEqual(t, semver{}, v, "IRVersion 0.0.0 has no earlier version to refuse")
-	earlier := v
+	require.NotEqual(t, semver{}, semverValue, "IRVersion 0.0.0 has no earlier version to refuse")
+	earlier := semverValue
 	for i := len(earlier) - 1; i >= 0; i-- {
 		if earlier[i] > 0 {
 			earlier[i]--
@@ -99,7 +99,7 @@ func TestCompatibleVersion(t *testing.T) {
 		{"absent", "", false},
 		{"an earlier version", earlier.String(), false},
 		{"the next generation", nextGeneration(ir.IRVersion), false},
-		{"a differing patch", semver{v[0], v[1], v[2] + 1}.String(), false},
+		{"a differing patch", semver{semverValue[0], semverValue[1], semverValue[2] + 1}.String(), false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},

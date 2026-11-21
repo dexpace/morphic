@@ -27,9 +27,9 @@ func validDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion, Name: "t", Version: "1",
 		Types: ir.TypeRegistry{
-			"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: "string"},
-			"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{
-				{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
+			"type/primitive/string": &ir.Primitive{ID: "type/primitive/string", PrimitiveKind: "string"},
+			"type/m": &ir.Model{ID: "type/m", Properties: []ir.Property{
+				{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/primitive/string"}},
 			}},
 		},
 	}
@@ -90,30 +90,30 @@ func readRepeatedly(tb fataler, read func() []ir.Diagnostic) []ir.Diagnostic {
 
 // docWithOperation wraps a single operation in a service/group so the operation
 // walkers reach it.
-func docWithOperation(op ir.Operation) *ir.Document {
+func docWithOperation(operation ir.Operation) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
 		ID:     "s",
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}},
 	}}
 	return doc
 }
 
-// docWithOperations wraps ops in one service and group.
-func docWithOperations(ops ...ir.Operation) *ir.Document {
+// docWithOperations wraps operations in one service and group.
+func docWithOperations(operations ...ir.Operation) *ir.Document {
 	doc := validDoc()
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: operations}}}}
 	return doc
 }
 
-// nestGroups buries op under depth levels of operation groups.
-func nestGroups(depth int, op ir.Operation) *ir.Document {
-	g := ir.OperationGroup{Operations: []ir.Operation{op}}
+// nestGroups buries operation under depth levels of operation groups.
+func nestGroups(depth int, operation ir.Operation) *ir.Document {
+	operationGroup := ir.OperationGroup{Operations: []ir.Operation{operation}}
 	for range depth {
-		g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
+		operationGroup = ir.OperationGroup{Groups: []ir.OperationGroup{operationGroup}}
 	}
 	doc := validDoc()
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{operationGroup}}}
 	return doc
 }
 
@@ -121,8 +121,8 @@ func nestGroups(depth int, op ir.Operation) *ir.Document {
 func countCode(t *testing.T, diags []ir.Diagnostic, code string) int {
 	t.Helper()
 	var n int
-	for _, d := range diags {
-		if d.Code == code {
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
 			n++
 		}
 	}
@@ -133,9 +133,9 @@ func countCode(t *testing.T, diags []ir.Diagnostic, code string) int {
 func messageForCode(t *testing.T, diags []ir.Diagnostic, code string) string {
 	t.Helper()
 	require.Equal(t, 1, countCode(t, diags, code), "expected exactly one %s", code)
-	for _, d := range diags {
-		if d.Code == code {
-			return d.Message
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			return diagnostic.Message
 		}
 	}
 	return ""
@@ -154,7 +154,7 @@ func TestValidate_NilDocumentReturnsNil(t *testing.T) {
 func TestValidate_SharedRouteIsLegal(t *testing.T) {
 	t.Parallel()
 	mk := func() ir.Operation {
-		return ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		return ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x", SharedRoute: true,
 		}}}}
 	}
@@ -173,8 +173,8 @@ func TestValidate_SharedRouteIsLegal(t *testing.T) {
 func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
-		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	doc.Types["type/m"] = &ir.Model{ID: "type/m", Properties: []ir.Property{
+		{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/missing"}},
 	}}
 	want := validated(t, doc)
 	require.Contains(t, irtest.DiagCodes(want), "ir/dangling-type-ref")
@@ -195,8 +195,8 @@ func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 // declares, so a whole Validate reports it.
 func danglingDoc() *ir.Document {
 	doc := validDoc()
-	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
-		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	doc.Types["type/m"] = &ir.Model{ID: "type/m", Properties: []ir.Property{
+		{ID: "property/m/a", WireName: "a", Type: ir.TypeRef{Target: "type/missing"}},
 	}}
 	return doc
 }
@@ -282,15 +282,15 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 // appendTypeIDs, which walks one GraphQL operation rather than the document.
 func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
+	loadedPackage, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
-	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
+	irAsSeen, reaches := loadedPackage.Imported(reflect.TypeFor[ir.Document]().PkgPath())
 	require.True(t, reaches, "the pass must import ir")
 	for name, want := range map[string][]string{
 		"WalkValuesContext": {"Run", "Validate"}, "WalkValues": {"appendTypeIDs"},
 	} {
 		walk := irAsSeen.Scope().Lookup(name)
 		require.NotNil(t, walk, "the ir package must declare %s", name)
-		assert.Equal(t, want, p.FuncsUsing(walk), "the functions that walk through ir.%s", name)
+		assert.Equal(t, want, loadedPackage.FuncsUsing(walk), "the functions that walk through ir.%s", name)
 	}
 }

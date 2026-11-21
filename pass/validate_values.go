@@ -38,21 +38,21 @@ type valueSite struct {
 func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range live {
-		c := doc.Types[id].Common()
-		site := valueSite{doc: doc, node: string(id), from: c.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
-		diags = site.appendExamples(diags, c.Examples)
+		typeCommon := doc.Types[id].Common()
+		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
+		diags = site.appendExamples(diags, typeCommon.Examples)
 	}
-	var keys []ir.PropID
-	eachPosition(doc, live, &keys, func(p *position) {
-		site := valueSite{doc: doc, node: p.node, from: p.from, ref: p.typ, own: p.own, encoded: p.encoded}
-		if why := site.fits(p.def); why != "" {
+	var keys []ir.PropertyID
+	eachPosition(doc, live, &keys, func(positionValue *position) {
+		site := valueSite{doc: doc, node: positionValue.node, from: positionValue.from, ref: positionValue.typ, own: positionValue.own, encoded: positionValue.encoded}
+		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
-		diags = site.appendExamples(diags, p.examples)
+		diags = site.appendExamples(diags, positionValue.examples)
 	})
-	var params []ir.ParamID
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		diags = appendScenarioValues(diags, doc, &op, &params)
+	var params []ir.ParameterID
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		diags = appendScenarioValues(diags, doc, &operation, &params)
 	})
 	return diags
 }
@@ -82,18 +82,18 @@ func exampleLabel(ex *ir.Example, i int) string {
 	return strconv.Itoa(i)
 }
 
-// appendScenarioValues reports the values of op's scenarios the type of what
-// they stand for does not admit: each input parameter, against the parameter
-// of its ID, and the content of the error a scenario ends in, against the
-// error's type. params holds the sorted IDs of one input.
-func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, params *[]ir.ParamID) []ir.Diagnostic {
-	for i := range op.Examples {
-		ex := &op.Examples[i]
+// appendScenarioValues reports the values of operation's scenarios the type of
+// what they stand for does not admit: each input parameter, against the
+// parameter of its ID, and the content of the error a scenario ends in, against
+// the error's type. params holds the sorted IDs of one input.
+func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, params *[]ir.ParameterID) []ir.Diagnostic {
+	for i := range operation.Examples {
+		ex := &operation.Examples[i]
 		if ex.Input != nil {
-			diags = appendInputValues(diags, doc, op, ex, i, params)
+			diags = appendInputValues(diags, doc, operation, ex, i, params)
 		}
 		if ex.Error != nil {
-			site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: ex.Error.Type}
+			site := valueSite{doc: doc, node: string(operation.ID), from: operation.Provenance, ref: ex.Error.Type}
 			if why := site.fits(&ex.Error.Content); why != "" {
 				diags = append(diags, site.finding("pass/example-outside-type",
 					"scenario "+exampleLabel(ex, i)+" error "+why))
@@ -103,12 +103,12 @@ func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operat
 	return diags
 }
 
-// appendInputValues reports each parameter of scenario ex, the ith of op, whose
-// value the parameter's type does not admit, in the order of their IDs. An input
-// naming a parameter op does not declare is skipped: pass/param-binding-mismatch
-// has it.
-func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, ex *ir.Example, i int,
-	params *[]ir.ParamID,
+// appendInputValues reports each parameter of scenario ex, the ith of
+// operation, whose value the parameter's type does not admit, in the order of
+// their IDs. An input naming a parameter operation does not declare is skipped:
+// pass/param-binding-mismatch has it.
+func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, ex *ir.Example, i int,
+	params *[]ir.ParameterID,
 ) []ir.Diagnostic {
 	*params = (*params)[:0]
 	for id := range ex.Input.Params {
@@ -116,13 +116,13 @@ func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation
 	}
 	slices.Sort(*params)
 	for _, id := range *params {
-		pm := parameterOf(op, id)
+		pm := parameterOf(operation, id)
 		if pm == nil {
 			continue
 		}
-		site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: pm.Type, own: pm.Constraints}
-		v := ex.Input.Params[id]
-		if why := site.fits(&v); why != "" {
+		site := valueSite{doc: doc, node: string(operation.ID), from: operation.Provenance, ref: pm.Type, own: pm.Constraints}
+		value := ex.Input.Params[id]
+		if why := site.fits(&value); why != "" {
 			diags = append(diags, site.finding("pass/example-outside-type",
 				"scenario "+exampleLabel(ex, i)+" parameter "+strconv.Quote(string(id))+" "+why))
 		}
@@ -130,22 +130,22 @@ func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation
 	return diags
 }
 
-// parameterOf returns the parameter of op with the ID id, or nil.
-func parameterOf(op *ir.Operation, id ir.ParamID) *ir.Parameter {
-	for i := range op.Params {
-		if op.Params[i].ID == id {
-			return &op.Params[i]
+// parameterOf returns the parameter of operation with the ID id, or nil.
+func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
+	for i := range operation.Params {
+		if operation.Params[i].ID == id {
+			return &operation.Params[i]
 		}
 	}
 	return nil
 }
 
-// fits returns why v is no value of the site's type, or "" when it is one or
-// the check leaves it alone: a value that is a reference or a constructor, a
+// fits returns why value is no value of the site's type, or "" when it is one
+// or the check leaves it alone: a value that is a reference or a constructor, a
 // type nothing declares, one holding anything, a union or an external type, and
 // a value written in an encoding.
-func (s *valueSite) fits(v *ir.Value) string {
-	if v == nil || v.Kind == ir.ValueRefKind || v.Kind == ir.ValueCtor {
+func (s *valueSite) fits(value *ir.Value) string {
+	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
 	}
 	var b bounds
@@ -160,65 +160,66 @@ func (s *valueSite) fits(v *ir.Value) string {
 	case *ir.Union, *ir.External:
 		return ""
 	case *ir.Enum:
-		if slices.ContainsFunc(t.Members, func(m ir.EnumMember) bool { return same(&m.Value, v) }) ||
-			(v.Kind == ir.ValueNull && nullOK) {
+		if slices.ContainsFunc(t.Members, func(enumMember ir.EnumMember) bool { return same(&enumMember.Value, value) }) ||
+			(value.Kind == ir.ValueNull && nullOK) {
 			return ""
 		}
 		return "is not a member of enum " + string(target)
 	case *ir.Literal:
-		if same(&t.Value, v) || (v.Kind == ir.ValueNull && nullOK) {
+		if same(&t.Value, value) || (value.Kind == ir.ValueNull && nullOK) {
 			return ""
 		}
 		return "is not the value of literal " + string(target)
 	default:
 		// a value of any other type is judged by its kind below
 	}
-	if v.Kind == ir.ValueNull {
+	if value.Kind == ir.ValueNull {
 		if nullOK {
 			return ""
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeUnjudged {
+	if s.encoded || enc || sh == shapeNotChecked {
 		return ""
 	}
-	return fitsShape(v, sh, target, &b)
+	return fitsShape(value, sh, target, &b)
 }
 
-// fitsShape returns why v, which is not null, is no value of shape sh, the
+// fitsShape returns why value, which is not null, is no value of shape sh, the
 // shape of target, or lies outside the bounds b holds.
-func fitsShape(v *ir.Value, sh shape, target ir.TypeID, b *bounds) string {
-	if !admits(sh, v.Kind) {
-		return "is " + kindWords(v.Kind) + ", and " + string(target) + " holds " + shapeWords(sh)
+func fitsShape(value *ir.Value, sh shape, target ir.TypeID, b *bounds) string {
+	if !admits(sh, value.Kind) {
+		return "is " + kindWords(value.Kind) + ", and " + string(target) + " holds " + shapeWords(sh)
 	}
 	if sh == shapeInteger {
-		if d, err := v.Num.Decimal(); err == nil && !d.IsInt() {
+		if decimal, err := value.Number.Decimal(); err == nil && !decimal.IsInt() {
 			return "is no integer, and " + string(target) + " holds one"
 		}
 	}
-	if outside(v, sh, b) {
+	if outside(value, sh, b) {
 		return "lies outside the bounds declared for it"
 	}
 	return ""
 }
 
-// admits reports whether a value of kind k is one a type of shape sh holds.
-func admits(sh shape, k ir.ValueKind) bool {
+// admits reports whether a value of kind valueKind is one a type of shape sh
+// holds.
+func admits(sh shape, valueKind ir.ValueKind) bool {
 	switch sh {
 	case shapeBoolean:
-		return k == ir.ValueBool
+		return valueKind == ir.ValueBool
 	case shapeText:
-		return k == ir.ValueString || k == ir.ValueSymbol
+		return valueKind == ir.ValueString || valueKind == ir.ValueSymbol
 	case shapeBytes:
-		return k == ir.ValueBytes || k == ir.ValueString
+		return valueKind == ir.ValueBytes || valueKind == ir.ValueString
 	case shapeNumber:
-		return k == ir.ValueNumber || k == ir.ValueInf || k == ir.ValueNegInf || k == ir.ValueNaN
+		return valueKind == ir.ValueNumber || valueKind == ir.ValueInfinity || valueKind == ir.ValueNegativeInfinity || valueKind == ir.ValueNaN
 	case shapeInteger:
-		return k == ir.ValueNumber
+		return valueKind == ir.ValueNumber
 	case shapeList:
-		return k == ir.ValueList
+		return valueKind == ir.ValueList
 	default:
-		return k == ir.ValueObject // shapeObject: no other shape is asked
+		return valueKind == ir.ValueObject // shapeObject: no other shape is asked
 	}
 }
 
@@ -242,10 +243,11 @@ func shapeWords(sh shape) string {
 	}
 }
 
-// kindWords says what a value of kind k is. Null and the two kinds that stand
-// for another value are judged before it is asked, and are named by their kind.
-func kindWords(k ir.ValueKind) string {
-	switch k {
+// kindWords says what a value of kind valueKind is. Null and the two kinds that
+// stand for another value are judged before it is asked, and are named by their
+// kind.
+func kindWords(valueKind ir.ValueKind) string {
+	switch valueKind {
 	case ir.ValueBool:
 		return "a bool"
 	case ir.ValueString:
@@ -260,33 +262,33 @@ func kindWords(k ir.ValueKind) string {
 		return "a list"
 	case ir.ValueObject:
 		return "an object"
-	case ir.ValueInf, ir.ValueNegInf:
+	case ir.ValueInfinity, ir.ValueNegativeInfinity:
 		return "an infinity"
 	case ir.ValueNaN:
 		return "a NaN"
-	case ir.ValueNull, ir.ValueRefKind, ir.ValueCtor:
-		return "a " + string(k)
+	case ir.ValueNull, ir.ValueRefKind, ir.ValueConstructor:
+		return "a " + string(valueKind)
 	default:
-		return "a " + string(k)
+		return "a " + string(valueKind)
 	}
 }
 
-// outside reports whether v, a value its shape admits, lies outside the bounds
-// b holds: a number beyond an end, a string, bytes, list or object of a count
-// beyond a limit. A string for bytes is not measured.
-func outside(v *ir.Value, sh shape, b *bounds) bool {
+// outside reports whether value, a value its shape admits, lies outside the
+// bounds b holds: a number beyond an end, a string, bytes, list or object of a
+// count beyond a limit. A string for bytes is not measured.
+func outside(value *ir.Value, sh shape, b *bounds) bool {
 	switch {
 	case sh == shapeText:
-		return beyond(int64(utf8.RuneCountInString(v.Str)), b.minLen, b.maxLen)
-	case sh == shapeBytes && v.Kind == ir.ValueBytes:
-		return beyond(int64(len(v.Bytes)), b.minLen, b.maxLen)
+		return beyond(int64(utf8.RuneCountInString(value.String)), b.minLen, b.maxLen)
+	case sh == shapeBytes && value.Kind == ir.ValueBytes:
+		return beyond(int64(len(value.Bytes)), b.minLen, b.maxLen)
 	case sh == shapeList:
-		return beyond(int64(len(v.List)), b.minItems, b.maxItems)
+		return beyond(int64(len(value.List)), b.minItems, b.maxItems)
 	case sh == shapeObject:
-		return beyond(int64(len(v.Object)), b.minProps, b.maxProps)
-	case (sh == shapeNumber || sh == shapeInteger) && v.Kind == ir.ValueNumber:
-		d, err := v.Num.Decimal()
-		return err == nil && ((b.loSet && below(d.Cmp(b.lo), b.loOpen)) || (b.hiSet && below(-d.Cmp(b.hi), b.hiOpen)))
+		return beyond(int64(len(value.Object)), b.minProperties, b.maxProperties)
+	case (sh == shapeNumber || sh == shapeInteger) && value.Kind == ir.ValueNumber:
+		decimal, err := value.Number.Decimal()
+		return err == nil && ((b.loSet && below(decimal.Cmp(b.lo), b.loOpen)) || (b.hiSet && below(-decimal.Cmp(b.hi), b.hiOpen)))
 	default:
 		return false
 	}
@@ -309,10 +311,10 @@ func beyond(n int64, minimum, maximum *int64) bool {
 // judged), and two kinds differently. A number that does not parse is
 // irverify's, and is not judged.
 func same(a, b *ir.Value) bool {
-	text := func(k ir.ValueKind) bool { return k == ir.ValueString || k == ir.ValueSymbol }
+	text := func(valueKind ir.ValueKind) bool { return valueKind == ir.ValueString || valueKind == ir.ValueSymbol }
 	switch {
 	case text(a.Kind) && text(b.Kind):
-		return a.Str == b.Str
+		return a.String == b.String
 	case a.Kind != b.Kind:
 		return false
 	case a.Kind == ir.ValueBool:
@@ -320,9 +322,9 @@ func same(a, b *ir.Value) bool {
 	case a.Kind == ir.ValueBytes:
 		return string(a.Bytes) == string(b.Bytes)
 	case a.Kind == ir.ValueNumber:
-		x, errX := a.Num.Decimal()
-		y, errY := b.Num.Decimal()
-		return errX != nil || errY != nil || x.Cmp(y) == 0
+		decimal, errX := a.Number.Decimal()
+		irDecimal, errY := b.Number.Decimal()
+		return errX != nil || errY != nil || decimal.Cmp(irDecimal) == 0
 	default:
 		return true
 	}

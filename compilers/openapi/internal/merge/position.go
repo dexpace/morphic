@@ -34,32 +34,32 @@ type position struct {
 // (widestCone) and the conjuncts (composition).
 func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) position {
 	n := len(ms)
-	p := position{members: ms, rel: make([][]relation, n)}
+	positionValue := position{members: ms, rel: make([][]relation, n)}
 	for i := range n {
-		p.rel[i] = make([]relation, n)
-		p.rel[i][i] = relSame
+		positionValue.rel[i] = make([]relation, n)
+		positionValue.rel[i][i] = relSame
 	}
 	sites := make([][]ir.Provenance, len(decls))
-	for _, m := range ms {
-		sites[m.decl] = decls[m.decl].sites()
+	for _, member := range ms {
+		sites[member.decl] = decls[member.decl].sites()
 	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
 			judge := g.judgeAt(sites[ms[i].decl], sites[ms[j].decl])
 			rel := judge.relateFrom(ms[i].ref, ms[j].ref, depth)
-			p.rel[i][j], p.rel[j][i] = rel, rel.flipped()
+			positionValue.rel[i][j], positionValue.rel[j][i] = rel, rel.flipped()
 		}
 	}
-	p.winner = p.widestCone()
-	p.conjuncts = p.composition(registry{g.resolve})
-	return p
+	positionValue.winner = positionValue.widestCone()
+	positionValue.conjuncts = positionValue.composition(registry{g.resolve})
+	return positionValue
 }
 
 // holds reports whether member i's type is the same as member j's or narrower,
 // or meets it: a type of member i's, with what a meeting adds, loses nothing
 // member j says of its type.
 func (p position) holds(i, j int) bool {
-	return p.rel[i][j] == relSame || p.rel[i][j] == relANarrower || p.rel[i][j] == relMeet
+	return p.rel[i][j] == relSame || p.rel[i][j] == firstTypeIsNarrower || p.rel[i][j] == relMeet
 }
 
 // widestCone returns the member whose type holds the most members' types: of
@@ -100,9 +100,9 @@ func (p position) stands(i, j int) bool {
 // later first: what two give differently is the first's (builder.adoptInto).
 func (p position) meeting(cone func(k int) bool) (member, []member) {
 	var partners []member
-	for k, m := range slices.Backward(p.members) {
+	for k, member := range slices.Backward(p.members) {
 		if k != p.winner && cone(k) && p.rel[p.winner][k] == relMeet {
-			partners = append(partners, m)
+			partners = append(partners, member)
 		}
 	}
 	return p.members[p.winner], partners
@@ -115,14 +115,14 @@ func (p position) meeting(cone func(k int) bool) (member, []member) {
 func (p position) null(reg registry, cone func(k int) bool, depth int) ir.TypeRef {
 	var merged ir.TypeRef
 	seeded := false
-	for k, m := range p.members {
+	for k, member := range p.members {
 		switch {
 		case !cone(k):
-		case p.rel[p.winner][k] != relSame && targetsTop(reg, m.ref, depth):
+		case p.rel[p.winner][k] != relSame && targetsTop(reg, member.ref, depth):
 		case !seeded:
-			merged, seeded = m.ref, true
+			merged, seeded = member.ref, true
 		default:
-			merged = intersectNull(merged, m.ref)
+			merged = intersectNull(merged, member.ref)
 		}
 	}
 	return merged

@@ -11,7 +11,7 @@ import (
 )
 
 // DomainParents exposes domainParents to ir's external tests.
-func (k PrimKind) DomainParents() []PrimKind { return k.domainParents() }
+func (k PrimitiveKind) DomainParents() []PrimitiveKind { return k.domainParents() }
 
 // Kept returns the references r keeps for Unresolved to settle, in walk order,
 // each with its path spelled, so ir's external tests can hold the walk to
@@ -36,11 +36,11 @@ func CountingIDReader(reads *int) *IDReader {
 // JSONSpelling returns what jsonSpelling makes of s and whether spelledForJSON
 // reads s as that already, or false for ok when s is no decimal literal.
 func JSONSpelling(s string) (spelling string, spelled, ok bool) {
-	l, ok := scanDecimal(s)
+	decimalLiteral, ok := scanDecimal(s)
 	if !ok {
 		return "", false, false
 	}
-	return jsonSpelling(l), l.spelledForJSON(s), true
+	return jsonSpelling(decimalLiteral), decimalLiteral.spelledForJSON(s), true
 }
 
 // IDClasses returns idClasses, for the external tests.
@@ -72,9 +72,9 @@ func EmptyFormPositions() []string {
 // empty-reference reading holds as references, an empty one being reported.
 func RequiredIDFields(t reflect.Type) []string {
 	var names []string
-	for _, f := range idFieldsOf(t, idClasses) {
-		if f.rule == idRequired {
-			names = append(names, f.name)
+	for _, refField := range idFieldsOf(t, idClasses) {
+		if refField.rule == idRequired {
+			names = append(names, refField.name)
 		}
 	}
 	return names
@@ -83,8 +83,8 @@ func RequiredIDFields(t reflect.Type) []string {
 // DeclaredIDField returns where struct type t declares its identity, the field's
 // index and class, read by the rule an IDReader remembers per type.
 func DeclaredIDField(t reflect.Type) (int, reflect.Type) {
-	f := declaredIDField(t)
-	return f.index, f.class
+	idField := declaredIDField(t)
+	return idField.index, idField.class
 }
 
 // FlattenSteps returns how many steps one FlattenedProperties walk of root
@@ -92,21 +92,22 @@ func DeclaredIDField(t reflect.Type) (int, reflect.Type) {
 // reads through, each property and Requires name it reads, and each type it
 // reads a redaction off.
 func FlattenSteps(types TypeRegistry, root TypeID) int {
-	f := flattener{types: types}
-	f.flatten(root)
-	return f.steps
+	flattenerValue := flattener{types: types}
+	flattenerValue.flatten(root)
+	return flattenerValue.steps
 }
 
-// TreeWork returns how many nodes e has stepped through and elements of the
-// service tree's slices it has built, which is what its writes cost.
-func TreeWork(e *Editor) int { return e.tree.work }
+// TreeWork returns how many nodes editor has stepped through and elements of
+// the service tree's slices it has built, which is what its writes cost.
+func TreeWork(editor *Editor) int { return editor.tree.work }
 
-// IDsScanned returns how many values e's ID check has entered, which is what
-// its scans cost.
-func IDsScanned(e *Editor) int { return e.declared.entered }
+// IDsScanned returns how many values editor's ID check has entered, which is
+// what its scans cost.
+func IDsScanned(editor *Editor) int { return editor.declared.entered }
 
-// IDListsSorted returns how many lists e's ID check has sorted to compare them.
-func IDListsSorted(e *Editor) int { return e.declared.sorted }
+// IDListsSorted returns how many lists editor's ID check has sorted to compare
+// them.
+func IDListsSorted(editor *Editor) int { return editor.declared.sorted }
 
 // StoredSteps returns how many steps l stores for the paths it holds, so ir's
 // external tests can hold it to keeping each step a run of paths shares once.
@@ -140,7 +141,7 @@ func TypeEdgesWithin(limit int, td TypeDef) iter.Seq[TypeID] {
 // NewEditorWithin is NewEditor with its service tree read within limit steps,
 // where an edit's own read takes MaxWalkSteps.
 func NewEditorWithin(limit int, doc *Document) *Editor {
-	e := NewEditor(doc)
-	e.tree.index(e.out.Services, limit)
-	return e
+	editor := NewEditor(doc)
+	editor.tree.index(editor.out.Services, limit)
+	return editor
 }

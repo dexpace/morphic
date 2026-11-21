@@ -19,15 +19,15 @@ import (
 func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, multipartVariantsSpec)
-	op := openapitest.FindOp(t, doc, "exGet")
-	c := op.Responses[0].Payload.Contents[0]
-	assert.Empty(t, c.Examples, "an example carrying no example is skipped")
+	operation := openapitest.FindOperation(t, doc, "exGet")
+	content := operation.Responses[0].Payload.Contents[0]
+	assert.Empty(t, content.Examples, "an example carrying no example is skipped")
 
 	// Skipped, but not in silence: the entry declares no value in any spelling.
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok, "the skipped entry is reported")
 	assert.Equal(t, jsontext.Pointer("/paths/~1examples/get/responses/200/content/application~1json/examples/empty"),
-		d.Provenance.Pointer)
+		diagnostic.Provenance.Pointer)
 }
 
 func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
@@ -50,17 +50,17 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
                 one: {value: !foo baz}
 `)
 	_, svc, diags := compileService(t, spec)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	c := op.Responses[0].Payload.Contents[0]
-	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
+	operation := openapitest.FirstOperation(t, svc)
+	require.Len(t, operation.Responses, 1)
+	content := operation.Responses[0].Payload.Contents[0]
+	assert.Empty(t, content.Examples, "both unconvertible examples are skipped, not appended")
 
 	require.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	pointers := map[jsontext.Pointer]bool{}
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			pointers[d.Provenance.Pointer] = true
-			assert.Contains(t, d.Message, "example:")
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct && diagnostic.Severity == ir.SeverityWarning {
+			pointers[diagnostic.Provenance.Pointer] = true
+			assert.Contains(t, diagnostic.Message, "example:")
 		}
 	}
 	const base = "/paths/~1items/get/responses/200/content/application~1json"
@@ -96,18 +96,18 @@ components:
     Bad: {value: !foo baz}
 `
 	_, svc, diags := compileService(t, spec)
-	op := openapitest.FirstOp(t, svc)
-	c := op.Responses[0].Payload.Contents[0]
-	require.Len(t, c.Examples, 1, "the convertible $ref'd example still lowers")
-	require.NotNil(t, c.Examples[0].Value)
-	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fine"}, *c.Examples[0].Value)
+	operation := openapitest.FirstOperation(t, svc)
+	content := operation.Responses[0].Payload.Contents[0]
+	require.Len(t, content.Examples, 1, "the convertible $ref'd example still lowers")
+	require.NotNil(t, content.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "fine"}, *content.Examples[0].Value)
 
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := openapitest.FirstDegradedWarning(diags)
+	diagnostic, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/responses/200/content/application~1json/examples/bad"),
-		d.Provenance.Pointer, "the reference site, not a /value the source never had")
-	assert.Contains(t, d.Message, "example:")
+		diagnostic.Provenance.Pointer, "the reference site, not a /value the source never had")
+	assert.Contains(t, diagnostic.Message, "example:")
 }
 
 // TestExample_ExternalValueOnlyIsCarried pins the half of an example the IR can
@@ -130,7 +130,7 @@ func TestExample_ExternalValueOnlyIsCarried(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	resp := openapitest.FindOp(t, doc, "getA").Responses
+	resp := openapitest.FindOperation(t, doc, "getA").Responses
 	require.NotEmpty(t, resp)
 	require.NotEmpty(t, resp[0].Payload.Contents)
 	examples := resp[0].Payload.Contents[0].Examples
@@ -167,7 +167,7 @@ components:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	payload := openapitest.FirstOp(t, svc).Responses[0].Payload
+	payload := openapitest.FirstOperation(t, svc).Responses[0].Payload
 	require.NotNil(t, payload)
 	require.Len(t, payload.Contents[0].Examples, 1)
 	example := payload.Contents[0].Examples[0]
@@ -205,20 +205,20 @@ func TestParamContent_OwnAndMediaExamplesAreBothKept(t *testing.T) {
 `)
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	nums := func(examples []ir.Example) []ir.BigVal {
+	operation := openapitest.FirstOperation(t, svc)
+	numbers := func(examples []ir.Example) []ir.BigVal {
 		out := make([]ir.BigVal, 0, len(examples))
-		for _, e := range examples {
-			require.NotNil(t, e.Value)
-			out = append(out, e.Value.Num)
+		for _, example := range examples {
+			require.NotNil(t, example.Value)
+			out = append(out, example.Value.Number)
 		}
 		return out
 	}
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, []ir.BigVal{"1", "2"}, nums(op.Params[0].Examples),
+	require.Len(t, operation.Params, 1)
+	assert.Equal(t, []ir.BigVal{"1", "2"}, numbers(operation.Params[0].Examples),
 		"the parameter's own example, then its media type's; the schema's is replaced")
-	require.Len(t, op.Responses[0].Headers, 1)
-	assert.Equal(t, []ir.BigVal{"3", "4"}, nums(op.Responses[0].Headers[0].Examples),
+	require.Len(t, operation.Responses[0].Headers, 1)
+	assert.Equal(t, []ir.BigVal{"3", "4"}, numbers(operation.Responses[0].Headers[0].Examples),
 		"the same at a header")
 }
 
@@ -262,13 +262,13 @@ func TestExamples_EverySpellingReachesTheIR(t *testing.T) {
                 e: `+tc.entry+`
 `)
 			_, svc, diags := compileService(t, spec)
-			examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+			examples := openapitest.FirstOperation(t, svc).Responses[0].Payload.Contents[0].Examples
 			require.Len(t, examples, 1, "the entry is kept, not dropped")
 			if tc.value == "" {
 				assert.Nil(t, examples[0].Value)
 			} else {
 				require.NotNil(t, examples[0].Value)
-				assert.Equal(t, tc.value, examples[0].Value.Num)
+				assert.Equal(t, tc.value, examples[0].Value.Number)
 			}
 			if tc.kept == "" {
 				assert.Empty(t, examples[0].Unmodeled)
@@ -311,7 +311,7 @@ components:
 `
 	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+	examples := openapitest.FirstOperation(t, svc).Responses[0].Payload.Contents[0].Examples
 	require.Len(t, examples, 1)
 	const decl = "/components/examples/Serial/serializedValue"
 	assert.Equal(t, jsontext.Pointer(decl), examples[0].Unmodeled["openapi:serializedValue"].Provenance.Pointer)

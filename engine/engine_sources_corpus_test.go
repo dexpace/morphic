@@ -46,12 +46,12 @@ func corpusSpecFiles(t *testing.T, root string) []string {
 // for, on a successful compile as much as on a refusal.
 func assertSourcesInvariant(t *testing.T, path string, res *engine.Result) {
 	t.Helper()
-	for _, d := range res.Diagnostics {
-		if d.Provenance.Source == ir.NoSource {
+	for _, diagnostic := range res.Diagnostics {
+		if diagnostic.Provenance.Source == ir.NoSource {
 			continue
 		}
-		assert.True(t, d.Provenance.Source >= 0 && d.Provenance.Source < len(res.Sources),
-			"%s: diagnostic %+v must index Sources %+v or carry ir.NoSource", path, d, res.Sources)
+		assert.True(t, diagnostic.Provenance.Source >= 0 && diagnostic.Provenance.Source < len(res.Sources),
+			"%s: diagnostic %+v must index Sources %+v or carry ir.NoSource", path, diagnostic, res.Sources)
 	}
 }
 

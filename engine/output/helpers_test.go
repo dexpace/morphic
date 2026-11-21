@@ -70,11 +70,11 @@ func newCancellingWriter(t *testing.T, stopAt int) (context.Context, *cancelling
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	w := &cancellingWriter{cancel: cancel, stopAt: stopAt}
-	if w.due() {
+	cancellingWriterValue := &cancellingWriter{cancel: cancel, stopAt: stopAt}
+	if cancellingWriterValue.due() {
 		cancel()
 	}
-	return ctx, w
+	return ctx, cancellingWriterValue
 }
 
 // due reports whether the writer holds the stopAt bytes that end its context.
@@ -117,7 +117,7 @@ func orderedDoc() *ir.Document {
 	types := ir.TypeRegistry{}
 	for _, name := range []string{"Zeta", "Kappa", "Alpha", "Omega", "Mid", "Beta",
 		"Sigma", "Delta", "Pi", "Eta", "Rho", "Gamma"} {
-		id := ir.TypeID("t/" + name)
+		id := ir.TypeID("type/" + name)
 		types[id] = &ir.Model{ID: id}
 	}
 	return &ir.Document{
@@ -135,7 +135,7 @@ func orderedDoc() *ir.Document {
 func manyTypesDoc() *ir.Document {
 	types := ir.TypeRegistry{}
 	for i := range 2000 {
-		id := ir.TypeID(fmt.Sprintf("t/Type%04d", i))
+		id := ir.TypeID(fmt.Sprintf("type/Type%04d", i))
 		types[id] = &ir.Model{ID: id}
 	}
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "Many", Version: "1", Types: types}

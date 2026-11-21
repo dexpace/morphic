@@ -37,35 +37,35 @@ type boundedNode struct {
 // array, each beside a bound of its kind and one of another.
 var boundedShapes = []boundedShape{
 	{"P", "{properties: {a: {type: string}}, minProperties: 1, minLength: 2}",
-		boundedNode{kind: ir.KindModel, bounds: map[string]any{"minProps": 1.0}, kept: []string{"minLength"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0, "minLength": 2.0}, kept: []string{"properties"}}},
+		boundedNode{kind: ir.KindModel, bounds: map[string]any{"minProperties": 1.0}, kept: []string{"minLength"}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0, "minLength": 2.0}, kept: []string{"properties"}}},
 	{"I", "{items: {type: string}, minItems: 1, minProperties: 1}",
 		boundedNode{kind: ir.KindList, bounds: map[string]any{"minItems": 1.0}, kept: []string{"minProperties"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0}, kept: []string{"items", "minItems"}}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0}, kept: []string{"items", "minItems"}}},
 	{"A", "{additionalProperties: {type: string}, maxProperties: 3, maximum: 5}",
-		boundedNode{kind: ir.KindMap, bounds: map[string]any{"maxProps": 3.0}, kept: []string{"maximum"}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"maxProps": 3.0, "max": "5"}, kept: []string{"additionalProperties"}}},
+		boundedNode{kind: ir.KindMap, bounds: map[string]any{"maxProperties": 3.0}, kept: []string{"maximum"}},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"maxProperties": 3.0, "max": "5"}, kept: []string{"additionalProperties"}}},
 	{"U", "{properties: {a: {type: string}}, items: {type: string}, minItems: 1, minProperties: 1, minLength: 1}",
 		boundedNode{kind: ir.KindUnion, bounds: map[string]any{}, kept: []string{"minLength"}, variants: []boundedNode{
-			{kind: ir.KindModel, bounds: map[string]any{"minProps": 1.0}},
+			{kind: ir.KindModel, bounds: map[string]any{"minProperties": 1.0}},
 			{kind: ir.KindList, bounds: map[string]any{"minItems": 1.0}},
 		}},
-		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProps": 1.0, "minLength": 1.0},
+		boundedNode{kind: ir.KindScalar, bounds: map[string]any{"minProperties": 1.0, "minLength": 1.0},
 			kept: []string{"items", "minItems", "properties"}}},
 }
 
 // boundedSpec writes each bounded shape as a component, a property, a query
 // parameter and a response header, the components in the order given.
 func boundedSpec(version string, components []string) string {
-	var params, headers, props strings.Builder
+	var params, headers, properties strings.Builder
 	for _, sh := range boundedShapes {
 		fmt.Fprintf(&params, "        - {name: q%s, in: query, schema: %s}\n", sh.key, sh.schema)
 		fmt.Fprintf(&headers, "            H%s: {schema: %s}\n", sh.key, sh.schema)
-		fmt.Fprintf(&props, "        p%s: %s\n", sh.key, sh.schema)
+		fmt.Fprintf(&properties, "        p%s: %s\n", sh.key, sh.schema)
 	}
 	paths := "paths:\n  /x:\n    get:\n      operationId: get\n      parameters:\n" + params.String() +
 		"      responses:\n        '200':\n          description: ok\n          headers:\n" + headers.String()
-	holder := "Holder:\n      type: object\n      properties:\n" + strings.TrimSuffix(props.String(), "\n")
+	holder := "Holder:\n      type: object\n      properties:\n" + strings.TrimSuffix(properties.String(), "\n")
 	return admissionSpec(version, paths, slices.Concat(components, []string{holder})...)
 }
 
@@ -102,8 +102,8 @@ func assertBoundedNode(t *testing.T, doc *ir.Document, id ir.TypeID, want bounde
 	union, ok := td.(*ir.Union)
 	require.True(t, ok, id)
 	require.Len(t, union.Variants, len(want.variants), id)
-	for i, v := range union.Variants {
-		assertBoundedNode(t, doc, v.Type.Target, want.variants[i])
+	for i, variant := range union.Variants {
+		assertBoundedNode(t, doc, variant.Type.Target, want.variants[i])
 	}
 }
 
@@ -133,23 +133,23 @@ func TestKindInference_ABoundLandsOnTheInferredNodeOfItsKind(t *testing.T) {
 						}
 						for pointer, id := range map[string]ir.TypeID{
 							"/components/schemas/" + sh.key:                       componentID(sh.key),
-							"/components/schemas/Holder/properties/p" + sh.key:    ir.TypeID("t/anon/components/schemas/Holder/properties/p" + sh.key),
-							fmt.Sprintf("/paths/~1x/get/parameters/%d/schema", i): ir.TypeID(fmt.Sprintf("t/anon/paths/~1x/get/parameters/%d/schema", i)),
+							"/components/schemas/Holder/properties/p" + sh.key:    ir.TypeID("type/anonymous/components/schemas/Holder/properties/p" + sh.key),
+							fmt.Sprintf("/paths/~1x/get/parameters/%d/schema", i): ir.TypeID(fmt.Sprintf("type/anonymous/paths/~1x/get/parameters/%d/schema", i)),
 							"/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema": ir.TypeID(
-								"t/anon/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema"),
+								"type/anonymous/paths/~1x/get/responses/200/headers/H" + sh.key + "/schema"),
 						} {
 							assertBoundedNode(t, doc, id, want)
 							assert.Equal(t, 1, countOf(infos, jsontext.Pointer(pointer)), "one info at %s", pointer)
 						}
-						assert.Empty(t, encodedBounds(t, holderProps(t, doc)["p"+sh.key]), "the property holds none")
+						assert.Empty(t, encodedBounds(t, holderProperties(t, doc)["p"+sh.key]), "the property holds none")
 					}
-					op := doc.Services[0].Groups[0].Operations[0]
-					for _, p := range op.Params {
-						assert.Empty(t, encodedBounds(t, p), "parameter %s holds none", p.Name.Source)
+					operation := doc.Services[0].Groups[0].Operations[0]
+					for _, parameter := range operation.Params {
+						assert.Empty(t, encodedBounds(t, parameter), "parameter %s holds none", parameter.Name.Source)
 					}
-					for _, r := range op.Responses {
-						for _, h := range r.Headers {
-							assert.Empty(t, encodedBounds(t, h), "header %s holds none", h.Name.Source)
+					for _, response := range operation.Responses {
+						for _, header := range response.Headers {
+							assert.Empty(t, encodedBounds(t, header), "header %s holds none", header.Name.Source)
 						}
 					}
 				})

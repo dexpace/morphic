@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // TestRunRecovered_QuotesAPanicOnOneBoundedLine pins that every walk and build
@@ -86,6 +86,6 @@ func TestEachSighting_APanicBetweenModelsNamesNone(t *testing.T) {
 // a landing at a position its document holds no node at.
 func TestDecodeObject_BuildsNothingWhereTheDocumentHoldsNothing(t *testing.T) {
 	t.Parallel()
-	_, _, err := decodeObject(t.Context(), bind.RefParameter, nil)
+	_, _, err := decodeObject(t.Context(), reftable.RefParameter, nil)
 	assert.ErrorIs(t, err, errNothingThere)
 }

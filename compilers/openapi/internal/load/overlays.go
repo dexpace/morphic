@@ -12,12 +12,12 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,7 +36,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 	if opts.Overlay.Path == "" {
 		return opts, nil, errors.New("openapi: the overlay holds no bytes and names no file to read")
 	}
-	if bind.OverNetwork(opts.Overlay.Path) {
+	if reftable.OverNetwork(opts.Overlay.Path) {
 		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
 			opts.Overlay.Path)
 	}
@@ -106,9 +106,9 @@ func applyOverlay(ctx context.Context, srcIndex int, root, ov *yaml.Node, opts O
 	// The overlay builds within the node budget the source was read within,
 	// which alone holds the patched tree to it: an action past it is refused
 	// before it builds anything.
-	o := *opts.Overlay
-	o.MaxNodes = opts.MaxSourceNodes
-	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov, o)
+	options := *opts.Overlay
+	options.MaxNodes = opts.MaxSourceNodes
+	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov, options)
 	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
@@ -141,19 +141,19 @@ func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node,
 // it is not read as, and the shapes an update copies through its aliases
 // (overlay.copyOf): an anchor naming its own ancestor gives the copy no end, an
 // alias bomb exhausts memory (GitHub #489).
-func overlayRefusals(ctx context.Context, opts Options) (doctree.Document, []ir.Diagnostic) {
+func overlayRefusals(ctx context.Context, opts Options) (doctree.ParsedYAMLDocument, []ir.Diagnostic) {
 	at := ir.Provenance{Source: opts.OverlaySrcIndex}
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75, #491).
 	if !opts.MaxSourceBytes.Admits(len(opts.Overlay.Data)) {
-		return doctree.Document{}, []ir.Diagnostic{overlayPastBudget(opts)}
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{overlayPastBudget(opts)}
 	}
 	doc, err := doctree.Read(ctx, opts.Overlay.Data, opts.MaxSourceNodes)
-	if d, past := pastNodes(at, "overlay", err); past {
-		return doctree.Document{}, []ir.Diagnostic{d}
+	if diagnostic, past := pastNodes(at, "overlay", err); past {
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{diagnostic}
 	}
 	if err != nil {
-		return doctree.Document{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
+		return doctree.ParsedYAMLDocument{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
 			"cannot parse overlay: %s", diag.OneLine(err))}
 	}
 
@@ -167,7 +167,7 @@ func overlayRefusals(ctx context.Context, opts Options) (doctree.Document, []ir.
 	if idx.Truncated() {
 		return doc, append(found, diag.Newf(ir.SeverityError, diag.SourceTooLarge, placed.Node(nil),
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
-			sourceindex.MaxIndexedNodes))
+			sourcetreestats.MaxIndexedNodes))
 	}
 	return doc, append(found, shapeRefusals(ctx, placed, placed.Node(nil), idx, opts, false)...)
 }

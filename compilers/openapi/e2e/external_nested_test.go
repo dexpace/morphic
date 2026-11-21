@@ -41,27 +41,27 @@ func TestExternalContent_AReferenceItWritesIsResolvedWhereItIsDeclared(t *testin
 	assert.Equal(t, "a.yaml", filepath.Base(doc.Sources[1].Path))
 	assert.Equal(t, "b.yaml", filepath.Base(doc.Sources[2].Path))
 	for _, mount := range []string{"/p", "/q"} {
-		op := operationAt(t, doc, "GET", mount)
+		operation := operationAt(t, doc, "GET", mount)
 		params := map[string]ir.Provenance{}
-		for _, p := range op.Params {
-			params[p.Name.Source] = p.Provenance
+		for _, parameter := range operation.Params {
+			params[parameter.Name.Source] = parameter.Provenance
 		}
 		assert.Equal(t, map[string]ir.Provenance{
 			"own":   {Source: 1, Pointer: "/components/parameters/Own"},
 			"third": {Source: 2, Pointer: "/components/parameters/Third"},
 			"back":  {Source: 0, Pointer: "/components/parameters/Back"},
 		}, params, mount)
-		require.Len(t, op.Responses, 1, mount)
-		assert.Equal(t, "from b", op.Responses[0].Docs.Description, mount)
-		require.Len(t, op.Responses[0].Headers, 1, mount)
-		header := op.Responses[0].Headers[0]
+		require.Len(t, operation.Responses, 1, mount)
+		assert.Equal(t, "from b", operation.Responses[0].Docs.Description, mount)
+		require.Len(t, operation.Responses[0].Headers, 1, mount)
+		header := operation.Responses[0].Headers[0]
 		assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/responses/R/headers/X-H"}, header.Provenance, mount)
-		assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), header.Type.Target, mount)
-		require.Len(t, op.Bindings.HTTP, 1, mount)
-		require.Len(t, op.Bindings.HTTP[0].Callbacks, 1, "%s: a.yaml's callback is read", mount)
+		assert.Equal(t, ir.PrimitiveTypeID(ir.PrimitiveInteger), header.Type.Target, mount)
+		require.Len(t, operation.Bindings.HTTP, 1, mount)
+		require.Len(t, operation.Bindings.HTTP[0].Callbacks, 1, "%s: a.yaml's callback is read", mount)
 	}
 
-	assert.Equal(t, ir.TypeID("t/anon@a.yaml/components/parameters/Own/schema"), useTarget(t, doc, "Through"),
+	assert.Equal(t, ir.TypeID("type/anonymous@a.yaml/components/parameters/Own/schema"), useTarget(t, doc, "Through"),
 		"the pointer reads on through a.yaml's parameter reference")
 }
 
@@ -102,9 +102,9 @@ paths:
 		failed[0].Message)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
 	for _, mount := range []string{"/p", "/q"} {
-		op := operationAt(t, doc, "GET", mount)
-		require.Len(t, op.Params, 1, mount)
-		assert.Equal(t, "kept", op.Params[0].Name.Source, mount)
+		operation := operationAt(t, doc, "GET", mount)
+		require.Len(t, operation.Params, 1, mount)
+		assert.Equal(t, "kept", operation.Params[0].Name.Source, mount)
 	}
 }
 
@@ -134,9 +134,9 @@ func TestExternalContent_AFindingTwoTargetsShareIsReportedOnceAtItsNode(t *testi
 			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
 
 			var found []ir.Diagnostic
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					found = append(found, d)
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					found = append(found, diagnostic)
 				}
 			}
 			require.Len(t, found, 1, "%+v", diags)
@@ -183,9 +183,9 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
 
 			var found []ir.Diagnostic
-			for _, d := range diags {
-				if strings.HasPrefix(d.Code, diag.Validation+"/") {
-					found = append(found, d)
+			for _, diagnostic := range diags {
+				if strings.HasPrefix(diagnostic.Code, diag.Validation+"/") {
+					found = append(found, diagnostic)
 				}
 			}
 			require.Len(t, found, 1, "%+v", diags)
@@ -229,16 +229,16 @@ paths:
 `, false)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, d := range diags {
-		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "%+v", d)
+	for _, diagnostic := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, diagnostic.Code, "%+v", diagnostic)
 	}
-	op := operationAt(t, doc, "GET", "/p")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
-	const cb = "op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/"
-	assert.Equal(t, []ir.OpID{cb + "get", cb + "post"}, op.Bindings.HTTP[0].Callbacks[0].Operations,
+	operation := operationAt(t, doc, "GET", "/p")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].Callbacks, 1)
+	const cb = "operation/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/"
+	assert.Equal(t, []ir.OperationID{cb + "get", cb + "post"}, operation.Bindings.HTTP[0].Callbacks[0].Operations,
 		"the $ref resolves, and the field beside it is lowered")
-	post := opWithID(t, doc, cb+"post")
+	post := operationWithID(t, doc, cb+"post")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/callbacks/cb/{$request.query.u}/post"},
 		post.Provenance, "declared where the other document writes it")
 }
@@ -275,14 +275,14 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, doc.Sources, 2)
 
-	use, ok := doc.Types["t/openapi@other.yaml/components/schemas/Use"].(*ir.Scalar)
-	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Use"])
+	use, ok := doc.Types["type/openapi@other.yaml/components/schemas/Use"].(*ir.Scalar)
+	require.True(t, ok, "%T", doc.Types["type/openapi@other.yaml/components/schemas/Use"])
 	assert.Nil(t, use.Constraints)
 	assert.Contains(t, use.Unmodeled, "openapi:minLength")
 
-	box, ok := doc.Types["t/openapi@other.yaml/components/schemas/Box"].(*ir.Model)
-	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Box"])
-	inner, ok := propByWire(box, "inner")
+	box, ok := doc.Types["type/openapi@other.yaml/components/schemas/Box"].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types["type/openapi@other.yaml/components/schemas/Box"])
+	inner, ok := propertyByWire(box, "inner")
 	require.True(t, ok)
 	assert.Nil(t, inner.Constraints)
 	entry := unmodeledEntry(t, inner.Unmodeled, "openapi:minLength")
@@ -290,14 +290,14 @@ components:
 		ir.Provenance{Source: entry.Provenance.Source, Pointer: entry.Provenance.Pointer})
 
 	var infos []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			infos = append(infos, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.DegradedConstruct {
+			infos = append(infos, diagnostic)
 		}
 	}
 	require.Len(t, infos, 2, "%+v", diags)
-	for _, d := range infos {
-		assert.Equal(t, ir.SeverityInfo, d.Severity)
-		assert.Equal(t, 1, d.Provenance.Source, "%s is reported in other.yaml", d.Provenance.Pointer)
+	for _, diagnostic := range infos {
+		assert.Equal(t, ir.SeverityInfo, diagnostic.Severity)
+		assert.Equal(t, 1, diagnostic.Provenance.Source, "%s is reported in other.yaml", diagnostic.Provenance.Pointer)
 	}
 }

@@ -15,10 +15,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
@@ -108,7 +108,7 @@ func TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile(t *testing.T) {
 	bad := unresolvedRefs(diags)
 	require.Len(t, bad, 1, "%+v", diags)
 	assert.Equal(t, 1, bad[0].Provenance.Source, "in far.yaml's entry")
-	assert.Contains(t, bad[0].Message, bind.OffNetwork)
+	assert.Contains(t, bad[0].Message, reftable.OffNetwork)
 	assert.Equal(t, []string{srv.URL + "/far.yaml"}, rec.locations())
 }
 
@@ -139,10 +139,10 @@ func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testin
 		require.NoError(t, err, name)
 		assertNoErrorDiags(t, diags)
 		assert.Equal(t, ids.In("other.yaml").ForPointer("/OS"), useTarget(t, doc, "S"), name)
-		op, ok := opByName(doc, "a")
+		operation, ok := operationByName(doc, "a")
 		require.True(t, ok, name)
-		require.Len(t, op.Responses, 1, name)
-		assert.Equal(t, "r", op.Responses[0].Docs.Description, "%s: the response other.yaml declares", name)
+		require.Len(t, operation.Responses, 1, name)
+		assert.Equal(t, "r", operation.Responses[0].Docs.Description, "%s: the response other.yaml declares", name)
 		irs = append(irs, jsonOf(t, doc))
 	}
 	require.Len(t, irs, 2)
@@ -188,11 +188,11 @@ func TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource(t *testin
 
 	assert.Empty(t, byCode(diags, diag.UnresolvedSecurityScheme), "%+v", diags)
 	assert.Empty(t, irverify.Verify(doc))
-	op, ok := opByName(doc, "a")
+	operation, ok := operationByName(doc, "a")
 	require.True(t, ok)
-	require.Len(t, op.Auth, 1)
-	require.Len(t, op.Auth[0].Schemes, 1)
-	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/key"), op.Auth[0].Schemes[0].Scheme)
+	require.Len(t, operation.Auth, 1)
+	require.Len(t, operation.Auth[0].Schemes, 1)
+	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/key"), operation.Auth[0].Schemes[0].Scheme)
 }
 
 // TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing holds a $self with
@@ -206,8 +206,8 @@ func TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing(t *testing.T) {
 	_, diags := compileWithReader(t, "api/openapi.yaml", head32+"$self: '"+selfURL+"#frag'\n"+body, openapi.Options{}, loopbackDisk{})
 
 	got := make([]string, 0, len(diags))
-	for _, d := range diags {
-		got = append(got, string(d.Severity)+" "+string(d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		got = append(got, string(diagnostic.Severity)+" "+string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{"error /$self", "error /components/schemas/U"}, got, "%+v", diags)
 	format := diagsAtPointer(diags, "/$self")
@@ -227,9 +227,9 @@ func TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing(t *testing.T) {
 // diagsAtPointer returns the diagnostics placed at pointer.
 func diagsAtPointer(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if string(d.Provenance.Pointer) == pointer {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if string(diagnostic.Provenance.Pointer) == pointer {
+			out = append(out, diagnostic)
 		}
 	}
 	return out

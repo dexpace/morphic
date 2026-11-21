@@ -41,8 +41,8 @@ func undecodable(format compilers.SourceFormat, marker string) *stubCompiler {
 func registryOf(t *testing.T, cs ...compilers.Compiler) *compilers.Registry {
 	t.Helper()
 	reg := compilers.NewRegistry()
-	for _, c := range cs {
-		require.NoError(t, reg.Register(c))
+	for _, compiler := range cs {
+		require.NoError(t, reg.Register(compiler))
 	}
 	return reg
 }
@@ -190,20 +190,20 @@ func TestRegistry_RefusesAConfigurationSettingBothChannels(t *testing.T) {
 		name string
 		ask  func(*testing.T, *compilers.Registry, compilers.Configuration) error
 	}{
-		{"Detect", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
-			det, ok, err := r.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, cfg)
+		{"Detect", func(t *testing.T, registry *compilers.Registry, cfg compilers.Configuration) error {
+			det, ok, err := registry.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, cfg)
 			assert.False(t, ok)
 			assert.Equal(t, compilers.Detection{}, det)
 			return err
 		}},
-		{"Detect of an empty source", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
-			det, ok, err := r.Detect(t.Context(), compilers.Source{Path: "empty.yaml"}, cfg)
+		{"Detect of an empty source", func(t *testing.T, registry *compilers.Registry, cfg compilers.Configuration) error {
+			det, ok, err := registry.Detect(t.Context(), compilers.Source{Path: "empty.yaml"}, cfg)
 			assert.False(t, ok)
 			assert.Equal(t, compilers.Detection{}, det)
 			return err
 		}},
-		{"SourceLimit", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
-			limit, err := r.SourceLimit(cfg)
+		{"SourceLimit", func(t *testing.T, registry *compilers.Registry, cfg compilers.Configuration) error {
+			limit, err := registry.SourceLimit(cfg)
 			assert.Zero(t, limit)
 			return err
 		}},

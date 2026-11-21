@@ -58,9 +58,9 @@ func (f *fakeReader) contexts() []any {
 	return append([]any(nil), f.ctxs...)
 }
 
-// externalOver returns an external reading through r under opts.
-func externalOver(opts Options, r compilers.DocumentReader) *external {
-	opts.Reader = r
+// externalOver returns an external reading through documentReader under opts.
+func externalOver(opts Options, documentReader compilers.DocumentReader) *external {
+	opts.Reader = documentReader
 	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 }
 
@@ -213,17 +213,17 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 			_, _ = ext.document(ctx, "http://host:80/a.yaml?v=1", "spec.yaml")
 		}, "http://host:80/a.yaml?v=1"},
 	}
-	for _, d := range doors {
+	for _, door := range doors {
 		for _, within := range []string{"/srv/specs", ""} {
-			t.Run(fmt.Sprintf("%s within %q", d.name, within), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s within %q", door.name, within), func(t *testing.T) {
 				t.Parallel()
 				ctx := context.WithValue(t.Context(), ctxKey{}, "the read's context")
 				fake := &fakeReader{err: errors.New("stop")}
 				ext := externalOver(Options{Within: within, MaxSourceBytes: budget.AtMost(123)}, fake)
 
-				d.ask(ctx, ext)
+				door.ask(ctx, ext)
 
-				want := []compilers.DocumentRequest{{Location: d.want, Within: within, Limit: 123}}
+				want := []compilers.DocumentRequest{{Location: door.want, Within: within, Limit: 123}}
 				assert.Empty(t, cmp.Diff(want, fake.seen()))
 				assert.Equal(t, []any{"the read's context"}, fake.contexts(), "the read runs under the caller's context")
 			})
@@ -265,7 +265,7 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 // TestExternal_AReadRefusesByHowItIsNamed pins that a read refuses no key by
 // its spelling: a file URI, confined or not, a path that reads like a URL and
 // a relative path are each read. A refusal by how the $ref spells its document
-// part is the binder's (bind.Config.Refuse, refusedByName), made before it
+// part is the binder's (reftable.Config.Refuse, refusedByName), made before it
 // asks, so it depends on no order of reading (GitHub #1886).
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()

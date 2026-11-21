@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DiscriminatorTransitive",
         "canonical": "discriminator_transitive"
@@ -59,9 +59,9 @@
     }
   ],
   "types": {
-    "t/openapi/components/schemas/Dog": {
+    "type/openapi/components/schemas/Dog": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Dog",
+      "id": "type/openapi/components/schemas/Dog",
       "name": {
         "source": "Dog",
         "canonical": "dog"
@@ -75,21 +75,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "id": "property/openapi/components/schemas/Dog/properties/bark",
           "name": {
             "source": "bark",
             "canonical": "bark"
           },
           "wireName": "bark",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -103,7 +103,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "type/openapi/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
@@ -111,9 +111,9 @@
       "discriminatorValue": "dog",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "type/openapi/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "type/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -127,21 +127,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Pet/properties/petType",
+          "id": "property/openapi/components/schemas/Pet/properties/petType",
           "name": {
             "source": "petType",
             "canonical": "pet_type"
           },
           "wireName": "petType",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -157,18 +157,18 @@
       "abstract": false,
       "positional": false,
       "discriminator": {
-        "property": "p/openapi/components/schemas/Pet/properties/petType",
+        "property": "property/openapi/components/schemas/Pet/properties/petType",
         "mapping": {
-          "dog": "t/openapi/components/schemas/Dog",
-          "puppy": "t/openapi/components/schemas/Puppy"
+          "dog": "type/openapi/components/schemas/Dog",
+          "puppy": "type/openapi/components/schemas/Puppy"
         },
         "inferred": false
       },
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Plant": {
+    "type/openapi/components/schemas/Plant": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Plant",
+      "id": "type/openapi/components/schemas/Plant",
       "name": {
         "source": "Plant",
         "canonical": "plant"
@@ -182,21 +182,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Plant/properties/stem",
+          "id": "property/openapi/components/schemas/Plant/properties/stem",
           "name": {
             "source": "stem",
             "canonical": "stem"
           },
           "wireName": "stem",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -213,9 +213,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Puppy": {
+    "type/openapi/components/schemas/Puppy": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Puppy",
+      "id": "type/openapi/components/schemas/Puppy",
       "name": {
         "source": "Puppy",
         "canonical": "puppy"
@@ -229,21 +229,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Puppy/properties/weeks",
+          "id": "property/openapi/components/schemas/Puppy/properties/weeks",
           "name": {
             "source": "weeks",
             "canonical": "weeks"
           },
           "wireName": "weeks",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -257,7 +257,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Dog",
+        "target": "type/openapi/components/schemas/Dog",
         "nullable": false
       },
       "abstract": false,
@@ -265,9 +265,9 @@
       "discriminatorValue": "puppy",
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Sapling": {
+    "type/openapi/components/schemas/Sapling": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Sapling",
+      "id": "type/openapi/components/schemas/Sapling",
       "name": {
         "source": "Sapling",
         "canonical": "sapling"
@@ -281,21 +281,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Sapling/properties/rings",
+          "id": "property/openapi/components/schemas/Sapling/properties/rings",
           "name": {
             "source": "rings",
             "canonical": "rings"
           },
           "wireName": "rings",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -309,16 +309,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Shrub",
+        "target": "type/openapi/components/schemas/Shrub",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Shrub": {
+    "type/openapi/components/schemas/Shrub": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Shrub",
+      "id": "type/openapi/components/schemas/Shrub",
       "name": {
         "source": "Shrub",
         "canonical": "shrub"
@@ -332,21 +332,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Shrub/properties/twigs",
+          "id": "property/openapi/components/schemas/Shrub/properties/twigs",
           "name": {
             "source": "twigs",
             "canonical": "twigs"
           },
           "wireName": "twigs",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -360,16 +360,16 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Plant",
+        "target": "type/openapi/components/schemas/Plant",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Whelp": {
+    "type/openapi/components/schemas/Whelp": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Whelp",
+      "id": "type/openapi/components/schemas/Whelp",
       "name": {
         "source": "Whelp",
         "canonical": "whelp"
@@ -383,21 +383,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Whelp/properties/days",
+          "id": "property/openapi/components/schemas/Whelp/properties/days",
           "name": {
             "source": "days",
             "canonical": "days"
           },
           "wireName": "days",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -411,7 +411,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Puppy",
+        "target": "type/openapi/components/schemas/Puppy",
         "nullable": false
       },
       "abstract": false,
@@ -419,9 +419,9 @@
       "discriminatorValue": "Whelp",
       "inputOnly": false
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -429,11 +429,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -441,11 +441,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -453,7 +453,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

@@ -42,14 +42,14 @@ func TestDisk_AHopRedirectedPastTheProxyIsJudgedAtTheDial(t *testing.T) {
 	}}
 	t.Cleanup(tr.CloseIdleConnections)
 	dns := &fakeDNS{answers: map[string][][]netip.Addr{"name.example": {{netip.MustParseAddr("93.184.216.34")}}}}
-	d := Disk{Client: &http.Client{Transport: tr}, resolver: dns.resolver()}
+	disk := Disk{Client: &http.Client{Transport: tr}, resolver: dns.resolver()}
 
-	_, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
+	_, err = disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
 	assert.EqualValues(t, 1, proxy.requests.Load(), "the first hop went through the proxy")
 	assert.Zero(t, target.requests.Load(), "the second was refused at the dial, unasked")
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpaceLocal})
+	got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpaceLocal})
 	require.NoError(t, err)
 	assert.Equal(t, "document", string(got.Data), "the redirect is followed where the reach allows it")
 	assert.EqualValues(t, 1, target.requests.Load())
@@ -63,7 +63,7 @@ func TestDisk_AHopRedirectedPastTheProxyIsJudgedAtTheDial(t *testing.T) {
 // bound its resolved addresses give.
 func TestDisk_AProxiedHostWithATrailingDotIsRankedAsWithout(t *testing.T) {
 	t.Parallel()
-	d, proxy := proxied(t)
+	disk, proxy := proxied(t)
 	tests := []struct {
 		name, host     string
 		reach          compilers.AddressSpace
@@ -84,7 +84,7 @@ func TestDisk_AProxiedHostWithATrailingDotIsRankedAsWithout(t *testing.T) {
 			space: compilers.SpacePublic, bound: compilers.SpacePublic},
 	}
 	for _, tc := range tests {
-		got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{
+		got, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{
 			Location: "http://" + tc.host + "/x", Reach: tc.reach,
 		})
 		if tc.wantAddressErr {
@@ -121,8 +121,8 @@ func TestDisk_ADefaultTransportWithALegacyTLSDialerIsNotHooked(t *testing.T) {
 	http.DefaultTransport = tr
 	t.Cleanup(func() { http.DefaultTransport = old })
 
-	d := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
-	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+	disk := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+	_, err := disk.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
 
 	require.ErrorIs(t, err, compilers.ErrUnboundedRead)
 	assert.Zero(t, calls.Load(), "the process's TLS dialer was not called")

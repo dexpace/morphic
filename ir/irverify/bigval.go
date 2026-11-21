@@ -42,12 +42,13 @@ func checkBigVals(*ir.Document) walkCheck {
 				}
 				return false
 			case bigValType:
-				// Value.Num is not a pointer and is the zero string on every Value
-				// that is not a number — most of the values a document holds — so
-				// an empty one here says the field is unused, not that it is
-				// broken. That reading holds only beside a non-number Value: an
-				// empty Num on one whose Kind is number is checkValues' to report
-				// (ir/value-missing-payload), not this check's.
+				// Value.Number is not a pointer and is the zero string on every
+				// Value that is not a number — most of the values a document
+				// holds — so an empty one here says the field is unused, not
+				// that it is broken. That reading holds only beside a
+				// non-number Value: an empty Number on one whose Kind is number
+				// is checkValues' to report (ir/value-missing-payload), not this
+				// check's.
 				if literal := v.String(); literal != "" {
 					vs = appendBigVal(vs, literal, at)
 				}

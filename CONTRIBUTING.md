@@ -81,7 +81,7 @@ Read the documents for your layer, and skip the rest until you need them.
   through what calls it, is deleted or moved into the tests it serves: into the test file that
   calls it, or into the package's `export_test.go` when an external test does, as `compile`'s
   `Types.Len` is. One kept for a caller the module does not have yet, such as `ir`'s
-  `ExposedProps` for the emitters to come, is named with that caller in
+  `ExposedProperties` for the emitters to come, is named with that caller in
   `internal/archtest`'s `apiRoots`, and a package whose production files exist for tests, such as
   `openapitest`, in its `testSupport`.
   *Fails if missed:* `TestReachability_OnlyTestsReachNoFunction`, which also fails on an `apiRoots`
@@ -169,10 +169,10 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   that form; no test reads whether the issue is still open. When `make cases` fails, or the nightly
   job opens `ci: the nightly cases run finds a difference on main`, each failure is a line naming
   the case, what was found and the command writing it,
-  `go run ./cmd/morphic-harness -cases full -at N`, which prints the case's sources and each
+  `go run ./cmd/morphic-harness -cases full -case-index N`, which prints the case's sources and each
   oracle's verdict: a spelling's with both spellings' sources and their difference, a presence
-  finding's with the name of the neighbour it equals. `-at` takes an index alone, and no command
-  prints the index of a case named anywhere else, a recorded line's or a neighbour's. Then:
+  finding's with the name of the neighbour it equals. `-case-index` takes an index alone, and no
+  command prints the index of a case named anywhere else, a recorded line's or a neighbour's. Then:
   1. A line whose finding is gone is a fix landed: regenerate, and commit the deletion.
   2. A new finding the cases wrote themselves, a difference besides the spelling under test, is
      the cases' to fix, with a test of the writer in `internal/harness/openapicases`.
@@ -230,26 +230,24 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    responsibility no file holds yet starts a file named for it, however small, and a helper goes
    with what it serves, not with its caller. A rule reads a schema from its statement
    (`compilers/openapi/internal/statement`), not from the parser library's model, and a keyword the
-   statement lacks is added to `oas`'s rows and filled in the statement's `model.go`, the one file
-   that reads the model. Two places outside it still read the model's fields: the load phase, which
-   builds the bindings from it before any statement is read, and the operation walk. Wherever the
-   model is read, it can read an absent field and an empty one alike, so check what it returns
-   before you branch on it. A call of the library that panics on input it accepts runs
-   behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
-   `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
-   over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
-   doc comment over 100 words, and no lint suppression in the source. A call into a package the
-   caller does not import, through a function, an interface or a type argument handed to it,
-   counts in `callShapeBaseline` (`internal/archtest/callshape_test.go`): hand the caller a value
-   instead, or, for a call of a kind the table keeps, such as an immediate callback, raise its
-   pair's count.
-   *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
-   `TestModelHolders_NoOtherPackageHoldsAParserSchema` for a package outside its list that holds
-   the model's schema type, whether it imports the library or not,
-   `TestModelReads_HeldToTheBaseline` for a read of the model beside the statement,
-   `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
-   `TestSuppressions_NoDirectiveStandsInTheSource`, `TestCallShape_HeldToTheBaseline`. Nothing fails
-   for code in the wrong file of its package.
+   statement lacks is added to `specrules`'s rows and filled in the statement's `model.go`, the one
+   file that reads the model. Two places outside it still read the model's fields: the load phase,
+   which builds the bindings from it before any statement is read, and the operation walk. Wherever
+   the model is read, it can read an absent field and an empty one alike, so check what it returns
+   before you branch on it. A call of the library that panics on input it accepts runs behind
+   `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but `barrier`
+   may call `recover` outside its tests. The root guidance's caps apply: no function over 70 lines
+   or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no doc comment over
+   100 words, and no lint suppression in the source. A call into a package the caller does not
+   import, through a function, an interface or a type argument handed to it, counts in
+   `callShapeBaseline` (`internal/archtest/callshape_test.go`): hand the caller a value instead, or,
+   for a call of a kind the table keeps, such as an immediate callback, raise its pair's
+   count. *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
+   `TestModelHolders_NoOtherPackageHoldsAParserSchema` for a package outside its list that holds the
+   model's schema type, whether it imports the library or not, `TestModelReads_HeldToTheBaseline`
+   for a read of the model beside the statement, `TestMethodsPerType_StayUnderTheCap`,
+   `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`,
+   `TestCallShape_HeldToTheBaseline`. Nothing fails for code in the wrong file of its package.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it

@@ -16,11 +16,13 @@ import (
 // both where they say the same, neither where each says what the other lacks.
 type holding struct{ a, b bool }
 
-// holdsBoth is the holding of a part two nodes say alike.
-var holdsBoth = holding{a: true, b: true}
+// bothNodesHoldPart is the holding of a part two nodes say alike.
+var bothNodesHoldPart = holding{a: true, b: true}
 
 // and is the holding of two parts together.
-func (h holding) and(o holding) holding { return holding{a: h.a && o.a, b: h.b && o.b} }
+func (h holding) and(holdingValue holding) holding {
+	return holding{a: h.a && holdingValue.a, b: h.b && holdingValue.b}
+}
 
 // holdingOf reads a verdict on two parts as a holding: the narrower says all
 // the broader does, and two that meet each say what the other lacks. Any other
@@ -28,10 +30,10 @@ func (h holding) and(o holding) holding { return holding{a: h.a && o.a, b: h.b &
 func holdingOf(rel relation) (holding, bool) {
 	switch rel {
 	case relSame:
-		return holdsBoth, true
-	case relANarrower:
+		return bothNodesHoldPart, true
+	case firstTypeIsNarrower:
 		return holding{a: true}, true
-	case relBNarrower:
+	case secondTypeIsNarrower:
 		return holding{b: true}, true
 	case relMeet:
 		return holding{}, true
@@ -59,12 +61,12 @@ func verdict(values, detail holding, adoptable bool) relation {
 		}
 		return relOverlap
 	}
-	h := values.and(detail)
+	holdingValue := values.and(detail)
 	switch {
-	case h.a:
-		return relANarrower
-	case h.b:
-		return relBNarrower
+	case holdingValue.a:
+		return firstTypeIsNarrower
+	case holdingValue.b:
+		return secondTypeIsNarrower
 	case adoptable:
 		return relMeet
 	default:
@@ -79,18 +81,18 @@ func verdict(values, detail holding, adoptable bool) relation {
 // both do: no field set differently, and no examples only one gives, since
 // nothing shows the node built of the two admits them.
 func (j typeJudge) detailOf(a, b extras) (holding, bool) {
-	h, adoptable := fieldHolding(reflect.ValueOf(a.Encoding), reflect.ValueOf(b.Encoding))
+	holdingValue, adoptable := fieldHolding(reflect.ValueOf(a.Encoding), reflect.ValueOf(b.Encoding))
 	um, umOK := unmodeledHolding(a.Common.Unmodeled, b.Common.Unmodeled, j.sites.walk)
 	ex, exOK := fieldHolding(reflect.ValueOf(a.Common.Examples), reflect.ValueOf(b.Common.Examples))
-	h, adoptable = h.and(um).and(ex), adoptable && umOK && exOK && ex == holdsBoth
+	holdingValue, adoptable = holdingValue.and(um).and(ex), adoptable && umOK && exOK && ex == bothNodesHoldPart
 	ac, bc := siteless(a.Common), siteless(b.Common)
 	ac.Unmodeled, bc.Unmodeled, ac.Examples, bc.Examples = nil, nil, nil, nil
 	av, bv := reflect.ValueOf(ac), reflect.ValueOf(bc)
 	for i := range av.NumField() {
 		fh, ok := fieldHolding(av.Field(i), bv.Field(i))
-		h, adoptable = h.and(fh), adoptable && ok
+		holdingValue, adoptable = holdingValue.and(fh), adoptable && ok
 	}
-	return h, adoptable
+	return holdingValue, adoptable
 }
 
 // fieldHolding is the holding of one field two nodes may set, and false where
@@ -98,7 +100,7 @@ func (j typeJudge) detailOf(a, b extras) (holding, bool) {
 func fieldHolding(a, b reflect.Value) (holding, bool) {
 	switch {
 	case reflect.DeepEqual(a.Interface(), b.Interface()):
-		return holdsBoth, true
+		return bothNodesHoldPart, true
 	case b.IsZero():
 		return holding{a: true}, true
 	case a.IsZero():
@@ -111,12 +113,12 @@ func fieldHolding(a, b reflect.Value) (holding, bool) {
 // unmodeledHolding is the holding of what two nodes keep under Unmodeled, key
 // by key as fieldHolding reads a field, and false where both keep a key
 // differently, as sameEntry reads two entries through walk.
-func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
-	h := holdsBoth
+func unmodeledHolding(a, b ir.Unmodeled, walk FieldDeclarationContext) (holding, bool) {
+	holdingValue := bothNodesHoldPart
 	for _, k := range slices.Sorted(maps.Keys(a)) {
 		other, ok := b[k]
 		if !ok {
-			h.b = false
+			holdingValue.b = false
 			continue
 		}
 		if !sameEntry(walk, a[k], other) {
@@ -125,10 +127,10 @@ func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
 	}
 	for k := range b {
 		if _, ok := a[k]; !ok {
-			h.a = false
+			holdingValue.a = false
 		}
 	}
-	return h, true
+	return holdingValue, true
 }
 
 // adopt returns base holding, beside all it says, each field of others that
@@ -136,18 +138,18 @@ func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
 // to set it gives it, and differ hears of each later one setting it otherwise,
 // by its index and the name a document spells the field with. Base keeps its
 // site and its examples, which nothing adopts (detailOf).
-func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk Walk,
+func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.TypeCommon {
-	said := func(c ir.TypeCommon) reflect.Value {
-		c = siteless(c)
-		c.Unmodeled, c.Examples = nil, nil
-		return reflect.ValueOf(c)
+	said := func(typeCommon ir.TypeCommon) reflect.Value {
+		typeCommon = siteless(typeCommon)
+		typeCommon.Unmodeled, typeCommon.Examples = nil, nil
+		return reflect.ValueOf(typeCommon)
 	}
 	own, out := said(base), reflect.ValueOf(&base).Elem()
 	theirs := make([]reflect.Value, len(others))
-	for k, o := range others {
-		theirs[k] = said(o)
+	for k, typeCommon := range others {
+		theirs[k] = said(typeCommon)
 	}
 	for i := range out.NumField() {
 		if !own.Field(i).IsZero() {
@@ -179,14 +181,14 @@ func jsonName(f reflect.StructField) string {
 // adoptUnmodeled returns own with each key of others' Unmodeled it lacks, the
 // first to keep one giving it, its provenance with it. differ hears of a later
 // one keeping the key otherwise. It writes to no map it was given.
-func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk Walk,
+func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.Unmodeled {
 	out := maps.Clone(own)
 	taken := map[string]bool{}
-	for k, o := range others {
-		for _, key := range slices.Sorted(maps.Keys(o.Unmodeled)) {
-			entry := o.Unmodeled[key]
+	for k, typeCommon := range others {
+		for _, key := range slices.Sorted(maps.Keys(typeCommon.Unmodeled)) {
+			entry := typeCommon.Unmodeled[key]
 			kept, ok := out[key]
 			switch {
 			case !ok:

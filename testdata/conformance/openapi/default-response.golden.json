@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "DefaultResponse",
         "canonical": "default_response"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1purge/post",
+              "id": "operation/openapi/paths/~1purge/post",
               "name": {
                 "source": "purgeCache",
                 "canonical": "purge_cache"
@@ -82,7 +82,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema",
+                        "target": "type/anonymous/paths/~1purge/post/responses/default/content/application~1json/schema",
                         "nullable": false
                       }
                     }
@@ -110,7 +110,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1item/get",
+              "id": "operation/openapi/paths/~1item/get",
               "name": {
                 "source": "getItem",
                 "canonical": "get_item"
@@ -134,7 +134,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi/components/schemas/Item",
+                          "target": "type/openapi/components/schemas/Item",
                           "nullable": false
                         }
                       }
@@ -162,7 +162,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/openapi/components/schemas/Problem",
+                        "target": "type/openapi/components/schemas/Problem",
                         "nullable": false
                       }
                     }
@@ -190,7 +190,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1ping/get",
+              "id": "operation/openapi/paths/~1ping/get",
               "name": {
                 "source": "ping",
                 "canonical": "ping"
@@ -241,9 +241,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema": {
+    "type/anonymous/paths/~1purge/post/responses/default/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1purge/post/responses/default/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -256,21 +256,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1purge/post/responses/default/content/application~1json/schema/properties/purged",
+          "id": "property/openapi/paths/~1purge/post/responses/default/content/application~1json/schema/properties/purged",
           "name": {
             "source": "purged",
             "canonical": "purged"
           },
           "wireName": "purged",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -287,9 +287,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Item": {
+    "type/openapi/components/schemas/Item": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Item",
+      "id": "type/openapi/components/schemas/Item",
       "name": {
         "source": "Item",
         "canonical": "item"
@@ -303,21 +303,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Item/properties/id",
+          "id": "property/openapi/components/schemas/Item/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -334,9 +334,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Problem": {
+    "type/openapi/components/schemas/Problem": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Problem",
+      "id": "type/openapi/components/schemas/Problem",
       "name": {
         "source": "Problem",
         "canonical": "problem"
@@ -350,21 +350,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Problem/properties/message",
+          "id": "property/openapi/components/schemas/Problem/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -381,9 +381,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -391,11 +391,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -403,7 +403,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     }
   },
   "servers": {

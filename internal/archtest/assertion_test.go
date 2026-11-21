@@ -35,8 +35,8 @@ func TestInterfaceAssertions_CoverEveryExportedPair(t *testing.T) {
 	root := irtest.RepoRoot(t)
 
 	var pairs int
-	for _, p := range pkgs {
-		violations, n := missingAssertions(p, root)
+	for _, loadedPackage := range pkgs {
+		violations, n := missingAssertions(loadedPackage, root)
 		pairs += n
 		for _, v := range violations {
 			t.Error(v)
@@ -134,8 +134,8 @@ func (P) String() string { return "" }
 		// Not in parallel: go/types can race when two checks share an
 		// import (golang/go#81122).
 		t.Run(tc.name, func(t *testing.T) {
-			p := checkPlanted(t, base, filepath.Join(root, "pass", file), head+tc.src+tail)
-			got, _ := missingAssertions(p, root)
+			loadedPackage := checkPlanted(t, base, filepath.Join(root, "pass", file), head+tc.src+tail)
+			got, _ := missingAssertions(loadedPackage, root)
 			var want []string
 			for _, iface := range tc.want {
 				want = append(want, fmt.Sprintf("pass/%s:%d: pass.P implements %s with no compile-time assertion in its package",
@@ -187,19 +187,20 @@ func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls
 // package-level var can name it.
 var optionalInterfaces = []string{"ir.CycleVisitor"}
 
-// missingAssertions returns a line for each type p declares that implements an
-// exported interface p or a package p imports declares in the module, with no
-// var in p asserting it, sorted, and how many such pairs it found: every pair
-// of an exported type that is not generic, and any type's with an optional
-// interface, a generic one read as instantiated with its own type parameters.
-// An interface elsewhere is left out, as p could not assert it without a new
-// import, and so is a generic interface.
-func missingAssertions(p *decls.Package, root string) ([]string, int) {
-	ifaces := moduleInterfaces(p)
-	asserted := assertedInterfaces(p)
+// missingAssertions returns a line for each type loadedPackage declares that
+// implements an exported interface loadedPackage or a package loadedPackage
+// imports declares in the module, with no var in loadedPackage asserting it,
+// sorted, and how many such pairs it found: every pair of an exported type that
+// is not generic, and any type's with an optional interface, a generic one read
+// as instantiated with its own type parameters. An interface elsewhere is left
+// out, as loadedPackage could not assert it without a new import, and so is a
+// generic interface.
+func missingAssertions(loadedPackage *decls.Package, root string) ([]string, int) {
+	ifaces := moduleInterfaces(loadedPackage)
+	asserted := assertedInterfaces(loadedPackage)
 	var violations []string
 	var pairs int
-	for tn := range p.Objects[*types.TypeName]() {
+	for tn := range loadedPackage.Objects[*types.TypeName]() {
 		if tn.IsAlias() {
 			continue
 		}
@@ -218,7 +219,7 @@ func missingAssertions(p *decls.Package, root string) ([]string, int) {
 			// asserting an embedding interface asserts this one too.
 			if !slices.ContainsFunc(asserted[tn], func(a *types.Interface) bool { return types.Implements(a, iface.methods) }) {
 				violations = append(violations, fmt.Sprintf("%s: %s implements %s with no compile-time assertion in its package",
-					relPosition(p.Fset.Position(tn.Pos()), root), qualified(tn), qualified(iface.decl)))
+					relPosition(loadedPackage.Fset.Position(tn.Pos()), root), qualified(tn), qualified(iface.decl)))
 			}
 		}
 	}
@@ -234,10 +235,11 @@ type moduleInterface struct {
 }
 
 // moduleInterfaces returns the exported, non-generic interfaces with methods
-// that p and each module package p imports declare, as p's load sees them.
-func moduleInterfaces(p *decls.Package) []moduleInterface {
+// that loadedPackage and each module package loadedPackage imports declare, as
+// loadedPackage's load sees them.
+func moduleInterfaces(loadedPackage *decls.Package) []moduleInterface {
 	var out []moduleInterface
-	for _, pkg := range append([]*types.Package{p.Types}, p.Types.Imports()...) {
+	for _, pkg := range append([]*types.Package{loadedPackage.Types}, loadedPackage.Types.Imports()...) {
 		if pkg.Path() != module && !strings.HasPrefix(pkg.Path(), module+"/") {
 			continue
 		}
@@ -254,14 +256,14 @@ func moduleInterfaces(p *decls.Package) []moduleInterface {
 	return out
 }
 
-// assertedInterfaces returns, for each named type a package-level var in p
-// holds as an interface, the interfaces such vars give it: a conversion's, as
-// in var _ = I(T{}), or else the var's declared type's. The value's type is
-// read with any pointer and alias taken off. A named var asserts as var _
-// does.
-func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface {
+// assertedInterfaces returns, for each named type a package-level var in
+// loadedPackage holds as an interface, the interfaces such vars give it: a
+// conversion's, as in var _ = I(T{}), or else the var's declared type's. The
+// value's type is read with any pointer and alias taken off. A named var
+// asserts as var _ does.
+func assertedInterfaces(loadedPackage *decls.Package) map[*types.TypeName][]*types.Interface {
 	out := map[*types.TypeName][]*types.Interface{}
-	for _, f := range p.Syntax {
+	for _, f := range loadedPackage.Syntax {
 		for _, decl := range f.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.VAR {
@@ -273,7 +275,7 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 					continue
 				}
 				for _, value := range vs.Values {
-					held, iface, ok := assertion(p, vs.Type, value)
+					held, iface, ok := assertion(loadedPackage, vs.Type, value)
 					if !ok {
 						continue
 					}
@@ -292,20 +294,20 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 // typ, the var's declared type, which is nil when the var declares none. A
 // call whose callee has an interface type is a conversion, as no interface
 // value can be called. A value such as nil holds no named type.
-func assertion(p *decls.Package, typ, value ast.Expr) ([]*types.TypeName, *types.Interface, bool) {
+func assertion(loadedPackage *decls.Package, typ, value ast.Expr) ([]*types.TypeName, *types.Interface, bool) {
 	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 {
-		if iface, ok := p.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
-			return heldTypes(p.Info.TypeOf(call.Args[0])), iface, true
+		if iface, ok := loadedPackage.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
+			return heldTypes(loadedPackage.Info.TypeOf(call.Args[0])), iface, true
 		}
 	}
 	if typ == nil {
 		return nil, nil, false
 	}
-	iface, ok := p.Info.TypeOf(typ).Underlying().(*types.Interface)
+	iface, ok := loadedPackage.Info.TypeOf(typ).Underlying().(*types.Interface)
 	if !ok {
 		return nil, nil, false
 	}
-	return heldTypes(p.Info.TypeOf(value)), iface, true
+	return heldTypes(loadedPackage.Info.TypeOf(value)), iface, true
 }
 
 // heldTypes returns the named types a value of type t holds, as typeName reads

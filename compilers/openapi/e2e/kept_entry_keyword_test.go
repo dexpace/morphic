@@ -31,7 +31,7 @@ func TestKeptEntryKeyword_AClosureTheEntryCannotTypeKeepsTheEntryWhole(t *testin
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "closure-on-a-use-of-a-string", principal: keptStr, keyword: "additionalProperties: false", whole: true,
+			name: "closure-on-a-use-of-a-string", principal: keptString, keyword: "additionalProperties: false", whole: true,
 			want:  degradedKept("openapi:allOf/{i}"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "additionalProperties")},
 		},
@@ -69,10 +69,10 @@ func TestKeptEntryKeyword_ARelativeReferenceMergedInPlaceKeepsTheEntryApart(t *t
 		finds:   []keptFinding{keptDegraded("/allOf/{i}/$id", "$id")},
 		check: func(t *testing.T, doc *ir.Document, name string) {
 			t.Helper()
-			x, ok := propByWire(requireModelOf(t, doc, name), "x")
+			property, ok := propertyByWire(requireModelOf(t, doc, name), "x")
 			require.True(t, ok, "%s: the member the entry writes is typed", name)
-			_, isString := doc.Types[x.Type.Target].(*ir.Primitive)
-			alias, isAlias := doc.Types[x.Type.Target].(*ir.Scalar)
+			_, isString := doc.Types[property.Type.Target].(*ir.Primitive)
+			alias, isAlias := doc.Types[property.Type.Target].(*ir.Scalar)
 			assert.True(t, isString || isAlias && alias.Base != nil, "%s: x is the string its entry's base names", name)
 		},
 	}})
@@ -85,11 +85,11 @@ func TestKeptEntryKeyword_AValidationOnlyKeywordIsKeptUnderItsOwnKey(t *testing.
 	}
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "not", principal: keptStr, keyword: "not: {enum: [a]}", twin: true, want: vo("openapi:not"),
+			name: "not", principal: keptString, keyword: "not: {enum: [a]}", twin: true, want: vo("openapi:not"),
 			finds: []keptFinding{keptValidationOnly("not")},
 		},
 		{
-			name: "if-then", principal: keptStr, keyword: "if: {minLength: 1}, then: {maxLength: 3}", versions: keptOnly31,
+			name: "if-then", principal: keptString, keyword: "if: {minLength: 1}, then: {maxLength: 3}", versions: keptOnly31,
 			twin: true, want: vo("openapi:if-then-else"),
 			finds: []keptFinding{keptValidationOnly("if")},
 		},
@@ -114,7 +114,7 @@ func TestKeptEntryKeyword_AValidationOnlyKeywordIsKeptUnderItsOwnKey(t *testing.
 func TestKeptEntryKeyword_ANoteWithNoFieldIsKeptUnderItsOwnKeyAndTheRestAreTyped(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "docs-and-visibility", principal: keptStr, twin: true,
+		name: "docs-and-visibility", principal: keptString, twin: true,
 		keyword: "description: d, deprecated: true, readOnly: true, xml: {name: x}, example: q",
 		want:    map[string]ir.UnmodeledReason{"openapi:readOnly": ir.ReasonNoIRHome},
 		finds:   []keptFinding{keptDegraded("/allOf/{i}/readOnly", "readOnly")},
@@ -128,7 +128,7 @@ func TestKeptEntryKeyword_ANoteWithNoFieldIsKeptUnderItsOwnKeyAndTheRestAreTyped
 func TestKeptEntryKeyword_AVendorExtensionIsKeptUnderItsOwnKey(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "vendor-extension", principal: keptStr, keyword: "x-a: 1", twin: true,
+		name: "vendor-extension", principal: keptString, keyword: "x-a: 1", twin: true,
 		want: map[string]ir.UnmodeledReason{"openapi:x-a": ir.ReasonVendorExtension},
 	}})
 }
@@ -136,7 +136,7 @@ func TestKeptEntryKeyword_AVendorExtensionIsKeptUnderItsOwnKey(t *testing.T) {
 func TestKeptEntryKeyword_ABoundTheTypeTakesIsTypedAndKeptNowhere(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "string-bound-on-a-string", principal: keptStr, keyword: "minLength: 2", twin: true,
+		name: "string-bound-on-a-string", principal: keptString, keyword: "minLength: 2", twin: true,
 		check: func(t *testing.T, doc *ir.Document, name string) {
 			t.Helper()
 			scalar, ok := kindNode(t, doc, componentID(name)).(*ir.Scalar)
@@ -155,8 +155,8 @@ func TestKeptEntryKeyword_AnEntryDisagreeingWithAnotherIsKeptWholeInEveryOrder(t
 			t.Parallel()
 			schemas := []string{
 				"Str: {type: string}",
-				"Two: {allOf: [" + keptStr + ", {x-a: 1}, {x-a: 2}]}",
-				"TwoRev: {allOf: [" + keptStr + ", {x-a: 2}, {x-a: 1}]}",
+				"Two: {allOf: [" + keptString + ", {x-a: 1}, {x-a: 2}]}",
+				"TwoRev: {allOf: [" + keptString + ", {x-a: 2}, {x-a: 1}]}",
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileAnnotationSpec(t, "disagree", admissionSpec(version, "", schemas...))
@@ -184,7 +184,7 @@ func TestKeptEntryKeyword_ANullableNoPolicyAppliesIsKeptOutOfScopeUnderBothPolic
 func TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "type-narrowing-a-number", principal: keptNum, keyword: "type: integer", twin: true,
+		name: "type-narrowing-a-number", principal: keptNumber, keyword: "type: integer", twin: true,
 		want:  degradedKept("openapi:type"),
 		finds: []keptFinding{keptDegraded("/allOf/{i}", "type")},
 	}})
@@ -194,7 +194,7 @@ func TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey(t *testin
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "number-bound-on-a-string", principal: keptStr, keyword: "minimum: 1", twin: true,
+			name: "number-bound-on-a-string", principal: keptString, keyword: "minimum: 1", twin: true,
 			want:  degradedKept("openapi:minimum"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "minimum")},
 		},
@@ -209,12 +209,12 @@ func TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey(t *testin
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "pattern")},
 		},
 		{
-			name: "property-count-on-a-string", principal: keptStr, keyword: "minProperties: 1", twin: true,
+			name: "property-count-on-a-string", principal: keptString, keyword: "minProperties: 1", twin: true,
 			want:  degradedKept("openapi:minProperties"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "minProperties")},
 		},
 		{
-			name: "two-array-bounds-on-a-string", principal: keptStr, keyword: "minItems: 1, uniqueItems: true", twin: true,
+			name: "two-array-bounds-on-a-string", principal: keptString, keyword: "minItems: 1, uniqueItems: true", twin: true,
 			want:  degradedKept("openapi:minItems", "openapi:uniqueItems"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "minItems", "uniqueItems")},
 		},
@@ -230,7 +230,7 @@ func TestKeptEntryKeyword_AFormatNoTypePairsWithIsKeptUnderItsOwnKey(t *testing.
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "format")},
 		},
 		{
-			name: "unknown-format-on-a-string", principal: keptStr, keyword: "format: unknownfmt", twin: true,
+			name: "unknown-format-on-a-string", principal: keptString, keyword: "format: unknownfmt", twin: true,
 			want:  degradedKept("openapi:format"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "format")},
 		},
@@ -240,7 +240,7 @@ func TestKeptEntryKeyword_AFormatNoTypePairsWithIsKeptUnderItsOwnKey(t *testing.
 func TestKeptEntryKeyword_ContentVocabularyIsKeptUnderItsOwnKeyAndReportedAtTheKey(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "media-type", principal: keptStr, keyword: "contentMediaType: text/html", versions: keptOnly31, twin: true,
+		name: "media-type", principal: keptString, keyword: "contentMediaType: text/html", versions: keptOnly31, twin: true,
 		want:  map[string]ir.UnmodeledReason{"openapi:contentMediaType": ir.ReasonNoIRHome},
 		finds: []keptFinding{keptDegraded("/allOf/{i}/contentMediaType", "contentMediaType")},
 	}})
@@ -250,12 +250,12 @@ func TestKeptEntryKeyword_AShapeKeywordOnAUseOfAStringIsKeptUnderItsOwnKey(t *te
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "properties", principal: keptStr, keyword: "properties: {a: {type: string}}", twin: true,
+			name: "properties", principal: keptString, keyword: "properties: {a: {type: string}}", twin: true,
 			want:  degradedKept("openapi:properties"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "properties")},
 		},
 		{
-			name: "items", principal: keptStr, keyword: "items: {type: string}", twin: true,
+			name: "items", principal: keptString, keyword: "items: {type: string}", twin: true,
 			want:  degradedKept("openapi:items"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "items")},
 		},
@@ -271,7 +271,7 @@ func TestKeptEntryKeyword_AChoiceIsKeptUnderItsKeywordWithItsReason(t *testing.T
 			finds: []keptFinding{keptValidationOnly("anyOf")},
 		},
 		{
-			name: "one-of-saying-more-than-a-string", principal: keptStr, twin: true,
+			name: "one-of-saying-more-than-a-string", principal: keptString, twin: true,
 			keyword: "oneOf: [{type: string, maxLength: 5}, {type: boolean}]",
 			want:    degradedKept("openapi:oneOf"),
 			finds:   []keptFinding{keptDegraded("/allOf/{i}", "oneOf")},
@@ -291,7 +291,7 @@ func TestKeptEntryKeyword_AChoiceIsKeptUnderItsKeywordWithItsReason(t *testing.T
 func TestKeptEntryKeyword_ADynamicReferenceOnAnEntryOfAnItemIsKeptUnderItsOwnKey(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "dynamic-ref-at-items", principal: keptStr, keyword: "$dynamicRef: '#m'", versions: keptOnly31,
+		name: "dynamic-ref-at-items", principal: keptString, keyword: "$dynamicRef: '#m'", versions: keptOnly31,
 		wrap: "{type: array, items: %s}", pos: "/items", extra: []string{"Tree: {$dynamicAnchor: m, type: object}"},
 		want:  degradedKept("openapi:$dynamicRef"),
 		finds: []keptFinding{keptDegraded("/allOf/{i}/$dynamicRef", "$dynamicRef")},
@@ -306,12 +306,12 @@ func TestKeptEntryKeyword_AScopedKeywordIsKeptOutOfScopeAndAConsumedOneNowhere(t
 	}
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "schema", principal: keptStr, keyword: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
+			name: "schema", principal: keptString, keyword: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
 			versions: keptOnly31, twin: true, want: oos("openapi:$schema"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}/$schema", "$schema")},
 		},
 		{
-			name: "vocabulary", principal: keptStr, keyword: "$vocabulary: {'https://example.com/v': true}",
+			name: "vocabulary", principal: keptString, keyword: "$vocabulary: {'https://example.com/v': true}",
 			versions: keptOnly31, twin: true, want: oos("openapi:$vocabulary"),
 			finds: []keptFinding{keptDegraded("/allOf/{i}/$vocabulary", "$vocabulary")},
 		},
@@ -322,7 +322,7 @@ func TestKeptEntryKeyword_AScopedKeywordIsKeptOutOfScopeAndAConsumedOneNowhere(t
 			check: func(t *testing.T, doc *ir.Document, name string) {
 				t.Helper()
 				model := requireModelOf(t, doc, name)
-				_, ok := propByWire(model, "x")
+				_, ok := propertyByWire(model, "x")
 				assert.True(t, ok, "%s: the members the entry writes beside its $id are typed", name)
 			},
 		},
@@ -351,7 +351,7 @@ func TestKeptEntryKeyword_AnUnknownKeywordIsKeptOutOfScopeAndReportedAtTheKey(t 
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{
 		{
-			name: "unknown", principal: keptStr, keyword: "unknownKeyword: 1", twin: true,
+			name: "unknown", principal: keptString, keyword: "unknownKeyword: 1", twin: true,
 			want:  map[string]ir.UnmodeledReason{"openapi:unknownKeyword": ir.ReasonOutOfScope},
 			finds: []keptFinding{keptInfo(diag.UnknownSchemaKeyword, "/allOf/{i}/unknownKeyword", "unknownKeyword")},
 		},
@@ -361,7 +361,7 @@ func TestKeptEntryKeyword_AnUnknownKeywordIsKeptOutOfScopeAndReportedAtTheKey(t 
 func TestKeptEntryKeyword_AnEntryWritingSeveralKeywordsKeepsEachUnderItsOwnReason(t *testing.T) {
 	t.Parallel()
 	runKeptCases(t, []keptKeywordCase{{
-		name: "mixed", principal: keptStr, twin: true,
+		name: "mixed", principal: keptString, twin: true,
 		keyword: "unknownKeyword: 1, minLength: 2, description: d, not: {enum: [a]}, x-a: 1, minimum: 3",
 		want: map[string]ir.UnmodeledReason{
 			"openapi:unknownKeyword": ir.ReasonOutOfScope,
@@ -425,8 +425,8 @@ func TestKeptEntryKeyword_AnEntryDisagreeingWithAnotherKeepsItsKeywordsReasonWhe
 			t.Parallel()
 			schemas := []string{
 				"Str: {type: string}",
-				"Two: {allOf: [" + keptStr + ", {x-a: 1}, {x-a: 2}]}",
-				"TwoRev: {allOf: [" + keptStr + ", {x-a: 2}, {x-a: 1}]}",
+				"Two: {allOf: [" + keptString + ", {x-a: 1}, {x-a: 2}]}",
+				"TwoRev: {allOf: [" + keptString + ", {x-a: 2}, {x-a: 1}]}",
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileAnnotationSpec(t, "disagree", admissionSpec(version, "", schemas...))
@@ -452,10 +452,10 @@ func TestKeptEntryKeyword_TwoWritersOfOneKeywordAndValueKeepOneEntryAtThePositio
 			t.Parallel()
 			schemas := []string{
 				"Str: {type: string}",
-				"Same: {allOf: [" + keptStr + ", {x-a: 1}, {x-a: 1}]}",
-				"SameRev: {allOf: [{x-a: 1}, " + keptStr + ", {x-a: 1}]}",
-				"Nested: {allOf: [" + keptStr + ", {x-a: 1}, {allOf: [{x-a: 1}]}]}",
-				"NestedRev: {allOf: [" + keptStr + ", {allOf: [{x-a: 1}]}, {x-a: 1}]}",
+				"Same: {allOf: [" + keptString + ", {x-a: 1}, {x-a: 1}]}",
+				"SameRev: {allOf: [{x-a: 1}, " + keptString + ", {x-a: 1}]}",
+				"Nested: {allOf: [" + keptString + ", {x-a: 1}, {allOf: [{x-a: 1}]}]}",
+				"NestedRev: {allOf: [" + keptString + ", {allOf: [{x-a: 1}]}, {x-a: 1}]}",
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileAnnotationSpec(t, "same", admissionSpec(version, "", schemas...))
@@ -493,7 +493,7 @@ func TestKeptEntryKeyword_AKeywordWrittenAlikeBesideTheAllOfIsKeptAsThere(t *tes
 	schemas := make([]string, 0, 1+len(cases))
 	schemas = append(schemas, "Str: {type: string}")
 	for _, c := range cases {
-		schemas = append(schemas, c.name+": {allOf: ["+keptStr+", {"+c.keyword+"}], "+c.keyword+"}")
+		schemas = append(schemas, c.name+": {allOf: ["+keptString+", {"+c.keyword+"}], "+c.keyword+"}")
 	}
 	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 		doc, diags := compileAnnotationSpec(t, "alike", admissionSpec("3.1.0", "", schemas...))
@@ -602,8 +602,8 @@ func TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosit
 			t.Parallel()
 			schemas := []string{
 				"Str: {type: string}",
-				"Same: {allOf: [" + keptStr + ", {minimum: 1}, {minimum: 1}]}",
-				"SameRev: {allOf: [{minimum: 1}, " + keptStr + ", {minimum: 1}]}",
+				"Same: {allOf: [" + keptString + ", {minimum: 1}, {minimum: 1}]}",
+				"SameRev: {allOf: [{minimum: 1}, " + keptString + ", {minimum: 1}]}",
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "same", admissionSpec(version, "", schemas...))
@@ -627,8 +627,8 @@ func TestKeptEntryKeyword_AValueSetPrincipalsEntryKeepsWhatTheBesideSpellingKeep
 			t.Parallel()
 			schemas := []string{
 				"Str: {type: string}",
-				"Entry: {allOf: [" + keptStr + ", {enum: [a, b], x-note: 1, fancy: 1}], pattern: '^a'}",
-				"Beside: {allOf: [" + keptStr + "], enum: [a, b], x-note: 1, fancy: 1, pattern: '^a'}",
+				"Entry: {allOf: [" + keptString + ", {enum: [a, b], x-note: 1, fancy: 1}], pattern: '^a'}",
+				"Beside: {allOf: [" + keptString + "], enum: [a, b], x-note: 1, fancy: 1, pattern: '^a'}",
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "valueset", admissionSpec(version, "", schemas...))

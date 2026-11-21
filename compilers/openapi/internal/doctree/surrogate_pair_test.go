@@ -26,12 +26,12 @@ func TestRead_ASurrogatePairIsTheCharacterOnlyInADoubleQuotedScalar(t *testing.T
 	doc := read(t, "t: \"x"+pairText+"\"\nl: \"x"+bs+"ud83d"+bs+"ude00\"\na: 'x"+pairText+"'\nb: x"+pairText+
 		"\nblock: |\n  x"+pairText+"\nc: 1 # "+bs+"ud83d"+bs+"ude00\n")
 
-	assert.Equal(t, "x\U0001F600", at(t, doc.Root, "t").Value)
-	assert.Equal(t, "x\U0001F600", at(t, doc.Root, "l").Value, "the hex digits in lower case read alike")
-	assert.Equal(t, "x"+pairText, at(t, doc.Root, "a").Value)
-	assert.Equal(t, "x"+pairText, at(t, doc.Root, "b").Value)
-	assert.Equal(t, "x"+pairText+"\n", at(t, doc.Root, "block").Value)
-	assert.Equal(t, "# "+bs+"ud83d"+bs+"ude00", at(t, doc.Root, "c").LineComment, "a comment keeps the case written")
+	assert.Equal(t, "x\U0001F600", nodeAtSteps(t, doc.Root, "t").Value)
+	assert.Equal(t, "x\U0001F600", nodeAtSteps(t, doc.Root, "l").Value, "the hex digits in lower case read alike")
+	assert.Equal(t, "x"+pairText, nodeAtSteps(t, doc.Root, "a").Value)
+	assert.Equal(t, "x"+pairText, nodeAtSteps(t, doc.Root, "b").Value)
+	assert.Equal(t, "x"+pairText+"\n", nodeAtSteps(t, doc.Root, "block").Value)
+	assert.Equal(t, "# "+bs+"ud83d"+bs+"ude00", nodeAtSteps(t, doc.Root, "c").LineComment, "a comment keeps the case written")
 }
 
 // TestRead_ASurrogatePairAfterAnotherTriggerIsTheCharacter holds a pair written
@@ -49,8 +49,8 @@ func TestRead_ASurrogatePairAfterAnotherTriggerIsTheCharacter(t *testing.T) {
 			t.Parallel()
 			doc := read(t, "t: \"a"+before.text+"b"+pairText+"c\"\nu: 'd"+pairText+"'\n")
 
-			assert.Equal(t, "a"+before.value+"b\U0001F600c", at(t, doc.Root, "t").Value)
-			assert.Equal(t, "d"+pairText, at(t, doc.Root, "u").Value)
+			assert.Equal(t, "a"+before.value+"b\U0001F600c", nodeAtSteps(t, doc.Root, "t").Value)
+			assert.Equal(t, "d"+pairText, nodeAtSteps(t, doc.Root, "u").Value)
 		})
 	}
 }
@@ -96,7 +96,7 @@ func TestRead_ASurrogatePairInAKeyIsTheCharacter(t *testing.T) {
 	t.Parallel()
 	doc := read(t, "? \"k"+pairText+"\"\n: 1\n? 'k"+pairText+"'\n: 2\n")
 
-	keys := at(t, doc.Root).Content
+	keys := nodeAtSteps(t, doc.Root).Content
 	require.Len(t, keys, 4)
 	assert.Equal(t, "k\U0001F600", keys[0].Value)
 	assert.Equal(t, "k"+pairText, keys[2].Value)

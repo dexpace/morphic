@@ -136,11 +136,11 @@ the canonical naming grammar, and the identifier grammar — the kind prefix and
 it, with the declaration of the namespaces a compiler mints in. The registry also holds the
 decisions that read nodes other lowerings intern (`compile.Settlement`), deferred until the walk
 ends, and the nodes a reference names, promised to the lowering that owns them
-(`compile.Types.Promise`): a walk lowers one declaration at a time, so a decision taken mid-walk, or
-a node a reference built, would follow declaration order (micro-compiler-design §6.2). They live on
-the registry, though only OpenAPI uses them yet, because the registry is the one handle a lowering
-holds (micro-compiler-design §4). What stays with the compiler is what only it can compute: the
-path an ID derives from, since a JSON Pointer, a GraphQL structural path and a protobuf
+(`compile.Types.ReserveNodeAtCoordinate`): a walk lowers one declaration at a time, so a decision
+taken mid-walk, or a node a reference built, would follow declaration order (micro-compiler-design
+§6.2). They live on the registry, though only OpenAPI uses them yet, because the registry is the one
+handle a lowering holds (micro-compiler-design §4). What stays with the compiler is what only it can
+compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path and a protobuf
 fully-qualified name are different things.
 
 The split is enforced rather than documented: lint rules (`internal/lintrules`, run by `make vet`)
@@ -221,13 +221,13 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Some of its pieces read as if any format could use them: the
 YAML view (`internal/nodeview`), the JSON reader (`internal/jsontree`), version sniffing
-(`internal/detect`) and document identity (`resolve.Locate`, `resolve.Places`, `resolve.IsURL`).
-None moves into `compilers/compile`, because what each owes is agreement with the OpenAPI parser
-library, not with YAML, JSON or RFC 3986 alone. The view reads a mapping as the library's
-unmarshaller does, its `<<` merges and repeated keys included, which yaml.v3's own decoder reads
-differently. The reader reads a JSON text into the node tree that parser builds, which binds it to
-the parser's node type, its tags and its columns. Sniffing reads the parse the compile lowers,
-through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
+(`internal/detect`) and document identity (`componentlookup.Locate`, `componentlookup.Places`,
+`componentlookup.IsURL`). None moves into `compilers/compile`, because what each owes is agreement
+with the OpenAPI parser library, not with YAML, JSON or RFC 3986 alone. The view reads a mapping as
+the library's unmarshaller does, its `<<` merges and repeated keys included, which yaml.v3's own
+decoder reads differently. The reader reads a JSON text into the node tree that parser builds, which
+binds it to the parser's node type, its tags and its columns. Sniffing reads the parse the compile
+lowers, through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
 classifies a location as the library's join does, departing from it where RFC 3986 reads a reference
 otherwise; the compiler binds every reference itself, so nothing hands the library a spelling to
 agree with. A compiler parsing through the same library is the evidence that would move the view or
@@ -382,20 +382,19 @@ Built, and in the default list:
   `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
-  something the document declares (a `TypeRef` target against the type registry, an `OpID` against
-  the operations the service tree declares, and so on for every ID class), and every integer index
-  and `PropID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
-  that, such as discriminator mappings that point at actual variants, wire names and aliases unique
-  within a model, a one-way operation that declares no response, and binding completeness: a
+  something the document declares (a `TypeRef` target against the type registry, an `OperationID`
+  against the operations the service tree declares, and so on for every ID class), and every integer
+  index and `PropertyID` addresses a declared entry. Well-formedness is what the IR asks of a node
+  beyond that, such as discriminator mappings that point at actual variants, wire names and aliases
+  unique within a model, a one-way operation that declares no response, and binding completeness: a
   parameter an HTTP binding places twice at one non-host location is an error
   (`pass/param-binding-mismatch`), one it places nowhere is the warning `pass/param-unbound`, and a
   `host` binding is additive ([http-binding](./ir/http-binding.md)). It also reports what a source
   wrote that no value can meet, each a warning: bounds that admit no value
   ([constraints](./ir/constraints.md)), a default or an example its type does not admit
   ([values](./ir/values.md)), and a composition cycle or a type with no finite value
-  ([models](./ir/models.md)).
-  Structural problems are errors, which fail the run at the default threshold (§4); style issues are
-  warnings.
+  ([models](./ir/models.md)). Structural problems are errors, which fail the run at the default
+  threshold (§4); style issues are warnings.
 - **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
   of one scope whose names a target may render alike, which it can then tell apart only by ID, as
   a warning, and a name with no word character, which a target names from its characters,
@@ -594,7 +593,7 @@ limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 ```
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
-├── reuse/                  # Layer 0 — scratch state both checkers read collection after collection.
+├── scratchstate/           # Layer 0 — scratch state both checkers read collection after collection.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
@@ -656,13 +655,14 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's `diag`, behind which that compiler runs its parser, the JSONPath evaluator it applies
   an overlay with and its own alias scan. No other package recovers a panic outside its tests, as
   `.golangci.yml` enforces.
-- `reuse` imports only the standard library: the map `ir/irverify` and `pass` each empty between
-  collections, one type rather than a copy in each, and no morphic concept, so it sits below `ir`.
+- `scratchstate` imports only the standard library: the map `ir/irverify` and `pass` each empty
+  between collections, one type rather than a copy in each, and no morphic concept, so it sits below
+  `ir`.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
-  `ir/irfacts` and `reuse` — never each other, never `emitters` or `engine`. A compiler also names the
-  contract package and `compilers/compile`; each is allowed in its own right, so no sibling
-  compiler rides in beside them.
+  `ir/irfacts` and `scratchstate` — never each other, never `emitters` or `engine`. A compiler also
+  names the contract package and `compilers/compile`; each is allowed in its own right, so no
+  sibling compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches only `ir` and
   `barrier`, and no lowering package may reach the compiler that calls it.
@@ -708,10 +708,10 @@ what the built document is written in. A package's allowlist says what it import
 no row, or a row naming no package, fails `TestLayers_EveryCompilerPackageHasOne`.
 
 In `internal/schema` a position is lowered from three readings, each made once a run: what its
-schema writes (`statement.Table`), what that admits (`admissionOf`), and which conjunct of its
-`allOf` decides it (`decisionOf`). The build of its node then says which keywords it read, of those
-whose home the node's kind decides (`keySet`), and the node keeps the rest verbatim under
-`Unmodeled` (`keepUnread`).
+schema writes (`statement.MemoizingSchemaReader`), what that admits (`admissionOf`), and which
+conjunct of its `allOf` decides it (`decisionOf`). The build of its node then says which keywords it
+read, of those whose home the node's kind decides (`keySet`), and the node keeps the rest verbatim
+under `Unmodeled` (`keepUnread`).
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or

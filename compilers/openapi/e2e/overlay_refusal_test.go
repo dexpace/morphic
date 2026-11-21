@@ -58,14 +58,14 @@ paths:
 `
 
 // TestCompile_AnOverlayKeepsWhatTheSourceIsRefusedFor holds each finding above
-// info the source alone draws for a mapping, a key or a merge to standing at its
-// pointer, an error still failing the compile, under an overlay writing into the
-// mapping, writing or removing a member, writing inside one, or copying the
-// mapping, merging or not. The rows are written by hand from what
-// oas.CheckFormat, oas.CheckRepeatedKeys and the load phase's tagged-mapping and
-// anchor-cycle refusals report of a mapping's YAML, so a report added there
-// needs its row. A key's text is judged on the overlaid tree, so four rules of
-// it stand for the rest.
+// info the source alone draws for a mapping, a key or a merge to standing at
+// its pointer, an error still failing the compile, under an overlay writing
+// into the mapping, writing or removing a member, writing inside one, or
+// copying the mapping, merging or not. The rows are written by hand from what
+// specrules.CheckFormat, specrules.CheckRepeatedKeys and the load phase's
+// tagged-mapping and anchor-cycle refusals report of a mapping's YAML, so a
+// report added there needs its row. A key's text is judged on the overlaid
+// tree, so four rules of it stand for the rest.
 func TestCompile_AnOverlayKeepsWhatTheSourceIsRefusedFor(t *testing.T) {
 	t.Parallel()
 	const s, h = "$.components.schemas.S", "$.paths['/a'].get.responses['200'].headers"
@@ -144,9 +144,9 @@ func overlaysAround(mapping, member, sibling, value, inside string) map[string]s
 // info.
 func findingsAbove(diags []ir.Diagnostic) map[string]bool {
 	out := map[string]bool{}
-	for _, d := range diags {
-		if d.Severity != ir.SeverityInfo {
-			out[d.Code+" "+string(d.Provenance.Pointer)] = true
+	for _, diagnostic := range diags {
+		if diagnostic.Severity != ir.SeverityInfo {
+			out[diagnostic.Code+" "+string(diagnostic.Provenance.Pointer)] = true
 		}
 	}
 	return out
@@ -155,8 +155,8 @@ func findingsAbove(diags []ir.Diagnostic) map[string]bool {
 // codesOf returns the code of each finding of diags.
 func codesOf(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, diagnostic.Code)
 	}
 	return out
 }

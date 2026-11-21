@@ -72,7 +72,7 @@ func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce(t *testing.
 		name string
 		// version is the document's openapi field; "" means 3.1.0.
 		version string
-		// entry is the body written for the securitySchemes entry `s`.
+		// entry is the body written for the securitySchemes entry `authScheme`.
 		entry    string
 		kind     ir.AuthKind
 		reporter int
@@ -127,9 +127,9 @@ components:
   securitySchemes:
     s: `+tc.entry+`
 `)
-			s, interned := doc.Auth[ids.Auth("s")]
+			authScheme, interned := doc.Auth[ids.Auth("s")]
 			require.True(t, interned, "the entry is interned, not refused: %+v", diags)
-			assert.Equal(t, tc.kind, s.Kind)
+			assert.Equal(t, tc.kind, authScheme.Kind)
 			require.Len(t, svc.Auth, 1, "the requirement naming it survives")
 			require.Len(t, svc.Auth[0].Schemes, 1)
 			assert.Equal(t, ids.Auth("s"), svc.Auth[0].Schemes[0].Scheme, "and keeps a live AuthID")
@@ -140,8 +140,8 @@ components:
 			}
 			findings := loaderFlowsFindings(diags)
 			assert.Len(t, findings, wantLoader, "the loader's report of a missing flows: %+v", diags)
-			for _, f := range findings {
-				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s"+tc.at), f.Provenance.Pointer,
+			for _, diagnostic := range findings {
+				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s"+tc.at), diagnostic.Provenance.Pointer,
 					"the loader places its report where it is written, not by position alone (GitHub #803)")
 			}
 			if tc.reporter != byLowering {
@@ -150,9 +150,9 @@ components:
 			}
 			require.Len(t, messagesAt(diags, diag.OAuth2NoFlow), 1, "one report: %+v", diags)
 			// At the declaration, not at the flows object inside it.
-			msg := openapitest.DiagMessageAt(t, diags, diag.OAuth2NoFlow, ir.SeverityWarning,
+			message := openapitest.DiagMessageAt(t, diags, diag.OAuth2NoFlow, ir.SeverityWarning,
 				"/components/securitySchemes/s")
-			assert.Contains(t, msg, "declares no flow")
+			assert.Contains(t, message, "declares no flow")
 		})
 	}
 }
@@ -162,10 +162,10 @@ components:
 // what identifies the finding.
 func loaderFlowsFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError && strings.HasPrefix(d.Code, diag.Validation) &&
-			strings.Contains(d.Message, `Security Scheme Object field "flows"`) {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError && strings.HasPrefix(diagnostic.Code, diag.Validation) &&
+			strings.Contains(diagnostic.Message, `Security Scheme Object field "flows"`) {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -188,11 +188,11 @@ components:
       flows:
         implicit: {authorizationUrl: "https://a.example/a", tokenUrl: .nan, scopes: {}}
 `)
-	s, ok := doc.Auth[ids.Auth("s")]
+	authScheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
-	require.Len(t, s.Flows, 1)
-	assert.Empty(t, s.Flows[0].TokenURL, "an implicit flow has no token endpoint to put it in")
-	assert.Empty(t, s.Flows[0].Unmodeled, "nothing was kept, so nothing claims to have been")
+	require.Len(t, authScheme.Flows, 1)
+	assert.Empty(t, authScheme.Flows[0].TokenURL, "an implicit flow has no token endpoint to put it in")
+	assert.Empty(t, authScheme.Flows[0].Unmodeled, "nothing was kept, so nothing claims to have been")
 
 	const at = "/components/securitySchemes/s/flows/implicit/tokenUrl"
 	assert.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},
@@ -223,9 +223,9 @@ components:
 
 	const declared = "/components/securitySchemes/target"
 	var required []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.Validation+"/validation-required-field" {
-			required = append(required, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.Validation+"/validation-required-field" {
+			required = append(required, diagnostic)
 		}
 	}
 	require.Len(t, required, 1, "one finding for the one declaration: %+v", diags)
@@ -251,13 +251,14 @@ components:
 `
 }
 
-// onlyFlow returns the one flow of the oauth2 scheme `s` that spec compiled to.
+// onlyFlow returns the one flow of the oauth2 scheme `authScheme` that spec
+// compiled to.
 func onlyFlow(t *testing.T, doc *ir.Document) ir.OAuthFlow {
 	t.Helper()
-	s, ok := doc.Auth[ids.Auth("s")]
+	authScheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok, "the scheme interns")
-	require.Len(t, s.Flows, 1)
-	return s.Flows[0]
+	require.Len(t, authScheme.Flows, 1)
+	return authScheme.Flows[0]
 }
 
 // TestLowerSecuritySchemes_AFlowFieldItsKindDoesNotDefineIsKept pins that a
@@ -425,23 +426,23 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	const declared = "/components/securitySchemes/target/flows/clientCredentials/authorizationUrl"
 	for _, name := range []string{"alias", "other", "target"} {
-		s, ok := doc.Auth[ids.Auth(name)]
+		authScheme, ok := doc.Auth[ids.Auth(name)]
 		require.True(t, ok, "%s interns a scheme of its own", name)
-		require.Len(t, s.Flows, 1)
-		assert.Equal(t, "https://a.example/token", s.Flows[0].TokenURL)
-		assert.Empty(t, s.Flows[0].AuthorizationURL)
+		require.Len(t, authScheme.Flows, 1)
+		assert.Equal(t, "https://a.example/token", authScheme.Flows[0].TokenURL)
+		assert.Empty(t, authScheme.Flows[0].AuthorizationURL)
 		assert.Equal(t, jsontext.Pointer(declared),
-			s.Flows[0].Unmodeled["openapi:authorizationUrl"].Provenance.Pointer,
+			authScheme.Flows[0].Unmodeled["openapi:authorizationUrl"].Provenance.Pointer,
 			"the kept field is located where it is written, for %s too", name)
 	}
 
 	assert.Equal(t, []string{declared}, sortedPointersAt(diags, diag.DegradedConstruct),
 		"aliases of one declaration announce it once: %+v", diags)
-	for _, d := range diags {
+	for _, diagnostic := range diags {
 		for _, alias := range []string{"alias", "other"} {
 			prefix := "/components/securitySchemes/" + alias
-			assert.False(t, string(d.Provenance.Pointer) == prefix || strings.HasPrefix(string(d.Provenance.Pointer), prefix+"/"),
-				"nothing is placed under %s, which holds only a $ref: %+v", alias, d)
+			assert.False(t, string(diagnostic.Provenance.Pointer) == prefix || strings.HasPrefix(string(diagnostic.Provenance.Pointer), prefix+"/"),
+				"nothing is placed under %s, which holds only a $ref: %+v", alias, diagnostic)
 		}
 	}
 }

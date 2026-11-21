@@ -130,14 +130,14 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 // reach.
 func TestLimitOptions_NameEveryBudget(t *testing.T) {
 	t.Parallel()
-	var l openapi.Limits
+	var limitsValue openapi.Limits
 	fields := map[*int]string{}
-	for name, field := range openapi.LimitOptions(&l) {
+	for name, field := range openapi.LimitOptions(&limitsValue) {
 		_, dup := fields[field]
 		assert.False(t, dup, "%s sets a field another option sets", name)
 		fields[field] = name
 	}
-	limits := reflect.ValueOf(&l).Elem()
+	limits := reflect.ValueOf(&limitsValue).Elem()
 	require.Len(t, fields, limits.NumField(), "an option for each field, and no other")
 	for i := range limits.NumField() {
 		field, ok := reflect.TypeAssert[*int](limits.Field(i).Addr())
@@ -152,14 +152,14 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 // rather than staying out of a text caller's reach.
 func TestSwitchOptions_NameEveryPolicy(t *testing.T) {
 	t.Parallel()
-	var o openapi.Options
+	var options openapi.Options
 	fields := map[*bool]string{}
-	for name, field := range openapi.SwitchOptions(&o) {
+	for name, field := range openapi.SwitchOptions(&options) {
 		_, dup := fields[field]
 		assert.False(t, dup, "%s switches a policy another option switches", name)
 		fields[field] = name
 	}
-	opts := reflect.ValueOf(&o).Elem()
+	opts := reflect.ValueOf(&options).Elem()
 	policies := 0
 	for i := range opts.NumField() {
 		if opts.Field(i).Kind() != reflect.Struct {
@@ -408,9 +408,9 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 		require.NotNil(t, doc)
 		out := map[string]string{}
 		for _, top := range doc.Services[0].Groups {
-			for _, g := range append([]ir.OperationGroup{top}, top.Groups...) {
-				for _, op := range g.Operations {
-					out[op.Name.Source] = string(g.ID)
+			for _, operationGroup := range append([]ir.OperationGroup{top}, top.Groups...) {
+				for _, operation := range operationGroup.Operations {
+					out[operation.Name.Source] = string(operationGroup.ID)
 				}
 			}
 		}
@@ -419,13 +419,13 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 
 	got, err := filed(openapi.Options{Grouping: openapi.GroupByExtension})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/tags/bees"}, got,
+	assert.Equal(t, map[string]string{"a": "operation-group/extension/zero-trust/devices", "b": "operation-group/tags/bees"}, got,
 		"the default key, its list read as one path, and an operation stating none grouped by tags")
 	got, err = filed(openapi.Options{
 		Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: openapi.GroupByPathPrefix},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/path-prefix/b"}, got,
+	assert.Equal(t, map[string]string{"a": "operation-group/extension/zero-trust/devices", "b": "operation-group/path-prefix/b"}, got,
 		"the default key beside the fallback the caller names")
 
 	for name, tc := range map[string]struct {
@@ -481,18 +481,18 @@ func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		out := make([]ir.GroupID, 0, len(doc.Services[0].Groups))
-		for _, g := range doc.Services[0].Groups {
-			out = append(out, g.ID)
+		for _, operationGroup := range doc.Services[0].Groups {
+			out = append(out, operationGroup.ID)
 		}
 		return out
 	}
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/forge"}, groups(openapi.GroupingExtension{}),
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/forge"}, groups(openapi.GroupingExtension{}),
 		"the default key and its aliases")
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/other"},
 		groups(openapi.GroupingExtension{Aliases: "x-other"}), "the default key and the caller's aliases")
-	assert.Equal(t, []ir.GroupID{"g/extension/a"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a"},
 		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments}), "the caller's key alone")
-	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other-g"},
+	assert.Equal(t, []ir.GroupID{"operation-group/extension/a", "operation-group/extension/other-g"},
 		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments, Aliases: "x-other"}),
 		"the caller's key and aliases restating it")
 }

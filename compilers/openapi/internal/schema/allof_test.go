@@ -64,14 +64,14 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c, ok := doc.Types[componentID("C")].(*ir.Model)
+	model, ok := doc.Types[componentID("C")].(*ir.Model)
 	require.True(t, ok, "C should be a model")
-	assert.Nil(t, c.Base, "two non-hierarchy refs, neither sole: no Base")
-	require.Len(t, c.Mixins, 2, "both refs become mixins")
-	assert.Equal(t, componentID("A"), c.Mixins[0].Target)
-	assert.Equal(t, componentID("B"), c.Mixins[1].Target)
-	require.Len(t, c.Properties, 1)
-	assert.Equal(t, "c", c.Properties[0].Name.Source)
+	assert.Nil(t, model.Base, "two non-hierarchy refs, neither sole: no Base")
+	require.Len(t, model.Mixins, 2, "both refs become mixins")
+	assert.Equal(t, componentID("A"), model.Mixins[0].Target)
+	assert.Equal(t, componentID("B"), model.Mixins[1].Target)
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, "c", model.Properties[0].Name.Source)
 }
 
 // TestAllOf_ARefToAHierarchyMemberIsTheBase pins the Base an allOf of several
@@ -106,20 +106,20 @@ func TestAllOf_ARefToAHierarchyMemberIsTheBase(t *testing.T) {
 			"Leaf": {"Mid", []string{"Other"}}, "Deeper": {"Low", []string{"Other"}}, "First": {"Mid", []string{"Other"}},
 			"Two": {"Mid", []string{"Other", "Mid2"}}, "Declaring": {"Root", []string{"Other"}}, "None": {"", []string{"Other", "Extra"}},
 		} {
-			m, ok := typeByName(doc, name).(*ir.Model)
+			model, ok := typeByName(doc, name).(*ir.Model)
 			require.True(t, ok, "%s composes; got %T", name, typeByName(doc, name))
-			mixins := make([]string, 0, len(m.Mixins))
-			for _, r := range m.Mixins {
-				mixins = append(mixins, strings.TrimPrefix(string(r.Target), string(componentID(""))))
+			mixins := make([]string, 0, len(model.Mixins))
+			for _, typeRef := range model.Mixins {
+				mixins = append(mixins, strings.TrimPrefix(string(typeRef.Target), string(componentID(""))))
 			}
 			assert.Equal(t, tc.mixins, mixins, name)
 			if tc.base == "" {
-				assert.Nil(t, m.Base, name)
+				assert.Nil(t, model.Base, name)
 				assert.False(t, ir.IsSubtype(doc, componentID(name), componentID("Root")), name)
 				continue
 			}
-			require.NotNil(t, m.Base, name)
-			assert.Equal(t, componentID(tc.base), m.Base.Target, name)
+			require.NotNil(t, model.Base, name)
+			assert.Equal(t, componentID(tc.base), model.Base.Target, name)
 			assert.True(t, ir.IsSubtype(doc, componentID(name), componentID("Root")), "%s is a subtype of Root", name)
 		}
 	}
@@ -152,7 +152,7 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 
 	pet := typeByName(doc, "Pet").(*ir.Model)
 	require.NotNil(t, pet.Discriminator)
-	assert.NotEmpty(t, pet.Discriminator.Property, "declared petType resolves to a PropID")
+	assert.NotEmpty(t, pet.Discriminator.Property, "declared petType resolves to a PropertyID")
 	assert.NotEmpty(t, pet.Discriminator.Mapping)
 	assert.NotEmpty(t, pet.Discriminator.Default, "defaultMapping resolved")
 
@@ -196,30 +196,30 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range taggedOrders(t, c.union, c.rest) {
-				s, ok := typeByName(doc, "Stored").(*ir.Model)
+				model, ok := typeByName(doc, "Stored").(*ir.Model)
 				require.True(t, ok, "Stored lowers to a model; got %T", typeByName(doc, "Stored"))
-				assert.Equal(t, &ir.TypeRef{Target: componentID(c.base)}, s.Base)
+				assert.Equal(t, &ir.TypeRef{Target: componentID(c.base)}, model.Base)
 				var mixins []ir.TypeRef
 				for _, m := range c.mixins {
 					mixins = append(mixins, ir.TypeRef{Target: componentID(m)})
 				}
-				assert.Equal(t, mixins, s.Mixins)
-				var props []string
-				for _, p := range s.Properties {
-					props = append(props, p.Name.Source)
+				assert.Equal(t, mixins, model.Mixins)
+				var properties []string
+				for _, property := range model.Properties {
+					properties = append(properties, property.Name.Source)
 				}
-				assert.Equal(t, []string{"id"}, props, "Stored declares its own members alone")
+				assert.Equal(t, []string{"id"}, properties, "Stored declares its own members alone")
 
-				u, ok := typeByName(doc, "Rule").(*ir.Union)
+				union, ok := typeByName(doc, "Rule").(*ir.Union)
 				require.True(t, ok, "Rule lowers to a union; got %T", typeByName(doc, "Rule"))
-				assert.Equal(t, c.discriminated, u.Discriminator != nil)
+				assert.Equal(t, c.discriminated, union.Discriminator != nil)
 				var variants []ir.TypeID
-				for _, v := range u.Variants {
-					variants = append(variants, v.Type.Target)
+				for _, variant := range union.Variants {
+					variants = append(variants, variant.Type.Target)
 				}
 				assert.Equal(t, []ir.TypeID{componentID("Block"), componentID("Log")}, variants)
 				for id := range doc.Types {
-					assert.NotContains(t, string(id), "t/composed/", "nothing is distributed")
+					assert.NotContains(t, string(id), "type/composed/", "nothing is distributed")
 				}
 				assert.Empty(t, withCode(doc.Diagnostics, diag.CompositionLowering))
 			}
@@ -261,15 +261,15 @@ func TestAllOf_ARefEntryNamingNothingIsReportedByTheLowering(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/components/schemas/Y/allOf/0"), diags[0].Provenance.Pointer)
 
 			if tc.reference {
-				y, ok := typeByName(doc, "Y").(*ir.Scalar)
+				scalar, ok := typeByName(doc, "Y").(*ir.Scalar)
 				require.True(t, ok, "Y is the reference, got %T", typeByName(doc, "Y"))
-				assert.Equal(t, ir.TypeID("t/prim/any"), y.Base.Target)
+				assert.Equal(t, ir.TypeID("type/primitive/any"), scalar.Base.Target)
 				return
 			}
-			y, ok := typeByName(doc, "Y").(*ir.Model)
+			model, ok := typeByName(doc, "Y").(*ir.Model)
 			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
-			assert.Nil(t, y.Base, "the entry naming nothing is not the base")
-			assert.Equal(t, tc.mixins, y.Mixins, "the entry naming nothing is not a mixin")
+			assert.Nil(t, model.Base, "the entry naming nothing is not the base")
+			assert.Equal(t, tc.mixins, model.Mixins, "the entry naming nothing is not a mixin")
 		})
 	}
 }
@@ -305,9 +305,9 @@ func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
         - {type: string, nullable: true, allOf: []}
         - {type: object, nullable: true, properties: {u: {type: string}}}
 `))
-	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
+	message := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
-	assert.Contains(t, msg, "the entry (type, allOf) is kept verbatim")
+	assert.Contains(t, message, "the entry (type, allOf) is kept verbatim")
 }
 
 // TestAllOf_FalseEntryClosesTheCatchAllItForbids pins that a `false` allOf
@@ -339,24 +339,24 @@ func TestAllOf_FalseEntryClosesTheCatchAllItForbids(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, id := range []ir.TypeID{
-				componentID("M"), "t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1",
+				componentID("M"), "type/composed/components/schemas/U/oneOf/0", "type/composed/components/schemas/U/oneOf/1",
 			} {
-				m, ok := doc.Types[id].(*ir.Model)
+				model, ok := doc.Types[id].(*ir.Model)
 				require.True(t, ok, "%s is a model, not %T", id, doc.Types[id])
-				assert.Equal(t, ir.AdditionalClosed, m.Additional, id)
-				entry, raw := m.Unmodeled["openapi:additionalProperties"]
-				require.Equal(t, tc.raw, raw, "%s: what the source writes is kept, and only that: %+v", id, m.Unmodeled)
+				assert.Equal(t, ir.AdditionalClosed, model.Additional, id)
+				entry, raw := model.Unmodeled["openapi:additionalProperties"]
+				require.Equal(t, tc.raw, raw, "%s: what the source writes is kept, and only that: %+v", id, model.Unmodeled)
 				if raw {
 					assert.JSONEq(t, `{"type": "string"}`, string(entry.Value), id)
 					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, id)
 				}
 				if !tc.kept {
-					assert.Nil(t, m.AdditionalProps, "%s: a catch-all left no pattern is none", id)
+					assert.Nil(t, model.AdditionalProperties, "%s: a catch-all left no pattern is none", id)
 					continue
 				}
-				require.NotNil(t, m.AdditionalProps, id)
-				assert.Nil(t, m.AdditionalProps.Value, "%s: no key beyond the patterns is allowed", id)
-				assert.Len(t, m.AdditionalProps.Patterns, 1, id)
+				require.NotNil(t, model.AdditionalProperties, id)
+				assert.Nil(t, model.AdditionalProperties.Value, "%s: no key beyond the patterns is allowed", id)
+				assert.Len(t, model.AdditionalProperties.Patterns, 1, id)
 			}
 		})
 	}
@@ -376,15 +376,15 @@ func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := typeByName(doc, "M").(*ir.Model)
+	model, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
-	assert.Empty(t, m.Additional, "the catch-all, not the closure, says what the model admits")
-	require.NotNil(t, m.AdditionalProps)
-	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
-	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
-	require.Contains(t, m.Unmodeled, "openapi:unevaluated")
+	assert.Empty(t, model.Additional, "the catch-all, not the closure, says what the model admits")
+	require.NotNil(t, model.AdditionalProperties)
+	assert.Equal(t, &ir.TypeRef{Target: "type/primitive/integer"}, model.AdditionalProperties.Value)
+	assert.NotContains(t, model.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
+	require.Contains(t, model.Unmodeled, "openapi:unevaluated")
 	assert.Equal(t, `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
-		string(m.Unmodeled["openapi:unevaluated"].Value))
+		string(model.Unmodeled["openapi:unevaluated"].Value))
 }
 
 // TestAllOf_FalseEntryBesideUnionClosesEveryVariant pins that a `false` allOf
@@ -412,8 +412,8 @@ func TestAllOf_FalseEntryBesideUnionClosesEveryVariant(t *testing.T) {
 			u := "    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n      allOf:\n" + tc.allOf
 			for _, doc := range nestedOrders(t, u, nestedAB+pq) {
 				for _, id := range []ir.TypeID{
-					"t/composed/components/schemas/U/oneOf/0",
-					"t/composed/components/schemas/U/oneOf/1",
+					"type/composed/components/schemas/U/oneOf/0",
+					"type/composed/components/schemas/U/oneOf/1",
 				} {
 					model, ok := doc.Types[id].(*ir.Model)
 					require.True(t, ok, "%s should be a model", id)
@@ -424,9 +424,9 @@ func TestAllOf_FalseEntryBesideUnionClosesEveryVariant(t *testing.T) {
 					assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer)
 				}
 				n := 0
-				for _, d := range doc.Diagnostics {
-					if d.Code == diag.FalseSchema && d.Severity == ir.SeverityInfo &&
-						d.Provenance.Pointer == jsontext.Pointer(tc.pointer) {
+				for _, diagnostic := range doc.Diagnostics {
+					if diagnostic.Code == diag.FalseSchema && diagnostic.Severity == ir.SeverityInfo &&
+						diagnostic.Provenance.Pointer == jsontext.Pointer(tc.pointer) {
 						n++
 					}
 				}
@@ -450,11 +450,11 @@ func TestAllOf_FalseEntryClosesTheComposition(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := typeByName(doc, "Never").(*ir.Model)
+	model, ok := typeByName(doc, "Never").(*ir.Model)
 	require.True(t, ok, "the composition still lowers to a model")
-	assert.Equal(t, ir.AdditionalClosed, m.Additional, "an entry matching nothing closes the composition")
-	require.Len(t, m.Unmodeled, 1, "the entry is kept verbatim")
-	assert.Equal(t, ir.RawValue("false"), m.Unmodeled["openapi:allOf/0"].Value,
+	assert.Equal(t, ir.AdditionalClosed, model.Additional, "an entry matching nothing closes the composition")
+	require.Len(t, model.Unmodeled, 1, "the entry is kept verbatim")
+	assert.Equal(t, ir.RawValue("false"), model.Unmodeled["openapi:allOf/0"].Value,
 		"keyed by the entry index, so sibling entries cannot overwrite one another")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
 }
@@ -499,9 +499,9 @@ func TestAllOf_AnEntryNamingATypeListOfNoObjectComposesNone(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok, "%T", doc.Types[componentID("S")])
-	assert.Nil(t, m.Base)
-	assert.Empty(t, m.Mixins)
-	assert.Contains(t, m.Unmodeled, "openapi:$ref")
+	assert.Nil(t, model.Base)
+	assert.Empty(t, model.Mixins)
+	assert.Contains(t, model.Unmodeled, "openapi:$ref")
 }

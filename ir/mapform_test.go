@@ -17,15 +17,15 @@ import (
 // mapModel returns a model that is a map and nothing else: a catch-all, plus
 // the fields AsMap carries over.
 func mapModel() *ir.Model {
-	minProps := int64(1)
+	minProperties := int64(1)
 	return &ir.Model{
-		ID:   "t/openapi/components/schemas/Labels",
+		ID:   "type/openapi/components/schemas/Labels",
 		Docs: ir.Docs{Description: "labels"},
-		AdditionalProps: &ir.AdditionalProps{
-			Key:   &ir.TypeRef{Target: "t/prim/int64"},
-			Value: &ir.TypeRef{Target: "t/prim/string", Nullable: true},
+		AdditionalProperties: &ir.AdditionalProperties{
+			Key:   &ir.TypeRef{Target: "type/primitive/int64"},
+			Value: &ir.TypeRef{Target: "type/primitive/string", Nullable: true},
 		},
-		Constraints: &ir.Constraints{MinProps: &minProps},
+		Constraints: &ir.Constraints{MinProperties: &minProperties},
 	}
 }
 
@@ -34,16 +34,16 @@ func mapModel() *ir.Model {
 // each unchanged.
 func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 	t.Parallel()
-	m := mapModel()
+	model := mapModel()
 
-	mt, ok := ir.AsMap(m)
+	mt, ok := ir.AsMap(model)
 
 	require.True(t, ok)
 	want := &ir.MapT{
-		TypeCommon:  m.TypeCommon,
-		Key:         m.AdditionalProps.Key,
-		Value:       *m.AdditionalProps.Value,
-		Constraints: m.Constraints,
+		TypeCommon:  model.TypeCommon,
+		Key:         model.AdditionalProperties.Key,
+		Value:       *model.AdditionalProperties.Value,
+		Constraints: model.Constraints,
 	}
 	assert.Empty(t, cmp.Diff(want, mt))
 }
@@ -55,17 +55,17 @@ func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 func TestAsMap_RefusesWhatIsNoMap(t *testing.T) {
 	t.Parallel()
 	patterned := mapModel()
-	patterned.AdditionalProps.Patterns = []ir.PatternProps{{Pattern: "^x-", Value: ir.TypeRef{Target: "t/prim/string"}}}
+	patterned.AdditionalProperties.Patterns = []ir.PatternProperties{{Pattern: "^x-", Value: ir.TypeRef{Target: "type/primitive/string"}}}
 	noCatchAll := mapModel()
-	noCatchAll.AdditionalProps = nil
+	noCatchAll.AdditionalProperties = nil
 	noValue := mapModel()
-	noValue.AdditionalProps.Value = nil
-	for name, m := range map[string]*ir.Model{
+	noValue.AdditionalProperties.Value = nil
+	for name, model := range map[string]*ir.Model{
 		"nil": nil, "no catch-all": noCatchAll, "patterned": patterned, "no value": noValue,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			mt, ok := ir.AsMap(m)
+			mt, ok := ir.AsMap(model)
 			assert.False(t, ok)
 			assert.Nil(t, mt)
 		})
@@ -84,10 +84,10 @@ func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 		carried map[string]bool
 		of      func(*ir.Model) reflect.Value
 	}{
-		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProps": true, "Constraints": true},
-			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m).Elem() }},
-		{reflect.TypeFor[ir.AdditionalProps](), map[string]bool{"Key": true, "Value": true},
-			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m.AdditionalProps).Elem() }},
+		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProperties": true, "Constraints": true},
+			func(model *ir.Model) reflect.Value { return reflect.ValueOf(model).Elem() }},
+		{reflect.TypeFor[ir.AdditionalProperties](), map[string]bool{"Key": true, "Value": true},
+			func(model *ir.Model) reflect.Value { return reflect.ValueOf(model.AdditionalProperties).Elem() }},
 	} {
 		for field := range s.typ.Fields() {
 			name := s.typ.Name() + "." + field.Name
@@ -96,10 +96,10 @@ func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				m := mapModel()
-				setNonZero(t, s.of(m).FieldByName(field.Name))
+				model := mapModel()
+				setNonZero(t, s.of(model).FieldByName(field.Name))
 
-				_, ok := ir.AsMap(m)
+				_, ok := ir.AsMap(model)
 
 				assert.False(t, ok, "a model setting %s states more than a map does", name)
 			})

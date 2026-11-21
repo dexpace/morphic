@@ -10,21 +10,22 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// redact asks for p's redaction where its name says it holds a credential
-// (redactUse): a model's member or a header.
-func redact(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, p *ir.Property) {
-	redactUse(policy, promoter, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
+// redact asks for property's redaction where its name says it holds a
+// credential (redactUse): a model's member or a header.
+func redact(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, property *ir.Property) {
+	redactUse(policy, promoter, reg, property.Name, property.Type, property.Unmodeled, &property.Secret, &property.Provenance)
 }
 
 // redactUse sets *secret, and marks prov, under the secret policy, on a use
-// named name, of type t, keeping own, where the name's canonical words end in
-// a credential's (credentialName) and t reads, through its scalars, as text
-// or bytes. It leaves alone a use already redacted, one whose type asks for
-// it, and one where the document writes a key the policy reads redaction from,
-// at the use or along its type, whatever the key says: the document has spoken
-// there. The rule is docs/compilers/openapi.md#secret-inference.
+// named name, of type typeRef, keeping own, where the name's canonical words
+// end in a credential's (credentialName) and typeRef reads, through its
+// scalars, as text or bytes. It leaves alone a use already redacted, one whose
+// type asks for it, and one where the document writes a key the policy reads
+// redaction from, at the use or along its type, whatever the key says: the
+// document has spoken there. The rule is
+// docs/compilers/openapi.md#secret-inference.
 func redactUse(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, name ir.Naming,
-	t ir.TypeRef, own ir.Unmodeled, secret *bool, prov *ir.Provenance,
+	typeRef ir.TypeRef, own ir.Unmodeled, secret *bool, prov *ir.Provenance,
 ) {
 	if !policy.Honours() || *secret || !credentialName(name.Canonical) {
 		return
@@ -32,8 +33,8 @@ func redactUse(policy SecretInference, promoter promotion.Promoter, reg ir.TypeR
 	if promoter.Writes(own, promotion.TargetRedaction) {
 		return
 	}
-	ch, ok := readChain(promoter, reg, t.Target)
-	if !ok || ch.sensitive || ch.spoken || ch.prim != ir.PrimString && ch.prim != ir.PrimBytes {
+	ch, ok := readChain(promoter, reg, typeRef.Target)
+	if !ok || ch.sensitive || ch.spoken || ch.primitive != ir.PrimitiveString && ch.primitive != ir.PrimitiveBytes {
 		return
 	}
 	*secret = true

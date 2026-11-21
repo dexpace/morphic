@@ -89,18 +89,18 @@ var deadCases = []deadCase{
 		branches: []deadBranch{{schema: "{$ref: '#/components/schemas/B'}"}, {schema: "{type: string}", dead: true}}},
 }
 
-// deadSchema writes c's body beside, or on its second allOf entry, the union
-// keyword listing branches.
-func deadSchema(c deadCase, keyword string, branches []deadBranch) string {
+// deadSchema writes deadCaseValue's body beside, or on its second allOf entry,
+// the union keyword listing branches.
+func deadSchema(deadCaseValue deadCase, keyword string, branches []deadBranch) string {
 	written := make([]string, 0, len(branches))
 	for _, b := range branches {
 		written = append(written, b.schema)
 	}
 	union := keyword + ": [" + strings.Join(written, ", ") + "]"
-	if c.entry {
-		return "P: {" + strings.TrimSuffix(c.body, "]") + ", {" + union + "}]}"
+	if deadCaseValue.entry {
+		return "P: {" + strings.TrimSuffix(deadCaseValue.body, "]") + ", {" + union + "}]}"
 	}
-	return "P: {" + c.body + ", " + union + "}"
+	return "P: {" + deadCaseValue.body + ", " + union + "}"
 }
 
 // TestCompile_ABranchNoObjectSatisfiesIsNoVariant holds that a branch of a
@@ -112,23 +112,23 @@ func deadSchema(c deadCase, keyword string, branches []deadBranch) string {
 // position lowers as its body, keeping the union whole.
 func TestCompile_ABranchNoObjectSatisfiesIsNoVariant(t *testing.T) {
 	t.Parallel()
-	for _, c := range deadCases {
-		for _, version := range c.versions {
+	for _, deadCase := range deadCases {
+		for _, version := range deadCase.versions {
 			for _, keyword := range []string{"oneOf", "anyOf"} {
 				for _, reverse := range []bool{false, true} {
-					branches := slices.Clone(c.branches)
+					branches := slices.Clone(deadCase.branches)
 					if reverse {
 						slices.Reverse(branches)
 					}
-					spec := admissionSpec(version, "", append(append([]string{deadSchema(c, keyword, branches)},
-						deadBranchComponents...), c.extra...)...)
-					t.Run(fmt.Sprintf("%s/%s/%s/reversed-%t", c.name, version, keyword, reverse), func(t *testing.T) {
+					spec := admissionSpec(version, "", append(append([]string{deadSchema(deadCase, keyword, branches)},
+						deadBranchComponents...), deadCase.extra...)...)
+					t.Run(fmt.Sprintf("%s/%s/%s/reversed-%t", deadCase.name, version, keyword, reverse), func(t *testing.T) {
 						t.Parallel()
 						res := harness.Check(t.Context(), "spec.yaml", []byte(spec))
 						require.Equal(t, harness.OutcomeOK, res.Outcome, res.Detail)
 						inBothMappingOrders(t, spec, func(t *testing.T, spec string) {
 							doc, diags := compileAnnotationSpec(t, "dead", spec)
-							requireDeadBranches(t, doc, diags, c.entry, keyword, branches)
+							requireDeadBranches(t, doc, diags, deadCase.entry, keyword, branches)
 						})
 					})
 				}
@@ -195,12 +195,12 @@ func requireDeadBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, 
 func requireNothingAt(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at string) {
 	t.Helper()
 	for id := range doc.Types {
-		own := strings.TrimPrefix(string(id), "t/anon")
+		own := strings.TrimPrefix(string(id), "type/anonymous")
 		assert.False(t, own == at || strings.HasPrefix(own, at+"/"), "%s lowers %s", id, at)
 	}
-	for _, d := range diags {
-		p := string(d.Provenance.Pointer)
-		assert.False(t, p == at || strings.HasPrefix(p, at+"/"), "%s reports at %s", d.Code, p)
+	for _, diagnostic := range diags {
+		p := string(diagnostic.Provenance.Pointer)
+		assert.False(t, p == at || strings.HasPrefix(p, at+"/"), "%s reports at %s", diagnostic.Code, p)
 	}
 }
 
@@ -232,9 +232,9 @@ func TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept(t *testing
 			doc, diags := compileAnnotationSpec(t, "closure", conjunctionSpec(version, schema, closureUser, deadBranchComponents[0]))
 			requireErrorsAndWarnings(t, diags, deadWarnings("oneOf", []variantBranch{{name: "A", object: true}, {name: "Z"}}))
 			for _, at := range conjunctionPositions {
-				u := variantUnionAt(t, doc, string(at), 1)
-				assert.Equal(t, ir.ReasonDegradedLowering, keptOn(u)["openapi:oneOf/1"], "the dead branch kept at %s", at)
-				variant, ok := kindNode(t, doc, u.Variants[0].Type.Target).(*ir.Model)
+				union := variantUnionAt(t, doc, string(at), 1)
+				assert.Equal(t, ir.ReasonDegradedLowering, keptOn(union)["openapi:oneOf/1"], "the dead branch kept at %s", at)
+				variant, ok := kindNode(t, doc, union.Variants[0].Type.Target).(*ir.Model)
 				require.True(t, ok, at)
 				assert.Equal(t, ir.AdditionalUnspecified, variant.Additional, "open at %s", at)
 				assert.Equal(t, ir.ReasonDegradedLowering, keptOn(variant)["openapi:allOf/1"], "the closing entry kept at %s", at)

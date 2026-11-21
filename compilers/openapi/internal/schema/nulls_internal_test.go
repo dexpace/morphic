@@ -30,8 +30,8 @@ func TestRefNullRef_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 
-	ref, diags := refNullRef(NewRawLowerer(&soa.OpenAPI{}).Ctx, "t/x", Standalone(js), siteAt("/x"))
-	assert.Equal(t, ir.TypeRef{Target: "t/x"}, ref)
+	ref, diags := refNullRef(NewRawLowerer(&soa.OpenAPI{}).Ctx, "type/x", Standalone(js), siteAt("/x"))
+	assert.Equal(t, ir.TypeRef{Target: "type/x"}, ref)
 	assert.Empty(t, diags)
 }
 
@@ -49,11 +49,11 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	require.Equal(t, alike(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(StandaloneSchema(nullable), nullSite{}),
+	loweringContext := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	require.Equal(t, nullReadingAlikeUnderBothPolicies(nullAdmitted), (&nulls{c: loweringContext, conjuncts: budget.New(budget.AtMost(1))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, alike(nullSilent), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(StandaloneSchema(nullable), nullSite{}),
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), (&nulls{c: loweringContext, conjuncts: budget.New(budget.AtMost(0))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
@@ -71,9 +71,9 @@ func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
 		require.Empty(t, valErrs)
 		return js.GetSchema()
 	}
-	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	assert.True(t, schemaAdmitsNull(c, StandaloneSchema(chain(maxNullConjuncts-1))), "the null the last schema the budget reads admits")
-	assert.False(t, schemaAdmitsNull(c, StandaloneSchema(chain(maxNullConjuncts))), "one schema deeper, the walk is silent")
+	loweringContext := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	assert.True(t, schemaAdmitsNull(loweringContext, StandaloneSchema(chain(maxNullConjuncts-1))), "the null the last schema the budget reads admits")
+	assert.False(t, schemaAdmitsNull(loweringContext, StandaloneSchema(chain(maxNullConjuncts))), "one schema deeper, the walk is silent")
 }
 
 // TestNulls_AnEntryWithNoSchemaSaysNothing pins the guard on an
@@ -83,9 +83,9 @@ func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
 // missing entry strip a sibling's null.
 func TestNulls_AnEntryWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
-	n := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
-	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
-	assert.Equal(t, alike(nullSilent), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
+	nullsValue := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), nullsValue.conjunct(nil, nullSite{}))
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), nullsValue.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
 		"an entry whose either-value holds neither schema nor bool says nothing either")
 }
 
@@ -107,20 +107,20 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 		for i, s := range schemas {
 			body.WriteString("    S" + string(rune('a'+i)) + ": " + s + "\n")
 		}
-		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, body.String()))
+		lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, body.String()))
 		for i, src := range schemas {
 			if version == "3.0.3" && src == `{type: ["null", "null"]}` {
 				continue // 3.0 writes no type list, so it reads this one as left out
 			}
-			s := componentSchema(t, l, "S"+string(rune('a'+i)))
-			got, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
+			s := componentSchema(t, lowerer, "S"+string(rune('a'+i)))
+			got, ok := nullAloneReading(lowerer.Ctx, StatedIn(lowerer, s))
 			require.True(t, ok, "%s %s leaves no value but null", version, src)
-			n := newNulls(l.Ctx)
-			assert.Equal(t, n.schema(StatedIn(l, s), nullSite{}), got, "%s %s", version, src)
+			nulls := newNulls(lowerer.Ctx)
+			assert.Equal(t, nulls.schema(StatedIn(lowerer, s), nullSite{}), got, "%s %s", version, src)
 		}
 	}
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
-	_, ok := nullAloneReading(l.Ctx, StatedIn(l, componentSchema(t, l, "S")))
+	lowererValue, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
+	_, ok := nullAloneReading(lowererValue.Ctx, StatedIn(lowererValue, componentSchema(t, lowererValue, "S")))
 	assert.False(t, ok, "a type admitting a string leaves more than null")
 }
 
@@ -130,12 +130,12 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 // first read, which no lowering does, so only a remembered answer stays.
 func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {enum: [null]}\n"))
-	s := componentSchema(t, l, "S")
-	first, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
+	lowerer, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {enum: [null]}\n"))
+	s := componentSchema(t, lowerer, "S")
+	first, ok := nullAloneReading(lowerer.Ctx, StatedIn(lowerer, s))
 	require.True(t, ok)
-	StatedIn(l, s).Values.Enum = nil
-	again, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
+	StatedIn(lowerer, s).Values.Enum = nil
+	again, ok := nullAloneReading(lowerer.Ctx, StatedIn(lowerer, s))
 	assert.True(t, ok, "the second ask reads what the first read")
 	assert.Equal(t, first, again)
 }
@@ -153,9 +153,9 @@ func TestUnionNullReading_AnUnplacedUnionBesideABodyDistributesNothing(t *testin
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 
-	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	s := Standalone(js).Schema
-	require.True(t, hasUnionSiblings(c, s), "the union stands beside a body")
-	assert.False(t, distributesUnion(c, s))
-	assert.Equal(t, alike(nullSilent), unionNullReading(c, s))
+	loweringContext := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	schema := Standalone(js).Schema
+	require.True(t, hasUnionSiblings(loweringContext, schema), "the union stands beside a body")
+	assert.False(t, distributesUnion(loweringContext, schema))
+	assert.Equal(t, nullReadingAlikeUnderBothPolicies(nullUnconstrained), unionNullReading(loweringContext, schema))
 }

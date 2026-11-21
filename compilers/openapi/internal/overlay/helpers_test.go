@@ -70,8 +70,8 @@ func codes(diags []ir.Diagnostic) []string {
 		return nil
 	}
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, string(d.Severity)+" "+d.Code)
+	for _, diagnostic := range diags {
+		out = append(out, string(diagnostic.Severity)+" "+diagnostic.Code)
 	}
 	return out
 }
@@ -88,16 +88,16 @@ func sameCodes(t *testing.T, want []string, diags []ir.Diagnostic) {
 // document root along a path of mapping keys.
 func member(t *testing.T, root *yaml.Node, keys ...string) (key, value *yaml.Node) {
 	t.Helper()
-	n := root.Content[0]
+	node := root.Content[0]
 	for _, want := range keys {
 		found := false
-		for i := 0; i+1 < len(n.Content) && !found; i += 2 {
-			if n.Content[i].Value == want {
-				key, value, found = n.Content[i], n.Content[i+1], true
+		for i := 0; i+1 < len(node.Content) && !found; i += 2 {
+			if node.Content[i].Value == want {
+				key, value, found = node.Content[i], node.Content[i+1], true
 			}
 		}
 		require.True(t, found, "no %q under the path %v", want, keys)
-		n = value
+		node = value
 	}
 	return key, value
 }

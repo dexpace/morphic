@@ -34,7 +34,7 @@ func TestSettingFlag_SetCollectsPairs(t *testing.T) {
 func TestSettingFlag_StringOfNilRendersEmpty(t *testing.T) {
 	t.Parallel()
 	// pflag renders a zero value to decide whether to print a
-	// default, so this is reached before any --opt is typed.
+	// default, so this is reached before any --compiler-option is typed.
 	var unset settingFlag
 	assert.Empty(t, unset.String())
 }
@@ -113,22 +113,23 @@ func checkFlagValue(t *testing.T, fresh func() flagValue, typeName string, cases
 	t.Helper()
 	assert.Equal(t, typeName, fresh().Type())
 	for _, tc := range cases {
-		f := fresh()
-		before := f.String()
-		err := f.Set(tc.raw)
+		flagValue := fresh()
+		before := flagValue.String()
+		err := flagValue.Set(tc.raw)
 		if tc.refused == "" {
 			require.NoError(t, err, "%q", tc.raw)
-			assert.Equal(t, tc.raw, f.String())
+			assert.Equal(t, tc.raw, flagValue.String())
 			continue
 		}
 		require.Error(t, err, "%q", tc.raw)
 		assert.Contains(t, err.Error(), tc.refused)
-		assert.Equal(t, before, f.String(), "a refused %q leaves the flag as it was", tc.raw)
+		assert.Equal(t, before, flagValue.String(), "a refused %q leaves the flag as it was", tc.raw)
 	}
 }
 
-// TestFormatFlag_SetReadsEachFormat pins the formats --diag-format takes, as
-// literal text, and the refusal of any other, the empty string among them.
+// TestFormatFlag_SetReadsEachFormat pins the formats --diagnostics-format
+// takes, as literal text, and the refusal of any other, the empty string among
+// them.
 func TestFormatFlag_SetReadsEachFormat(t *testing.T) {
 	t.Parallel()
 	checkFlagValue(t, func() flagValue { return new(formatText) }, "format", []flagCase{
@@ -138,12 +139,12 @@ func TestFormatFlag_SetReadsEachFormat(t *testing.T) {
 	})
 }
 
-// TestShowFlag_SetReadsEachSeverity pins the severities --show takes, and the
-// refusal of what names none, a threshold's none and the empty string among
-// them.
-func TestShowFlag_SetReadsEachSeverity(t *testing.T) {
+// TestMinSeverityFlag_SetReadsEachSeverity pins the severities --min-severity
+// takes, and the refusal of what names none, a threshold's none and the empty
+// string among them.
+func TestMinSeverityFlag_SetReadsEachSeverity(t *testing.T) {
 	t.Parallel()
-	checkFlagValue(t, func() flagValue { return new(showFlag("info")) }, "severity", []flagCase{
+	checkFlagValue(t, func() flagValue { return new(minSeverityFlag("info")) }, "severity", []flagCase{
 		{"error", ""}, {"warning", ""}, {"info", ""},
 		{"fatal", `"fatal" is no severity (known: error, warning, info)`},
 		{"none", `"none" is no severity`},
@@ -151,11 +152,12 @@ func TestShowFlag_SetReadsEachSeverity(t *testing.T) {
 	})
 }
 
-// TestLimitFlag_SetReadsACount pins the counts --diag-limit takes, zero
-// among them, and the refusal of what is no count of 0 or more.
-func TestLimitFlag_SetReadsACount(t *testing.T) {
+// TestPerCodeLimitFlag_SetReadsACount pins the counts
+// --diagnostics-per-code-limit takes, zero among them, and the refusal of what
+// is no count of 0 or more.
+func TestPerCodeLimitFlag_SetReadsACount(t *testing.T) {
 	t.Parallel()
-	checkFlagValue(t, func() flagValue { return new(limitFlag(3)) }, "count", []flagCase{
+	checkFlagValue(t, func() flagValue { return new(perCodeLimitFlag(3)) }, "count", []flagCase{
 		{"0", ""}, {"1", ""}, {"250", ""},
 		{"-1", `want a count of 0 or more, got "-1"`},
 		{"all", `got "all"`},
@@ -167,7 +169,7 @@ func TestLimitFlag_SetReadsACount(t *testing.T) {
 // misuse, exit 2, before anything is read.
 func TestRun_FindingsFlagsRefuseABadValue(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"--diag-format", "xml"}, {"--show", "fatal"}, {"--diag-limit", "-1"}} {
+	for _, args := range [][]string{{"--diagnostics-format", "xml"}, {"--min-severity", "fatal"}, {"--diagnostics-per-code-limit", "-1"}} {
 		t.Run(args[0], func(t *testing.T) {
 			t.Parallel()
 			code, stdout, stderr := runCommand(t, append([]string{"validate", specFile(t)}, args...)...)

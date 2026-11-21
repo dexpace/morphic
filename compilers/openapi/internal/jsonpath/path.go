@@ -27,9 +27,9 @@ type link struct {
 // Step is one step of a Path: the member Name of an object, or the element at
 // Index of an array.
 type Step struct {
-	Name   string
-	Index  int
-	Member bool
+	Name               string
+	Index              int
+	IsObjectMemberStep bool
 }
 
 // child returns the path of the member name of the node at p.
@@ -51,8 +51,8 @@ func (p Path) Parent() (Path, Step, bool) {
 	if p.last == nil {
 		return Path{}, Step{}, false
 	}
-	l := p.last
-	return Path{last: l.parent}, Step{Name: l.name, Index: l.index, Member: l.member}, true
+	link := p.last
+	return Path{last: link.parent}, Step{Name: link.name, Index: link.index, IsObjectMemberStep: link.member}, true
 }
 
 // String returns p as RFC 9535 section 2.7 normalizes it: `$`, then each
@@ -60,18 +60,18 @@ func (p Path) Parent() (Path, Step, bool) {
 // $['paths']['/a'][0].
 func (p Path) String() string {
 	var steps []Step
-	for at, s, ok := p.Parent(); ok; at, s, ok = at.Parent() {
-		steps = append(steps, s)
+	for at, step, ok := p.Parent(); ok; at, step, ok = at.Parent() {
+		steps = append(steps, step)
 	}
 	var b strings.Builder
 	b.WriteByte('$')
-	for _, s := range slices.Backward(steps) {
-		if !s.Member {
-			b.WriteString("[" + strconv.Itoa(s.Index) + "]")
+	for _, step := range slices.Backward(steps) {
+		if !step.IsObjectMemberStep {
+			b.WriteString("[" + strconv.Itoa(step.Index) + "]")
 			continue
 		}
 		b.WriteString("['")
-		writeNormalName(&b, s.Name)
+		writeNormalName(&b, step.Name)
 		b.WriteString("']")
 	}
 	return b.String()

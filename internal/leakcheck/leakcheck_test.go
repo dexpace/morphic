@@ -33,10 +33,10 @@ func (f *fakeProfile) WriteTo(w io.Writer, _ int) error {
 	return err
 }
 
-// lookupFake returns a lookup function that hands back p regardless of the
-// name asked for.
-func lookupFake(p leakcheck.Profile) func(string) leakcheck.Profile {
-	return func(string) leakcheck.Profile { return p }
+// lookupFake returns a lookup function that hands back profile regardless of
+// the name asked for.
+func lookupFake(profile leakcheck.Profile) func(string) leakcheck.Profile {
+	return func(string) leakcheck.Profile { return profile }
 }
 
 func TestVerdict_NilProfileFailsLoudlyRegardlessOfCode(t *testing.T) {
@@ -90,8 +90,8 @@ func TestVerdict_LeaksArePrintedAndForceNonZero(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
-			p := &fakeProfile{count: 3, written: "STACKMARKER\n"}
-			got := leakcheck.Verdict(tc.code, lookupFake(p), &out)
+			fakeProfileValue := &fakeProfile{count: 3, written: "STACKMARKER\n"}
+			got := leakcheck.Verdict(tc.code, lookupFake(fakeProfileValue), &out)
 			assert.Equal(t, tc.want, got)
 			assert.Contains(t, out.String(), "3", "the summary must name the count")
 			assert.Contains(t, out.String(), "STACKMARKER", "the stacks WriteTo wrote must be printed")

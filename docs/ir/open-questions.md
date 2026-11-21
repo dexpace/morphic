@@ -30,7 +30,7 @@ Part of the [IR design](./README.md). Tracked for implementation.
    ([a key that matches nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)).
 6. **Response discrimination placement** — `ResponseConditions` (status ranges) is HTTP-shaped
    living on the neutral core. Fresh evidence that it sits awkwardly: RPC single-response and OTP
-   call replies both use empty conditions, and `Response.StatusCodeProp` is likewise
+   call replies both use empty conditions, and `Response.StatusCodeProperty` is likewise
    HTTP-flavored. Alternatives: move conditions into `HTTPBinding` alongside parameter locations,
    leaving responses as an ordered named list. Revisit when the RPC or messaging compiler lands
    and either validates or strains the current shape.

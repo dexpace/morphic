@@ -39,7 +39,7 @@ components:
     Untypeds: {type: array, items: {}}
     Untyped: {oneOf: [{}, {$ref: '#/components/schemas/Untypeds'}]}
 `), opts)
-	entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
+	entries := openapitest.FindOperation(t, doc, "upload").Request.Contents[0].Encoding
 	require.LessOrEqual(t, len(entries), 1, "one part is at most one entry")
 	for _, pe := range entries {
 		return pe
@@ -47,14 +47,15 @@ components:
 	return ir.PartEncoding{}
 }
 
-// TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's Filename
-// and marker to its declaration, its encoding entry's media types and the
-// version's default media type, in a multipart body: raw bytes, an array or a
-// tuple of them, an untyped part from 3.1 and a part whose encoding names only
-// binary types are files, and a part saying it is text is none, as no part of
-// a url-encoded body is, its own bytes and base64 text included (GitHub #1214). A
-// union with an array among its branches repeats, and is files where each of
-// its values reads so, an array branch's through its elements.
+// TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's
+// HasFilename and marker to its declaration, its encoding entry's media types
+// and the version's default media type, in a multipart body: raw bytes, an
+// array or a tuple of them, an untyped part from 3.1 and a part whose encoding
+// names only binary types are files, and a part saying it is text is none, as
+// no part of a url-encoded body is, its own bytes and base64 text included
+// (GitHub #1214). A union with an array among its branches repeats, and is
+// files where each of its values reads so, an array branch's through its
+// elements.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
@@ -205,8 +206,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pe := filePart(t, tc.version, tc.mediaType, tc.part, tc.encoding, tc.opts)
-			assert.Equal(t, tc.file, pe.Filename, "filename")
-			assert.Equal(t, tc.multi, pe.Multi, "multi")
+			assert.Equal(t, tc.file, pe.HasFilename, "filename")
+			assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 			assert.Equal(t, tc.inferred, pe.Inferred, "marker")
 		})
 	}
@@ -247,11 +248,11 @@ components:
   schemas:
     Pair: {type: array, items: [{}, {}], additionalItems: false}
 `), openapi.Options{})
-			entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
+			entries := openapitest.FindOperation(t, doc, "upload").Request.Contents[0].Encoding
 			require.Len(t, entries, 1, "a part that repeats has an entry")
 			for _, pe := range entries {
-				assert.Equal(t, tc.file, pe.Filename, "filename")
-				assert.Equal(t, tc.multi, pe.Multi, "multi")
+				assert.Equal(t, tc.file, pe.HasFilename, "filename")
+				assert.Equal(t, tc.multi, pe.RepeatsPerArrayItem, "multi")
 			}
 		})
 	}
@@ -286,10 +287,10 @@ func TestReadPartFile_AMarkerNamesOnlyAGuess(t *testing.T) {
             encoding: {file: {contentType: image/png}}
       responses: {"200": {description: ok}}
 `), openapi.Options{})
-			entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
+			entries := openapitest.FindOperation(t, doc, "upload").Request.Contents[0].Encoding
 			require.Len(t, entries, 1)
 			for _, pe := range entries {
-				assert.True(t, pe.Filename)
+				assert.True(t, pe.HasFilename)
 				assert.Equal(t, tc.inferred, pe.Inferred)
 			}
 		})

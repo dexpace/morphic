@@ -78,15 +78,15 @@ func compileRequirements(t *testing.T, entry, schemes string) (*ir.Document, []i
 	return doc, diags
 }
 
-// schemeOf returns the scheme the one requirement of the operation named op
-// names, failing the test unless it names exactly one.
-func schemeOf(t *testing.T, doc *ir.Document, op string) ir.AuthID {
+// schemeOf returns the scheme the one requirement of the operation named
+// operationName names, failing the test unless it names exactly one.
+func schemeOf(t *testing.T, doc *ir.Document, operationName string) ir.AuthID {
 	t.Helper()
-	o, ok := opByName(doc, op)
-	require.True(t, ok, "no operation %s", op)
-	require.Len(t, o.Auth, 1, op)
-	require.Len(t, o.Auth[0].Schemes, 1, op)
-	return o.Auth[0].Schemes[0].Scheme
+	operation, ok := operationByName(doc, operationName)
+	require.True(t, ok, "no operation %s", operationName)
+	require.Len(t, operation.Auth, 1, operationName)
+	require.Len(t, operation.Auth[0].Schemes, 1, operationName)
+	return operation.Auth[0].Schemes[0].Scheme
 }
 
 // TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme pins a 3.2

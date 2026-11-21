@@ -110,7 +110,7 @@ type Example struct {
 type ScenarioInput struct {
 	// Params holds each parameter's value, keyed by the ID of a parameter of
 	// the operation carrying the example.
-	Params map[ParamID]Value `json:"params,omitempty"`
+	Params map[ParameterID]Value `json:"params,omitempty"`
 	// Body is the value of the request content; nil = the scenario sends none.
 	// It is nil on an operation that binds any parameter into its body, whole
 	// or by property, where the parameters state the body.

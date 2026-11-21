@@ -42,15 +42,15 @@ objects or of lists sends, which OpenAPI leaves undefined, is [below](#a-value-n
 member holding its style's own delimiter where expansion writes it as it writes the delimiter, a `.`
 under an exploded `label`, a space under `spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a
 `deepObject` key, reads back as that delimiter, which OpenAPI leaves to an escaping of the API's own
-(Appendix E.6). A binding whose `Prefix` is set, and a response header whose `Prefix` is set,
-writes each entry of its map, in that order, as a field of its own, named by the prefix followed by
-the entry's key, its value the entry's text, and an entry naming a field another binding writes, in
-any case for a header, gives way to it, as Smithy has a client and a server do. Two entries naming
-one header field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would
-hold one of them. The empty prefix names each field by its key alone, Smithy's catch-all for every
-header or query parameter ([prefix bindings](../../ir/http-binding.md#prefix-bindings)). A map a
-`form` or `cookie` style explodes into parameters of its own is a catch-all the same way: an entry
-under a name another binding owns ([below](#a-value-no-style-arranges)) gives way to it, as Smithy's
+(Appendix E.6). A binding whose `Prefix` is set, and a response header whose `Prefix` is set, writes
+each entry of its map, in that order, as a field of its own, named by the prefix followed by the
+entry's key, its value the entry's text, and an entry naming a field another binding writes, in any
+case for a header, gives way to it, as Smithy has a client and a server do. Two entries naming one
+header field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would hold
+one of them. The empty prefix names each field by its key alone, Smithy's catch-all for every header
+or query parameter ([prefix bindings](../../ir/http-binding.md#prefix-bindings)). A map a `form` or
+`cookie` style explodes into parameters of its own is a catch-all the same way: an entry under a
+name another binding owns ([below](#a-value-no-style-arranges)) gives way to it, as Smithy's
 protocol tests have a client write its query map, and its reader holds each parameter of its
 location that no other binding owns, which is what a client wrote into it. Smithy has a server put
 every parameter in the map, a named one too, which would hand one pair to two inputs. A parameter
@@ -58,13 +58,14 @@ whose `ContentType` names a media type ([bindings](../plan/bindings.md)), and a 
 of another content type, carries that media type's serialization of the value instead, so as JSON a
 string keeps its quotes, a field's or a part's only where its encoding sets no `Style` and no
 `Explode`, either of which OpenAPI has replace its content type (the Encoding Object's `style`). A
-field or part under `PartEncoding.Multi` is one for each element of its list, each carrying its
-element as the rules here carry a value, as OpenAPI applies an Encoding Object to each item
-(§4.14.5.1), and a value that is no list, which a union with a list among its variants can hold, is
-one field or part. A part's own headers (`PartEncoding.Headers`) have no rule yet (#1786). That
-holds where its encoding sets no `Style` and no `Explode`; where it sets either, the style arranges
-the value as it does a parameter's, since `Multi`, which the compiler sets from the type alone, says
-only that the field may repeat: under `style: form, explode: false` a list is the one field `u=a,b`.
+field or part under `PartEncoding.RepeatsPerArrayItem` is one for each element of its list, each
+carrying its element as the rules here carry a value, as OpenAPI applies an Encoding Object to each
+item (§4.14.5.1), and a value that is no list, which a union with a list among its variants can
+hold, is one field or part. A part's own headers (`PartEncoding.Headers`) have no rule yet (#1786).
+That holds where its encoding sets no `Style` and no `Explode`; where it sets either, the style
+arranges the value as it does a parameter's, since `RepeatsPerArrayItem`, which the compiler sets
+from the type alone, says only that the field may repeat: under `style: form, explode: false` a list
+is the one field `u=a,b`.
 
 ## Null and empty
 
@@ -159,7 +160,7 @@ and `5.3`. So does a call whose path would read back as other texts where its te
 runs of no fixed length, each read as a longest run ([below](#reading-a-text)), which neither
 google.api.http, allowing one `**` and that one last, nor Smithy, allowing one greedy label,
 declares: `{a}/x/{b}` under `AllowReserved` would send `p` and `q/x/r` as a path that reads as
-`p/x/q` and `r`.
+`property/x/q` and `r`.
 
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
 (§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). A header's holding a control
@@ -304,18 +305,19 @@ chain, and of where it is bound:
   where OpenAPI 3.2 gives it no effect (§4.12.2.2) and 3.1 leaves undefined the `false` it defaults
   to, which a nil `Explode` reads as under `deepObject`, so such an object is arranged as an
   exploded one is;
-- a form field, or a multipart part that is no file (`Filename`), whose `PartEncoding` is absent or
-  sets no `Style`, no `Explode` and no content type has one where its type is a leaf, a list of
+- a form field, or a multipart part that is no file (`HasFilename`), whose `PartEncoding` is absent
+  or sets no `Style`, no `Explode` and no content type has one where its type is a leaf, a list of
   leaves or a union of the two: a field is written as an exploded `form` writes it, and a part is
   its text with no `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each
-  element of a list a part of that name (`Multi`). An object there has none. OpenAPI gives one a
-  default media type, `application/json` (§4.15.1), but the default is OpenAPI's and no other
-  format's, so it is the compiler's to lower into `ContentTypes`, as the OpenAPI compiler does, and
-  never an emitter's to assume of a document whose format it does not read (INV1);
+  element of a list a part of that name (`RepeatsPerArrayItem`). An object there has none. OpenAPI
+  gives one a default media type, `application/json` (§4.15.1), but the default is OpenAPI's and no
+  other format's, so it is the compiler's to lower into `ContentTypes`, as the OpenAPI compiler
+  does, and never an emitter's to assume of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label, a `text/plain` body, and a form field or part whose content type is `text/plain`
-  have one where their type is a leaf, and a field or part under `Multi` where its elements are, and
-  each variant that is no list, a `text/plain` one for each ([above](#the-text-of-a-value)).
+  have one where their type is a leaf, and a field or part under `RepeatsPerArrayItem` where its
+  elements are, and each variant that is no list, a `text/plain` one for each
+  ([above](#the-text-of-a-value)).
 
 An input with none is its caller's text, written as the API documents it. Nothing is guessed, since
 nothing in the IR says which of the spellings in use a server reads. What the caller writes depends

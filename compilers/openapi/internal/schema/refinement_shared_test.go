@@ -26,12 +26,12 @@ func TestRefinementUndecided_ValueSetsAreTypedByTheMembersTheyShare(t *testing.T
 		want    ir.TypeID
 		warns   int
 	}{
-		"no shared member": {[]string{"{enum: [a, b]}", "{enum: [c, d]}"}, ir.PrimTypeID(ir.PrimAny), 1},
-		"a shared flag":    {[]string{"{enum: [true, a]}", "{enum: [true, b]}"}, ir.PrimTypeID(ir.PrimBool), 0},
+		"no shared member": {[]string{"{enum: [a, b]}", "{enum: [c, d]}"}, ir.PrimitiveTypeID(ir.PrimitiveAny), 1},
+		"a shared flag":    {[]string{"{enum: [true, a]}", "{enum: [true, b]}"}, ir.PrimitiveTypeID(ir.PrimitiveBool), 0},
 		"a kind beside leaves": {[]string{"{enum: [1, true, x]}", "{enum: [1, true, y]}", "{type: [integer, string]}"},
-			ir.PrimTypeID(ir.PrimInteger), 0},
+			ir.PrimitiveTypeID(ir.PrimitiveInteger), 0},
 		"a kind beside leaves none": {[]string{"{enum: [1, true, x]}", "{enum: [1, true, y]}", "{type: string}"},
-			ir.PrimTypeID(ir.PrimAny), 1},
+			ir.PrimitiveTypeID(ir.PrimitiveAny), 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

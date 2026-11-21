@@ -95,9 +95,9 @@ func TestNumberText_ABoundBesideAPrincipalIsKeptAsFlat(t *testing.T) {
 				// The type list's text variant holds what its own entry writes, so
 				// one written elsewhere is kept on the Union, where a second
 				// writer of the keyword cannot overwrite it.
-				owner := "doc.Types[t/openapi/components/schemas/X].Unmodeled"
+				owner := "document.Types[type/openapi/components/schemas/X].Unmodeled"
 				if cell.property {
-					owner = "doc.Types[t/anon/components/schemas/X/properties/p].Unmodeled"
+					owner = "document.Types[type/anonymous/components/schemas/X/properties/p].Unmodeled"
 				}
 				flat.kept = []string{owner + " " + string(ir.ReasonNoIRHome)}
 			}
@@ -122,23 +122,23 @@ func textBoundsKept(t *testing.T, lines []string, cells []textCell) map[string]k
 	sites := unmodeledSites(doc)
 	out := make(map[string]keptText, len(cells))
 	for _, cell := range cells {
-		var k keptText
+		var keptTextValue keptText
 		want := cell.value
 		if cell.keyword == "pattern" {
 			want = `"^c` + cell.value + `$"`
 		}
 		for _, site := range sites {
 			if site.key == "openapi:"+cell.keyword && string(site.entry.Value) == want {
-				k.kept = append(k.kept, strings.ReplaceAll(site.path, cell.component, "X")+" "+string(site.entry.Reason))
+				keptTextValue.kept = append(keptTextValue.kept, strings.ReplaceAll(site.path, cell.component, "X")+" "+string(site.entry.Reason))
 			}
 		}
-		for _, d := range diags {
-			if d.Code == diag.DegradedConstruct && strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/"+cell.component+"/") &&
-				strings.HasPrefix(d.Message, cell.keyword+" bounds no number written as text") {
-				k.reported = true
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.DegradedConstruct && strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/"+cell.component+"/") &&
+				strings.HasPrefix(diagnostic.Message, cell.keyword+" bounds no number written as text") {
+				keptTextValue.reported = true
 			}
 		}
-		out[cell.component] = k
+		out[cell.component] = keptTextValue
 	}
 	return out
 }

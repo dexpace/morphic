@@ -29,7 +29,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | Document | Owns |
 |---|---|
 | [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
-| [primitives](./primitives.md) | `Primitive`, `PrimKind`, the offsets the time kinds hold, and containment between kinds |
+| [primitives](./primitives.md) | `Primitive`, `PrimitiveKind`, the offsets the time kinds hold, and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
 | [models](./models.md) | `Model`, `Discriminator`, composition, the flattening and the shapes of a model narrowing a union |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |
@@ -57,7 +57,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 
 | Document | Owns |
 |---|---|
-| [bindings](./bindings.md) | `OpBindings` |
+| [bindings](./bindings.md) | `OperationBindings` |
 | [http-binding](./http-binding.md) | `HTTPBinding`, `HTTPParamBinding`, webhooks |
 | [rpc-binding](./rpc-binding.md) | `RPCBinding` |
 | [messaging](./messaging.md) | `MessageBinding`, `Reply`, `Channel`, `Message` |

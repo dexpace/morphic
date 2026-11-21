@@ -11,12 +11,12 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +24,7 @@ import (
 // kind. A mapping a $ref reads as another kind is not the same object.
 type objectKey struct {
 	node *yaml.Node
-	kind oas.Kind
+	kind specrules.Kind
 }
 
 // judgment is what the table found in the source: its diagnostics, and the
@@ -35,26 +35,27 @@ type objectKey struct {
 // name a dialect, which is judged under opts once the bindings say which
 // dialect each is read in (judgeSchemas).
 type judgment struct {
-	checker oas.Checker
+	checker specrules.Checker
 	diags   []ir.Diagnostic
 	seen    map[objectKey]bool
 	// refused and accepted are what the check refused as the wrong type, and
-	// accepted where another place may read it too (oas.Options.Judged), and
-	// referenced each mapping it read as a Reference Object, which settle reads.
+	// accepted where another place may read it too (specrules.Options.Judged),
+	// and referenced each mapping it read as a Reference Object, which settle
+	// reads.
 	refused, accepted map[*yaml.Node]bool
 	referenced        []*yaml.Node
-	pending           []oas.Pending
+	pending           []specrules.Pending
 	version           string
-	opts              oas.Options
+	opts              specrules.Options
 }
 
 // declaredVersion returns the version the document at root writes under
 // "openapi", or "" when it writes none as a scalar. It reads the tree as the
 // document writes it rather than the model.
 func declaredVersion(root *yaml.Node) string {
-	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
-		if v := nodeview.Deref(p.Val); p.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
-			return v.Value
+	for _, pair := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
+		if node := nodeview.Deref(pair.Val); pair.Key == "openapi" && node != nil && node.Kind == yaml.ScalarNode && node.Tag != "!!null" {
+			return node.Value
 		}
 	}
 	return ""
@@ -67,45 +68,47 @@ func declaredDialect(root *yaml.Node) string {
 	if declaredVersion(root) == "" {
 		return ""
 	}
-	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
-		if v := nodeview.Deref(p.Val); p.Key == "jsonSchemaDialect" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
-			return v.Value
+	for _, pair := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
+		if node := nodeview.Deref(pair.Val); pair.Key == "jsonSchemaDialect" && node != nil && node.Kind == yaml.ScalarNode && node.Tag != "!!null" {
+			return node.Value
 		}
 	}
 	return ""
 }
 
-// judgeSource holds the source to the table of the version it declares. root
-// is the tree as the source writes it, an applied overlay's patch included, and
+// judgeSource holds the source to the table of the version it declares. root is
+// the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at its node, naming where it was read when an alias
-// or a merge key mounts that node there. within bounds what the
-// check reads (see nodesAdmitted). A document that may name a dialect
-// (namesDialect) has its Schema Objects handed back unread, since the dialect
-// each is read in is known only once the bindings are read (judgeSchemas).
-// It runs before readyForModel clears the anchors oas.Options.Judged reads.
+// or a merge key mounts that node there. within bounds what the check reads
+// (see nodesAdmitted). A document that may name a dialect (namesDialect) has
+// its Schema Objects handed back unread, since the dialect each is read in is
+// known only once the bindings are read (judgeSchemas). It runs before
+// readyForModel clears the anchors specrules.Options.Judged reads.
 func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
-	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root),
+	judgmentValue := judgment{checker: specrules.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root),
 		refused: map[*yaml.Node]bool{}, accepted: map[*yaml.Node]bool{}}
-	j.opts = oas.Options{
+	judgmentValue.opts = specrules.Options{
 		Budget: within,
 		Locate: walkedFrom(root, tree.Node),
-		Seen: func(kind oas.Kind, node *yaml.Node) {
-			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
+		Seen: func(kind specrules.Kind, node *yaml.Node) {
+			judgmentValue.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
 		},
 		ReadAt: true,
 	}
-	opts := j.opts
-	opts.Judged = j.note
-	opts.Referenced = func(_ oas.Kind, node *yaml.Node) { j.referenced = append(j.referenced, node) }
-	if namesDialect(ctx, root, j.version) {
-		opts.Later = func(p oas.Pending) { j.pending = append(j.pending, p) }
+	opts := judgmentValue.opts
+	opts.Judged = judgmentValue.note
+	opts.Referenced = func(_ specrules.Kind, node *yaml.Node) {
+		judgmentValue.referenced = append(judgmentValue.referenced, node)
 	}
-	j.diags = append(j.checker.Check(ctx, root, j.version, opts),
-		oas.CheckFormat(ctx, root, j.version, formatOptions(opts))...)
-	return j
+	if namesDialect(ctx, root, judgmentValue.version) {
+		opts.Later = func(pending specrules.Pending) { judgmentValue.pending = append(judgmentValue.pending, pending) }
+	}
+	judgmentValue.diags = append(judgmentValue.checker.Check(ctx, root, judgmentValue.version, opts),
+		specrules.CheckFormat(ctx, root, judgmentValue.version, formatOptions(opts))...)
+	return judgmentValue
 }
 
-// note is oas.Options.Judged for the source's checks: it records node as
+// note is specrules.Options.Judged for the source's checks: it records node as
 // refused or accepted, for settle.
 func (j judgment) note(node *yaml.Node, refused bool) {
 	if refused {
@@ -122,15 +125,15 @@ func (j judgment) note(node *yaml.Node, refused bool) {
 // one by. It reads the tree, so it holds for a document whose model is not yet
 // built, and a walk the tree's bound or ctx cuts short says it may.
 func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
-	if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+	if minor, ok := specrules.ParseMinor(version); !ok || minor == specrules.V30 {
 		return false
 	}
 	if declaredDialect(root) != "" {
 		return true
 	}
-	walk := nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Kind == yaml.MappingNode && slices.ContainsFunc(nodeview.Pairs(n), func(p nodeview.Pair) bool {
-			return p.Key == "$schema"
+	walk := nodeview.Walk{Nodes: maxTreeNodes, Visit: func(node *yaml.Node, _ int) nodeview.Step {
+		if node.Kind == yaml.MappingNode && slices.ContainsFunc(nodeview.Pairs(node), func(pair nodeview.Pair) bool {
+			return pair.Key == "$schema"
 		}) {
 			return nodeview.Stop
 		}
@@ -139,29 +142,29 @@ func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
 	return walk.Stopped || walk.Cut
 }
 
-// judgeSchemas returns j with the findings about the Schema Objects the
-// source's check handed back unread (judgeSource), each read with the rows of
-// the dialect it is read in, which the bindings, once read, give (Dialects):
+// judgeSchemas returns judgmentValue with the findings about the Schema Objects
+// the source's check handed back unread (judgeSource), each read with the rows
+// of the dialect it is read in, which the bindings, once read, give (Dialects):
 // those of a dialect root it is or is held by, else the source's. What it
 // refuses and accepts is recorded for settle as the first check's is. Its one
 // caller asks it only where some Schema Object waits (loading.bindRefs).
-func judgeSchemas(ctx context.Context, j judgment, d dialect.Table) judgment {
-	opts := j.opts
-	opts.Judged = j.note
-	opts.Rows = d.At(bind.Position{Doc: bind.Source})
-	opts.RootRows = func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-		return d.RootAt(bind.Position{Doc: bind.Source, Pointer: at})
+func judgeSchemas(ctx context.Context, judgmentValue judgment, schemaDialectRows dialect.SchemaDialectRows) judgment {
+	opts := judgmentValue.opts
+	opts.Judged = judgmentValue.note
+	opts.Rows = schemaDialectRows.At(reftable.DocumentPointer{Doc: reftable.Source})
+	opts.RootRows = func(at jsontext.Pointer) (specrules.SchemaRules, bool) {
+		return schemaDialectRows.RootAt(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at})
 	}
-	j.diags = append(j.diags, j.checker.CheckPending(ctx, j.pending, j.version, opts)...)
-	j.pending = nil
-	return j
+	judgmentValue.diags = append(judgmentValue.diags, judgmentValue.checker.CheckPending(ctx, judgmentValue.pending, judgmentValue.version, opts)...)
+	judgmentValue.pending = nil
+	return judgmentValue
 }
 
-// formatOptions returns opts for oas.CheckFormat, which reads each node of a
-// tree once: bounded by the size of a tree the load phase holds rather than
-// by the work budget a check of its objects spends, so a tree the node budget
-// admitted is read whole.
-func formatOptions(opts oas.Options) oas.Options {
+// formatOptions returns opts for specrules.CheckFormat, which reads each node
+// of a tree once: bounded by the size of a tree the load phase holds rather
+// than by the work budget a check of its objects spends, so a tree the node
+// budget admitted is read whole.
+func formatOptions(opts specrules.Options) specrules.Options {
 	opts.Budget, opts.Seen = budget.AtMost(maxTreeNodes), nil
 	return opts
 }
@@ -177,7 +180,7 @@ func nodesAdmitted(opts Options) budget.Limit {
 // walkedFrom returns the Locator for the pointers of the object written at
 // node: each is walked from node to the node it names, which place places. A
 // pointer that leads nowhere is placed at the last node it reached.
-func walkedFrom(node *yaml.Node, place func(*yaml.Node) ir.Provenance) oas.Locator {
+func walkedFrom(node *yaml.Node, place func(*yaml.Node) ir.Provenance) specrules.Locator {
 	view := nodeview.New()
 	root := nodeview.DocumentRoot(node)
 	return func(pointer jsontext.Pointer) ir.Provenance {
@@ -198,41 +201,42 @@ const foreign = -1
 // reference reaches. A finding about a node the source's tree holds is placed
 // there, as the source's own are; any other is marked foreign, its position
 // that of the node in the document it is in, which no entry lists.
-func reachedLocator(tree provenance.Tree, node *yaml.Node) oas.Locator {
+func reachedLocator(tree provenance.Tree, node *yaml.Node) specrules.Locator {
 	elsewhere := provenance.Tree{Doc: provenance.Doc{Source: foreign}}
-	return walkedFrom(node, func(n *yaml.Node) ir.Provenance {
-		if treeHolds(tree, n) {
-			return tree.Node(n)
+	return walkedFrom(node, func(node *yaml.Node) ir.Provenance {
+		if treeHolds(tree, node) {
+			return tree.Node(node)
 		}
-		return elsewhere.Node(n)
+		return elsewhere.Node(node)
 	})
 }
 
-// holds reports whether d is placed in a document, rather than marked foreign.
-func holds(d ir.Diagnostic) bool { return d.Provenance.Source != foreign }
+// holds reports whether diagnostic is placed in a document, rather than marked
+// foreign.
+func holds(diagnostic ir.Diagnostic) bool { return diagnostic.Provenance.Source != foreign }
 
 // placeAt puts a finding about an object a reference reaches where it is
 // reported: one placed in a document stays there; one marked foreign, in a
 // document no entry lists, goes to the reference, site, its message naming
 // where in the document place it lies, as no Provenance can (GitHub #74).
-func placeAt(d ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
-	if holds(d) {
-		return d
+func placeAt(diagnostic ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
+	if holds(diagnostic) {
+		return diagnostic
 	}
-	at := d.Provenance.Position
-	d.Provenance = site
-	d.Message = fmt.Sprintf("%s, at %d:%d of %s", d.Message, at.Line, at.Column, place)
-	return d
+	at := diagnostic.Provenance.Position
+	diagnostic.Provenance = site
+	diagnostic.Message = fmt.Sprintf("%s, at %d:%d of %s", diagnostic.Message, at.Line, at.Column, place)
+	return diagnostic
 }
 
 // identity is what tells a finding from another about the same node however
 // many references reach it: the finding as placed in its document, whichever
-// position read it (oas.AsPlaced), or, for one marked foreign, the finding with
-// the place it names, whichever reference it is placed at.
-func identity(d ir.Diagnostic, place string) ir.Diagnostic {
-	d = oas.AsPlaced(d)
-	if !holds(d) {
-		d.Message += " of " + place
+// position read it (specrules.AsPlaced), or, for one marked foreign, the
+// finding with the place it names, whichever reference it is placed at.
+func identity(diagnostic ir.Diagnostic, place string) ir.Diagnostic {
+	diagnostic = specrules.AsPlaced(diagnostic)
+	if !holds(diagnostic) {
+		diagnostic.Message += " of " + place
 	}
-	return d
+	return diagnostic
 }

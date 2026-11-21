@@ -23,8 +23,8 @@ func streamingContent() ir.Content {
 // Item with a Stream is clean, as is one holding neither.
 func TestVerify_AContentDeclaringAnItemStreams(t *testing.T) {
 	t.Parallel()
-	const op = "doc.Services[0].Groups[0].Operations[0]"
-	item := func() ir.TypeRef { return ir.TypeRef{Target: "t/x/Item"} }
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
+	item := func() ir.TypeRef { return ir.TypeRef{Target: "type/x/Item"} }
 	payload := func() *ir.Payload {
 		declared, unmarked := item(), item()
 		return &ir.Payload{Contents: []ir.Content{
@@ -33,8 +33,8 @@ func TestVerify_AContentDeclaringAnItemStreams(t *testing.T) {
 			{MediaType: "application/x-ndjson", Item: &unmarked},
 		}}
 	}
-	doc := opDoc(ir.Operation{
-		ID:             "op/x/S/op",
+	doc := singleOperationDocument(ir.Operation{
+		ID:             "operation/x/S/op",
 		Request:        payload(),
 		RequestStream:  &ir.StreamDetail{},
 		Responses:      []ir.Response{{Payload: payload()}},
@@ -43,15 +43,15 @@ func TestVerify_AContentDeclaringAnItemStreams(t *testing.T) {
 		Default:        &ir.Response{Payload: payload()},
 	})
 	doc.Services[0].CommonErrors = []ir.ErrorCase{{Payload: payload()}}
-	doc.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m", Payload: *payload()}}
+	doc.Messages = map[ir.MessageID]ir.Message{"message/x/m": {ID: "message/x/m", Payload: *payload()}}
 
 	assert.ElementsMatch(t, []string{
-		op + ".Request.Contents[2].Stream",
-		op + ".Responses[0].Payload.Contents[2].Stream",
-		op + ".Errors[0].Payload.Contents[2].Stream",
-		op + ".Default.Payload.Contents[2].Stream",
-		"doc.Services[0].CommonErrors[0].Payload.Contents[2].Stream",
-		"doc.Messages[msg/x/m].Payload.Contents[2].Stream",
+		operationPath + ".Request.Contents[2].Stream",
+		operationPath + ".Responses[0].Payload.Contents[2].Stream",
+		operationPath + ".Errors[0].Payload.Contents[2].Stream",
+		operationPath + ".Default.Payload.Contents[2].Stream",
+		"document.Services[0].CommonErrors[0].Payload.Contents[2].Stream",
+		"document.Messages[message/x/m].Payload.Contents[2].Stream",
 	}, violationPaths(irverify.Verify(doc), "ir/content-item-without-stream"))
 }
 
@@ -62,7 +62,7 @@ func TestVerify_AContentDeclaringAnItemStreams(t *testing.T) {
 // streams with none, and a side may stream with no content that does.
 func TestVerify_AStreamingContentHasItsSidesDetail(t *testing.T) {
 	t.Parallel()
-	const op = "doc.Services[0].Groups[0].Operations[0]"
+	const operationPath = "document.Services[0].Groups[0].Operations[0]"
 	streams := func() *ir.Payload {
 		return &ir.Payload{Contents: []ir.Content{{MediaType: "application/json"}, streamingContent()}}
 	}
@@ -71,34 +71,34 @@ func TestVerify_AStreamingContentHasItsSidesDetail(t *testing.T) {
 		edit func(*ir.Operation)
 		want []string
 	}{
-		{"a request stream summarizing its content", func(o *ir.Operation) {
-			o.Request, o.RequestStream = streams(), &ir.StreamDetail{}
+		{"a request stream summarizing its content", func(operation *ir.Operation) {
+			operation.Request, operation.RequestStream = streams(), &ir.StreamDetail{}
 		}, nil},
-		{"a request content with no request stream", func(o *ir.Operation) {
-			o.Request, o.ResponseStream = streams(), &ir.StreamDetail{}
-		}, []string{op + ".Request.Contents[1].Stream"}},
-		{"a response stream summarizing its content", func(o *ir.Operation) {
-			o.Responses = []ir.Response{{}, {Payload: streams()}}
-			o.ResponseStream = &ir.StreamDetail{}
+		{"a request content with no request stream", func(operation *ir.Operation) {
+			operation.Request, operation.ResponseStream = streams(), &ir.StreamDetail{}
+		}, []string{operationPath + ".Request.Contents[1].Stream"}},
+		{"a response stream summarizing its content", func(operation *ir.Operation) {
+			operation.Responses = []ir.Response{{}, {Payload: streams()}}
+			operation.ResponseStream = &ir.StreamDetail{}
 		}, nil},
-		{"a response content with no response stream", func(o *ir.Operation) {
-			o.Responses = []ir.Response{{}, {Payload: streams()}}
-			o.RequestStream = &ir.StreamDetail{}
-		}, []string{op + ".Responses[1].Payload.Contents[1].Stream"}},
-		{"an error's and the default's contents, which no stream summarizes", func(o *ir.Operation) {
-			o.Errors = []ir.ErrorCase{{Payload: streams()}}
-			o.Default = &ir.Response{Payload: streams()}
+		{"a response content with no response stream", func(operation *ir.Operation) {
+			operation.Responses = []ir.Response{{}, {Payload: streams()}}
+			operation.RequestStream = &ir.StreamDetail{}
+		}, []string{operationPath + ".Responses[1].Payload.Contents[1].Stream"}},
+		{"an error's and the default's contents, which no stream summarizes", func(operation *ir.Operation) {
+			operation.Errors = []ir.ErrorCase{{Payload: streams()}}
+			operation.Default = &ir.Response{Payload: streams()}
 		}, nil},
-		{"a side streaming with no content that does", func(o *ir.Operation) {
-			o.Request = &ir.Payload{Contents: []ir.Content{{MediaType: "application/json"}}}
-			o.RequestStream, o.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{}
+		{"a side streaming with no content that does", func(operation *ir.Operation) {
+			operation.Request = &ir.Payload{Contents: []ir.Content{{MediaType: "application/json"}}}
+			operation.RequestStream, operation.ResponseStream = &ir.StreamDetail{}, &ir.StreamDetail{}
 		}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			o := ir.Operation{ID: "op/x/S/op"}
-			tc.edit(&o)
-			assert.Equal(t, tc.want, violationPaths(irverify.Verify(opDoc(o)), "ir/content-stream-without-detail"))
+			operation := ir.Operation{ID: "operation/x/S/op"}
+			tc.edit(&operation)
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(singleOperationDocument(operation)), "ir/content-stream-without-detail"))
 		})
 	}
 }

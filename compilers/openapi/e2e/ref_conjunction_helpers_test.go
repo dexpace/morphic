@@ -76,8 +76,8 @@ func refTo(name string) string { return "$ref: '#/components/schemas/" + name + 
 func compileUnrefused(t *testing.T, spec string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compileAnnotationSpec(t, "conjunction", spec)
-	for _, d := range diags {
-		require.NotEqual(t, ir.SeverityError, d.Severity, "the case is written to compile: %s", d.Message)
+	for _, diagnostic := range diags {
+		require.NotEqual(t, ir.SeverityError, diagnostic.Severity, "the case is written to compile: %s", diagnostic.Message)
 	}
 	return doc, diags
 }
@@ -86,7 +86,7 @@ func compileUnrefused(t *testing.T, spec string) (*ir.Document, []ir.Diagnostic)
 // pointer: the anonymous nodes a position hoisted.
 func anonymousNodesAt(doc *ir.Document, pointer string) []ir.TypeID {
 	var ids []ir.TypeID
-	prefix := "t/anon" + pointer
+	prefix := "type/anonymous" + pointer
 	for id := range doc.Types {
 		if s := string(id); s == prefix || strings.HasPrefix(s, prefix+"/") {
 			ids = append(ids, id)
@@ -158,8 +158,8 @@ func requireModelNode(t *testing.T, doc *ir.Document, id ir.TypeID) *ir.Model {
 // propertyNames lists the sources of a model's own properties, sorted.
 func propertyNames(model *ir.Model) []string {
 	names := make([]string, 0, len(model.Properties))
-	for _, p := range model.Properties {
-		names = append(names, p.Name.Source)
+	for _, property := range model.Properties {
+		names = append(names, property.Name.Source)
 	}
 	slices.Sort(names)
 	return names
@@ -188,8 +188,8 @@ func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 	require.True(t, ok, "the oneOf distributes")
 	assert.True(t, union.Exclusive)
 	require.Len(t, union.Variants, 2)
-	for _, v := range union.Variants {
-		variant := requireModelNode(t, doc, v.Type.Target)
+	for _, irVariant := range union.Variants {
+		variant := requireModelNode(t, doc, irVariant.Type.Target)
 		assert.Equal(t, []string{"x", "y"}, propertyNames(variant), "each variant carries the body")
 		// Its branches declare no shape against the body, so it is validation
 		// logic, as the anyOf beside a body alone is.
@@ -198,10 +198,11 @@ func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 	}
 }
 
-// holderPropType is the type the property named of the component Holder names.
-func holderPropType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
+// holderWirePropertyType is the type the property named of the component Holder
+// names.
+func holderWirePropertyType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 	t.Helper()
-	p, ok := propByWire(requireModelOf(t, doc, "Holder"), name)
+	property, ok := propertyByWire(requireModelOf(t, doc, "Holder"), name)
 	require.True(t, ok, "Holder holds no property %s", name)
-	return p.Type.Target
+	return property.Type.Target
 }

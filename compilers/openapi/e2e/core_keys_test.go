@@ -31,11 +31,11 @@ func TestCompile_ANumberLikeKeyIsTheTextWritten(t *testing.T) {
 	assert.Empty(t, diags)
 	tree := irTree(t, doc)
 	for _, k := range keys {
-		p := findByID(tree, "p/openapi/components/schemas/S/properties/"+k)
+		p := findByID(tree, "property/openapi/components/schemas/S/properties/"+k)
 		require.NotNil(t, p, k)
 		assert.Equal(t, true, p["required"], k)
 		assert.Equal(t, k, p["wireName"], k)
 		assert.Equal(t, k, p["name"].(map[string]any)["source"], k)
 	}
-	assert.NotNil(t, findByID(tree, "t/openapi/components/schemas/T"), "the reference through 0b11 resolves")
+	assert.NotNil(t, findByID(tree, "type/openapi/components/schemas/T"), "the reference through 0b11 resolves")
 }

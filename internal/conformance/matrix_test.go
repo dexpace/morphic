@@ -71,8 +71,8 @@ type matrix struct {
 // its one key.
 func (m matrix) columnsKeyed(name string) []int {
 	var at []int
-	for i, c := range m.columns {
-		if keys := c.keys(); len(keys) == 1 && keys[0] == name {
+	for i, matrixColumn := range m.columns {
+		if keys := matrixColumn.keys(); len(keys) == 1 && keys[0] == name {
 			at = append(at, i)
 		}
 	}
@@ -90,9 +90,9 @@ func (m matrix) columnsKeyed(name string) []int {
 // compiler reads the next column.
 func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 	t.Parallel()
-	m := readMatrix(t)
-	seen := make(map[string]string, len(m.rows))
-	for _, row := range m.rows {
+	matrix := readMatrix(t)
+	seen := make(map[string]string, len(matrix.rows))
+	for _, row := range matrix.rows {
 		assert.Regexp(t, matrixKeyPattern, row.key, "row %q needs a lowercase-slug key", row.capability)
 		assert.NotContains(t, seen, row.key,
 			"rows %q and %q share the key %q", seen[row.key], row.capability, row.key)
@@ -100,7 +100,7 @@ func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 		for i, cell := range row.cells {
 			if _, known := legendMarker(cell); !known {
 				t.Errorf("matrix row %q: %s cell %q opens with none of the legend markers ✅ ⚠ —",
-					row.key, m.columns[i].header, cell)
+					row.key, matrix.columns[i].header, cell)
 			}
 		}
 	}
@@ -125,23 +125,23 @@ func TestMatrix_FormatColumnsCarryUniqueKeys(t *testing.T) {
 func columnKeyProblems(columns []matrixColumn) []string {
 	var problems []string
 	seen := make(map[string]string, len(columns))
-	for _, c := range columns {
-		keys := c.keys()
+	for _, matrixColumn := range columns {
+		keys := matrixColumn.keys()
 		if len(keys) != 1 {
 			problems = append(problems, fmt.Sprintf(
 				"format column %q carries %d code spans, and needs exactly one: the name its compiler "+
-					"registers the format under, after the title", c.header, len(keys)))
+					"registers the format under, after the title", matrixColumn.header, len(keys)))
 			continue
 		}
 		if !matrixKeyPattern.MatchString(keys[0]) {
 			problems = append(problems, fmt.Sprintf("format column %q is keyed %q, which is no lowercase slug",
-				c.header, keys[0]))
+				matrixColumn.header, keys[0]))
 		}
 		if first, dup := seen[keys[0]]; dup {
 			problems = append(problems, fmt.Sprintf("format columns %q and %q share the key %q",
-				first, c.header, keys[0]))
+				first, matrixColumn.header, keys[0]))
 		}
-		seen[keys[0]] = c.header
+		seen[keys[0]] = matrixColumn.header
 	}
 	return problems
 }
@@ -193,21 +193,21 @@ func readMatrix(t *testing.T) matrix {
 	require.Equal(t, matrixKeyColumn, header[0], "the capability table's first column is the row key")
 	require.Equal(t, matrixCapabilityColumn, header[1], "and its second names the capability")
 
-	m := matrix{columns: make([]matrixColumn, 0, len(header)-2)}
+	matrixValue := matrix{columns: make([]matrixColumn, 0, len(header)-2)}
 	for _, h := range header[2:] {
-		m.columns = append(m.columns, matrixColumn{header: h})
+		matrixValue.columns = append(matrixValue.columns, matrixColumn{header: h})
 	}
 	for _, line := range lines[2:] {
 		cells := splitMatrixCells(line)
 		require.Len(t, cells, len(header), "row %q has a different cell count than the header", line)
-		m.rows = append(m.rows, matrixRow{
+		matrixValue.rows = append(matrixValue.rows, matrixRow{
 			key:        strings.Trim(cells[0], "`"),
 			capability: cells[1],
 			cells:      cells[2:],
 		})
 	}
-	require.NotEmpty(t, m.rows, "the capability table must hold data rows")
-	return m
+	require.NotEmpty(t, matrixValue.rows, "the capability table must hold data rows")
+	return matrixValue
 }
 
 // matrixTableLines returns the keyed capability table: its header, its

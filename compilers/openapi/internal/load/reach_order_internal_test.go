@@ -13,7 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 const (
@@ -100,25 +100,25 @@ func TestExternal_WhoReadsAProxiedDocumentTurnsOnNoOrderOfAsking(t *testing.T) {
 	} {
 		why := map[string]string{}
 		for _, order := range orderSequences() {
-			e := proxiedExternal(&proxiedReader{resolved: resolved, direct: direct})
+			external := proxiedExternal(&proxiedReader{resolved: resolved, direct: direct})
 			for _, asker := range []string{reachPub, orderPrivate} {
-				_, err := e.document(t.Context(), asker, "spec.yaml")
+				_, err := external.document(t.Context(), asker, "spec.yaml")
 				require.NoError(t, err)
 			}
 			for _, role := range order {
-				_, err := e.document(t.Context(), orderProxied, orderAskers[role])
+				_, err := external.document(t.Context(), orderProxied, orderAskers[role])
 				assert.Equal(t, admitted[role], err == nil, "resolved %d, order %v: %s: %v", resolved, order, role, err)
-				msg := ""
+				message := ""
 				if err != nil {
-					msg = err.Error()
+					message = err.Error()
 				}
 				if seen, ok := why[role]; ok {
-					assert.Equal(t, seen, msg, "resolved %d, order %v: %s is answered alike in every order", resolved, order, role)
+					assert.Equal(t, seen, message, "resolved %d, order %v: %s is answered alike in every order", resolved, order, role)
 				}
-				why[role] = msg
+				why[role] = message
 			}
-			assert.Equal(t, compilers.SpacePublic, e.reachOf(orderProxied), "resolved %d, order %v", resolved, order)
-			_, err := e.document(t.Context(), reachPriv, orderProxied)
+			assert.Equal(t, compilers.SpacePublic, external.reachOf(orderProxied), "resolved %d, order %v", resolved, order)
+			_, err := external.document(t.Context(), reachPriv, orderProxied)
 			barredWith(t, err, "it is at a private address, which a reference in a document read from a public one does not reach")
 		}
 	}
@@ -132,24 +132,25 @@ func TestExternal_AJudgementThatPassesBoundsTheDocumentForLaterAskers(t *testing
 	t.Parallel()
 	direct := spacedReads()
 	direct.docs[orderPrivate] = spacedDoc{data: "Q: {type: string}\n", space: compilers.SpacePrivate}
-	r := &proxiedReader{resolved: compilers.SpacePublic, direct: direct}
-	e := proxiedExternal(r)
+	proxiedReaderValue := &proxiedReader{resolved: compilers.SpacePublic, direct: direct}
+	external := proxiedExternal(proxiedReaderValue)
 	for _, asker := range []string{"spec.yaml", reachPub, reachPub, orderPrivate} {
 		if asker != "spec.yaml" {
-			_, err := e.document(t.Context(), asker, "spec.yaml")
+			_, err := external.document(t.Context(), asker, "spec.yaml")
 			require.NoError(t, err)
 		}
-		_, err := e.document(t.Context(), orderProxied, asker)
+		_, err := external.document(t.Context(), orderProxied, asker)
 		require.NoError(t, err, asker)
 	}
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, r.reqs,
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, proxiedReaderValue.reqs,
 		"read for the file, judged once for the public document, and the private one admitted unread")
 }
 
-// proxiedExternal reads through r beside a source at spec.yaml.
-func proxiedExternal(r *proxiedReader) *external {
-	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: oas.NewChecker()}}
-	return newExternal(Options{Reader: r}, newExternalReads(src, budget.Unbounded()), &aside{})
+// proxiedExternal reads through proxiedReaderValue beside a source at
+// spec.yaml.
+func proxiedExternal(proxiedReaderValue *proxiedReader) *external {
+	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: specrules.NewChecker()}}
+	return newExternal(Options{Reader: proxiedReaderValue}, newExternalReads(src, budget.Unbounded()), &aside{})
 }
 
 // TestExternal_AJudgementIsKeptForItsReachAndItsBoundForEvery pins what a
@@ -161,19 +162,19 @@ func TestExternal_AJudgementIsKeptForItsReachAndItsBoundForEvery(t *testing.T) {
 	const pub2 = "https://pub2.example/b.yaml"
 	direct := spacedReads()
 	direct.docs[pub2] = spacedDoc{data: "Y: {type: string}\n", space: compilers.SpacePublic}
-	r := &proxiedReader{resolved: compilers.SpacePrivate, direct: direct}
-	e := proxiedExternal(r)
+	proxiedReaderValue := &proxiedReader{resolved: compilers.SpacePrivate, direct: direct}
+	external := proxiedExternal(proxiedReaderValue)
 	for _, asker := range []string{reachPub, pub2} {
-		_, err := e.document(t.Context(), asker, "spec.yaml")
+		_, err := external.document(t.Context(), asker, "spec.yaml")
 		require.NoError(t, err)
 	}
-	_, err := e.document(t.Context(), orderProxied, "spec.yaml")
+	_, err := external.document(t.Context(), orderProxied, "spec.yaml")
 	require.NoError(t, err)
 	for _, asker := range []string{reachPub, pub2} {
-		_, err = e.document(t.Context(), orderProxied, asker)
+		_, err = external.document(t.Context(), orderProxied, asker)
 		barredWith(t, err, "it is at a private address, which a reference in a document read from a public one")
 	}
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, r.reqs,
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, proxiedReaderValue.reqs,
 		"read once, and judged once at the reach both askers share")
 
 	passed := proxiedExternal(&proxiedReader{resolved: compilers.SpacePublic, direct: direct})
@@ -197,11 +198,11 @@ func TestExternal_AJudgementIsKeptForItsReachAndItsBoundForEvery(t *testing.T) {
 // it read it is refused, read at the asker's own reach.
 func TestExternal_ADocumentWhoseReaderStatesNoSpaceIsRefusedToItsAsker(t *testing.T) {
 	t.Parallel()
-	r := spacedReads()
-	e := spacedExternal(r, "spec.yaml")
-	_, err := e.document(t.Context(), reachPub, "spec.yaml")
+	spacedReader := spacedReads()
+	external := spacedExternal(spacedReader, "spec.yaml")
+	_, err := external.document(t.Context(), reachPub, "spec.yaml")
 	require.NoError(t, err)
-	_, err = e.document(t.Context(), reachMute, reachPub)
+	_, err = external.document(t.Context(), reachMute, reachPub)
 	barredWith(t, err, "the reader did not say what address it was read from")
-	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, r.asked(reachMute))
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, spacedReader.asked(reachMute))
 }

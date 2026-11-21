@@ -23,8 +23,8 @@ func TestVerify_ATagsKeptKeysAreHeldToTheEntryChecks(t *testing.T) {
 	}}}
 	got := verifyDeclared(doc)
 	assert.Equal(t, []string{"ir/empty-unmodeled-key", "ir/empty-unmodeled-reason"}, codesOf(got))
-	for _, v := range got {
-		assert.Contains(t, v.Path, "doc.TagDefs[0].Unmodeled")
+	for _, violation := range got {
+		assert.Contains(t, violation.Path, "document.TagDefs[0].Unmodeled")
 	}
 }
 
@@ -39,14 +39,14 @@ func TestVerify_AGroupsInferredMarkerIsHeldToTheJoinedForm(t *testing.T) {
 		"extension-promotion,extension-promotion": {"ir/inferred-not-canonical"},
 	} {
 		doc := stamped(closedDoc())
-		doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"),
-			Groups: []ir.OperationGroup{{ID: "g/x/S/g", Name: named("g"), Inferred: list}}}}
+		doc.Services = []ir.Service{{ID: "service/x/S", Name: named("s"),
+			Groups: []ir.OperationGroup{{ID: "operation-group/x/S/g", Name: named("g"), Inferred: list}}}}
 		got := verifyDeclared(doc)
 		if want == nil {
 			assert.Empty(t, got, string(list))
 			continue
 		}
 		assert.Equal(t, want, codesOf(got), string(list))
-		assert.Equal(t, "doc.Services[0].Groups[0].Inferred", got[0].Path)
+		assert.Equal(t, "document.Services[0].Groups[0].Inferred", got[0].Path)
 	}
 }

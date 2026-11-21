@@ -31,5 +31,5 @@ paths:
       responses: {"204": {description: ok}}
 `)
 	assert.Empty(t, diags)
-	assert.Nil(t, at(requestContent(t, doc, "a"), "catchAllEncoding"))
+	assert.Nil(t, valueAtPath(requestContent(t, doc, "a"), "catchAllEncoding"))
 }

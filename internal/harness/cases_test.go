@@ -27,11 +27,11 @@ type grid struct {
 
 func (g grid) Axes() []harness.Axis { return g.axes }
 
-func (g grid) Write(at []int) (harness.Document, bool) {
+func (g grid) Write(at []int) (harness.CaseDocument, bool) {
 	if g.skip != nil && g.skip(at) {
-		return harness.Document{}, false
+		return harness.CaseDocument{}, false
 	}
-	return harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
+	return harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}, true
 }
 
 // axis returns an axis of core values named as given.
@@ -114,13 +114,13 @@ func TestCaseCount_RefusesWhatNoProductHolds(t *testing.T) {
 }
 
 func TestCoordinates_NameEachCaseByItsIndices(t *testing.T) {
-	g := grid{axes: threeAxes()}
-	at, err := harness.Coordinates(g, 7)
+	gridValue := grid{axes: threeAxes()}
+	at, err := harness.Coordinates(gridValue, 7)
 	require.NoError(t, err)
 	assert.Equal(t, []int{1, 0, 1}, at, "the last axis counts fastest")
 
 	for _, i := range []int{-1, 12} {
-		_, err := harness.Coordinates(g, i)
+		_, err := harness.Coordinates(gridValue, i)
 		require.Error(t, err, "%d", i)
 		assert.Contains(t, err.Error(), fmt.Sprintf("case %d is outside the 12 cases", i))
 	}
@@ -147,15 +147,15 @@ func TestCore_AdmitsTheCasesOfCoreValuesAlone(t *testing.T) {
 // values and by the core case it projects to, and each case oracle declining
 // for want of a neighbour, as no document here names one.
 func TestCheckCases_ResultsFollowTheIndexOrder(t *testing.T) {
-	g := grid{axes: threeAxes(), skip: func(at []int) bool { return at[1] == 1 }}
-	results, err := harness.CheckCases(t.Context(), g, func(at []int) bool { return at[0] == 1 })
+	gridValue := grid{axes: threeAxes(), skip: func(at []int) bool { return at[1] == 1 }}
+	results, err := harness.CheckCases(t.Context(), gridValue, func(at []int) bool { return at[0] == 1 })
 	require.NoError(t, err)
 
 	specs, likes := make([]string, 0, len(results)), make([]string, 0, len(results))
-	for _, r := range results {
-		specs, likes = append(specs, r.Spec), append(likes, r.Like)
-		assert.Equal(t, harness.OutcomeOK, r.Outcome, r.Spec)
-		assert.Equal(t, idleVerdicts(), r.Verdicts, r.Spec)
+	for _, result := range results {
+		specs, likes = append(specs, result.Spec), append(likes, result.Like)
+		assert.Equal(t, harness.OutcomeOK, result.Outcome, result.Spec)
+		assert.Equal(t, idleVerdicts(), result.Verdicts, result.Spec)
 	}
 	assert.Equal(t, []string{"a1/b0/x", "a1/b0/y", "a1/b2/x", "a1/b2/y"}, specs)
 	assert.Equal(t, []string{"a1/b0/x", "a1/b0/x", "a1/b2/x", "a1/b2/x"}, likes)
@@ -163,15 +163,15 @@ func TestCheckCases_ResultsFollowTheIndexOrder(t *testing.T) {
 	all, err := harness.CheckCases(t.Context(), grid{axes: threeAxes()}, func([]int) bool { return true })
 	require.NoError(t, err)
 	names := make([]string, len(all))
-	for i, r := range all {
-		names[i] = r.Spec
+	for i, result := range all {
+		names[i] = result.Spec
 	}
 	assert.Len(t, names, 12)
 	assert.Len(t, slices.Compact(slices.Sorted(slices.Values(names))), 12, "every case has a name of its own")
 }
 
 func TestCheckCases_RefusesACallersMistakes(t *testing.T) {
-	g := grid{axes: threeAxes()}
+	gridValue := grid{axes: threeAxes()}
 	all := func([]int) bool { return true }
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -182,10 +182,10 @@ func TestCheckCases_RefusesACallersMistakes(t *testing.T) {
 		pick      func([]int) bool
 		want      string
 	}{
-		{"a nil context", "nil", g, all, "nil context"},
-		{"no pick", "live", g, nil, "no pick"},
+		{"a nil context", "nil", gridValue, all, "nil context"},
+		{"no pick", "live", gridValue, nil, "no pick"},
 		{"cases CaseCount refuses", "live", grid{}, all, "no axis"},
-		{"a canceled context", "canceled", g, all, "case 0: context canceled"},
+		{"a canceled context", "canceled", gridValue, all, "case 0: context canceled"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			results, err := harness.CheckCases(contexts[tc.ctx], tc.cases, tc.pick)
@@ -197,16 +197,16 @@ func TestCheckCases_RefusesACallersMistakes(t *testing.T) {
 }
 
 func TestCheckCase_AnswersForOneCase(t *testing.T) {
-	g := grid{axes: threeAxes(), skip: func(at []int) bool { return at[1] == 1 }}
-	r, ok := harness.CheckCase(t.Context(), g, []int{0, 2, 1})
+	gridValue := grid{axes: threeAxes(), skip: func(at []int) bool { return at[1] == 1 }}
+	result, ok := harness.CheckCase(t.Context(), gridValue, []int{0, 2, 1})
 	require.True(t, ok)
-	assert.Equal(t, "a0/b2/y", r.Spec)
-	assert.Equal(t, "a0/b2/x", r.Like)
-	assert.Equal(t, idleVerdicts(), r.Verdicts)
+	assert.Equal(t, "a0/b2/y", result.Spec)
+	assert.Equal(t, "a0/b2/x", result.Like)
+	assert.Equal(t, idleVerdicts(), result.Verdicts)
 
-	r, ok = harness.CheckCase(t.Context(), g, []int{0, 1, 0})
+	result, ok = harness.CheckCase(t.Context(), gridValue, []int{0, 1, 0})
 	assert.False(t, ok, "the case writes nothing")
-	assert.Equal(t, harness.Result{Spec: "a0/b1/x"}, r)
+	assert.Equal(t, harness.Result{Spec: "a0/b1/x"}, result)
 }
 
 // parted is a fake product of one axis whose first case names a partner and
@@ -215,8 +215,8 @@ type parted struct{ parts [][]int }
 
 func (parted) Axes() []harness.Axis { return []harness.Axis{axis("n", "a", "b", "c")} }
 
-func (p parted) Write(at []int) (harness.Document, bool) {
-	doc := harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}
+func (p parted) Write(at []int) (harness.CaseDocument, bool) {
+	doc := harness.CaseDocument{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}
 	if at[0] == 0 {
 		doc.Equal = &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
 			Relocate: func(s string) string { return s }, Parts: p.parts}
@@ -228,21 +228,21 @@ func (p parted) Write(at []int) (harness.Document, bool) {
 // part outside the product or naming the case itself to a panic: either is
 // the product's mistake.
 func TestCheckCase_NamesTheParts(t *testing.T) {
-	r, ok := harness.CheckCase(t.Context(), parted{parts: [][]int{{1}, {2}}}, []int{0})
+	result, ok := harness.CheckCase(t.Context(), parted{parts: [][]int{{1}, {2}}}, []int{0})
 	require.True(t, ok)
-	assert.Equal(t, []string{"b", "c"}, r.Parts)
-	assert.Equal(t, harness.OutcomeOK, r.Outcome)
+	assert.Equal(t, []string{"b", "c"}, result.Parts)
+	assert.Equal(t, harness.OutcomeOK, result.Outcome)
 
 	for _, bad := range [][]int{{3}, {0}, nil} {
-		r, ok = harness.CheckCase(t.Context(), parted{parts: [][]int{bad}}, []int{0})
+		result, ok = harness.CheckCase(t.Context(), parted{parts: [][]int{bad}}, []int{0})
 		require.True(t, ok)
-		assert.Equal(t, harness.OutcomePanic, r.Outcome, "%v", bad)
-		assert.Contains(t, r.Detail, "outside the product or itself", "%v", bad)
+		assert.Equal(t, harness.OutcomePanic, result.Outcome, "%v", bad)
+		assert.Contains(t, result.Detail, "outside the product or itself", "%v", bad)
 	}
 }
 
 func TestCheckCase_ACallersMistakeIsAnErrorOutcome(t *testing.T) {
-	g := grid{axes: threeAxes()}
+	gridValue := grid{axes: threeAxes()}
 	for _, tc := range []struct {
 		name, spec, want string
 		nilContext       bool
@@ -250,24 +250,24 @@ func TestCheckCase_ACallersMistakeIsAnErrorOutcome(t *testing.T) {
 		at               []int
 	}{
 		{"cases CaseCount refuses", "", "no axis", false, grid{}, nil},
-		{"a case outside the product", "", "case [0 3 0] is outside the product", false, g, []int{0, 3, 0}},
-		{"too few indices", "", "case [0 0] is outside the product", false, g, []int{0, 0}},
-		{"a nil context", "a0/b0/x", "harness: nil context", true, g, []int{0, 0, 0}},
+		{"a case outside the product", "", "case [0 3 0] is outside the product", false, gridValue, []int{0, 3, 0}},
+		{"too few indices", "", "case [0 0] is outside the product", false, gridValue, []int{0, 0}},
+		{"a nil context", "a0/b0/x", "harness: nil context", true, gridValue, []int{0, 0, 0}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			if tc.nilContext {
 				ctx = nil
 			}
-			r, ok := harness.CheckCase(ctx, tc.cases, tc.at)
+			result, ok := harness.CheckCase(ctx, tc.cases, tc.at)
 			require.True(t, ok)
-			assert.Equal(t, harness.OutcomeError, r.Outcome)
-			assert.Contains(t, r.Detail, tc.want)
-			assert.Equal(t, tc.spec, r.Spec)
-			for _, v := range r.Verdicts {
-				assert.Equal(t, harness.DeclineNotReached, v.Declined, v.Oracle)
+			assert.Equal(t, harness.OutcomeError, result.Outcome)
+			assert.Contains(t, result.Detail, tc.want)
+			assert.Equal(t, tc.spec, result.Spec)
+			for _, verdict := range result.Verdicts {
+				assert.Equal(t, harness.DeclineNotReached, verdict.Declined, verdict.Oracle)
 			}
-			assert.Len(t, r.Verdicts, len(harness.CaseOracles()))
+			assert.Len(t, result.Verdicts, len(harness.CaseOracles()))
 		})
 	}
 }
@@ -303,8 +303,8 @@ func (c counted) Axes() []harness.Axis {
 // Axes, where a walk through Coordinates makes one per case.
 func TestEach_WalksTheProductReadingItsAxesOnce(t *testing.T) {
 	calls := 0
-	c := counted{axes: threeAxes(), calls: &calls}
-	each, err := harness.Each(c)
+	countedValue := counted{axes: threeAxes(), calls: &calls}
+	each, err := harness.Each(countedValue)
 	require.NoError(t, err)
 
 	var got [][]int
@@ -317,7 +317,7 @@ func TestEach_WalksTheProductReadingItsAxesOnce(t *testing.T) {
 	}
 	assert.Equal(t, 1, calls, "Each reads the axes once")
 	require.Len(t, got, 6, "the walk stops where its caller does")
-	want, err := harness.Coordinates(c, 5)
+	want, err := harness.Coordinates(countedValue, 5)
 	require.NoError(t, err)
 	assert.Equal(t, want, got[5])
 

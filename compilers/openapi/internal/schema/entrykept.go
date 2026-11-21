@@ -58,7 +58,8 @@ func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 || len(
 
 // keptWhole reports whether k is kept whole, holding what its entry writes: it
 // is no writer of a keyword it writes alike with another conjunct, kept apart
-// or folded, which that conjunct keeps alone (annotation.Voice.KeptWhole).
+// or folded, which that conjunct keeps alone
+// (annotation.FoldedAllOfEntry.KeptWhole).
 func (k keptEntry) keptWhole() bool { return k.whole != keptApart }
 
 // wholeCause is why an inline allOf entry is kept whole.
@@ -67,68 +68,70 @@ type wholeCause uint8
 const (
 	// keptApart marks an entry keeping each keyword under its own key.
 	keptApart wholeCause = iota
-	// wholeClosure marks one writing a closure the position does not type, or
-	// an unevaluated keyword: each reads the keywords beside it in the entry.
-	wholeClosure
-	// wholeUnflattened marks one whose own allOf is not flattened: past the
-	// flattening depth, or empty.
-	wholeUnflattened
-	// wholeElsewhere marks one reading a relative reference against another
-	// base than the position does.
-	wholeElsewhere
-	// wholeDisagreed marks one writing what folds, which another conjunct
-	// writes otherwise (voicesAmong).
-	wholeDisagreed
-	// wholeApart marks one keeping a keyword another conjunct writes otherwise,
-	// which one entry under that keyword cannot hold.
-	wholeApart
+	// keptWholeBecauseOfClosure marks one writing a closure the position does
+	// not type, or an unevaluated keyword: each reads the keywords beside it in
+	// the entry.
+	keptWholeBecauseOfClosure
+	// keptWholeBecauseAllOfNotFlattened marks one whose own allOf is not
+	// flattened: past the flattening depth, or empty.
+	keptWholeBecauseAllOfNotFlattened
+	// keptWholeBecauseReadAgainstAnotherBase marks one reading a relative
+	// reference against another base than the position does.
+	keptWholeBecauseReadAgainstAnotherBase
+	// keptWholeBecauseConjunctsDisagree marks one writing what folds, which
+	// another conjunct writes otherwise (foldingAllOfEntries).
+	keptWholeBecauseConjunctsDisagree
+	// keptWholeBecauseKeywordCannotShareEntry marks one keeping a keyword
+	// another conjunct writes otherwise, which one entry under that keyword
+	// cannot hold.
+	keptWholeBecauseKeywordCannotShareEntry
 )
 
-// entryKeeps decides what each inline entry of comp, the allOf s writes, keeps
-// of what residueOf says it left unread, by index: nothing where that is
+// entryKeeps decides what each inline entry of comp, the allOf schema writes,
+// keeps of what residueOf says it left unread, by index: nothing where that is
 // nothing a rule does not consume, else the entry whole (wholeCauseOf), where
-// closure names a keyword the position types no closure from, else each
-// keyword apart. v is s's voicing, nil where its allOf does not decide, and
-// principal the inline principal the position lowers from, nil for none: what
-// it or a wrapper around it (lowersFrom) keeps that another conjunct writes
-// otherwise never keeps it whole (keptEntry.apart).
-func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, residueOf func(int) []string,
-	v voicing, closure func(string) bool, principal *allOfEntry,
+// closure names a keyword the position types no closure from, else each keyword
+// apart. allOfEntryFoldingValue is schema's folding, nil where its allOf does
+// not decide, and principal the inline principal the position lowers from, nil
+// for none: what it or a wrapper around it (lowersFrom) keeps that another
+// conjunct writes otherwise never keeps it whole (keptEntry.apart).
+func entryKeeps(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, residueOf func(int) []string,
+	allOfEntryFoldingValue allOfEntryFolding, closure func(string) bool, principal *allOfEntry,
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.entries))
 	for i := range comp.entries {
-		out[i] = keptEntry{entry: comp.entries[i], residue: withDraftDependencies(c, s, comp, i, residueOf(i))}
+		out[i] = keptEntry{entry: comp.entries[i], residue: withDraftDependencies(loweringContext, schema, comp, i, residueOf(i))}
 	}
 	kepts := make([][]string, len(out))
-	for i, k := range out {
-		kepts[i] = keptOf(c, k)
+	for i, keptEntry := range out {
+		kepts[i] = keptOf(loweringContext, keptEntry)
 	}
-	apart, apartKept := writtenApartKeys(c, s, comp, kepts, new(budget.Budget))
+	apart, apartKept := writtenApartKeys(loweringContext, schema, comp, kepts, new(budget.Budget))
 	held := map[string]int{}
-	for i, k := range out {
+	for i, keptEntry := range out {
 		kept := kepts[i]
 		if len(kept) == 0 {
 			continue
 		}
 		apartHere := apart
-		if failedRef(c, k.entry) {
+		if failedRef(loweringContext, keptEntry.entry) {
 			apartHere = apartKept
 		}
 		var otherwise []string
-		if lowersFrom(principal, k.entry) {
+		if lowersFrom(principal, keptEntry.entry) {
 			otherwise = slices.DeleteFunc(slices.Clone(kept), func(key string) bool { return !apartHere[key] })
 			kept = slices.DeleteFunc(kept, func(key string) bool { return apartHere[key] })
 		}
-		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
+		out[i].whole = wholeCauseOf(loweringContext, comp, i, keptEntry.residue, allOfEntryFoldingValue, closure, kept, apartHere)
 		if out[i].keptWhole() {
-			out[i].reason = sharedReason(c, s, comp, i, slices.Concat(kept, otherwise))
+			out[i].reason = sharedReason(loweringContext, schema, comp, i, slices.Concat(kept, otherwise))
 			continue
 		}
 		out[i].apart = otherwise
-		out[i].own = slices.DeleteFunc(kept, func(key string) bool { return hasKey(s, key) })
+		out[i].own = slices.DeleteFunc(kept, func(key string) bool { return hasKey(schema, key) })
 		for _, key := range out[i].own {
 			held[key]++
-			if (key == "oneOf" || key == "anyOf") && entryUnionReason(c, s, comp, i) == ir.ReasonValidationOnly {
+			if (key == "oneOf" || key == "anyOf") && entryUnionReason(loweringContext, schema, comp, i) == ir.ReasonValidationOnly {
 				out[i].validation = append(out[i].validation, key)
 			}
 		}
@@ -143,22 +146,22 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 // leaves unread, with the `dependencies` it writes where foldsNoDependencies
 // says that does not fold: kept, it is held against the position's as any
 // keyword two conjuncts keep is.
-func withDraftDependencies(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, residue []string) []string {
+func withDraftDependencies(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int, residue []string) []string {
 	bs := comp.entries[i].schema.Schema
-	if !hasKey(bs, "dependencies") || slices.Contains(residue, "dependencies") || !foldsNoDependencies(c, s, comp.pointer) {
+	if !hasKey(bs, "dependencies") || slices.Contains(residue, "dependencies") || !foldsNoDependencies(loweringContext, schema, comp.pointer) {
 		return residue
 	}
 	return unmergedEntryKeys(bs, func(key string) bool { return key != "dependencies" && !slices.Contains(residue, key) })
 }
 
-// foldsNoDependencies reports whether s, written at pointer, writes a
+// foldsNoDependencies reports whether schema, written at pointer, writes a
 // `dependencies` its own dialect does not define, kept as a key no dialect
 // defines under openapi:dependencies. An allOf entry naming a draft that
 // defines the keyword keeps its own under that same key, so the entry's does
 // not fold beside it: one key of one node holds one value
 // (docs/compilers/openapi.md#allof-inline-residue).
-func foldsNoDependencies(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
-	return hasKey(s, "dependencies") && writesUnknown(c, s, "dependencies", pointer)
+func foldsNoDependencies(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) bool {
+	return hasKey(schema, "dependencies") && writesUnknown(loweringContext, schema, "dependencies", pointer)
 }
 
 // markKeptWhole marks each of voices, the voices of s written at pointer, which
@@ -166,47 +169,47 @@ func foldsNoDependencies(c lowering.Ctx, s *statement.Schema, pointer jsontext.P
 // annotation.Read counts it as no writer of what it folds, as entryKeeps
 // counts no such entry as a writer of what it keeps: the entry holds it once.
 // One voice writes no keyword alike with another, so fewer than two stand.
-func markKeptWhole(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
-	voices []annotation.Voice,
-) []annotation.Voice {
-	if len(voices) < 2 {
-		return voices
+func markKeptWhole(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	foldedEntries []annotation.FoldedAllOfEntry,
+) []annotation.FoldedAllOfEntry {
+	if len(foldedEntries) < 2 {
+		return foldedEntries
 	}
 	var kept []keptEntry
-	if _, refined := refinementOf(c, s, pointer); refined {
-		kept = keepsAtOutcome(c, s, target, pointer).entries
+	if _, refined := refinementOf(loweringContext, schema, pointer); refined {
+		kept = keepsAtOutcome(loweringContext, schema, target, pointer).entries
 	} else {
-		kept = readAllOf(c, s, pointer).kept
+		kept = readAllOf(loweringContext, schema, pointer).kept
 	}
 	whole := map[jsontext.Pointer]bool{}
-	for _, k := range kept {
-		if k.keptWhole() {
-			whole[k.entry.pointer] = true
+	for _, keptEntry := range kept {
+		if keptEntry.keptWhole() {
+			whole[keptEntry.entry.pointer] = true
 		}
 	}
 	if len(whole) == 0 {
-		return voices
+		return foldedEntries
 	}
-	out := slices.Clone(voices)
-	for i, v := range out {
-		out[i].KeptWhole = whole[v.At]
+	out := slices.Clone(foldedEntries)
+	for i, foldedAllOfEntry := range out {
+		out[i].KeptWhole = whole[foldedAllOfEntry.At]
 	}
 	return out
 }
 
-// writtenApartKeys returns which of the keywords the entries of comp keep, kepts
-// by index, their writers write apart: otherwise than one another, or in a
-// value that cannot be rendered. The writers are s and the inline entries (and
-// $refs naming nothing) writing the key; among keepers, as a $ref naming nothing
-// is asked, only the entries keeping it, as no merge or fold of another entry
-// parts it. Each writer is read once whatever it keeps: reads is charged a step
-// for each key asked of.
-func writtenApartKeys(c lowering.Ctx, s *statement.Schema, comp allOfComposition, kepts [][]string,
+// writtenApartKeys returns which of the keywords the entries of comp keep,
+// kepts by index, their writers write apart: otherwise than one another, or in
+// a value that cannot be rendered. The writers are schema and the inline
+// entries (and $refs naming nothing) writing the key; among keepers, as a $ref
+// naming nothing is asked, only the entries keeping it, as no merge or fold of
+// another entry parts it. Each writer is read once whatever it keeps: reads is
+// charged a step for each key asked of.
+func writtenApartKeys(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, kepts [][]string,
 	reads *budget.Budget,
 ) (writers, keepers map[string]bool) {
 	asked, askedKeepers := writtenKeys{}, writtenKeys{}
 	for i, kept := range kepts {
-		failed := len(kept) > 0 && failedRef(c, comp.entries[i])
+		failed := len(kept) > 0 && failedRef(loweringContext, comp.entries[i])
 		for _, key := range kept {
 			asked[key] = keyWrite{}
 			if failed {
@@ -214,14 +217,14 @@ func writtenApartKeys(c lowering.Ctx, s *statement.Schema, comp allOfComposition
 			}
 		}
 	}
-	asked.readWriter(s, reads)
-	askedKeepers.readWriter(s, reads)
-	for i, e := range comp.entries {
-		if (e.schema.Ref != nil && !failedRef(c, e)) || !stated(e.schema.Schema) {
+	asked.readWriter(schema, reads)
+	askedKeepers.readWriter(schema, reads)
+	for i, entry := range comp.entries {
+		if (entry.schema.Ref != nil && !failedRef(loweringContext, entry)) || !stated(entry.schema.Schema) {
 			continue
 		}
-		asked.readWriter(e.schema.Schema, reads)
-		askedKeepers.readKept(e.schema.Schema, kepts[i], reads)
+		asked.readWriter(entry.schema.Schema, reads)
+		askedKeepers.readKept(entry.schema.Schema, kepts[i], reads)
 	}
 	return asked.apart(), askedKeepers.apart()
 }
@@ -243,10 +246,10 @@ func (w writtenKeys) readWriter(bs *statement.Schema, reads *budget.Budget) {
 	if len(w) == 0 {
 		return
 	}
-	for _, k := range bs.Keys {
+	for _, key := range bs.Keys {
 		reads.Spend(1)
-		if _, asked := w[k.Name]; asked {
-			w.note(bs, k.Name)
+		if _, asked := w[key.Name]; asked {
+			w.note(bs, key.Name)
 		}
 	}
 }
@@ -269,7 +272,7 @@ func (w writtenKeys) readKept(bs *statement.Schema, kept []string, reads *budget
 // first writer's rendering is kept and each later one is compared with it, and
 // a key already apart is read no further.
 func (w writtenKeys) note(bs *statement.Schema, key string) {
-	k, read := bs.Key(key)
+	statementKey, read := bs.Key(key)
 	if !read {
 		return
 	}
@@ -277,7 +280,7 @@ func (w writtenKeys) note(bs *statement.Schema, key string) {
 	if seen.apart {
 		return
 	}
-	raw, err := annotation.RawFromNode(k.Node)
+	raw, err := annotation.RawFromNode(statementKey.Node)
 	switch {
 	case err != nil || (seen.met && !bytes.Equal(seen.first, raw)):
 		seen = keyWrite{met: true, apart: true}
@@ -296,15 +299,15 @@ func (w writtenKeys) apart() map[string]bool {
 	return out
 }
 
-// keptOf is what of k's residue a rule does not consume (consumedByRule):
-// what the entry keeps, whole or apart.
-func keptOf(c lowering.Ctx, k keptEntry) []string {
-	if len(k.residue) == 0 {
+// keptOf is what of keptEntryValue's residue a rule does not consume
+// (consumedByRule): what the entry keeps, whole or apart.
+func keptOf(loweringContext lowering.Ctx, keptEntryValue keptEntry) []string {
+	if len(keptEntryValue.residue) == 0 {
 		return nil
 	}
-	bs := k.entry.schema.Schema
-	return slices.DeleteFunc(slices.Clone(k.residue), func(key string) bool {
-		return consumedByRule(c, bs, key, k.entry.pointer)
+	bs := keptEntryValue.entry.schema.Schema
+	return slices.DeleteFunc(slices.Clone(keptEntryValue.residue), func(key string) bool {
+		return consumedByRule(loweringContext, bs, key, keptEntryValue.entry.pointer)
 	})
 }
 
@@ -313,10 +316,10 @@ func keptOf(c lowering.Ctx, k keptEntry) []string {
 // $comment, $anchor, $dynamicAnchor and $defs, or a draft's twin of one, but
 // where the dialect bs is read in defines no such keyword
 // (docs/compilers/openapi.md#dialect-keywords).
-func consumedByRule(c lowering.Ctx, bs *statement.Schema, key string, pointer jsontext.Pointer) bool {
-	switch TwinKeyword(c, bs, key) {
+func consumedByRule(loweringContext lowering.Ctx, bs *statement.Schema, key string, pointer jsontext.Pointer) bool {
+	switch TwinKeyword(loweringContext, bs, key) {
 	case "$comment", "$anchor", "$dynamicAnchor", "$defs":
-		return !writesUnknown(c, bs, key, pointer)
+		return !writesUnknown(loweringContext, bs, key, pointer)
 	default:
 		return false
 	}
@@ -325,31 +328,31 @@ func consumedByRule(c lowering.Ctx, bs *statement.Schema, key string, pointer js
 // wholeCauseOf returns why the inline entry at index i of comp, leaving residue
 // unread, of which it keeps kept, is kept whole, and keptApart where it keeps
 // each keyword apart. apart says which keywords their writers write apart.
-func wholeCauseOf(c lowering.Ctx, comp allOfComposition, i int, residue []string, v voicing,
+func wholeCauseOf(loweringContext lowering.Ctx, comp allOfComposition, i int, residue []string, allOfEntryFoldingValue allOfEntryFolding,
 	closure func(string) bool, kept []string, apart map[string]bool,
 ) wholeCause {
-	e := comp.entries[i]
+	entry := comp.entries[i]
 	switch {
 	case slices.ContainsFunc(residue, closure) || slices.ContainsFunc(residue, unevaluatedKeyword):
-		return wholeClosure
-	case e.capped || slices.Contains(residue, "allOf"):
-		return wholeUnflattened
-	case v.rebased != nil && v.rebased[i] || readsElsewhere(c, comp, e, kept):
-		return wholeElsewhere
-	case e.schema.Ref == nil && (v.speaks == nil || !v.speaks[i]) && disagreed(c, e.schema.Schema, residue):
-		return wholeDisagreed
+		return keptWholeBecauseOfClosure
+	case entry.capped || slices.Contains(residue, "allOf"):
+		return keptWholeBecauseAllOfNotFlattened
+	case allOfEntryFoldingValue.rebased != nil && allOfEntryFoldingValue.rebased[i] || readsElsewhere(loweringContext, comp, entry, kept):
+		return keptWholeBecauseReadAgainstAnotherBase
+	case entry.schema.Ref == nil && (allOfEntryFoldingValue.entryFoldsIntoPosition == nil || !allOfEntryFoldingValue.entryFoldsIntoPosition[i]) && disagreed(loweringContext, entry.schema.Schema, residue):
+		return keptWholeBecauseConjunctsDisagree
 	case slices.ContainsFunc(kept, func(key string) bool { return apart[key] }):
-		return wholeApart
+		return keptWholeBecauseKeywordCannotShareEntry
 	default:
 		return keptApart
 	}
 }
 
-// failedRef reports whether e is a $ref entry whose reference lands on no
-// schema, as resolveSchemaRef finds, a loop of $refs among them: no node stands
-// for it, so nothing reads what it writes.
-func failedRef(c lowering.Ctx, e allOfEntry) bool {
-	return e.schema.Ref != nil && !namesReferent(c, e.schema)
+// failedRef reports whether allOfEntryValue is a $ref entry whose reference
+// lands on no schema, as resolveSchemaRef finds, a loop of $refs among them: no
+// node stands for it, so nothing reads what it writes.
+func failedRef(loweringContext lowering.Ctx, allOfEntryValue allOfEntry) bool {
+	return allOfEntryValue.schema.Ref != nil && !namesReferent(loweringContext, allOfEntryValue.schema)
 }
 
 // failedRefResidue is what the $ref entry e writes that nothing reads, in the
@@ -357,12 +360,12 @@ func failedRef(c lowering.Ctx, e allOfEntry) bool {
 // beside the reference but `required`, which the composition's members read
 // (compositionRequired). Where the reference resolves, its target's alias homes
 // the keywords beside it (fillRefEntry).
-func failedRefResidue(c lowering.Ctx, e allOfEntry) []string {
-	if !failedRef(c, e) {
+func failedRefResidue(loweringContext lowering.Ctx, allOfEntryValue allOfEntry) []string {
+	if !failedRef(loweringContext, allOfEntryValue) {
 		return nil
 	}
-	keyword, _ := refSpelling(e.schema)
-	return unmergedEntryKeys(e.schema.Schema, func(key string) bool { return key == keyword || key == "required" })
+	keyword, _ := refSpelling(allOfEntryValue.schema)
+	return unmergedEntryKeys(allOfEntryValue.schema.Schema, func(key string) bool { return key == keyword || key == "required" })
 }
 
 // unevaluatedKeyword reports whether keyword is an unevaluated one, which on an
@@ -371,31 +374,31 @@ func unevaluatedKeyword(keyword string) bool {
 	return keyword == "unevaluatedProperties" || keyword == "unevaluatedItems"
 }
 
-// readsElsewhere reports whether a keyword the inline entry e of comp keeps,
-// of residue, writes a relative reference at any depth, read against another
-// base than the position's: an identifier at or above the entry names another
-// URI (underID, readsAtPosition), so the reference, kept apart from that
-// identifier, would name another schema. What the entry merges in place is
-// lowered where it is written, against its own base.
-func readsElsewhere(c lowering.Ctx, comp allOfComposition, e allOfEntry, residue []string) bool {
-	bs := e.schema.Schema
-	if !underID(e, bs, idWrappers(comp)) {
+// readsElsewhere reports whether a keyword the inline entry allOfEntryValue of
+// comp keeps, of residue, writes a relative reference at any depth, read
+// against another base than the position's: an identifier at or above the entry
+// names another URI (underID, readsAtPosition), so the reference, kept apart
+// from that identifier, would name another schema. What the entry merges in
+// place is lowered where it is written, against its own base.
+func readsElsewhere(loweringContext lowering.Ctx, comp allOfComposition, allOfEntryValue allOfEntry, residue []string) bool {
+	bs := allOfEntryValue.schema.Schema
+	if !underID(allOfEntryValue, bs, idWrappers(comp)) {
 		return false
 	}
 	return slices.ContainsFunc(residue, func(key string) bool {
 		raw, err := annotation.RawFromNode(keyNode(bs, key))
 		return err != nil || annotation.WritesReference(raw)
-	}) && !readsAtPosition(c, e)
+	}) && !readsAtPosition(loweringContext, allOfEntryValue)
 }
 
 // sharedReason is the reason the keywords kept of the inline entry at index i
-// of comp, the allOf s writes, share where they share one, else
+// of comp, the allOf schema writes, share where they share one, else
 // degraded_lowering: what a consumer filtering by reason reads of the entry
 // kept whole.
-func sharedReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, kept []string) ir.UnmodeledReason {
+func sharedReason(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int, kept []string) ir.UnmodeledReason {
 	var shared ir.UnmodeledReason
 	for n, key := range kept {
-		reason := keywordReason(c, s, comp, i, key)
+		reason := keywordReason(loweringContext, schema, comp, i, key)
 		if n > 0 && reason != shared {
 			return ir.ReasonDegradedLowering
 		}
@@ -413,24 +416,24 @@ var logicKeywords = []string{
 }
 
 // keywordReason is the reason key, a keyword the inline entry at index i of
-// comp, the allOf s writes, writes, is kept under on its own, as beside the
-// allOf: its slot's (docs/compilers/openapi.md#allof-inline-residue).
-func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, key string) ir.UnmodeledReason {
-	e := comp.entries[i]
-	bs := e.schema.Schema
-	twin := TwinKeyword(c, bs, key)
+// comp, the allOf schema writes, writes, is kept under on its own, as beside
+// the allOf: its slot's (docs/compilers/openapi.md#allof-inline-residue).
+func keywordReason(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int, key string) ir.UnmodeledReason {
+	entry := comp.entries[i]
+	bs := entry.schema.Schema
+	twin := TwinKeyword(loweringContext, bs, key)
 	switch {
 	case strings.HasPrefix(key, "x-"):
 		return ir.ReasonVendorExtension
 	case key == "dependencies" && twin != key:
 		// A draft's own keyword, validation logic as written flat in it.
 		return ir.ReasonValidationOnly
-	case annotation.DialectKeyword(twin), writesUnknown(c, bs, key, e.pointer):
+	case annotation.DialectKeyword(twin), writesUnknown(loweringContext, bs, key, entry.pointer):
 		return ir.ReasonOutOfScope
 	case slices.Contains(logicKeywords, twin), unevaluatedKeyword(twin):
 		return ir.ReasonValidationOnly
 	case key == "oneOf" || key == "anyOf":
-		return entryUnionReason(c, s, comp, i)
+		return entryUnionReason(loweringContext, schema, comp, i)
 	case slices.Contains(contentKeywords, key):
 		return ir.ReasonNoIRHome
 	default:
@@ -438,137 +441,139 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 	}
 }
 
-// entryUnionReason is the reason the oneOf or anyOf the inline entry at index
-// i of comp, the allOf s writes, is kept under, as the union beside s would
-// be: validation logic where its branches declare no shape against s, and
-// degraded where they do or the union shares no kind with the rest
-// (docs/compilers/openapi.md#union-beside-structure). Where s refines to no
-// union, each kept union is judged with the others, as beside s (keptUnion).
-func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
+// entryUnionReason is the reason the oneOf or anyOf the inline entry at index i
+// of comp, the allOf schema writes, is kept under, as the union beside schema
+// would be: validation logic where its branches declare no shape against
+// schema, and degraded where they do or the union shares no kind with the rest
+// (docs/compilers/openapi.md#union-beside-structure). Where schema refines to
+// no union, each kept union is judged with the others, as beside schema
+// (keptUnion).
+func entryUnionReason(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
 	holder := comp.entries[i].schema.Schema
 	choice := holder.ChoiceKeywords()
-	sets := [][]statement.Sub{choice.OneOf, choice.AnyOf}
-	if refinesToNoUnion(c, s) {
+	sets := [][]statement.Subschema{choice.OneOf, choice.AnyOf}
+	if refinesToNoUnion(loweringContext, schema) {
 		sets = entryUnionSets(comp)
 	}
-	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, sets...) ||
-		keptWithElected(c, s, comp.pointer) || pairedWithNullOnly(c, s) {
+	if unionApart(loweringContext, schema, comp, i) || setsDeclareShape(loweringContext, schema, holder, sets...) ||
+		keptWithElected(loweringContext, schema, comp.pointer) || pairedWithNullOnly(loweringContext, schema) {
 		return ir.ReasonDegradedLowering
 	}
 	return ir.ReasonValidationOnly
 }
 
-// refinesToNoUnion reports whether s, writing no union, refines to a principal
-// writing none, so every union its entries write is kept beside it.
-func refinesToNoUnion(c lowering.Ctx, s *statement.Schema) bool {
-	d := decisionOf(c, s)
-	if !d.refines || declaresUnion(s) {
+// refinesToNoUnion reports whether schema, writing no union, refines to a
+// principal writing none, so every union its entries write is kept beside it.
+func refinesToNoUnion(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	decision := decisionOf(loweringContext, schema)
+	if !decision.refines || declaresUnion(schema) {
 		return false
 	}
-	return d.principalAt < 0 || !declaresUnion(entryStatement(c, s, d.principalAt).Schema)
+	return decision.principalAt < 0 || !declaresUnion(entryStatement(loweringContext, schema, decision.principalAt).Schema)
 }
 
 // entryUnionSets returns the branch sets of every union comp's inline entries
 // write, in order.
-func entryUnionSets(comp allOfComposition) [][]statement.Sub {
-	var sets [][]statement.Sub
-	for _, e := range comp.entries {
-		if e.schema.Ref != nil {
+func entryUnionSets(comp allOfComposition) [][]statement.Subschema {
+	var sets [][]statement.Subschema
+	for _, entry := range comp.entries {
+		if entry.schema.Ref != nil {
 			continue
 		}
-		choice := e.schema.ChoiceKeywords()
+		choice := entry.schema.ChoiceKeywords()
 		sets = append(sets, choice.OneOf, choice.AnyOf)
 	}
 	return sets
 }
 
-// pairedWithNullOnly reports whether s refines to the union one inline entry
-// of its allOf writes, of a pair (electsOneOfPair), every branch of which is a
-// null branch: the position lowers as null alone, which keeps the union passed
-// over as degraded_lowering, as the same two beside the allOf do, a body beside
-// them or none (docs/compilers/openapi.md#union-null-only).
-func pairedWithNullOnly(c lowering.Ctx, s *statement.Schema) bool {
-	return electsOneOfPair(c, s) && allNullUnion(c, s, entryStatement(c, s, decisionOf(c, s).principalAt).Schema)
+// pairedWithNullOnly reports whether schema refines to the union one inline
+// entry of its allOf writes, of a pair (electsOneOfPair), every branch of which
+// is a null branch: the position lowers as null alone, which keeps the union
+// passed over as degraded_lowering, as the same two beside the allOf do, a body
+// beside them or none (docs/compilers/openapi.md#union-null-only).
+func pairedWithNullOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	return electsOneOfPair(loweringContext, schema) && allNullUnion(loweringContext, schema, entryStatement(loweringContext, schema, decisionOf(loweringContext, schema).principalAt).Schema)
 }
 
-// keptWithElected reports whether s, written at pointer, elects the union an
-// entry of its allOf writes and keeps it whole on that entry, as the shapes of
-// docs/compilers/openapi.md#union-beside-structure do, which keep every other
-// union as they keep that one, as degraded_lowering, as beside the allOf.
-func keptWithElected(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
-	u, _, distributed := entryUnion(c, s, pointer)
-	return u.holder != nil && !distributed
+// keptWithElected reports whether schema, written at pointer, elects the union
+// an entry of its allOf writes and keeps it whole on that entry, as the shapes
+// of docs/compilers/openapi.md#union-beside-structure do, which keep every
+// other union as they keep that one, as degraded_lowering, as beside the allOf.
+func keptWithElected(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) bool {
+	unionAt, _, distributed := entryUnion(loweringContext, schema, pointer)
+	return unionAt.holder != nil && !distributed
 }
 
-// unionApart reports whether the oneOf and anyOf the inline entry at index i
-// of comp writes, with those other inline entries write where s writes none,
-// share no kind with what the rest of s, the schema writing comp, admits, the
-// entries' other keywords among it: no instance satisfies them together, as
-// admissionReader.conjuncts reads two unions beside the allOf. A read cut
-// short says no.
-func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) bool {
-	w := newAdmissionReader(c)
+// unionApart reports whether the oneOf and anyOf the inline entry at index i of
+// comp writes, with those other inline entries write where schema writes none,
+// share no kind with what the rest of schema, the schema writing comp, admits,
+// the entries' other keywords among it: no instance satisfies them together, as
+// admissionReader.conjuncts reads two unions beside the allOf. A read cut short
+// says no.
+func unionApart(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, i int) bool {
+	admissionReader := newAdmissionReader(loweringContext)
 	bs := comp.entries[i].schema.Schema
-	union := unionsIn(&w, bs)
-	rest := w.written(s, w.nullable).and(w.written(bs, w.nullable))
-	if declaresUnion(s) {
-		rest = rest.and(unionsIn(&w, s))
+	union := unionsIn(&admissionReader, bs)
+	rest := admissionReader.written(schema, admissionReader.nullable).and(admissionReader.written(bs, admissionReader.nullable))
+	if declaresUnion(schema) {
+		rest = rest.and(unionsIn(&admissionReader, schema))
 	}
-	for j, e := range comp.entries {
+	for j, entry := range comp.entries {
 		switch {
-		case j == i || !stated(e.schema.Schema):
-		case e.schema.Ref != nil:
-			rest = rest.and(w.of(e.schema))
-		case !declaresUnion(s) && declaresUnion(e.schema.Schema):
+		case j == i || !stated(entry.schema.Schema):
+		case entry.schema.Ref != nil:
+			rest = rest.and(admissionReader.of(entry.schema))
+		case !declaresUnion(schema) && declaresUnion(entry.schema.Schema):
 			// Unions on two entries are read together, as two beside the
 			// allOf are (unionAside).
-			union = union.and(unionsIn(&w, e.schema.Schema))
-			rest = rest.and(w.written(e.schema.Schema, w.nullable))
+			union = union.and(unionsIn(&admissionReader, entry.schema.Schema))
+			rest = rest.and(admissionReader.written(entry.schema.Schema, admissionReader.nullable))
 		default:
-			rest = rest.and(inlineConjunct(&w, e.schema.Schema))
+			rest = rest.and(inlineConjunct(&admissionReader, entry.schema.Schema))
 		}
 	}
-	return !w.incomplete() && rest.reachable() && union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0
+	return !admissionReader.incomplete() && rest.reachable() && union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0
 }
 
-// recordKeptEntry keeps k, an inline entry of comp, on p, beside what the allOf
-// lowered to, shape, and reports it: whole, under the entry's key and k.reason,
-// reported by report, or each keyword apart (recordOwnKeywords), warn turning
-// the report of what has no home into a warning. A keyword other inline
-// entries keep alike takes the provenance of the position comp is written at.
-func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp allOfComposition,
-	k keptEntry, shape string, warn bool, report func(keptEntry) ir.Diagnostic,
+// recordKeptEntry keeps keptEntryValue, an inline entry of comp, on unmodeled,
+// beside what the allOf lowered to, shape, and reports it: whole, under the
+// entry's key and keptEntryValue.reason, reported by report, or each keyword
+// apart (recordOwnKeywords), warn turning the report of what has no home into a
+// warning. A keyword other inline entries keep alike takes the provenance of
+// the position comp is written at.
+func recordKeptEntry(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, comp allOfComposition,
+	keptEntryValue keptEntry, shape string, warn bool, report func(keptEntry) ir.Diagnostic,
 ) []ir.Diagnostic {
-	if !k.keeps() {
+	if !keptEntryValue.keeps() {
 		return nil
 	}
-	e := k.entry
-	if k.keptWhole() {
-		kept, diags := annotation.PreserveNodeInto(p, comp.entryKey(e.pointer), e.schema.Node, k.reason, c.Place().At(e.pointer))
+	schemaEntry := keptEntryValue.entry
+	if keptEntryValue.keptWhole() {
+		kept, diags := annotation.PreserveNodeInto(unmodeled, comp.entryKey(schemaEntry.pointer), schemaEntry.schema.Node, keptEntryValue.reason, loweringContext.Place().At(schemaEntry.pointer))
 		if !kept {
 			return diags
 		}
-		return append(diags, report(k))
+		return append(diags, report(keptEntryValue))
 	}
 	var held ir.Unmodeled
-	diags := recordOwnKeywords(c, ts, &held, k, shape, warn)
-	for _, key := range k.alike {
+	diags := recordOwnKeywords(loweringContext, ts, &held, keptEntryValue, shape, warn)
+	for _, key := range keptEntryValue.alike {
 		if entry, ok := held[annotation.EntryKey("", key)]; ok {
-			entry.Provenance = c.Place().At(comp.pointer)
+			entry.Provenance = loweringContext.Place().At(comp.pointer)
 			held[annotation.EntryKey("", key)] = entry
 		}
 	}
-	return append(diags, mergeKept(c, p, held, e.pointer)...)
+	return append(diags, mergeKept(loweringContext, unmodeled, held, schemaEntry.pointer)...)
 }
 
-// dropFoldedIntoWhole removes from p each entry an allOf entry kept whole
-// holds, what its fold kept beside it, so that is kept once, inside the entry
-// (docs/ir/unmodeled.md#keys); a key the promotion policy reads stays. An entry
-// kept whole within another stays under its own path too, as
+// dropFoldedIntoWhole removes from unmodeled each entry an allOf entry kept
+// whole holds, what its fold kept beside it, so that is kept once, inside the
+// entry (docs/ir/unmodeled.md#keys); a key the promotion policy reads stays. An
+// entry kept whole within another stays under its own path too, as
 // docs/compilers/openapi.md#allof-inline-residue keeps it.
-func dropFoldedIntoWhole(c lowering.Ctx, p *ir.Unmodeled) {
+func dropFoldedIntoWhole(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled) {
 	var whole ir.Unmodeled
-	for key, entry := range *p {
+	for key, entry := range *unmodeled {
 		if strings.HasPrefix(key, allOfKeyPrefix) && !writesTopLevelRef(entry.Value) {
 			whole = annotation.MergeUnmodeled(whole, ir.Unmodeled{key: entry})
 		}
@@ -576,8 +581,8 @@ func dropFoldedIntoWhole(c lowering.Ctx, p *ir.Unmodeled) {
 	if len(whole) == 0 {
 		return
 	}
-	promotion.DropContained(c.Promoter(), p, slices.Collect(maps.Keys(whole))...)
-	maps.Copy(*p, whole)
+	promotion.DropContained(loweringContext.Promoter(), unmodeled, slices.Collect(maps.Keys(whole))...)
+	maps.Copy(*unmodeled, whole)
 }
 
 // writesTopLevelRef reports whether raw, a kept entry's value, is an object
@@ -607,69 +612,72 @@ func writesTopLevelRef(raw ir.RawValue) bool {
 // allOfKeyPrefix opens the key of an allOf entry kept whole (entryKey).
 const allOfKeyPrefix = "openapi:allOf/"
 
-// mergeKept writes held, what an inline entry at pointer keeps apart, onto p.
-// No other reader keeps one of its keys otherwise (entryKeeps), so a key held
-// with another value is an invariant broken, reported, never overwritten.
-func mergeKept(c lowering.Ctx, p *ir.Unmodeled, held ir.Unmodeled, pointer jsontext.Pointer) []ir.Diagnostic {
+// mergeKept writes held, what an inline entry at pointer keeps apart, onto
+// unmodeled. No other reader keeps one of its keys otherwise (entryKeeps), so a
+// key held with another value is an invariant broken, reported, never
+// overwritten.
+func mergeKept(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, held ir.Unmodeled, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range slices.Sorted(maps.Keys(held)) {
-		if other, taken := (*p)[key]; taken && !bytes.Equal(other.Value, held[key].Value) {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+		if other, taken := (*unmodeled)[key]; taken && !bytes.Equal(other.Value, held[key].Value) {
+			diags = append(diags, loweringContext.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 				"internal: %s, kept apart from this allOf entry, is held with another value", key))
 			continue
 		}
-		if *p == nil {
-			*p = make(ir.Unmodeled, len(held))
+		if *unmodeled == nil {
+			*unmodeled = make(ir.Unmodeled, len(held))
 		}
-		(*p)[key] = held[key]
+		(*unmodeled)[key] = held[key]
 	}
 	return diags
 }
 
-// recordOwnKeywords keeps each keyword of k.own verbatim on p, under its own
-// key and the reason its slot gives, and reports them as beside the allOf: an
-// unknown, content, dialect or dynamic reference keyword at the keyword, a
-// vendor extension in no finding, a union of validation logic at the entry,
-// and the rest in one finding at the entry (recordEntryUnhomed).
-func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k keptEntry, shape string, warn bool,
+// recordOwnKeywords keeps each keyword of k.own verbatim on unmodeled, under
+// its own key and the reason its slot gives, and reports them as beside the
+// allOf: an unknown, content, dialect or dynamic reference keyword at the
+// keyword, a vendor extension in no finding, a union of validation logic at the
+// entry, and the rest in one finding at the entry (recordEntryUnhomed).
+func recordOwnKeywords(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, keptEntryValue keptEntry, shape string, warn bool,
 ) []ir.Diagnostic {
-	bs, at := k.entry.schema.Schema, k.entry.pointer
+	bs, at := keptEntryValue.entry.schema.Schema, keptEntryValue.entry.pointer
 	var diags []ir.Diagnostic
 	var unknown, unhomed, text []string
-	for _, key := range k.own {
-		switch twin := TwinKeyword(c, bs, key); {
-		case k.numberText && slices.Contains(valueConstraintKeywords, key):
+	for _, key := range keptEntryValue.own {
+		switch twin := TwinKeyword(loweringContext, bs, key); {
+		case keptEntryValue.numberText && slices.Contains(valueConstraintKeywords, key):
 			text = append(text, key)
 		case annotation.DialectKeyword(twin):
 			// Ahead of the unknown keywords, as Read keeps $vocabulary before
 			// PreserveUnknownKeywords meets it.
-			dialect := dialectIn(c.Rules().At(c.Position(at)), bs)
-			diags = append(diags, annotation.KeepDialectKeyword(p, bs, key, at, c.Place(), dialect)...)
+			dialect := dialectIn(loweringContext.Rules().At(loweringContext.Position(at)), bs)
+			diags = append(diags, annotation.KeepDialectKeyword(unmodeled, bs, key, at, loweringContext.Place(), dialect)...)
 		case strings.HasPrefix(key, "x-"):
-			_, keptDiags := annotation.PreserveSchemaKeyword(p, bs, key, ir.ReasonVendorExtension, at, c.Place())
+			_, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, bs, key, ir.ReasonVendorExtension, at, loweringContext.Place())
 			diags = append(diags, keptDiags...)
-		case writesUnknown(c, bs, key, at):
+		case writesUnknown(loweringContext, bs, key, at):
 			unknown = append(unknown, key)
 		case slices.Contains(contentKeywords, key):
-			diags = append(diags, keepContentKeyword(c, p, bs, key, at, noEncodingField)...)
-		case slices.Contains(k.validation, key):
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, bs, key, at, c.Place())...)
+			diags = append(diags, keepContentKeyword(loweringContext, unmodeled, bs, key, at, noEncodingField)...)
+		case slices.Contains(keptEntryValue.validation, key):
+			diags = append(diags, annotation.PreserveValidationOnlyKeyword(unmodeled, bs, key, at, loweringContext.Place())...)
 		case key == "$dynamicRef" || key == "$recursiveRef":
-			diags = append(diags, keepEntryDynamicRef(c, p, bs, key, at)...)
+			diags = append(diags, keepEntryDynamicRef(loweringContext, unmodeled, bs, key, at)...)
 		default:
 			unhomed = append(unhomed, key)
 		}
 	}
-	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
-	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
-	return append(diags, recordEntryUnhomed(c, ts, p, k.entry, unhomed, shape, namesOf(k.entry).where, warn)...)
+	diags = append(diags, keepUnknownOf(loweringContext, unmodeled, bs, unknown, at)...)
+	diags = append(diags, keepTextBounds(loweringContext, unmodeled, bs, text, at)...)
+	return append(diags, recordEntryUnhomed(loweringContext, ts, unmodeled, keptEntryValue.entry, unhomed, shape, namesOf(keptEntryValue.entry).where, warn)...)
 }
 
-// besideRef reports whether e is what an allOf entry writing a $ref beside
-// other keys writes beside it (statement.Schema.WrittenBeside): a conjunct of
-// its own, kept as an inline entry's is
+// besideRef reports whether allOfEntryValue is what an allOf entry writing a
+// $ref beside other keys writes beside it (statement.Schema.WrittenBeside): a
+// conjunct of its own, kept as an inline entry's is
 // (docs/compilers/openapi.md#allof-classification), though no inline entry.
-func besideRef(e allOfEntry) bool { return e.schema.WrittenBeside != nil }
+func besideRef(allOfEntryValue allOfEntry) bool {
+	return allOfEntryValue.schema.WrittenBeside != nil
+}
 
 // entryNames is how a report names an allOf entry: at the head of a sentence
 // (lead), as the entry it is about (this), as what it keeps (kept), and as
@@ -679,28 +687,29 @@ type entryNames struct{ lead, this, kept, where string }
 // namesOf returns how a report names e: as an inline entry, or as the
 // conjunct written beside its $ref where it is one (besideRef), a keyword of
 // an entry whose own $ref names nothing being written beside that $ref.
-func namesOf(e allOfEntry) entryNames {
-	n := entryNames{lead: "inline allOf entry", this: "this inline entry", kept: "the entry", where: "on this inline entry"}
-	if besideRef(e) {
-		n = entryNames{lead: "conjunct beside this allOf entry's $ref", this: "the conjunct beside this $ref",
+func namesOf(allOfEntryValue allOfEntry) entryNames {
+	entryNamesValue := entryNames{lead: "inline allOf entry", this: "this inline entry", kept: "the entry", where: "on this inline entry"}
+	if besideRef(allOfEntryValue) {
+		entryNamesValue = entryNames{lead: "conjunct beside this allOf entry's $ref", this: "the conjunct beside this $ref",
 			kept: "the conjunct", where: "beside this $ref"}
 	}
-	if e.schema.Ref != nil {
-		n.where = "beside this $ref, which names nothing"
+	if allOfEntryValue.schema.Ref != nil {
+		entryNamesValue.where = "beside this $ref, which names nothing"
 	}
-	return n
+	return entryNamesValue
 }
 
 // keepEntryDynamicRef keeps the dynamic reference keyword the inline entry bs
-// at pointer writes verbatim on p, as degraded_lowering, and reports it at the
-// keyword, as recordUnexpandedDynamicRef reports one beside the allOf: no entry
-// expands one, as it is a conjunct the IR cannot intersect with the rest.
-func keepEntryDynamicRef(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
-	kept, diags := annotation.PreserveSchemaKeyword(p, bs, keyword, ir.ReasonDegradedLowering, pointer, c.Place())
+// at pointer writes verbatim on unmodeled, as degraded_lowering, and reports it
+// at the keyword, as recordUnexpandedDynamicRef reports one beside the allOf:
+// no entry expands one, as it is a conjunct the IR cannot intersect with the
+// rest.
+func keepEntryDynamicRef(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bs *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, bs, keyword, ir.ReasonDegradedLowering, pointer, loweringContext.Place())
 	if !kept {
 		return diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+	return append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 		"%s was not expanded because it is written on an allOf entry beside another conjunct, which the IR "+
 			"cannot intersect with it; it is kept verbatim under Unmodeled", keyword))
 }
@@ -708,19 +717,19 @@ func keepEntryDynamicRef(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, 
 // keepUnknownOf keeps the keywords of keys, each one bs, the schema at pointer,
 // writes that PreserveUnknownKeywords keeps (writesUnknown), as it keeps them,
 // and none of the others bs writes.
-func keepUnknownOf(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keys []string, pointer jsontext.Pointer) []ir.Diagnostic {
+func keepUnknownOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bs *statement.Schema, keys []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil
 	}
 	var others []string
-	for _, k := range bs.Keys {
-		if !slices.Contains(keys, k.Name) {
-			others = append(others, k.Name)
+	for _, key := range bs.Keys {
+		if !slices.Contains(keys, key.Name) {
+			others = append(others, key.Name)
 		}
 	}
-	undefined := slices.DeleteFunc(undefinedKeywords(c, bs), func(key string) bool { return !slices.Contains(keys, key) })
-	diags := annotation.UnknownKeywordsIn(p, bs, pointer, c.Place(), others...)
-	return append(diags, annotation.UndefinedKeywordsIn(p, bs, undefined, pointer, c.Place())...)
+	undefined := slices.DeleteFunc(undefinedKeywords(loweringContext, bs), func(key string) bool { return !slices.Contains(keys, key) })
+	diags := annotation.UnknownKeywordsIn(unmodeled, bs, pointer, loweringContext.Place(), others...)
+	return append(diags, annotation.UndefinedKeywordsIn(unmodeled, bs, undefined, pointer, loweringContext.Place())...)
 }
 
 // recordEntryUnhomed keeps each of unhomed, keywords the entry e writes that
@@ -728,48 +737,49 @@ func keepUnknownOf(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keys [
 // (keepUnreadKeys), and reports them in one finding at the entry, where says how
 // they are written: a warning where warn says e declares a type no object is,
 // which the composed model asserts it is.
-func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, e allOfEntry, unhomed []string,
+func recordEntryUnhomed(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, allOfEntryValue allOfEntry, unhomed []string,
 	shape, where string, warn bool,
 ) []ir.Diagnostic {
-	kept, diags := keepUnreadKeys(c, ts, p, e.schema.Schema, unhomed, e.pointer)
+	kept, diags := keepUnreadKeys(loweringContext, ts, unmodeled, allOfEntryValue.schema.Schema, unhomed, allOfEntryValue.pointer)
 	if len(kept) == 0 {
 		return diags
 	}
 	if warn {
-		return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer,
+		return append(diags, loweringContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, allOfEntryValue.pointer,
 			"%s declares a type that is not an object, which the composed model asserts it is; "+
-				"%s, written on it, kept verbatim under Unmodeled", namesOf(e).lead, strings.Join(kept, ", ")))
+				"%s, written on it, kept verbatim under Unmodeled", namesOf(allOfEntryValue).lead, strings.Join(kept, ", ")))
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer,
+	return append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, allOfEntryValue.pointer,
 		"this allOf lowered to %s, which has no home for %s written %s; kept verbatim under Unmodeled",
 		shape, strings.Join(kept, ", "), where))
 }
 
-// wholeWhy words why k is kept whole where its cause says so whatever the
-// position lowered to, and is "" where the caller's own wording says it.
-func wholeWhy(k keptEntry) string {
-	n := namesOf(k.entry)
-	switch k.whole {
-	case wholeElsewhere:
-		return "this " + n.lead + " reads its $refs against another base than the position does, as an " +
-			"identifier at or above it names another URI, so nothing it writes folds or is kept apart; " + n.kept +
-			" (" + strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
-	case wholeDisagreed:
-		return disagreedWhy(k.residue, n)
-	case wholeApart:
-		return "another conjunct of this allOf writes a keyword " + n.this + " keeps otherwise, and one Unmodeled entry " +
-			"under that keyword holds one value; " + n.kept + " (" + strings.Join(k.residue, ", ") +
+// wholeWhy words why keptEntryValue is kept whole where its cause says so
+// whatever the position lowered to, and is "" where the caller's own wording
+// says it.
+func wholeWhy(keptEntryValue keptEntry) string {
+	names := namesOf(keptEntryValue.entry)
+	switch keptEntryValue.whole {
+	case keptWholeBecauseReadAgainstAnotherBase:
+		return "this " + names.lead + " reads its $refs against another base than the position does, as an " +
+			"identifier at or above it names another URI, so nothing it writes folds or is kept apart; " + names.kept +
+			" (" + strings.Join(keptEntryValue.residue, ", ") + ") is kept verbatim under Unmodeled"
+	case keptWholeBecauseConjunctsDisagree:
+		return disagreedWhy(keptEntryValue.residue, names)
+	case keptWholeBecauseKeywordCannotShareEntry:
+		return "another conjunct of this allOf writes a keyword " + names.this + " keeps otherwise, and one Unmodeled entry " +
+			"under that keyword holds one value; " + names.kept + " (" + strings.Join(keptEntryValue.residue, ", ") +
 			") is kept verbatim under Unmodeled"
 	default:
 		return ""
 	}
 }
 
-// wholeCode is the code a report of k, kept whole, takes: the one a
-// validation-only keyword's takes where its reason is that, as each of its
+// wholeCode is the code a report of keptEntryValue, kept whole, takes: the one
+// a validation-only keyword's takes where its reason is that, as each of its
 // keywords would draw, else the one of a degraded lowering.
-func wholeCode(k keptEntry) string {
-	if k.reason == ir.ReasonValidationOnly {
+func wholeCode(keptEntryValue keptEntry) string {
+	if keptEntryValue.reason == ir.ReasonValidationOnly {
 		return diag.ValidationOnlyKeyword
 	}
 	return diag.DegradedConstruct
@@ -782,26 +792,27 @@ func wholeCode(k keptEntry) string {
 // apart, whose references keepUncomposedRefs keeps. The failure itself is
 // reported where the reference is written (fillRefEntry), so nothing here
 // reports it again.
-func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, failed []int,
+func keepFailedRefs(loweringContext lowering.Ctx, ts *compile.Types, model *ir.Model, comp allOfComposition, failed []int,
 ) ([]wholeRefEntry, []ir.Diagnostic) {
 	diags := make([]ir.Diagnostic, 0, len(failed))
 	var apart []wholeRefEntry
 	for _, i := range failed {
-		k := comp.kept[i]
-		if !k.keptWhole() {
-			apart = append(apart, wholeRefEntry{entry: k.entry})
+		keptEntryValue := comp.kept[i]
+		if !keptEntryValue.keptWhole() {
+			apart = append(apart, wholeRefEntry{entry: keptEntryValue.entry})
 		}
-		diags = append(diags, recordKeptEntry(c, ts, &m.Unmodeled, comp, k, nodeShape(ir.KindModel), false,
-			func(k keptEntry) ir.Diagnostic {
-				return c.DiagAt(ir.SeverityInfo, wholeCode(k), k.entry.pointer, "%s", failedRefWholeWhy(k))
+		diags = append(diags, recordKeptEntry(loweringContext, ts, &model.Unmodeled, comp, keptEntryValue, nodeShape(ir.KindModel), false,
+			func(otherKeptEntry keptEntry) ir.Diagnostic {
+				return loweringContext.DiagAt(ir.SeverityInfo, wholeCode(otherKeptEntry), otherKeptEntry.entry.pointer, "%s", failedRefWholeWhy(otherKeptEntry))
 			})...)
 	}
 	return apart, diags
 }
 
-// failedRefWholeWhy words why the $ref entry k, naming nothing, is kept whole.
-func failedRefWholeWhy(k keptEntry) string {
+// failedRefWholeWhy words why the $ref entry keptEntryValue, naming nothing, is
+// kept whole.
+func failedRefWholeWhy(keptEntryValue keptEntry) string {
 	return "this allOf entry's $ref names nothing, so nothing reads what it writes, and a keyword that reads the " +
 		"others beside it, or that another conjunct writes otherwise, cannot be kept apart; the entry (" +
-		strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
+		strings.Join(keptEntryValue.residue, ", ") + ") is kept verbatim under Unmodeled"
 }

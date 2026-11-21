@@ -18,7 +18,7 @@ import (
 
 // TestFlattenedProperties_AgreesWithAnOrderFreeReading holds every flattening
 // of random registries to what a reading that orders nothing says it must
-// hold: the declarations ExposedProps reaches, grouped by wire name; a
+// hold: the declarations ExposedProperties reaches, grouped by wire name; a
 // requirement wherever a declaration or a Requires states one; a redaction
 // wherever a declaration asks for one; the names and entries left over; and no
 // member taken by a declaration of a model that the overridden declaration's
@@ -30,51 +30,51 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 		doc, types := flatRandom(seed)
 		for _, root := range types {
 			what := fmt.Sprintf("seed %d, root %q", seed, root)
-			f := ir.FlattenedProperties(doc.Types, root)
-			require.Empty(t, cmp.Diff(f, ir.FlattenedProperties(doc.Types, root)), "%s: a second walk agrees", what)
+			flattening := ir.FlattenedProperties(doc.Types, root)
+			require.Empty(t, cmp.Diff(flattening, ir.FlattenedProperties(doc.Types, root)), "%s: a second walk agrees", what)
 			models, unflattened := composition(doc.Types, root)
-			requireDeclarations(t, doc, root, f, models, what)
-			requireRequirements(t, f, models, what)
-			requireRedactions(t, doc.Types, f, what)
-			requireDeprecations(t, f, what)
-			assert.ElementsMatch(t, slices.Collect(maps.Keys(unflattened)), f.Unflattened, "%s: unflattened", what)
-			requireOverrides(t, doc.Types, f, what)
+			requireDeclarations(t, doc, root, flattening, models, what)
+			requireRequirements(t, flattening, models, what)
+			requireRedactions(t, doc.Types, flattening, what)
+			requireDeprecations(t, flattening, what)
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(unflattened)), flattening.Unflattened, "%s: unflattened", what)
+			requireOverrides(t, doc.Types, flattening, what)
 		}
 		fresh, _ := flatRandom(seed)
 		require.Empty(t, cmp.Diff(fresh, doc), "seed %d: flattening writes nothing to the registry", seed)
 	}
 }
 
-// requireDeclarations holds f's members to one per wire name, each declaration
-// sharing it and held by its owner, and every declaration together to the set
-// ExposedProps reaches.
-func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, f ir.Flattening,
+// requireDeclarations holds flattening's members to one per wire name, each
+// declaration sharing it and held by its owner, and every declaration together
+// to the set ExposedProperties reaches.
+func requireDeclarations(t *testing.T, doc *ir.Document, root ir.TypeID, flattening ir.Flattening,
 	models map[ir.TypeID]*ir.Model, what string,
 ) {
 	t.Helper()
-	declared := map[ir.PropID]bool{}
+	declared := map[ir.PropertyID]bool{}
 	wires := map[string]bool{}
-	for _, fp := range f.Properties {
+	for _, fp := range flattening.Properties {
 		wire := fp.Property.EffectiveWireName()
 		require.False(t, wires[wire], "%s: wire name %q is one member", what, wire)
 		wires[wire] = true
-		listed := map[ir.PropID]bool{}
-		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
-			require.False(t, listed[d.Property.ID], "%s: %s is listed once in its member", what, d.Property.ID)
-			listed[d.Property.ID] = true
-			require.Equal(t, wire, d.Property.EffectiveWireName(), "%s: a member's declarations share its name", what)
-			require.Contains(t, models, d.Owner, "%s: %s's owner is a model the root composes", what, d.Property.ID)
-			require.True(t, holds(models[d.Owner], d.Property), "%s: %s points into its owner", what, d.Property.ID)
-			declared[d.Property.ID] = true
+		listed := map[ir.PropertyID]bool{}
+		for _, propertyDecl := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			require.False(t, listed[propertyDecl.Property.ID], "%s: %s is listed once in its member", what, propertyDecl.Property.ID)
+			listed[propertyDecl.Property.ID] = true
+			require.Equal(t, wire, propertyDecl.Property.EffectiveWireName(), "%s: a member's declarations share its name", what)
+			require.Contains(t, models, propertyDecl.Owner, "%s: %s's owner is a model the root composes", what, propertyDecl.Property.ID)
+			require.True(t, holds(models[propertyDecl.Owner], propertyDecl.Property), "%s: %s points into its owner", what, propertyDecl.Property.ID)
+			declared[propertyDecl.Property.ID] = true
 		}
 	}
-	assert.Equal(t, ir.ExposedProps(doc, root), declared, "%s: the declarations are those ExposedProps reaches", what)
+	assert.Equal(t, ir.ExposedProperties(doc, root), declared, "%s: the declarations are those ExposedProperties reaches", what)
 }
 
-// holds reports whether p points at one of m's properties.
-func holds(m *ir.Model, p *ir.Property) bool {
-	for i := range m.Properties {
-		if &m.Properties[i] == p {
+// holds reports whether property points at one of model's properties.
+func holds(model *ir.Model, property *ir.Property) bool {
+	for i := range model.Properties {
+		if &model.Properties[i] == property {
 			return true
 		}
 	}
@@ -84,21 +84,21 @@ func holds(m *ir.Model, p *ir.Property) bool {
 // requireRequirements holds each member's Required to its declarations and the
 // Requires of the composed models, and Undeclared to the names those list that
 // no member carries, once each.
-func requireRequirements(t *testing.T, f ir.Flattening, models map[ir.TypeID]*ir.Model, what string) {
+func requireRequirements(t *testing.T, flattening ir.Flattening, models map[ir.TypeID]*ir.Model, what string) {
 	t.Helper()
 	listed := map[string]bool{}
-	for _, m := range models {
-		for _, name := range m.Requires {
+	for _, model := range models {
+		for _, name := range model.Requires {
 			listed[name] = true
 		}
 	}
 	carried := map[string]bool{}
-	for _, fp := range f.Properties {
+	for _, fp := range flattening.Properties {
 		wire := fp.Property.EffectiveWireName()
 		carried[wire] = true
 		want := listed[wire]
-		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
-			want = want || d.Property.Required
+		for _, propertyDecl := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			want = want || propertyDecl.Property.Required
 		}
 		assert.Equal(t, want, fp.Required, "%s: %q is required where a declaration or a Requires says so", what, wire)
 	}
@@ -108,17 +108,17 @@ func requireRequirements(t *testing.T, f ir.Flattening, models map[ir.TypeID]*ir
 			undeclared = append(undeclared, name)
 		}
 	}
-	assert.ElementsMatch(t, undeclared, f.Undeclared, "%s: undeclared", what)
+	assert.ElementsMatch(t, undeclared, flattening.Undeclared, "%s: undeclared", what)
 }
 
 // requireRedactions holds each member's Secret to its declarations: redacted
 // where one is Secret or of a type reachesSensitive says is.
-func requireRedactions(t *testing.T, types ir.TypeRegistry, f ir.Flattening, what string) {
+func requireRedactions(t *testing.T, types ir.TypeRegistry, flattening ir.Flattening, what string) {
 	t.Helper()
-	for _, fp := range f.Properties {
+	for _, fp := range flattening.Properties {
 		var want bool
-		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
-			want = want || d.Property.Secret || reachesSensitive(types, d.Property.Type.Target)
+		for _, propertyDecl := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			want = want || propertyDecl.Property.Secret || reachesSensitive(types, propertyDecl.Property.Type.Target)
 		}
 		assert.Equal(t, want, fp.Secret, "%s: %q is redacted where a declaration asks for it", what,
 			fp.Property.EffectiveWireName())
@@ -127,13 +127,13 @@ func requireRedactions(t *testing.T, types ir.TypeRegistry, f ir.Flattening, wha
 
 // requireDeprecations holds each member's Deprecation to its declarations:
 // one where any of them states one, and the taken one's where it does.
-func requireDeprecations(t *testing.T, f ir.Flattening, what string) {
+func requireDeprecations(t *testing.T, flattening ir.Flattening, what string) {
 	t.Helper()
-	for _, fp := range f.Properties {
+	for _, fp := range flattening.Properties {
 		var stated []*ir.Deprecation
-		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
-			if d.Property.Deprecation != nil {
-				stated = append(stated, d.Property.Deprecation)
+		for _, propertyDecl := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			if propertyDecl.Property.Deprecation != nil {
+				stated = append(stated, propertyDecl.Property.Deprecation)
 			}
 		}
 		wire := fp.Property.EffectiveWireName()
@@ -150,15 +150,15 @@ func requireDeprecations(t *testing.T, f ir.Flattening, what string) {
 
 // requireOverrides holds every member to a declaration no overridden one's
 // model composes, unless the two models compose each other.
-func requireOverrides(t *testing.T, types ir.TypeRegistry, f ir.Flattening, what string) {
+func requireOverrides(t *testing.T, types ir.TypeRegistry, flattening ir.Flattening, what string) {
 	t.Helper()
-	for _, fp := range f.Properties {
-		for _, d := range fp.Overridden {
-			below := composedBelow(types, d.Owner)
+	for _, fp := range flattening.Properties {
+		for _, propertyDecl := range fp.Overridden {
+			below := composedBelow(types, propertyDecl.Owner)
 			if below[fp.Owner] {
-				assert.True(t, composedBelow(types, fp.Owner)[d.Owner],
+				assert.True(t, composedBelow(types, fp.Owner)[propertyDecl.Owner],
 					"%s: %s@%s composes %s@%s, so it must take the member", what,
-					d.Property.ID, d.Owner, fp.Property.ID, fp.Owner)
+					propertyDecl.Property.ID, propertyDecl.Owner, fp.Property.ID, fp.Owner)
 			}
 		}
 	}

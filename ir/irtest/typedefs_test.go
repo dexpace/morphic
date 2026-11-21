@@ -16,8 +16,8 @@ import (
 // every definition, under the ID it carries.
 func TestDocOf_KeysEachDefinitionByItsOwnID(t *testing.T) {
 	t.Parallel()
-	m, s := irtest.ModelOf("t/x/M", nil), irtest.ScalarOf("t/x/S", "")
-	assert.Equal(t, ir.TypeRegistry{"t/x/M": m, "t/x/S": s}, irtest.DocOf(m, s).Types)
+	model, scalar := irtest.ModelOf("type/x/M", nil), irtest.ScalarOf("type/x/S", "")
+	assert.Equal(t, ir.TypeRegistry{"type/x/M": model, "type/x/S": scalar}, irtest.DocOf(model, scalar).Types)
 	assert.Empty(t, irtest.DocOf().Types)
 }
 
@@ -25,29 +25,29 @@ func TestDocOf_KeysEachDefinitionByItsOwnID(t *testing.T) {
 // the bare model, and a mutate sees the model already carrying its ID.
 func TestModelOf_ShapesTheModelOnlyThroughMutate(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, &ir.Model{ID: "t/x/M"}, irtest.ModelOf("t/x/M", nil))
+	assert.Equal(t, &ir.Model{ID: "type/x/M"}, irtest.ModelOf("type/x/M", nil))
 
 	var seen ir.TypeID
-	got := irtest.ModelOf("t/x/M", func(m *ir.Model) {
-		seen = m.ID
-		m.Mixins = irtest.RefsTo("t/x/A")
+	got := irtest.ModelOf("type/x/M", func(model *ir.Model) {
+		seen = model.ID
+		model.Mixins = irtest.RefsTo("type/x/A")
 	})
-	assert.Equal(t, ir.TypeID("t/x/M"), seen)
-	assert.Equal(t, &ir.Model{ID: "t/x/M", Mixins: []ir.TypeRef{{Target: "t/x/A"}}}, got)
+	assert.Equal(t, ir.TypeID("type/x/M"), seen)
+	assert.Equal(t, &ir.Model{ID: "type/x/M", Mixins: []ir.TypeRef{{Target: "type/x/A"}}}, got)
 }
 
 // TestScalarOf_IsOpaqueWithoutABase pins that an empty base leaves Base nil
 // rather than a reference to the empty ID.
 func TestScalarOf_IsOpaqueWithoutABase(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, &ir.Scalar{ID: "t/x/S"}, irtest.ScalarOf("t/x/S", ""))
-	assert.Equal(t, &ir.Scalar{ID: "t/x/S", Base: &ir.TypeRef{Target: "t/prim/string"}},
-		irtest.ScalarOf("t/x/S", "t/prim/string"))
+	assert.Equal(t, &ir.Scalar{ID: "type/x/S"}, irtest.ScalarOf("type/x/S", ""))
+	assert.Equal(t, &ir.Scalar{ID: "type/x/S", Base: &ir.TypeRef{Target: "type/primitive/string"}},
+		irtest.ScalarOf("type/x/S", "type/primitive/string"))
 }
 
 // TestRefsTo_RefersToEachIDInOrder pins the order and the empty case.
 func TestRefsTo_RefersToEachIDInOrder(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []ir.TypeRef{{Target: "t/x/B"}, {Target: "t/x/A"}}, irtest.RefsTo("t/x/B", "t/x/A"))
+	assert.Equal(t, []ir.TypeRef{{Target: "type/x/B"}, {Target: "type/x/A"}}, irtest.RefsTo("type/x/B", "type/x/A"))
 	assert.Empty(t, irtest.RefsTo())
 }

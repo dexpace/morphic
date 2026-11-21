@@ -14,14 +14,14 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
@@ -612,38 +612,39 @@ const (
 	optPromotionPrefixes = "promotion-prefixes"
 )
 
-// switchOptions maps the name of each policy in o that text turns on or off to
-// the field saying it is off: the text names a policy as on or off, and the Go
-// field its being off, as each policy's Disabled does. A name is the marker
-// the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
-// for the title-names policy's, which leaves none.
-func switchOptions(o *Options) map[string]*bool {
+// switchOptions maps the name of each policy in options that text turns on or
+// off to the field saying it is off: the text names a policy as on or off, and
+// the Go field its being off, as each policy's Disabled does. A name is the
+// marker the policy leaves on what it fills
+// (docs/compilers/openapi.md#policies), but for the title-names policy's, which
+// leaves none.
+func switchOptions(options *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableInferenceHeuristic):            &o.NullableInference.Disabled,
-		string(DiscriminatorInferenceHeuristic):       &o.DiscriminatorInference.Disabled,
-		string(KindInferenceHeuristic):                &o.KindInference.Disabled,
-		string(IdempotencyInferenceHeuristic):         &o.IdempotencyInference.Disabled,
-		string(SecretInferenceHeuristic):              &o.SecretInference.Disabled,
-		string(HTTPDateInferenceHeuristic):            &o.HTTPDateInference.Disabled,
-		string(ReplacementInferenceHeuristic):         &o.ReplacementInference.Disabled,
-		string(PaginationInferenceHeuristic):          &o.PaginationInference.Disabled,
-		string(promotion.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		string(service.StreamingInferenceHeuristic):   &o.StreamingInference.Disabled,
-		string(service.BinaryInferenceHeuristic):      &o.BinaryInference.Disabled,
-		"title-names":                                 &o.TitleNames.Disabled,
+		string(NullableInferenceHeuristic):            &options.NullableInference.Disabled,
+		string(DiscriminatorInferenceHeuristic):       &options.DiscriminatorInference.Disabled,
+		string(KindInferenceHeuristic):                &options.KindInference.Disabled,
+		string(IdempotencyInferenceHeuristic):         &options.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):              &options.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):            &options.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):         &options.ReplacementInference.Disabled,
+		string(PaginationInferenceHeuristic):          &options.PaginationInference.Disabled,
+		string(promotion.ExtensionPromotionHeuristic): &options.Promotions.Disabled,
+		string(service.StreamingInferenceHeuristic):   &options.StreamingInference.Disabled,
+		string(service.BinaryInferenceHeuristic):      &options.BinaryInference.Disabled,
+		"title-names":                                 &options.TitleNames.Disabled,
 	}
 }
 
-// limitOptions maps the name of each budget in l to the field it sets, so a
-// caller holding only text sets the budgets a Go caller does.
-func limitOptions(l *Limits) map[string]*int {
+// limitOptions maps the name of each budget in limits to the field it sets, so
+// a caller holding only text sets the budgets a Go caller does.
+func limitOptions(limits *Limits) map[string]*int {
 	return map[string]*int{
-		"max-source-bytes":        &l.MaxSourceBytes,
-		"max-source-nodes":        &l.MaxSourceNodes,
-		"max-enum-members":        &l.MaxEnumMembers,
-		"max-alias-surplus":       &l.MaxAliasSurplus,
-		"max-external-documents":  &l.MaxExternalDocuments,
-		"max-reference-expansion": &l.MaxReferenceExpansion,
+		"max-source-bytes":        &limits.MaxSourceBytes,
+		"max-source-nodes":        &limits.MaxSourceNodes,
+		"max-enum-members":        &limits.MaxEnumMembers,
+		"max-alias-surplus":       &limits.MaxAliasSurplus,
+		"max-external-documents":  &limits.MaxExternalDocuments,
+		"max-reference-expansion": &limits.MaxReferenceExpansion,
 	}
 }
 
@@ -843,8 +844,8 @@ func decodeLocations(out *[]Location, value string) error {
 	return nil
 }
 
-// mappingsOf is ls as the load phase reads it, each prefix spelled as a
-// located URL is (bind.NormalURI), or why a prefix match could mistake one: a
+// mappingsOf is ls as the load phase reads it, each prefix spelled as a located
+// URL is (reftable.NormalURI), or why a prefix match could mistake one: a
 // prefix that is no absolute URI, holds a query or a fragment, or ends in no
 // "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
 // prefix written twice however it is spelled, an empty location, and a URL
@@ -853,24 +854,24 @@ func decodeLocations(out *[]Location, value string) error {
 func mappingsOf(ls []Location) ([]load.Mapping, error) {
 	out := make([]load.Mapping, 0, len(ls))
 	seen := map[string]bool{}
-	for _, l := range ls {
-		u, err := url.Parse(l.Prefix)
+	for _, location := range ls {
+		u, err := url.Parse(location.Prefix)
 		switch {
 		case err != nil || !u.IsAbs() || u.Opaque != "":
-			return nil, fmt.Errorf("openapi: option %q: the prefix %q is no absolute URI", optLocate, l.Prefix)
-		case u.RawQuery != "" || u.ForceQuery || strings.Contains(l.Prefix, "#"):
-			return nil, fmt.Errorf("openapi: option %q: the prefix %q holds a query or a fragment", optLocate, l.Prefix)
-		case !strings.HasSuffix(l.Prefix, "/"):
-			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, l.Prefix)
-		case l.Location == "":
-			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
-		case refscope.IsURL(l.Location) && !strings.HasSuffix(l.Location, "/"):
-			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, l.Location)
-		case seen[bind.NormalURI(u)]:
-			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is no absolute URI", optLocate, location.Prefix)
+		case u.RawQuery != "" || u.ForceQuery || strings.Contains(location.Prefix, "#"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q holds a query or a fragment", optLocate, location.Prefix)
+		case !strings.HasSuffix(location.Prefix, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, location.Prefix)
+		case location.Location == "":
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, location.Prefix)
+		case refscope.IsURL(location.Location) && !strings.HasSuffix(location.Location, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, location.Location)
+		case seen[reftable.NormalURI(u)]:
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, location.Prefix)
 		}
-		seen[bind.NormalURI(u)] = true
-		out = append(out, load.Mapping{Prefix: bind.NormalURI(u), Location: l.Location})
+		seen[reftable.NormalURI(u)] = true
+		out = append(out, load.Mapping{Prefix: reftable.NormalURI(u), Location: location.Location})
 	}
 	return out, nil
 }

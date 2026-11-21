@@ -24,8 +24,8 @@ func cutWalk(n int) func(context.Context, any, string, ...ir.Visitor) (bool, err
 	return func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error) {
 		cut := false
 		held := make([]ir.Visitor, len(visitors))
-		for i, v := range visitors {
-			held[i] = &cutVisitor{inner: v, left: n, cut: &cut}
+		for i, visitor := range visitors {
+			held[i] = &cutVisitor{inner: visitor, left: n, cut: &cut}
 		}
 		truncated, err := ir.WalkValuesContext(ctx, root, path, held...)
 		return truncated || cut, err
@@ -75,36 +75,36 @@ func TestValidate_AStoppedWalkIsReportedOnce(t *testing.T) {
 	assert.Equal(t, 1, countCode(t, diags, "ir/walk-truncated"), "%v", irtest.DiagCodes(diags))
 }
 
-// propPathDocument returns a document whose operation names a property in its
-// response body path, which the walk reaches in Services before the model
+// propertyPathDocument returns a document whose operation names a property in
+// its response body path, which the walk reaches in Services before the model
 // declaring it in Types, or one naming nothing when ghost is set.
-func propPathDocument(ghost bool) *ir.Document {
-	segment := ir.PropID("p/m/a")
+func propertyPathDocument(ghost bool) *ir.Document {
+	segment := ir.PropertyID("property/m/a")
 	if ghost {
-		segment = "p/m/ghost"
+		segment = "property/m/ghost"
 	}
-	return docWithOperation(propPathOperation([]ir.PropID{segment}))
+	return docWithOperation(propertyPathOperation([]ir.PropertyID{segment}))
 }
 
 // TestValidate_AStoppedWalkClaimsNoReferenceDangling holds Validate to leaving
 // a property reference unjudged when the walk that read the declarations
-// stopped: a PropID resolves against the properties the walk read, so a walk
-// cut between the reference and its declaration would otherwise call it
+// stopped: a PropertyID resolves against the properties the walk read, so a
+// walk cut between the reference and its declaration would otherwise call it
 // dangling. Every cut point is tried, and the control's dangling reference
 // shows the claim is made where the walk read everything.
 func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {
 	t.Parallel()
-	ghost, err := pass.ValidateWith(t.Context(), propPathDocument(true), ir.WalkValuesContext)
+	ghost, err := pass.ValidateWith(t.Context(), propertyPathDocument(true), ir.WalkValuesContext)
 	require.NoError(t, err)
-	require.Equal(t, 1, countCode(t, ghost, "ir/dangling-prop-ref"), "the control: a whole walk finds the reference")
+	require.Equal(t, 1, countCode(t, ghost, "ir/dangling-property-ref"), "the control: a whole walk finds the reference")
 
-	doc := propPathDocument(false)
+	doc := propertyPathDocument(false)
 	whole := shownWhole(doc)
 	for n := range whole {
 		cut, err := pass.ValidateWith(t.Context(), doc, cutWalk(n))
 
 		require.NoError(t, err)
-		assert.Zero(t, countCode(t, cut, "ir/dangling-prop-ref"), "cut at %d of %d values", n, whole)
+		assert.Zero(t, countCode(t, cut, "ir/dangling-property-ref"), "cut at %d of %d values", n, whole)
 		assert.Equal(t, 1, countCode(t, cut, "ir/walk-truncated"), "cut at %d of %d values: %s", n, whole,
 			fmt.Sprint(irtest.DiagCodes(cut)))
 	}

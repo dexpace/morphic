@@ -29,14 +29,14 @@ import (
 // operation with no binding.
 func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	item := &soa.PathItem{Summary: &summary, Description: &description}
 	var kept ir.Unmodeled
 	var docs ir.Docs
-	diags := applyPathItemDocs(l.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
+	diags := applyPathItemDocs(lowerer.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
 
-	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
+	bound := &ir.Operation{Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
 	diags = append(diags, keepOn(bound, kept, docs)...)
 	want := ir.Docs{Summary: summary, Description: description}
 	assert.Equal(t, want, bound.Bindings.HTTP[0].PathDocs)
@@ -59,10 +59,10 @@ func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 // with GetSummary non-empty.
 func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	var kept ir.Unmodeled
-	diags := applyPathItemDocs(l.ctx, onNearestNode(&kept, "/paths/~1a"),
+	diags := applyPathItemDocs(lowerer.ctx, onNearestNode(&kept, "/paths/~1a"),
 		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
 	assert.Nil(t, kept, "documentation with no raw node is not preserved")
 	assert.Empty(t, diags)
@@ -81,11 +81,11 @@ func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
 		),
 	}
 
-	ops := pathOperations(pi)
+	operations := pathOperations(pi)
 
-	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
-	assert.Equal(t, "PURGE", ops[0].method)
-	assert.Equal(t, jsontext.Pointer("/additionalOperations/PURGE"), ops[0].seg)
+	require.Len(t, operations, 1, "the nil entry is skipped and the real one is not")
+	assert.Equal(t, "PURGE", operations[0].method)
+	assert.Equal(t, jsontext.Pointer("/additionalOperations/PURGE"), operations[0].seg)
 }
 
 // httpMethodsNames is the plain-string projection of httpMethods, which
@@ -219,5 +219,5 @@ func TestKeepOn_RefusesAnEntryTheOperationHolds(t *testing.T) {
 	diags := keepOn(refused, kept, ir.Docs{})
 	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
 	require.Len(t, diags, 1, "the refusal is reported")
-	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
+	assert.Equal(t, diag.UnknownKeyEntryAlreadyClaimed, diags[0].Code)
 }

@@ -19,10 +19,10 @@ import (
 // The IDs the fold's tests name: a model, a decorator of it, a second
 // decorator and the type holding the use.
 const (
-	objID    ir.TypeID = "t/x/Obj"
-	decID    ir.TypeID = "t/x/Use/dec"
-	outerID  ir.TypeID = "t/x/Use/outer"
-	holderID ir.TypeID = "t/x/Use"
+	objID    ir.TypeID = "type/x/Obj"
+	decID    ir.TypeID = "type/x/Use/dec"
+	outerID  ir.TypeID = "type/x/Use/outer"
+	holderID ir.TypeID = "type/x/Use"
 )
 
 // annotated is a TypeCommon of id setting every annotation a decorator may
@@ -39,11 +39,11 @@ func annotated(id ir.TypeID, said string) ir.TypeCommon {
 func listOf(decorator ir.TypeDef) *ir.Document {
 	types := ir.TypeRegistry{
 		objID:    &ir.Model{ID: objID},
-		holderID: &ir.List{ID: holderID, Elem: ir.TypeRef{Target: objID}},
+		holderID: &ir.List{ID: holderID, ElementType: ir.TypeRef{Target: objID}},
 	}
 	if decorator != nil {
 		types[decID] = decorator
-		types[holderID].(*ir.List).Elem.Target = decID
+		types[holderID].(*ir.List).ElementType.Target = decID
 	}
 	return &ir.Document{Types: types}
 }
@@ -63,7 +63,7 @@ func TestFolded_AScalarAndAModelDecoratorAreOneUse(t *testing.T) {
 	model := listOf(&ir.Model{TypeCommon: annotated(decID, "d"), Base: base})
 
 	assert.Empty(t, cmp.Diff(foldedText(t, scalar), foldedText(t, model)))
-	assert.NotContains(t, foldedText(t, model), `"kind": "model",`+"\n      \"id\": \"t/x/Use/dec\"",
+	assert.NotContains(t, foldedText(t, model), `"kind": "model",`+"\n      \"id\": \""+string(decID)+"\"",
 		"the decorator is left out of Types")
 	assert.Contains(t, foldedText(t, model), `"use": {`, "the use writes what the decorator held")
 
@@ -79,33 +79,33 @@ func carrying(kind string, decorated bool) *ir.Document {
 	notes := annotated(decID, "d")
 	notes.Availability, notes.Unmodeled = nil, nil
 	ref := ir.TypeRef{Target: objID}
-	var p ir.Property
+	var property ir.Property
 	if decorated {
 		ref.Target = decID
 	} else {
-		p = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples}
+		property = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples}
 	}
-	p.ID, p.Type = "p/x/Use/p", ref
+	property.ID, property.Type = "property/x/Use/p", ref
 	doc := listOf(nil)
 	if decorated {
 		doc.Types[decID] = &ir.Scalar{TypeCommon: notes, Base: &ir.TypeRef{Target: objID}}
 	}
 	switch kind {
 	case "property":
-		doc.Types[holderID] = &ir.Model{ID: holderID, Properties: []ir.Property{p}}
+		doc.Types[holderID] = &ir.Model{ID: holderID, Properties: []ir.Property{property}}
 	case "header":
-		doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{
-			{ID: "op/x", Responses: []ir.Response{{Headers: []ir.Header{{Property: p}}}}},
+		doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{
+			{ID: "operation/x", Responses: []ir.Response{{Headers: []ir.Header{{Property: property}}}}},
 		}}}}}
 	case "parameter":
-		doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{
-			{ID: "op/x", Params: []ir.Parameter{{ID: "param/x", Type: p.Type, Docs: p.Docs, Deprecation: p.Deprecation,
-				Examples: p.Examples, Availability: p.Availability, Unmodeled: p.Unmodeled}}},
+		doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{
+			{ID: "operation/x", Params: []ir.Parameter{{ID: "parameter/x", Type: property.Type, Docs: property.Docs, Deprecation: property.Deprecation,
+				Examples: property.Examples, Availability: property.Availability, Unmodeled: property.Unmodeled}}},
 		}}}}}
 	default:
 		doc.Types[holderID] = &ir.Union{ID: holderID, Variants: []ir.Variant{{
-			Type: p.Type, Docs: p.Docs, Deprecation: p.Deprecation, Examples: p.Examples, Availability: p.Availability,
-			Unmodeled: p.Unmodeled,
+			Type: property.Type, Docs: property.Docs, Deprecation: property.Deprecation, Examples: property.Examples, Availability: property.Availability,
+			Unmodeled: property.Unmodeled,
 		}}}
 	}
 	return doc
@@ -125,20 +125,20 @@ func TestFolded_ACarrierHoldsWhatItsDecoratorHeld(t *testing.T) {
 
 // keepOn sets the Availability and Unmodeled of the carrier of kind in a
 // document carrying builds.
-func keepOn(doc *ir.Document, kind string, a *ir.Availability, u ir.Unmodeled) {
+func keepOn(doc *ir.Document, kind string, a *ir.Availability, unmodeled ir.Unmodeled) {
 	switch kind {
 	case "property":
-		p := &doc.Types[holderID].(*ir.Model).Properties[0]
-		p.Availability, p.Unmodeled = a, u
+		property := &doc.Types[holderID].(*ir.Model).Properties[0]
+		property.Availability, property.Unmodeled = a, unmodeled
 	case "header":
-		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
-		h.Availability, h.Unmodeled = a, u
+		header := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		header.Availability, header.Unmodeled = a, unmodeled
 	case "parameter":
-		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
-		p.Availability, p.Unmodeled = a, u
+		parameter := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		parameter.Availability, parameter.Unmodeled = a, unmodeled
 	default:
-		v := &doc.Types[holderID].(*ir.Union).Variants[0]
-		v.Availability, v.Unmodeled = a, u
+		variant := &doc.Types[holderID].(*ir.Union).Variants[0]
+		variant.Availability, variant.Unmodeled = a, unmodeled
 	}
 }
 
@@ -171,11 +171,11 @@ func TestFolded_ACarrierLeavesWhatTheCollapseLeaves(t *testing.T) {
 // hold kept on each.
 func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	doc := carrying("property", true)
-	p := &doc.Types[holderID].(*ir.Model).Properties[0]
-	p.Docs = ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}}}
-	p.Examples = []ir.Example{{Name: "own"}}
-	p.Deprecation = &ir.Deprecation{Since: "own"}
-	p.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
+	property := &doc.Types[holderID].(*ir.Model).Properties[0]
+	property.Docs = ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}}}
+	property.Examples = []ir.Example{{Name: "own"}}
+	property.Deprecation = &ir.Deprecation{Since: "own"}
+	property.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
 	dec := doc.Types[decID].Common()
 	dec.Docs.Summary, dec.Docs.ExternalDocs = "theirs", []ir.Link{{URL: "https://example.com"}}
 	dec.Unmodeled = annotated(decID, "d").Unmodeled
@@ -201,7 +201,7 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 		ExternalDocs: []ir.Link{{URL: "https://example.com"}}}, got.Properties[0].Docs)
 	assert.Equal(t, &ir.Deprecation{Message: "d", Since: "own"}, got.Properties[0].Deprecation)
 	assert.Equal(t, []ir.Example{{Name: "own"}}, got.Properties[0].Examples)
-	assert.Equal(t, p.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
+	assert.Equal(t, property.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
 	assert.Equal(t, dec.Unmodeled, ir.Unmodeled(got.Properties[0].Decorator.Unmodeled), "the decorator's, beside it")
 }
 
@@ -209,17 +209,17 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 func carrierSlots(doc *ir.Document, kind string) slots {
 	switch kind {
 	case "property":
-		p := &doc.Types[holderID].(*ir.Model).Properties[0]
-		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+		property := &doc.Types[holderID].(*ir.Model).Properties[0]
+		return slots{ref: &property.Type, docs: &property.Docs, deprecation: &property.Deprecation, examples: &property.Examples}
 	case "header":
-		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
-		return slots{ref: &h.Type, docs: &h.Docs, deprecation: &h.Deprecation, examples: &h.Examples}
+		header := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		return slots{ref: &header.Type, docs: &header.Docs, deprecation: &header.Deprecation, examples: &header.Examples}
 	case "parameter":
-		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
-		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+		parameter := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		return slots{ref: &parameter.Type, docs: &parameter.Docs, deprecation: &parameter.Deprecation, examples: &parameter.Examples}
 	default:
-		v := &doc.Types[holderID].(*ir.Union).Variants[0]
-		return slots{ref: &v.Type, docs: &v.Docs, deprecation: &v.Deprecation, examples: &v.Examples}
+		variant := &doc.Types[holderID].(*ir.Union).Variants[0]
+		return slots{ref: &variant.Type, docs: &variant.Docs, deprecation: &variant.Deprecation, examples: &variant.Examples}
 	}
 }
 
@@ -230,8 +230,8 @@ func carrierSlots(doc *ir.Document, kind string) slots {
 // its Examples. A union variant takes none of them.
 func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
 	for _, c := range []struct {
-		kind  string
-		lends bool
+		kind          string
+		takesFallback bool
 	}{{"property", true}, {"header", true}, {"parameter", true}, {"variant", false}} {
 		t.Run(c.kind, func(t *testing.T) {
 			decorated, plain := carrying(c.kind, true), carrying(c.kind, false)
@@ -242,10 +242,10 @@ func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
 			}
 			dec := decorated.Types[decID].Common()
 			dec.Deprecation, dec.Examples = nil, nil
-			s := carrierSlots(plain, c.kind)
-			*s.deprecation, *s.examples = nil, nil
-			if c.lends {
-				s.docs.Summary, *s.deprecation = "obj", &ir.Deprecation{Message: "obj"}
+			slots := carrierSlots(plain, c.kind)
+			*slots.deprecation, *slots.examples = nil, nil
+			if c.takesFallback {
+				slots.docs.Summary, *slots.deprecation = "obj", &ir.Deprecation{Message: "obj"}
 			}
 
 			assert.Empty(t, cmp.Diff(foldedText(t, plain), foldedText(t, decorated)))
@@ -303,12 +303,12 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	inner := annotated(decID, "inner")
 	inner.Docs.Summary = "inner summary"
 	types := ir.TypeRegistry{
-		objID:   &ir.Model{ID: objID},
-		outerID: &ir.Scalar{TypeCommon: outer, Base: &ir.TypeRef{Target: decID}},
-		decID:   &ir.Model{TypeCommon: inner, Base: &ir.TypeRef{Target: objID}},
-		"t/x/a": &ir.Scalar{ID: "t/x/a", Anonymous: true, Base: &ir.TypeRef{Target: "t/x/b"}},
-		"t/x/b": &ir.Scalar{ID: "t/x/b", Anonymous: true, Base: &ir.TypeRef{Target: "t/x/a"}},
-		"t/x/d": &ir.Scalar{ID: "t/x/d", Anonymous: true, Base: &ir.TypeRef{Target: "t/x/gone"}},
+		objID:      &ir.Model{ID: objID},
+		outerID:    &ir.Scalar{TypeCommon: outer, Base: &ir.TypeRef{Target: decID}},
+		decID:      &ir.Model{TypeCommon: inner, Base: &ir.TypeRef{Target: objID}},
+		"type/x/a": &ir.Scalar{ID: "type/x/a", Anonymous: true, Base: &ir.TypeRef{Target: "type/x/b"}},
+		"type/x/b": &ir.Scalar{ID: "type/x/b", Anonymous: true, Base: &ir.TypeRef{Target: "type/x/a"}},
+		"type/x/d": &ir.Scalar{ID: "type/x/d", Anonymous: true, Base: &ir.TypeRef{Target: "type/x/gone"}},
 	}
 
 	uses := decoratorUses(types)
@@ -322,23 +322,23 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	repeated, ok := uses[outerID].notes.unmodeledMember()["openapi:x"].([]ir.UnmodeledEntry)
 	require.True(t, ok, "a name the chain repeats is written as a list")
 	assert.Len(t, repeated, 2)
-	assert.Equal(t, ir.TypeID("t/x/gone"), uses["t/x/d"].target)
-	assert.Zero(t, uses["t/x/d"].lent, "a type the registry does not hold lends nothing")
+	assert.Equal(t, ir.TypeID("type/x/gone"), uses["type/x/d"].target)
+	assert.Zero(t, uses["type/x/d"].fallbackAnnotations, "a type the registry does not hold lends nothing")
 
 	_, more := folded(&ir.Document{Types: types})
-	b, err := json.Marshal(types["t/x/a"], json.WithMarshalers(more))
+	b, err := json.Marshal(types["type/x/a"], json.WithMarshalers(more))
 	require.NoError(t, err)
-	assert.Contains(t, string(b), `"target":"t/x/b"`, "a cycle's reference is written as it stands")
+	assert.Contains(t, string(b), `"target":"type/x/b"`, "a cycle's reference is written as it stands")
 }
 
 // TestFolded_AnIDNamingADecoratorNamesWhatItStandsFor pins the TypeID
 // marshaler: a discriminator's mapping naming a decorator names its target.
 func TestFolded_AnIDNamingADecoratorNamesWhatItStandsFor(t *testing.T) {
 	doc := listOf(&ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}})
-	doc.Types["t/x/U"] = &ir.Union{ID: "t/x/U",
+	doc.Types["type/x/U"] = &ir.Union{ID: "type/x/U",
 		Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": decID}}}
 
-	assert.Contains(t, foldedText(t, doc), `"a": "t/x/Obj"`)
+	assert.Contains(t, foldedText(t, doc), `"a": "type/x/Obj"`)
 	assert.NotContains(t, foldedText(t, doc), string(decID))
 }
 
@@ -350,7 +350,7 @@ func TestFolded_AUseKeepsItsNullable(t *testing.T) {
 		return &ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}}
 	}
 	nullable := listOf(decorator())
-	nullable.Types[holderID].(*ir.List).Elem.Nullable = true
+	nullable.Types[holderID].(*ir.List).ElementType.Nullable = true
 	assert.Contains(t, foldedText(t, nullable), `"nullable": true`)
 	assert.NotEqual(t, foldedText(t, listOf(decorator())), foldedText(t, nullable))
 
@@ -371,8 +371,8 @@ func TestWithoutTypes_LeavesTheDocumentAsItWas(t *testing.T) {
 	assert.Contains(t, own.Types, holderID)
 	assert.Contains(t, doc.Types, decID, "the document folded keeps its decorator")
 	assert.PanicsWithValue(t,
-		`harness: leave the decorators out: internal: edit: remove rejected: no type "t/x/none" to remove; an edit adds no type`,
-		func() { withoutTypes(doc, []ir.TypeID{"t/x/none"}) })
+		`harness: leave the decorators out: internal: edit: remove rejected: no type "type/x/none" to remove; an edit adds no type`,
+		func() { withoutTypes(doc, []ir.TypeID{"type/x/none"}) })
 }
 
 func TestFolded_ADocumentOfNoDecoratorIsItself(t *testing.T) {
@@ -395,12 +395,12 @@ func TestFolded_WhatNamesNoDecoratorIsWrittenAsItStands(t *testing.T) {
 		return doc.Types[string(holderID)]
 	}
 	want := holder(foldedText(t, plain))
-	plain.Types["t/x/L"] = &ir.List{ID: "t/x/L", Elem: ir.TypeRef{Target: decID}}
+	plain.Types["type/x/L"] = &ir.List{ID: "type/x/L", ElementType: ir.TypeRef{Target: decID}}
 	plain.Types[decID] = &ir.Scalar{ID: decID, Anonymous: true, Base: &ir.TypeRef{Target: objID}}
 
 	got := foldedText(t, plain)
 
 	assert.Empty(t, cmp.Diff(want, holder(got)), "the carrier is written as it stands")
 	assert.NotContains(t, got, `"use"`, "a use of a decorator holding nothing is a bare reference")
-	assert.Contains(t, got, `"elem": {`+"\n"+`        "target": "t/x/Obj",`+"\n"+`        "nullable": false`+"\n"+`      }`)
+	assert.Contains(t, got, `"elementType": {`+"\n"+`        "target": "type/x/Obj",`+"\n"+`        "nullable": false`+"\n"+`      }`)
 }

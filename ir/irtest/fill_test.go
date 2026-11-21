@@ -20,7 +20,7 @@ func TestFill_GivesEveryTypeIDOneOfItsOwn(t *testing.T) {
 	irtest.Fill(t, doc)
 
 	seen := map[string]string{}
-	ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(doc, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		path := at.String()
 		if v.Kind() == reflect.String && v.Type() == reflect.TypeFor[ir.TypeID]() {
 			require.NotEmpty(t, v.String(), "%s was left empty", path)
@@ -40,11 +40,11 @@ func TestFill_GivesEveryTypeIDOneOfItsOwn(t *testing.T) {
 
 func TestFill_StopsNestingAStructTypeAtItsBound(t *testing.T) {
 	t.Parallel()
-	var v ir.Value
-	irtest.Fill(t, &v)
-	assert.Nil(t, v.Bytes, "bytes are left alone")
+	var value ir.Value
+	irtest.Fill(t, &value)
+	assert.Nil(t, value.Bytes, "bytes are left alone")
 	depth := 0
-	for cur := &v; len(cur.List) > 0; cur = &cur.List[0] {
+	for cur := &value; len(cur.List) > 0; cur = &cur.List[0] {
 		depth++
 	}
 	assert.Equal(t, 3, depth, "a Value nests three deep along one path, then stays zero")

@@ -25,10 +25,10 @@ func lexed(text string) (*yaml.Node, error) {
 func value(t *testing.T, doc *yaml.Node, key string) *yaml.Node {
 	t.Helper()
 	require.Equal(t, yaml.DocumentNode, doc.Kind)
-	m := doc.Content[0]
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if m.Content[i].Value == key {
-			return m.Content[i+1]
+	node := doc.Content[0]
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
 		}
 	}
 	require.Failf(t, "no such key", "%q", key)

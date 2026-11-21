@@ -34,8 +34,8 @@ func specFrom(t *testing.T, dir, name string) string {
 // findings spells each diagnostic as its code, severity and pointer, sorted.
 func findings(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Severity, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Code, diagnostic.Severity, diagnostic.Provenance.Pointer))
 	}
 	slices.Sort(out)
 	return out
@@ -52,9 +52,9 @@ func tree(t *testing.T, v any) any {
 	return out
 }
 
-// at follows path from v through maps by key and slices by index, nil where it
-// leaves the value.
-func at(v any, path ...string) any {
+// valueAtPath follows path from v through maps by key and slices by index, nil
+// where it leaves the value.
+func valueAtPath(v any, path ...string) any {
 	for _, step := range path {
 		switch x := v.(type) {
 		case map[string]any:
@@ -79,9 +79,9 @@ func entries(t *testing.T, u any) map[string]string {
 	out := map[string]string{}
 	held, _ := u.(map[string]any)
 	for key, entry := range held {
-		value, err := json.Marshal(at(entry, "value"), json.Deterministic(true))
+		value, err := json.Marshal(valueAtPath(entry, "value"), json.Deterministic(true))
 		require.NoError(t, err)
-		out[key] = fmt.Sprintf("%v %s %v", at(entry, "reason"), value, at(entry, "provenance", "pointer"))
+		out[key] = fmt.Sprintf("%v %s %v", valueAtPath(entry, "reason"), value, valueAtPath(entry, "provenance", "pointer"))
 	}
 	return out
 }
@@ -91,7 +91,7 @@ func namedItem(t *testing.T, list any, name string) any {
 	t.Helper()
 	items, _ := list.([]any)
 	for _, item := range items {
-		if at(item, "name", "source") == name || at(item, "wireName") == name {
+		if valueAtPath(item, "name", "source") == name || valueAtPath(item, "wireName") == name {
 			return item
 		}
 	}
@@ -99,13 +99,13 @@ func namedItem(t *testing.T, list any, name string) any {
 	return nil
 }
 
-// opTree returns the operation named source as its JSON.
-func opTree(t *testing.T, doc *ir.Document, source string) any {
+// operationTree returns the operation named source as its JSON.
+func operationTree(t *testing.T, doc *ir.Document, source string) any {
 	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if op.Name.Source == source {
-				return tree(t, op)
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if operation.Name.Source == source {
+				return tree(t, operation)
 			}
 		}
 	}

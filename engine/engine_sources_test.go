@@ -47,8 +47,8 @@ components:
 
 // unresolved returns the openapi/unresolved-ref diagnostics among diags.
 func unresolved(diags []ir.Diagnostic) []ir.Diagnostic {
-	return slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-		return d.Code != "openapi/unresolved-ref"
+	return slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Code != "openapi/unresolved-ref"
 	})
 }
 

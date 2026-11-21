@@ -46,10 +46,10 @@ func utf8Carriers() []utf8Carrier {
 		{
 			name: "type registry key and its node ID",
 			plant: func(s string) (*ir.Document, []string) {
-				id := ir.TypeID("t/x/" + s)
-				m := &ir.Model{ID: id, Name: ir.Naming{Source: "Model", Canonical: "model"}}
-				doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: m}}
-				path := "doc.Types[" + string(id) + "]"
+				id := ir.TypeID("type/x/" + s)
+				model := &ir.Model{ID: id, Name: ir.Naming{Source: "Model", Canonical: "model"}}
+				doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: model}}
+				path := "document.Types[" + string(id) + "]"
 				return doc, []string{path + ".key", path + ".ID"}
 			},
 			repair: "M",
@@ -59,7 +59,7 @@ func utf8Carriers() []utf8Carrier {
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
 				doc.Docs.Description = s
-				return doc, []string{"doc.Docs.Description"}
+				return doc, []string{"document.Docs.Description"}
 			},
 			repair: "fine",
 		},
@@ -67,12 +67,12 @@ func utf8Carriers() []utf8Carrier {
 			name: "a string Value.Str",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
-				doc.Types["t/x/L"] = &ir.Literal{
-					ID:    "t/x/L",
+				doc.Types["type/x/L"] = &ir.Literal{
+					ID:    "type/x/L",
 					Name:  ir.Naming{Source: "l", Canonical: "l"},
-					Value: ir.Value{Kind: ir.ValueString, Str: s},
+					Value: ir.Value{Kind: ir.ValueString, String: s},
 				}
-				return doc, []string{"doc.Types[t/x/L].Value.Str"}
+				return doc, []string{"document.Types[type/x/L].Value.String"}
 			},
 			repair: "fine",
 		},
@@ -81,7 +81,7 @@ func utf8Carriers() []utf8Carrier {
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
 				doc.Name = s
-				return doc, []string{"doc.Name"}
+				return doc, []string{"document.Name"}
 			},
 			repair: "Fine API",
 		},
@@ -96,7 +96,7 @@ func utf8Carriers() []utf8Carrier {
 					ir.NewDiagnostic(ir.SeverityWarning, "openapi/validation", "clean", ir.Provenance{}),
 					{Severity: ir.SeverityError, Code: "openapi/validation", Message: s},
 				}
-				return doc, []string{"doc.Diagnostics[1].Message"}
+				return doc, []string{"document.Diagnostics[1].Message"}
 			},
 			repair: "also clean",
 		},
@@ -108,7 +108,7 @@ func utf8Carriers() []utf8Carrier {
 				doc.Diagnostics = []ir.Diagnostic{
 					ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "message", ir.Provenance{Pointer: pointer}),
 				}
-				return doc, []string{"doc.Diagnostics[0].Provenance.Pointer"}
+				return doc, []string{"document.Diagnostics[0].Provenance.Pointer"}
 			},
 			// NewDiagnostic sanitizes Message, not Provenance: a validator-derived
 			// pointer reaches the document exactly as handed to it (GitHub #520).
@@ -124,11 +124,11 @@ func utf8Carriers() []utf8Carrier {
 					ir.NewDiagnostic(ir.SeverityError, "ir/dangling-type-ref", "message",
 						ir.Provenance{Source: ir.NoSource, Node: s}),
 				}
-				return doc, []string{"doc.Diagnostics[0].Provenance.Node"}
+				return doc, []string{"document.Diagnostics[0].Provenance.Node"}
 			},
 			// A pass spells its node from the walk, map keys included, and nothing
 			// sanitizes it on the way in.
-			repair: "t/x/Model",
+			repair: "type/x/Model",
 		},
 		{
 			name: "an Unmodeled map key",
@@ -136,7 +136,7 @@ func utf8Carriers() []utf8Carrier {
 				doc := docWithUnmodeled(ir.Unmodeled{
 					"openapi:" + s: {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 				})
-				return doc, []string{"doc.Types[t/x/Model].Unmodeled[openapi:" + s + "].key"}
+				return doc, []string{"document.Types[type/x/Model].Unmodeled[openapi:" + s + "].key"}
 			},
 			repair: "x-rate-limit",
 		},
@@ -144,14 +144,14 @@ func utf8Carriers() []utf8Carrier {
 			name: "Naming.Source",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := modelNamed(ir.Naming{Source: s, Canonical: ir.CanonicalWords(s)})
-				return doc, []string{"doc.Types[t/x/M].Name.Source"}
+				return doc, []string{"document.Types[type/x/M].Name.Source"}
 			},
 			repair: "good",
 		},
 		{
 			name: "Naming.Canonical",
 			plant: func(s string) (*ir.Document, []string) {
-				return canonicalOnly(s), []string{"doc.Types[t/x/M].Name.Canonical"}
+				return canonicalOnly(s), []string{"document.Types[type/x/M].Name.Canonical"}
 			},
 			repair: "good",
 			others: []string{"ir/naming-cased", "ir/naming-not-words"},
@@ -159,7 +159,7 @@ func utf8Carriers() []utf8Carrier {
 		{
 			name: "Naming.Hint",
 			plant: func(s string) (*ir.Document, []string) {
-				return hintOnly(s), []string{"doc.Types[t/x/M].Name.Hint"}
+				return hintOnly(s), []string{"document.Types[type/x/M].Name.Hint"}
 			},
 			repair: "good",
 			others: []string{"ir/naming-cased", "ir/naming-not-words"},
@@ -168,7 +168,7 @@ func utf8Carriers() []utf8Carrier {
 			name: "a Naming alias",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: []string{"ok", s}})
-				return doc, []string{"doc.Types[t/x/M].Name.Aliases[1]"}
+				return doc, []string{"document.Types[type/x/M].Name.Aliases[1]"}
 			},
 			repair: "good",
 		},
@@ -190,29 +190,29 @@ func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
 	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
 
-	for _, c := range utf8Carriers() {
-		t.Run(c.name, func(t *testing.T) {
+	for _, utf8Carrier := range utf8Carriers() {
+		t.Run(utf8Carrier.name, func(t *testing.T) {
 			t.Parallel()
-			doc, wantPaths := c.plant(ill)
+			doc, wantPaths := utf8Carrier.plant(ill)
 			got := verifyDeclared(doc)
 
 			var utf8Paths, others []string
-			for _, v := range got {
-				if v.Code != "ir/invalid-utf8" {
-					others = append(others, v.Code)
+			for _, violation := range got {
+				if violation.Code != "ir/invalid-utf8" {
+					others = append(others, violation.Code)
 					continue
 				}
-				utf8Paths = append(utf8Paths, v.Path)
-				assert.NotContains(t, v.Message, ill, "the report does not repeat the bad bytes")
-				assert.True(t, utf8.ValidString(v.Message), "the report is itself readable")
+				utf8Paths = append(utf8Paths, violation.Path)
+				assert.NotContains(t, violation.Message, ill, "the report does not repeat the bad bytes")
+				assert.True(t, utf8.ValidString(violation.Message), "the report is itself readable")
 			}
 			assert.ElementsMatch(t, wantPaths, utf8Paths)
-			assert.ElementsMatch(t, c.others, others, "codes other than ir/invalid-utf8")
+			assert.ElementsMatch(t, utf8Carrier.others, others, "codes other than ir/invalid-utf8")
 
 			_, err := json.Marshal(doc)
 			require.Error(t, err, "a document holding one ill-formed string must not encode")
 
-			clean, _ := c.plant(c.repair)
+			clean, _ := utf8Carrier.plant(utf8Carrier.repair)
 			assert.Empty(t, verifyDeclared(clean), "repairing the one bad string leaves nothing to report")
 			_, err = json.Marshal(clean)
 			require.NoError(t, err, "a document holding only well-formed strings must encode")

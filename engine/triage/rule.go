@@ -25,7 +25,8 @@ var ErrInvalidRule = errors.New("invalid triage rule")
 // rules every finding there, one reported later included, and outranks a rule
 // of its code naming none. An acceptance names a place, so it accepts nothing
 // its code reports elsewhere. A place can hold a whole scope: a pass places a
-// collision between two of the document's types at its node, "doc" (#1825).
+// collision between two of the document's types at its node, "document"
+// (#1825).
 type Rule struct {
 	// Code is the code a finding carries, matched exactly: no part of it is a
 	// pattern.
@@ -63,9 +64,9 @@ type key struct {
 	code, pointer, node string
 }
 
-// keyOf returns r's key.
-func keyOf(r Rule) key {
-	return key{code: r.Code, pointer: string(r.Pointer), node: r.Node}
+// keyOf returns rule's key.
+func keyOf(rule Rule) key {
+	return key{code: rule.Code, pointer: string(rule.Pointer), node: rule.Node}
 }
 
 // NewRuleset checks each of rules and indexes them, in the order given. A
@@ -76,40 +77,40 @@ func NewRuleset(rules []Rule) (Ruleset, error) {
 	if len(rules) == 0 {
 		return Ruleset{}, nil
 	}
-	s := Ruleset{rules: slices.Clone(rules), byKey: make(map[key]int, len(rules))}
-	for i, r := range s.rules {
-		why := check(r)
-		if earlier, ruled := s.byKey[keyOf(r)]; why == "" && ruled {
+	ruleset := Ruleset{rules: slices.Clone(rules), byKey: make(map[key]int, len(rules))}
+	for i, rule := range ruleset.rules {
+		why := check(rule)
+		if earlier, ruled := ruleset.byKey[keyOf(rule)]; why == "" && ruled {
 			why = fmt.Sprintf("rules the findings rule %d rules", earlier)
 		}
 		if why != "" {
-			return Ruleset{}, fmt.Errorf("triage: rule %d (code %q): %s: %w", i, r.Code, why, ErrInvalidRule)
+			return Ruleset{}, fmt.Errorf("triage: rule %d (code %q): %s: %w", i, rule.Code, why, ErrInvalidRule)
 		}
-		s.byKey[keyOf(r)] = i
+		ruleset.byKey[keyOf(rule)] = i
 	}
-	return s, nil
+	return ruleset, nil
 }
 
-// check returns why r cannot be applied as written, or "" when it can.
-func check(r Rule) string {
+// check returns why rule cannot be applied as written, or "" when it can.
+func check(rule Rule) string {
 	switch {
-	case r.Code == "":
+	case rule.Code == "":
 		return "names no code"
-	case strings.Contains(r.Code, "*"):
+	case strings.Contains(rule.Code, "*"):
 		return "writes a wildcard, but a code is matched exactly"
-	case r.Pointer != "" && !r.Pointer.IsValid():
-		return fmt.Sprintf("pointer %q is not an RFC 6901 JSON Pointer", string(r.Pointer))
-	case r.Pointer != "" && r.Node != "":
+	case rule.Pointer != "" && !rule.Pointer.IsValid():
+		return fmt.Sprintf("pointer %q is not an RFC 6901 JSON Pointer", string(rule.Pointer))
+	case rule.Pointer != "" && rule.Node != "":
 		return "names a pointer and a node, where a rule names one place"
-	case r.Accept && r.Severity != "":
+	case rule.Accept && rule.Severity != "":
 		return "both rates and accepts"
-	case r.Accept && r.Pointer == "" && r.Node == "":
+	case rule.Accept && rule.Pointer == "" && rule.Node == "":
 		return "accepts without naming a place, which an acceptance names"
-	case !r.Accept && r.Severity == "":
+	case !rule.Accept && rule.Severity == "":
 		return "neither rates nor accepts"
-	case !r.Accept && !r.Severity.Valid():
-		return fmt.Sprintf("severity %q is not one of %s", string(r.Severity), strings.Join(ir.SeverityNames(), ", "))
-	case strings.TrimSpace(r.Reason) == "":
+	case !rule.Accept && !rule.Severity.Valid():
+		return fmt.Sprintf("severity %q is not one of %s", string(rule.Severity), strings.Join(ir.SeverityNames(), ", "))
+	case strings.TrimSpace(rule.Reason) == "":
 		return "gives no reason"
 	default:
 		return ""

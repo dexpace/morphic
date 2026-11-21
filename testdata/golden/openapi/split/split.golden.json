@@ -7,11 +7,11 @@
       "openapi@schemas~1pet.yaml",
       "unresolved"
     ],
-    "e": [
-      "anon",
-      "anon@common.yaml",
-      "anon@paths.yaml",
-      "anon@schemas~1pet.yaml",
+    "enum-member": [
+      "anonymous",
+      "anonymous@common.yaml",
+      "anonymous@paths.yaml",
+      "anonymous@schemas~1pet.yaml",
       "composed",
       "composed@common.yaml",
       "composed@paths.yaml",
@@ -21,17 +21,20 @@
       "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
       "composed@common.yaml",
       "composed@paths.yaml",
@@ -40,12 +43,6 @@
       "openapi@common.yaml",
       "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
-      "openapi"
     ],
     "server": [
       "default",
@@ -54,11 +51,14 @@
       "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
     ],
-    "t": [
-      "anon",
-      "anon@common.yaml",
-      "anon@paths.yaml",
-      "anon@schemas~1pet.yaml",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
+      "anonymous@common.yaml",
+      "anonymous@paths.yaml",
+      "anonymous@schemas~1pet.yaml",
       "composed",
       "composed@common.yaml",
       "composed@paths.yaml",
@@ -74,7 +74,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "Split Petstore",
         "canonical": "split_petstore"
@@ -82,14 +82,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1pets/get",
+              "id": "operation/openapi/paths/~1pets/get",
               "name": {
                 "source": "listPets",
                 "canonical": "list_pets"
@@ -97,13 +97,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1pets/get/parameters/limit/query",
+                  "id": "parameter/openapi/paths/~1pets/get/parameters/limit/query",
                   "name": {
                     "source": "limit",
                     "canonical": "limit"
                   },
                   "type": {
-                    "target": "t/prim/int32",
+                    "target": "type/primitive/int32",
                     "nullable": false
                   },
                   "required": false,
@@ -137,7 +137,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",
+                          "target": "type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema",
                           "nullable": false
                         }
                       }
@@ -165,7 +165,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/openapi@common.yaml/components/schemas/Error",
+                        "target": "type/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
                       }
                     }
@@ -173,21 +173,21 @@
                 },
                 "headers": [
                   {
-                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "id": "property/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
                     "name": {
                       "source": "X-Request-Id",
                       "canonical": "x_request_id"
                     },
                     "wireName": "X-Request-Id",
                     "type": {
-                      "target": "t/prim/uuid",
+                      "target": "type/primitive/uuid",
                       "nullable": false
                     },
                     "required": false,
                     "clientOptional": false,
                     "defaultAdded": false,
                     "visibility": {
-                      "none": false
+                      "invisibleInEveryLifecycle": false
                     },
                     "flatten": false,
                     "eventHeader": false,
@@ -213,7 +213,7 @@
                     "uriTemplate": "/pets",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1pets/get/parameters/limit/query",
+                        "param": "parameter/openapi/paths/~1pets/get/parameters/limit/query",
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
@@ -232,7 +232,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1pets/post",
+              "id": "operation/openapi/paths/~1pets/post",
               "name": {
                 "source": "createPet",
                 "canonical": "create_pet"
@@ -243,7 +243,7 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/openapi/components/schemas/NewPet",
+                      "target": "type/openapi/components/schemas/NewPet",
                       "nullable": false
                     }
                   }
@@ -268,7 +268,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+                          "target": "type/openapi@schemas~1pet.yaml/components/schemas/Pet",
                           "nullable": false
                         }
                       }
@@ -296,7 +296,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/openapi@common.yaml/components/schemas/Error",
+                        "target": "type/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
                       }
                     }
@@ -304,21 +304,21 @@
                 },
                 "headers": [
                   {
-                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "id": "property/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
                     "name": {
                       "source": "X-Request-Id",
                       "canonical": "x_request_id"
                     },
                     "wireName": "X-Request-Id",
                     "type": {
-                      "target": "t/prim/uuid",
+                      "target": "type/primitive/uuid",
                       "nullable": false
                     },
                     "required": false,
                     "clientOptional": false,
                     "defaultAdded": false,
                     "visibility": {
-                      "none": false
+                      "invisibleInEveryLifecycle": false
                     },
                     "flatten": false,
                     "eventHeader": false,
@@ -356,7 +356,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1pets~1{petId}/get",
+              "id": "operation/openapi/paths/~1pets~1{petId}/get",
               "name": {
                 "source": "showPet",
                 "canonical": "show_pet"
@@ -364,13 +364,13 @@
               "docs": {},
               "params": [
                 {
-                  "id": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
+                  "id": "parameter/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
                   "name": {
                     "source": "X-Trace",
                     "canonical": "x_trace"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": false,
@@ -381,13 +381,13 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
+                  "id": "parameter/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
                   "name": {
                     "source": "petId",
                     "canonical": "pet_id"
                   },
                   "type": {
-                    "target": "t/prim/string",
+                    "target": "type/primitive/string",
                     "nullable": false
                   },
                   "required": true,
@@ -420,7 +420,7 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+                          "target": "type/openapi@schemas~1pet.yaml/components/schemas/Pet",
                           "nullable": false
                         }
                       }
@@ -448,7 +448,7 @@
                     {
                       "mediaType": "application/json",
                       "type": {
-                        "target": "t/openapi@common.yaml/components/schemas/Error",
+                        "target": "type/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
                       }
                     }
@@ -456,21 +456,21 @@
                 },
                 "headers": [
                   {
-                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "id": "property/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
                     "name": {
                       "source": "X-Request-Id",
                       "canonical": "x_request_id"
                     },
                     "wireName": "X-Request-Id",
                     "type": {
-                      "target": "t/prim/uuid",
+                      "target": "type/primitive/uuid",
                       "nullable": false
                     },
                     "required": false,
                     "clientOptional": false,
                     "defaultAdded": false,
                     "visibility": {
-                      "none": false
+                      "invisibleInEveryLifecycle": false
                     },
                     "flatten": false,
                     "eventHeader": false,
@@ -499,7 +499,7 @@
                     "uriTemplate": "/pets/{petId}",
                     "paramBindings": [
                       {
-                        "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
+                        "param": "parameter/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
                         "location": "header",
                         "wireName": "X-Trace",
                         "style": "simple",
@@ -507,7 +507,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
+                        "param": "parameter/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
                         "location": "path",
                         "wireName": "petId",
                         "style": "simple",
@@ -537,9 +537,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema": {
+    "type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",
+      "id": "type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema",
       "name": {
         "hint": "response"
       },
@@ -550,14 +550,14 @@
         "source": 0,
         "pointer": "/paths/~1pets/get/responses/200/content/application~1json/schema"
       },
-      "elem": {
-        "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+      "elementType": {
+        "target": "type/openapi@schemas~1pet.yaml/components/schemas/Pet",
         "nullable": false
       }
     },
-    "t/anon@schemas~1pet.yaml/components/schemas/Pet/properties/status": {
+    "type/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status": {
       "kind": "enum",
-      "id": "t/anon@schemas~1pet.yaml/components/schemas/Pet/properties/status",
+      "id": "type/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status",
       "name": {
         "hint": "status"
       },
@@ -571,26 +571,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon@schemas~1pet.yaml/components/schemas/Pet/properties/status/s:available",
+          "id": "enum-member/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status/string:available",
           "name": {
             "source": "available",
             "canonical": "available"
           },
           "value": {
             "kind": "string",
-            "str": "available"
+            "string": "available"
           },
           "docs": {}
         },
         {
-          "id": "e/anon@schemas~1pet.yaml/components/schemas/Pet/properties/status/s:sold",
+          "id": "enum-member/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status/string:sold",
           "name": {
             "source": "sold",
             "canonical": "sold"
           },
           "value": {
             "kind": "string",
-            "str": "sold"
+            "string": "sold"
           },
           "docs": {}
         }
@@ -598,9 +598,9 @@
       "closed": true,
       "flags": false
     },
-    "t/openapi/components/schemas/NewPet": {
+    "type/openapi/components/schemas/NewPet": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/NewPet",
+      "id": "type/openapi/components/schemas/NewPet",
       "name": {
         "source": "NewPet",
         "canonical": "new_pet"
@@ -616,16 +616,16 @@
         "name"
       ],
       "base": {
-        "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+        "target": "type/openapi@schemas~1pet.yaml/components/schemas/Pet",
         "nullable": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi@common.yaml/components/schemas/Error": {
+    "type/openapi@common.yaml/components/schemas/Error": {
       "kind": "model",
-      "id": "t/openapi@common.yaml/components/schemas/Error",
+      "id": "type/openapi@common.yaml/components/schemas/Error",
       "name": {
         "source": "Error",
         "canonical": "error"
@@ -639,21 +639,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi@common.yaml/components/schemas/Error/properties/code",
+          "id": "property/openapi@common.yaml/components/schemas/Error/properties/code",
           "name": {
             "source": "code",
             "canonical": "code"
           },
           "wireName": "code",
           "type": {
-            "target": "t/prim/int32",
+            "target": "type/primitive/int32",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -666,21 +666,21 @@
           }
         },
         {
-          "id": "p/openapi@common.yaml/components/schemas/Error/properties/message",
+          "id": "property/openapi@common.yaml/components/schemas/Error/properties/message",
           "name": {
             "source": "message",
             "canonical": "message"
           },
           "wireName": "message",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -697,9 +697,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi@schemas~1pet.yaml/components/schemas/Pet": {
+    "type/openapi@schemas~1pet.yaml/components/schemas/Pet": {
       "kind": "model",
-      "id": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+      "id": "type/openapi@schemas~1pet.yaml/components/schemas/Pet",
       "name": {
         "source": "Pet",
         "canonical": "pet"
@@ -713,21 +713,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
+          "id": "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/int64",
+            "target": "type/primitive/int64",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -740,21 +740,21 @@
           }
         },
         {
-          "id": "p/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name",
+          "id": "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -767,21 +767,21 @@
           }
         },
         {
-          "id": "p/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/tag",
+          "id": "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/tag",
           "name": {
             "source": "tag",
             "canonical": "tag"
           },
           "wireName": "tag",
           "type": {
-            "target": "t/openapi@schemas~1pet.yaml/components/schemas/Tag",
+            "target": "type/openapi@schemas~1pet.yaml/components/schemas/Tag",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -794,21 +794,21 @@
           }
         },
         {
-          "id": "p/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/status",
+          "id": "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/status",
           "name": {
             "source": "status",
             "canonical": "status"
           },
           "wireName": "status",
           "type": {
-            "target": "t/anon@schemas~1pet.yaml/components/schemas/Pet/properties/status",
+            "target": "type/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -825,9 +825,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi@schemas~1pet.yaml/components/schemas/Tag": {
+    "type/openapi@schemas~1pet.yaml/components/schemas/Tag": {
       "kind": "model",
-      "id": "t/openapi@schemas~1pet.yaml/components/schemas/Tag",
+      "id": "type/openapi@schemas~1pet.yaml/components/schemas/Tag",
       "name": {
         "source": "Tag",
         "canonical": "tag"
@@ -841,21 +841,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi@schemas~1pet.yaml/components/schemas/Tag/properties/label",
+          "id": "property/openapi@schemas~1pet.yaml/components/schemas/Tag/properties/label",
           "name": {
             "source": "label",
             "canonical": "label"
           },
           "wireName": "label",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -872,9 +872,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/int32": {
+    "type/primitive/int32": {
       "kind": "primitive",
-      "id": "t/prim/int32",
+      "id": "type/primitive/int32",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -882,11 +882,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int32"
+      "primitiveKind": "int32"
     },
-    "t/prim/int64": {
+    "type/primitive/int64": {
       "kind": "primitive",
-      "id": "t/prim/int64",
+      "id": "type/primitive/int64",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -894,11 +894,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "int64"
+      "primitiveKind": "int64"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -906,11 +906,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     },
-    "t/prim/uuid": {
+    "type/primitive/uuid": {
       "kind": "primitive",
-      "id": "t/prim/uuid",
+      "id": "type/primitive/uuid",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -918,7 +918,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uuid"
+      "primitiveKind": "uuid"
     }
   },
   "servers": {

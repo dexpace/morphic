@@ -138,30 +138,30 @@ func block(key, entries string) string {
 	return key + ":\n" + entries
 }
 
-// mappingValue returns the value under key in mapping n, or nil.
-func mappingValue(n *yaml.Node, key string) *yaml.Node {
-	if n == nil || n.Kind != yaml.MappingNode {
+// mappingValue returns the value under key in mapping node, or nil.
+func mappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return nil
 	}
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if n.Content[i].Value == key {
-			return n.Content[i+1]
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
 		}
 	}
 	return nil
 }
 
-// mappingKeys returns the keys of mapping n that name entries with a mapping
+// mappingKeys returns the keys of mapping node that name entries with a mapping
 // for a value, which is every path item and component a $ref can name, or
-// none when n is no mapping.
-func mappingKeys(n *yaml.Node) []string {
-	if n == nil || n.Kind != yaml.MappingNode {
+// none when node is no mapping.
+func mappingKeys(node *yaml.Node) []string {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return nil
 	}
 	var out []string
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if n.Content[i+1].Kind == yaml.MappingNode {
-			out = append(out, n.Content[i].Value)
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i+1].Kind == yaml.MappingNode {
+			out = append(out, node.Content[i].Value)
 		}
 	}
 	return out
@@ -190,8 +190,8 @@ func compiledThrough(t *testing.T, dir, root string) []string {
 		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: stubOffline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
-	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+	for _, diagnostic := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer, diagnostic.Message))
 	}
 	slices.Sort(out)
 	if doc != nil {

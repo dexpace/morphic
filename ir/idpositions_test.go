@@ -60,10 +60,10 @@ func declaredFields(t *testing.T) []declaredField {
 // resolving TypeID to string would defeat the check this mirrors.
 func idClassTypes(t *testing.T) map[*types.TypeName]bool {
 	t.Helper()
-	p := irDecls(t)
+	loadedPackage := irDecls(t)
 	classes := map[*types.TypeName]bool{}
 	for class := range ir.IDClasses() {
-		named, err := p.Named(class.Name())
+		named, err := loadedPackage.Named(class.Name())
 		require.NoError(t, err, "a node declares an ID of %s, which the ir package must declare", class.Name())
 		classes[named.Obj()] = true
 	}
@@ -119,9 +119,9 @@ func identityFieldKeys(t *testing.T) map[string]bool {
 	t.Helper()
 	classes := idClassTypes(t)
 	found := map[string]bool{}
-	for _, f := range declaredFields(t) {
-		if mentionsIDClass(classes, f.field.Type()) {
-			found[f.key()] = true
+	for _, declaredField := range declaredFields(t) {
+		if mentionsIDClass(classes, declaredField.field.Type()) {
+			found[declaredField.key()] = true
 		}
 	}
 	return found
@@ -136,16 +136,16 @@ func identityFieldKeys(t *testing.T) map[string]bool {
 func TestIDPositions_EveryShapeIsOneTheReadingReads(t *testing.T) {
 	t.Parallel()
 	classes := idClassTypes(t)
-	for _, f := range declaredFields(t) {
-		typ := f.field.Type()
+	for _, declaredField := range declaredFields(t) {
+		typ := declaredField.field.Type()
 		if !mentionsIDClassAnywhere(t, classes, typ, 0) {
 			continue
 		}
 		assert.True(t, mentionsIDClass(classes, typ),
-			"ir.%s holds an identity nested deeper than the reading reads", f.key())
+			"ir.%s holds an identity nested deeper than the reading reads", declaredField.key())
 		m, isMap := typ.Underlying().(*types.Map)
 		assert.False(t, isMap && isIDClass(classes, m.Key()) && isIDClass(classes, m.Elem()),
-			"ir.%s maps an identity to an identity, and the reading reads only the key", f.key())
+			"ir.%s maps an identity to an identity, and the reading reads only the key", declaredField.key())
 	}
 }
 
@@ -183,8 +183,8 @@ func TestIDPositions_AnEmptyFormIsASingleIDs(t *testing.T) {
 	t.Parallel()
 	classes := idClassTypes(t)
 	fields := map[string]types.Type{}
-	for _, f := range declaredFields(t) {
-		fields[f.key()] = f.field.Type()
+	for _, declaredField := range declaredFields(t) {
+		fields[declaredField.key()] = declaredField.field.Type()
 	}
 	positions := ir.EmptyFormPositions()
 	require.NotEmpty(t, positions)
@@ -211,10 +211,10 @@ func TestIDPositions_AnUnlistedPositionIsARequiredReference(t *testing.T) {
 	assert.Equal(t, []string{"Stray"}, ir.RequiredIDFields(reflect.TypeFor[localIDCarrier]()))
 
 	var found ir.EmptyReferences
-	ir.WalkValues(&localIDCarrier{}, "doc", &found)
+	ir.WalkValues(&localIDCarrier{}, "document", &found)
 	got := found.List()
 	require.Len(t, got, 1)
-	assert.Equal(t, "doc.Stray", got[0].Path)
+	assert.Equal(t, "document.Stray", got[0].Path)
 }
 
 // TestEmptyReference_CodeAndMessageNameTheClass pins the one wording both
@@ -223,16 +223,16 @@ func TestIDPositions_AnUnlistedPositionIsARequiredReference(t *testing.T) {
 // lacks is a way to find the tag.
 func TestEmptyReference_CodeAndMessageNameTheClass(t *testing.T) {
 	t.Parallel()
-	server := ir.EmptyReference{Class: reflect.TypeFor[ir.ServerID](), Path: "doc.Services[0].Servers[0]"}
+	server := ir.EmptyReference{Class: reflect.TypeFor[ir.ServerID](), Path: "document.Services[0].Servers[0]"}
 	assert.Equal(t, "ir/empty-server-ref", server.Code())
 	assert.Equal(t, "server reference is empty, and this position has no empty form", server.Message())
 
 	untagged := emptyReferencesOf(&ir.Document{Types: ir.TypeRegistry{
-		"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{}},
+		"type/x/Base": &ir.Model{ID: "type/x/Base", Discriminator: &ir.Discriminator{}},
 	}})
 	require.Len(t, untagged, 1)
 	tag := untagged[0]
-	assert.Equal(t, "ir/empty-prop-ref", tag.Code())
-	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead",
+	assert.Equal(t, "ir/empty-property-ref", tag.Code())
+	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor TupleElementIndex locates the tag instead",
 		tag.Message())
 }

@@ -39,17 +39,17 @@ components:
 `
 	}
 	property := func(owner, key string) ir.TypeID {
-		return ir.TypeID("t/anon/components/schemas/" + owner + "/properties/" + key)
+		return ir.TypeID("type/anonymous/components/schemas/" + owner + "/properties/" + key)
 	}
 
 	for _, key := range []string{"é", "😀"} {
 		doc, diags := parseFull(t, twin(key))
 		openapitest.RequireNoErrorDiags(t, diags)
-		ops := operationsNamed(doc, "getKey")
-		assert.Len(t, ops, 2, "%s: the item is mounted at both paths", key)
-		for _, op := range ops {
-			require.Len(t, op.Params, 1, key)
-			assert.Equal(t, "p", op.Params[0].Name.Source, "%s: the parameter resolves", key)
+		operations := operationsNamed(doc, "getKey")
+		assert.Len(t, operations, 2, "%s: the item is mounted at both paths", key)
+		for _, operation := range operations {
+			require.Len(t, operation.Params, 1, key)
+			assert.Equal(t, "p", operation.Params[0].Name.Source, "%s: the parameter resolves", key)
 		}
 		assertAliases(t, doc, "Uses", property("Holder", key), "a resolved reference aliases its target")
 		assertAliases(t, doc, "Early", property("Later", key), "in either declaration order")
@@ -58,7 +58,7 @@ components:
 
 // assertAliases asserts the component schema name lowered to an alias over
 // target: what the position's $ref came to stand for.
-func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID, msg string) {
+func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID, message string) {
 	t.Helper()
-	assert.Equal(t, target, useTarget(t, doc, name), msg)
+	assert.Equal(t, target, useTarget(t, doc, name), message)
 }

@@ -16,7 +16,7 @@ import (
 // checkEncodingKeys reports Content.Encoding keys that name no property of the
 // model the content's Type addresses.
 //
-// A key is a PropID, which no document-level registry resolves, so the
+// A key is a PropertyID, which no document-level registry resolves, so the
 // type-driven walk has nothing to resolve it against and the keys are
 // enumerated here. An emitter rendering multipart parts looks the key up among
 // the body's properties and silently renders no part for a miss.
@@ -24,9 +24,9 @@ import (
 // The code carries the ir/ namespace because it names the defect, not the
 // finder (see the package doc), so a second checker growing this check adopts
 // it. Only this pass reports it today. facts indexes doc.
-func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
+func checkEncodingKeys(doc *ir.Document, facts *irfacts.DocumentFacts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var keys []ir.PropID // every content's keys are sorted in this one list
+	var keys []ir.PropertyID // every content's keys are sorted in this one list
 	forEachPayload(doc, func(site payloadSite) {
 		diags = appendEncodingKeyDiags(diags, doc.Types, facts, site, &keys)
 	})
@@ -46,29 +46,29 @@ func checkCatchAllEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var keys []ir.TypeID // every content's keys are sorted in this one list
 	forEachPayload(doc, func(site payloadSite) {
-		for i, c := range site.contents {
-			if len(c.CatchAllEncoding) > 0 {
+		for i, content := range site.contents {
+			if len(content.CatchAllEncoding) > 0 {
 				at := site.where() + "/contents/" + strconv.Itoa(i) + "/catchAllEncoding/"
-				diags = appendCatchAllDiags(diags, doc.Types, c, at, &keys)
+				diags = appendCatchAllDiags(diags, doc.Types, content, at, &keys)
 			}
 		}
 	})
 	return diags
 }
 
-// appendCatchAllDiags appends to dst a diagnostic per statement of c's
-// CatchAllEncoding, at at and its key, that the holders of c's body refute,
-// asking the keys in ascending order, sorted in keys.
-func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Content, at string, keys *[]ir.TypeID,
+// appendCatchAllDiags appends to dst a diagnostic per statement of content's
+// CatchAllEncoding, at at and its key, that the holders of content's body
+// refute, asking the keys in ascending order, sorted in keys.
+func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, content ir.Content, at string, keys *[]ir.TypeID,
 ) []ir.Diagnostic {
 	holders := map[ir.TypeID]bool{}
-	anyHolder(types, c.Type.Target, func(h ir.TypeID) bool {
-		for _, holder := range ir.CatchAllHolders(types, h) {
+	anyHolder(types, content.Type.Target, func(typeID ir.TypeID) bool {
+		for _, holder := range ir.CatchAllHolders(types, typeID) {
 			holders[holder] = true
 		}
 		return false
 	})
-	*keys = slices.AppendSeq((*keys)[:0], maps.Keys(c.CatchAllEncoding))
+	*keys = slices.AppendSeq((*keys)[:0], maps.Keys(content.CatchAllEncoding))
 	slices.Sort(*keys)
 	for _, key := range *keys {
 		if _, declared := types[key]; !declared {
@@ -76,10 +76,10 @@ func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Conten
 		}
 		if !holders[key] {
 			dst = append(dst, unknownCatchAll(at+string(key),
-				fmt.Sprintf("names %q, which holds no catch-all of the content's type %q", key, c.Type.Target)))
+				fmt.Sprintf("names %q, which holds no catch-all of the content's type %q", key, content.Type.Target)))
 			continue
 		}
-		dst = appendCatchAllPartDiags(dst, types[key], c.CatchAllEncoding[key], at+string(key))
+		dst = appendCatchAllPartDiags(dst, types[key], content.CatchAllEncoding[key], at+string(key))
 	}
 	return dst
 }
@@ -87,13 +87,13 @@ func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Conten
 // appendCatchAllPartDiags appends to dst a diagnostic for a Value parts states
 // where holder, at at's key, has none, and for each Patterns key, in ascending
 // order, holder does not list. ir.CatchAllHolders gives a map, which has a
-// value and no pattern, or a model holding AdditionalProps.
+// value and no pattern, or a model holding AdditionalProperties.
 func appendCatchAllPartDiags(dst []ir.Diagnostic, holder ir.TypeDef, parts ir.CatchAllParts, at string) []ir.Diagnostic {
 	value, listed := true, []string(nil)
-	if m, ok := holder.(*ir.Model); ok {
-		value = m.AdditionalProps.Value != nil
-		for _, p := range m.AdditionalProps.Patterns {
-			listed = append(listed, p.Pattern)
+	if model, ok := holder.(*ir.Model); ok {
+		value = model.AdditionalProperties.Value != nil
+		for _, patternProperties := range model.AdditionalProperties.Patterns {
+			listed = append(listed, patternProperties.Pattern)
 		}
 	}
 	if parts.Value != nil && !value {
@@ -183,19 +183,19 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID), "commonErrors", fn)
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		owner := string(op.ID)
-		if op.Request != nil {
-			fn(siteOf(*op.Request, owner, "request", -1, true))
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		owner := string(operation.ID)
+		if operation.Request != nil {
+			fn(siteOf(*operation.Request, owner, "request", -1, true))
 		}
-		for i, r := range op.Responses {
-			if r.Payload != nil {
-				fn(siteOf(*r.Payload, owner, "responses", i, false))
+		for i, response := range operation.Responses {
+			if response.Payload != nil {
+				fn(siteOf(*response.Payload, owner, "responses", i, false))
 			}
 		}
-		forEachErrorPayload(op.Errors, owner, "errors", fn)
-		if op.Default != nil && op.Default.Payload != nil {
-			fn(siteOf(*op.Default.Payload, owner, "default", -1, false))
+		forEachErrorPayload(operation.Errors, owner, "errors", fn)
+		if operation.Default != nil && operation.Default.Payload != nil {
+			fn(siteOf(*operation.Default.Payload, owner, "default", -1, false))
 		}
 	})
 	for _, id := range slices.Sorted(maps.Keys(doc.Messages)) {
@@ -213,10 +213,10 @@ func forEachErrorPayload(errs []ir.ErrorCase, owner, field string, fn func(paylo
 	}
 }
 
-// siteOf is the payloadSite of p, hanging from field of owner at index, or at
-// none for -1, request saying whether that position is a request.
-func siteOf(p ir.Payload, owner, field string, index int, request bool) payloadSite {
-	return payloadSite{contents: p.Contents, required: p.Required, owner: owner, field: field, index: index, request: request}
+// siteOf is the payloadSite of payload, hanging from field of owner at index,
+// or at none for -1, request saying whether that position is a request.
+func siteOf(payload ir.Payload, owner, field string, index int, request bool) payloadSite {
+	return payloadSite{contents: payload.Contents, required: payload.Required, owner: owner, field: field, index: index, request: request}
 }
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
@@ -226,11 +226,11 @@ func siteOf(p ir.Payload, owner, field string, index int, request bool) payloadS
 // A content whose type no entry declares exposes no part, so each of its keys
 // is reported beside checkDanglingRefs's finding on the type. The claims
 // differ, as with checkMapping.
-func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, site payloadSite,
-	keys *[]ir.PropID,
+func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, site payloadSite,
+	keys *[]ir.PropertyID,
 ) []ir.Diagnostic {
-	for i, c := range site.contents {
-		dst = appendUnknownPartDiags(dst, types, facts, c, site, i, keys)
+	for i, content := range site.contents {
+		dst = appendUnknownPartDiags(dst, types, facts, content, site, i, keys)
 	}
 	return dst
 }
@@ -243,22 +243,22 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // type's flattening overrides passes, though docs/ir/models.md#the-flattening
 // has it name the one taken: flattening every type asked about grows
 // quadratically down a deep hierarchy.
-func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, c ir.Content,
-	site payloadSite, i int, keys *[]ir.PropID,
+func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.DocumentFacts, content ir.Content,
+	site payloadSite, i int, keys *[]ir.PropertyID,
 ) []ir.Diagnostic {
 	*keys = (*keys)[:0]
-	for key := range c.Encoding {
+	for key := range content.Encoding {
 		*keys = append(*keys, key)
 	}
 	slices.Sort(*keys)
 	for _, key := range *keys {
-		if key == "" || partNamed(types, facts, c.Type.Target, key) {
+		if key == "" || partNamed(types, facts, content.Type.Target, key) {
 			continue // an empty key names no part, which checkEmptyRefs reports
 		}
 		at := site.where() + "/contents/" + strconv.Itoa(i) + "/encoding/" + string(key)
 		dst = append(dst, diag(ir.SeverityError, "ir/encoding-key-unknown-property",
 			fmt.Sprintf("encoding key %q at %s addresses no property of the content's type %q",
-				key, at, c.Type.Target), at))
+				key, at, content.Type.Target), at))
 	}
 	return dst
 }
@@ -269,9 +269,9 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // distributed across a union puts the body's properties on every variant;
 // else one a shape of such a type that is a model narrowing a union holds
 // (narrowedHolds), which is read only then (docs/ir/payloads.md).
-func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
-	return anyHolder(types, target, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
-		anyHolder(types, target, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
+func partNamed(types ir.TypeRegistry, facts *irfacts.DocumentFacts, target ir.TypeID, key ir.PropertyID) bool {
+	return anyHolder(types, target, func(typeID ir.TypeID) bool { return facts.Exposes(typeID, key) }) ||
+		anyHolder(types, target, func(typeID ir.TypeID) bool { return narrowedHolds(types, typeID, key, maxNarrowedSteps) })
 }
 
 // anyHolder reports whether holds answers true of target or, where it stands
@@ -287,16 +287,16 @@ func anyHolder(types ir.TypeRegistry, target ir.TypeID, holds func(ir.TypeID) bo
 	for len(pending) > 0 {
 		next := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		u := unionThrough(types, next)
-		if u == nil || read[u] {
+		union := unionThrough(types, next)
+		if union == nil || read[union] {
 			continue
 		}
-		read[u] = true
-		for _, v := range u.Variants {
-			if holds(v.Type.Target) {
+		read[union] = true
+		for _, variant := range union.Variants {
+			if holds(variant.Type.Target) {
 				return true
 			}
-			pending = append(pending, v.Type.Target)
+			pending = append(pending, variant.Type.Target)
 		}
 	}
 	return false
@@ -312,9 +312,9 @@ const maxNarrowedSteps = 100_000
 // a union (ir.NarrowedShapes), holds a member declared as key: a part only one
 // of the union's variants declares, which the model exposes nowhere. A walk
 // past limit steps lists no shape, so it holds none.
-func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
-	n, _, _ := ir.NarrowedShapes(types, target, limit)
-	for _, shape := range n.Shapes {
+func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropertyID, limit int) bool {
+	narrowing, _, _ := ir.NarrowedShapes(types, target, limit)
+	for _, shape := range narrowing.Shapes {
 		if slices.ContainsFunc(shape.Properties, func(fp ir.FlatProperty) bool { return fp.Property.ID == key }) {
 			return true
 		}
@@ -329,8 +329,8 @@ func unionThrough(types ir.TypeRegistry, target ir.TypeID) *ir.Union {
 	seen := map[ir.TypeID]bool{}
 	for !seen[target] {
 		seen[target] = true
-		if u, ok := types[target].(*ir.Union); ok {
-			return u
+		if union, ok := types[target].(*ir.Union); ok {
+			return union
 		}
 		base, alias := ir.AliasBase(types, target)
 		if !alias {

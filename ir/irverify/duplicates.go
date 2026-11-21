@@ -11,17 +11,17 @@ import (
 )
 
 var (
-	// propIDType is the reflect.Type of the one ID class checkDuplicateIDs holds
-	// to a weaker claim than "declared once"; see there for why.
-	propIDType = reflect.TypeFor[ir.PropID]()
+	// propertyIDType is the reflect.Type of the one ID class checkDuplicateIDs
+	// holds to a weaker claim than "declared once"; see there for why.
+	propertyIDType = reflect.TypeFor[ir.PropertyID]()
 	// propertyType is the node that class identifies, which is what has to be
 	// fingerprinted to make that weaker claim.
 	propertyType = reflect.TypeFor[ir.Property]()
 )
 
 // identity is one declared ID together with the class it belongs to, which is
-// the pair that has to be unique: an OpID and a TypeID spelling the same string
-// name two different nodes.
+// the pair that has to be unique: an OperationID and a TypeID spelling the same
+// string name two different nodes.
 type identity struct {
 	class reflect.Type
 	id    string
@@ -40,16 +40,16 @@ type fingerprint struct {
 // cannot enforce it for classes they lack, such as operations, services and
 // groups, so a shared ID resolves to whichever the reader reaches first.
 //
-// ir.PropID is held to a fingerprint instead: a response declared once in
+// ir.PropertyID is held to a fingerprint instead: a response declared once in
 // components is embedded by value at every use, each copy keeping the
-// declaration's PropID (GitHub #107). Different properties on one PropID are
-// the defect (#280). The fingerprint is source name, wire name and TypeRef
-// target; a wider one flags every reused component.
+// declaration's PropertyID (GitHub #107). Different properties on one
+// PropertyID are the defect (#280). The fingerprint is source name, wire name
+// and TypeRef target; a wider one flags every reused component.
 func checkDuplicateIDs(*ir.Document) walkCheck {
-	// The first property met on each PropID, and the later ones whose
-	// fingerprint differs from it, each named by its PropID and how many met on
-	// that PropID before it. The walk meets properties in the order the
-	// declarations list them, so the first met is the PropID's first
+	// The first property met on each PropertyID, and the later ones whose
+	// fingerprint differs from it, each named by its PropertyID and how many
+	// met on that PropertyID before it. The walk meets properties in the order
+	// the declarations list them, so the first met is the PropertyID's first
 	// declaration, and the n-th met its n-th.
 	first := map[string]firstProperty{}
 	differs := map[occurrence]bool{}
@@ -77,8 +77,8 @@ func checkDuplicateIDs(*ir.Document) walkCheck {
 	}
 }
 
-// firstProperty is the first property the walk met on a PropID, by its
-// fingerprint, and how many it has met on that PropID so far.
+// firstProperty is the first property the walk met on a PropertyID, by its
+// fingerprint, and how many it has met on that PropertyID so far.
 type firstProperty struct {
 	fingerprint fingerprint
 	met         int
@@ -106,15 +106,15 @@ func duplicateIDs(decls declarations, differs map[occurrence]bool) []Violation {
 	type declared struct{ first, met int }
 	seen := make(map[identity]declared, len(list))
 	var again []redeclaration
-	for i, d := range list {
-		key := identity{class: d.Class, id: d.ID}
+	for i, idDeclaration := range list {
+		key := identity{class: idDeclaration.Class, id: idDeclaration.ID}
 		before, taken := seen[key]
 		if !taken {
 			seen[key] = declared{first: i, met: 1}
 			continue
 		}
 		seen[key] = declared{first: before.first, met: before.met + 1}
-		if d.Class == propIDType && !differs[occurrence{id: d.ID, n: before.met}] {
+		if idDeclaration.Class == propertyIDType && !differs[occurrence{id: idDeclaration.ID, n: before.met}] {
 			continue // one property materialized at several paths, not two properties
 		}
 		again = append(again, redeclaration{at: i, first: before.first})
@@ -129,17 +129,17 @@ func redeclarationViolations(list []ir.IDDeclaration, again []redeclaration, dec
 		return nil
 	}
 	at := make(map[int]bool, 2*len(again))
-	for _, r := range again {
-		at[r.at], at[r.first] = true, true
+	for _, redeclaration := range again {
+		at[redeclaration.at], at[redeclaration.first] = true, true
 	}
 	paths := decls.pathsAt(at)
 	vs := make([]Violation, 0, len(again))
-	for _, r := range again {
-		d := list[r.at]
+	for _, redeclaration := range again {
+		idDeclaration := list[redeclaration.at]
 		vs = append(vs, Violation{
-			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(paths[r.first]),
-			Path:    paths[r.at],
+			Code:    "ir/duplicate-" + ir.RefNoun(idDeclaration.Class) + "-id",
+			Message: "id " + strconv.Quote(idDeclaration.ID) + " is declared here and at " + strconv.Quote(paths[redeclaration.first]),
+			Path:    paths[redeclaration.at],
 		})
 	}
 	return vs
@@ -150,10 +150,10 @@ func redeclarationViolations(list []ir.IDDeclaration, again []redeclaration, dec
 // converting it back to an ir.Property, because a value the walk reached
 // through an unexported field cannot be converted (see ir.WalkValues);
 // checkNaming's namingChannels reads its channels the same way.
-func fingerprintOf(prop reflect.Value) fingerprint {
+func fingerprintOf(property reflect.Value) fingerprint {
 	return fingerprint{
-		source: prop.FieldByName("Name").FieldByName("Source").String(),
-		wire:   prop.FieldByName("WireName").String(),
-		target: prop.FieldByName("Type").FieldByName("Target").String(),
+		source: property.FieldByName("Name").FieldByName("Source").String(),
+		wire:   property.FieldByName("WireName").String(),
+		target: property.FieldByName("Type").FieldByName("Target").String(),
 	}
 }

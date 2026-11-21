@@ -52,21 +52,21 @@ func (p *Positions) Root() *Position { return &p.root }
 // Child returns the position token leads to from holder, recording it the
 // first time it is asked for. holder must be one of p's positions.
 func (p *Positions) Child(holder *Position, token string) *Position {
-	s := step{holder: holder, token: token}
-	if at, ok := p.steps[s]; ok {
+	stepValue := step{holder: holder, token: token}
+	if at, ok := p.steps[stepValue]; ok {
 		return at
 	}
 	at := &Position{holder: holder, token: token}
-	p.steps[s] = at
+	p.steps[stepValue] = at
 	return at
 }
 
 // Write records that the overlay introduced or rewrote what sits at at.
 func (at *Position) Write() { at.written = true }
 
-// Place records n as a node sitting at at, which a finding raised on n is
+// Place records node as a node sitting at at, which a finding raised on node is
 // placed at.
-func (p *Positions) Place(n *yaml.Node, at *Position) { p.nodes[n] = at }
+func (p *Positions) Place(node *yaml.Node, at *Position) { p.nodes[node] = at }
 
 // pointer spells at's JSON pointer, walking up to the root in as many steps
 // as at is deep.

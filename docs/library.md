@@ -51,9 +51,9 @@ document behind.
 
 ## Options
 
-Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--opt` vocabulary, or
-as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`; set one or the
-other, not both.
+Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--compiler-option`
+vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`; set
+one or the other, not both.
 
 `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass` names the `validate`
 pass), and a name no pass carries fails the run with `engine.ErrUnknownPass`.

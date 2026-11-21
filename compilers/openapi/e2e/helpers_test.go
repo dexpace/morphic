@@ -69,9 +69,9 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // included.
 func compileVerified(t *testing.T, src compilers.Source, opts openapi.Options) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	e, err := engine.New()
+	compileEngine, err := engine.New()
 	require.NoError(t, err)
-	res, err := e.RunSpec(t.Context(), src, engine.RunOptions{FormatOptions: opts, Verify: true})
+	res, err := compileEngine.RunSpec(t.Context(), src, engine.RunOptions{FormatOptions: opts, Verify: true})
 	require.NoError(t, err, "a compiled document breaks no invariant")
 	return res.Document, res.Diagnostics
 }
@@ -192,14 +192,14 @@ func reversed(t *testing.T, src string) []byte {
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 	stack := []*yaml.Node{&root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if n.Kind == yaml.MappingNode {
-			pairs := slices.Collect(slices.Chunk(n.Content, 2))
+		if node.Kind == yaml.MappingNode {
+			pairs := slices.Collect(slices.Chunk(node.Content, 2))
 			slices.Reverse(pairs)
-			n.Content = slices.Concat(pairs...)
+			node.Content = slices.Concat(pairs...)
 		}
-		stack = append(stack, n.Content...)
+		stack = append(stack, node.Content...)
 	}
 	out, err := yaml.Marshal(&root)
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 // sub-schema beneath one ("Holder/properties/inner"). It stays a test-file
 // copy for the reason openapitest's doc comment gives.
 func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
+	return ir.TypeID("type/openapi/components/schemas/" + name)
 }
 
 // allOperations flattens every operation across a document's service groups.
@@ -233,9 +233,9 @@ func allOperations(doc *ir.Document) []ir.Operation {
 	var out []ir.Operation
 	var walk func(gs []ir.OperationGroup)
 	walk = func(gs []ir.OperationGroup) {
-		for _, g := range gs {
-			out = append(out, g.Operations...)
-			walk(g.Groups)
+		for _, operationGroup := range gs {
+			out = append(out, operationGroup.Operations...)
+			walk(operationGroup.Groups)
 		}
 	}
 	for _, svc := range doc.Services {
@@ -244,11 +244,11 @@ func allOperations(doc *ir.Document) []ir.Operation {
 	return out
 }
 
-// opByName finds an operation by its source operationId.
-func opByName(doc *ir.Document, source string) (ir.Operation, bool) {
-	for _, op := range allOperations(doc) {
-		if op.Name.Source == source {
-			return op, true
+// operationByName finds an operation by its source operationId.
+func operationByName(doc *ir.Document, source string) (ir.Operation, bool) {
+	for _, operation := range allOperations(doc) {
+		if operation.Name.Source == source {
+			return operation, true
 		}
 	}
 	return ir.Operation{}, false
@@ -260,10 +260,10 @@ func opByName(doc *ir.Document, source string) (ir.Operation, bool) {
 // no URI template, so no webhook is found.
 func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
-	for _, op := range allOperations(doc) {
-		for _, hb := range op.Bindings.HTTP {
+	for _, operation := range allOperations(doc) {
+		for _, hb := range operation.Bindings.HTTP {
 			if hb.Method == method && hb.URITemplate == uri {
-				return op
+				return operation
 			}
 		}
 	}
@@ -278,24 +278,24 @@ func operationsNamed(doc *ir.Document, name string) []ir.Operation {
 	for _, svc := range doc.Services {
 		groups = append(groups, svc.Groups...)
 	}
-	var ops []ir.Operation
+	var operations []ir.Operation
 	for len(groups) > 0 {
-		g := groups[0]
-		groups = append(groups[1:], g.Groups...)
-		for _, op := range g.Operations {
-			if op.Name.Source == name {
-				ops = append(ops, op)
+		operationGroup := groups[0]
+		groups = append(groups[1:], operationGroup.Groups...)
+		for _, operation := range operationGroup.Operations {
+			if operation.Name.Source == name {
+				operations = append(operations, operation)
 			}
 		}
 	}
-	return ops
+	return operations
 }
 
-// propByWire returns the property of m with the given wire name.
-func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
-	for _, p := range m.Properties {
-		if p.WireName == wire {
-			return p, true
+// propertyByWire returns the property of model with the given wire name.
+func propertyByWire(model *ir.Model, wire string) (ir.Property, bool) {
+	for _, property := range model.Properties {
+		if property.WireName == wire {
+			return property, true
 		}
 	}
 	return ir.Property{}, false
@@ -303,29 +303,29 @@ func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
 
 // headerByWire returns the response header with the given wire name.
 func headerByWire(headers []ir.Header, wire string) (ir.Header, bool) {
-	for _, h := range headers {
-		if h.WireName == wire {
-			return h, true
+	for _, header := range headers {
+		if header.WireName == wire {
+			return header, true
 		}
 	}
 	return ir.Header{}, false
 }
 
 // firstContent returns an operation's single success-response content.
-func firstContent(t *testing.T, op ir.Operation) ir.Content {
+func firstContent(t *testing.T, operation ir.Operation) ir.Content {
 	t.Helper()
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	return op.Responses[0].Payload.Contents[0]
+	require.Len(t, operation.Responses, 1)
+	require.NotNil(t, operation.Responses[0].Payload)
+	require.Len(t, operation.Responses[0].Payload.Contents, 1)
+	return operation.Responses[0].Payload.Contents[0]
 }
 
 // requestContent returns an operation's single request-body content.
-func requestContent(t *testing.T, op ir.Operation) ir.Content {
+func requestContent(t *testing.T, operation ir.Operation) ir.Content {
 	t.Helper()
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	return op.Request.Contents[0]
+	require.NotNil(t, operation.Request)
+	require.Len(t, operation.Request.Contents, 1)
+	return operation.Request.Contents[0]
 }
 
 // withoutVersion encodes doc with what records the declared version set aside:
@@ -360,11 +360,11 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
+		unmodeled, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}
-		for key, entry := range u {
+		for key, entry := range unmodeled {
 			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
 		}
 		return true
@@ -386,10 +386,10 @@ func findUnmodeled(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, 
 }
 
 // unmodeledEntry returns the Unmodeled entry at key, failing when absent.
-func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry {
+func unmodeledEntry(t *testing.T, unmodeled ir.Unmodeled, key string) ir.UnmodeledEntry {
 	t.Helper()
-	entry, ok := p[key]
-	require.True(t, ok, "%s kept verbatim; got %v", key, p)
+	entry, ok := unmodeled[key]
+	require.True(t, ok, "%s kept verbatim; got %v", key, unmodeled)
 	return entry
 }
 
@@ -402,9 +402,9 @@ func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 // diagsAt returns the severities of the diagnostics coded code at pointer.
 func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code && diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			out = append(out, diagnostic.Severity)
 		}
 	}
 	return out
@@ -413,17 +413,17 @@ func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 // hasErrorRef reports whether the diagnostics carry an error-severity
 // unresolved-ref finding — the signal that an offending entry was dropped.
 func hasErrorRef(diags []ir.Diagnostic) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Severity == ir.SeverityError && d.Code == "openapi/unresolved-ref"
+	return slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool {
+		return diagnostic.Severity == ir.SeverityError && diagnostic.Code == "openapi/unresolved-ref"
 	})
 }
 
 // unresolvedRefs returns the unresolved-ref findings among diags.
 func unresolvedRefs(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			out = append(out, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == diag.UnresolvedRef {
+			out = append(out, diagnostic)
 		}
 	}
 	return out
@@ -446,12 +446,12 @@ func compileClean(t *testing.T, src string, opts openapi.Options) *ir.Document {
 func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
 	t.Helper()
 	drawn := map[string]bool{}
-	for _, d := range diags {
-		if d.Severity != ir.SeverityError {
+	for _, diagnostic := range diags {
+		if diagnostic.Severity != ir.SeverityError {
 			continue
 		}
-		drawn[d.Code] = true
-		assert.Contains(t, want, d.Code, "unexpected error diagnostic: %+v", d)
+		drawn[diagnostic.Code] = true
+		assert.Contains(t, want, diagnostic.Code, "unexpected error diagnostic: %+v", diagnostic)
 	}
 	for _, code := range want {
 		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)

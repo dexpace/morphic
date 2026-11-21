@@ -8,6 +8,6 @@ import "github.com/dexpace/morphic/compilers/compile"
 // Indirect fills a name channel and spells an ID without importing ir.
 func Indirect() bool {
 	n := compile.NamingHint("a")
-	n.Hint = "b"                                             // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	return compile.OpID(compile.Space("x"), "/p") == "o/x/p" // want "idderivations: spells an ir.OpID as a constant outside compilers/compile; derive the ID through the framework"
+	n.Hint = "b"                                                            // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	return compile.OperationID(compile.Space("x"), "/p") == "operation/x/p" // want "idderivations: spells an ir.OperationID as a constant outside compilers/compile; derive the ID through the framework"
 }

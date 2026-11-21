@@ -20,14 +20,14 @@ import (
 // and the entry held keeps its value, and a key nothing holds is written.
 func TestMergeKept_AKeyHeldWithAnotherValueIsAnInvariantBroken(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
 	held := ir.Unmodeled{"openapi:format": {Value: ir.RawValue(`"a"`)}}
-	p := ir.Unmodeled{"openapi:format": {Value: ir.RawValue(`"b"`)}}
-	assertInternalInvariant(t, mergeKept(l.Ctx, &p, held, "/p/allOf/1"))
-	assert.Equal(t, ir.RawValue(`"b"`), p["openapi:format"].Value, "what is held stands")
+	unmodeled := ir.Unmodeled{"openapi:format": {Value: ir.RawValue(`"b"`)}}
+	assertInternalInvariant(t, mergeKept(lowerer.Ctx, &unmodeled, held, "/p/allOf/1"))
+	assert.Equal(t, ir.RawValue(`"b"`), unmodeled["openapi:format"].Value, "what is held stands")
 
 	var empty ir.Unmodeled
-	require.Empty(t, mergeKept(l.Ctx, &empty, held, "/p/allOf/1"))
+	require.Empty(t, mergeKept(lowerer.Ctx, &empty, held, "/p/allOf/1"))
 	assert.Equal(t, held, empty)
 }
 
@@ -35,10 +35,10 @@ func TestMergeKept_AKeyHeldWithAnotherValueIsAnInvariantBroken(t *testing.T) {
 // reference an entry does not write is kept and reported nowhere.
 func TestKeepEntryDynamicRef_AnEntryWritingNoneKeepsNothing(t *testing.T) {
 	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	var p ir.Unmodeled
-	assert.Empty(t, keepEntryDynamicRef(l.Ctx, &p, StandaloneSchema(&oas3.Schema{}), "$dynamicRef", "/p/allOf/1"))
-	assert.Empty(t, p)
+	lowerer := NewRawLowerer(&soa.OpenAPI{})
+	var unmodeled ir.Unmodeled
+	assert.Empty(t, keepEntryDynamicRef(lowerer.Ctx, &unmodeled, StandaloneSchema(&oas3.Schema{}), "$dynamicRef", "/p/allOf/1"))
+	assert.Empty(t, unmodeled)
 }
 
 // TestWritesTopLevelRef_TellsAKeptRefFromAnInlineEntry pins the reading that

@@ -43,7 +43,7 @@ func typeListUnion(names []string) string {
 // object. Both orders of the branches and of every mapping lower alike.
 func TestVariantBounds_AVariantOverATypeListComposesItsObject(t *testing.T) {
 	t.Parallel()
-	bases := map[string]ir.TypeID{"Mixed": "t/anon/components/schemas/Mixed/type/0", "Obj": componentID("Obj")}
+	bases := map[string]ir.TypeID{"Mixed": "type/anonymous/components/schemas/Mixed/type/0", "Obj": componentID("Obj")}
 	members := map[string][]string{"Mixed": {"a", "m"}, "Obj": {"a", "o"}}
 	for _, order := range [][]string{{"Mixed", "Obj"}, {"Obj", "Mixed"}} {
 		t.Run(strings.Join(order, "-"), func(t *testing.T) {
@@ -56,13 +56,13 @@ func TestVariantBounds_AVariantOverATypeListComposesItsObject(t *testing.T) {
 					for _, at := range conjunctionPositions {
 						union := variantUnionAt(t, doc, string(at), len(order))
 						for j, name := range order {
-							v, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
+							model, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
 							require.True(t, ok, "the variant over %s at %s is a model", name, at)
-							require.NotNil(t, v.Base, "the variant over %s at %s", name, at)
-							assert.Equal(t, bases[name], v.Base.Target, "the variant over %s at %s", name, at)
-							assert.Empty(t, v.Unmodeled, "the variant over %s at %s keeps nothing", name, at)
-							assert.Equal(t, members[name], flattenedNames(doc, v.ID), "%s at %s", name, at)
-							assert.Equal(t, map[string]any{"minProps": 1.0}, variantConstraints(t, doc, v.ID), "%s at %s", name, at)
+							require.NotNil(t, model.Base, "the variant over %s at %s", name, at)
+							assert.Equal(t, bases[name], model.Base.Target, "the variant over %s at %s", name, at)
+							assert.Empty(t, model.Unmodeled, "the variant over %s at %s keeps nothing", name, at)
+							assert.Equal(t, members[name], flattenedNames(doc, model.ID), "%s at %s", name, at)
+							assert.Equal(t, map[string]any{"minProperties": 1.0}, variantConstraints(t, doc, model.ID), "%s at %s", name, at)
 						}
 					}
 				})
@@ -100,15 +100,15 @@ func TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject(t *test
 							"NoObj admits no object, so the union keeps it at %s", at)
 						live := slices.DeleteFunc(slices.Clone(order), func(name string) bool { return name == "NoObj" })
 						for j, name := range live {
-							v, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
+							model, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
 							require.True(t, ok, "the variant over %s at %s is a model", name, at)
 							if name == "Obj" {
-								require.NotNil(t, v.Base)
-								assert.Equal(t, componentID("Obj"), v.Base.Target, "at %s", at)
+								require.NotNil(t, model.Base)
+								assert.Equal(t, componentID("Obj"), model.Base.Target, "at %s", at)
 								continue
 							}
-							assert.Nil(t, v.Base, "the variant over %s at %s names no base", name, at)
-							assert.Equal(t, entryKept(fmt.Sprintf("openapi:oneOf/%d", slices.Index(order, name))), keptOn(v),
+							assert.Nil(t, model.Base, "the variant over %s at %s names no base", name, at)
+							assert.Equal(t, entryKept(fmt.Sprintf("openapi:oneOf/%d", slices.Index(order, name))), keptOn(model),
 								"%s at %s", name, at)
 						}
 					}
@@ -131,10 +131,10 @@ func TestVariantBounds_ATypeListBranchWritingBesideItsRefIsKept(t *testing.T) {
 		requireErrorsAndWarnings(t, diags, nil)
 		for _, at := range conjunctionPositions {
 			union := variantUnionAt(t, doc, string(at), 2)
-			v, ok := doc.Types[union.Variants[1].Type.Target].(*ir.Model)
+			model, ok := doc.Types[union.Variants[1].Type.Target].(*ir.Model)
 			require.True(t, ok, "at %s", at)
-			assert.Nil(t, v.Base, "at %s", at)
-			assert.Equal(t, entryKept("openapi:oneOf/1"), keptOn(v), "at %s", at)
+			assert.Nil(t, model.Base, "at %s", at)
+			assert.Equal(t, entryKept("openapi:oneOf/1"), keptOn(model), "at %s", at)
 		}
 	})
 }

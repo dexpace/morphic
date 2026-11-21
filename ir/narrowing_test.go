@@ -18,21 +18,21 @@ import (
 
 // unionOf is the untagged union id of the variants targets.
 func unionOf(id ir.TypeID, targets ...ir.TypeID) *ir.Union {
-	u := &ir.Union{ID: id}
+	union := &ir.Union{ID: id}
 	for _, target := range targets {
-		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: target}})
+		union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: target}})
 	}
-	return u
+	return union
 }
 
-// shapeLines renders each shape of n as its Over, then its flattening's
+// shapeLines renders each shape of narrowing as its Over, then its flattening's
 // members as flatLines renders them, its undeclared names and its unflattened
 // entries.
-func shapeLines(n ir.Narrowing) []string {
-	out := make([]string, 0, len(n.Shapes))
-	for _, s := range n.Shapes {
+func shapeLines(narrowing ir.Narrowing) []string {
+	out := make([]string, 0, len(narrowing.Shapes))
+	for _, narrowedShape := range narrowing.Shapes {
 		out = append(out, fmt.Sprintf("over %v: %v undeclared %v unflattened %v",
-			s.Over, flatLines(s.Flattening), s.Undeclared, s.Unflattened))
+			narrowedShape.Over, flatLines(narrowedShape.Flattening), narrowedShape.Undeclared, narrowedShape.Unflattened))
 	}
 	return out
 }
@@ -40,9 +40,9 @@ func shapeLines(n ir.Narrowing) []string {
 // narrowed returns NarrowedShapes over types and root with no limit.
 func narrowed(t *testing.T, types ir.TypeRegistry, root ir.TypeID) ir.Narrowing {
 	t.Helper()
-	n, _, ok := ir.NarrowedShapes(types, root, math.MaxInt)
+	narrowing, _, ok := ir.NarrowedShapes(types, root, math.MaxInt)
 	require.True(t, ok, "an unlimited walk always finishes")
-	return n
+	return narrowing
 }
 
 // ruleDoc is docs/ir/models.md's example: Stored composes the union Rule of
@@ -52,9 +52,9 @@ func ruleDoc() *ir.Document {
 		unionOf("rule", "block", "log"),
 		owning("block", nil, mandatory("block.action", "action"), wired("block.status", "status")),
 		owning("log", nil, mandatory("log.action", "action")),
-		owning("stored", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{Target: "rule"}
-			m.Mixins = irtest.RefsTo("own")
+		owning("stored", func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "rule"}
+			model.Mixins = irtest.RefsTo("own")
 		}),
 		owning("own", nil, mandatory("own.id", "id")),
 	)
@@ -66,14 +66,14 @@ func TestNarrowedShapes_ReadsAVariantInTheUnionsPlace(t *testing.T) {
 	require.Equal(t, []ir.TypeID{"rule"}, ir.FlattenedProperties(doc.Types, "stored").Unflattened,
 		"the model's own flattening holds the union, none of its members")
 
-	n := narrowed(t, doc.Types, "stored")
-	assert.Equal(t, ir.TypeID("rule"), n.Union)
-	assert.Empty(t, n.Undistributed)
+	narrowing := narrowed(t, doc.Types, "stored")
+	assert.Equal(t, ir.TypeID("rule"), narrowing.Union)
+	assert.Empty(t, narrowing.Undistributed)
 	assert.Equal(t, []string{
 		"over [block]: [block.action@block required block.status@block own.id@own required] undeclared [] unflattened []",
 		"over [log]: [log.action@log required own.id@own required] undeclared [] unflattened []",
-	}, shapeLines(n), "each variant is read where the union stands, laid out as the conjunct it replaces")
-	assert.Empty(t, cmp.Diff(n, narrowed(t, doc.Types, "stored")), "a second call agrees")
+	}, shapeLines(narrowing), "each variant is read where the union stands, laid out as the conjunct it replaces")
+	assert.Empty(t, cmp.Diff(narrowing, narrowed(t, doc.Types, "stored")), "a second call agrees")
 }
 
 func TestNarrowedShapes_AVariantIsAConjunctLikeAnyOther(t *testing.T) {
@@ -82,21 +82,21 @@ func TestNarrowedShapes_AVariantIsAConjunctLikeAnyOther(t *testing.T) {
 	deprecated.Deprecation = &ir.Deprecation{Message: "old"}
 	doc := irtest.DocOf(
 		unionOf("u", "v", "w"),
-		owning("v", func(m *ir.Model) { m.Requires = []string{"note"} },
+		owning("v", func(model *ir.Model) { model.Requires = []string{"note"} },
 			mandatory("v.id", "id"), redacted("v.token", "token"), deprecated),
 		owning("w", nil, wired("w.id", "id")),
 		owning("m", based("u"), wired("m.id", "id"), wired("m.token", "token"), wired("m.tag", "tag"),
 			wired("m.note", "note")),
 	)
-	n := narrowed(t, doc.Types, "m")
-	require.Len(t, n.Shapes, 2)
+	narrowing := narrowed(t, doc.Types, "m")
+	require.Len(t, narrowing.Shapes, 2)
 	assert.Equal(t, []string{"m.id@m < v.id@v required", "m.token@m < v.token@v secret",
-		"m.tag@m < v.tag@v deprecated old", "m.note@m required"}, flatLines(n.Shapes[0].Flattening),
+		"m.tag@m < v.tag@v deprecated old", "m.note@m required"}, flatLines(narrowing.Shapes[0].Flattening),
 		"the model's declarations override the variant's, which still requires, redacts, deprecates and lists Requires")
-	assert.Same(t, deprecated.Deprecation, n.Shapes[0].Properties[2].Deprecation, "the deprecation is the variant's own")
+	assert.Same(t, deprecated.Deprecation, narrowing.Shapes[0].Properties[2].Deprecation, "the deprecation is the variant's own")
 	assert.Equal(t, []string{"m.id@m < w.id@w", "m.token@m", "m.tag@m", "m.note@m"},
-		flatLines(n.Shapes[1].Flattening), "a member only one variant redacts is redacted over it alone")
-	assert.Nil(t, n.Shapes[1].Properties[2].Deprecation)
+		flatLines(narrowing.Shapes[1].Flattening), "a member only one variant redacts is redacted over it alone")
+	assert.Nil(t, narrowing.Shapes[1].Properties[2].Deprecation)
 }
 
 func TestNarrowedShapes_ReadsTheUnionWhereverItStands(t *testing.T) {
@@ -150,7 +150,7 @@ func TestNarrowedShapes_ReadsTheUnionWhereverItStands(t *testing.T) {
 			name: "a variant naming no model listed as the union writes it, an unset one read in no shape",
 			doc: irtest.DocOf(
 				unionOf("u", "uuid", "", "v"), irtest.ScalarOf("uuid", "string"),
-				&ir.Primitive{ID: "string", Prim: ir.PrimString},
+				&ir.Primitive{ID: "string", PrimitiveKind: ir.PrimitiveString},
 				owning("v", mixing("u"), wired("v.a", "a")),
 				owning("m", mixing("u", "enum"), wired("m.c", "c")),
 				&ir.Enum{ID: "enum"},
@@ -164,9 +164,9 @@ func TestNarrowedShapes_ReadsTheUnionWhereverItStands(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			n := narrowed(t, tc.doc.Types, "m")
-			assert.Empty(t, n.Undistributed)
-			assert.Equal(t, tc.want, shapeLines(n))
+			narrowing := narrowed(t, tc.doc.Types, "m")
+			assert.Empty(t, narrowing.Undistributed)
+			assert.Equal(t, tc.want, shapeLines(narrowing))
 		})
 	}
 }
@@ -183,15 +183,15 @@ func TestNarrowedShapes_UnionsInTurn(t *testing.T) {
 		owning("leaf", nil, wired("leaf.a", "a")),
 		owning("m", based("outer"), wired("m.c", "c")),
 	)
-	n := narrowed(t, doc.Types, "m")
-	assert.Equal(t, ir.TypeID("outer"), n.Union)
+	narrowing := narrowed(t, doc.Types, "m")
+	assert.Equal(t, ir.TypeID("outer"), narrowing.Union)
 	assert.Equal(t, []string{
 		"over [inner i1]: [i1.a@i1 m.c@m] undeclared [] unflattened []",
 		"over [inner i2]: [i2.a@i2 m.c@m] undeclared [] unflattened []",
 		"over [narrower d1]: [d1.b@d1 n.a@narrower m.c@m] undeclared [] unflattened []",
 		"over [narrower d2]: [d2.b@d2 n.a@narrower m.c@m] undeclared [] unflattened []",
 		"over [leaf]: [leaf.a@leaf m.c@m] undeclared [] unflattened []",
-	}, shapeLines(n), "a variant that is a union or composes one gives way to each of that union's variants, "+
+	}, shapeLines(narrowing), "a variant that is a union or composes one gives way to each of that union's variants, "+
 		"in source order and depth first")
 }
 
@@ -208,14 +208,14 @@ func TestNarrowedShapes_NarrowsNone(t *testing.T) {
 	)
 	doc.Types["nil"] = (*ir.Model)(nil)
 	for _, root := range []ir.TypeID{"circle", "square", "toCircle", "plain", "shape", "enum", "nil", "ghost", ""} {
-		n, spent, ok := ir.NarrowedShapes(doc.Types, root, math.MaxInt)
+		narrowing, spent, ok := ir.NarrowedShapes(doc.Types, root, math.MaxInt)
 		require.True(t, ok)
-		assert.Equal(t, ir.Narrowing{}, n, "root %q: a model its union lists is that variant, and nothing else narrows", root)
+		assert.Equal(t, ir.Narrowing{}, narrowing, "root %q: a model its union lists is that variant, and nothing else narrows", root)
 		assert.Positive(t, spent, "root %q: finding so is a walk", root)
 	}
-	n, _, ok := ir.NarrowedShapes(nil, "m", math.MaxInt)
+	narrowingValue, _, ok := ir.NarrowedShapes(nil, "m", math.MaxInt)
 	assert.True(t, ok)
-	assert.Equal(t, ir.Narrowing{}, n, "no registry narrows nothing")
+	assert.Equal(t, ir.Narrowing{}, narrowingValue, "no registry narrows nothing")
 }
 
 func TestNarrowedShapes_NoVariantGivesNoShape(t *testing.T) {
@@ -226,10 +226,10 @@ func TestNarrowedShapes_NoVariantGivesNoShape(t *testing.T) {
 
 func TestNarrowedShapes_Undistributed(t *testing.T) {
 	t.Parallel()
-	tagged := func(id ir.TypeID, d *ir.Discriminator) *ir.Union {
-		u := unionOf(id, "v")
-		u.WireTagged, u.Discriminator = true, d
-		return u
+	tagged := func(id ir.TypeID, discriminator *ir.Discriminator) *ir.Union {
+		union := unionOf(id, "v")
+		union.WireTagged, union.Discriminator = true, discriminator
+		return union
 	}
 	index := 0
 	cases := []struct {
@@ -291,7 +291,7 @@ func TestNarrowedShapes_Undistributed(t *testing.T) {
 		{
 			name: "a union tagged by a tuple element, met in turn",
 			doc: irtest.DocOf(unionOf("u", "w"), owning("w", based("x")),
-				tagged("x", &ir.Discriminator{Index: &index}), owning("v", nil), owning("m", based("u"))),
+				tagged("x", &ir.Discriminator{TupleElementIndex: &index}), owning("v", nil), owning("m", based("u"))),
 			union: "u",
 			want:  ir.UndistributedNotValues,
 		},
@@ -421,7 +421,7 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		doc := irtest.DocOf(owning("m", based(unionAt(0)), wired("m.a", "a")))
 		for i := range n {
 			leaf := ir.TypeID(fmt.Sprintf("leaf%04d", i))
-			doc.Types[leaf] = owning(leaf, nil, wired(ir.PropID(leaf), "b"))
+			doc.Types[leaf] = owning(leaf, nil, wired(ir.PropertyID(leaf), "b"))
 			if i == n-1 {
 				doc.Types[unionAt(i)] = unionOf(unionAt(i), leaf)
 				continue
@@ -435,8 +435,8 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, got.Shapes, n)
 		over := 0
-		for _, s := range got.Shapes {
-			over += len(s.Over)
+		for _, narrowedShape := range got.Shapes {
+			over += len(narrowedShape.Over)
 		}
 		assert.Equal(t, n*(n+1)/2, over)
 		assert.Greater(t, spent, over, "n=%d: every variant read is a step", n)
@@ -445,12 +445,12 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 	assert.False(t, ok, "unions nested 1,000 deep pass a limit their entries and members alone stay under")
 
 	wide := func(n int) ir.TypeRegistry {
-		u := unionOf("u")
-		doc := irtest.DocOf(u, owning("m", based("u"), wired("m.a", "a")))
+		union := unionOf("u")
+		doc := irtest.DocOf(union, owning("m", based("u"), wired("m.a", "a")))
 		for i := range n {
-			v := ir.TypeID(fmt.Sprintf("v%04d", i))
-			doc.Types[v] = owning(v, nil, wired(ir.PropID(v), "b"))
-			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: v}})
+			typeID := ir.TypeID(fmt.Sprintf("v%04d", i))
+			doc.Types[typeID] = owning(typeID, nil, wired(ir.PropertyID(typeID), "b"))
+			union.Variants = append(union.Variants, ir.Variant{Type: ir.TypeRef{Target: typeID}})
 		}
 		return doc.Types
 	}
@@ -460,7 +460,7 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		names := make([]ir.TypeID, n)
 		for i := range names {
 			names[i] = ir.TypeID(fmt.Sprintf("x%04d", i))
-			doc.Types[names[i]] = owning(names[i], based("u"), wired(ir.PropID(names[i]), "b"))
+			doc.Types[names[i]] = owning(names[i], based("u"), wired(ir.PropertyID(names[i]), "b"))
 		}
 		doc.Types["m"] = owning("m", mixing(names...))
 		return doc.Types
@@ -515,30 +515,30 @@ func unionAt(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("u%04d", i)) }
 // union of a block and a log, with the stored model's id beside each.
 func ExampleNarrowedShapes() {
 	reg := ir.TypeRegistry{
-		"t/rule": &ir.Union{ID: "t/rule", Variants: []ir.Variant{
-			{Type: ir.TypeRef{Target: "t/block"}}, {Type: ir.TypeRef{Target: "t/log"}},
+		"type/rule": &ir.Union{ID: "type/rule", Variants: []ir.Variant{
+			{Type: ir.TypeRef{Target: "type/block"}}, {Type: ir.TypeRef{Target: "type/log"}},
 		}},
-		"t/block": &ir.Model{ID: "t/block", Properties: []ir.Property{
-			{ID: "p/block/action", WireName: "action", Required: true},
-			{ID: "p/block/status", WireName: "status"},
+		"type/block": &ir.Model{ID: "type/block", Properties: []ir.Property{
+			{ID: "property/block/action", WireName: "action", Required: true},
+			{ID: "property/block/status", WireName: "status"},
 		}},
-		"t/log": &ir.Model{ID: "t/log", Properties: []ir.Property{{ID: "p/log/action", WireName: "action", Required: true}}},
-		"t/stored": &ir.Model{ID: "t/stored", Base: &ir.TypeRef{Target: "t/rule"}, Properties: []ir.Property{
-			{ID: "p/stored/id", WireName: "id", Required: true},
+		"type/log": &ir.Model{ID: "type/log", Properties: []ir.Property{{ID: "property/log/action", WireName: "action", Required: true}}},
+		"type/stored": &ir.Model{ID: "type/stored", Base: &ir.TypeRef{Target: "type/rule"}, Properties: []ir.Property{
+			{ID: "property/stored/id", WireName: "id", Required: true},
 		}},
 	}
 
-	n, _, _ := ir.NarrowedShapes(reg, "t/stored", 10_000)
-	fmt.Println("narrows", n.Union)
-	for _, s := range n.Shapes {
-		fmt.Print("over ", s.Over, ":")
-		for _, fp := range s.Properties {
+	narrowing, _, _ := ir.NarrowedShapes(reg, "type/stored", 10_000)
+	fmt.Println("narrows", narrowing.Union)
+	for _, narrowedShape := range narrowing.Shapes {
+		fmt.Print("over ", narrowedShape.Over, ":")
+		for _, fp := range narrowedShape.Properties {
 			fmt.Printf(" %s from %s", fp.Property.EffectiveWireName(), fp.Owner)
 		}
 		fmt.Println()
 	}
 	// Output:
-	// narrows t/rule
-	// over [t/block]: action from t/block status from t/block id from t/stored
-	// over [t/log]: action from t/log id from t/stored
+	// narrows type/rule
+	// over [type/block]: action from type/block status from type/block id from type/stored
+	// over [type/log]: action from type/log id from type/stored
 }

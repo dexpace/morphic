@@ -11,9 +11,9 @@ import (
 
 var _ Visitor = (*IDReferences)(nil)
 
-// propIDType is the reflect.Type of [PropID], the one class of ID no registry
-// resolves; see [IDReferences] for why.
-var propIDType = reflect.TypeFor[PropID]()
+// propertyIDType is the reflect.Type of [PropertyID], the one class of ID no
+// registry resolves; see [IDReferences] for why.
+var propertyIDType = reflect.TypeFor[PropertyID]()
 
 // ownIDField names the field of a struct that holds the identity the struct
 // declares. A string of a map-keyed class at such a field is its node's
@@ -39,9 +39,9 @@ type IDReference struct {
 // references Document.Channels wherever it sits, bar a registry node's own ID,
 // so no field is listed and none can be forgotten.
 //
-// Integer indices have nothing to key on, and a [PropID] names a position inside
-// a model, so neither is kept; each is resolved by hand where checked. Only
-// [NewIDReferences] builds a usable one, for one walk on one goroutine.
+// Integer indices have nothing to key on, and a [PropertyID] names a position
+// inside a model, so neither is kept; each is resolved by hand where checked.
+// Only [NewIDReferences] builds a usable one, for one walk on one goroutine.
 type IDReferences struct {
 	// labels names the registry each class of reference resolves in, and so
 	// holds every class a reference can be of.
@@ -61,26 +61,26 @@ type IDReferences struct {
 
 // NewIDReferences returns the IDReferences of a walk of doc, holding the IDs
 // each of doc's map-keyed registries declares. Every other class resolves
-// against what the walk's nodes declare, PropID aside; such a registry is
+// against what the walk's nodes declare, PropertyID aside; such a registry is
 // labelled "<noun> declarations". A nil doc keys nothing, so a reference into
 // one of its maps is unresolved rather than the call panicking.
 func NewIDReferences(doc *Document) *IDReferences {
-	r := &IDReferences{
+	idReferences := &IDReferences{
 		labels:   map[reflect.Type]string{},
 		keyed:    map[reflect.Type]map[string]bool{},
 		declared: map[reflect.Type]map[string]bool{},
 	}
 	for _, reg := range keyedRegistries() {
-		r.labels[reg.class] = reg.label
-		r.keyed[reg.class] = registryKeys(doc, reg.index)
+		idReferences.labels[reg.class] = reg.label
+		idReferences.keyed[reg.class] = registryKeys(doc, reg.index)
 	}
 	for class := range idClasses {
-		if _, keyed := r.keyed[class]; keyed || class == propIDType {
+		if _, keyed := idReferences.keyed[class]; keyed || class == propertyIDType {
 			continue
 		}
-		r.labels[class] = RefNoun(class) + " declarations"
+		idReferences.labels[class] = RefNoun(class) + " declarations"
 	}
-	return r
+	return idReferences
 }
 
 // Visit records the identity v declares, if any, and keeps v if it is a
@@ -156,31 +156,32 @@ func (r *IDReferences) refer(v reflect.Value, at WalkPath) {
 // a node past the cap as dangling, so nothing is claimed for such a class then;
 // a map-keyed registry is read off the document and still answers.
 func (r *IDReferences) Unresolved(truncated bool) []IDReference {
-	if !slices.ContainsFunc(r.sites, func(s IDReference) bool { return r.dangles(s, truncated) }) {
+	if !slices.ContainsFunc(r.sites, func(idReference IDReference) bool { return r.dangles(idReference, truncated) }) {
 		return nil
 	}
 	var out []IDReference
 	for i, at := range r.paths.All() {
-		if s := r.sites[i]; r.dangles(s, truncated) {
-			s.Path = at.String()
-			out = append(out, s)
+		if idReference := r.sites[i]; r.dangles(idReference, truncated) {
+			idReference.Path = at.String()
+			out = append(out, idReference)
 		}
 	}
 	return out
 }
 
-// dangles reports whether the kept reference s resolves in no registry, as
-// Unresolved says, truncated saying whether the walk was cut short.
-func (r *IDReferences) dangles(s IDReference, truncated bool) bool {
-	_, keyed := r.keyed[s.Class]
-	return keyed || (!truncated && !r.declared[s.Class][s.ID])
+// dangles reports whether the kept reference idReference resolves in no
+// registry, as Unresolved says, truncated saying whether the walk was cut
+// short.
+func (r *IDReferences) dangles(idReference IDReference, truncated bool) bool {
+	_, keyed := r.keyed[idReference.Class]
+	return keyed || (!truncated && !r.declared[idReference.Class][idReference.ID])
 }
 
 // Declares reports whether a node the walk reached declares id as its identity
 // of class, which is what a reference of a class no Document map keys resolves
-// against. PropID is answered too, so a check holding one to a declared property
-// need not read the declarations again. A map-keyed class is not: its references
-// resolve against the map, so Declares reports false for it.
+// against. PropertyID is answered too, so a check holding one to a declared
+// property need not read the declarations again. A map-keyed class is not: its
+// references resolve against the map, so Declares reports false for it.
 func (r *IDReferences) Declares(class reflect.Type, id string) bool {
 	return r.declared[class][id]
 }

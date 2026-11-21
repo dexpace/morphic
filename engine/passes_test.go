@@ -40,12 +40,12 @@ func (danglePass) Name() string { return "dangle" }
 func (danglePass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	next := *doc
 	next.Services = []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{
 			Operations: []ir.Operation{{
-				ID: "op/x",
+				ID: "operation/x",
 				Errors: []ir.ErrorCase{{
-					Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "type/missing"}}}},
 				}},
 			}},
 		}},
@@ -145,8 +145,8 @@ func runWith(
 		"the Result and the Document carry one list")
 
 	codes := make([]string, 0, len(res.Diagnostics))
-	for _, d := range res.Diagnostics {
-		codes = append(codes, d.Code)
+	for _, diagnostic := range res.Diagnostics {
+		codes = append(codes, diagnostic.Code)
 	}
 	return res, codes
 }
@@ -351,11 +351,13 @@ func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 		edit    func([]ir.SourceInfo) []ir.SourceInfo
 		refused bool
 	}{
-		{"kept", func(s []ir.SourceInfo) []ir.SourceInfo { return s }, false},
-		{"appended to", func(s []ir.SourceInfo) []ir.SourceInfo { return append(s, added) }, false},
+		{"kept", func(sourceInfos []ir.SourceInfo) []ir.SourceInfo { return sourceInfos }, false},
+		{"appended to", func(sourceInfos []ir.SourceInfo) []ir.SourceInfo { return append(sourceInfos, added) }, false},
 		{"dropped", func([]ir.SourceInfo) []ir.SourceInfo { return nil }, true},
 		{"replaced", func([]ir.SourceInfo) []ir.SourceInfo { return []ir.SourceInfo{added} }, true},
-		{"moved", func(s []ir.SourceInfo) []ir.SourceInfo { return append([]ir.SourceInfo{added}, s...) }, true},
+		{"moved", func(sourceInfos []ir.SourceInfo) []ir.SourceInfo {
+			return append([]ir.SourceInfo{added}, sourceInfos...)
+		}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -499,7 +501,7 @@ func TestEngine_HandsEachPassTheRunsContext(t *testing.T) {
 // last, so a run cancelled during one fails as one cancelled in a stage does.
 func TestEngine_RunCancelledDuringVerificationFails(t *testing.T) {
 	t.Parallel()
-	rename := changed(func(d *ir.Document) { d.Name = "Renamed" })
+	rename := changed(func(document *ir.Document) { document.Name = "Renamed" })
 	tests := []struct {
 		name   string
 		passes func(t *testing.T) []pass.Pass

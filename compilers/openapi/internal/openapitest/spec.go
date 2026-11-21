@@ -120,12 +120,12 @@ components:
 // parser and no fixture — the shape a test wants when what it needs from the
 // document is only which components it declares.
 func DocDeclaring(names ...string) *soa.OpenAPI {
-	elems := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
+	elements := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
 	for _, n := range names {
-		elems = append(elems, sequencedmap.NewElem(n,
+		elements = append(elements, sequencedmap.NewElem(n,
 			oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
 	}
-	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
+	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elements...)}}
 }
 
 // EmptyEitherSchema is a JSONSchema whose either-value has neither a Left schema
@@ -138,20 +138,20 @@ func EmptyEitherSchema() *oas3.JSONSchema[oas3.Referenceable] {
 
 // YAMLNode parses a YAML snippet and returns its root value node (the document
 // node's single content child), matching what schema fields expose.
-func YAMLNode(t TB, src string) *yaml.Node {
-	t.Helper()
+func YAMLNode(tb TB, src string) *yaml.Node {
+	tb.Helper()
 	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	require.Len(t, doc.Content, 1, "expected a single document node")
+	require.NoError(tb, yaml.Unmarshal([]byte(src), &doc))
+	require.Len(tb, doc.Content, 1, "expected a single document node")
 	return doc.Content[0]
 }
 
 // YAMLDocument parses src as a document tree and returns its document node, the
 // node a loader indexes and hands on.
-func YAMLDocument(t TB, src string) *yaml.Node {
-	t.Helper()
+func YAMLDocument(tb TB, src string) *yaml.Node {
+	tb.Helper()
 	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	require.NoError(tb, yaml.Unmarshal([]byte(src), &root))
 	return &root
 }
 
@@ -160,26 +160,26 @@ func YAMLDocument(t TB, src string) *yaml.Node {
 func ClearAnchors(root *yaml.Node) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
-		n := stack[len(stack)-1]
+		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		n.Anchor = ""
-		stack = append(stack, n.Content...)
+		node.Anchor = ""
+		stack = append(stack, node.Content...)
 	}
 }
 
 // SchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
 // boolean forms a bare *oas3.Schema cannot represent.
-func SchemaFromYAML(ctx context.Context, t TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
-	t.Helper()
+func SchemaFromYAML(ctx context.Context, tb TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
+	tb.Helper()
 	js := &oas3.JSONSchema[oas3.Referenceable]{}
 	valErrs, err := marshaller.Unmarshal(ctx, strings.NewReader(body), js)
-	require.NoError(t, err)
-	require.Empty(t, valErrs, "the fixture parses cleanly")
+	require.NoError(tb, err)
+	require.Empty(tb, valErrs, "the fixture parses cleanly")
 	return js
 }
 
-// StrNode builds a bare string-scalar yaml.Node.
-func StrNode(val string) *yaml.Node {
+// StringNode builds a bare string-scalar yaml.Node.
+func StringNode(val string) *yaml.Node {
 	return ScalarNode("!!str", val)
 }
 

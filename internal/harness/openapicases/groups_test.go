@@ -33,8 +33,8 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 
 	groups, err := openapicases.SuiteGroups()
 	require.NoError(t, err)
-	valid := slices.DeleteFunc(groups, func(g openapicases.Group) bool {
-		return !slices.ContainsFunc(g.Tests, func(t openapicases.Test) bool { return t.Valid })
+	valid := slices.DeleteFunc(groups, func(group openapicases.Group) bool {
+		return !slices.ContainsFunc(group.Tests, func(test openapicases.Test) bool { return test.Valid })
 	})
 	require.Len(t, axes[1].Values, len(valid))
 	assert.Contains(t, axes[1].Values,
@@ -42,21 +42,21 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 }
 
 func TestGroups_WritesNothingOutsideTheProduct(t *testing.T) {
-	c := openapicases.Groups()
-	past := len(c.Axes()[3].Values)
+	cases := openapicases.Groups()
+	past := len(cases.Axes()[3].Values)
 	for _, at := range [][]int{nil, {0, 0, 0}, {0, 0, 0, past}, {0, -1, 0, 0}, {2, 0, 0, 0}, {0, 0, 3, 0}} {
-		_, ok := c.Write(at)
+		_, ok := cases.Write(at)
 		assert.False(t, ok, "%v", at)
 	}
 }
 
 // groupAt returns the coordinates of the case of the group named name at the
 // position named position, at 3.1.0.
-func groupAt(t *testing.T, c harness.Cases, name, position string) []int {
+func groupAt(t *testing.T, cases harness.Cases, name, position string) []int {
 	t.Helper()
-	axes := c.Axes()
-	g := slices.IndexFunc(axes[1].Values, func(v harness.Value) bool { return v.Name == name })
-	p := slices.IndexFunc(axes[2].Values, func(v harness.Value) bool { return v.Name == position })
+	axes := cases.Axes()
+	g := slices.IndexFunc(axes[1].Values, func(value harness.Value) bool { return value.Name == name })
+	p := slices.IndexFunc(axes[2].Values, func(value harness.Value) bool { return value.Name == position })
 	require.True(t, g >= 0 && p >= 0, "%s at %s", name, position)
 	return []int{0, g, p, 0}
 }
@@ -66,8 +66,8 @@ func groupAt(t *testing.T, c harness.Cases, name, position string) []int {
 // the group's schema is read in 2020-12, the schema it serves is held at its
 // URI, and the case compiles under the default kind-inference policy.
 func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
-	c := openapicases.Groups()
-	doc, ok := c.Write(groupAt(t, c, "ref.json%2Fremote ref", "header"))
+	cases := openapicases.Groups()
+	doc, ok := cases.Write(groupAt(t, cases, "ref.json%2Fremote ref", "header"))
 	require.True(t, ok)
 	require.Len(t, doc.Sources, 3)
 	assert.Equal(t, "openapi.json", doc.Sources[0].Path)
@@ -82,7 +82,7 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 	assert.JSONEq(t, `{"type": "integer"}`, string(doc.Sources[2].Data))
 	assert.Equal(t, map[string]string{"allow-external-refs": "true"}, doc.Options)
 	assert.Equal(t, []harness.Instance{
-		{Node: "p/openapi/paths/~1c/get/responses/200/headers/H0", Valid: true, Name: "remote ref valid"},
+		{Node: "property/openapi/paths/~1c/get/responses/200/headers/H0", Valid: true, Name: "remote ref valid"},
 	}, doc.Instances)
 }
 
@@ -93,26 +93,26 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 // property position alone, so nothing else in the gate holds the other two
 // positions' nodes to the compiler.
 func TestGroups_NamesEachCarriersNode(t *testing.T) {
-	c := openapicases.Groups()
+	cases := openapicases.Groups()
 	for position, want := range map[string][]string{
-		"property": {"p/openapi/components/schemas/C/properties/t0", "p/openapi/components/schemas/C/properties/t1"},
-		"parameter": {"param/openapi/paths/~1c/get/parameters/q0/query",
-			"param/openapi/paths/~1c/get/parameters/q1/query"},
-		"header": {"p/openapi/paths/~1c/get/responses/200/headers/H0",
-			"p/openapi/paths/~1c/get/responses/200/headers/H1"},
+		"property": {"property/openapi/components/schemas/C/properties/t0", "property/openapi/components/schemas/C/properties/t1"},
+		"parameter": {"parameter/openapi/paths/~1c/get/parameters/q0/query",
+			"parameter/openapi/paths/~1c/get/parameters/q1/query"},
+		"header": {"property/openapi/paths/~1c/get/responses/200/headers/H0",
+			"property/openapi/paths/~1c/get/responses/200/headers/H1"},
 	} {
-		at := groupAt(t, c, "required.json%2Frequired properties whose names are Javascript object "+
+		at := groupAt(t, cases, "required.json%2Frequired properties whose names are Javascript object "+
 			"property names", position)
-		doc, ok := c.Write(at)
+		doc, ok := cases.Write(at)
 		require.True(t, ok)
 		require.Len(t, doc.Instances, 3, position)
 		assert.Equal(t, want, []string{doc.Instances[0].Node, doc.Instances[1].Node}, position)
 		assert.Equal(t, "ignores arrays", doc.Instances[0].Name)
 
-		res, ok := harness.CheckCase(t.Context(), c, at)
+		res, ok := harness.CheckCase(t.Context(), cases, at)
 		require.True(t, ok)
 		require.False(t, res.Faulted(), "%s: %s: %s", position, res.Outcome, res.Detail)
-		i := slices.IndexFunc(res.Verdicts, func(v harness.Verdict) bool { return v.Oracle == harness.OracleInstance })
+		i := slices.IndexFunc(res.Verdicts, func(verdict harness.Verdict) bool { return verdict.Oracle == harness.OracleInstance })
 		require.GreaterOrEqual(t, i, 0, position)
 		assert.True(t, res.Verdicts[i].Asked(), "%s: %s", position, res.Verdicts[i].Declined)
 	}

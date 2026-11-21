@@ -23,7 +23,7 @@ const (
 	searchPage    = `query: {type: string}, page: {type: integer}, per_page: {type: integer}`
 	okResult      = `"200": {description: ok, content: {application/json: {schema: {type: object, properties: {result: ` + stringList + `}}}}}`
 	postUndecided = "/paths/~1search/post"
-	searchRequest = "p/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties"
+	searchRequest = "property/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties"
 )
 
 // searchDoc is a document of one operation, search, of the method taking the
@@ -52,7 +52,7 @@ paths:
 // named for the cursor and not as the cursor itself.
 func TestInferWalks_ReadsAPostThatSearches(t *testing.T) {
 	t.Parallel()
-	q, r := searchRequest, bodyProps("search", "post")
+	q, r := searchRequest, bodyProperties("search", "post")
 	for name, tc := range map[string]struct {
 		src  string
 		want *ir.Pagination
@@ -60,18 +60,18 @@ func TestInferWalks_ReadsAPostThatSearches(t *testing.T) {
 		"a page number and a page size": {
 			searchDoc("post", "", searchPage, okResult),
 			&ir.Pagination{Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: inputPath("", q+"/page"),
-				InputLimit: inputPath("", q+"/per_page"), Items: propPath(r + "/result")}},
+				InputLimit: inputPath("", q+"/per_page"), Items: propertyPath(r + "/result")}},
 		"a cursor answered by a next cursor": {
 			searchDoc("post", "", `query: {type: string}, cursor: {type: string}`,
 				`"200": {description: ok, content: {application/json: {schema: {type: object, properties: {result: `+
 					stringList+`, next_cursor: {type: string}}}}}}`),
 			&ir.Pagination{Strategy: ir.PageStrategyCursor, Inferred: true, InputCursor: inputPath("", q+"/cursor"),
-				Items: propPath(r + "/result"), NextCursor: propPath(r + "/next_cursor"),
+				Items: propertyPath(r + "/result"), NextCursor: propertyPath(r + "/next_cursor"),
 				Stop: []ir.PageStop{ir.PageStopNoNext}}},
 		"a page number and a page size, the page a bare list": {
 			searchDoc("post", "", searchPage, `"200": {description: ok, content: {application/json: {schema: `+stringList+`}}}`),
 			&ir.Pagination{Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: inputPath("", q+"/page"),
-				InputLimit: inputPath("", q+"/per_page"), Items: propPath()}},
+				InputLimit: inputPath("", q+"/per_page"), Items: propertyPath()}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -79,9 +79,9 @@ func TestInferWalks_ReadsAPostThatSearches(t *testing.T) {
 				doc, diags := compile(t, src, openapi.Options{})
 				assert.Empty(t, diags)
 
-				op := openapitest.FindOp(t, doc, "search")
-				assert.Equal(t, tc.want, op.Pagination)
-				assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
+				operation := openapitest.FindOperation(t, doc, "search")
+				assert.Equal(t, tc.want, operation.Pagination)
+				assert.Equal(t, pagination.InferenceHeuristic, operation.Provenance.Inferred)
 			}
 		})
 	}
@@ -119,7 +119,7 @@ func TestInferWalks_LeavesAPostItCannotTellFromACreate(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, tc.src) {
 				doc, diags := compile(t, src, openapi.Options{})
-				assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+				assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
 				got := undecidedAt(diags, postUndecided)
 				require.Len(t, got, 1, "one finding at the operation: %v", diags)
 				assert.True(t, strings.HasPrefix(got[0], "no pagination is inferred: "), got[0])
@@ -164,7 +164,7 @@ func TestInferWalks_LeavesAPostItCannotTellFromACreate(t *testing.T) {
 		src := searchDoc("post", "", `query: {type: string}, offset: {type: integer}, limit: {type: integer}`, okResult)
 		for _, written := range inEitherOrder(t, src) {
 			doc, diags := compile(t, written, openapi.Options{})
-			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+			assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
 			assert.Empty(t, diags)
 		}
 	})
@@ -181,9 +181,9 @@ func TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compile(t, searchDoc(method, "", searchPage, okResult), openapi.Options{})
-			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
-			assert.Empty(t, slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
-				return method == "delete" && d.Code == "openapi/body-without-semantics"
+			assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
+			assert.Empty(t, slices.DeleteFunc(diags, func(diagnostic ir.Diagnostic) bool {
+				return method == "delete" && diagnostic.Code == "openapi/body-without-semantics"
 			}))
 		})
 	}
@@ -220,33 +220,33 @@ paths:
 `
 	for name, tc := range map[string]struct{ src, param, schema string }{
 		"a deepObject parameter": {listing(`[`+objectParam("paging", members)+`]`, list),
-			"param/openapi/paths/~1things/get/parameters/paging/query",
-			"p/openapi/paths/~1things/get/parameters/0/schema/properties/"},
+			"parameter/openapi/paths/~1things/get/parameters/paging/query",
+			"property/openapi/paths/~1things/get/parameters/0/schema/properties/"},
 		"a querystring parameter": {querystring,
-			"param/openapi/paths/~1things/get/parameters/paging/querystring",
-			"p/openapi/paths/~1things/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/"},
+			"parameter/openapi/paths/~1things/get/parameters/paging/querystring",
+			"property/openapi/paths/~1things/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, tc.src) {
-				op, _, diags := listOp(t, src, openapi.Options{})
+				operation, _, diags := listOperation(t, src, openapi.Options{})
 				assert.Empty(t, diags)
 				assert.Equal(t, &ir.Pagination{
 					Strategy:    ir.PageStrategyPage,
 					Inferred:    true,
 					InputCursor: inputPath(tc.param, tc.schema+"page"),
 					InputLimit:  inputPath(tc.param, tc.schema+"per_page"),
-					Items:       propPath(bodyProps("things", "get") + "/items"),
-				}, op.Pagination)
+					Items:       propertyPath(bodyProperties("things", "get") + "/items"),
+				}, operation.Pagination)
 			}
 		})
 	}
 
 	t.Run("a parameter whose members and name name no continuation", func(t *testing.T) {
 		t.Parallel()
-		op, _, diags := listOp(t, listing(`[`+objectParam("filter", `colour: {type: string}, size: {type: string}`)+`]`, list),
+		operation, _, diags := listOperation(t, listing(`[`+objectParam("filter", `colour: {type: string}, size: {type: string}`)+`]`, list),
 			openapi.Options{})
-		assert.Nil(t, op.Pagination)
+		assert.Nil(t, operation.Pagination)
 		assert.Empty(t, diags)
 	})
 }
@@ -279,20 +279,20 @@ paths:
 		doc, diags := compile(t, src, openapi.Options{})
 		assert.Empty(t, diags)
 
-		param := "param/openapi/paths/~1articles/get/parameters/page/query"
-		schema := "p/openapi/paths/~1articles/get/parameters/0/schema/properties/"
+		param := "parameter/openapi/paths/~1articles/get/parameters/page/query"
+		schema := "property/openapi/paths/~1articles/get/parameters/0/schema/properties/"
 		assert.Equal(t, &ir.Pagination{
 			Strategy:    ir.PageStrategyOffset,
 			Inferred:    true,
 			InputCursor: inputPath(param, schema+"offset"),
 			InputLimit:  inputPath(param, schema+"limit"),
-			Items: propPath("p/openapi/paths/~1articles/get/responses/200/content/application~1vnd.api+json/" +
+			Items: propertyPath("property/openapi/paths/~1articles/get/responses/200/content/application~1vnd.api+json/" +
 				"schema/properties/data"),
-		}, openapitest.FindOp(t, doc, "listArticles").Pagination)
+		}, openapitest.FindOperation(t, doc, "listArticles").Pagination)
 	}
 
 	doc, diags := compile(t, article(`filter: {type: string}, sort: {type: string}`), openapi.Options{})
-	assert.Nil(t, openapitest.FindOp(t, doc, "listArticles").Pagination)
+	assert.Nil(t, openapitest.FindOperation(t, doc, "listArticles").Pagination)
 	assert.Equal(t, []string{`no pagination is inferred: query parameter "page" names where a walk continues, and ` +
 		`its type is no plain number or string`}, undecided(diags))
 }
@@ -306,7 +306,7 @@ func TestInferWalks_ReadsAPageSizeAnObjectParameterHolds(t *testing.T) {
 	t.Parallel()
 	list := `{type: object, properties: {items: ` + stringList + `, next_cursor: {type: string}}}`
 	cursor := `{name: cursor, in: query, schema: {type: string}}`
-	r := bodyProps("things", "get")
+	r := bodyProperties("things", "get")
 	for _, object := range []string{"filter", "page"} {
 		for name, tc := range map[string]struct {
 			params string
@@ -318,18 +318,18 @@ func TestInferWalks_ReadsAPageSizeAnObjectParameterHolds(t *testing.T) {
 			t.Run(object+", "+name, func(t *testing.T) {
 				t.Parallel()
 				for _, src := range inEitherOrder(t, listing(`[`+tc.params+`]`, list)) {
-					op, _, diags := listOp(t, src, openapi.Options{})
+					operation, _, diags := listOperation(t, src, openapi.Options{})
 					assert.Empty(t, diags)
 					assert.Equal(t, &ir.Pagination{
 						Strategy:    ir.PageStrategyCursor,
 						Inferred:    true,
-						InputCursor: inputPath("param/openapi/paths/~1things/get/parameters/cursor/query"),
-						InputLimit: inputPath("param/openapi/paths/~1things/get/parameters/"+object+"/query",
-							fmt.Sprintf("p/openapi/paths/~1things/get/parameters/%d/schema/properties/limit", tc.index)),
-						Items:      propPath(r + "/items"),
-						NextCursor: propPath(r + "/next_cursor"),
+						InputCursor: inputPath("parameter/openapi/paths/~1things/get/parameters/cursor/query"),
+						InputLimit: inputPath("parameter/openapi/paths/~1things/get/parameters/"+object+"/query",
+							fmt.Sprintf("property/openapi/paths/~1things/get/parameters/%d/schema/properties/limit", tc.index)),
+						Items:      propertyPath(r + "/items"),
+						NextCursor: propertyPath(r + "/next_cursor"),
 						Stop:       []ir.PageStop{ir.PageStopNoNext},
-					}, op.Pagination)
+					}, operation.Pagination)
 				}
 			})
 		}
@@ -356,8 +356,8 @@ func TestInferWalks_TwoPlacesAreUndecided(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			for _, src := range inEitherOrder(t, listing(`[`+tc.params+`]`, list)) {
-				op, _, diags := listOp(t, src, openapi.Options{})
-				assert.Nil(t, op.Pagination)
+				operation, _, diags := listOperation(t, src, openapi.Options{})
+				assert.Nil(t, operation.Pagination)
 				assert.Equal(t, []string{"no pagination is inferred: " + tc.want}, undecided(diags))
 			}
 		})
@@ -366,8 +366,8 @@ func TestInferWalks_TwoPlacesAreUndecided(t *testing.T) {
 	t.Run("a page size named twice", func(t *testing.T) {
 		t.Parallel()
 		src := listing(`[`+object+`, {name: limit, in: query, schema: {type: integer}}]`, list)
-		op, _, diags := listOp(t, src, openapi.Options{})
-		assert.Nil(t, op.Pagination)
+		operation, _, diags := listOperation(t, src, openapi.Options{})
+		assert.Nil(t, operation.Pagination)
 		got := undecided(diags)
 		require.Len(t, got, 1)
 		assert.Contains(t, got[0], `member "per_page" of query parameter "paging"`)
@@ -379,7 +379,7 @@ func TestInferWalks_TwoPlacesAreUndecided(t *testing.T) {
 		src := searchDoc("post", `{name: cursor, in: query, schema: {type: string}}`, searchPage, okResult)
 		for _, written := range inEitherOrder(t, src) {
 			doc, diags := compile(t, written, openapi.Options{})
-			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+			assert.Nil(t, openapitest.FindOperation(t, doc, "search").Pagination)
 			got := undecidedAt(diags, postUndecided)
 			require.Len(t, got, 1)
 			assert.Contains(t, got[0], `query parameter "cursor"`)

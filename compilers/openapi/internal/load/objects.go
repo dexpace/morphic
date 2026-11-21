@@ -13,15 +13,15 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // builtObject is an object landing no object could be built for, and why.
 type builtObject struct {
-	landing bind.ObjectLanding
+	landing reftable.ObjectLanding
 	err     error
 }
 
@@ -33,28 +33,28 @@ var errNothingThere = errors.New("the document holds nothing there")
 // reference-or-inline wrappers or a ReferencedMediaType, stands for, and false
 // for any other value, a schema included. It is the one place the load phase
 // lists the wrappers.
-func refKindOf(model any) (bind.RefKind, bool) {
+func refKindOf(model any) (reftable.RefKind, bool) {
 	switch model.(type) {
 	case *soa.ReferencedPathItem:
-		return bind.RefPathItem, true
+		return reftable.RefPathItem, true
 	case *soa.ReferencedParameter:
-		return bind.RefParameter, true
+		return reftable.RefParameter, true
 	case *soa.ReferencedHeader:
-		return bind.RefHeader, true
+		return reftable.RefHeader, true
 	case *soa.ReferencedRequestBody:
-		return bind.RefRequestBody, true
+		return reftable.RefRequestBody, true
 	case *soa.ReferencedResponse:
-		return bind.RefResponse, true
+		return reftable.RefResponse, true
 	case *soa.ReferencedCallback:
-		return bind.RefCallback, true
+		return reftable.RefCallback, true
 	case *soa.ReferencedExample:
-		return bind.RefExample, true
+		return reftable.RefExample, true
 	case *soa.ReferencedLink:
-		return bind.RefLink, true
+		return reftable.RefLink, true
 	case *soa.ReferencedSecurityScheme:
-		return bind.RefSecurityScheme, true
+		return reftable.RefSecurityScheme, true
 	case *refscope.ReferencedMediaType:
-		return bind.RefMediaType, true
+		return reftable.RefMediaType, true
 	default:
 		return 0, false
 	}
@@ -68,39 +68,39 @@ func refKindOf(model any) (bind.RefKind, bool) {
 // read (indexWalk), noting in faults each media type the parser faulted on. It
 // returns each position it could build nothing for, with why, and stops once
 // ctx is done.
-func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, media MediaTypes, faults mediaFaults,
+func buildObjects(ctx context.Context, bd *typed.Builder, table *reftable.ReferenceTargetTable, media MediaTypes, faults mediaFaults,
 	sibs *Siblings,
 ) []builtObject {
-	o := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
+	objectBuildValue := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
 		tried: map[objectSite]bool{}, sibs: sibs}
-	for _, l := range table.ObjectLandings() {
-		if !o.build(ctx, l) {
-			return o.failed
+	for _, objectLanding := range table.ObjectLandings() {
+		if !objectBuildValue.build(ctx, objectLanding) {
+			return objectBuildValue.failed
 		}
 	}
-	for _, r := range table.References() {
-		var at []bind.Position
-		if !r.Key {
-			at = append(at, r.Site)
+	for _, reference := range table.References() {
+		var at []reftable.DocumentPointer
+		if !reference.IsSecurityRequirementKey {
+			at = append(at, reference.Site)
 		}
-		if r.Chain.Status == bind.Resolved {
-			at = append(at, r.Chain.End)
+		if reference.Chain.Status == reftable.Resolved {
+			at = append(at, reference.Chain.End)
 		}
-		for _, p := range at {
-			if !o.build(ctx, bind.ObjectLanding{At: p, Kind: r.Kind, Name: table.Document(p.Doc).Name, Site: r.Site,
+		for _, documentPointer := range at {
+			if !objectBuildValue.build(ctx, reftable.ObjectLanding{At: documentPointer, Kind: reference.Kind, Name: table.Document(documentPointer.Doc).Name, Site: reference.Site,
 				Reached: true}) {
-				return o.failed
+				return objectBuildValue.failed
 			}
 		}
 	}
-	return o.failed
+	return objectBuildValue.failed
 }
 
 // objectBuild is what buildObjects reads and records, and the positions it
 // could build nothing for.
 type objectBuild struct {
 	bd     *typed.Builder
-	table  *bind.Table
+	table  *reftable.ReferenceTargetTable
 	media  MediaTypes
 	faults mediaFaults
 	view   *nodeview.View
@@ -114,44 +114,45 @@ type objectBuild struct {
 
 // objectSite is a position read as a kind of object.
 type objectSite struct {
-	at   bind.Position
-	kind bind.RefKind
+	at   reftable.DocumentPointer
+	kind reftable.RefKind
 }
 
-// build builds the object l stands for, unless one is held there or a build
-// was tried there before, and reports whether the building goes on: false
-// once ctx is done.
-func (o *objectBuild) build(ctx context.Context, l bind.ObjectLanding) bool {
-	key := objectSite{at: l.At, kind: l.Kind}
-	if o.tried[key] || o.bd.HoldsObject(l.At, l.Kind) {
+// build builds the object objectLanding stands for, unless one is held there or
+// a build was tried there before, and reports whether the building goes on:
+// false once ctx is done.
+func (o *objectBuild) build(ctx context.Context, objectLanding reftable.ObjectLanding) bool {
+	key := objectSite{at: objectLanding.At, kind: objectLanding.Kind}
+	if o.tried[key] || o.bd.HoldsObject(objectLanding.At, objectLanding.Kind) {
 		return true
 	}
 	if ctx.Err() != nil {
 		return false
 	}
 	o.tried[key] = true
-	model, items, err := decodeObject(ctx, l.Kind, writtenIn(o.view, o.table, l.At))
+	model, items, err := decodeObject(ctx, objectLanding.Kind, writtenIn(o.view, o.table, objectLanding.At))
 	if err != nil {
-		o.failed = append(o.failed, builtObject{landing: l, err: err})
+		o.failed = append(o.failed, builtObject{landing: objectLanding, err: err})
 		return true
 	}
-	o.bd.Object(model, l.Kind, l.At)
-	indexWalk(o.bd, o.media.within(ctx, items), l.At, o.faults)
-	o.besideRefs(ctx, l, items)
+	o.bd.Object(model, objectLanding.Kind, objectLanding.At)
+	indexWalk(o.bd, o.media.within(ctx, items), objectLanding.At, o.faults)
+	o.besideRefs(ctx, objectLanding, items)
 	return true
 }
 
-// besideRefs models the fields written beside each path item $ref of items,
-// the walk of the object built for l, as the source's own are (Siblings), and
-// indexes each model's walk where it is written, in l's document. A model the
-// parser faults on is reported as the object landing's failure, once.
-func (o *objectBuild) besideRefs(ctx context.Context, l bind.ObjectLanding, items iter.Seq[soa.WalkItem]) {
-	first, err := o.sibs.addLanding(ctx, items, l.At.Pointer)
+// besideRefs models the fields written beside each path item $ref of items, the
+// walk of the object built for objectLanding, as the source's own are
+// (Siblings), and indexes each model's walk where it is written, in
+// objectLanding's document. A model the parser faults on is reported as the
+// object landing's failure, once.
+func (o *objectBuild) besideRefs(ctx context.Context, objectLanding reftable.ObjectLanding, items iter.Seq[soa.WalkItem]) {
+	first, err := o.sibs.addLanding(ctx, items, objectLanding.At.Pointer)
 	for i := first; i < len(o.sibs.list); i++ {
-		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), bind.Position{Doc: l.At.Doc}, o.faults)
+		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), reftable.DocumentPointer{Doc: objectLanding.At.Doc}, o.faults)
 	}
 	if err != nil {
-		o.failed = append(o.failed, builtObject{landing: l,
+		o.failed = append(o.failed, builtObject{landing: objectLanding,
 			err: fmt.Errorf("the fields written beside its $ref could not be read: %w", err)})
 	}
 }
@@ -162,37 +163,37 @@ func (o *objectBuild) besideRefs(ctx context.Context, l bind.ObjectLanding, item
 // and the walk over it, started at its own kind. What decoding finds wrong with
 // the object is not kept: the load phase holds it to the rule table
 // (judgeReached).
-func decodeObject(ctx context.Context, kind bind.RefKind, node *yaml.Node,
+func decodeObject(ctx context.Context, kind reftable.RefKind, node *yaml.Node,
 ) (any, iter.Seq[soa.WalkItem], error) {
 	if node == nil {
 		return nil, nil, errNothingThere
 	}
 	switch kind {
-	case bind.RefPathItem:
+	case reftable.RefPathItem:
 		m := &soa.ReferencedPathItem{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefParameter:
+	case reftable.RefParameter:
 		m := &soa.ReferencedParameter{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefHeader:
+	case reftable.RefHeader:
 		m := &soa.ReferencedHeader{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefRequestBody:
+	case reftable.RefRequestBody:
 		m := &soa.ReferencedRequestBody{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefResponse:
+	case reftable.RefResponse:
 		m := &soa.ReferencedResponse{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefCallback:
+	case reftable.RefCallback:
 		m := &soa.ReferencedCallback{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefExample:
+	case reftable.RefExample:
 		m := &soa.ReferencedExample{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefLink:
+	case reftable.RefLink:
 		m := &soa.ReferencedLink{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
-	case bind.RefSecurityScheme:
+	case reftable.RefSecurityScheme:
 		m := &soa.ReferencedSecurityScheme{}
 		return m, walk(ctx, m), decoded(ctx, node, m)
 	default:

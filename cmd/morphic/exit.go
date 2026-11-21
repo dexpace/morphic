@@ -69,10 +69,10 @@ func asMisuse(cmd *cobra.Command, err error) error {
 	return &usageError{path: cmd.CommandPath(), err: err}
 }
 
-// misuse reports a misuse of cmd. msg is a finished string, not a format, so a
-// value echoed back from the user cannot be read as a verb.
-func misuse(cmd *cobra.Command, msg string) error {
-	return asMisuse(cmd, errors.New(msg))
+// misuse reports a misuse of cmd. message is a finished string, not a format,
+// so a value echoed back from the user cannot be read as a verb.
+func misuse(cmd *cobra.Command, message string) error {
+	return asMisuse(cmd, errors.New(message))
 }
 
 // finished reports whether err, what a command returned, says the run reached
@@ -131,8 +131,8 @@ func reportViolations(w io.Writer, err error) {
 		return
 	}
 	shown := min(len(verr.Violations), maxViolationLines)
-	for _, v := range verr.Violations[:shown] {
-		emitf(w, "  %s at %.*q: %.*s\n", v.Code, maxViolationPath, v.Path, maxViolationText, v.Message)
+	for _, violation := range verr.Violations[:shown] {
+		emitf(w, "  %s at %.*q: %.*s\n", violation.Code, maxViolationPath, violation.Path, maxViolationText, violation.Message)
 	}
 	if more := len(verr.Violations) - shown; more > 0 {
 		emitf(w, "  and %d more\n", more)

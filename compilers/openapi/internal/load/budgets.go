@@ -6,7 +6,7 @@ package load
 import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +45,7 @@ func ReadLimit(limit budget.Limit) int {
 }
 
 // maxTreeNodes bounds every walk of a tree the load phase holds. The pre-parse
-// refusals refuse a tree past sourceindex.MaxIndexedNodes before any of these
-// walks runs over it, so the bound, one more for the document node, cuts no
-// tree they are handed.
-const maxTreeNodes = sourceindex.MaxIndexedNodes + 1
+// refusals refuse a tree past sourcetreestats.MaxIndexedNodes before any of
+// these walks runs over it, so the bound, one more for the document node, cuts
+// no tree they are handed.
+const maxTreeNodes = sourcetreestats.MaxIndexedNodes + 1

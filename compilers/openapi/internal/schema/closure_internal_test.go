@@ -48,16 +48,16 @@ func TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    U: {type: object}\n    M: "+tc.m+"\n"))
-			decl, ok := l.Doc.Components.Schemas.Get("M")
+			lowerer, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    U: {type: object}\n    M: "+tc.m+"\n"))
+			decl, ok := lowerer.Doc.Components.Schemas.Get("M")
 			require.True(t, ok)
-			s := l.Ctx.Statements().Of(decl).Schema
+			schema := lowerer.Ctx.Statements().Of(decl).Schema
 			const at = jsontext.Pointer("/components/schemas/M")
-			got := closerOf(l.Ctx, s, allOfEntries(l.Ctx, s, at))
+			got := closerOf(lowerer.Ctx, schema, allOfEntries(lowerer.Ctx, schema, at))
 			switch tc.want {
 			case "own":
 				assert.True(t, got.own)
-				assert.Same(t, s, got.schema)
+				assert.Same(t, schema, got.schema)
 				assert.Equal(t, at, got.at)
 				assert.False(t, got.entryAt(at), "the position is no entry")
 			case "":
@@ -90,11 +90,11 @@ func TestKeepUnclosing_AClosureBesideAnEntrysMembersIsKeptOnce(t *testing.T) {
 			t.Parallel()
 			doc, diags := LowerSpec(t, openapitest.ComponentSpec("    M: {allOf: "+allOf+", additionalProperties: {type: string}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+			model, ok := doc.Types["type/openapi/components/schemas/M"].(*ir.Model)
 			require.True(t, ok, "M is a model")
-			assert.Nil(t, m.AdditionalProps, "the model takes no catch-all")
-			kept, ok := m.Unmodeled["openapi:additionalProperties"]
-			require.True(t, ok, "the keyword is kept; got %+v", m.Unmodeled)
+			assert.Nil(t, model.AdditionalProperties, "the model takes no catch-all")
+			kept, ok := model.Unmodeled["openapi:additionalProperties"]
+			require.True(t, ok, "the keyword is kept; got %+v", model.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/M/additionalProperties"), kept.Provenance.Pointer)
 			assert.Len(t, openapitest.PointersOf(diags, diag.DegradedConstruct), 1, "one info, at the position")

@@ -11,11 +11,11 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -29,19 +29,19 @@ import (
 // whose $ref resolves to nothing, reported at its own components pointer (see
 // unresolvableScheme), and one naming no mechanism, reported the same way (see
 // noMechanismDiag).
-func LowerSecuritySchemes(c service.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+func LowerSecuritySchemes(serviceContext service.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	declared := map[ir.AuthID]ir.AuthScheme{}
 	var diags []ir.Diagnostic
-	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
+	for name, rs := range serviceContext.Doc.Components.GetSecuritySchemes().All() {
 		if namesNothing(rs) {
 			continue
 		}
-		scheme, schemeDiags := lowerEntry(c, name, rs)
+		scheme, schemeDiags := lowerEntry(serviceContext, name, rs)
 		diags = append(diags, schemeDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
-		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](c.Bindings(), rs, scheme.Docs)
-		beside, besideDiags := service.Beside[soa.SecurityScheme](c, rs, ids.Ptr("components", "securitySchemes", name), true)
+		scheme.Docs = componentlookup.UseDocs[soa.SecurityScheme](serviceContext.Bindings(), rs, scheme.Docs)
+		beside, besideDiags := service.Beside[soa.SecurityScheme](serviceContext, rs, ids.Ptr("components", "securitySchemes", name), true)
 		scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, beside)
 		diags = append(diags, besideDiags...)
 		declared[scheme.ID] = scheme
@@ -57,13 +57,13 @@ func namesNothing(rs *soa.ReferencedSecurityScheme) bool {
 }
 
 // lowerEntry lowers the securitySchemes entry called name, as written in rs.
-func lowerEntry(c service.Ctx, name string, rs *soa.ReferencedSecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
+func lowerEntry(serviceContext service.Ctx, name string, rs *soa.ReferencedSecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
 	entry := ids.Ptr("components", "securitySchemes", name)
-	ss, dc, decl := service.Declared[soa.SecurityScheme](c, rs, entry)
+	ss, dc, decl := service.Declared[soa.SecurityScheme](serviceContext, rs, entry)
 	if ss == nil {
-		return unresolvableScheme(c, name, rs, entry)
+		return unresolvableScheme(serviceContext, name, rs, entry)
 	}
-	return lowerSecurityScheme(c, dc, name, ss, entry, decl)
+	return lowerSecurityScheme(serviceContext, dc, name, ss, entry, decl)
 }
 
 // unresolvableScheme lowers a securitySchemes entry that resolved to no object:
@@ -72,15 +72,15 @@ func lowerEntry(c service.Ctx, name string, rs *soa.ReferencedSecurityScheme) (i
 // error at the $ref is the one report of it (docs/compilers/openapi.md#references),
 // so keeping it announces nothing. rs is the entry as written; a nil rs is
 // unreachable from a parsed document, so that guard is for a hand-built node.
-func unresolvableScheme(c service.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
+func unresolvableScheme(serviceContext service.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
-	scheme := unresolvedScheme(ids.UnresolvedAuth(name), name, c.Place().At(entry))
+	scheme := unresolvedScheme(ids.UnresolvedAuth(name), name, serviceContext.Place().At(entry))
 	if rs == nil {
 		return scheme, nil
 	}
 	scheme.Docs = docsBeside(rs)
 	_, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:$ref", rs.GetCore().Reference.ValueNode,
-		ir.ReasonDegradedLowering, c.Place().At(entry+ids.Ptr("$ref")))
+		ir.ReasonDegradedLowering, serviceContext.Place().At(entry+ids.Ptr("$ref")))
 	return scheme, keptDiags
 }
 
@@ -108,14 +108,14 @@ func docsBeside(rs *soa.ReferencedSecurityScheme) ir.Docs {
 // since aliases of one declaration are separate schemes and irverify holds an
 // AuthID to agree with its provenance path. A `$ref` entry holds only the
 // reference, so `<entry>/in` names a position no document holds.
-func lowerSecurityScheme(c, dc service.Ctx, name string, ss *soa.SecurityScheme,
+func lowerSecurityScheme(serviceContext, dc service.Ctx, name string, ss *soa.SecurityScheme,
 	entry, decl jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       ir.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: c.Place().At(entry),
+		Provenance: serviceContext.Place().At(entry),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
@@ -123,7 +123,7 @@ func lowerSecurityScheme(c, dc service.Ctx, name string, ss *soa.SecurityScheme,
 	var diags []ir.Diagnostic
 	if missing, named := fillSchemeKind(&scheme, ss); !named {
 		scheme.ID, scheme.Kind = ids.UnresolvedAuth(name), ir.AuthKindUnresolved
-		diags = append(diags, noMechanismDiag(c, name, missing, entry))
+		diags = append(diags, noMechanismDiag(serviceContext, name, missing, entry))
 	}
 	if tokenless(scheme) && !flowsMissing(ss) {
 		// Reported rather than refused; see oauthNoFlowDiag.
@@ -138,7 +138,7 @@ func lowerSecurityScheme(c, dc service.Ctx, name string, ss *soa.SecurityScheme,
 	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.Place(), decl)...)
 	// After the extensions, whose entries are what a promotion reads. A statement
 	// of its own, since it writes the provenance of the scheme returned.
-	diags = append(diags, c.Promoter().Deprecation(scheme.Unmodeled, promotion.Referent{}, &scheme.Deprecation, &scheme.Provenance)...)
+	diags = append(diags, serviceContext.Promoter().Deprecation(scheme.Unmodeled, promotion.Referent{}, &scheme.Deprecation, &scheme.Provenance)...)
 	return scheme, diags
 }
 
@@ -151,19 +151,19 @@ func lowerSecurityScheme(c, dc service.Ctx, name string, ss *soa.SecurityScheme,
 // Only oauth2 reads inside `flows`: on any other type the whole node is kept
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
-func applySchemeAnnotations(c service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
-	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.Place(), decl)
+func applySchemeAnnotations(serviceContext service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), serviceContext.Place(), decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
 		return diags
 	}
 	flows := ss.GetFlows()
 	flowsPtr := decl + ids.Ptr("flows")
-	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.Place(), flowsPtr, "flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), serviceContext.Place(), flowsPtr, "flows")
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
 	diags = append(diags, flowsDiags...)
-	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.Place(), flowsPtr, "flows")...)
-	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, serviceContext.Place(), flowsPtr, "flows")...)
+	return append(diags, applyFlowAnnotations(serviceContext, scheme.Flows, flows, flowsPtr)...)
 }
 
 // noMechanismDiag reports a securitySchemes entry that omits missing, the field
@@ -175,11 +175,11 @@ func applySchemeAnnotations(c service.Ctx, scheme *ir.AuthScheme, ss *soa.Securi
 // kind that says the compiler holds no mechanism, with what it wrote kept beside
 // that, and a requirement naming it stands. An error: what the entry means is
 // missing, and OpenAPI requires both fields.
-func noMechanismDiag(c service.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
+func noMechanismDiag(serviceContext service.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
 	// "has no", not "declares no": a $ref entry declares only the reference, yet
 	// alias and target are each reported at their own entry, so the wording must
 	// hold for both.
-	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
+	return serviceContext.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"it is kept without one, and every requirement naming it is kept", name, missing)
 }
@@ -293,7 +293,7 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 // nothing; an explicit `in: ""` is recorded as written.
 //
 // decl is where the fields are written, the declaration for a $ref entry (#107).
-func preserveUnreadFields(c service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
+func preserveUnreadFields(serviceContext service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
 	decl jsontext.Pointer,
 ) []ir.Diagnostic {
 	unresolved := scheme.Kind == ir.AuthKindUnresolved
@@ -308,17 +308,17 @@ func preserveUnreadFields(c service.Ctx, scheme *ir.AuthScheme, ss *soa.Security
 		}
 		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
-			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.Place().At(at))
+			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, serviceContext.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
 		if unresolved {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"security scheme %s belongs to no mechanism the entry names; kept verbatim under Unmodeled", field))
 			continue
 		}
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"security scheme %s is not defined by type %q; kept verbatim under Unmodeled",
 			field, ss.GetType()))
 	}

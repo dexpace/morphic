@@ -73,11 +73,11 @@ func TestCompile_ALongRefChainCompiles(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseVerified(t, parameterChain(n))
 			assert.Empty(t, diags)
-			ops := allOperations(doc)
-			require.Len(t, ops, n+1)
-			for _, op := range ops {
-				require.Len(t, op.Params, 1, "%s", op.ID)
-				assert.Equal(t, "q", op.Params[0].Name.Source)
+			operations := allOperations(doc)
+			require.Len(t, operations, n+1)
+			for _, operation := range operations {
+				require.Len(t, operation.Params, 1, "%s", operation.ID)
+				assert.Equal(t, "q", operation.Params[0].Name.Source)
 			}
 		})
 	}

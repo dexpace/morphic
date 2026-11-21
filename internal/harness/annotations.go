@@ -113,8 +113,8 @@ func Cells() []Cell {
 	all, kinds := Annotations(), SiteKinds()
 	out := make([]Cell, 0, len(all)*len(kinds))
 	for _, a := range all {
-		for _, k := range kinds {
-			out = append(out, Cell{Annotation: a, SiteKind: k})
+		for _, siteKind := range kinds {
+			out = append(out, Cell{Annotation: a, SiteKind: siteKind})
 		}
 	}
 	return out
@@ -125,13 +125,13 @@ func Cells() []Cell {
 // cannot accidentally satisfy annotation retention with a typo.
 func MissingCells(covered []Cell) []Cell {
 	have := make(map[Cell]bool, len(covered))
-	for _, c := range covered {
-		have[c] = true
+	for _, cell := range covered {
+		have[cell] = true
 	}
 	var out []Cell
-	for _, c := range Cells() {
-		if !have[c] {
-			out = append(out, c)
+	for _, cell := range Cells() {
+		if !have[cell] {
+			out = append(out, cell)
 		}
 	}
 	return out

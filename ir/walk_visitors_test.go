@@ -57,15 +57,15 @@ func pruneOneIn(n uint32, salt string) func(string) bool {
 func sharedAndAlone(root any, rules []func(string) bool) (shared, alone []*recorder, sharedCut, aloneCut bool) {
 	visitors := make([]ir.Visitor, len(rules))
 	for i, rule := range rules {
-		r := &recorder{prune: rule}
-		shared = append(shared, r)
-		visitors[i] = r
+		recorderValue := &recorder{prune: rule}
+		shared = append(shared, recorderValue)
+		visitors[i] = recorderValue
 	}
-	sharedCut = ir.WalkValues(root, "doc", visitors...)
+	sharedCut = ir.WalkValues(root, "document", visitors...)
 	for _, rule := range rules {
-		r := &recorder{prune: rule}
-		alone = append(alone, r)
-		aloneCut = ir.WalkValues(root, "doc", r) || aloneCut
+		recorderValue := &recorder{prune: rule}
+		alone = append(alone, recorderValue)
+		aloneCut = ir.WalkValues(root, "document", recorderValue) || aloneCut
 	}
 	return shared, alone, sharedCut, aloneCut
 }
@@ -87,9 +87,9 @@ func TestWalkValues_VisitorsShareOneTraversal(t *testing.T) {
 	t.Parallel()
 	var log []string
 	first, second := &recorder{name: "first", log: &log}, &recorder{name: "second", log: &log}
-	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{"t/x/M": &ir.Model{ID: "t/x/M"}}}
+	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{"type/x/M": &ir.Model{ID: "type/x/M"}}}
 
-	ir.WalkValues(doc, "doc", first, second)
+	ir.WalkValues(doc, "document", first, second)
 	require.Greater(t, len(log), 4, "the walk must reach more than the root")
 	for i := 0; i < len(log); i += 2 {
 		assert.Equal(t, "first "+first.paths[i/2], log[i])
@@ -99,19 +99,20 @@ func TestWalkValues_VisitorsShareOneTraversal(t *testing.T) {
 
 // TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere holds the walk
 // to reading a pointer from each holder for each visitor. Here one pointer is
-// held at doc.A and at doc.B; the first visitor prunes doc.A, so it meets the
-// pointer at doc.B alone, and the second, which prunes nothing, meets it at both.
+// held at document.A and at document.B; the first visitor prunes document.A, so
+// it meets the pointer at document.B alone, and the second, which prunes
+// nothing, meets it at both.
 func TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere(t *testing.T) {
 	t.Parallel()
 	shared := &ptrNode{}
 	root := struct{ A, B *ptrNode }{A: shared, B: shared}
-	rules := []func(string) bool{func(path string) bool { return path == "doc.A" }, nil}
+	rules := []func(string) bool{func(path string) bool { return path == "document.A" }, nil}
 
 	got, want, _, _ := sharedAndAlone(root, rules)
-	assert.Contains(t, got[0].paths, "doc.B.Next", "the first visitor meets the pointer where it alone enters it")
-	assert.NotContains(t, got[0].paths, "doc.A.Next", "and does not enter the holder it pruned")
-	assert.Contains(t, got[1].paths, "doc.A.Next", "the second meets the pointer at the first holder")
-	assert.Contains(t, got[1].paths, "doc.B.Next", "and again at the second, which the encoding writes too")
+	assert.Contains(t, got[0].paths, "document.B.Next", "the first visitor meets the pointer where it alone enters it")
+	assert.NotContains(t, got[0].paths, "document.A.Next", "and does not enter the holder it pruned")
+	assert.Contains(t, got[1].paths, "document.A.Next", "the second meets the pointer at the first holder")
+	assert.Contains(t, got[1].paths, "document.B.Next", "and again at the second, which the encoding writes too")
 	assertSameWalks(t, got, want, root)
 }
 
@@ -128,7 +129,7 @@ func TestWalkValues_EachVisitorSeesTheWalkItWouldSeeAlone(t *testing.T) {
 	for range 400 {
 		nodes := randomGraph(r)
 		values := buildGraph(nodes)
-		model := &ir.Model{ID: "t/x/M"}
+		model := &ir.Model{ID: "type/x/M"}
 		for i := range values {
 			model.Examples = append(model.Examples, ir.Example{Value: &values[i]})
 		}
@@ -153,8 +154,8 @@ func TestWalkValues_TruncationIsAnyVisitorsWalk(t *testing.T) {
 	stops := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return false })
 	walks := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 
-	assert.False(t, ir.WalkValues(deep, "doc", stops), "a visitor that prunes at the root reaches no cap")
-	assert.True(t, ir.WalkValues(deep, "doc", stops, walks), "one visitor reaching the cap truncates the walk")
+	assert.False(t, ir.WalkValues(deep, "document", stops), "a visitor that prunes at the root reaches no cap")
+	assert.True(t, ir.WalkValues(deep, "document", stops, walks), "one visitor reaching the cap truncates the walk")
 }
 
 // TestWalkValues_MoreVisitorsThanOneTraversalCarries holds the walk to its claim
@@ -197,9 +198,9 @@ func TestWalkValues_TruncationReachesPastOneTraversal(t *testing.T) {
 		}
 		return visitors
 	}
-	assert.False(t, ir.WalkValues(deep, "doc", visitorsWith(-1)...))
-	assert.True(t, ir.WalkValues(deep, "doc", visitorsWith(0)...), "the first visitor's traversal reaches the cap")
-	assert.True(t, ir.WalkValues(deep, "doc", visitorsWith(129)...), "the last visitor's traversal reaches the cap")
+	assert.False(t, ir.WalkValues(deep, "document", visitorsWith(-1)...))
+	assert.True(t, ir.WalkValues(deep, "document", visitorsWith(0)...), "the first visitor's traversal reaches the cap")
+	assert.True(t, ir.WalkValues(deep, "document", visitorsWith(129)...), "the last visitor's traversal reaches the cap")
 }
 
 // TestWalkValues_NilVisitorsAreSkipped pins the two ways to pass a visitor that
@@ -208,12 +209,12 @@ func TestWalkValues_TruncationReachesPastOneTraversal(t *testing.T) {
 func TestWalkValues_NilVisitorsAreSkipped(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Name: "api"}
-	r := &recorder{}
-	assert.False(t, ir.WalkValues(doc, "doc", nil, r, ir.VisitFunc(nil)))
-	assert.Contains(t, r.paths, "doc.Name", "a nil visitor beside it does not stop the others")
+	recorderValue := &recorder{}
+	assert.False(t, ir.WalkValues(doc, "document", nil, recorderValue, ir.VisitFunc(nil)))
+	assert.Contains(t, recorderValue.paths, "document.Name", "a nil visitor beside it does not stop the others")
 
 	deep := irtest.NestedListValue(ir.MaxWalkDepth)
-	assert.False(t, ir.WalkValues(deep, "doc"), "no visitor, no walk")
-	assert.False(t, ir.WalkValues(deep, "doc", nil), "a nil visitor is none")
-	assert.False(t, ir.WalkValues(deep, "doc", ir.VisitFunc(nil)), "a nil VisitFunc prunes at the root")
+	assert.False(t, ir.WalkValues(deep, "document"), "no visitor, no walk")
+	assert.False(t, ir.WalkValues(deep, "document", nil), "a nil visitor is none")
+	assert.False(t, ir.WalkValues(deep, "document", ir.VisitFunc(nil)), "a nil VisitFunc prunes at the root")
 }

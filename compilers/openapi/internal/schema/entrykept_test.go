@@ -65,9 +65,9 @@ func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testin
 			"which has no home for what the conjunct beside this $ref adds; the conjunct (unevaluatedItems) is kept"},
 	} {
 		_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", head+"    S: {allOf: ["+c.entries+"]}\n"))
-		msg := openapitest.DiagMessageAt(t, diags, c.code, ir.SeverityInfo, "/components/schemas/S/allOf/0")
-		assert.Contains(t, msg, c.want, c.entries)
-		assert.NotContains(t, msg, "inline", c.entries)
+		message := openapitest.DiagMessageAt(t, diags, c.code, ir.SeverityInfo, "/components/schemas/S/allOf/0")
+		assert.Contains(t, message, c.want, c.entries)
+		assert.NotContains(t, message, "inline", c.entries)
 	}
 
 	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", head+
@@ -103,9 +103,9 @@ func TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt
 	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: [{type: string}, {enum: [a, 1]}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, at := range []string{"/components/schemas/S/allOf/0", "/components/schemas/S/allOf/1"} {
-		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-		assert.Contains(t, msg, "as no entry of it is the one it lowers from", at)
-		assert.NotContains(t, msg, "a use of one of its allOf conjuncts", at)
+		message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
+		assert.Contains(t, message, "as no entry of it is the one it lowers from", at)
+		assert.NotContains(t, message, "a use of one of its allOf conjuncts", at)
 	}
 }
 
@@ -126,9 +126,9 @@ func TestEntryKept_AFailedRefKeepsItsReferenceAndEachKeywordBesideIt(t *testing.
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), kept["openapi:$ref"].Provenance.Pointer)
 	assert.Equal(t, []string{"b"}, td.(*ir.Model).Requires)
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/S/allOf/0"), "Ghost")
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0")
-	assert.Contains(t, msg, "minLength written beside this $ref, which names nothing")
-	assert.NotContains(t, msg, "x-a")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0")
+	assert.Contains(t, message, "minLength written beside this $ref, which names nothing")
+	assert.NotContains(t, message, "x-a")
 }
 
 // TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder pins the keys of
@@ -149,8 +149,8 @@ func TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder(t *testing.T) 
 		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:$ref/0"].Provenance.Pointer, entries)
 		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:minLength"].Provenance.Pointer, entries)
 		var errs int
-		for _, d := range diags {
-			if d.Severity == ir.SeverityError {
+		for _, diagnostic := range diags {
+			if diagnostic.Severity == ir.SeverityError {
 				errs++
 			}
 		}

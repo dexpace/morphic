@@ -31,9 +31,9 @@ const noPackages = "github.com/dexpace/morphic/internal/decls/testdata/nowhere/.
 // fixture loads the package whose declarations most cases read.
 func fixture(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := decls.Load(goodDir + "/fixture")
+	loadedPackage, err := decls.Load(goodDir + "/fixture")
 	require.NoError(t, err)
-	return p
+	return loadedPackage
 }
 
 func TestLoad_Refusals(t *testing.T) {
@@ -50,9 +50,9 @@ func TestLoad_Refusals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p, err := decls.Load(tc.pattern)
+			loadedPackage, err := decls.Load(tc.pattern)
 			require.Error(t, err)
-			assert.Nil(t, p)
+			assert.Nil(t, loadedPackage)
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
@@ -63,10 +63,10 @@ func TestLoad_Refusals(t *testing.T) {
 // load could add that it has no file and bury the reason.
 func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load("./testdata/nowhere")
+	loadedPackage, err := decls.Load("./testdata/nowhere")
 
 	require.Error(t, err)
-	assert.Nil(t, p)
+	assert.Nil(t, loadedPackage)
 	assert.Contains(t, err.Error(), "directory not found")
 	assert.NotContains(t, err.Error(), "no production Go file")
 }
@@ -85,16 +85,17 @@ func TestLoad_ReadsOnlyProductionGoFiles(t *testing.T) {
 // which the loader keeps although it parses the files concurrently.
 func TestLoad_KeepsFilesInNameOrder(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(goodDir + "/split")
+	loadedPackage, err := decls.Load(goodDir + "/split")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"a.go", "b.go", "c.go", "d.go"}, fileNames(p))
+	assert.Equal(t, []string{"a.go", "b.go", "c.go", "d.go"}, fileNames(loadedPackage))
 }
 
-// fileNames returns the base name of each file in p.Syntax, in its order.
-func fileNames(p *decls.Package) []string {
-	out := make([]string, len(p.Syntax))
-	for i, f := range p.Syntax {
-		out[i] = filepath.Base(p.Fset.Position(f.Pos()).Filename)
+// fileNames returns the base name of each file in loadedPackage.Syntax, in its
+// order.
+func fileNames(loadedPackage *decls.Package) []string {
+	out := make([]string, len(loadedPackage.Syntax))
+	for i, f := range loadedPackage.Syntax {
+		out[i] = filepath.Base(loadedPackage.Fset.Position(f.Pos()).Filename)
 	}
 	return out
 }
@@ -165,8 +166,8 @@ func TestLoadEach_ReturnsEachPackageOnceSortedByPath(t *testing.T) {
 	require.NoError(t, err)
 
 	paths := make([]string, len(pkgs))
-	for i, p := range pkgs {
-		paths[i] = p.Types.Path()
+	for i, loadedPackage := range pkgs {
+		paths[i] = loadedPackage.Types.Path()
 	}
 	assert.Equal(t, []string{goodPath + "fixture", goodPath + "further", goodPath + "split", goodPath + "uses"}, paths)
 }
@@ -199,14 +200,14 @@ func TestImported_ReachesTheCopyThePackageSees(t *testing.T) {
 		{"uses", "Favourite"}, // imports fixture itself
 		{"further", "Again"},  // reaches fixture only through uses
 	} {
-		p, err := decls.Load(goodDir + "/" + tc.importer)
+		loadedPackage, err := decls.Load(goodDir + "/" + tc.importer)
 		require.NoError(t, err)
 
-		fixture, reaches := p.Imported(goodPath + "fixture")
+		fixture, reaches := loadedPackage.Imported(goodPath + "fixture")
 		require.True(t, reaches, tc.importer)
 		color := fixture.Scope().Lookup("Color")
 		require.NotNil(t, color, tc.importer)
-		assert.True(t, types.Identical(color.Type(), p.Types.Scope().Lookup(tc.varName).Type()), tc.importer)
+		assert.True(t, types.Identical(color.Type(), loadedPackage.Types.Scope().Lookup(tc.varName).Type()), tc.importer)
 	}
 
 	split, err := decls.Load(goodDir + "/split")
@@ -236,10 +237,10 @@ func TestStringConsts_ReadsEverySpelling(t *testing.T) {
 // first, so each of those orders gives a different answer.
 func TestStringConsts_FollowsDeclarationOrderAcrossFiles(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(goodDir + "/split")
+	loadedPackage, err := decls.Load(goodDir + "/split")
 	require.NoError(t, err)
 
-	got, err := p.StringConsts("Level")
+	got, err := loadedPackage.StringConsts("Level")
 
 	require.NoError(t, err)
 	assert.Equal(t, []decls.Const{
@@ -290,18 +291,18 @@ func TestIntConst_Refusals(t *testing.T) {
 // order, and to stopping when the loop over it does.
 func TestObjects_YieldsOneKindInNameOrder(t *testing.T) {
 	t.Parallel()
-	p := fixture(t)
+	loadedPackage := fixture(t)
 
-	assert.Equal(t, []string{"Blue", "Green", "Huge", "One", "Plain", "Red"}, names(p.Objects[*types.Const]()))
+	assert.Equal(t, []string{"Blue", "Green", "Huge", "One", "Plain", "Red"}, names(loadedPackage.Objects[*types.Const]()))
 	assert.Equal(t, []string{"Alias", "Bytes", "Color", "Count", "Shade", "Wrapper"},
-		names(p.Objects[*types.TypeName]()))
-	assert.Equal(t, []string{"Hello"}, names(p.Objects[*types.Func]()))
+		names(loadedPackage.Objects[*types.TypeName]()))
+	assert.Equal(t, []string{"Hello"}, names(loadedPackage.Objects[*types.Func]()))
 	assert.Equal(t, []string{
 		"Alias", "Blue", "Bytes", "Color", "Count", "Green", "Hello", "Huge", "One", "Plain", "Red", "Shade", "Wrapper",
-	}, names(p.Objects[types.Object]()))
+	}, names(loadedPackage.Objects[types.Object]()))
 
 	var first []string
-	for c := range p.Objects[*types.Const]() {
+	for c := range loadedPackage.Objects[*types.Const]() {
 		first = append(first, c.Name())
 		break
 	}
@@ -322,9 +323,9 @@ func names[T types.Object](seq iter.Seq[T]) []string {
 // adds no type, and a pointer receiver declares as much as a value one.
 func TestTypesDeclaring_CountsOnlyOwnMethods(t *testing.T) {
 	t.Parallel()
-	p := fixture(t)
-	assert.Equal(t, []string{"Color", "Shade"}, p.TypesDeclaring("Method"))
-	assert.Empty(t, p.TypesDeclaring("Missing"))
+	loadedPackage := fixture(t)
+	assert.Equal(t, []string{"Color", "Shade"}, loadedPackage.TypesDeclaring("Method"))
+	assert.Empty(t, loadedPackage.TypesDeclaring("Missing"))
 }
 
 // TestLoadAlone_Refusals covers what listing a pattern first keeps LoadEach
@@ -332,15 +333,15 @@ func TestTypesDeclaring_CountsOnlyOwnMethods(t *testing.T) {
 // path naming other than one package. It sets the environment, so it cannot
 // run in parallel.
 func TestLoadAlone_Refusals(t *testing.T) {
-	p, err := decls.LoadAlone("github.com/dexpace/morphic/internal/decls/testdata/nowhere/...")
+	loadedPackage, err := decls.LoadAlone("github.com/dexpace/morphic/internal/decls/testdata/nowhere/...")
 	require.Error(t, err)
-	assert.Nil(t, p)
+	assert.Nil(t, loadedPackage)
 	assert.Contains(t, err.Error(), "loaded as 0 packages, want 1")
 
 	t.Setenv("GOFLAGS", "-mod=bogus")
-	p, err = decls.LoadAlone("github.com/dexpace/morphic/internal/decls/testdata/good/fixture")
+	loadedPackage, err = decls.LoadAlone("github.com/dexpace/morphic/internal/decls/testdata/good/fixture")
 	require.Error(t, err)
-	assert.Nil(t, p)
+	assert.Nil(t, loadedPackage)
 	assert.Contains(t, err.Error(), "bogus", "the go command's own complaint is kept")
 }
 
@@ -352,15 +353,15 @@ func TestLoadAlone_Refusals(t *testing.T) {
 // its result.
 func TestFuncsUsing_NamesTheFunctionsThatNameAnObject(t *testing.T) {
 	t.Parallel()
-	p, err := decls.Load(goodDir + "/uses")
+	loadedPackage, err := decls.Load(goodDir + "/uses")
 	require.NoError(t, err)
-	seen, reaches := p.Imported(goodPath + "fixture")
+	seen, reaches := loadedPackage.Imported(goodPath + "fixture")
 	require.True(t, reaches)
 	red := seen.Scope().Lookup("Red")
 	require.NotNil(t, red)
 
-	assert.Equal(t, []string{"Choose", "Pick", "Pick"}, p.FuncsUsing(red), "sorted, the function and the method of one name both")
-	assert.Equal(t, []string{"Choose", "Other", "Pick", "Pick"}, p.FuncsUsing(seen.Scope().Lookup("Color")),
+	assert.Equal(t, []string{"Choose", "Pick", "Pick"}, loadedPackage.FuncsUsing(red), "sorted, the function and the method of one name both")
+	assert.Equal(t, []string{"Choose", "Other", "Pick", "Pick"}, loadedPackage.FuncsUsing(seen.Scope().Lookup("Color")),
 		"a function naming a type only in its signature uses it too")
-	assert.Empty(t, p.FuncsUsing(seen.Scope().Lookup("Hello")), "nothing in uses calls Hello")
+	assert.Empty(t, loadedPackage.FuncsUsing(seen.Scope().Lookup("Hello")), "nothing in uses calls Hello")
 }

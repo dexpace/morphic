@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -32,7 +32,7 @@ var foldKeywords = []string{
 // of c, folds, and false for a keyword no fold reads. Keywords one entry holds
 // fold as one, so an entry's `then` and another's `if` cannot overwrite each
 // other, and a draft's spelling folds as its twin does (TwinKeyword).
-func foldEntry(c lowering.Ctx, s *statement.Schema, keyword string) (string, bool) {
+func foldEntry(loweringContext lowering.Ctx, schema *statement.Schema, keyword string) (string, bool) {
 	switch keyword {
 	case "example", "examples":
 		return "examples", true
@@ -41,12 +41,12 @@ func foldEntry(c lowering.Ctx, s *statement.Schema, keyword string) (string, boo
 	case "contains", "minContains", "maxContains":
 		return "contains", true
 	case "format":
-		return keyword, annotation.DeclaresRedaction(s)
+		return keyword, annotation.DeclaresRedaction(schema)
 	case "minItems", "maxItems", "uniqueItems":
 		// A collection bound ir.Constraints cannot state keeps its entry whole.
-		return keyword, referenceHolds(s, keyword)
+		return keyword, referenceHolds(schema, keyword)
 	}
-	twin := TwinKeyword(c, s, keyword)
+	twin := TwinKeyword(loweringContext, schema, keyword)
 	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, twin) ||
 		slices.Contains(valueConstraintKeywords, twin)
 	return keyword, fold
@@ -60,34 +60,34 @@ type foldRendering struct {
 	err error
 }
 
-// agrees reports whether r and o write an entry alike.
-func (r foldRendering) agrees(o foldRendering) bool {
-	return r.err == nil && o.err == nil && bytes.Equal(r.raw, o.raw)
+// agrees reports whether r and foldRenderingValue write an entry alike.
+func (r foldRendering) agrees(foldRenderingValue foldRendering) bool {
+	return r.err == nil && foldRenderingValue.err == nil && bytes.Equal(r.raw, foldRenderingValue.raw)
 }
 
-// foldValue renders what s writes for entry.
-func foldValue(s *statement.Schema, entry string) foldRendering {
-	var r foldRendering
+// foldValue renders what schema writes for entry.
+func foldValue(schema *statement.Schema, entry string) foldRendering {
+	var foldRenderingValue foldRendering
 	switch entry {
 	case "examples":
-		r.raw, _, r.err = annotation.ExamplesRaw(s)
+		foldRenderingValue.raw, _, foldRenderingValue.err = annotation.ExamplesRaw(schema)
 	case "if":
-		r.raw, _, r.err = annotation.IfThenElseRaw(s)
+		foldRenderingValue.raw, _, foldRenderingValue.err = annotation.IfThenElseRaw(schema)
 	case "contains":
-		r.raw, _, r.err = annotation.ContainsRaw(s)
+		foldRenderingValue.raw, _, foldRenderingValue.err = annotation.ContainsRaw(schema)
 	default:
-		r.raw, r.err = annotation.RawFromNode(keyNode(s, entry))
+		foldRenderingValue.raw, foldRenderingValue.err = annotation.RawFromNode(keyNode(schema, entry))
 	}
-	return r
+	return foldRenderingValue
 }
 
-// allOfMayRefine reports whether s's conjuncts may refine: it writes them
+// allOfMayRefine reports whether schema's conjuncts may refine: it writes them
 // (writesConjuncts), an allOf or a reference beside other keys
 // (docs/compilers/openapi.md#allof-refinement). A union beside them is one
 // more conjunct, and a $dynamicRef the position does not expand masks no kind
 // (admissionReader.conjuncts).
-func allOfMayRefine(s *statement.Schema) bool {
-	return writesConjuncts(s)
+func allOfMayRefine(schema *statement.Schema) bool {
+	return writesConjuncts(schema)
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
@@ -98,69 +98,69 @@ func allOfMayRefine(s *statement.Schema) bool {
 // allOf or on one of its entries leaves it deciding, composed into each variant
 // the union distributes across, or into the Model keeping the union verbatim or
 // composing it as a mixin, and so does a $dynamicRef it keeps from expanding.
-func allOfDecides(c lowering.Ctx, s *statement.Schema) bool {
-	if !writesConjuncts(s) {
+func allOfDecides(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+	if !writesConjuncts(schema) {
 		return false
 	}
-	if dispatchOf(s).won == "allOf" {
+	if dispatchOf(schema).won == "allOf" {
 		return true
 	}
-	return decisionOf(c, s).refines
+	return decisionOf(loweringContext, schema).refines
 }
 
-// voicesOf keys what voicesAmong read of one schema.
-type voicesOf struct {
+// allOfEntryFoldingKey keys what foldingAllOfEntries read of one schema.
+type allOfEntryFoldingKey struct {
 	schema *statement.Schema
 }
 
-// voicesAmong reports, for each entry of s's flattened allOf, whether it folds:
-// it is inline, it writes something for the position, and each such keyword
-// agrees with every other conjunct writing it, s's own keywords among them
-// (agreement). The answer reads the whole set, so no conjunct takes precedence
-// and no order decides. A null keyword writes nothing (WritesKeywordLeftOut).
-// Every use of s asks, so it is read once a run.
-func voicesAmong(c lowering.Ctx, s *statement.Schema) []bool {
-	return voicingOf(c, s).speaks
+// foldingAllOfEntries reports, for each entry of s's flattened allOf, whether
+// it folds: it is inline, it writes something for the position, and each such
+// keyword agrees with every other conjunct writing it, s's own keywords among
+// them (agreement). The answer reads the whole set, so no conjunct takes
+// precedence and no order decides. A null keyword writes nothing
+// (WritesKeywordLeftOut). Every use of s asks, so it is read once a run.
+func foldingAllOfEntries(loweringContext lowering.Ctx, schema *statement.Schema) []bool {
+	return allOfEntryFoldingOf(loweringContext, schema).entryFoldsIntoPosition
 }
 
-// voicing is what a schema's allOf says for the position holding it: whether
-// each entry of the flattened list folds, whether it lends a use what s and
-// the folding entries before it do not, a keyword none of them writes, and
+// allOfEntryFolding is what a schema's allOf says for the position holding it:
+// whether each entry of the flattened list folds, whether it lends a use what s
+// and the folding entries before it do not, a keyword none of them writes, and
 // whether what it folds writes a relative $ref it reads against another base
 // than the position does (readsAtPosition), so nothing it writes folds.
-type voicing struct {
-	speaks  []bool
-	lends   []bool
-	rebased []bool
+type allOfEntryFolding struct {
+	entryFoldsIntoPosition          []bool
+	addsKeywordNoEarlierEntryWrites []bool
+	rebased                         []bool
 }
 
-// voicingOf reads s's voicing once a run.
-func voicingOf(c lowering.Ctx, s *statement.Schema) voicing {
-	return lowering.Remembered(c, voicesOf{s}, func() voicing { return readVoices(c, s) })
+// allOfEntryFoldingOf reads schema's folding once a run.
+func allOfEntryFoldingOf(loweringContext lowering.Ctx, schema *statement.Schema) allOfEntryFolding {
+	return lowering.ReadOncePerRun(loweringContext, allOfEntryFoldingKey{schema}, func() allOfEntryFolding { return readAllOfEntryFolding(loweringContext, schema) })
 }
 
-// readVoices reads what voicingOf remembers.
-func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
-	a := newAgreement(c)
-	lent := map[string]bool{}
-	for _, entry := range a.write(s) {
-		lent[entry] = lent[entry] || !writesFalseFlag(entry, foldValue(s, entry))
+// readAllOfEntryFolding reads what allOfEntryFoldingOf remembers.
+func readAllOfEntryFolding(loweringContext lowering.Ctx, schema *statement.Schema) allOfEntryFolding {
+	a := newAgreement(loweringContext)
+	addsKeywordNoEarlierEntryWrites := map[string]bool{}
+	for _, entry := range a.write(schema) {
+		addsKeywordNoEarlierEntryWrites[entry] = addsKeywordNoEarlierEntryWrites[entry] || !writesFalseFlag(entry, foldValue(schema, entry))
 	}
-	comp := allOfEntries(c, s, "")
+	comp := allOfEntries(loweringContext, schema, "")
 	n := len(comp.entries)
-	out := voicing{speaks: make([]bool, n), lends: make([]bool, n), rebased: make([]bool, n)}
+	out := allOfEntryFolding{entryFoldsIntoPosition: make([]bool, n), addsKeywordNoEarlierEntryWrites: make([]bool, n), rebased: make([]bool, n)}
 	writes := make([][]string, n)
 	ids := idWrappers(comp)
-	for i, e := range comp.entries {
-		if stated(e.schema.Schema) && e.schema.Ref == nil {
-			if out.rebased[i] = underID(e, e.schema.Schema, ids) && foldsReference(c, e.schema.Schema) && !readsAtPosition(c, e); !out.rebased[i] {
-				writes[i] = a.write(e.schema.Schema)
+	for i, entry := range comp.entries {
+		if stated(entry.schema.Schema) && entry.schema.Ref == nil {
+			if out.rebased[i] = underID(entry, entry.schema.Schema, ids) && foldsReference(loweringContext, entry.schema.Schema) && !readsAtPosition(loweringContext, entry); !out.rebased[i] {
+				writes[i] = a.write(entry.schema.Schema)
 			}
 		}
 	}
 	for i, entries := range writes {
-		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
-		if !out.speaks[i] {
+		out.entryFoldsIntoPosition[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
+		if !out.entryFoldsIntoPosition[i] {
 			continue
 		}
 		for _, entry := range entries {
@@ -168,8 +168,8 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 			if writesFalseFlag(entry, foldValue(comp.entries[i].schema.Schema, entry)) {
 				continue
 			}
-			out.lends[i] = out.lends[i] || !lent[entry]
-			lent[entry] = true
+			out.addsKeywordNoEarlierEntryWrites[i] = out.addsKeywordNoEarlierEntryWrites[i] || !addsKeywordNoEarlierEntryWrites[entry]
+			addsKeywordNoEarlierEntryWrites[entry] = true
 		}
 	}
 	return out
@@ -180,9 +180,9 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 // another base than the position's.
 func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 	out := map[jsontext.Pointer]bool{}
-	for _, e := range comp.entries {
-		if e.wrapper && writesIdentifier(e.schema.Schema) {
-			out[e.pointer] = true
+	for _, entry := range comp.entries {
+		if entry.wrapper && writesIdentifier(entry.schema.Schema) {
+			out[entry.pointer] = true
 		}
 	}
 	return out
@@ -193,11 +193,11 @@ func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 // position holding the allOf, so an entry under none reads at the position
 // without a base being looked up. The wrappers holding e are the prefixes of
 // its pointer, as many as statement.MaxFlattenDepth allows, so each is looked up.
-func underID(e allOfEntry, bs *statement.Schema, wrappers map[jsontext.Pointer]bool) bool {
+func underID(allOfEntryValue allOfEntry, bs *statement.Schema, wrappers map[jsontext.Pointer]bool) bool {
 	if writesIdentifier(bs) {
 		return true
 	}
-	p := string(e.pointer)
+	p := string(allOfEntryValue.pointer)
 	for i := strings.LastIndexByte(p, '/'); i > 0; i = strings.LastIndexByte(p[:i], '/') {
 		if wrappers[jsontext.Pointer(p[:i])] {
 			return true
@@ -206,18 +206,18 @@ func underID(e allOfEntry, bs *statement.Schema, wrappers map[jsontext.Pointer]b
 	return false
 }
 
-// writesIdentifier reports whether s writes `$id`, or `id`, draft 4's
+// writesIdentifier reports whether schema writes `$id`, or `id`, draft 4's
 // spelling of it. Either may name a resource, and the base a lookup returns
 // says whether it does, so one that names none costs that lookup alone.
-func writesIdentifier(s *statement.Schema) bool {
-	return hasKey(s, "$id") || hasKey(s, "id")
+func writesIdentifier(schema *statement.Schema) bool {
+	return hasKey(schema, "$id") || hasKey(schema, "id")
 }
 
 // foldsReference reports whether what bs folds writes a relative $ref, the one
 // text a base changes: an entry writing none in it says the same at any base.
-func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
-	return slices.ContainsFunc(bs.Keys, func(k statement.Key) bool {
-		entry, fold := foldEntry(c, bs, k.Name)
+func foldsReference(loweringContext lowering.Ctx, bs *statement.Schema) bool {
+	return slices.ContainsFunc(bs.Keys, func(key statement.Key) bool {
+		entry, fold := foldEntry(loweringContext, bs, key.Name)
 		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
 	})
 }
@@ -228,27 +228,27 @@ func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
 // another URI gives the same spelling another schema. The position is e's site
 // less e's path from it, as the allOf may be read where a $ref landed. A base
 // the bindings cannot tell is no match.
-func readsAtPosition(c lowering.Ctx, e allOfEntry) bool {
-	site, placed := siteOf(e.schema.Schema)
-	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
-	own, known := c.Bindings().Table().Base(site)
-	position, knownAt := c.Bindings().Table().Base(at)
+func readsAtPosition(loweringContext lowering.Ctx, allOfEntryValue allOfEntry) bool {
+	site, placed := siteOf(allOfEntryValue.schema.Schema)
+	at := reftable.DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(allOfEntryValue.pointer)))}
+	own, known := loweringContext.Bindings().Table().Base(site)
+	position, knownAt := loweringContext.Bindings().Table().Base(at)
 	return placed && known && knownAt && own == position
 }
 
 // disagreedWhy words why an entry that would have folded is kept, as n names
 // it: its keywords have homes, and what they say is what is in question.
-func disagreedWhy(residue []string, n entryNames) string {
-	return "the conjuncts of this allOf disagree on a keyword " + n.this + " writes, so nothing it writes folds; " +
-		n.kept + " (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
+func disagreedWhy(residue []string, entryNamesValue entryNames) string {
+	return "the conjuncts of this allOf disagree on a keyword " + entryNamesValue.this + " writes, so nothing it writes folds; " +
+		entryNamesValue.kept + " (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
-// disagreed reports whether residue, what an entry that did not fold keeps of bs,
-// holds a keyword folding reads: voicesAmong passes over an entry for writing none
-// or for a disagreement, and this tells them apart.
-func disagreed(c lowering.Ctx, bs *statement.Schema, residue []string) bool {
+// disagreed reports whether residue, what an entry that did not fold keeps of
+// bs, holds a keyword folding reads: foldingAllOfEntries passes over an entry
+// for writing none or for a disagreement, and this tells them apart.
+func disagreed(loweringContext lowering.Ctx, bs *statement.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
-		_, fold := foldEntry(c, bs, keyword)
+		_, fold := foldEntry(loweringContext, bs, keyword)
 		return fold
 	})
 }
@@ -257,14 +257,14 @@ func disagreed(c lowering.Ctx, bs *statement.Schema, residue []string) bool {
 // bounds the position has a field for, of which a value bound is read where the
 // entry's own types take it too (writerTakes), and a `nullable` folds where
 // the policy reads it (nullableRead) and foldsNullable says so.
-func folds(c lowering.Ctx, bs *statement.Schema, keyword string, homes boundHomes) bool {
+func folds(loweringContext lowering.Ctx, bs *statement.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
-		return c.NullableInference.Honours() && nullableRead(c, bs) && foldsNullable(bs)
+		return loweringContext.NullableInference.Honours() && nullableRead(loweringContext, bs) && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return taken(writerTakes(homes.value, bs), keyword)
 	}
-	_, fold := foldEntry(c, bs, keyword)
+	_, fold := foldEntry(loweringContext, bs, keyword)
 	if slices.Contains(collectionBoundKeywords, keyword) {
 		return fold && homes.collection
 	}
@@ -278,90 +278,94 @@ func foldsNullable(bs *statement.Schema) bool {
 	return !hasKey(bs, "properties")
 }
 
-// positionVoices returns the voices of s, written at pointer, as a reader of
-// what the position holds takes them, target being what the position lowered
-// to. An entry whose own node that is, the alias a $ref principal writing
-// keywords beside it stands at its entry, keeps what it writes there.
-func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
-	if !allOfDecides(c, s) {
+// positionFoldedEntries returns the voices of s, written at pointer, as a
+// reader of what the position holds takes them, target being what the position
+// lowered to. An entry whose own node that is, the alias a $ref principal
+// writing keywords beside it stands at its entry, keeps what it writes there.
+func positionFoldedEntries(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.FoldedAllOfEntry {
+	if !allOfDecides(loweringContext, schema) {
 		return nil
 	}
-	comp := allOfEntries(c, s, pointer)
-	var out []annotation.Voice
-	for i, speaks := range voicesAmong(c, s) {
-		e := comp.entries[i]
-		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
+	comp := allOfEntries(loweringContext, schema, pointer)
+	var out []annotation.FoldedAllOfEntry
+	for i, speaks := range foldingAllOfEntries(loweringContext, schema) {
+		entry := comp.entries[i]
+		if !speaks || LoweredToOwnNode(loweringContext, entry.pointer, target) {
 			continue
 		}
-		v := voiceAt(c, e.schema.Schema, e.pointer)
+		foldedAllOfEntry := foldedEntryAt(loweringContext, entry.schema.Schema, entry.pointer)
 		// The entry keeps a `dependencies` that does not fold (entryKeeps).
-		v.Dependencies = v.Dependencies && !foldsNoDependencies(c, s, pointer)
-		out = append(out, v)
+		foldedAllOfEntry.Dependencies = foldedAllOfEntry.Dependencies && !foldsNoDependencies(loweringContext, schema, pointer)
+		out = append(out, foldedAllOfEntry)
 	}
 	return out
 }
 
-// voiceAt returns the voice of node, written at at, which reads its
-// `dependencies` in the dialect node is written in, as a fold of it does
+// foldedEntryAt returns the folded entry of node, written at at, which reads
+// its `dependencies` in the dialect node is written in, as a fold of it does
 // (TwinKeyword): an allOf entry naming a draft by its own `$schema` keeps the
 // draft's keyword beside a position read in 2020-12, as the same schema written
 // flat in the draft keeps it (docs/compilers/openapi.md#dialect-keywords).
-func voiceAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.Voice {
-	return annotation.Voice{Node: node, At: at, Dependencies: rulesOf(c, node).Defines("dependencies")}
+func foldedEntryAt(loweringContext lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.FoldedAllOfEntry {
+	return annotation.FoldedAllOfEntry{Node: node, At: at, Dependencies: rulesOf(loweringContext, node).Defines("dependencies")}
 }
 
 // lendingEntries returns the entries of s that fold, each at its pointer below
-// s, for a use
-// reading what s lends it, but those writing only what s or such an entry before
-// them writes: the writers of a keyword a use reads agree (voicesAmong), so a
-// reader taking the nearest takes the same value from any of them, and a use of s
-// pays for each keyword once, not for each entry repeating it. Bounds, which agree
-// by meeting, are no such keyword: a use never reads them through its $ref.
-func lendingEntries(c lowering.Ctx, s *statement.Schema) []allOfEntry {
-	if !allOfDecides(c, s) {
+// s, for a use reading what s lends it, but those writing only what s or such
+// an entry before them writes: the writers of a keyword a use reads agree
+// (foldingAllOfEntries), so a reader taking the nearest takes the same value
+// from any of them, and a use of s pays for each keyword once, not for each
+// entry repeating it. Bounds, which agree by meeting, are no such keyword: a
+// use never reads them through its $ref.
+func lendingEntries(loweringContext lowering.Ctx, schema *statement.Schema) []allOfEntry {
+	if !allOfDecides(loweringContext, schema) {
 		return nil
 	}
-	comp := allOfEntries(c, s, "")
+	comp := allOfEntries(loweringContext, schema, "")
 	var out []allOfEntry
-	for i, lends := range voicingOf(c, s).lends {
-		if lends {
+	for i, addsKeyword := range allOfEntryFoldingOf(loweringContext, schema).addsKeywordNoEarlierEntryWrites {
+		if addsKeyword {
 			out = append(out, comp.entries[i])
 		}
 	}
 	return out
 }
 
-// declaresScoped reports whether a voice writes what only the position can hold,
-// as declaresPositionScoped asks of the schema written there.
-func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
-	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
+// declaresScoped reports whether a folded entry writes what only the position
+// can hold, as declaresPositionScoped asks of the schema written there.
+func declaresScoped(loweringContext lowering.Ctx, foldedEntries []annotation.FoldedAllOfEntry) bool {
+	return slices.ContainsFunc(foldedEntries, func(foldedAllOfEntry annotation.FoldedAllOfEntry) bool {
+		return declaresPositionScoped(loweringContext, foldedAllOfEntry.Node)
+	})
 }
 
-// recordVoicedResidue keeps on td, in hand, what binds a use that voices write
-// (recordResidue), each reported at the keyword it wrote, in ResidueWriters'
-// order: an entry several write is the nearest voice's kept apart, and the
-// schema written at the position records after them.
-func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, voices []annotation.Voice) []ir.Diagnostic {
-	diags := make([]ir.Diagnostic, 0, len(voices))
-	for _, v := range ResidueWriters(voices) {
-		// What s writes too is s's to keep and report: one writing, as the
-		// voices agree.
-		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At, func(keyword string) bool { return hasKey(s, keyword) })...)
+// recordFoldedEntryResidue keeps on td, in hand, what binds a use that
+// foldedEntries write (recordResidue), each reported at the keyword it wrote,
+// in FoldedEntriesInOverwriteOrder' order: an entry several write is the
+// nearest folded entry's kept apart, and the schema written at the position
+// records after them.
+func recordFoldedEntryResidue(loweringContext lowering.Ctx, td ir.TypeDef, schema *statement.Schema, foldedEntries []annotation.FoldedAllOfEntry) []ir.Diagnostic {
+	diags := make([]ir.Diagnostic, 0, len(foldedEntries))
+	for _, foldedAllOfEntry := range FoldedEntriesInOverwriteOrder(foldedEntries) {
+		// What schema writes too is schema's to keep and report: one writing,
+		// as the foldedEntries agree.
+		diags = append(diags, recordResidue(loweringContext, td.Common(), foldedAllOfEntry.Node, foldedAllOfEntry.At, func(keyword string) bool { return hasKey(schema, keyword) })...)
 	}
 	return diags
 }
 
-// ResidueWriters returns voices in the order a keeper overwriting what each
-// writes takes them: those kept whole, then the rest, each the last first. The
-// nearest voice kept apart holds a keyword several write, and one kept whole,
-// whose entry holds it (annotation.Voice.KeptWhole), only one no other writes,
-// which that entry then holds alone (dropFoldedIntoWhole).
-func ResidueWriters(voices []annotation.Voice) []annotation.Voice {
-	out := make([]annotation.Voice, 0, len(voices))
+// FoldedEntriesInOverwriteOrder returns voices in the order a keeper
+// overwriting what each writes takes them: those kept whole, then the rest,
+// each the last first. The nearest voice kept apart holds a keyword several
+// write, and one kept whole, whose entry holds it (annotation.Voice.KeptWhole),
+// only one no other writes, which that entry then holds alone
+// (dropFoldedIntoWhole).
+func FoldedEntriesInOverwriteOrder(foldedEntries []annotation.FoldedAllOfEntry) []annotation.FoldedAllOfEntry {
+	out := make([]annotation.FoldedAllOfEntry, 0, len(foldedEntries))
 	for _, whole := range []bool{true, false} {
-		for _, v := range slices.Backward(voices) {
-			if v.KeptWhole == whole {
-				out = append(out, v)
+		for _, foldedAllOfEntry := range slices.Backward(foldedEntries) {
+			if foldedAllOfEntry.KeptWhole == whole {
+				out = append(out, foldedAllOfEntry)
 			}
 		}
 	}

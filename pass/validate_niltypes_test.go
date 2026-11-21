@@ -37,14 +37,14 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			doc.Types["t/nil"] = td
+			doc.Types["type/nil"] = td
 
 			var diags []ir.Diagnostic
 			require.NotPanics(t, func() { diags = validated(t, doc) })
 
 			codes := make([]string, 0, len(diags))
-			for _, d := range diags {
-				codes = append(codes, d.Code)
+			for _, diagnostic := range diags {
+				codes = append(codes, diagnostic.Code)
 			}
 			assert.Contains(t, codes, "ir/nil-type",
 				"a nil type definition must be reported, not skipped: %v", codes)
@@ -58,12 +58,12 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 func TestValidate_NilTypeDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	for _, id := range []ir.TypeID{"t/z", "t/b", "t/q", "t/c", "t/m2"} {
+	for _, id := range []ir.TypeID{"type/z", "type/b", "type/q", "type/c", "type/m2"} {
 		doc.Types[id] = (*ir.Model)(nil)
 	}
 	want := pointers(withCode(validated(t, doc), "ir/nil-type"))
 	require.Equal(t, []string{
-		"types[t/b]", "types[t/c]", "types[t/m2]", "types[t/q]", "types[t/z]",
+		"types[type/b]", "types[type/c]", "types[type/m2]", "types[type/q]", "types[type/z]",
 	}, want)
 	for range 8 {
 		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/nil-type")))

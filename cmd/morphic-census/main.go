@@ -39,54 +39,55 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c, err := sweep(ctx, args)
+	factCensus, err := sweep(ctx, args)
 	if err != nil {
 		emitf(stderr, "morphic-census: %v\n", err)
 		return 2
 	}
-	emitf(stdout, "%s", c.Report())
+	emitf(stdout, "%s", factCensus.Report())
 	return 0
 }
 
 // sweep counts every spec the paths name, in the order they are listed.
 func sweep(ctx context.Context, paths []string) (*census.Census, error) {
-	u, err := census.NewUniverse()
+	universe, err := census.NewUniverse()
 	if err != nil {
 		return nil, err
 	}
-	e, err := newEngine()
+	compileEngine, err := newEngine()
 	if err != nil {
 		return nil, fmt.Errorf("engine: %w", err)
 	}
 
-	c := census.New(u)
+	factCensus := census.New(universe)
 	for _, path := range paths {
 		specs, err := harness.SpecFiles(ctx, path)
 		if err != nil {
 			return nil, err
 		}
 		for _, spec := range specs {
-			if err := count(ctx, e, c, spec); err != nil {
+			if err := count(ctx, compileEngine, factCensus, spec); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return c, nil
+	return factCensus, nil
 }
 
-// count compiles the spec at path and adds its document to c, or counts that
-// there was none. A run that fails at the default threshold still counts its
-// document, since the none threshold would hand that document to an emitter.
-func count(ctx context.Context, e *engine.Engine, c *census.Census, path string) error {
-	res, err := e.Run(ctx, path, engine.RunOptions{})
+// count compiles the spec at path and adds its document to factCensus, or
+// counts that there was none. A run that fails at the default threshold still
+// counts its document, since the none threshold would hand that document to an
+// emitter.
+func count(ctx context.Context, compileEngine *engine.Engine, factCensus *census.Census, path string) error {
+	res, err := compileEngine.Run(ctx, path, engine.RunOptions{})
 	if err != nil {
 		return err
 	}
 	if res.Document == nil {
-		c.NoDocument()
+		factCensus.NoDocument()
 		return nil
 	}
-	return c.Add(res.Document)
+	return factCensus.Add(res.Document)
 }
 
 // emitf writes a formatted message to w; write errors on a human-facing stream

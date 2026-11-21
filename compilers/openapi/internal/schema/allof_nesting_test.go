@@ -56,7 +56,7 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	}
 	distributed, _ := compileView(t, byName["a distributed oneOf beside the wrappers"])
 	require.Len(t, distributed.Variants, 2, "the oneOf distributes")
-	assert.Equal(t, []string{"w"}, wires(distributed.Variants[0].Props), "each variant carries the body's own property")
+	assert.Equal(t, []string{"w"}, wires(distributed.Variants[0].Properties), "each variant carries the body's own property")
 	assert.Equal(t, string(componentID("C")), distributed.Variants[0].Base, "and the ref the wrapper held as its base")
 
 	closed, _ := compileView(t, byName["a false entry"])
@@ -85,11 +85,11 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
-		m      string
-		base   ir.TypeID
-		mixins []ir.TypeID
-		props  map[string]string // wire name -> provenance pointer
+		name       string
+		m          string
+		base       ir.TypeID
+		mixins     []ir.TypeID
+		properties map[string]string // wire name -> provenance pointer
 	}{
 		{
 			name: "the issue: a wrapper around two refs",
@@ -121,8 +121,8 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
             - type: object
               properties: {c: {type: string}}
 `,
-			base:  componentID("A"),
-			props: map[string]string{"c": "/components/schemas/M/allOf/0/allOf/1/properties/c"},
+			base:       componentID("A"),
+			properties: map[string]string{"c": "/components/schemas/M/allOf/0/allOf/1/properties/c"},
 		},
 		{
 			name: "a wrapper with its own properties and type object",
@@ -133,31 +133,31 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
           allOf:
             - {$ref: '#/components/schemas/A'}
 `,
-			base:  componentID("A"),
-			props: map[string]string{"w": "/components/schemas/M/allOf/0/properties/w"},
+			base:       componentID("A"),
+			properties: map[string]string{"w": "/components/schemas/M/allOf/0/properties/w"},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, doc := range nestedOrders(t, tc.m, nestedAB) {
-				m, ok := typeByName(doc, "M").(*ir.Model)
+				model, ok := typeByName(doc, "M").(*ir.Model)
 				require.True(t, ok, "M should be a model")
 				if tc.base == "" {
-					assert.Nil(t, m.Base)
-				} else if assert.NotNil(t, m.Base) {
-					assert.Equal(t, tc.base, m.Base.Target)
+					assert.Nil(t, model.Base)
+				} else if assert.NotNil(t, model.Base) {
+					assert.Equal(t, tc.base, model.Base.Target)
 				}
-				assert.Equal(t, append([]ir.TypeID{}, tc.mixins...), refTargets(m.Mixins))
-				assert.Empty(t, m.Unmodeled, "a flattened wrapper is not kept verbatim")
-				assert.False(t, slices.ContainsFunc(doc.Diagnostics, func(d ir.Diagnostic) bool {
-					return strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/M")
+				assert.Equal(t, append([]ir.TypeID{}, tc.mixins...), refTargets(model.Mixins))
+				assert.Empty(t, model.Unmodeled, "a flattened wrapper is not kept verbatim")
+				assert.False(t, slices.ContainsFunc(doc.Diagnostics, func(diagnostic ir.Diagnostic) bool {
+					return strings.HasPrefix(string(diagnostic.Provenance.Pointer), "/components/schemas/M")
 				}), "flattening is exact, so nothing is reported under M: %+v", doc.Diagnostics)
 				got := map[string]string{}
-				for _, p := range m.Properties {
-					got[p.WireName] = string(p.Provenance.Pointer)
+				for _, property := range model.Properties {
+					got[property.WireName] = string(property.Provenance.Pointer)
 				}
-				want := tc.props
+				want := tc.properties
 				if want == nil {
 					want = map[string]string{}
 				}
@@ -186,9 +186,9 @@ func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
 		for _, doc := range nestedOrders(t, m, nestedAB) {
 			model, ok := typeByName(doc, "M").(*ir.Model)
 			require.True(t, ok, "M should be a model")
-			props := openapitest.PropsByWire(model.Properties)
-			assert.True(t, props["x"].Required, "the wrapper's required reaches the property it names")
-			assert.True(t, props["y"].Required, "so does a required two wrappers deep")
+			properties := openapitest.PropertiesByWire(model.Properties)
+			assert.True(t, properties["x"].Required, "the wrapper's required reaches the property it names")
+			assert.True(t, properties["y"].Required, "so does a required two wrappers deep")
 			assert.Empty(t, model.Requires, "every name found its property")
 		}
 	})
@@ -225,10 +225,10 @@ func TestAllOf_NestedWrapperRequiredAttachesBesideUnion(t *testing.T) {
     Q: {type: object, properties: {q: {type: string}}}
 `
 	for _, doc := range nestedOrders(t, u, nestedAB+pq) {
-		for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
+		for _, id := range []ir.TypeID{"type/composed/components/schemas/U/oneOf/0", "type/composed/components/schemas/U/oneOf/1"} {
 			model, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s should be a model", id)
-			assert.True(t, openapitest.PropsByWire(model.Properties)["y"].Required, id)
+			assert.True(t, openapitest.PropertiesByWire(model.Properties)["y"].Required, id)
 		}
 	}
 }
@@ -344,16 +344,16 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 				require.NotNil(t, model.Base, "the wrapper's ref is classified as in the flat spelling")
 				assert.Equal(t, componentID("A"), model.Base.Target)
 				assert.Empty(t, model.Mixins)
-				_, hasW := openapitest.PropsByWire(model.Properties)["w"]
+				_, hasW := openapitest.PropertiesByWire(model.Properties)["w"]
 				assert.True(t, hasW, "the wrapper's properties still merge")
 				code := diag.DegradedConstruct
 				if tc.whole {
 					code = diag.ValidationOnlyKeyword
 				}
 				var infos []ir.Diagnostic
-				for _, d := range doc.Diagnostics {
-					if d.Code == code && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
-						infos = append(infos, d)
+				for _, diagnostic := range doc.Diagnostics {
+					if diagnostic.Code == code && diagnostic.Provenance.Pointer == "/components/schemas/M/allOf/0" {
+						infos = append(infos, diagnostic)
 					}
 				}
 				require.Len(t, infos, 1, "exactly one %s at the wrapper", code)
@@ -420,8 +420,8 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 	for _, src := range []string{m + nestedAB, nestedAB + m} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
 		docs = append(docs, doc)
-		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
-			return d.Severity != ir.SeverityError
+		errs := slices.DeleteFunc(slices.Clone(diags), func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Severity != ir.SeverityError
 		})
 		require.Len(t, errs, 1, "only the minItems finding is an error")
 		assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/allOf"), errs[0].Provenance.Pointer)
@@ -500,7 +500,7 @@ func TestAllOf_AnEntryNamingNothingIsNamedForItsSchema(t *testing.T) {
 `
 	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
-		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
+		narrowed, ok := doc.Types["type/anonymous/components/schemas/M/allOf/1/allOf/1"]
 		require.True(t, ok, "the narrowed entry is hoisted at its pointer")
 		assert.Equal(t, "m", narrowed.Common().Name.Hint)
 	}
@@ -653,11 +653,11 @@ var equivalencePairs = []struct {
 `},
 }
 
-// wires lists the wire names of props.
-func wires(props []propView) []string {
-	out := make([]string, 0, len(props))
-	for _, p := range props {
-		out = append(out, p.Wire)
+// wires lists the wire names of properties.
+func wires(properties []propertyView) []string {
+	out := make([]string, 0, len(properties))
+	for _, propertyView := range properties {
+		out = append(out, propertyView.Wire)
 	}
 	return out
 }
@@ -665,8 +665,8 @@ func wires(props []propView) []string {
 // refTargets lists the TypeIDs refs target, in order.
 func refTargets(refs []ir.TypeRef) []ir.TypeID {
 	out := make([]ir.TypeID, 0, len(refs))
-	for _, r := range refs {
-		out = append(out, r.Target)
+	for _, typeRef := range refs {
+		out = append(out, typeRef.Target)
 	}
 	return out
 }
@@ -695,7 +695,7 @@ const pet = `    Pet:
 type composedView struct {
 	Base       string
 	Mixins     []string
-	Props      []propView
+	Properties []propertyView
 	Requires   []string
 	Additional ir.AdditionalMode
 	DiscValue  string
@@ -703,8 +703,8 @@ type composedView struct {
 	Kept       int
 }
 
-// propView is one property of a composedView.
-type propView struct {
+// propertyView is one property of a composedView.
+type propertyView struct {
 	Wire     string
 	Type     string
 	Required bool
@@ -714,7 +714,7 @@ type propView struct {
 // pointer, which differs by spelling: a component is kept by ID, anything else by
 // its kind.
 func projectTarget(doc *ir.Document, id ir.TypeID) string {
-	if strings.HasPrefix(string(id), "t/anon/") {
+	if strings.HasPrefix(string(id), "type/anonymous/") {
 		return "anon:" + string(doc.Types[id].Kind())
 	}
 	return string(id)
@@ -724,36 +724,36 @@ func projectTarget(doc *ir.Document, id ir.TypeID) string {
 // each projected in turn. depth bounds the descent, which a union's variants
 // reach once.
 func viewOf(doc *ir.Document, id ir.TypeID, depth int) composedView {
-	var v composedView
+	var composedViewValue composedView
 	switch td := doc.Types[id].(type) {
 	case *ir.Model:
-		v = modelView(doc, td)
+		composedViewValue = modelView(doc, td)
 	case *ir.Union:
 		if depth > 0 {
 			for _, variant := range td.Variants {
-				v.Variants = append(v.Variants, viewOf(doc, variant.Type.Target, depth-1))
+				composedViewValue.Variants = append(composedViewValue.Variants, viewOf(doc, variant.Type.Target, depth-1))
 			}
 		}
 	default:
-		v.Base = "not a model or union: " + string(id)
+		composedViewValue.Base = "not a model or union: " + string(id)
 	}
-	return v
+	return composedViewValue
 }
 
 // modelView projects a model's composition, properties, the required names it
 // holds no property for, and its openness.
-func modelView(doc *ir.Document, m *ir.Model) composedView {
-	v := composedView{
-		Requires: m.Requires, Additional: m.Additional, DiscValue: m.DiscriminatorValue, Kept: len(m.Unmodeled),
+func modelView(doc *ir.Document, model *ir.Model) composedView {
+	composedViewValue := composedView{
+		Requires: model.Requires, Additional: model.Additional, DiscValue: model.DiscriminatorValue, Kept: len(model.Unmodeled),
 	}
-	if m.Base != nil {
-		v.Base = string(m.Base.Target)
+	if model.Base != nil {
+		composedViewValue.Base = string(model.Base.Target)
 	}
-	for _, mixin := range m.Mixins {
-		v.Mixins = append(v.Mixins, string(mixin.Target))
+	for _, mixin := range model.Mixins {
+		composedViewValue.Mixins = append(composedViewValue.Mixins, string(mixin.Target))
 	}
-	for _, p := range m.Properties {
-		v.Props = append(v.Props, propView{Wire: p.WireName, Type: projectTarget(doc, p.Type.Target), Required: p.Required})
+	for _, property := range model.Properties {
+		composedViewValue.Properties = append(composedViewValue.Properties, propertyView{Wire: property.WireName, Type: projectTarget(doc, property.Type.Target), Required: property.Required})
 	}
-	return v
+	return composedViewValue
 }

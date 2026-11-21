@@ -64,7 +64,7 @@ func requireClosureKeptWhole(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	model := closureModelAt(t, doc, at)
 	assert.Equal(t, entryKept(fmt.Sprintf("openapi:allOf/%d", index)), keptOn(model), "what the model at %s keeps", at)
 	assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "the model at %s is open", at)
-	assert.Nil(t, model.AdditionalProps, "the model at %s has no catch-all", at)
+	assert.Nil(t, model.AdditionalProperties, "the model at %s has no catch-all", at)
 }
 
 // TestEntryClosure_AClosureThatIsNotTheOnlyDeclarationOfMembersIsKeptWhole
@@ -76,7 +76,7 @@ func requireClosureKeptWhole(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 // are written in.
 func TestEntryClosure_AClosureThatIsNotTheOnlyDeclarationOfMembersIsKeptWhole(t *testing.T) {
 	t.Parallel()
-	const props = "{properties: {b: {type: string}}}"
+	const properties = "{properties: {b: {type: string}}}"
 	cases := []struct {
 		name    string
 		closure string
@@ -84,7 +84,7 @@ func TestEntryClosure_AClosureThatIsNotTheOnlyDeclarationOfMembersIsKeptWhole(t 
 		own     string // what the position writes beside its allOf
 		only31  bool
 	}{
-		{name: "closure beside another entry's properties", closure: "{additionalProperties: false}", others: []string{closureRef, props}},
+		{name: "closure beside another entry's properties", closure: "{additionalProperties: false}", others: []string{closureRef, properties}},
 		{name: "closure beside a typed entry's properties", closure: "{additionalProperties: false}",
 			others: []string{"{type: object, properties: {b: {type: string}}, required: [b]}"}},
 		{name: "a catch-all beside another entry's properties", closure: "{type: object, additionalProperties: {type: string}}",
@@ -92,7 +92,7 @@ func TestEntryClosure_AClosureThatIsNotTheOnlyDeclarationOfMembersIsKeptWhole(t 
 		{name: "closure beside the position's own properties", closure: "{additionalProperties: false}",
 			others: []string{closureRef}, own: "properties: {b: {type: string}}, "},
 		{name: "patterns beside another entry's properties", closure: "{patternProperties: {'^x-': {type: string}}}",
-			others: []string{closureRef, props}, only31: true},
+			others: []string{closureRef, properties}, only31: true},
 	}
 	for _, tc := range cases {
 		for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -167,39 +167,39 @@ func TestEntryClosure_AUseRepeatedLeavesTheModelOfTheClosureAlone(t *testing.T) 
 // model the position lowers to holds of it where the entry is the only
 // conjunct declaring members, or none declares any.
 type closureTyped struct {
-	name    string
-	closure string   // the entry
-	others  []string // the other entries
-	base    bool     // the model's base is closureUser
-	props   []string // the members the model declares, by wire name
-	only31  bool     // patternProperties is a 3.1 keyword
-	check   func(t *testing.T, model *ir.Model, at string)
+	name       string
+	closure    string   // the entry
+	others     []string // the other entries
+	base       bool     // the model's base is closureUser
+	properties []string // the members the model declares, by wire name
+	only31     bool     // patternProperties is a 3.1 keyword
+	check      func(t *testing.T, model *ir.Model, at string)
 }
 
 // requireClosureClosed holds a model to be closed and to have no catch-all.
 func requireClosureClosed(t *testing.T, model *ir.Model, at string) {
 	t.Helper()
 	assert.Equal(t, ir.AdditionalClosed, model.Additional, "closed at %s", at)
-	assert.Nil(t, model.AdditionalProps, "no catch-all at %s", at)
+	assert.Nil(t, model.AdditionalProperties, "no catch-all at %s", at)
 }
 
 // requireClosurePatterns holds a model to hold the one pattern ^x- of strings.
 func requireClosurePatterns(t *testing.T, model *ir.Model, at string) {
 	t.Helper()
 	assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "open at %s", at)
-	require.NotNil(t, model.AdditionalProps, "a catch-all at %s", at)
-	require.Len(t, model.AdditionalProps.Patterns, 1, at)
-	assert.Equal(t, "^x-", model.AdditionalProps.Patterns[0].Pattern, at)
-	assert.Equal(t, prim(ir.PrimString), model.AdditionalProps.Patterns[0].Value.Target, at)
+	require.NotNil(t, model.AdditionalProperties, "a catch-all at %s", at)
+	require.Len(t, model.AdditionalProperties.Patterns, 1, at)
+	assert.Equal(t, "^x-", model.AdditionalProperties.Patterns[0].Pattern, at)
+	assert.Equal(t, primitive(ir.PrimitiveString), model.AdditionalProperties.Patterns[0].Value.Target, at)
 }
 
 // requireClosureValues holds a model to hold a catch-all of strings.
 func requireClosureValues(t *testing.T, model *ir.Model, at string) {
 	t.Helper()
 	assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "open at %s", at)
-	require.NotNil(t, model.AdditionalProps, "a catch-all at %s", at)
-	require.NotNil(t, model.AdditionalProps.Value, at)
-	assert.Equal(t, prim(ir.PrimString), model.AdditionalProps.Value.Target, at)
+	require.NotNil(t, model.AdditionalProperties, "a catch-all at %s", at)
+	require.NotNil(t, model.AdditionalProperties.Value, at)
+	assert.Equal(t, primitive(ir.PrimitiveString), model.AdditionalProperties.Value.Target, at)
 }
 
 // closureTypedCases are the entries that type the closure they write.
@@ -209,7 +209,7 @@ func closureTypedCases() []closureTyped {
 		{name: "a closure of an object, no member declared", closure: "{type: object, additionalProperties: false}", others: []string{closureRef}, base: true, check: requireClosureClosed},
 		{
 			name: "a closure declaring its own members", closure: "{properties: {b: {type: string}}, additionalProperties: false}",
-			others: []string{closureRef}, base: true, props: []string{"b"}, check: requireClosureClosed,
+			others: []string{closureRef}, base: true, properties: []string{"b"}, check: requireClosureClosed,
 		},
 		{name: "a closure of no $ref, no member declared", closure: "{type: object, additionalProperties: false}", others: []string{"{required: [a]}"}, check: requireClosureClosed},
 		{name: "a catch-all, no member declared", closure: "{additionalProperties: {type: string}}", others: []string{closureRef}, base: true, check: requireClosureValues},
@@ -219,7 +219,7 @@ func closureTypedCases() []closureTyped {
 		},
 		{
 			name: "patterns declaring their own members", closure: "{properties: {b: {type: string}}, patternProperties: {'^x-': {type: string}}}",
-			others: []string{closureRef}, base: true, props: []string{"b"}, only31: true, check: requireClosurePatterns,
+			others: []string{closureRef}, base: true, properties: []string{"b"}, only31: true, check: requireClosurePatterns,
 		},
 	}
 }
@@ -254,10 +254,10 @@ func TestEntryClosure_AClosureOfTheOnlyEntryDeclaringMembersIsTyped(t *testing.T
 								assert.Nil(t, model.Base, "no base at %s", at)
 							}
 							var got []string
-							for _, p := range model.Properties {
-								got = append(got, p.WireName)
+							for _, property := range model.Properties {
+								got = append(got, property.WireName)
 							}
-							assert.Equal(t, tc.props, got, "the members declared at %s", at)
+							assert.Equal(t, tc.properties, got, "the members declared at %s", at)
 							assert.Empty(t, keptUnder(doc, at), "nothing is kept at %s", at)
 							assert.Empty(t, degradedUnder(diags, at), "nothing is reported at %s", at)
 						}
@@ -294,7 +294,7 @@ func TestEntryClosure_TheEntryAndTheBesideSpellingsAreOneModel(t *testing.T) {
 					want := closureModelAt(t, beside, at)
 					got := closureModelAt(t, entry, at)
 					assert.Equal(t, want.Additional, got.Additional, "openness at %s", at)
-					assert.Equal(t, want.AdditionalProps, got.AdditionalProps, "catch-all at %s", at)
+					assert.Equal(t, want.AdditionalProperties, got.AdditionalProperties, "catch-all at %s", at)
 					assert.Equal(t, want.Base, got.Base, "base at %s", at)
 				}
 			})
@@ -310,7 +310,7 @@ func TestEntryClosure_TheEntryAndTheBesideSpellingsAreOneModel(t *testing.T) {
 // open, the keyword is kept once on it and reported once.
 func TestEntryClosure_ABesideClosureReadingAnotherConjunctsMembersIsKept(t *testing.T) {
 	t.Parallel()
-	const props = "{properties: {b: {type: string}}}"
+	const properties = "{properties: {b: {type: string}}}"
 	for _, tc := range []struct {
 		name, besides, key string
 		only31             bool
@@ -323,9 +323,9 @@ func TestEntryClosure_ABesideClosureReadingAnotherConjunctsMembersIsKept(t *test
 				continue
 			}
 			for name, entries := range map[string]string{
-				"an entry and a ref":      "[" + props + ", " + closureRef + "]",
-				"the same, the other way": "[" + closureRef + ", " + props + "]",
-				"one entry":               "[" + props + "]",
+				"an entry and a ref":      "[" + properties + ", " + closureRef + "]",
+				"the same, the other way": "[" + closureRef + ", " + properties + "]",
+				"one entry":               "[" + properties + "]",
 			} {
 				t.Run(fmt.Sprintf("%s/%s/%s", version, tc.name, name), func(t *testing.T) {
 					t.Parallel()
@@ -336,11 +336,11 @@ func TestEntryClosure_ABesideClosureReadingAnotherConjunctsMembersIsKept(t *test
 						for _, at := range conjunctionPositions {
 							model := closureModelAt(t, doc, at)
 							assert.Equal(t, ir.AdditionalUnspecified, model.Additional, "open at %s", at)
-							assert.Nil(t, model.AdditionalProps, "no catch-all at %s", at)
+							assert.Nil(t, model.AdditionalProperties, "no catch-all at %s", at)
 							assert.Equal(t, entryKept(tc.key), keptOn(model), "what the model keeps at %s", at)
 							assert.Len(t, entryKeptUnder(doc, at), 1, "nothing else is kept at %s", at)
 							assert.Len(t, degradedUnder(diags, at), 1, "one info at %s", at)
-							assert.True(t, slices.ContainsFunc(model.Properties, func(p ir.Property) bool { return p.WireName == "b" }), at)
+							assert.True(t, slices.ContainsFunc(model.Properties, func(property ir.Property) bool { return property.WireName == "b" }), at)
 						}
 					})
 				})

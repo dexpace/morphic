@@ -16,35 +16,35 @@ import (
 )
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "onNewPet")
+	irOperation, ok := operationByName(doc, "onNewPet")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound, "a webhook operation is marked inbound as one")
-	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
-	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
-	assertOwnServersOverrideThePathItems(t, doc, op, "https://hooks-override.example.com",
+	require.Len(t, irOperation.Bindings.HTTP, 1)
+	assert.Equal(t, ir.HTTPInboundWebhook, irOperation.Bindings.HTTP[0].Inbound, "a webhook operation is marked inbound as one")
+	assert.Equal(t, "newPet", irOperation.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, irOperation.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
+	assertOwnServersOverrideThePathItems(t, doc, irOperation, "https://hooks-override.example.com",
 		"/webhooks/newPet/servers/0")
 	assertWebhookGroupIsAHint(t, doc)
 
 	// Two keys a URI template would misstate: braces that belong to the event's
 	// name, and the empty key, which names nothing. Neither declares an
 	// operationId, so the hint is built from the method and the key.
-	ops := allOperations(doc)
+	operations := allOperations(doc)
 	for _, hook := range []struct {
-		id        ir.OpID
+		id        ir.OperationID
 		key, hint string
 	}{
-		{"op/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
-		{"op/openapi/webhooks//post", "", "post"},
+		{"operation/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
+		{"operation/openapi/webhooks//post", "", "post"},
 	} {
-		i := slices.IndexFunc(ops, func(op ir.Operation) bool { return op.ID == hook.id })
+		i := slices.IndexFunc(operations, func(operation ir.Operation) bool { return operation.ID == hook.id })
 		require.GreaterOrEqual(t, i, 0, "the webhook keyed %q is mounted", hook.key)
-		require.Len(t, ops[i].Bindings.HTTP, 1)
-		b := ops[i].Bindings.HTTP[0]
+		require.Len(t, operations[i].Bindings.HTTP, 1)
+		b := operations[i].Bindings.HTTP[0]
 		assert.Equal(t, ir.HTTPInboundWebhook, b.Inbound)
 		assert.Equal(t, hook.key, b.WebhookName, "the key, verbatim")
 		assert.Empty(t, b.URITemplate, "a webhook has no URI template")
-		assert.Equal(t, hook.hint, ops[i].Name.Hint)
+		assert.Equal(t, hook.hint, operations[i].Name.Hint)
 	}
 }
 
@@ -54,26 +54,26 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // operation is sent to its own, `url`; the path item's, declared at
 // overriddenAt, are registered all the same and named by none of its
 // operations.
-func assertOwnServersOverrideThePathItems(t *testing.T, doc *ir.Document, op ir.Operation, url, overriddenAt string) {
+func assertOwnServersOverrideThePathItems(t *testing.T, doc *ir.Document, operation ir.Operation, url, overriddenAt string) {
 	t.Helper()
-	require.Len(t, op.Servers, 1, "the operation names its own server")
-	assert.Equal(t, url, doc.Servers[op.Servers[0]].URLTemplate)
+	require.Len(t, operation.Servers, 1, "the operation names its own server")
+	assert.Equal(t, url, doc.Servers[operation.Servers[0]].URLTemplate)
 	overridden := ir.ServerID("server/openapi" + overriddenAt)
 	require.Contains(t, doc.Servers, overridden, "the overridden path item's server is still registered")
-	assert.NotContains(t, op.Servers, overridden)
-	assert.NotContains(t, op.Unmodeled, "openapi:servers", "neither level is kept verbatim")
-	assert.NotContains(t, op.Unmodeled, "openapi:operationServers")
+	assert.NotContains(t, operation.Servers, overridden)
+	assert.NotContains(t, operation.Unmodeled, "openapi:servers", "neither level is kept verbatim")
+	assert.NotContains(t, operation.Unmodeled, "openapi:operationServers")
 }
 
 // assertPathItemServersNamed pins that a path item's servers reach its
 // operations whichever parent the path item hangs from. They used to be read
 // only on the `paths` walk, so the same override written on a webhook or a
 // callback disappeared with nothing said (GitHub #39).
-func assertPathItemServersNamed(t *testing.T, doc *ir.Document, op ir.Operation, url string) {
+func assertPathItemServersNamed(t *testing.T, doc *ir.Document, operation ir.Operation, url string) {
 	t.Helper()
-	require.Len(t, op.Servers, 1, "the operation names its path item's server")
-	assert.Equal(t, url, doc.Servers[op.Servers[0]].URLTemplate)
-	assert.NotContains(t, op.Unmodeled, "openapi:servers", "and keeps nothing of it verbatim")
+	require.Len(t, operation.Servers, 1, "the operation names its path item's server")
+	assert.Equal(t, url, doc.Servers[operation.Servers[0]].URLTemplate)
+	assert.NotContains(t, operation.Unmodeled, "openapi:servers", "and keeps nothing of it verbatim")
 }
 
 // assertWebhookGroupIsAHint pins which of the two things the group's name is.
@@ -88,34 +88,34 @@ func assertPathItemServersNamed(t *testing.T, doc *ir.Document, op ir.Operation,
 func assertWebhookGroupIsAHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	require.Len(t, doc.Services, 1)
-	for _, g := range doc.Services[0].Groups {
-		if g.Name.Hint != "webhooks" {
+	for _, operationGroup := range doc.Services[0].Groups {
+		if operationGroup.Name.Hint != "webhooks" {
 			continue
 		}
-		assert.Empty(t, g.Name.Source, "a group no document declares carries no source spelling")
-		assert.Empty(t, g.Name.Canonical, "and no words derived from one")
+		assert.Empty(t, operationGroup.Name.Source, "a group no document declares carries no source spelling")
+		assert.Empty(t, operationGroup.Name.Canonical, "and no words derived from one")
 		return
 	}
 	t.Fatal("no group carries the webhooks hint")
 }
 
 func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "subscribe")
+	operation, ok := operationByName(doc, "subscribe")
 	require.True(t, ok)
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, "{$request.body#/callbackUrl}", op.Bindings.HTTP[0].Callbacks[0].Expression)
-	assert.NotEmpty(t, op.Bindings.HTTP[0].Callbacks[0].Operations)
-	cb, ok := opByName(doc, "onEvent")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	require.Len(t, operation.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, "{$request.body#/callbackUrl}", operation.Bindings.HTTP[0].Callbacks[0].Expression)
+	assert.NotEmpty(t, operation.Bindings.HTTP[0].Callbacks[0].Operations)
+	cb, ok := operationByName(doc, "onEvent")
 	require.True(t, ok, "the callback operation is registered alongside its parent")
 	assertPathItemServersNamed(t, doc, cb, "https://callbacks.example.com")
-	assert.Empty(t, op.Servers, "the callback's servers stay on the callback, not on the parent")
+	assert.Empty(t, operation.Servers, "the callback's servers stay on the callback, not on the parent")
 
-	reply, ok := opByName(doc, "onReply")
+	reply, ok := operationByName(doc, "onReply")
 	require.True(t, ok, "a callback declared on a callback's operation lowers too")
 	require.Len(t, cb.Bindings.HTTP[0].Callbacks, 1)
 	nested := cb.Bindings.HTTP[0].Callbacks[0]
-	assert.Equal(t, ir.Callback{Name: "onReply", Expression: "{$response.body#/replyUrl}", Operations: []ir.OpID{reply.ID}}, nested)
+	assert.Equal(t, ir.Callback{Name: "onReply", Expression: "{$response.body#/replyUrl}", Operations: []ir.OperationID{reply.ID}}, nested)
 	assert.Equal(t, ir.HTTPInboundCallback, reply.Bindings.HTTP[0].Inbound)
 	assert.Empty(t, reply.Servers, "the servers of the item declaring it are not its own")
 }
@@ -126,14 +126,14 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // diagnostic. Each key is asserted with its own marker so an entry recovered
 // under the wrong key cannot pass for the right one.
 func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	op, ok := opByName(doc, "getX")
+	operation, ok := operationByName(doc, "getX")
 	require.True(t, ok)
 
 	for _, tc := range []struct{ key, marker, at string }{
 		{"openapi:pathItem/bogusAnchored", "ANCHORED", "/paths/~1x/bogusAnchored"},
 		{"openapi:pathItem/plainBogus", "PLAIN", "/paths/~1x/plainBogus"},
 	} {
-		entry := unmodeledEntry(t, op.Unmodeled, tc.key)
+		entry := unmodeledEntry(t, operation.Unmodeled, tc.key)
 		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
 			"%s keeps the value the source wrote", tc.key)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
@@ -154,9 +154,9 @@ func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // included — which is why the summary is asserted on the referenced item's
 // operation as well as on the sibling's (GitHub #577).
 func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	sibling, ok := opByName(doc, "putA")
+	sibling, ok := operationByName(doc, "putA")
 	require.True(t, ok, "the operation written beside the $ref reaches the IR")
-	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), sibling.ID)
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1a/put"), sibling.ID)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), sibling.Provenance.Pointer,
 		"a sibling operation is declared where it is mounted, not at the item it references")
 	assert.Equal(t, []string{"PUT"}, methodsOf(sibling))
@@ -185,33 +185,33 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	// The referenced item's own operation keeps mounting at both paths, and the
 	// constructs written beside the reference reach it too.
-	atA := opByID(t, doc, "op/openapi/paths/~1a/get")
+	atA := operationByID(t, doc, "operation/openapi/paths/~1a/get")
 	assert.Equal(t, "getB", atA.Name.Source)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer)
 	assert.Equal(t, "written beside the ref", atA.Bindings.HTTP[0].PathDocs.Summary)
-	atB := opByID(t, doc, "op/openapi/paths/~1b/get")
+	atB := operationByID(t, doc, "operation/openapi/paths/~1b/get")
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atB.Provenance.Pointer)
 	assert.Empty(t, atB.Bindings.HTTP[0].PathDocs.Summary,
 		"the referent's own path keeps only what it declares")
 }
 
 // methodsOf returns the wire methods an operation's HTTP bindings declare.
-func methodsOf(op ir.Operation) []string {
-	methods := make([]string, 0, len(op.Bindings.HTTP))
-	for _, b := range op.Bindings.HTTP {
+func methodsOf(operation ir.Operation) []string {
+	methods := make([]string, 0, len(operation.Bindings.HTTP))
+	for _, b := range operation.Bindings.HTTP {
 		methods = append(methods, b.Method)
 	}
 	return methods
 }
 
-// opByID returns the operation carrying id, which is what tells two mounts of
-// one $ref'd declaration apart where a source name cannot.
-func opByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
+// operationByID returns the operation carrying id, which is what tells two
+// mounts of one $ref'd declaration apart where a source name cannot.
+func operationByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
 	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if string(op.ID) == id {
-				return op
+	for _, operationGroup := range doc.Services[0].Groups {
+		for _, operation := range operationGroup.Operations {
+			if string(operation.ID) == id {
+				return operation
 			}
 		}
 	}
@@ -228,24 +228,24 @@ func opByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
 // need a precedence rule and would attach to an operation text its author never
 // wrote. So the assertion is that both subjects survive side by side.
 func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	for _, tc := range []struct{ op, summary, description string }{
+	for _, tc := range []struct{ operation, summary, description string }{
 		{"listPets", "Pet collection", "Everything addressable at /pets."},
 		{"createPet", "Pet collection", "Everything addressable at /pets."},
 		{"onPetCreated", "Creation callback", "Delivered once the pet exists."},
 		{"onPetDeleted", "Pet deleted", "Delivered when a pet is removed."},
 	} {
-		op, ok := opByName(doc, tc.op)
-		require.True(t, ok, "operation %s", tc.op)
-		assertPathItemDocsKept(t, op, tc.summary, tc.description)
+		operation, ok := operationByName(doc, tc.operation)
+		require.True(t, ok, "operation %s", tc.operation)
+		assertPathItemDocsKept(t, operation, tc.summary, tc.description)
 	}
 
-	listPets, ok := opByName(doc, "listPets")
+	listPets, ok := operationByName(doc, "listPets")
 	require.True(t, ok)
 	assert.Equal(t, "List pets", listPets.Docs.Summary,
 		"the operation's own summary is what Docs holds")
 	assert.Equal(t, "Returns every pet.", listPets.Docs.Description)
 
-	createPet, ok := opByName(doc, "createPet")
+	createPet, ok := operationByName(doc, "createPet")
 	require.True(t, ok)
 	assert.Empty(t, createPet.Docs.Summary,
 		"and an operation that documents nothing has nothing invented for it")
@@ -258,13 +258,13 @@ func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // assertPathItemDocsKept checks one operation's HTTP binding documents the path
 // with the pair its own path item declared, and that nothing of it stayed
 // verbatim.
-func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
+func assertPathItemDocsKept(t *testing.T, operation ir.Operation, summary, description string) {
 	t.Helper()
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, op.Bindings.HTTP[0].PathDocs,
-		"the path item's pair documents the path on %s", op.ID)
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary", "nothing of the pair is kept verbatim")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/description")
+	require.Len(t, operation.Bindings.HTTP, 1)
+	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, operation.Bindings.HTTP[0].PathDocs,
+		"the path item's pair documents the path on %s", operation.ID)
+	assert.NotContains(t, operation.Unmodeled, "openapi:pathItem/summary", "nothing of the pair is kept verbatim")
+	assert.NotContains(t, operation.Unmodeled, "openapi:pathItem/description")
 }
 
 // assertPathItemOperations pins that every operation a 3.2 path item declares
@@ -276,21 +276,21 @@ func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description 
 // reachable only through it, which is why the request body's schema is asserted
 // to be in the registry rather than merely referenced from an operation.
 func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	for _, tc := range []struct{ op, method string }{
+	for _, tc := range []struct{ operation, method string }{
 		{"queryIndex", "QUERY"},
 		{"purgeIndex", "PURGE"},
 		{"mixedCaseIndex", "mIxEdCase"},
 		{"purgeCallback", "PURGE"},
 		{"onFlush", "FLUSH"},
 	} {
-		op, ok := opByName(doc, tc.op)
-		require.True(t, ok, "operation %s", tc.op)
-		require.Len(t, op.Bindings.HTTP, 1)
-		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
-			"%s binds the method as the source spelled it", tc.op)
+		operation, ok := operationByName(doc, tc.operation)
+		require.True(t, ok, "operation %s", tc.operation)
+		require.Len(t, operation.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, operation.Bindings.HTTP[0].Method,
+			"%s binds the method as the source spelled it", tc.operation)
 	}
 
-	onFlush, ok := opByName(doc, "onFlush")
+	onFlush, ok := operationByName(doc, "onFlush")
 	require.True(t, ok)
 	assert.Equal(t, ir.HTTPInboundWebhook, onFlush.Bindings.HTTP[0].Inbound,
 		"a webhook mount marks the binding whichever field declared the operation")
@@ -298,16 +298,16 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 		"the webhooks-map key names the event")
 	assert.Empty(t, onFlush.Bindings.HTTP[0].URITemplate)
 
-	subscribe, ok := opByName(doc, "subscribeIndex")
+	subscribe, ok := operationByName(doc, "subscribeIndex")
 	require.True(t, ok)
 	require.Len(t, subscribe.Bindings.HTTP, 1)
 	require.Len(t, subscribe.Bindings.HTTP[0].Callbacks, 1)
-	purgeCallback, ok := opByName(doc, "purgeCallback")
+	purgeCallback, ok := operationByName(doc, "purgeCallback")
 	require.True(t, ok)
-	assert.Equal(t, []ir.OpID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
+	assert.Equal(t, []ir.OperationID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
 		"an expression declaring only additionalOperations still binds to its parent")
 
-	queryIndex, ok := opByName(doc, "queryIndex")
+	queryIndex, ok := operationByName(doc, "queryIndex")
 	require.True(t, ok)
 	assert.NotNil(t, doc.Types[openapitest.BodyTarget(t, queryIndex.Request)],
 		"the request body schema is interned, not merely referenced")

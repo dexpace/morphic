@@ -26,7 +26,7 @@ import (
 // plus whether the depth cap cut the walk short.
 func walkPaths(root any) ([]string, bool) {
 	var paths []string
-	truncated := ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+	truncated := ir.WalkValues(root, "document", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
 		paths = append(paths, at.String())
 		return true
 	}))
@@ -43,18 +43,18 @@ func TestWalkValues_PathsSpellFieldsIndicesAndKeys(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{
 		Name: "api",
-		Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-			ID:       "t/x/M",
+		Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+			ID:       "type/x/M",
 			Examples: []ir.Example{{Value: new(ir.Value{Kind: ir.ValueNull})}},
 		}},
 	}
 
 	paths, truncated := walkPaths(doc)
 	require.False(t, truncated)
-	assert.Contains(t, paths, "doc.Name")
-	assert.Contains(t, paths, "doc.Types[t/x/M]"+ir.MapKeySuffix)
-	assert.Contains(t, paths, "doc.Types[t/x/M].Examples[0].Value.Kind")
-	assert.NotContains(t, paths, "doc.Types[t/x/M].TypeCommon.ID",
+	assert.Contains(t, paths, "document.Name")
+	assert.Contains(t, paths, "document.Types[type/x/M]"+ir.MapKeySuffix)
+	assert.Contains(t, paths, "document.Types[type/x/M].Examples[0].Value.Kind")
+	assert.NotContains(t, paths, "document.Types[type/x/M].TypeCommon.ID",
 		"an embedded field contributes no path segment")
 }
 
@@ -67,14 +67,14 @@ func TestWalkValues_PathsSpellFieldsIndicesAndKeys(t *testing.T) {
 func TestWalkValues_MapEntriesAreVisitedInRenderedKeyOrder(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{}}
-	for _, id := range []ir.TypeID{"t/c", "t/a", "t/d", "t/b"} {
+	for _, id := range []ir.TypeID{"type/c", "type/a", "type/d", "type/b"} {
 		doc.Types[id] = &ir.Any{ID: id}
 	}
 
 	paths, _ := walkPaths(doc)
 	var entries []string
 	for _, p := range paths {
-		if strings.HasPrefix(p, "doc.Types[") && strings.HasSuffix(p, ir.MapKeySuffix) {
+		if strings.HasPrefix(p, "document.Types[") && strings.HasSuffix(p, ir.MapKeySuffix) {
 			entries = append(entries, p)
 		}
 	}
@@ -91,9 +91,9 @@ func TestWalkValues_NestedMapsAreWalkedEntryByEntry(t *testing.T) {
 	paths, truncated := walkPaths(map[string]map[string]int{"a": {"x": 1}, "b": {"y": 2}})
 	require.False(t, truncated)
 	assert.Equal(t, []string{
-		"doc",
-		"doc[a].key", "doc[a]", "doc[a][x].key", "doc[a][x]",
-		"doc[b].key", "doc[b]", "doc[b][y].key", "doc[b][y]",
+		"document",
+		"document[a].key", "document[a]", "document[a][x].key", "document[a][x]",
+		"document[b].key", "document[b]", "document[b][y].key", "document[b][y]",
 	}, paths)
 }
 
@@ -175,12 +175,12 @@ func (d deepList) requireDeepestRendered(t *testing.T) {
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	walkDoc := func(depth int) deepList {
-		v := irtest.NestedListValue(depth)
-		doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
-			ID:       "t/m",
-			Examples: []ir.Example{{Value: &v}},
+		value := irtest.NestedListValue(depth)
+		doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{
+			ID:       "type/m",
+			Examples: []ir.Example{{Value: &value}},
 		}}}
-		return walkDeepList(func(l *listVisits) bool { return ir.WalkValues(doc, "doc", l) })
+		return walkDeepList(func(listVisitsValue *listVisits) bool { return ir.WalkValues(doc, "document", listVisitsValue) })
 	}
 
 	deep := walkDoc(ir.MaxWalkDepth)
@@ -203,8 +203,8 @@ func TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext(t *testing.T) {
 		depth int
 		paths bool
 	}{{200, true}, {ir.MaxWalkDepth, false}} {
-		v := irtest.NestedListValue(tc.depth)
-		doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}}}
+		value := irtest.NestedListValue(tc.depth)
+		doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{ID: "type/m", Examples: []ir.Example{{Value: &value}}}}}
 		var want, got []string
 		record := func(into *[]string) ir.Visitor {
 			return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
@@ -216,9 +216,9 @@ func TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext(t *testing.T) {
 				return true
 			})
 		}
-		wantTruncated := ir.WalkValues(doc, "doc", record(&want))
+		wantTruncated := ir.WalkValues(doc, "document", record(&want))
 
-		truncated, err := ir.WalkValuesContext(t.Context(), doc, "doc", record(&got))
+		truncated, err := ir.WalkValuesContext(t.Context(), doc, "document", record(&got))
 
 		require.NoError(t, err)
 		assert.Equal(t, wantTruncated, truncated, "depth %d", tc.depth)
@@ -245,7 +245,7 @@ func TestWalkValuesContext_StopsOnceItsContextIsDone(t *testing.T) {
 	root := make([]int, 1000)
 	values := 1 + len(root)
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	_, err := ir.WalkValuesContext(whole, root, "doc", &shownCounter{})
+	_, err := ir.WalkValuesContext(whole, root, "document", &shownCounter{})
 	require.NoError(t, err)
 	require.Equal(t, (values+255)/256, whole.Calls, "an ask before the first value and every 256 after")
 
@@ -254,7 +254,7 @@ func TestWalkValuesContext_StopsOnceItsContextIsDone(t *testing.T) {
 		var atRefusal int
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left, OnRefuse: func() { atRefusal = shown.n }}
 
-		truncated, err := ir.WalkValuesContext(ctx, root, "doc", &shown)
+		truncated, err := ir.WalkValuesContext(ctx, root, "document", &shown)
 
 		require.ErrorIs(t, err, context.Canceled, "check %d", left+1)
 		assert.False(t, truncated, "check %d", left+1)
@@ -292,7 +292,7 @@ func TestWalkValuesContext_AStopEndsEveryTraversal(t *testing.T) {
 
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.left}
 
-			_, err := ir.WalkValuesContext(ctx, root, "doc", visitors...)
+			_, err := ir.WalkValuesContext(ctx, root, "document", visitors...)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Equal(t, tc.wantFirst, counters[0].n)
@@ -310,9 +310,9 @@ func TestWalkValuesContext_AStopEndsEveryTraversal(t *testing.T) {
 // hand-built shape the walk must still read as the decoded copy is read.
 func TestWalkValues_SharedPointerIsDescendedIntoFromEachHolder(t *testing.T) {
 	t.Parallel()
-	shared := &ir.TypeRef{Target: "t/x/Shared"}
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
-		ID: "t/m", Instantiation: &ir.TemplateInstantiation{
+	shared := &ir.TypeRef{Target: "type/x/Shared"}
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/m": &ir.Model{
+		ID: "type/m", Instantiation: &ir.TemplateInstantiation{
 			Args: []ir.TemplateArg{{Type: shared}, {Type: shared}},
 		},
 	}}}
@@ -340,7 +340,7 @@ func TestWalkValues_CyclicPointerGraphTerminates(t *testing.T) {
 
 	paths, truncated := walkPaths(loop)
 	assert.False(t, truncated, "the cycle guard stops the walk well before the depth cap")
-	assert.Equal(t, []string{"doc", "doc", "doc.Next"}, paths,
+	assert.Equal(t, []string{"document", "document", "document.Next"}, paths,
 		"the pointer, the struct behind it, then the field that leads back to it")
 }
 
@@ -377,18 +377,18 @@ func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
 func TestWalkValues_VisitorPrunesChildren(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{
-		"t/m": &ir.Model{ID: "t/m"},
+		"type/m": &ir.Model{ID: "type/m"},
 	}}
 
 	var pruned []string
-	ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(doc, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		pruned = append(pruned, at.String())
 		return v.Type() != reflect.TypeFor[ir.TypeRegistry]()
 	}))
 
-	assert.Contains(t, pruned, "doc.Types")
+	assert.Contains(t, pruned, "document.Types")
 	for _, p := range pruned {
-		assert.False(t, strings.HasPrefix(p, "doc.Types["), "%s sits below the pruned registry", p)
+		assert.False(t, strings.HasPrefix(p, "document.Types["), "%s sits below the pruned registry", p)
 	}
 }
 
@@ -404,11 +404,11 @@ func TestWalkValues_NothingUnreachableIsVisited(t *testing.T) {
 
 	// Contact is a nil *Contact and the registry entry is a nil TypeDef, so the
 	// walk reaches the pointer and the interface but nothing behind either.
-	doc := &ir.Document{Contact: nil, Types: ir.TypeRegistry{"t/nil": nil}}
+	doc := &ir.Document{Contact: nil, Types: ir.TypeRegistry{"type/nil": nil}}
 	paths, _ = walkPaths(doc)
-	assert.Contains(t, paths, "doc.Contact", "the nil pointer itself is visited")
-	assert.Contains(t, paths, "doc.Types[t/nil]", "the nil interface itself is visited")
-	assert.NotContains(t, paths, "doc.Contact.Name", "nothing behind a nil pointer is reachable")
+	assert.Contains(t, paths, "document.Contact", "the nil pointer itself is visited")
+	assert.Contains(t, paths, "document.Types[type/nil]", "the nil interface itself is visited")
+	assert.NotContains(t, paths, "document.Contact.Name", "nothing behind a nil pointer is reachable")
 }
 
 // TestWalkValues_ArrayElementsAreReached pins that a fixed-size array is walked
@@ -417,11 +417,11 @@ func TestWalkValues_NothingUnreachableIsVisited(t *testing.T) {
 // with it.
 func TestWalkValues_ArrayElementsAreReached(t *testing.T) {
 	t.Parallel()
-	holder := &struct{ IDs [2]ir.TypeID }{IDs: [2]ir.TypeID{"t/a", "t/b"}}
+	holder := &struct{ IDs [2]ir.TypeID }{IDs: [2]ir.TypeID{"type/a", "type/b"}}
 
 	paths, _ := walkPaths(holder)
-	assert.Contains(t, paths, "doc.IDs[0]")
-	assert.Contains(t, paths, "doc.IDs[1]")
+	assert.Contains(t, paths, "document.IDs[0]")
+	assert.Contains(t, paths, "document.IDs[1]")
 }
 
 // A chain of structs, each embedding the next and an empty map, for a walk whose
@@ -466,8 +466,8 @@ func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 
 	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 	assert.Equal(t,
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(shallow, "doc", visit) }),
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(deep, "doc", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(shallow, "document", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(deep, "document", visit) }),
 		"three more structs and maps must cost no more allocations")
 }
 
@@ -505,8 +505,8 @@ func TestWalkValues_MapEntriesCostNoAllocation(t *testing.T) {
 	few, many := walkHolders(4), walkHolders(64)
 	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 	assert.Equal(t,
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(few, "doc", visit) }),
-		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(many, "doc", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(few, "document", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(many, "document", visit) }),
 		"sixty more holders of six entries must cost no more allocations")
 }
 
@@ -527,9 +527,9 @@ func walkKids(first, n int) map[string]walkNode {
 
 // nodeNumbers records under each node's path the number it holds, read by
 // plain Go rather than by the walk.
-func nodeNumbers(path string, n walkNode, into map[string]int64) {
-	into[path+".N"] = int64(n.N)
-	for key, kid := range n.Kids {
+func nodeNumbers(path string, walkNodeValue walkNode, into map[string]int64) {
+	into[path+".N"] = int64(walkNodeValue.N)
+	for key, kid := range walkNodeValue.Kids {
 		nodeNumbers(path+".Kids["+key+"]", kid, into)
 	}
 }
@@ -555,12 +555,12 @@ func TestWalkValues_NestedMapsOfOneTypeKeepTheirEntries(t *testing.T) {
 		}},
 	}
 	want := map[string]int64{}
-	nodeNumbers("doc.Wide", root.Wide, want)
-	nodeNumbers("doc.Nested", root.Nested, want)
-	nodeNumbers("doc.Grown", root.Grown, want)
+	nodeNumbers("document.Wide", root.Wide, want)
+	nodeNumbers("document.Nested", root.Nested, want)
+	nodeNumbers("document.Grown", root.Grown, want)
 
 	got := map[string]int64{}
-	truncated := ir.WalkValues(root, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	truncated := ir.WalkValues(root, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if path := at.String(); strings.HasSuffix(path, ".N") {
 			got[path] = v.Int()
 		}
@@ -582,7 +582,7 @@ func TestWalkValues_MapEntriesAreTheWalksCopies(t *testing.T) {
 	}
 	m := map[string]entry{"a": {Name: "x", Items: []int{1}}}
 	copies := 0
-	ir.WalkValues(m, "doc", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
+	ir.WalkValues(m, "document", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		switch {
 		case v.Kind() == reflect.String && v.CanSet():
 			v.SetString("changed")
@@ -606,7 +606,7 @@ func TestWalkValues_InterfaceInAMapEntryLeadsToTheDocumentsOwn(t *testing.T) {
 	t.Parallel()
 	root := []map[string]any{{"a": walkEntry{Name: "first"}}, {"a": walkEntry{Name: "second"}}}
 	var copies, held []reflect.Value
-	ir.WalkValues(root, "doc", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
+	ir.WalkValues(root, "document", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		switch v.Kind() {
 		case reflect.Interface:
 			copies = append(copies, v)
@@ -632,7 +632,7 @@ func TestWalkValues_MapBehindAnUnexportedFieldIsReached(t *testing.T) {
 	t.Parallel()
 	holder := struct{ hidden map[string]int }{hidden: map[string]int{"b": 2, "a": 1}}
 	var got []string
-	ir.WalkValues(holder, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+	ir.WalkValues(holder, "document", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		switch v.Kind() {
 		case reflect.String:
 			got = append(got, at.String()+"="+v.String())
@@ -644,9 +644,9 @@ func TestWalkValues_MapBehindAnUnexportedFieldIsReached(t *testing.T) {
 		return true
 	}))
 	assert.Equal(t, []string{
-		"doc", "doc.hidden",
-		"doc.hidden[a].key=a", "doc.hidden[a]=1",
-		"doc.hidden[b].key=b", "doc.hidden[b]=2",
+		"document", "document.hidden",
+		"document.hidden[a].key=a", "document.hidden[a]=1",
+		"document.hidden[b].key=b", "document.hidden[b]=2",
 	}, got)
 }
 
@@ -678,7 +678,7 @@ func TestWalkValues_MapStorageGrowsByDoubling(t *testing.T) {
 	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 	allocs := func(n int) float64 {
 		sized := growingMaps(n)
-		return testing.AllocsPerRun(5, func() { _ = ir.WalkValues(sized, "doc", visit) })
+		return testing.AllocsPerRun(5, func() { _ = ir.WalkValues(sized, "document", visit) })
 	}
 	small, medium, large := allocs(32), allocs(64), allocs(128)
 	assert.Equal(t, medium-small, large-medium, "walking 32, 64 and 128 ever larger maps cost %v, %v and %v", small, medium, large)

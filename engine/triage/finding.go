@@ -39,46 +39,46 @@ func (s Ruleset) Rate(diags []ir.Diagnostic) ([]Finding, []Rule) {
 	if len(diags) > 0 {
 		findings = make([]Finding, len(diags))
 	}
-	for i, d := range diags {
-		findings[i] = Finding{Diagnostic: d, Severity: d.Severity}
-		at, ok := s.match(d)
+	for i, diagnostic := range diags {
+		findings[i] = Finding{Diagnostic: diagnostic, Severity: diagnostic.Severity}
+		at, ok := s.match(diagnostic)
 		if !ok {
 			continue
 		}
 		matched[at] = true
-		r := &rules[at]
-		findings[i].Rule = r
-		if r.Accept {
+		rule := &rules[at]
+		findings[i].Rule = rule
+		if rule.Accept {
 			findings[i].Accepted = true
 			continue
 		}
-		findings[i].Severity = r.Severity
+		findings[i].Severity = rule.Severity
 	}
 
 	var unused []Rule
-	for i, r := range rules {
+	for i, rule := range rules {
 		if !matched[i] {
-			unused = append(unused, r)
+			unused = append(unused, rule)
 		}
 	}
 	return findings, unused
 }
 
-// match returns the position of the rule d meets, and false when it meets
-// none. A pointer places d in the spec only when d is in source 0, as a
-// pointer locates a position of its own source alone.
-func (s Ruleset) match(d ir.Diagnostic) (int, bool) {
-	prov := d.Provenance
+// match returns the position of the rule diagnostic meets, and false when it
+// meets none. A pointer places diagnostic in the spec only when diagnostic is
+// in source 0, as a pointer locates a position of its own source alone.
+func (s Ruleset) match(diagnostic ir.Diagnostic) (int, bool) {
+	prov := diagnostic.Provenance
 	if prov.Pointer != "" && prov.Source == 0 {
-		if at, ok := s.byKey[key{code: d.Code, pointer: string(prov.Pointer)}]; ok {
+		if at, ok := s.byKey[key{code: diagnostic.Code, pointer: string(prov.Pointer)}]; ok {
 			return at, true
 		}
 	}
 	if prov.Node != "" {
-		if at, ok := s.byKey[key{code: d.Code, node: prov.Node}]; ok {
+		if at, ok := s.byKey[key{code: diagnostic.Code, node: prov.Node}]; ok {
 			return at, true
 		}
 	}
-	at, ok := s.byKey[key{code: d.Code}]
+	at, ok := s.byKey[key{code: diagnostic.Code}]
 	return at, ok
 }

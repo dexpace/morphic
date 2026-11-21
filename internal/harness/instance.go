@@ -30,7 +30,7 @@ const kindInference = "kind-inference"
 // holds an instance at no carrier, which the judge never met. A Go error
 // compiling the case is the writer's or the harness's fault, not the source's,
 // so it ends the case as a panic does.
-func admitted(ctx context.Context, s *shard, at []int, doc Document) Verdict {
+func admitted(ctx context.Context, shardValue *shard, at []int, doc CaseDocument) Verdict {
 	var valid []Instance
 	for _, in := range doc.Instances {
 		if in.Valid {
@@ -41,7 +41,7 @@ func admitted(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 		return declined(OracleInstance, DeclineNoInstance)
 	}
 
-	got, _ := s.compile(ctx, at) // the case wrote doc, so it writes it again
+	got, _ := shardValue.compile(ctx, at) // the case wrote doc, so it writes it again
 	if got.err != nil {
 		panic(fmt.Errorf("harness: compiling case %v: %w", at, got.err))
 	}
@@ -70,26 +70,26 @@ type carrier struct {
 func carriers(doc *ir.Document) map[string]carrier {
 	held := map[string]carrier{}
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		if p, ok := reflect.TypeAssert[ir.Property](v); ok && p.Default != nil {
-			held[string(p.ID)] = carrier{typ: p.Type, def: p.Default}
+		if property, ok := reflect.TypeAssert[ir.Property](v); ok && property.Default != nil {
+			held[string(property.ID)] = carrier{typ: property.Type, def: property.Default}
 		}
-		if p, ok := reflect.TypeAssert[ir.Parameter](v); ok && p.Default != nil {
-			held[string(p.ID)] = carrier{typ: p.Type, def: p.Default}
+		if parameter, ok := reflect.TypeAssert[ir.Parameter](v); ok && parameter.Default != nil {
+			held[string(parameter.ID)] = carrier{typ: parameter.Type, def: parameter.Default}
 		}
 		return true
 	}))
 	return held
 }
 
-// excused reports whether a finding on c is the kind inference's known cost:
-// the node c is checked against, past any alias of it (aliased), names
-// kind-inference in its Provenance.Inferred, which narrows a schema admitting
-// every kind to one, and the default is of another kind. A finding of what the
-// default holds, a bound or a member, is the node's own and is never excused,
-// nor is one on a node that carries no such mark or against a default of the
-// node's kind.
-func excused(doc *ir.Document, c carrier) bool {
-	td := aliased(doc, c.typ.Target)
+// excused reports whether a finding on carrierValue is the kind inference's
+// known cost: the node carrierValue is checked against, past any alias of it
+// (aliased), names kind-inference in its Provenance.Inferred, which narrows a
+// schema admitting every kind to one, and the default is of another kind. A
+// finding of what the default holds, a bound or a member, is the node's own and
+// is never excused, nor is one on a node that carries no such mark or against a
+// default of the node's kind.
+func excused(doc *ir.Document, carrierValue carrier) bool {
+	td := aliased(doc, carrierValue.typ.Target)
 	var kind ir.ValueKind
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
@@ -100,7 +100,7 @@ func excused(doc *ir.Document, c carrier) bool {
 		return false // a node of no one kind is not narrowed to a kind
 	}
 	inferred := strings.Split(string(td.Common().Provenance.Inferred), ",")
-	return slices.Contains(inferred, kindInference) && c.def.Kind != kind
+	return slices.Contains(inferred, kindInference) && carrierValue.def.Kind != kind
 }
 
 // aliased returns the node target names, past each scalar whose base is
@@ -110,11 +110,11 @@ func excused(doc *ir.Document, c carrier) bool {
 func aliased(doc *ir.Document, target ir.TypeID) ir.TypeDef {
 	td := doc.Types[target]
 	for range len(doc.Types) {
-		s, ok := td.(*ir.Scalar)
-		if !ok || s.Base == nil {
+		scalar, ok := td.(*ir.Scalar)
+		if !ok || scalar.Base == nil {
 			break
 		}
-		td = doc.Types[s.Base.Target]
+		td = doc.Types[scalar.Base.Target]
 	}
 	return td
 }
@@ -129,10 +129,10 @@ func excluded(instances []Instance, diags []ir.Diagnostic, held map[string]carri
 		if excused(doc, held[in.Node]) {
 			continue
 		}
-		for _, d := range diags {
-			if d.Code == codeOutsideType && d.Provenance.Node == in.Node {
+		for _, diagnostic := range diags {
+			if diagnostic.Code == codeOutsideType && diagnostic.Provenance.Node == in.Node {
 				names = append(names, strconv.Quote(in.Name))
-				lines = append(lines, strconv.Quote(in.Name)+": "+d.Message)
+				lines = append(lines, strconv.Quote(in.Name)+": "+diagnostic.Message)
 				break
 			}
 		}

@@ -105,7 +105,7 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 	grafted := &yaml.Node{Kind: yaml.ScalarNode}
 	own := &yaml.Node{Kind: yaml.ScalarNode, Line: 3, Column: 9}
 	positions := provenance.NewPositions()
-	positions.Place(grafted, at(positions, "/info/title"))
+	positions.Place(grafted, positionAtPointer(positions, "/info/title"))
 	tree := provenance.Tree{
 		Doc:      provenance.Doc{Source: 2, Overlay: provenance.Attributed(1, positions)},
 		Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { return "/from/the/tree", true },
@@ -117,21 +117,21 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 2}, tree.Node(nil), "the tree is not asked about no node")
 }
 
-// at returns the position pointer names in positions, recording it and every
-// position above it.
-func at(positions *provenance.Positions, pointer jsontext.Pointer) *provenance.Position {
-	p := positions.Root()
+// positionAtPointer returns the position pointer names in positions, recording
+// it and every position above it.
+func positionAtPointer(positions *provenance.Positions, pointer jsontext.Pointer) *provenance.Position {
+	position := positions.Root()
 	for token := range pointer.Tokens() {
-		p = positions.Child(p, token)
+		position = positions.Child(position, token)
 	}
-	return p
+	return position
 }
 
 // written returns a record of the positions pointers name, each written.
 func written(pointers ...jsontext.Pointer) *provenance.Positions {
 	positions := provenance.NewPositions()
-	for _, p := range pointers {
-		at(positions, p).Write()
+	for _, pointer := range pointers {
+		positionAtPointer(positions, pointer).Write()
 	}
 	return positions
 }
@@ -167,7 +167,7 @@ func TestAttribution_AtSpellsThePointerOfAPlacedNode(t *testing.T) {
 	t.Parallel()
 	positions := provenance.NewPositions()
 	deep, root, other := &yaml.Node{}, &yaml.Node{}, &yaml.Node{}
-	positions.Place(deep, at(positions, "/paths/~1a~0b/get"))
+	positions.Place(deep, positionAtPointer(positions, "/paths/~1a~0b/get"))
 	positions.Place(root, positions.Root())
 	a := provenance.Attributed(1, positions)
 

@@ -24,50 +24,50 @@ import (
 // set, is written as an entry of an allOf beside the $ref in one spelling and
 // beside the use in the other, since an allOf cannot be written twice.
 type conjFamily struct {
-	name    string
-	str     string
-	obj     string
-	arr     string
-	entries map[string]string
-	only31  bool
+	name         string
+	stringSchema string
+	obj          string
+	arr          string
+	entries      map[string]string
+	only31       bool
 }
 
 // conjFamilies are the keyword families a use may write beside its $ref.
 var conjFamilies = []conjFamily{
-	{name: "bound", str: "minLength: 1", obj: "minProperties: 1", arr: "maxItems: 3"},
-	{name: "type", str: "type: string", obj: "type: object", arr: "type: array"},
-	{name: "enum", str: "enum: [a, b]"},
-	{name: "const", str: "const: a", only31: true},
-	{name: "nullable", str: "nullable: true", obj: "nullable: true"},
-	{name: "docs", str: "description: d, title: Ti", obj: "description: d, title: Ti", arr: "description: d, title: Ti"},
-	{name: "deprecated", str: "deprecated: true", obj: "deprecated: true", arr: "deprecated: true"},
-	{name: "example", str: "example: x", obj: "example: {a: x}", arr: "example: [x]"},
-	{name: "default", str: "default: x", obj: "default: {a: x}", arr: "default: [x]"},
-	{name: "readOnly", str: "readOnly: true", obj: "readOnly: true", arr: "readOnly: true"},
-	{name: "writeOnly", str: "writeOnly: true", obj: "writeOnly: true", arr: "writeOnly: true"},
-	{name: "properties", str: "properties: {b: {type: string}}", obj: "properties: {b: {type: string}}"},
-	{name: "required", str: "required: [a]", obj: "required: [a]"},
-	{name: "additionalProperties", str: "additionalProperties: {type: string}", obj: "additionalProperties: {type: string}"},
-	{name: "items", str: "items: {type: string}", arr: "items: {type: string}"},
+	{name: "bound", stringSchema: "minLength: 1", obj: "minProperties: 1", arr: "maxItems: 3"},
+	{name: "type", stringSchema: "type: string", obj: "type: object", arr: "type: array"},
+	{name: "enum", stringSchema: "enum: [a, b]"},
+	{name: "const", stringSchema: "const: a", only31: true},
+	{name: "nullable", stringSchema: "nullable: true", obj: "nullable: true"},
+	{name: "docs", stringSchema: "description: d, title: Ti", obj: "description: d, title: Ti", arr: "description: d, title: Ti"},
+	{name: "deprecated", stringSchema: "deprecated: true", obj: "deprecated: true", arr: "deprecated: true"},
+	{name: "example", stringSchema: "example: x", obj: "example: {a: x}", arr: "example: [x]"},
+	{name: "default", stringSchema: "default: x", obj: "default: {a: x}", arr: "default: [x]"},
+	{name: "readOnly", stringSchema: "readOnly: true", obj: "readOnly: true", arr: "readOnly: true"},
+	{name: "writeOnly", stringSchema: "writeOnly: true", obj: "writeOnly: true", arr: "writeOnly: true"},
+	{name: "properties", stringSchema: "properties: {b: {type: string}}", obj: "properties: {b: {type: string}}"},
+	{name: "required", stringSchema: "required: [a]", obj: "required: [a]"},
+	{name: "additionalProperties", stringSchema: "additionalProperties: {type: string}", obj: "additionalProperties: {type: string}"},
+	{name: "items", stringSchema: "items: {type: string}", arr: "items: {type: string}"},
 	{
-		name: "oneOf", str: "oneOf: [{type: string}, {type: boolean}]",
+		name: "oneOf", stringSchema: "oneOf: [{type: string}, {type: boolean}]",
 		obj: "oneOf: [{type: object, properties: {b: {type: string}}}, {type: object, properties: {c: {type: string}}}]",
 		arr: "oneOf: [{type: array, maxItems: 2}, {type: boolean}]",
 	},
 	{
-		name: "anyOf", str: "anyOf: [{type: string, maxLength: 5}, {type: boolean}]",
+		name: "anyOf", stringSchema: "anyOf: [{type: string, maxLength: 5}, {type: boolean}]",
 		obj: "anyOf: [{required: [a]}, {required: [b]}]", arr: "anyOf: [{type: array, maxItems: 2}, {type: boolean}]",
 	},
-	{name: "not", str: "not: {enum: [n]}", obj: "not: {enum: [n]}", arr: "not: {enum: [n]}"},
-	{name: "format", str: "format: password", obj: "format: password", arr: "format: password"},
-	{name: "xml", str: "xml: {name: x}", obj: "xml: {name: x}", arr: "xml: {name: x}"},
-	{name: "externalDocs", str: "externalDocs: {url: 'https://example.com'}", obj: "externalDocs: {url: 'https://example.com'}"},
+	{name: "not", stringSchema: "not: {enum: [n]}", obj: "not: {enum: [n]}", arr: "not: {enum: [n]}"},
+	{name: "format", stringSchema: "format: password", obj: "format: password", arr: "format: password"},
+	{name: "xml", stringSchema: "xml: {name: x}", obj: "xml: {name: x}", arr: "xml: {name: x}"},
+	{name: "externalDocs", stringSchema: "externalDocs: {url: 'https://example.com'}", obj: "externalDocs: {url: 'https://example.com'}"},
 	{
-		name: "promotedExtension", str: `deprecated: true, x-deprecated-since: "2"`,
+		name: "promotedExtension", stringSchema: `deprecated: true, x-deprecated-since: "2"`,
 		obj: `deprecated: true, x-deprecated-since: "2"`, arr: `deprecated: true, x-deprecated-since: "2"`,
 	},
-	{name: "extension", str: "x-a: 1", obj: "x-a: 1", arr: "x-a: 1"},
-	{name: "unknownKey", str: "unknownKeyword: 1", obj: "unknownKeyword: 1", arr: "unknownKeyword: 1"},
+	{name: "extension", stringSchema: "x-a: 1", obj: "x-a: 1", arr: "x-a: 1"},
+	{name: "unknownKey", stringSchema: "unknownKeyword: 1", obj: "unknownKeyword: 1", arr: "unknownKeyword: 1"},
 	{name: "allOfBeside", entries: map[string]string{"Str": "{maxLength: 5}", "Obj": "{properties: {b: {type: string}}}", "Arr": "{maxItems: 3}"}},
 }
 
@@ -76,7 +76,7 @@ var conjFamilies = []conjFamily{
 func (f conjFamily) keywordsOf(target string) string {
 	switch target {
 	case "Str":
-		return f.str
+		return f.stringSchema
 	case "Obj":
 		return f.obj
 	default:
@@ -133,7 +133,7 @@ func TestRefConjunction_AUseWritingKeywordsBesideItsRefCompilesAsTheAllOfSpellin
 // nodeAt is the JSON of the type with the ID given, nil where the document
 // holds none.
 func nodeAt(tree any, id string) map[string]any {
-	node, _ := at(tree, "types", id).(map[string]any)
+	node, _ := valueAtPath(tree, "types", id).(map[string]any)
 	return node
 }
 
@@ -146,7 +146,7 @@ func carriersNamed(tree any, name string) []map[string]any {
 	walk = func(v any) {
 		switch x := v.(type) {
 		case map[string]any:
-			if at(x, "name", "source") == name && x["type"] != nil && x["kind"] == nil {
+			if valueAtPath(x, "name", "source") == name && x["type"] != nil && x["kind"] == nil {
 				found = append(found, x)
 			}
 			for _, child := range x {
@@ -186,9 +186,9 @@ func requireCarrier(t *testing.T, tree any, site conjSite) map[string]any {
 // holdsPromotion reports whether the JSON of a node or carrier holds the
 // deprecation the extension fills, its mark and the entry keeping the key.
 func holdsPromotion(node any) (since, marked, kept bool) {
-	since = at(node, "deprecation", "since") == "2"
-	marked = strings.Contains(fmt.Sprint(at(node, "provenance", "inferred")), "extension-promotion")
-	for key := range keptReasons(at(node, "unmodeled")) {
+	since = valueAtPath(node, "deprecation", "since") == "2"
+	marked = strings.Contains(fmt.Sprint(valueAtPath(node, "provenance", "inferred")), "extension-promotion")
+	for key := range keptReasons(valueAtPath(node, "unmodeled")) {
 		// A parameter or a header keeps what its schema writes under openapi:schema/.
 		kept = kept || key == "openapi:x-deprecated-since" || key == "openapi:schema/x-deprecated-since"
 	}
@@ -218,7 +218,7 @@ func TestRefConjunction_APromotedFactAndItsMarkSitOnOneNodeInEverySpelling(t *te
 						doc, _ := compileUnrefused(t, site.write(version, schema, conjTargets[target]))
 						tree := documentTree(t, doc)
 						if carrierName(site) == "" {
-							id := "t/anon" + site.pointer
+							id := "type/anonymous" + site.pointer
 							if site.name == "component" {
 								id = string(componentID("Use"))
 							}
@@ -235,7 +235,7 @@ func TestRefConjunction_APromotedFactAndItsMarkSitOnOneNodeInEverySpelling(t *te
 							return
 						}
 						assert.False(t, since || marked || kept, "the carrier over an object holds none of the three")
-						decorator := nodeAt(tree, fmt.Sprint(at(carrier, "type", "target")))
+						decorator := nodeAt(tree, fmt.Sprint(valueAtPath(carrier, "type", "target")))
 						require.NotNil(t, decorator)
 						assert.Equal(t, "model", decorator["kind"])
 						assert.Equal(t, true, decorator["anonymous"])
@@ -274,8 +274,8 @@ func variantHints(t *testing.T, doc *ir.Document, name string) []string {
 	union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
 	require.True(t, ok, "%s is a union", name)
 	hints := make([]string, 0, len(union.Variants))
-	for _, v := range union.Variants {
-		hints = append(hints, v.Name.Hint)
+	for _, variant := range union.Variants {
+		hints = append(hints, variant.Name.Hint)
 	}
 	return hints
 }
@@ -365,8 +365,8 @@ func TestRefConjunction_ATitleNamesTheVariantHoldingItWhereverItIsWritten(t *tes
 // nothing else is reported, whatever its severity.
 func requireOnlyFindings(t *testing.T, diags []ir.Diagnostic, what string, allowed ...string) {
 	t.Helper()
-	for _, d := range diags {
-		assert.Contains(t, allowed, d.Code, "%s: %s %s at %s", what, d.Severity, d.Code, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		assert.Contains(t, allowed, diagnostic.Code, "%s: %s %s at %s", what, diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer)
 	}
 }
 
@@ -376,7 +376,7 @@ type spell func(target, keywords string) string
 // compileSpelled compiles the schemas build gives with each spelling and
 // returns the document of each, the beside spelling's findings with them.
 func compileSpelled(
-	t *testing.T, version string, build func(s spell) []string,
+	t *testing.T, version string, build func(spellValue spell) []string,
 ) (beside, wrapped *ir.Document, findings []ir.Diagnostic) {
 	t.Helper()
 	beside, findings = compileUnrefused(t, admissionSpec(version, "", build(besideSpelling)...))
@@ -395,12 +395,12 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, diags := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, diags := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					user,
-					"Created: " + s("User", "required: [id]"),
-					"Extended: " + s("User", "properties: {age: {type: integer}}"),
-					"Holder: {type: object, properties: {u: " + s("User", "required: [id]") + "}}",
+					"Created: " + spellValue("User", "required: [id]"),
+					"Extended: " + spellValue("User", "properties: {age: {type: integer}}"),
+					"Holder: {type: object, properties: {u: " + spellValue("User", "required: [id]") + "}}",
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "required and properties beside a $ref")
@@ -418,9 +418,9 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 			require.Len(t, extended.Properties, 1)
 			assert.Equal(t, "age", extended.Properties[0].Name.Source)
 
-			u, ok := propByWire(requireModelOf(t, beside, "Holder"), "u")
+			property, ok := propertyByWire(requireModelOf(t, beside, "Holder"), "u")
 			require.True(t, ok)
-			held := kindNode(t, beside, u.Type.Target)
+			held := kindNode(t, beside, property.Type.Target)
 			model, ok := held.(*ir.Model)
 			require.True(t, ok, "the property names a model over the object, as the allOf spelling does")
 			assert.Equal(t, []string{"id"}, model.Requires)
@@ -447,21 +447,21 @@ func TestRefConjunction_AValueSetBesideARefNarrowsItsTargetInEverySpelling(t *te
 	for _, version := range []string{"3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			build := func(s spell) []string {
-				props := make([]string, 0, len(uses))
+			build := func(spellValue spell) []string {
+				properties := make([]string, 0, len(uses))
 				for _, u := range uses {
-					props = append(props, u.name+": "+s(u.target, u.keywords))
+					properties = append(properties, u.name+": "+spellValue(u.target, u.keywords))
 				}
-				return append(slices.Clone(levels), "Holder: {type: object, properties: {"+strings.Join(props, ", ")+"}}")
+				return append(slices.Clone(levels), "Holder: {type: object, properties: {"+strings.Join(properties, ", ")+"}}")
 			}
 			beside, wrapped, diags := compileSpelled(t, version, build)
 			requireSpellingsEqual(t, beside, wrapped, "a value set beside a $ref")
 
 			for _, u := range uses {
-				node := kindNode(t, beside, holderPropType(t, beside, u.name))
+				node := kindNode(t, beside, holderWirePropertyType(t, beside, u.name))
 				pointer := "/components/schemas/Holder/properties/" + u.name
 				if u.kind == "" {
-					assert.Equal(t, componentID(u.target), holderPropType(t, beside, u.name), u.name)
+					assert.Equal(t, componentID(u.target), holderWirePropertyType(t, beside, u.name), u.name)
 					assert.Empty(t, keptOn(node), u.name)
 					assert.Zero(t, degradedInfosUnder(diags, pointer), u.name)
 					continue
@@ -488,22 +488,22 @@ func TestRefConjunction_ARedactionBesideARefInItemsIsAModelOverItsTarget(t *test
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, _ := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, _ := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					conjTargets["Obj"],
-					"Holder: {type: object, properties: {p: {type: array, items: " + s("Obj", "format: password") + "}, " +
-						"d: {type: array, items: " + s("Obj", "description: d") + "}}}",
+					"Holder: {type: object, properties: {p: {type: array, items: " + spellValue("Obj", "format: password") + "}, " +
+						"d: {type: array, items: " + spellValue("Obj", "description: d") + "}}}",
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a redaction beside a $ref")
 			for _, property := range []string{"p", "d"} {
-				list, ok := kindNode(t, beside, holderPropType(t, beside, property)).(*ir.List)
+				list, ok := kindNode(t, beside, holderWirePropertyType(t, beside, property)).(*ir.List)
 				require.True(t, ok, property)
-				elem, ok := kindNode(t, beside, list.Elem.Target).(*ir.Model)
+				element, ok := kindNode(t, beside, list.ElementType.Target).(*ir.Model)
 				require.True(t, ok, "the element of %s is a model over the object", property)
-				require.NotNil(t, elem.Base)
-				assert.Equal(t, componentID("Obj"), elem.Base.Target)
-				assert.Equal(t, property == "p", elem.Sensitive, "what %s redacts", property)
+				require.NotNil(t, element.Base)
+				assert.Equal(t, componentID("Obj"), element.Base.Target)
+				assert.Equal(t, property == "p", element.Sensitive, "what %s redacts", property)
 			}
 		})
 	}
@@ -533,16 +533,16 @@ func TestRefConjunction_AKeywordOnlyAModelHoldsBesideARefAtAParameterIsKeptOnThe
 
 				tree := documentTree(t, beside)
 				carrier := requireCarrier(t, tree, site)
-				assert.Empty(t, keptReasons(at(carrier, "unmodeled")), "the parameter keeps nothing the model holds")
-				model := nodeAt(tree, fmt.Sprint(at(carrier, "type", "target")))
+				assert.Empty(t, keptReasons(valueAtPath(carrier, "unmodeled")), "the parameter keeps nothing the model holds")
+				model := nodeAt(tree, fmt.Sprint(valueAtPath(carrier, "type", "target")))
 				require.NotNil(t, model)
 				assert.Equal(t, "model", model["kind"])
 				assert.Equal(t, true, model["anonymous"])
 				if tc.key == "" {
-					assert.Equal(t, "x", at(model, "xml", "name"))
+					assert.Equal(t, "x", valueAtPath(model, "xml", "name"))
 					return
 				}
-				assert.Contains(t, keptReasons(at(model, "unmodeled")), tc.key)
+				assert.Contains(t, keptReasons(valueAtPath(model, "unmodeled")), tc.key)
 			})
 		}
 	}
@@ -559,20 +559,20 @@ func TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt(t *testing.T) 
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			beside, wrapped, diags := compileSpelled(t, version, func(s spell) []string {
+			beside, wrapped, diags := compileSpelled(t, version, func(spellValue spell) []string {
 				return []string{
 					conjTargets["Str"], conjTargets["Obj"],
-					"UnionStr: " + s("Str", "oneOf: [{type: string}, {type: boolean}]"),
-					"UnionReq: " + s("Obj", "anyOf: [{required: [a]}, {required: [b]}]"),
-					"UnionObj: " + s("Obj", objBranches),
+					"UnionStr: " + spellValue("Str", "oneOf: [{type: string}, {type: boolean}]"),
+					"UnionReq: " + spellValue("Obj", "anyOf: [{required: [a]}, {required: [b]}]"),
+					"UnionObj: " + spellValue("Obj", objBranches),
 				}
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a union beside a $ref")
 			requireOnlyFindings(t, filterCodes(diags, "openapi/validation-only-keyword", "openapi/composition-lowering"),
 				"a union beside a $ref", "openapi/later-version-construct")
 
-			str := requireScalarOver(t, beside, "UnionStr", componentID("Str"))
-			assert.Empty(t, keptOn(str), "a union the principal says is consumed")
+			stringType := requireScalarOver(t, beside, "UnionStr", componentID("Str"))
+			assert.Empty(t, keptOn(stringType), "a union the principal says is consumed")
 			assert.Zero(t, degradedInfosAt(diags, "UnionStr"))
 
 			req := kindNode(t, beside, componentID("UnionReq"))
@@ -588,9 +588,9 @@ func TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt(t *testing.T) 
 // filterCodes returns the diagnostics whose code is none of those given.
 func filterCodes(diags []ir.Diagnostic, drop ...string) []ir.Diagnostic {
 	var kept []ir.Diagnostic
-	for _, d := range diags {
-		if !slices.Contains(drop, d.Code) {
-			kept = append(kept, d)
+	for _, diagnostic := range diags {
+		if !slices.Contains(drop, diagnostic.Code) {
+			kept = append(kept, diagnostic)
 		}
 	}
 	return kept
@@ -629,20 +629,20 @@ func TestRefConjunction_ADynamicRefReadAsARefIsThatConjunctUnderEitherKeyword(t 
 			requireOnlyFindings(t, dynDiags, "a $dynamicRef read as a $ref")
 
 			tree := documentTree(t, dynamic)
-			node := nodeAt(tree, "t/anon"+site.pointer)
+			node := nodeAt(tree, "type/anonymous"+site.pointer)
 			if site.name == "component" {
 				node = nodeAt(tree, string(componentID("Use")))
 			}
 			if carrierName(site) != "" {
 				node = requireCarrier(t, tree, site)
-				assert.Equal(t, string(componentID("T")), at(node, "type", "target"))
+				assert.Equal(t, string(componentID("T")), valueAtPath(node, "type", "target"))
 			} else {
 				require.NotNil(t, node)
 				assert.Equal(t, "scalar", node["kind"])
-				assert.Equal(t, string(componentID("T")), at(node, "base", "target"))
+				assert.Equal(t, string(componentID("T")), valueAtPath(node, "base", "target"))
 			}
-			assert.EqualValues(t, 1, at(node, "constraints", "minLength"))
-			assert.Empty(t, keptReasons(at(node, "unmodeled")))
+			assert.EqualValues(t, 1, valueAtPath(node, "constraints", "minLength"))
+			assert.Empty(t, keptReasons(valueAtPath(node, "unmodeled")))
 		})
 	}
 }
@@ -660,7 +660,7 @@ func TestRefConjunction_ADynamicRefBesideARefIsKeptOnTheUseInEverySpelling(t *te
 		"Tree: {$dynamicAnchor: m, type: object, properties: {kids: {type: array, items: {$dynamicRef: '#m'}}}}",
 	}
 	for _, name := range []string{"component", "property", "items"} {
-		site := conjSites[slices.IndexFunc(conjSites, func(s conjSite) bool { return s.name == name })]
+		site := conjSites[slices.IndexFunc(conjSites, func(conjSiteValue conjSite) bool { return conjSiteValue.name == name })]
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			beside, diags := compileUnrefused(t, site.write(version, "{"+refTo("T")+", $dynamicRef: '#m'}", others...))
@@ -677,7 +677,7 @@ func TestRefConjunction_ADynamicRefBesideARefIsKeptOnTheUseInEverySpelling(t *te
 				}
 			}
 			for _, c := range carriersNamed(documentTree(t, beside), carrierName(site)) {
-				if _, kept := keptReasons(at(c, "unmodeled"))["openapi:$dynamicRef"]; kept {
+				if _, kept := keptReasons(valueAtPath(c, "unmodeled"))["openapi:$dynamicRef"]; kept {
 					holders++
 				}
 			}
@@ -716,8 +716,8 @@ func TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference(
 // mixinTargets lists the types a model names as its mixins, in order.
 func mixinTargets(model *ir.Model) []ir.TypeID {
 	targets := make([]ir.TypeID, 0, len(model.Mixins))
-	for _, m := range model.Mixins {
-		targets = append(targets, m.Target)
+	for _, typeRef := range model.Mixins {
+		targets = append(targets, typeRef.Target)
 	}
 	return targets
 }
@@ -772,7 +772,7 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 			if statedBesideARef(d) {
 				continue
 			}
-			findings = append(findings, fmt.Sprintf("%v %v", at(d, "severity"), at(d, "code")))
+			findings = append(findings, fmt.Sprintf("%v %v", valueAtPath(d, "severity"), valueAtPath(d, "code")))
 		}
 	}
 	slices.Sort(findings)
@@ -787,8 +787,8 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 // for a keyword beside a $ref at 3.0: the later-version warning, or the
 // warning that a `nullable` has no effect, which it stands in for.
 func statedBesideARef(d any) bool {
-	code := at(d, "code")
-	pointer := fmt.Sprint(at(d, "provenance", "pointer"))
+	code := valueAtPath(d, "code")
+	pointer := fmt.Sprint(valueAtPath(d, "provenance", "pointer"))
 	return code == "openapi/later-version-construct" ||
 		code == "openapi/validation/validation-no-effect" && strings.HasSuffix(pointer, "/nullable")
 }

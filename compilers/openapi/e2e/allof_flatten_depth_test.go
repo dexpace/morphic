@@ -41,8 +41,8 @@ func TestAllOf_ACollisionPastTheFlatteningDepthIsRefused(t *testing.T) {
 	}
 	refused := func(diags []ir.Diagnostic) int {
 		n := 0
-		for _, d := range diags {
-			if d.Code == compile.RegistryRefused {
+		for _, diagnostic := range diags {
+			if diagnostic.Code == compile.RegistryRefused {
 				n++
 			}
 		}

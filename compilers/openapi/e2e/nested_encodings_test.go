@@ -46,7 +46,7 @@ func TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader(t *testing.T)
 	require.NotNil(t, doc)
 	assertNoErrorDiags(t, diags)
 	for key, ref := range headers {
-		id := ir.TypeID("t/anon/" + ref[len("#/"):])
+		id := ir.TypeID("type/anonymous/" + ref[len("#/"):])
 		def, ok := doc.Types[id]
 		require.True(t, ok, "a node at %s", ref)
 		assert.Equal(t, compile.SubHint(key, "item"), def.Common().Name.Hint, ref)
@@ -163,8 +163,8 @@ components:
 		doc   *ir.Document
 		diags []ir.Diagnostic
 	}{
-		ids.In("responses.yaml").AnonType(below):        {beside, besideDiags},
-		ids.Document{}.AnonType("/x-responses" + below): {extension, extensionDiags},
+		ids.In("responses.yaml").AnonymousType(below):                   {beside, besideDiags},
+		ids.DocumentIDNamespace{}.AnonymousType("/x-responses" + below): {extension, extensionDiags},
 	} {
 		require.NotNil(t, got.doc, at)
 		assertNoErrorDiags(t, got.diags)
@@ -203,13 +203,13 @@ x-defs:
 	require.NotNil(t, doc)
 	refs := unresolvedRefs(diags)
 	got := make([]string, 0, len(refs))
-	for _, d := range refs {
-		assert.Contains(t, d.Message, "holds no schema", d.Provenance.Pointer)
-		got = append(got, string(d.Provenance.Pointer))
+	for _, diagnostic := range refs {
+		assert.Contains(t, diagnostic.Message, "holds no schema", diagnostic.Provenance.Pointer)
+		got = append(got, string(diagnostic.Provenance.Pointer))
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/Nested", "/components/schemas/Extension"}, got)
 	for _, schema := range []string{at, "/x-defs/X/schema"} {
-		assert.NotContains(t, doc.Types, ids.Document{}.AnonType(jsontext.Pointer(schema)))
+		assert.NotContains(t, doc.Types, ids.DocumentIDNamespace{}.AnonymousType(jsontext.Pointer(schema)))
 	}
 }
 
@@ -239,9 +239,9 @@ func TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding(t *testing
 				want = append(want, h+header.below)
 			}
 			var got []string
-			for _, d := range unresolvedRefs(diags) {
-				assert.Equal(t, ir.SeverityError, d.Severity, "%s %s", version, d.Provenance.Pointer)
-				got = append(got, string(d.Provenance.Pointer))
+			for _, diagnostic := range unresolvedRefs(diags) {
+				assert.Equal(t, ir.SeverityError, diagnostic.Severity, "%s %s", version, diagnostic.Provenance.Pointer)
+				got = append(got, string(diagnostic.Provenance.Pointer))
 			}
 			assert.ElementsMatch(t, want, got, "%s, each header %s", version, header.body)
 			for _, nested := range []string{"/doc/encoding", "/parts/prefixEncoding", "/parts/itemEncoding"} {

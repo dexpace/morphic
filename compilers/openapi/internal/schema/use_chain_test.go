@@ -51,13 +51,13 @@ var chainWant = map[string]struct{ def, desc string }{
 	"own": {"f", "from-use"},
 }
 
-// TestUseOf_LendsEachHopOfTheChain pins a use reading its $ref chain one hop at
-// a time, nearest first: an alias's description and an alias's default are each
-// the nearest hop writing that field, not the chain's end's, so a hop writing
-// one and not the other lends the one and lets the other fall through to the
-// next hop. A property's own words still win. Both declaration orders read the
-// same, and the only findings are the two infos main already draws.
-func TestUseOf_LendsEachHopOfTheChain(t *testing.T) {
+// TestUseOf_FallsBackToEachHopOfTheChain pins a use reading its $ref chain one
+// hop at a time, nearest first: an alias's description and an alias's default
+// are each the nearest hop writing that field, not the chain's end's, so a hop
+// writing one and not the other lends the one and lets the other fall through
+// to the next hop. A property's own words still win. Both declaration orders
+// read the same, and the only findings are the two infos main already draws.
+func TestUseOf_FallsBackToEachHopOfTheChain(t *testing.T) {
 	t.Parallel()
 	for name, reverse := range map[string]bool{"declared order": false, "reversed order": true} {
 		t.Run(name, func(t *testing.T) {
@@ -70,10 +70,10 @@ func TestUseOf_LendsEachHopOfTheChain(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for wire, want := range chainWant {
-				p := propertyOf(t, doc, "Holder", wire)
-				require.NotNil(t, p.Default, wire)
-				assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: want.def}, *p.Default, "%s: the nearest default", wire)
-				assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
+				property := propertyOf(t, doc, "Holder", wire)
+				require.NotNil(t, property.Default, wire)
+				assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *property.Default, "%s: the nearest default", wire)
+				assert.Equal(t, want.desc, property.Docs.Description, "%s: the nearest description", wire)
 			}
 			assert.Equal(t, []string{
 				"info openapi/degraded-construct /components/schemas/Fine/default",
@@ -83,10 +83,10 @@ func TestUseOf_LendsEachHopOfTheChain(t *testing.T) {
 	}
 }
 
-// TestUseOf_LendsEachHopAcrossTwoDocuments pins the same reading where the chain
-// leaves the document: the alias and the leaf it names are written in another
-// file, and the use's own alias in this one.
-func TestUseOf_LendsEachHopAcrossTwoDocuments(t *testing.T) {
+// TestUseOf_FallsBackToEachHopAcrossTwoDocuments pins the same reading where
+// the chain leaves the document: the alias and the leaf it names are written in
+// another file, and the use's own alias in this one.
+func TestUseOf_FallsBackToEachHopAcrossTwoDocuments(t *testing.T) {
 	t.Parallel()
 	const other = `components:
   schemas:
@@ -112,10 +112,10 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for wire, want := range chainWant {
-		p := propertyOf(t, doc, "Holder", wire)
-		require.NotNil(t, p.Default, wire)
-		assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: want.def}, *p.Default, "%s: the nearest default", wire)
-		assert.Equal(t, want.desc, p.Docs.Description, "%s: the nearest description", wire)
+		property := propertyOf(t, doc, "Holder", wire)
+		require.NotNil(t, property.Default, wire)
+		assert.Equal(t, ir.Value{Kind: ir.ValueString, String: want.def}, *property.Default, "%s: the nearest default", wire)
+		assert.Equal(t, want.desc, property.Docs.Description, "%s: the nearest description", wire)
 	}
 }
 
@@ -136,35 +136,37 @@ func aliasChain(n, writer int) string {
 	return b.String()
 }
 
-// TestUseOf_AnAliasHopIsNoPassage pins that a run of aliases is read within one
-// turn: no length of it, whether one alias or well past the bound on passages,
-// costs the end's default or description. A hop in the middle of the run that
-// writes a description is the nearest to write one, at every length.
-func TestUseOf_AnAliasHopIsNoPassage(t *testing.T) {
+// TestUseOf_AnAliasHopIsNoReadThrough pins that a run of aliases is read within
+// one turn: no length of it, whether one alias or well past the bound on
+// read-throughs, costs the end's default or description. A hop in the middle of
+// the run that writes a description is the nearest to write one, at every
+// length.
+func TestUseOf_AnAliasHopIsNoReadThrough(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{1, 2, 63, 64, 65, 70, 200} {
 		t.Run(fmt.Sprintf("%d aliases", n), func(t *testing.T) {
 			t.Parallel()
 			bare, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", aliasChain(n, -1)))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, bare, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default, "the end's default")
-			assert.Equal(t, "from-end", p.Docs.Description, "the end's description")
+			property := propertyOf(t, bare, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default, "the end's default")
+			assert.Equal(t, "from-end", property.Docs.Description, "the end's description")
 
 			written, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", aliasChain(n, n/2)))
 			openapitest.RequireNoErrorDiags(t, diags)
-			p = propertyOf(t, written, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default, "no alias writes a default")
-			assert.Equal(t, "from-alias", p.Docs.Description, "the nearest hop that writes a description")
+			property = propertyOf(t, written, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default, "no alias writes a default")
+			assert.Equal(t, "from-alias", property.Docs.Description, "the nearest hop that writes a description")
 		})
 	}
 }
 
-// TestUseOf_AnAliasHopIsNoPassageAcrossTwoDocuments is the same run of aliases
-// cut in two: the first half is written here and the second in another file.
-func TestUseOf_AnAliasHopIsNoPassageAcrossTwoDocuments(t *testing.T) {
+// TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments is the same run of
+// aliases cut in two: the first half is written here and the second in another
+// file.
+func TestUseOf_AnAliasHopIsNoReadThroughAcrossTwoDocuments(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{2, 65, 70} {
 		t.Run(fmt.Sprintf("%d aliases", n), func(t *testing.T) {
@@ -193,19 +195,20 @@ func TestUseOf_AnAliasHopIsNoPassageAcrossTwoDocuments(t *testing.T) {
 
 			doc, diags, _ := compileBeside(t, map[string]string{"other.yaml": other.String()}, root.String())
 			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "Holder", "p")
-			require.NotNil(t, p.Default)
-			assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "deep"}, *p.Default)
-			assert.Equal(t, "from-alias", p.Docs.Description)
+			property := propertyOf(t, doc, "Holder", "p")
+			require.NotNil(t, property.Default)
+			assert.Equal(t, ir.Value{Kind: ir.ValueString, String: "deep"}, *property.Default)
+			assert.Equal(t, "from-alias", property.Docs.Description)
 		})
 	}
 }
 
-// passageChain returns n schemas that each narrow the next by an enum written
-// beside an allOf naming it, so a use passes over one $ref per link, and the
-// last, whose description is what a use that reached it reads. Where aliases is
-// above zero, that many aliases stand between each link and the next.
-func passageChain(n, aliases int) string {
+// readThroughChainSpec returns n schemas that each narrow the next by an enum
+// written beside an allOf naming it, so a use passes over one $ref per link,
+// and the last, whose description is what a use that reached it reads. Where
+// aliases is above zero, that many aliases stand between each link and the
+// next.
+func readThroughChainSpec(n, aliases int) string {
 	var b strings.Builder
 	for i := range n {
 		target := fmt.Sprintf("P%d", i+1)
@@ -221,22 +224,22 @@ func passageChain(n, aliases int) string {
 	return b.String()
 }
 
-// TestUseOf_PassagesAreBoundedAndAliasesSpendNone pins the bound on the passages
-// one use reads on through, which an alias between two links does not move: a
-// chain of links under it ends on the schema that describes it, and one at or
-// past it stops short, with the same verdict whether or not aliases stand
-// between the links.
-func TestUseOf_PassagesAreBoundedAndAliasesSpendNone(t *testing.T) {
+// TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone pins the bound on the
+// read-throughs one use reads on through, which an alias between two links does
+// not move: a chain of links under it ends on the schema that describes it, and
+// one at or past it stops short, with the same verdict whether or not aliases
+// stand between the links.
+func TestUseOf_ReadThroughsAreBoundedAndAliasesSpendNone(t *testing.T) {
 	t.Parallel()
-	const passages = 64
+	const readThroughs = 64
 	for _, aliases := range []int{0, 3} {
-		for _, n := range []int{1, 2, passages - 1, passages, passages + 1} {
+		for _, n := range []int{1, 2, readThroughs - 1, readThroughs, readThroughs + 1} {
 			t.Run(fmt.Sprintf("%d links, %d aliases between", n, aliases), func(t *testing.T) {
 				t.Parallel()
-				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", passageChain(n, aliases)))
+				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", readThroughChainSpec(n, aliases)))
 				openapitest.RequireNoErrorDiags(t, diags)
 				want := ""
-				if n < passages {
+				if n < readThroughs {
 					want = "from-end"
 				}
 				assert.Equal(t, want, propertyOf(t, doc, "Holder", "p").Docs.Description)
@@ -312,11 +315,11 @@ components:
 		"warning openapi/unlowered-construct /components/schemas/N/default",
 		"warning openapi/unlowered-construct /paths/~1a/get/responses/200/headers/X-O/schema/default",
 	}, findingsOf(diags, unloweredConstruct))
-	op := openapitest.FirstOp(t, doc.Services[0])
-	require.Len(t, op.Responses, 1)
-	require.Len(t, op.Responses[0].Headers, 2)
-	for _, h := range op.Responses[0].Headers {
-		assert.Nil(t, h.Default, h.WireName)
+	operation := openapitest.FirstOperation(t, doc.Services[0])
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 2)
+	for _, header := range operation.Responses[0].Headers {
+		assert.Nil(t, header.Default, header.WireName)
 	}
 }
 
@@ -347,9 +350,9 @@ func findings(diags []ir.Diagnostic) []string {
 // as "severity code pointer", sorted.
 func findingsOf(diags []ir.Diagnostic, code string) []string {
 	var out []string
-	for _, d := range diags {
-		if code == "" || d.Code == code {
-			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	for _, diagnostic := range diags {
+		if code == "" || diagnostic.Code == code {
+			out = append(out, fmt.Sprintf("%s %s %s", diagnostic.Severity, diagnostic.Code, diagnostic.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)
@@ -385,8 +388,8 @@ components:
 		{"G", "applied to a referencing property, header or parameter wherever that carrier has a field for it"},
 	} {
 		at := jsontext.Pointer("/components/schemas/" + tc.name + "/default")
-		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
-			return d.Code == diag.DegradedConstruct && d.Provenance.Pointer == at
+		i := slices.IndexFunc(diags, func(diagnostic ir.Diagnostic) bool {
+			return diagnostic.Code == diag.DegradedConstruct && diagnostic.Provenance.Pointer == at
 		})
 		require.GreaterOrEqual(t, i, 0, "%s keeps its default with an info", tc.name)
 		assert.True(t, strings.HasSuffix(diags[i].Message, tc.reach), "%s: %s", tc.name, diags[i].Message)
@@ -395,14 +398,13 @@ components:
 	assert.NotNil(t, propertyOf(t, doc, "H", "g").Default)
 }
 
-// TestUseOf_AReferenceTheTableDidNotReadLendsNothing pins a use of a chain of
-// three aliases whose middle one, and a property beside it, write a $ref
-// merged in past nodeview.MergeDepthLimit, which the parser's model holds and
-// the table never read: each lands nowhere and lends nothing past it, so a
-// property naming the chain takes its first hop's words and the other none,
-// its own lying past the bound too, and each such $ref is reported
-// unresolved.
-func TestUseOf_AReferenceTheTableDidNotReadLendsNothing(t *testing.T) {
+// TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing pins a use of a
+// chain of three aliases whose middle one, and a property beside it, write a
+// $ref merged in past nodeview.MergeDepthLimit, which the parser's model holds
+// and the table never read: each lands nowhere and lends nothing past it, so a
+// property naming the chain takes its first hop's words and the other none, its
+// own lying past the bound too, and each such $ref is reported unresolved.
+func TestUseOf_AReferenceTheTableDidNotReadFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n"+
 		"x-deep: &deep "+openapitest.NestedMerges(nodeview.MergeDepthLimit,
@@ -412,13 +414,13 @@ func TestUseOf_AReferenceTheTableDidNotReadLendsNothing(t *testing.T) {
 		"    B: {<<: *deep}\n"+
 		"    C: {type: string, description: c, deprecated: true}\n"+
 		"    Holder: {type: object, properties: {p: {$ref: '#/components/schemas/A'}, q: {<<: *deep}}}\n")
-	p := propertyOf(t, doc, "Holder", "p")
-	assert.Equal(t, componentID("A"), p.Type.Target)
-	assert.Equal(t, "a", p.Docs.Description, "the first hop's words")
-	assert.Nil(t, p.Deprecation, "nothing past the unread $ref is lent")
-	q := propertyOf(t, doc, "Holder", "q")
-	assert.Equal(t, ir.TypeID("t/prim/any"), q.Type.Target)
-	assert.Empty(t, q.Docs.Description, "its words lie past the merge bound, which are not read")
-	assert.Nil(t, q.Deprecation)
+	property := propertyOf(t, doc, "Holder", "p")
+	assert.Equal(t, componentID("A"), property.Type.Target)
+	assert.Equal(t, "a", property.Docs.Description, "the first hop's words")
+	assert.Nil(t, property.Deprecation, "nothing past the unread $ref is lent")
+	irProperty := propertyOf(t, doc, "Holder", "q")
+	assert.Equal(t, ir.TypeID("type/primitive/any"), irProperty.Type.Target)
+	assert.Empty(t, irProperty.Docs.Description, "its words lie past the merge bound, which are not read")
+	assert.Nil(t, irProperty.Deprecation)
 	assert.Len(t, withCode(diags, diag.UnresolvedRef), 2, "B's and q's")
 }

@@ -15,7 +15,7 @@ import (
 // the node whose key marks it, and whether its model is reached by more than
 // one walk as short.
 type position struct {
-	segments []ir.PropID
+	segments []ir.PropertyID
 	keeper   *ir.Provenance
 	shared   bool
 	header   bool
@@ -55,70 +55,70 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	return m.marks(common.Unmodeled, &common.Provenance)
 }
 
-// markedInput resolves where src marks a value of op's request: a parameter, or
-// a member of its body.
-func (pg *pager) markedInput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
-	m := &marker{pg: pg, target: target, src: src}
+// markedInput resolves where src marks a value of operation's request: a
+// parameter, or a member of its body.
+func (pg *pager) markedInput(operation *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
+	markerValue := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
-	mediaTypes := paramMediaTypes(op)
-	for i := range op.Params {
-		p := &op.Params[i]
+	mediaTypes := paramMediaTypes(operation)
+	for i := range operation.Params {
+		parameter := &operation.Params[i]
 		// A mark is a valued fact: the parameter's own key, else the nearest object
 		// it carries writing one.
-		own := promotion.Carried(pg.p, p.Unmodeled, promotion.CarrierScopes(mediaTypes[p.ID])...)
-		if keeper, ok := m.marksUse(own, &p.Provenance, p.Type.Target); ok {
-			found, read = append(found, &ir.InputPath{Param: &p.ID}), append(read, keeper)
+		own := promotion.Carried(pg.p, parameter.Unmodeled, promotion.CarrierScopes(mediaTypes[parameter.ID])...)
+		if keeper, ok := markerValue.marksUse(own, &parameter.Provenance, parameter.Type.Target); ok {
+			found, read = append(found, &ir.InputPath{Param: &parameter.ID}), append(read, keeper)
 		}
 	}
-	body, failure := m.within(op.Request)
+	body, failure := markerValue.within(operation.Request)
 	if body != nil {
 		found, read = append(found, &ir.InputPath{Segments: body.segments}), append(read, body.keeper)
 	}
-	r := resolved[*ir.InputPath]{read: read, at: op.Provenance, stated: len(found) > 0 || failure != "",
-		written: m.written}
+	resolvedValue := resolved[*ir.InputPath]{read: read, at: operation.Provenance, stated: len(found) > 0 || failure != "",
+		written: markerValue.written}
 	switch {
 	case failure != "":
-		return r, failure, m.diags
+		return resolvedValue, failure, markerValue.diags
 	case len(found) > 1:
-		return r, "marks more than one value of the request", m.diags
+		return resolvedValue, "marks more than one value of the request", markerValue.diags
 	case len(found) == 1:
-		r.value = found[0]
+		resolvedValue.value = found[0]
 	}
-	return r, "", m.diags
+	return resolvedValue, "", markerValue.diags
 }
 
 // markedOutput resolves where src marks a value of a page: a member of the page
 // body of the success responses (pageBody), or one of their headers, which
 // must all mark the same one. A member is held by every response declaring a
 // page body, and a header by every response, as an expression's value is.
-func (pg *pager) markedOutput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
-	m := &marker{pg: pg, target: target, src: src}
-	r := resolved[*ir.PropPath]{at: op.Provenance}
+func (pg *pager) markedOutput(operation *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.PropertyPath], string, []ir.Diagnostic) {
+	markerValue := &marker{pg: pg, target: target, src: src}
+	resolvedValue := resolved[*ir.PropertyPath]{at: operation.Provenance}
 	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
-	for i := range op.Responses {
-		body := pageBody(op.Responses[i].Payload)
-		found, failure := m.inResponse(body, op.Responses[i].Headers)
+	for i := range operation.Responses {
+		body := pageBody(operation.Responses[i].Payload)
+		found, failure := markerValue.inResponse(body, operation.Responses[i].Headers)
 		switch {
 		case failure != "":
-			r.stated = true
-			return r, failure, m.diags
+			resolvedValue.stated = true
+			return resolvedValue, failure, markerValue.diags
 		case found == nil:
 			lacking = true
 			bodiedLacking = bodiedLacking || body != nil
-		case r.value == nil:
-			r.value, r.read, r.stated = found.path(), []*ir.Provenance{found.keeper}, true
-		case !sameOutput(r.value, found.path()):
-			return r, "marks different members of the success responses", m.diags
+		case resolvedValue.value == nil:
+			resolvedValue.value, resolvedValue.read, resolvedValue.stated = found.path(), []*ir.Provenance{found.keeper}, true
+		case !sameOutput(resolvedValue.value, found.path()):
+			return resolvedValue, "marks different members of the success responses", markerValue.diags
 		default:
-			r.read = append(r.read, found.keeper)
+			resolvedValue.read = append(resolvedValue.read, found.keeper)
 		}
 	}
-	if r.value != nil && (bodiedLacking || lacking && r.value.In == "header") {
-		return r, "marks a value one of the success responses does not hold", m.diags
+	if resolvedValue.value != nil && (bodiedLacking || lacking && resolvedValue.value.In == "header") {
+		return resolvedValue, "marks a value one of the success responses does not hold", markerValue.diags
 	}
-	r.written = m.written
-	return r, "", m.diags
+	resolvedValue.written = markerValue.written
+	return resolvedValue, "", markerValue.diags
 }
 
 // inResponse returns where m's source marks a value of a response whose page
@@ -130,30 +130,30 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 		return nil, failure
 	}
 	for i := range headers {
-		h := &headers[i].Property
+		property := &headers[i].Property
 		mediaType := ""
-		if h.Encoding != nil {
-			mediaType = h.Encoding.MediaType
+		if property.Encoding != nil {
+			mediaType = property.Encoding.MediaType
 		}
-		own := promotion.Carried(m.pg.p, h.Unmodeled, promotion.CarrierScopes(mediaType)...)
-		keeper, ok := m.marksUse(own, &h.Provenance, h.Type.Target)
+		own := promotion.Carried(m.pg.p, property.Unmodeled, promotion.CarrierScopes(mediaType)...)
+		keeper, ok := m.marksUse(own, &property.Provenance, property.Type.Target)
 		switch {
 		case !ok:
 		case found != nil:
 			return nil, "marks more than one value of a response"
 		default:
-			found = &position{segments: []ir.PropID{h.ID}, keeper: keeper, header: true}
+			found = &position{segments: []ir.PropertyID{property.ID}, keeper: keeper, header: true}
 		}
 	}
 	return found, ""
 }
 
 // path is the page value p names.
-func (p *position) path() *ir.PropPath {
+func (p *position) path() *ir.PropertyPath {
 	if p.header {
-		return &ir.PropPath{In: "header", Segments: p.segments}
+		return &ir.PropertyPath{In: "header", Segments: p.segments}
 	}
-	return &ir.PropPath{Segments: p.segments}
+	return &ir.PropertyPath{Segments: p.segments}
 }
 
 // within returns where m's source marks a value of body, the one position
@@ -226,13 +226,13 @@ type step struct {
 // first, so each model's walk extends its parent's rather than copying it, and
 // a chain of models costs its length, not its square.
 type trail struct {
-	member ir.PropID
+	member ir.PropertyID
 	up     *trail
 	length int
 }
 
 // then is t extended by member.
-func (t *trail) then(member ir.PropID) *trail {
+func (t *trail) then(member ir.PropertyID) *trail {
 	return &trail{member: member, up: t, length: t.size() + 1}
 }
 
@@ -245,8 +245,8 @@ func (t *trail) size() int {
 }
 
 // segments is t's members from the root, then last.
-func (t *trail) segments(last ir.PropID) []ir.PropID {
-	out := make([]ir.PropID, t.size()+1)
+func (t *trail) segments(last ir.PropertyID) []ir.PropertyID {
+	out := make([]ir.PropertyID, t.size()+1)
 	out[len(out)-1] = last
 	for i, at := len(out)-2, t; at != nil; i, at = i-1, at.up {
 		out[i] = at.member
@@ -261,22 +261,22 @@ func (m *marker) descend(level []step, seen, reach map[ir.TypeID]bool) ([]positi
 	var found []position
 	var next []step
 	at := map[ir.TypeID]int{}
-	for _, s := range level {
-		for _, p := range m.pg.w.Members(s.model) {
-			if keeper, ok := m.marksUse(p.Unmodeled, &p.Provenance, p.Type.Target); ok {
-				found = append(found, position{segments: s.trail.segments(p.ID), keeper: keeper, shared: s.shared})
+	for _, stepValue := range level {
+		for _, property := range m.pg.w.Members(stepValue.model) {
+			if keeper, ok := m.marksUse(property.Unmodeled, &property.Provenance, property.Type.Target); ok {
+				found = append(found, position{segments: stepValue.trail.segments(property.ID), keeper: keeper, shared: stepValue.shared})
 			}
-			t := p.Type.Target
-			if i, ok := at[t]; ok {
+			typeID := property.Type.Target
+			if i, ok := at[typeID]; ok {
 				next[i].shared = true
-			} else if !seen[t] && reach[t] {
-				at[t] = len(next)
-				next = append(next, step{model: t, trail: s.trail.then(p.ID), shared: s.shared})
+			} else if !seen[typeID] && reach[typeID] {
+				at[typeID] = len(next)
+				next = append(next, step{model: typeID, trail: stepValue.trail.then(property.ID), shared: stepValue.shared})
 			}
 		}
 	}
-	for t := range at {
-		seen[t] = true
+	for typeID := range at {
+		seen[typeID] = true
 	}
 	return found, next
 }
@@ -302,9 +302,9 @@ func (pg *pager) reaching(key string) map[ir.TypeID]bool {
 	// registry's order, which seeds the queue, is not.
 	namers, queue := pg.keepers(keeps, set)
 	for len(queue) > 0 {
-		t := queue[len(queue)-1]
+		typeID := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
-		for _, namer := range namers[t] {
+		for _, namer := range namers[typeID] {
 			if !set[namer] {
 				set[namer] = true
 				queue = append(queue, namer)
@@ -317,11 +317,11 @@ func (pg *pager) reaching(key string) map[ir.TypeID]bool {
 // keeping returns whether a property, or the type it names, keeps entry in its
 // Unmodeled.
 func (pg *pager) keeping(entry string) func(*ir.Property) bool {
-	return func(p *ir.Property) bool {
-		if _, ok := p.Unmodeled[entry]; ok {
+	return func(property *ir.Property) bool {
+		if _, ok := property.Unmodeled[entry]; ok {
 			return true
 		}
-		td := pg.w.Types[p.Type.Target]
+		td := pg.w.Types[property.Type.Target]
 		if ir.IsNilTypeDef(td) {
 			return false
 		}
@@ -337,13 +337,13 @@ func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) 
 	namers := map[ir.TypeID][]ir.TypeID{}
 	var found []ir.TypeID
 	for id := range pg.w.Types {
-		for _, p := range pg.w.Members(id) {
-			if keeps(p) && !set[id] {
+		for _, property := range pg.w.Members(id) {
+			if keeps(property) && !set[id] {
 				set[id] = true
 				found = append(found, id)
 			}
-			if pg.isModel(p.Type.Target) {
-				namers[p.Type.Target] = append(namers[p.Type.Target], id)
+			if pg.isModel(property.Type.Target) {
+				namers[property.Type.Target] = append(namers[property.Type.Target], id)
 			}
 		}
 	}
@@ -367,17 +367,17 @@ func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
 }
 
 // isModel reports whether id stands for a model, read through alias scalars
-// as a model's members are (whole.Document.Members).
+// as a model's members are (compileddoc.CompiledDocumentView.Members).
 func (pg *pager) isModel(id ir.TypeID) bool {
 	_, ok := pg.w.Stands(id).(*ir.Model)
 	return ok
 }
 
-// paramMediaTypes returns the media type each binding of op serializes its
-// parameter in, by the parameter's ID: none for one its schema states.
-func paramMediaTypes(op *ir.Operation) map[ir.ParamID]string {
-	out := map[ir.ParamID]string{}
-	for _, hb := range op.Bindings.HTTP {
+// paramMediaTypes returns the media type each binding of operation serializes
+// its parameter in, by the parameter's ID: none for one its schema states.
+func paramMediaTypes(operation *ir.Operation) map[ir.ParameterID]string {
+	out := map[ir.ParameterID]string{}
+	for _, hb := range operation.Bindings.HTTP {
 		for _, pb := range hb.ParamBindings {
 			out[pb.Param] = pb.ContentType
 		}

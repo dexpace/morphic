@@ -163,9 +163,9 @@ func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
 // order the schema writes them, which is not their names' order.
 func TestSchemaExtensions_ReportsInTheOrderTheStatementLists(t *testing.T) {
 	t.Parallel()
-	s := standaloneSchema(schemaFromYAML(t, "type: string\nx-b: .nan\nx-c: 1\nx-a: .nan\n"))
+	schema := standaloneSchema(schemaFromYAML(t, "type: string\nx-b: .nan\nx-c: 1\nx-a: .nan\n"))
 
-	got, diags := SchemaExtensions(s.Extensions, sourced(2), "/o", "xml")
+	got, diags := SchemaExtensions(schema.Extensions, sourced(2), "/o", "xml")
 
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue("1"),
@@ -183,13 +183,13 @@ func TestSchemaExtensions_ReportsInTheOrderTheStatementLists(t *testing.T) {
 // TestExtensionsNamed_ReadsOnlyWhatItIsAsked for the statement's list.
 func TestSchemaExtensionsNamed_ReadsOnlyWhatItIsAsked(t *testing.T) {
 	t.Parallel()
-	s := standaloneSchema(schemaFromYAML(t, "type: string\nx-a: 1\nx-bad: .nan\nx-b: {k: v}\n"))
+	schema := standaloneSchema(schemaFromYAML(t, "type: string\nx-a: 1\nx-bad: .nan\nx-b: {k: v}\n"))
 
-	got := SchemaExtensionsNamed(s.Extensions, slices.Values([]string{"x-b", "x-bad", "x-absent"}))
+	got := SchemaExtensionsNamed(schema.Extensions, slices.Values([]string{"x-b", "x-bad", "x-absent"}))
 	require.Len(t, got, 1, "a value that does not serialize is left out")
 	assert.Equal(t, ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"k":"v"}`)},
 		got["openapi:x-b"])
-	assert.Nil(t, SchemaExtensionsNamed(s.Extensions, slices.Values([]string{"x-absent"})))
+	assert.Nil(t, SchemaExtensionsNamed(schema.Extensions, slices.Values([]string{"x-absent"})))
 	assert.Nil(t, SchemaExtensionsNamed(nil, slices.Values([]string{"x-a"})))
 }
 
@@ -197,9 +197,9 @@ func TestSchemaExtensionsNamed_ReadsOnlyWhatItIsAsked(t *testing.T) {
 // its contract: it yields the list in order and stops at the first false.
 func TestExtensionPairs_StopsWhenItsReaderDoes(t *testing.T) {
 	t.Parallel()
-	s := standaloneSchema(schemaFromYAML(t, "x-b: 1\nx-a: 2\n"))
+	schema := standaloneSchema(schemaFromYAML(t, "x-b: 1\nx-a: 2\n"))
 	var names []string
-	for name := range extensionPairs(s.Extensions) {
+	for name := range extensionPairs(schema.Extensions) {
 		names = append(names, name)
 		if name == "x-b" {
 			break

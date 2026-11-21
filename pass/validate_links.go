@@ -13,39 +13,39 @@ import (
 // linkSite is one link an operation's responses carry, with the field of the
 // operation it sits at, which spells where it is reported.
 type linkSite struct {
-	from  ir.OpID
+	from  ir.OperationID
 	link  *ir.OperationLink
 	field string
 }
 
-// appendLinkSites appends to dst every link op's responses carry: its
+// appendLinkSites appends to dst every link operation's responses carry: its
 // responses', its errors' and its default's, in that order.
-func appendLinkSites(dst []linkSite, op *ir.Operation) []linkSite {
-	for i := range op.Responses {
-		dst = appendLinks(dst, op.ID, op.Responses[i].Links, "responses/"+strconv.Itoa(i))
+func appendLinkSites(dst []linkSite, operation *ir.Operation) []linkSite {
+	for i := range operation.Responses {
+		dst = appendLinks(dst, operation.ID, operation.Responses[i].Links, "responses/"+strconv.Itoa(i))
 	}
-	for i := range op.Errors {
-		dst = appendLinks(dst, op.ID, op.Errors[i].Links, "errors/"+strconv.Itoa(i))
+	for i := range operation.Errors {
+		dst = appendLinks(dst, operation.ID, operation.Errors[i].Links, "errors/"+strconv.Itoa(i))
 	}
-	if op.Default != nil {
-		dst = appendLinks(dst, op.ID, op.Default.Links, "default")
+	if operation.Default != nil {
+		dst = appendLinks(dst, operation.ID, operation.Default.Links, "default")
 	}
 	return dst
 }
 
 // appendLinks appends to dst each of links, which a response of from at at
 // carries.
-func appendLinks(dst []linkSite, from ir.OpID, links []ir.OperationLink, at string) []linkSite {
+func appendLinks(dst []linkSite, from ir.OperationID, links []ir.OperationLink, at string) []linkSite {
 	for j := range links {
 		dst = append(dst, linkSite{from: from, link: &links[j], field: at + "/links/" + strconv.Itoa(j)})
 	}
 	return dst
 }
 
-// appendLinkInputRefs appends to dst the parameters op's links read from the
-// request their response answers, which are op's own.
-func appendLinkInputRefs(dst []paramRef, op *ir.Operation) []paramRef {
-	for _, site := range appendLinkSites(nil, op) {
+// appendLinkInputRefs appends to dst the parameters operation's links read from
+// the request their response answers, which are operation's own.
+func appendLinkInputRefs(dst []paramRef, operation *ir.Operation) []paramRef {
+	for _, site := range appendLinkSites(nil, operation) {
 		for k := range site.link.Params {
 			dst = appendLinkInputRef(dst, &site.link.Params[k].Value, site.field+"/params/"+strconv.Itoa(k))
 		}
@@ -73,23 +73,23 @@ func appendLinkInputRef(dst []paramRef, lv *ir.LinkValue, field string) []paramR
 // their parameters read.
 func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var sites []linkSite
-	ir.ForEachOperation(doc, func(op ir.Operation) { sites = appendLinkSites(sites, &op) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { sites = appendLinkSites(sites, &operation) })
 	if len(sites) == 0 {
 		return nil
 	}
-	targets := map[ir.OpID]map[ir.ParamID]bool{}
+	targets := map[ir.OperationID]map[ir.ParameterID]bool{}
 	for _, site := range sites {
 		targets[site.link.Operation] = nil
 	}
-	ir.ForEachOperation(doc, func(op ir.Operation) {
-		if _, named := targets[op.ID]; !named {
+	ir.ForEachOperation(doc, func(operation ir.Operation) {
+		if _, named := targets[operation.ID]; !named {
 			return
 		}
-		own := make(map[ir.ParamID]bool, len(op.Params))
-		for _, p := range op.Params {
-			own[p.ID] = true
+		own := make(map[ir.ParameterID]bool, len(operation.Params))
+		for _, parameter := range operation.Params {
+			own[parameter.ID] = true
 		}
-		targets[op.ID] = own
+		targets[operation.ID] = own
 	})
 	var diags []ir.Diagnostic
 	for _, site := range sites {
@@ -103,9 +103,9 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 // linkParamDiags reports each parameter site's link gives that own, its
 // target's parameters, does not hold, and each it gives a second value. An
 // empty parameter is checkEmptyRefs' to report, however often it is given.
-func linkParamDiags(site linkSite, own map[ir.ParamID]bool, refs *ir.IDReferences) []ir.Diagnostic {
+func linkParamDiags(site linkSite, own map[ir.ParameterID]bool, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	given := make(map[ir.ParamID]bool, len(site.link.Params))
+	given := make(map[ir.ParameterID]bool, len(site.link.Params))
 	for k, lp := range site.link.Params {
 		if lp.Param == "" {
 			continue

@@ -71,15 +71,15 @@ func TestIDReferences_ARegistryNodesOwnIDIsNoReference(t *testing.T) {
 	t.Parallel()
 	build := func(key ir.TypeID) *ir.Document {
 		return &ir.Document{Types: ir.TypeRegistry{
-			key: &ir.Model{ID: "t/x/B", Base: &ir.TypeRef{Target: "t/x/C"}},
+			key: &ir.Model{ID: "type/x/B", Base: &ir.TypeRef{Target: "type/x/C"}},
 		}}
 	}
 
-	mismatched, _ := walkedRefs(build("t/x/A"))
+	mismatched, _ := walkedRefs(build("type/x/A"))
 	assert.Equal(t, []string{
-		"doc.Types[t/x/A].Base.Target=t/x/C",
+		"document.Types[type/x/A].Base.Target=type/x/C",
 	}, spelled(mismatched.Kept()), "the model's own ID is no reference, and its key resolves to itself")
 
-	sound, _ := walkedRefs(build("t/x/B"))
-	assert.Equal(t, []string{"doc.Types[t/x/B].Base.Target=t/x/C"}, spelled(sound.Kept()))
+	sound, _ := walkedRefs(build("type/x/B"))
+	assert.Equal(t, []string{"document.Types[type/x/B].Base.Target=type/x/C"}, spelled(sound.Kept()))
 }

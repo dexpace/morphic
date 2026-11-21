@@ -14,10 +14,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -135,20 +135,20 @@ paths:
 // it is not read, is not stated, and nothing it did not fill is marked.
 func TestPromote_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
 	t.Parallel()
-	spoke, ops, _ := promoteStated(t, statedSpec(t, statedPaths), pagePolicy())
+	spoke, operations, _ := promoteStated(t, statedSpec(t, statedPaths), pagePolicy())
 	assert.Equal(t, []string{
 		"filled", "markedContentHeader", "markedHeader", "markedMember", "markedParameter", "markedType", "refused",
 		"sharedA", "sharedB", "statedEmpty", "statedFalse", "statedNull", "unresolved",
 	}, spoke)
 
-	require.NotNil(t, ops["filled"].Pagination, "a stated pagination that resolves still fills")
-	assert.Contains(t, ops["filled"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
-	for name, op := range ops {
+	require.NotNil(t, operations["filled"].Pagination, "a stated pagination that resolves still fills")
+	assert.Contains(t, operations["filled"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
+	for name, operation := range operations {
 		if name == "filled" {
 			continue
 		}
-		assert.Nil(t, op.Pagination, name)
-		assert.NotContains(t, op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic,
+		assert.Nil(t, operation.Pagination, name)
+		assert.NotContains(t, operation.Provenance.Inferred, promotion.ExtensionPromotionHeuristic,
 			"%s: nothing filled, so nothing is marked", name)
 	}
 }
@@ -158,8 +158,8 @@ func TestPromote_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
 // pointer the key sits at, and whether it is the expression key or a mark, and
 // one a page reads.
 type keyPosition struct {
-	name, op, components, at string
-	mark, page               bool
+	name, operation, components, at string
+	mark, page                      bool
 }
 
 // keyPositions are the operation, read for an expression, and every node a
@@ -167,32 +167,32 @@ type keyPosition struct {
 // reports is about the value written at it.
 func keyPositions() []keyPosition {
 	const (
-		bare   = "      responses: {\"200\": {description: ok}}"
-		paged  = "      responses: {\"200\": {description: ok, content: {application/json: {schema: %s}}}}"
-		posted = "      requestBody: {content: {application/json: {schema: %s}}}\n" + bare
-		role   = "    Role: {type: string, x-role: V}\n"
-		op     = "/paths/~1x/get"
+		bare      = "      responses: {\"200\": {description: ok}}"
+		paged     = "      responses: {\"200\": {description: ok, content: {application/json: {schema: %s}}}}"
+		posted    = "      requestBody: {content: {application/json: {schema: %s}}}\n" + bare
+		role      = "    Role: {type: string, x-role: V}\n"
+		operation = "/paths/~1x/get"
 	)
 	return []keyPosition{
-		{name: "the operation", op: "      x-page: V\n" + pageResponse, at: op + "/x-page"},
-		{name: "a parameter", op: "      parameters: [{name: q, in: query, x-role: V, schema: {type: string}}]\n" + bare,
-			at: op + "/parameters/0/x-role", mark: true},
-		{name: "a parameter's schema", op: "      parameters: [{name: q, in: query, schema: {type: string, x-role: V}}]\n" + bare,
-			at: op + "/parameters/0/schema/x-role", mark: true},
-		{name: "a parameter's type", op: "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/Role'}}]\n" + bare,
+		{name: "the operation", operation: "      x-page: V\n" + pageResponse, at: operation + "/x-page"},
+		{name: "a parameter", operation: "      parameters: [{name: q, in: query, x-role: V, schema: {type: string}}]\n" + bare,
+			at: operation + "/parameters/0/x-role", mark: true},
+		{name: "a parameter's schema", operation: "      parameters: [{name: q, in: query, schema: {type: string, x-role: V}}]\n" + bare,
+			at: operation + "/parameters/0/schema/x-role", mark: true},
+		{name: "a parameter's type", operation: "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/Role'}}]\n" + bare,
 			components: role, at: "/components/schemas/Role/x-role", mark: true},
-		{name: "a member of the request", op: fmt.Sprintf(posted, "{type: object, properties: {a: {type: string, x-role: V}}}"),
-			at: op + "/requestBody/content/application~1json/schema/properties/a/x-role", mark: true},
-		{name: "the request whole", op: fmt.Sprintf(posted, "{type: object, x-role: V, properties: {a: {type: string}}}"),
-			at: op + "/requestBody/content/application~1json/schema/x-role", mark: true},
-		{name: "a member of a page", op: fmt.Sprintf(paged, "{type: object, properties: {a: {type: string, x-role: V}}}"),
-			at: op + "/responses/200/content/application~1json/schema/properties/a/x-role", mark: true, page: true},
-		{name: "a page whole", op: fmt.Sprintf(paged, "{type: object, x-role: V, properties: {a: {type: string}}}"),
-			at: op + "/responses/200/content/application~1json/schema/x-role", mark: true, page: true},
-		{name: "a type a member of a page names", op: fmt.Sprintf(paged, "{type: object, properties: {a: {$ref: '#/components/schemas/Role'}}}"),
+		{name: "a member of the request", operation: fmt.Sprintf(posted, "{type: object, properties: {a: {type: string, x-role: V}}}"),
+			at: operation + "/requestBody/content/application~1json/schema/properties/a/x-role", mark: true},
+		{name: "the request whole", operation: fmt.Sprintf(posted, "{type: object, x-role: V, properties: {a: {type: string}}}"),
+			at: operation + "/requestBody/content/application~1json/schema/x-role", mark: true},
+		{name: "a member of a page", operation: fmt.Sprintf(paged, "{type: object, properties: {a: {type: string, x-role: V}}}"),
+			at: operation + "/responses/200/content/application~1json/schema/properties/a/x-role", mark: true, page: true},
+		{name: "a page whole", operation: fmt.Sprintf(paged, "{type: object, x-role: V, properties: {a: {type: string}}}"),
+			at: operation + "/responses/200/content/application~1json/schema/x-role", mark: true, page: true},
+		{name: "a type a member of a page names", operation: fmt.Sprintf(paged, "{type: object, properties: {a: {$ref: '#/components/schemas/Role'}}}"),
 			components: role, at: "/components/schemas/Role/x-role", mark: true, page: true},
-		{name: "a header", op: "      responses: {\"200\": {description: ok, headers: {Next: {x-role: V, schema: {type: string}}}}}",
-			at: op + "/responses/200/headers/Next/x-role", mark: true, page: true},
+		{name: "a header", operation: "      responses: {\"200\": {description: ok, headers: {Next: {x-role: V, schema: {type: string}}}}}",
+			at: operation + "/responses/200/headers/Next/x-role", mark: true, page: true},
 	}
 }
 
@@ -240,8 +240,8 @@ func TestPromote_ReportsEachValueAKeyHolds(t *testing.T) {
 	}
 
 	for _, at := range keyPositions() {
-		for _, v := range values {
-			t.Run(at.name+", "+v.name, func(t *testing.T) {
+		for _, keyValue := range values {
+			t.Run(at.name+", "+keyValue.name, func(t *testing.T) {
 				t.Parallel()
 				other := "next"
 				if at.page {
@@ -253,28 +253,28 @@ paths:
   /x:
     get:
       operationId: x
-`+at.op+"\ncomponents:\n  schemas:\n"+at.components+`    Page: {type: object, properties: {next: {type: string}}}
-`, "V", strings.ReplaceAll(v.value, "OTHER", other))
-				spoke, ops, reports := promoteStated(t, spec, pagePolicy())
+`+at.operation+"\ncomponents:\n  schemas:\n"+at.components+`    Page: {type: object, properties: {next: {type: string}}}
+`, "V", strings.ReplaceAll(keyValue.value, "OTHER", other))
+				spoke, operations, reports := promoteStated(t, spec, pagePolicy())
 				assert.Equal(t, []string{"x"}, spoke, "a key written speaks, whatever it holds")
-				assert.Nil(t, ops["x"].Pagination)
-				assert.NotContains(t, ops["x"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
+				assert.Nil(t, operations["x"].Pagination)
+				assert.NotContains(t, operations["x"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 
-				want, pointer := v.expression, at.at
+				want, pointer := keyValue.expression, at.at
 				reach := ", and as the key is written, no pagination is inferred for the operation"
 				if at.mark {
-					want, reach = v.mark, ", and as the key is written, no pagination is inferred for an operation reaching it"
+					want, reach = keyValue.mark, ", and as the key is written, no pagination is inferred for an operation reaching it"
 				}
 				switch {
 				case want == "":
 					assert.Empty(t, reports)
 					return
-				case v.value == "true" && !at.mark:
+				case keyValue.value == "true" && !at.mark:
 					want, reach = `extension "x-page" is true, which reads the walk its path item, else the document's `+
 						`root, states under the same key, and neither writes one`, ", so no pagination is inferred for the operation"
-				case v.atMember && at.mark:
+				case keyValue.atMember && at.mark:
 					pointer += "/purpose"
-				case v.atMember:
+				case keyValue.atMember:
 					pointer += "/cursor"
 				}
 				assert.Equal(t, []string{pointer + ": " + want + reach}, reports)
@@ -294,29 +294,29 @@ func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotio
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	p := promotion.New(policy)
-	stated, diags := pagination.Promote(p, whole.New(doc), nil)
+	promoter := promotion.New(policy)
+	stated, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 	reports := make([]string, 0, len(diags))
-	for _, d := range diags {
-		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
+	for _, diagnostic := range diags {
+		require.Equal(t, ir.SeverityInfo, diagnostic.Severity, "%+v", diagnostic)
 		code := "openapi/degraded-construct"
-		if strings.Contains(d.Message, "which reads the walk") {
+		if strings.Contains(diagnostic.Message, "which reads the walk") {
 			code = "openapi/unpromoted-extension"
 		}
-		require.Equal(t, code, d.Code, "%+v", d)
-		reports = append(reports, string(d.Provenance.Pointer)+": "+d.Message)
+		require.Equal(t, code, diagnostic.Code, "%+v", diagnostic)
+		reports = append(reports, string(diagnostic.Provenance.Pointer)+": "+diagnostic.Message)
 	}
 	slices.Sort(reports)
-	ops := map[string]*ir.Operation{}
+	operations := map[string]*ir.Operation{}
 	var spoke []string
-	for _, op := range whole.New(doc).Ops {
-		ops[op.Name.Source] = op
-		if stated[op.ID] {
-			spoke = append(spoke, op.Name.Source)
+	for _, operation := range compileddoc.New(doc).Operations {
+		operations[operation.Name.Source] = operation
+		if stated[operation.ID] {
+			spoke = append(spoke, operation.Name.Source)
 		}
 	}
 	slices.Sort(spoke)
-	return spoke, ops, slices.Compact(reports)
+	return spoke, operations, slices.Compact(reports)
 }
 
 // TestPromote_StatedIsIndependentOfDeclarationOrder pins the stated
@@ -362,11 +362,11 @@ func TestPromote_StatedReadsEitherSidesKey(t *testing.T) {
 // pagination is left as it is, and a consumer reads that field instead.
 func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	t.Parallel()
-	doc, op, _ := compilePaged(t, "      x-page: {link: $response.next}\n"+pageResponse, pagePolicy())
-	require.NotNil(t, op.Pagination)
+	doc, operation, _ := compilePaged(t, "      x-page: {link: $response.next}\n"+pageResponse, pagePolicy())
+	require.NotNil(t, operation.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
-	p := promotion.New(pagePolicy())
-	stated, diags := pagination.Promote(p, whole.New(doc), nil)
+	promoter := promotion.New(pagePolicy())
+	stated, diags := pagination.Promote(promoter, compileddoc.New(doc), nil)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
@@ -386,7 +386,7 @@ func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 		spoke, _, _ := promoteStated(t, statedSpec(t, statedPaths), policy)
 		assert.Empty(t, spoke, name)
 	}
-	stated, diags := pagination.Promote(promotion.New(promotion.ExtensionPromotions{}), whole.New(&ir.Document{}),
+	stated, diags := pagination.Promote(promotion.New(promotion.ExtensionPromotions{}), compileddoc.New(&ir.Document{}),
 		nil)
 	assert.Empty(t, stated, "no operation, nothing read")
 	assert.Empty(t, diags)

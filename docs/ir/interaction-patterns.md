@@ -12,31 +12,31 @@ type Pagination struct {
     Inferred   bool           // heuristic (OpenAPI name-matching policy) vs declared (Smithy/TypeSpec)
     InputCursor  *InputPath   // which input continues iteration: a parameter, the body, or a member
     InputLimit   *InputPath
-    Items        *PropPath    // where result items live in the response — a PATH, not a name
-    NextCursor   *PropPath    // continuation source in the response
-    HasMore      *PropPath    // the flag saying another page follows: true continues
-    NextLink     *PropPath
-    PrevLink     *PropPath    // server-driven navigation links beyond next
-    FirstLink    *PropPath    // (TypeSpec @prevLink/@firstLink/@lastLink, OpenAPI links)
-    LastLink     *PropPath
-    TotalCount   *PropPath    // counts items
-    TotalPages   *PropPath    // counts pages
-    Stop         []PageStop   // when iteration ends, any one ending it; empty = none stated
+    Items        *PropertyPath // where result items live in the response — a PATH, not a name
+    NextCursor   *PropertyPath // continuation source in the response
+    HasMore      *PropertyPath // the flag saying another page follows: true continues
+    NextLink     *PropertyPath
+    PrevLink     *PropertyPath // server-driven navigation links beyond next
+    FirstLink    *PropertyPath // (TypeSpec @prevLink/@firstLink/@lastLink, OpenAPI links)
+    LastLink     *PropertyPath
+    TotalCount   *PropertyPath // counts items
+    TotalPages   *PropertyPath // counts pages
+    Stop         []PageStop    // when iteration ends, any one ending it; empty = none stated
 }
 
 type PageStop string // "empty" | "no_next" | "short" | "total" | "no_more"
 
-type PropPath struct {
+type PropertyPath struct {
     Root     *TypeRef  // the type the path roots in; nil = determined by context
                        // (the enclosing response body, message payload, …)
     In       string    // "" = body/payload | "header" — continuation tokens and reply addresses
                        // can live in response/message headers, not just bodies
-    Segments []PropID
+    Segments []PropertyID
 }
-type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the request body;
+type InputPath struct{ Param *ParameterID; Segments []PropertyID } // nil Param = the request body;
                                                             // no Segments = the root whole
 // InputPath.Param, like Idempotency.TokenParam, names a parameter of the operation
-// carrying it: another operation's ParamID, or a field argument's, is a well-formed
+// carrying it: another operation's ParameterID, or a field argument's, is a well-formed
 // reference to the wrong parameter, and pass.Validate rejects it
 // (pass/param-binding-mismatch).
 ```
@@ -80,13 +80,13 @@ speaks of a walk ([`pagination-policy`](../compilers/openapi.md#pagination-polic
 
 ```go
 type LongRunning struct {
-    FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
-    PollingOperation *OpID     // declared poll op (Azure.Core @pollingOperation — a library
-                               // convention, not core TypeSpec)
-    FinalOperation   *OpID     // declared final-result op (Azure.Core @finalOperation)
+    FinalStateVia string          // "operation-location" | "status-monitor" | "original-uri" | …
+    PollingOperation *OperationID // declared poll op (Azure.Core @pollingOperation — a library
+                                  // convention, not core TypeSpec)
+    FinalOperation   *OperationID // declared final-result op (Azure.Core @finalOperation)
     PollingType   *TypeRef
     FinalType     *TypeRef
-    ResultPath    *PropPath
+    ResultPath    *PropertyPath
 }
 ```
 
@@ -97,7 +97,7 @@ acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmode
 ## Streaming
 
 ```go
-type StreamingMode string      // "" (none) | "client" | "server" | "bidi"
+type StreamingMode string      // "" (none) | "client" | "server" | "bidirectional"
 
 type StreamDetail struct {
     Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
@@ -121,19 +121,19 @@ type StreamCondition struct { Input InputPath; Value Value }
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
 WebSocket, Smithy event streams all project onto it). An operation that does not stream holds the
 zero mode, as `IdempotencyUnknown` and `AdditionalUnspecified` are their fields' absent states, so
-such an operation encodes no member; a `"none"` spelling would add one to nearly every operation
-and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
-and a stream belongs to one content of its payload, so an OpenAPI operation can offer
-`application/json` beside `application/x-ndjson`: `Content.Stream` marks each content that streams
+such an operation encodes no member; a `"none"` spelling would add one to nearly every operation and
+say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation, and a
+stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
+beside `application/x-ndjson`: `Content.Stream` marks each content that streams
 ([payloads](./payloads.md#a-content-that-streams)), and the plan elects among them
 ([streams](../emitters/plan/streams.md)). The wire mechanism (SSE vs JSON Lines vs WS frames vs
 length-prefixed events) has no field of its own: over HTTP the streaming content's `MediaType`
 states it, another binding frames its own messages, and the plan derives which
 ([streams](../emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
 reads a stream from a media type alone names what one frame holds as `Events`, a list `Type`'s
-`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading the
-operation's `Provenance.Inferred` and each such content's `Stream.Inferred` mark. An element need
-not be a union, and `Variant.Event` applies only where it is one.
+`ElementType`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading
+the operation's `Provenance.Inferred` and each such content's `Stream.Inferred` mark. An element
+need not be a union, and `Variant.Event` applies only where it is one.
 
 **A sentinel that ends a stream** is `Terminator`, the frame's data verbatim: many event-stream APIs
 end with a frame such as `data: [DONE]` that is no event and must not be decoded as one, and

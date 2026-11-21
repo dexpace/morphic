@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkParamChoices asserts that each choice among an operation's parameters
@@ -24,16 +24,16 @@ func checkParamChoices(*ir.Document) walkCheck {
 	var vs []Violation
 	// Every variant and every operation is read through these, so neither
 	// costs a map of its own.
-	var seen reuse.Map[ir.ParamID, int]
-	var named reuse.Map[string, int]
+	var seen scratchstate.Map[ir.ParameterID, int]
+	var named scratchstate.Map[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Type() != operationType {
 				return operationPath[v.Type()]
 			}
-			if op, ok := reflect.TypeAssert[ir.Operation](v); ok && len(op.ParamChoices) > 0 {
-				names := make([]ir.Naming, len(op.ParamChoices))
-				for i, choice := range op.ParamChoices {
+			if operation, ok := reflect.TypeAssert[ir.Operation](v); ok && len(operation.ParamChoices) > 0 {
+				names := make([]ir.Naming, len(operation.ParamChoices))
+				for i, choice := range operation.ParamChoices {
 					where := at.String() + ".ParamChoices[" + strconv.Itoa(i) + "]"
 					vs = appendChoiceViolations(vs, choice, where, &seen)
 					vs = appendNameViolations(vs, variantNames(choice), where+".Variants", &named)
@@ -48,7 +48,7 @@ func checkParamChoices(*ir.Document) walkCheck {
 }
 
 // appendChoiceViolations reports what choice, at where, fails of a choice.
-func appendChoiceViolations(vs []Violation, choice ir.ParamChoice, where string, seen *reuse.Map[ir.ParamID, int]) []Violation {
+func appendChoiceViolations(vs []Violation, choice ir.ParamChoice, where string, seen *scratchstate.Map[ir.ParameterID, int]) []Violation {
 	if len(choice.Variants) < 2 {
 		vs = append(vs, Violation{
 			Code:    "ir/param-choice-single",
@@ -96,7 +96,7 @@ func variantNames(choice ir.ParamChoice) []ir.Naming {
 
 // appendNameViolations reports each of names, those of the list at where,
 // whose source name an earlier one shares, at its own index.
-func appendNameViolations(vs []Violation, names []ir.Naming, where string, named *reuse.Map[string, int]) []Violation {
+func appendNameViolations(vs []Violation, names []ir.Naming, where string, named *scratchstate.Map[string, int]) []Violation {
 	first := named.Emptied()
 	for i, name := range names {
 		if earlier, repeated := first[name.Source]; repeated {

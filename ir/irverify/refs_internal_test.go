@@ -19,9 +19,9 @@ import (
 // docWithRef builds a model whose property points at target via a TypeRef.
 func docWithRef(target ir.TypeID) *ir.Document {
 	holder := &ir.Model{
-		ID: "t/x/Holder",
+		ID: "type/x/Holder",
 		Properties: []ir.Property{{
-			ID:   "p/x/Holder/f",
+			ID:   "property/x/Holder/f",
 			Type: ir.TypeRef{Target: target},
 		}},
 	}
@@ -36,15 +36,15 @@ func refViolations(doc *ir.Document) []Violation {
 }
 
 func TestCheckReferentialIntegrity_DanglingTypeRef(t *testing.T) {
-	got := refViolations(docWithRef("t/x/Missing"))
+	got := refViolations(docWithRef("type/x/Missing"))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
 	assert.Contains(t, got[0].Message, "does not resolve in types")
 }
 
 func TestCheckReferentialIntegrity_ResolvedRefIsClean(t *testing.T) {
-	doc := docWithRef("t/x/Target")
-	doc.Types["t/x/Target"] = &ir.Any{ID: "t/x/Target"}
+	doc := docWithRef("type/x/Target")
+	doc.Types["type/x/Target"] = &ir.Any{ID: "type/x/Target"}
 	assert.Empty(t, refViolations(doc))
 }
 
@@ -85,8 +85,8 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 		Services: []ir.Service{{
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
-					ID:       "op/x/Send",
-					Bindings: ir.OpBindings{Message: &ir.MessageBinding{Channel: "c/missing"}},
+					ID:       "operation/x/Send",
+					Bindings: ir.OperationBindings{Message: &ir.MessageBinding{Channel: "c/missing"}},
 				}},
 			}},
 		}},
@@ -98,38 +98,38 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 }
 
 // docWithOverload builds a service whose one operation overloads target.
-func docWithOverload(target ir.OpID) *ir.Document {
+func docWithOverload(target ir.OperationID) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{
-			{ID: "op/x/Get", OverloadOf: &target},
+			{ID: "operation/x/Get", OverloadOf: &target},
 		}}},
 	}}}
 }
 
-// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on Document
-// covers. An operation is declared inside the Service→OperationGroup tree, so
-// every OpID reference in the IR resolved against nothing until the registry was
-// derived from those declarations instead (GitHub #50).
-func TestCheckReferentialIntegrity_DanglingOpRef(t *testing.T) {
-	got := refViolations(docWithOverload("op/x/Missing"))
+// TestCheckReferentialIntegrity_DanglingOperationRef drives the class no map on
+// Document covers. An operation is declared inside the Service→OperationGroup
+// tree, so every OperationID reference in the IR resolved against nothing until
+// the registry was derived from those declarations instead (GitHub #50).
+func TestCheckReferentialIntegrity_DanglingOperationRef(t *testing.T) {
+	got := refViolations(docWithOverload("operation/x/Missing"))
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/dangling-op-ref", got[0].Code)
-	assert.Contains(t, got[0].Message, "does not resolve in op declarations")
+	assert.Equal(t, "ir/dangling-operation-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in operation declarations")
 }
 
-// TestCheckReferentialIntegrity_ResolvedOpRefIsClean is the other half: an
-// operation's own ID resolves against its own declaration, and so does a
+// TestCheckReferentialIntegrity_ResolvedOperationRefIsClean is the other half:
+// an operation's own ID resolves against its own declaration, and so does a
 // reference naming it.
-func TestCheckReferentialIntegrity_ResolvedOpRefIsClean(t *testing.T) {
-	assert.Empty(t, refViolations(docWithOverload("op/x/Get")))
+func TestCheckReferentialIntegrity_ResolvedOperationRefIsClean(t *testing.T) {
+	assert.Empty(t, refViolations(docWithOverload("operation/x/Get")))
 }
 
 // TestCheckReferentialIntegrity_DanglingServiceRef drives the other class with no
 // map: Document.Services is a slice, so a service extending an undeclared one
 // went unreported the same way.
 func TestCheckReferentialIntegrity_DanglingServiceRef(t *testing.T) {
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Extends: []ir.ServiceID{"s/missing"}}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Extends: []ir.ServiceID{"service/missing"}}}}
 
 	got := refViolations(doc)
 	require.Len(t, got, 1)
@@ -139,30 +139,31 @@ func TestCheckReferentialIntegrity_DanglingServiceRef(t *testing.T) {
 
 func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{
-		{ID: "s/base"},
-		{ID: "s/x", Extends: []ir.ServiceID{"s/base"}},
+		{ID: "service/base"},
+		{ID: "service/x", Extends: []ir.ServiceID{"service/base"}},
 	}}
 	assert.Empty(t, refViolations(doc))
 }
 
-// TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared drives the
-// class no node in the document declares. A Smithy resource names its lifecycle
-// operations, so an OpID reference exists in a document holding no ir.Operation
-// at all — and a registry set read off the declarations rather than off the IR's
-// shape would have no entry for the class, which is not "nothing declares this
-// ID" but "this is no reference", the silence GitHub #50 is about.
-func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
+// TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared
+// drives the class no node in the document declares. A Smithy resource names
+// its lifecycle operations, so an OperationID reference exists in a document
+// holding no ir.Operation at all — and a registry set read off the declarations
+// rather than off the IR's shape would have no entry for the class, which is
+// not "nothing declares this ID" but "this is no reference", the silence GitHub #50
+// is about.
+func TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{
-			Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/x/Missing"}},
+			Resource: &ir.ResourceInfo{InstanceOperations: []ir.OperationID{"operation/x/Missing"}},
 		}},
 	}}}
 
 	got := refViolations(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/dangling-op-ref", got[0].Code)
-	assert.Contains(t, got[0].Message, "does not resolve in op declarations")
+	assert.Equal(t, "ir/dangling-operation-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in operation declarations")
 }
 
 // TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations holds the one
@@ -184,16 +185,17 @@ func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.
 	assert.Empty(t, refViolations(shallow))
 }
 
-// TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk pins the one class left
-// out of the registries. A PropID names a position inside its model, and
-// pass.Validate resolves one against the properties a document declares; adding a
-// document-wide answer here would report one defect twice, under two codes.
-func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
+// TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk pins the one class
+// left out of the registries. A PropertyID names a position inside its model,
+// and pass.Validate resolves one against the properties a document declares;
+// adding a document-wide answer here would report one defect twice, under two
+// codes.
+func TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
+		ID: "service/x",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
-			ID:         "op/x/List",
-			Pagination: &ir.Pagination{Items: &ir.PropPath{Segments: []ir.PropID{"p/x/ghost"}}},
+			ID:         "operation/x/List",
+			Pagination: &ir.Pagination{Items: &ir.PropertyPath{Segments: []ir.PropertyID{"property/x/ghost"}}},
 		}}}},
 	}}}
 	assert.Empty(t, refViolations(doc))
@@ -201,18 +203,19 @@ func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
 
 func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 	// Service.Renames is map[TypeID]Naming: the KEY is a reference into
-	// Document.Types. "t/x/ghost" resolves in no type, so the reference-typed map
-	// key must be reported even though the entry's Naming value is well-formed.
+	// Document.Types. "type/x/ghost" resolves in no type, so the
+	// reference-typed map key must be reported even though the entry's Naming
+	// value is well-formed.
 	doc := &ir.Document{
-		Types: ir.TypeRegistry{"t/x/M": &ir.Any{ID: "t/x/M"}},
+		Types: ir.TypeRegistry{"type/x/M": &ir.Any{ID: "type/x/M"}},
 		Services: []ir.Service{{
-			Renames: map[ir.TypeID]ir.Naming{"t/x/ghost": {Source: "Ghost"}},
+			Renames: map[ir.TypeID]ir.Naming{"type/x/ghost": {Source: "Ghost"}},
 		}},
 	}
 	got := refViolations(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
-	assert.Equal(t, "t/x/ghost", refIDInMessage(got[0].Message))
+	assert.Equal(t, "type/x/ghost", refIDInMessage(got[0].Message))
 }
 
 // refIDInMessage extracts the reference ID from a dangling-ref message of the
@@ -220,9 +223,9 @@ func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 // the message (GitHub #400) because it is document-derived text, so it is read
 // back the way strconv.Quote wrote it rather than split on the first space —
 // an ID or a registry key it embeds may itself hold one.
-func refIDInMessage(msg string) string {
+func refIDInMessage(message string) string {
 	const prefix = "reference "
-	rest, ok := strings.CutPrefix(msg, prefix)
+	rest, ok := strings.CutPrefix(message, prefix)
 	if !ok {
 		return ""
 	}
@@ -251,13 +254,13 @@ const aliasRuns = 500
 // not merely its order.
 func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
 	t.Parallel()
-	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
-	a := &ir.Model{ID: "t/a", Base: shared}
-	b := &ir.Model{ID: "t/b", Base: shared}
+	shared := &ir.TypeRef{Target: "type/ghost/aliased"}
+	a := &ir.Model{ID: "type/a", Base: shared}
+	b := &ir.Model{ID: "type/b", Base: shared}
 	doc := &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
 
 	want := fmt.Sprintf("%+v", Verify(doc))
-	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+	require.Contains(t, want, "type/ghost/aliased", "the shared target must dangle, or nothing is being compared")
 
 	for i := range aliasRuns {
 		require.Equal(t, want, fmt.Sprintf("%+v", Verify(doc)), "run %d disagrees with the first", i)

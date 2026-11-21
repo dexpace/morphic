@@ -12,13 +12,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// opWithSuccessStatus builds a document whose single operation declares one
-// response and one HTTP binding carrying the given SuccessStatus map.
-func opWithSuccessStatus(status map[int]int) *ir.Document {
+// operationWithSuccessStatus builds a document whose single operation declares
+// one response and one HTTP binding carrying the given SuccessStatus map.
+func operationWithSuccessStatus(status map[int]int) *ir.Document {
 	return docWithOperation(ir.Operation{
 		ID:        "op",
 		Responses: []ir.Response{{Name: ir.Naming{Source: "ok"}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+		Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x", SuccessStatus: status,
 		}}},
 	})
@@ -43,7 +43,7 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			found := withCode(validated(t, opWithSuccessStatus(tc.status)), "ir/response-index-out-of-range")
+			found := withCode(validated(t, operationWithSuccessStatus(tc.status)), "ir/response-index-out-of-range")
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Equal(t, tc.where, found[0].Provenance.Node)
@@ -57,7 +57,7 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 // declared response reports nothing.
 func TestValidate_ResponseIndexInRangeIsClean(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, validated(t, opWithSuccessStatus(map[int]int{0: 200})))
+	assert.Empty(t, validated(t, operationWithSuccessStatus(map[int]int{0: 200})))
 }
 
 // TestValidate_ResponseIndexDiagnosticsAreDeterministic pins invariant 7 for
@@ -65,7 +65,7 @@ func TestValidate_ResponseIndexInRangeIsClean(t *testing.T) {
 // any diagnostic is built.
 func TestValidate_ResponseIndexDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
-	doc := opWithSuccessStatus(map[int]int{3: 203, 1: 201, 2: 202})
+	doc := operationWithSuccessStatus(map[int]int{3: 203, 1: 201, 2: 202})
 	want := pointers(withCode(validated(t, doc), "ir/response-index-out-of-range"))
 	require.Equal(t, []string{
 		"op/bindings/http/0/successStatus/1",
@@ -82,9 +82,9 @@ func TestValidate_ResponseIndexDiagnosticsAreDeterministic(t *testing.T) {
 // first whose index is in range.
 func TestValidate_ResponseIndexOutOfRangeIsPlacedAtItsBinding(t *testing.T) {
 	t.Parallel()
-	doc := opWithSuccessStatus(map[int]int{0: 200})
-	op := firstOp(doc)
-	op.Bindings.HTTP = append(op.Bindings.HTTP,
+	doc := operationWithSuccessStatus(map[int]int{0: 200})
+	operation := firstOperation(doc)
+	operation.Bindings.HTTP = append(operation.Bindings.HTTP,
 		ir.HTTPBinding{Method: "POST", URITemplate: "/x", SuccessStatus: map[int]int{1: 202}})
 
 	assert.Equal(t, []string{"op/bindings/http/1/successStatus/1"},

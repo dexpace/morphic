@@ -36,8 +36,8 @@ func BenchmarkValidate_Petstore(b *testing.B) {
 
 	// Measure the clean path, and say so: a document Validate rejects would take
 	// different branches and the number would not mean what the name claims.
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -81,8 +81,8 @@ func BenchmarkValidate_Large(b *testing.B) {
 		diags = validatedOnce(b, doc)
 	}
 
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -94,8 +94,8 @@ func compileLarge(b *testing.B) *ir.Document {
 		[]compilers.Source{{Path: "large.yaml", Data: []byte(largeSpec())}}, compilers.Options{})
 	require.NoError(b, err)
 	require.NotNil(b, doc)
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected compile error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected compile error: %+v", diagnostic)
 	}
 	require.GreaterOrEqual(b, len(doc.Types), largeChains*largeChainLength)
 	return doc
@@ -212,8 +212,8 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 		diags = validatedOnce(b, doc)
 	}
 
-	for _, d := range diags {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	for _, diagnostic := range diags {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "unexpected validate error: %+v", diagnostic)
 	}
 }
 
@@ -223,30 +223,30 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 // operations' roots are spread across the registry so they reach most of it.
 func buildGraphQLDoc(b *testing.B) *ir.Document {
 	b.Helper()
-	str := ir.TypeID("t/prim/string")
+	stringType := ir.TypeID("type/primitive/string")
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
-		Types: ir.TypeRegistry{str: &ir.Primitive{ID: str, Prim: "string"}},
+		Types: ir.TypeRegistry{stringType: &ir.Primitive{ID: stringType, PrimitiveKind: "string"}},
 	}
 	ids := make([]ir.TypeID, 1, 1+gqlTypes)
-	ids[0] = str
+	ids[0] = stringType
 	var models []ir.TypeID
 	rng := rand.New(rand.NewPCG(1, 2)) // fixed seed: the same document every run
 	pick := func() ir.TypeRef {
 		return ir.TypeRef{Target: ids[len(ids)-1-rng.IntN(min(len(ids), gqlRefWindow))]}
 	}
 	for i := range gqlTypes {
-		id := ir.TypeID(fmt.Sprintf("t/g%d", i))
+		id := ir.TypeID(fmt.Sprintf("type/g%d", i))
 		common := ir.TypeCommon{ID: id}
 		switch i % 10 {
 		case 0, 1:
-			base := ir.TypeRef{Target: str}
+			base := ir.TypeRef{Target: stringType}
 			if i >= 2 {
-				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/g%d", i-2))}
+				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("type/g%d", i-2))}
 			}
 			doc.Types[id] = &ir.Scalar{TypeCommon: common, Base: &base}
 		case 2:
-			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick()}
+			doc.Types[id] = &ir.List{TypeCommon: common, ElementType: pick()}
 		case 3:
 			doc.Types[id] = &ir.MapT{TypeCommon: common, Value: pick()}
 		case 4:
@@ -261,8 +261,8 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 	}
 	addGraphQLOperations(doc, ids)
 
-	for _, d := range validatedOnce(b, doc) {
-		require.NotEqual(b, ir.SeverityError, d.Severity, "fixture rejected by validate: %+v", d)
+	for _, diagnostic := range validatedOnce(b, doc) {
+		require.NotEqual(b, ir.SeverityError, diagnostic.Severity, "fixture rejected by validate: %+v", diagnostic)
 	}
 	return doc
 }
@@ -270,10 +270,10 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 // graphQLModel builds a model with three properties, an earlier model as its
 // base and another as a mixin when any exist.
 func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.TypeID, rng *rand.Rand) *ir.Model {
-	m := &ir.Model{TypeCommon: common}
+	model := &ir.Model{TypeCommon: common}
 	for p := range 3 {
-		m.Properties = append(m.Properties, ir.Property{
-			ID:       ir.PropID(fmt.Sprintf("p/%s/%d", common.ID, p)),
+		model.Properties = append(model.Properties, ir.Property{
+			ID:       ir.PropertyID(fmt.Sprintf("property/%s/%d", common.ID, p)),
 			Name:     ir.Naming{Source: fmt.Sprintf("f%d", p)},
 			WireName: fmt.Sprintf("f%d", p),
 			Type:     pick(),
@@ -281,24 +281,24 @@ func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.Type
 	}
 	if len(models) >= 2 {
 		base := ir.TypeRef{Target: models[rng.IntN(len(models))]}
-		m.Base = &base
-		m.Mixins = []ir.TypeRef{{Target: models[rng.IntN(len(models))]}}
+		model.Base = &base
+		model.Mixins = []ir.TypeRef{{Target: models[rng.IntN(len(models))]}}
 	}
-	return m
+	return model
 }
 
 // addGraphQLOperations adds gqlOperations GraphQL-bound operations whose
 // parameters name types spread over the registry, preferring the late ones that
 // transitively reach the most.
 func addGraphQLOperations(doc *ir.Document, ids []ir.TypeID) {
-	ops := make([]ir.Operation, 0, gqlOperations)
+	operations := make([]ir.Operation, 0, gqlOperations)
 	for o := range gqlOperations {
 		root := ids[len(ids)-1-(o*gqlRootStride)%len(ids)]
-		ops = append(ops, ir.Operation{
-			ID:       ir.OpID(fmt.Sprintf("op/q%d", o)),
+		operations = append(operations, ir.Operation{
+			ID:       ir.OperationID(fmt.Sprintf("operation/q%d", o)),
 			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root}}},
-			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
+			Bindings: ir.OperationBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
 		})
 	}
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: operations}}}}
 }

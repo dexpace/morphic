@@ -51,8 +51,8 @@ func nullChainReadings(t *testing.T, sites ...string) (map[string]bool, []string
 	model, ok := doc.Types[componentID("M")].(*ir.Model)
 	require.True(t, ok)
 	out := map[string]bool{}
-	for _, p := range model.Properties {
-		out[p.WireName] = p.Type.Nullable
+	for _, property := range model.Properties {
+		out[property.WireName] = property.Type.Nullable
 	}
 	return out, lines(diags)
 }

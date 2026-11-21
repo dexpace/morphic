@@ -85,15 +85,15 @@ func keptLink(t *testing.T, on, link string) (ir.Response, []ir.Diagnostic) {
 		srcLink, bareLink = bareLink, link
 	}
 	doc, diags := parseFull(t, linkSpec(srcLink, bareLink))
-	resp := openapitest.FindOp(t, doc, on).Responses[0]
+	resp := openapitest.FindOperation(t, doc, on).Responses[0]
 	pointer := srcLinkPointer
 	if on == "bare" {
 		pointer = "/paths/~1bare/get/responses/200/links/L"
 	}
 	var at []ir.Diagnostic
-	for _, d := range diags {
-		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			at = append(at, d)
+	for _, diagnostic := range diags {
+		if diagnostic.Provenance.Pointer == jsontext.Pointer(pointer) {
+			at = append(at, diagnostic)
 		}
 	}
 	return resp, at
@@ -144,11 +144,11 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 			assert.Empty(t, resp.Links, "a link that does not lower whole is not lowered in part")
 			assert.Contains(t, resp.Unmodeled, "openapi:links/L", "it is kept verbatim under its own key")
 			var found []string
-			for _, d := range at {
-				if d.Code == tc.code {
-					found = append(found, d.Message)
+			for _, diagnostic := range at {
+				if diagnostic.Code == tc.code {
+					found = append(found, diagnostic.Message)
 					assert.Equal(t, map[string]ir.Severity{diag.InvalidLink: ir.SeverityWarning, diag.UntypedLink: ir.SeverityInfo}[tc.code],
-						d.Severity, "a link kept verbatim fails no compile")
+						diagnostic.Severity, "a link kept verbatim fails no compile")
 				}
 			}
 			require.Len(t, found, 1, "one finding at the link's entry; got %+v", at)
@@ -168,18 +168,18 @@ func TestLinks_ResolvedFormsLower(t *testing.T) {
 		"{operationId: target, parameters: {header.X-Up: 'x', query.id: 2}}"))
 	assert.Empty(t, severitiesOf(diags, diag.InvalidLink), "the document's duplicate operationId is its own finding")
 	assert.Empty(t, severitiesOf(diags, diag.UntypedLink))
-	src := openapitest.FindOp(t, doc, "src").Responses[0]
+	src := openapitest.FindOperation(t, doc, "src").Responses[0]
 	require.Len(t, src.Links, 1)
-	assert.Equal(t, openapitest.FindOp(t, doc, "once").ID, src.Links[0].Operation,
+	assert.Equal(t, openapitest.FindOperation(t, doc, "once").ID, src.Links[0].Operation,
 		"a declaration mounted once is the operation an operationRef to it names")
 
-	bare := openapitest.FindOp(t, doc, "bare").Responses[0]
+	bare := openapitest.FindOperation(t, doc, "bare").Responses[0]
 	require.Len(t, bare.Links, 1)
-	target := openapitest.FindOp(t, doc, "target")
+	target := openapitest.FindOperation(t, doc, "target")
 	require.Len(t, bare.Links[0].Params, 2)
 	assert.Equal(t, target.Params[2].ID, bare.Links[0].Params[0].Param, "header.X-Up names the header")
 	assert.Equal(t, target.Params[1].ID, bare.Links[0].Params[1].Param, "query.id names the query parameter alone")
-	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "2"}, bare.Links[0].Params[1].Value.Constant)
+	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Number: "2"}, bare.Links[0].Params[1].Value.Constant)
 }
 
 // TestLinks_EveryValueKindLowers pins each kind of value a link passes at what
@@ -193,8 +193,8 @@ func TestLinks_EveryValueKindLowers(t *testing.T) {
 		"{operationId: target, parameters: {path.id: '$method', query.id: '$statusCode'}}"))
 	assert.Empty(t, severitiesOf(diags, diag.InvalidLink))
 	assert.Empty(t, severitiesOf(diags, diag.UntypedLink))
-	target := openapitest.FindOp(t, doc, "target")
-	src := openapitest.FindOp(t, doc, "src")
+	target := openapitest.FindOperation(t, doc, "target")
+	src := openapitest.FindOperation(t, doc, "src")
 
 	link := src.Responses[0].Links
 	require.Len(t, link, 1)
@@ -203,16 +203,16 @@ func TestLinks_EveryValueKindLowers(t *testing.T) {
 	assert.Equal(t, "https://s.example", doc.Servers[*link[0].Server].URLTemplate)
 	assert.Equal(t, &ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{}}, link[0].Body, "the request body whole")
 	assert.Equal(t, []ir.LinkParam{
-		{Param: target.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-			Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+		{Param: target.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{
+			Segments: []ir.PropertyID{"property/openapi/components/schemas/M/properties/id"},
 		}}},
-		{Param: target.Params[2].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-			In: "header", Segments: []ir.PropID{src.Responses[0].Headers[0].ID},
+		{Param: target.Params[2].ID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{
+			In: "header", Segments: []ir.PropertyID{src.Responses[0].Headers[0].ID},
 		}}},
 		{Param: target.Params[1].ID, Value: ir.LinkValue{Kind: ir.LinkURL}},
 	}, link[0].Params)
 
-	bare := openapitest.FindOp(t, doc, "bare").Responses[0].Links
+	bare := openapitest.FindOperation(t, doc, "bare").Responses[0].Links
 	require.Len(t, bare, 1)
 	assert.Equal(t, []ir.LinkParam{
 		{Param: target.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkMethod}},
@@ -232,13 +232,13 @@ func TestLinks_ErrorsAndDefaultsCarryLinks(t *testing.T) {
         default: {description: any, links: {Again: {operationId: a, x-k: v}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "a")
-	require.Len(t, op.Errors, 1)
-	require.Len(t, op.Errors[0].Links, 1)
-	assert.Equal(t, op.ID, op.Errors[0].Links[0].Operation)
-	require.NotNil(t, op.Default)
-	require.Len(t, op.Default.Links, 1)
-	assert.Contains(t, op.Default.Links[0].Unmodeled, "openapi:x-k")
+	operation := openapitest.FindOperation(t, doc, "a")
+	require.Len(t, operation.Errors, 1)
+	require.Len(t, operation.Errors[0].Links, 1)
+	assert.Equal(t, operation.ID, operation.Errors[0].Links[0].Operation)
+	require.NotNil(t, operation.Default)
+	require.Len(t, operation.Default.Links, 1)
+	assert.Contains(t, operation.Default.Links[0].Unmodeled, "openapi:x-k")
 }
 
 // TestLinks_ASharedResponseResolvesPerOperation pins that one response two
@@ -267,11 +267,11 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"a", "b"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.Len(t, op.Responses[0].Links, 1, name)
-		value := op.Responses[0].Links[0].Params[0].Value
+		operation := openapitest.FindOperation(t, doc, name)
+		require.Len(t, operation.Responses[0].Links, 1, name)
+		value := operation.Responses[0].Links[0].Params[0].Value
 		require.NotNil(t, value.Request, name)
-		assert.Equal(t, &op.Params[0].ID, value.Request.Param, "%s's link reads %s's own parameter", name, name)
+		assert.Equal(t, &operation.Params[0].ID, value.Request.Param, "%s's link reads %s's own parameter", name, name)
 	}
 }
 
@@ -295,7 +295,7 @@ func TestLinks_AHeaderTwoCasesDeclareIsNeither(t *testing.T) {
 	}
 	for _, order := range [][2]string{{"X-Id", "x-id"}, {"x-id", "X-Id"}} {
 		doc, diags := parseFull(t, spec(order[0], order[1]))
-		resp := openapitest.FindOp(t, doc, "a").Responses[0]
+		resp := openapitest.FindOperation(t, doc, "a").Responses[0]
 		assert.Empty(t, resp.Links, "%v: neither header is the one the link reads", order)
 		assert.Contains(t, resp.Unmodeled, "openapi:links/Again", "%v", order)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severitiesOf(diags, diag.UntypedLink), "%v", order)
@@ -324,25 +324,25 @@ func TestLinks_AHeaderIsReadOffItsOwnResponse(t *testing.T) {
 	}
 	doc, diags := parseFull(t, openapitest.PathsSpec("  /a:\n"+operation("a")+"  /b:\n"+operation("b")))
 	openapitest.RequireNoErrorDiags(t, diags)
-	own := map[ir.PropID]string{}
+	own := map[ir.PropertyID]string{}
 	reads := func(label string, headers []ir.Header, links []ir.OperationLink) {
 		t.Helper()
 		require.Len(t, headers, 1, label)
 		require.Len(t, links, 1, label)
 		value := links[0].Params[0].Value.Response
 		require.NotNil(t, value, label)
-		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{headers[0].ID}}, value, label)
+		assert.Equal(t, &ir.PropertyPath{In: "header", Segments: []ir.PropertyID{headers[0].ID}}, value, label)
 		own[headers[0].ID] = label
 	}
 	for _, name := range []string{"a", "b"} {
-		op := openapitest.FindOp(t, doc, name)
-		require.Len(t, op.Responses, 2, name)
-		require.Len(t, op.Errors, 1, name)
-		require.NotNil(t, op.Default, name)
-		reads(name+" 200", op.Responses[0].Headers, op.Responses[0].Links)
-		reads(name+" 201", op.Responses[1].Headers, op.Responses[1].Links)
-		reads(name+" 404", op.Errors[0].Headers, op.Errors[0].Links)
-		reads(name+" default", op.Default.Headers, op.Default.Links)
+		operation := openapitest.FindOperation(t, doc, name)
+		require.Len(t, operation.Responses, 2, name)
+		require.Len(t, operation.Errors, 1, name)
+		require.NotNil(t, operation.Default, name)
+		reads(name+" 200", operation.Responses[0].Headers, operation.Responses[0].Links)
+		reads(name+" 201", operation.Responses[1].Headers, operation.Responses[1].Links)
+		reads(name+" 404", operation.Errors[0].Headers, operation.Errors[0].Links)
+		reads(name+" default", operation.Default.Headers, operation.Default.Links)
 	}
 	assert.Len(t, own, 8, "no two responses declare one header, so no read could have taken another's")
 }
@@ -369,7 +369,7 @@ components:
     L: {operationId: a, description: declared description}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	links := openapitest.FindOp(t, doc, "a").Responses[0].Links
+	links := openapitest.FindOperation(t, doc, "a").Responses[0].Links
 	require.Len(t, links, 2)
 	assert.Equal(t, ir.Docs{Summary: "use summary", Description: "use description"}, links[0].Docs)
 	assert.Equal(t, ir.Docs{Description: "declared description"}, links[1].Docs)
@@ -407,20 +407,20 @@ components:
   schemas:
     M: {type: object, properties: {id: {type: string}}}
 `))
-			resp := openapitest.FindOp(t, doc, "a").Responses[0]
+			resp := openapitest.FindOperation(t, doc, "a").Responses[0]
 			if tc.says == "" {
 				require.Len(t, resp.Links, 1, "the contents walk alike")
-				assert.Equal(t, &ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
-					Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+				assert.Equal(t, &ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropertyPath{
+					Segments: []ir.PropertyID{"property/openapi/components/schemas/M/properties/id"},
 				}}, resp.Links[0].Body)
 				return
 			}
 			assert.Empty(t, resp.Links)
 			assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
 			var found []string
-			for _, d := range diags {
-				if d.Code == diag.UntypedLink {
-					found = append(found, d.Message)
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UntypedLink {
+					found = append(found, diagnostic.Message)
 				}
 			}
 			require.Len(t, found, 1)
@@ -456,25 +456,25 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
   /twin1: {get: {operationId: twin, responses: {"200": {description: ok}}}}
   /twin2: {get: {operationId: twin, responses: {"200": {description: ok}}}}
 `
-	links := func(spec string) (map[ir.OpID][]ir.OperationLink, []string) {
+	links := func(spec string) (map[ir.OperationID][]ir.OperationLink, []string) {
 		doc, diags := parseFull(t, openapitest.PathsSpec(spec))
-		got := map[ir.OpID][]ir.OperationLink{}
-		ir.ForEachOperation(doc, func(op ir.Operation) {
-			for _, r := range op.Responses {
-				got[op.ID] = append(got[op.ID], r.Links...)
+		got := map[ir.OperationID][]ir.OperationLink{}
+		ir.ForEachOperation(doc, func(operation ir.Operation) {
+			for _, response := range operation.Responses {
+				got[operation.ID] = append(got[operation.ID], response.Links...)
 			}
 		})
 		var findings []string
-		for _, d := range diags {
-			if d.Code == diag.InvalidLink || d.Code == diag.UntypedLink {
-				findings = append(findings, d.Code+" "+string(d.Provenance.Pointer))
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.InvalidLink || diagnostic.Code == diag.UntypedLink {
+				findings = append(findings, diagnostic.Code+" "+string(diagnostic.Provenance.Pointer))
 			}
 		}
 		return got, findings
 	}
 	firstLinks, firstFindings := links(src + rest)
 	secondLinks, secondFindings := links(rest + src)
-	require.Len(t, firstLinks["op/openapi/paths/~1src~1{id}/get"], 1, "the link to target lowers")
+	require.Len(t, firstLinks["operation/openapi/paths/~1src~1{id}/get"], 1, "the link to target lowers")
 	assert.Empty(t, cmp.Diff(firstLinks, secondLinks), "links depend on declaration order")
 	assert.ElementsMatch(t, firstFindings, secondFindings, "findings depend on declaration order")
 	assert.Equal(t, []string{diag.InvalidLink + " /paths/~1src~1{id}/get/responses/200/links/Either"}, firstFindings)
@@ -483,9 +483,9 @@ func TestLinks_LowerAlikeInEitherDeclarationOrder(t *testing.T) {
 // severitiesOf returns the severity of each finding of diags under code.
 func severitiesOf(diags []ir.Diagnostic, code string) []ir.Severity {
 	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Severity)
+	for _, diagnostic := range diags {
+		if diagnostic.Code == code {
+			out = append(out, diagnostic.Severity)
 		}
 	}
 	return out

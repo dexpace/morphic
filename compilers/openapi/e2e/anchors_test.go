@@ -226,9 +226,9 @@ paths:
 	}
 
 	plain := compile("http")
-	m, ok := operationNamed(plain, "getM")
+	operation, ok := operationNamed(plain, "getM")
 	require.True(t, ok)
-	target := m.Responses[0].Payload.Contents[0].Type.Target
+	target := operation.Responses[0].Payload.Contents[0].Type.Target
 	assert.Equal(t, 1, plain.Types[target].Common().Provenance.Source,
 		"declared in the document read: %s", target)
 	if diff := cmp.Diff(plain, compile("HTTP")); diff != "" {
@@ -284,9 +284,9 @@ func TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused(t *testing.T) {
 			diags := compileBesideExpectingErrors(t, tc.ext, tc.root)
 
 			found := false
-			for _, d := range diags {
-				if d.Code == diag.UnresolvedRef && d.Severity == ir.SeverityError &&
-					strings.Contains(d.Message, "refused") && strings.Contains(d.Message, "recursive YAML anchor") {
+			for _, diagnostic := range diags {
+				if diagnostic.Code == diag.UnresolvedRef && diagnostic.Severity == ir.SeverityError &&
+					strings.Contains(diagnostic.Message, "refused") && strings.Contains(diagnostic.Message, "recursive YAML anchor") {
 					found = true
 				}
 			}
@@ -319,9 +319,9 @@ func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 
 	require.NoError(t, err)
 	var refusedAt []jsontext.Pointer
-	for _, d := range diags {
-		if strings.Contains(d.Message, fmt.Sprintf("refused: it is past the %d-byte budget", budget)) {
-			refusedAt = append(refusedAt, d.Provenance.Pointer)
+	for _, diagnostic := range diags {
+		if strings.Contains(diagnostic.Message, fmt.Sprintf("refused: it is past the %d-byte budget", budget)) {
+			refusedAt = append(refusedAt, diagnostic.Provenance.Pointer)
 		}
 	}
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/R1", "/components/schemas/R2", "/components/schemas/R3"},
@@ -363,8 +363,8 @@ func TestCompile_AnExternalDocumentIsParsedAsItWasJudged(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, int32(1), fetches.Load(), "one read answers both references")
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "node budget", "the document read was within it")
+	for _, diagnostic := range diags {
+		assert.NotContains(t, diagnostic.Message, "node budget", "the document read was within it")
 	}
 	_, lowered := operationNamed(doc, "SECOND")
 	assert.False(t, lowered, "nothing is lowered from bytes never judged")
@@ -388,9 +388,9 @@ func TestCompile_AnAliasStillStandsForAReleasedAnchorInAnExternalDocument(t *tes
 	doc := compileBeside(t, ext)
 
 	for _, name := range []string{"getX", "putX"} {
-		op, ok := operationNamed(doc, name)
+		operation, ok := operationNamed(doc, name)
 		require.True(t, ok, "%s is lowered", name)
-		lowered, err := json.Marshal(op)
+		lowered, err := json.Marshal(operation)
 		require.NoError(t, err)
 		assert.Contains(t, string(lowered), "SHARED_NOT_FOUND", "%s carries the anchored 404", name)
 	}
@@ -420,9 +420,9 @@ func TestCompile_AnAliasStillStandsForAReleasedAnchor(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"getA", "getB"} {
-		op, ok := operationNamed(doc, name)
+		operation, ok := operationNamed(doc, name)
 		require.True(t, ok, "%s is lowered", name)
-		lowered, err := json.Marshal(op)
+		lowered, err := json.Marshal(operation)
 		require.NoError(t, err)
 		assert.Contains(t, string(lowered), "SHARED_NOT_FOUND", "%s carries the anchored 404", name)
 	}
@@ -434,9 +434,9 @@ func TestCompile_AnAliasStillStandsForAReleasedAnchor(t *testing.T) {
 func withoutSourceHash(doc *ir.Document) *ir.Document {
 	out := *doc
 	out.Sources = make([]ir.SourceInfo, len(doc.Sources))
-	for i, s := range doc.Sources {
-		s.Hash = ""
-		out.Sources[i] = s
+	for i, sourceInfo := range doc.Sources {
+		sourceInfo.Hash = ""
+		out.Sources[i] = sourceInfo
 	}
 	return &out
 }
@@ -444,9 +444,9 @@ func withoutSourceHash(doc *ir.Document) *ir.Document {
 // operationNamed finds the first operation whose source operationId is name, in
 // any group of any service.
 func operationNamed(doc *ir.Document, name string) (ir.Operation, bool) {
-	ops := operationsNamed(doc, name)
-	if len(ops) == 0 {
+	operations := operationsNamed(doc, name)
+	if len(operations) == 0 {
 		return ir.Operation{}, false
 	}
-	return ops[0], true
+	return operations[0], true
 }

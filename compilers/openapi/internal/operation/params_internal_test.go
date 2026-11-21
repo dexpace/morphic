@@ -13,20 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
 func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	lowerer := newRawLowerer(&soa.OpenAPI{})
 	param := &ir.Parameter{}
 	var written ir.Unmodeled
-	diags := fillParamSchema(l.ctx, l.types, param, &written, openapitest.EmptyEitherSchema(), "/p")
+	diags := fillParamSchema(lowerer.ctx, lowerer.types, param, &written, openapitest.EmptyEitherSchema(), "/p")
 	assert.Nil(t, written)
 	assert.Nil(t, param.Constraints)
 	assert.Nil(t, param.Default)
@@ -39,14 +39,14 @@ func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 // record nothing rather than announce a preservation it did not make.
 func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
+	lowerer, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
 	_, backed := standaloneSchema(s).Key("xml")
 	require.False(t, backed, "and no raw node backs it")
 
 	var written ir.Unmodeled
-	diags := preserveParamXML(l.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")
+	diags := preserveParamXML(lowerer.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")
 
 	assert.Nil(t, written, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
@@ -69,23 +69,23 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
 	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolve.Object[soa.PathItem](loadedDoc.Bindings, rp)
+		pi = componentlookup.Object[soa.PathItem](loadedDoc.Bindings, rp)
 	}
 	require.NotNil(t, pi)
-	op := pi.Get()
-	require.NotNil(t, op)
+	operation := pi.Get()
+	require.NotNil(t, operation)
 	pathPtr := ids.Ptr("paths", "/users/{id}")
-	opPtr := pathPtr + ids.Ptr("get")
+	operationPtr := pathPtr + ids.Ptr("get")
 	b := loadedDoc.Bindings
-	merged := mergeParameters(b, appendSourced(b, nil, pi.GetParameters(), pathPtr, nil, nil), op.GetParameters(), opPtr)
+	merged := mergeParameters(b, appendSourced(b, nil, pi.GetParameters(), pathPtr, nil, nil), operation.GetParameters(), operationPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
-	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
+	assert.Same(t, operation.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
 	assert.Equal(t, jsontext.Pointer("/paths/~1users~1{id}/get/parameters/0"), merged[0].pointer,
 		"the op-level parameter keeps its own declaration pointer")
 
 	byName := map[string]sourcedParam{}
 	for _, sp := range merged {
-		byName[resolve.Object[soa.Parameter](b, sp.ref).GetName()] = sp
+		byName[componentlookup.Object[soa.Parameter](b, sp.ref).GetName()] = sp
 	}
 	_, hasID := byName["id"]
 	_, hasTrace := byName["trace"]

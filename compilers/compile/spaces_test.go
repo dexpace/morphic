@@ -35,19 +35,19 @@ func TestNamespaces_DeclarationIsCanonical(t *testing.T) {
 func TestNamespaces_DeclarationOmitsWhatIsEmpty(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, compile.Namespaces(nil).Declaration())
-	assert.Nil(t, compile.Namespaces{ir.IDKindOp: nil}.Declaration())
-	assert.Equal(t, map[string][]string{ir.IDKindOp: {"openapi"}},
-		compile.Namespaces{ir.IDKindOp: {"openapi"}, ir.IDKindProp: {}}.Declaration())
+	assert.Nil(t, compile.Namespaces{ir.IDKindOperation: nil}.Declaration())
+	assert.Equal(t, map[string][]string{ir.IDKindOperation: {"openapi"}},
+		compile.Namespaces{ir.IDKindOperation: {"openapi"}, ir.IDKindProperty: {}}.Declaration())
 }
 
 // TestNamespaces_DeclarationSharesNothingWithItsSource pins the copy: a caller
 // that edits the document's declaration must not edit the compiler's.
 func TestNamespaces_DeclarationSharesNothingWithItsSource(t *testing.T) {
 	t.Parallel()
-	source := compile.Namespaces{ir.IDKindOp: {"openapi"}}
+	source := compile.Namespaces{ir.IDKindOperation: {"openapi"}}
 	declaration := source.Declaration()
-	require.Equal(t, []string{"openapi"}, declaration[ir.IDKindOp])
+	require.Equal(t, []string{"openapi"}, declaration[ir.IDKindOperation])
 
-	declaration[ir.IDKindOp][0] = "edited"
-	assert.Equal(t, []compile.Space{"openapi"}, source[ir.IDKindOp])
+	declaration[ir.IDKindOperation][0] = "edited"
+	assert.Equal(t, []compile.Space{"openapi"}, source[ir.IDKindOperation])
 }

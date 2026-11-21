@@ -27,15 +27,15 @@ func declaredIDViolations(doc *ir.Document) []Violation {
 // business and a fixture that left one empty would be testing that rule instead.
 func idBearingDoc(present bool) *ir.Document {
 	model := &ir.Model{
-		ID: "t/x/M",
+		ID: "type/x/M",
 		Properties: []ir.Property{{
-			ID:   pick(present, ir.PropID("p/x/M/f")),
-			Type: ir.TypeRef{Target: "t/x/M"},
+			ID:   pick(present, ir.PropertyID("property/x/M/f")),
+			Type: ir.TypeRef{Target: "type/x/M"},
 		}},
 	}
 	enum := &ir.Enum{
-		ID:      "t/x/E",
-		Members: []ir.EnumMember{{ID: pick(present, ir.EnumMemberID("e/x/E/s:a"))}},
+		ID:      "type/x/E",
+		Members: []ir.EnumMember{{ID: pick(present, ir.EnumMemberID("enum-member/x/E/string:a"))}},
 	}
 	return &ir.Document{
 		Types:    ir.TypeRegistry{model.ID: model, enum.ID: enum},
@@ -43,12 +43,12 @@ func idBearingDoc(present bool) *ir.Document {
 		Messages: map[ir.MessageID]ir.Message{"m/x/M": {ID: "m/x/M"}},
 		Auth:     map[ir.AuthID]ir.AuthScheme{"auth/x/A": {ID: "auth/x/A"}},
 		Services: []ir.Service{{
-			ID: pick(present, ir.ServiceID("s/x/S")),
+			ID: pick(present, ir.ServiceID("service/x/S")),
 			Groups: []ir.OperationGroup{{
-				ID: pick(present, ir.GroupID("g/x/S/G")),
+				ID: pick(present, ir.GroupID("operation-group/x/S/G")),
 				Operations: []ir.Operation{{
-					ID:     pick(present, ir.OpID("op/x/S/op")),
-					Params: []ir.Parameter{{ID: pick(present, ir.ParamID("param/x/S/op/p"))}},
+					ID:     pick(present, ir.OperationID("operation/x/S/op")),
+					Params: []ir.Parameter{{ID: pick(present, ir.ParameterID("parameter/x/S/op/p"))}},
 				}},
 			}},
 		}},
@@ -84,16 +84,16 @@ func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 	keyed := ir.KeyedClasses()
 	var want []string
 	for i, path := range found.Paths() {
-		if d := decls[i]; !keyed[d.Class] {
-			want = append(want, "ir/empty-"+ir.RefNoun(d.Class)+"-id "+path.String())
+		if idDeclaration := decls[i]; !keyed[idDeclaration.Class] {
+			want = append(want, "ir/empty-"+ir.RefNoun(idDeclaration.Class)+"-id "+path.String())
 		}
 	}
 	require.NotEmpty(t, want, "the fixture must declare a class Document keys no map by")
 
 	reported := declaredIDViolations(idBearingDoc(false))
 	got := make([]string, 0, len(reported))
-	for _, v := range reported {
-		got = append(got, v.Code+" "+v.Path)
+	for _, violation := range reported {
+		got = append(got, violation.Code+" "+violation.Path)
 	}
 	assert.Empty(t, cmp.Diff(want, got),
 		"this check and ir.IDDeclarations must find the same declarations (-ir +irverify)")
@@ -120,30 +120,30 @@ func TestCheckDeclaredIDs_EmptyOperationServiceAndGroupIDs(t *testing.T) {
 	got := declaredIDViolations(doc)
 	require.Len(t, got, 4, "one service, one group and both operations declare nothing")
 	assert.Equal(t, "ir/empty-service-id", got[0].Code)
-	assert.Equal(t, "doc.Services[0]", got[0].Path)
+	assert.Equal(t, "document.Services[0]", got[0].Path)
 	assert.Equal(t, "ir/empty-group-id", got[1].Code)
-	assert.Equal(t, "doc.Services[0].Groups[0]", got[1].Path)
-	assert.Equal(t, "ir/empty-op-id", got[2].Code)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0]", got[2].Path)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[1]", got[3].Path)
+	assert.Equal(t, "document.Services[0].Groups[0]", got[1].Path)
+	assert.Equal(t, "ir/empty-operation-id", got[2].Code)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[0]", got[2].Path)
+	assert.Equal(t, "document.Services[0].Groups[0].Operations[1]", got[3].Path)
 }
 
 // TestCheckDeclaredIDs_EmptyPropertyID covers the third class with no registry
 // key. A property is a position inside its model rather than a document-level
 // entry, but its ID is minted from a source pointer like any other and every
-// PropID reference in the document — a PropPath segment, an encoding key, a
-// discriminator's tag — resolves against it.
+// PropertyID reference in the document — a PropertyPath segment, an encoding
+// key, a discriminator's tag — resolves against it.
 func TestCheckDeclaredIDs_EmptyPropertyID(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-		ID:         "t/x/M",
-		Properties: []ir.Property{{Type: ir.TypeRef{Target: "t/x/M"}}},
+	doc := &ir.Document{Types: ir.TypeRegistry{"type/x/M": &ir.Model{
+		ID:         "type/x/M",
+		Properties: []ir.Property{{Type: ir.TypeRef{Target: "type/x/M"}}},
 	}}}
 
 	got := declaredIDViolations(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/empty-prop-id", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/M].Properties[0]", got[0].Path)
+	assert.Equal(t, "ir/empty-property-id", got[0].Code)
+	assert.Equal(t, "document.Types[type/x/M].Properties[0]", got[0].Path)
 }
 
 // TestCheckDeclaredIDs_MapKeyedClassesAreLeftToTheRegistryRule pins the
@@ -161,8 +161,8 @@ func TestCheckDeclaredIDs_MapKeyedClassesAreLeftToTheRegistryRule(t *testing.T) 
 	assert.Empty(t, declaredIDViolations(doc))
 
 	codes := map[string]bool{}
-	for _, v := range Verify(doc) {
-		codes[v.Code] = true
+	for _, violation := range Verify(doc) {
+		codes[violation.Code] = true
 	}
 	for _, noun := range []string{"type", "channel", "message", "auth"} {
 		assert.True(t, codes["ir/empty-"+noun+"-id"],
@@ -182,8 +182,8 @@ func TestVerify_ReportsEmptyDeclaredIDs(t *testing.T) {
 
 	found := Verify(doc)
 	codes := make([]string, 0, len(found))
-	for _, v := range found {
-		codes = append(codes, v.Code)
+	for _, violation := range found {
+		codes = append(codes, violation.Code)
 	}
 	assert.Contains(t, codes, "ir/empty-service-id")
 	assert.Contains(t, codes, "ir/empty-group-id")

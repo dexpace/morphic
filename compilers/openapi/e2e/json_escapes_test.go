@@ -281,8 +281,8 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 		_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(src)}, compilers.Options{})
 
 		require.NoError(t, err)
-		msg := openapitest.DiagMessageAt(t, diags, diag.UndecodableSource, ir.SeverityError, "")
-		assert.Contains(t, msg, "line 3, column "+columnOf(t, src, halfEscape)+": "+want)
+		message := openapitest.DiagMessageAt(t, diags, diag.UndecodableSource, ir.SeverityError, "")
+		assert.Contains(t, message, "line 3, column "+columnOf(t, src, halfEscape)+": "+want)
 	})
 	t.Run("in an external document", func(t *testing.T) {
 		t.Parallel()
@@ -291,8 +291,8 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 		diags := compileBesideExpectingErrors(t, ext, root)
 
 		require.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "%+v", diags)
-		d, _ := openapitest.FirstDiag(diags, diag.UnresolvedRef)
-		assert.Contains(t, d.Message, "the document it names does not parse: line 8, column "+columnOf(t, ext, halfEscape)+": "+want)
+		diagnostic, _ := openapitest.FirstDiag(diags, diag.UnresolvedRef)
+		assert.Contains(t, diagnostic.Message, "the document it names does not parse: line 8, column "+columnOf(t, ext, halfEscape)+": "+want)
 	})
 	t.Run("in an overlay", func(t *testing.T) {
 		t.Parallel()
@@ -302,8 +302,8 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 			compilers.Options{FormatOptions: openapi.Options{Overlay: &openapi.Overlay{Path: "patch.json", Data: []byte(patch)}}})
 
 		require.NoError(t, err)
-		msg := openapitest.DiagMessageAt(t, diags, diag.OverlayInvalid, ir.SeverityError, "")
-		assert.Contains(t, msg, "cannot parse overlay: line 4, column "+columnOf(t, patch, halfEscape)+": "+want)
+		message := openapitest.DiagMessageAt(t, diags, diag.OverlayInvalid, ir.SeverityError, "")
+		assert.Contains(t, message, "cannot parse overlay: line 4, column "+columnOf(t, patch, halfEscape)+": "+want)
 	})
 }
 
@@ -331,10 +331,10 @@ func TestCompile_APositionAfterAnEscapeCountsItAsWritten(t *testing.T) {
 		`"responses":{"200":{"description":"ok"}}}}}}` + "\n"
 	columnOfFinding := func(title string) int {
 		_, diags := parseFull(t, strings.ReplaceAll(spec, "<T>", title))
-		d, ok := openapitest.FirstDiag(diags, diag.InapplicableLocationKeyword)
+		diagnostic, ok := openapitest.FirstDiag(diags, diag.InapplicableLocationKeyword)
 		require.True(t, ok, "the finding the fixture draws: %+v", diags)
-		require.Equal(t, 1, d.Provenance.Position.Line)
-		return d.Provenance.Position.Column
+		require.Equal(t, 1, diagnostic.Provenance.Position.Line)
+		return diagnostic.Provenance.Position.Column
 	}
 
 	escaped := columnOfFinding(astralPair)

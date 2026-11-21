@@ -66,21 +66,21 @@ func TestRefUseBound_ACarriedUseIsTheReference(t *testing.T) {
 					assertNoErrorDiags(t, diags)
 					holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 					require.True(t, ok)
-					p, ok := propByWire(holder, "p")
+					property, ok := propertyByWire(holder, "p")
 					require.True(t, ok)
-					assert.Equal(t, componentID("Obj"), p.Type.Target, "the property names the reference")
-					kw.check(t, p.Visibility, p.Default, p.Type.Nullable)
-					op := operationAt(t, doc, "GET", "/x")
-					require.Len(t, op.Params, 1)
-					assert.Equal(t, componentID("Obj"), op.Params[0].Type.Target, "the parameter names the reference")
+					assert.Equal(t, componentID("Obj"), property.Type.Target, "the property names the reference")
+					kw.check(t, property.Visibility, property.Default, property.Type.Nullable)
+					operation := operationAt(t, doc, "GET", "/x")
+					require.Len(t, operation.Params, 1)
+					assert.Equal(t, componentID("Obj"), operation.Params[0].Type.Target, "the parameter names the reference")
 					for _, at := range []string{"/components/schemas/Holder/properties/p", "/paths/~1x/get/parameters/0/schema"} {
-						assert.NotContains(t, doc.Types, ir.TypeID("t/anon"+at), "no node stands at %s", at)
+						assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+at), "no node stands at %s", at)
 					}
-					for _, id := range []ir.TypeID{componentID("Pos"), "t/anon/components/schemas/Els/items"} {
-						m, ok := kindNode(t, doc, id).(*ir.Model)
+					for _, id := range []ir.TypeID{componentID("Pos"), "type/anonymous/components/schemas/Els/items"} {
+						model, ok := kindNode(t, doc, id).(*ir.Model)
 						require.True(t, ok, "%s owns the Model over Obj", id)
-						require.NotNil(t, m.Base)
-						assert.Equal(t, componentID("Obj"), m.Base.Target, id)
+						require.NotNil(t, model.Base)
+						assert.Equal(t, componentID("Obj"), model.Base.Target, id)
 					}
 				})
 			}
@@ -106,10 +106,10 @@ func TestRefUseBound_AnotherKeywordKeepsTheModel(t *testing.T) {
 			t.Parallel()
 			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}"),
 				openapi.Options{NullableInference: openapi.NullableInference{Disabled: tc.off}})
-			m, ok := kindNode(t, doc, ir.TypeID("t/anon"+at)).(*ir.Model)
+			model, ok := kindNode(t, doc, ir.TypeID("type/anonymous"+at)).(*ir.Model)
 			require.True(t, ok, "the position owns the Model over Obj")
-			require.NotNil(t, m.Base)
-			assert.Equal(t, componentID("Obj"), m.Base.Target)
+			require.NotNil(t, model.Base)
+			assert.Equal(t, componentID("Obj"), model.Base.Target)
 		})
 	}
 }
@@ -131,15 +131,15 @@ func TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder(t *testing
 	}, func(t *testing.T, schemas []string) {
 		doc, diags := compileAnnotationSpec(t, "order", admissionSpec("3.1.0", "", schemas...))
 		requireErrorsAndWarnings(t, diags, nil)
-		r1, ok := propByWire(requireEntryModelOf(t, doc, "H"), "r1")
+		r1, ok := propertyByWire(requireEntryModelOf(t, doc, "H"), "r1")
 		require.True(t, ok)
 		assert.Equal(t, componentID("Obj"), r1.Type.Target)
 		assert.NotEmpty(t, r1.Visibility.Only)
-		x, ok := propByWire(requireEntryModelOf(t, doc, "X"), "x")
+		property, ok := propertyByWire(requireEntryModelOf(t, doc, "X"), "x")
 		require.True(t, ok)
-		assert.Equal(t, ir.TypeID("t/anon"+at), x.Type.Target)
-		assert.NotEmpty(t, x.Visibility.Only, "the user reads the readOnly through its $ref")
-		node, ok := kindNode(t, doc, x.Type.Target).(*ir.Model)
+		assert.Equal(t, ir.TypeID("type/anonymous"+at), property.Type.Target)
+		assert.NotEmpty(t, property.Visibility.Only, "the user reads the readOnly through its $ref")
+		node, ok := kindNode(t, doc, property.Type.Target).(*ir.Model)
 		require.True(t, ok, "no Scalar stands over a model")
 		assert.Contains(t, node.Unmodeled, "openapi:readOnly")
 		assert.Contains(t, degradedInfoPointers(diags), jsontext.Pointer(at+"/readOnly"))

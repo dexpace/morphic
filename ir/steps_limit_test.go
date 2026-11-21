@@ -19,14 +19,14 @@ import (
 // groups sharing the slice of the level below, so the tree the encoding writes
 // has 2^(depth+1)-2 groups.
 func forkedGroups(depth int) *ir.Document {
-	var g []ir.OperationGroup
+	var operationGroups []ir.OperationGroup
 	for i := range depth {
-		g = []ir.OperationGroup{
-			{ID: ir.GroupID(fmt.Sprintf("g/x/a%d", i)), Groups: g},
-			{ID: ir.GroupID(fmt.Sprintf("g/x/b%d", i)), Groups: g},
+		operationGroups = []ir.OperationGroup{
+			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/a%d", i)), Groups: operationGroups},
+			{ID: ir.GroupID(fmt.Sprintf("operation-group/x/b%d", i)), Groups: operationGroups},
 		}
 	}
-	return &ir.Document{Services: []ir.Service{{ID: "s/x", Groups: g}}}
+	return &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: operationGroups}}}
 }
 
 // groupsVisited returns how many groups ForEachGroupWithin calls fn for within
@@ -66,11 +66,11 @@ func TestForEachGroup_ReadsToItsLimit(t *testing.T) {
 // cost eleven, and a limit of six reads the group and five of them.
 func TestForEachOperation_ChargesOperationsAndGroups(t *testing.T) {
 	t.Parallel()
-	ops := make([]ir.Operation, 10)
-	for i := range ops {
-		ops[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/x/o%d", i))}
+	operations := make([]ir.Operation, 10)
+	for i := range operations {
+		operations[i] = ir.Operation{ID: ir.OperationID(fmt.Sprintf("operation/x/o%d", i))}
 	}
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x/a", Operations: ops}}}}}
+	doc := &ir.Document{Services: []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x/a", Operations: operations}}}}}
 
 	for _, tc := range []struct {
 		limit   int
@@ -81,25 +81,25 @@ func TestForEachOperation_ChargesOperationsAndGroups(t *testing.T) {
 		{11, 10, false},
 		{10, 9, true},
 	} {
-		var read []ir.OpID
-		cut := ir.ForEachOperationWithin(tc.limit, doc, func(op ir.Operation) { read = append(read, op.ID) })
+		var read []ir.OperationID
+		cut := ir.ForEachOperationWithin(tc.limit, doc, func(operation ir.Operation) { read = append(read, operation.ID) })
 
 		assert.Len(t, read, tc.want, "limit %d: operations read", tc.limit)
 		assert.Equal(t, tc.wantCut, cut, "limit %d", tc.limit)
 	}
 }
 
-// ctorFork returns a literal whose constructors nest depth levels, each taking
-// the level below twice as arguments, so it holds 2^(depth+1)-1 constructors
-// and yields as many edges.
-func ctorFork(depth int) *ir.Literal {
-	c := &ir.CtorValue{Scalar: "t/s"}
+// constructorFork returns a literal whose constructors nest depth levels, each
+// taking the level below twice as arguments, so it holds 2^(depth+1)-1
+// constructors and yields as many edges.
+func constructorFork(depth int) *ir.Literal {
+	constructorValue := &ir.ConstructorValue{Scalar: "type/s"}
 	for range depth {
-		cv := ir.Value{Kind: ir.ValueCtor, Ctor: c}
-		c = &ir.CtorValue{Scalar: "t/s", Args: []ir.Value{cv, cv}}
+		cv := ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}
+		constructorValue = &ir.ConstructorValue{Scalar: "type/s", Args: []ir.Value{cv, cv}}
 	}
-	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueCtor, Ctor: c}}
-	lit.ID = "t/x/L"
+	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueConstructor, Constructor: constructorValue}}
+	lit.ID = "type/x/L"
 	return lit
 }
 
@@ -107,7 +107,7 @@ func ctorFork(depth int) *ir.Literal {
 // of shared constructors at the real limit: one edge per constructor.
 func TestTypeEdges_ReadsEveryHolderUpToItsLimit(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, slices.Collect(ir.TypeEdges(ctorFork(10))), 2047)
+	assert.Len(t, slices.Collect(ir.TypeEdges(constructorFork(10))), 2047)
 }
 
 // TestTypeEdges_ACutIsTheWalksCut holds a typed walk to being cut only where
@@ -117,7 +117,7 @@ func TestTypeEdges_ReadsEveryHolderUpToItsLimit(t *testing.T) {
 // reached by both typed walks, so the implication is not held vacuously.
 func TestTypeEdges_ACutIsTheWalksCut(t *testing.T) {
 	t.Parallel()
-	lit := ctorFork(10)
+	lit := constructorFork(10)
 	groups := forkedGroups(10)
 	doc := &ir.Document{
 		Types:    ir.TypeRegistry{lit.ID: lit},
@@ -133,7 +133,7 @@ func TestTypeEdges_ACutIsTheWalksCut(t *testing.T) {
 		reachedEdges = reachedEdges || edgesCut
 		reachedGroups = reachedGroups || groupsCut
 		if edgesCut || groupsCut {
-			assert.True(t, ir.WalkValuesWithin(8*limit, doc, "doc", &shownCounter{}),
+			assert.True(t, ir.WalkValuesWithin(8*limit, doc, "document", &shownCounter{}),
 				"limit %d: a typed walk was cut, so the walk of eight values a step is", limit)
 		}
 	}

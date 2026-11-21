@@ -10,8 +10,8 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -49,30 +49,30 @@ func (r fileReading) open() bool { return r == readsString || r == readsUntyped 
 // (readUnion), each as readBranch reads it. Raw bytes are read through a
 // refinement to the schema deciding it (schema.DecidingSchema). An absent
 // schema, and a null written for one, is untyped.
-func readFile(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	return readSchema(c, js, branchReading{read: readBranch})
+func readFile(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	return readSchema(serviceContext, js, branchReading{read: readBranch})
 }
 
 // readSchema reads js as readFile does, with branch reading each branch of a
 // union js writes. A union is read once a run for each way its branches are
 // read (unionFileOf), however many contents and parts name it (GitHub #1460).
-func readSchema(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch branchReading) fileReading {
-	s, head, decided := readHead(c, c.Statements().Of(js))
+func readSchema(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch branchReading) fileReading {
+	statementSchema, head, decided := readHead(serviceContext, serviceContext.Statements().Of(js))
 	if decided {
 		return head
 	}
-	if !besideRefsOpen(c, js) {
+	if !besideRefsOpen(serviceContext, js) {
 		return readsOther
 	}
-	own := readOpen(c, s, true /* unions */)
-	union := slices.Concat(statement.Parsed(s).GetAnyOf(), statement.Parsed(s).GetOneOf())
+	own := readOpen(serviceContext, statementSchema, true /* unions */)
+	union := slices.Concat(statement.Parsed(statementSchema).GetAnyOf(), statement.Parsed(statementSchema).GetOneOf())
 	if !own.open() || len(union) == 0 {
 		return own
 	}
-	// The union holds beside what s says itself, so a string s keeps its
-	// branches to strings.
-	read := lowering.Remembered(c.Ctx, unionFileOf{s: s, part: branch.part}, func() fileReading {
-		return readUnion(c, union, branch.read)
+	// The union holds beside what statementSchema says itself, so a string
+	// statementSchema keeps its branches to strings.
+	read := lowering.ReadOncePerRun(serviceContext.Ctx, unionFileOf{s: statementSchema, part: branch.part}, func() fileReading {
+		return readUnion(serviceContext, union, branch.read)
 	})
 	if own != readsString || read != readsUntyped {
 		return read
@@ -92,10 +92,10 @@ type branchReading struct {
 }
 
 // unionFileOf is what a union's reading as a file is remembered under
-// (lowering.Remembered): s, the schema writing the union, which a $ref chain
-// ends on, and whether its branches are read as a part's, which reads a list
-// of bytes through its elements where a body's does not. The reading turns on
-// nothing else: the documents, and the bindings of their $refs.
+// (lowering.ReadOncePerRun): s, the schema writing the union, which a $ref
+// chain ends on, and whether its branches are read as a part's, which reads a
+// list of bytes through its elements where a body's does not. The reading turns
+// on nothing else: the documents, and the bindings of their $refs.
 type unionFileOf struct {
 	s    *statement.Schema
 	part bool
@@ -103,15 +103,15 @@ type unionFileOf struct {
 
 // readBranch reads js, a union's branch, as readFile does, but a branch that
 // is itself a union reads as other, so no reading descends past one union.
-func readBranch(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	s, head, decided := readHead(c, c.Statements().Of(js))
+func readBranch(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	statementSchema, head, decided := readHead(serviceContext, serviceContext.Statements().Of(js))
 	if decided {
 		return head
 	}
-	if !besideRefsOpen(c, js) {
+	if !besideRefsOpen(serviceContext, js) {
 		return readsOther
 	}
-	return readOpen(c, s, false /* unions */)
+	return readOpen(serviceContext, statementSchema, false /* unions */)
 }
 
 // maxFileRefHops bounds the $refs besideRefsOpen follows (styleguide
@@ -124,39 +124,40 @@ const maxFileRefHops = 64
 // $ref holds with what the $ref names, beside a 3.0 $ref too as the schema
 // lowering reads one, so `{$ref: X, contentEncoding: base64}` says a body is
 // text where X says nothing.
-func besideRefsOpen(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+func besideRefsOpen(serviceContext service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	for range maxFileRefHops + 1 {
-		keyword := c.Bindings().RefKeyword(js)
+		keyword := serviceContext.Bindings().RefKeyword(js)
 		if keyword == "" {
 			return true
 		}
-		if !writesOnly(c.Statements().Of(js).Schema, func(key string) bool {
-			return key == keyword || key != "type" && openKeyword(schema.TwinKeyword(c.Ctx, c.Statements().Of(js).Schema, key), false /* unions */)
+		if !writesOnly(serviceContext.Statements().Of(js).Schema, func(key string) bool {
+			return key == keyword || key != "type" && openKeyword(schema.TwinKeyword(serviceContext.Ctx, serviceContext.Statements().Of(js).Schema, key), false /* unions */)
 		}) {
 			return false
 		}
-		js = c.Bindings().Declared(js)
+		js = serviceContext.Bindings().Declared(js)
 	}
 	return false
 }
 
 // readHead reads what decides js, through the chain of $refs it starts, without
 // its keywords: its absence, a boolean or a null, or raw bytes it declares.
-// Where none does, decided is false and s is the schema whose keywords the
-// caller reads, never nil, as a position holding no schema reads as a boolean.
-func readHead(c service.Ctx, js *statement.Statement) (s *statement.Schema, r fileReading, decided bool) {
-	end := c.Statements().Of(refEnd(c.Bindings(), statement.ParsedAt(js)))
+// Where none does, decided is false and statementSchema is the schema whose
+// keywords the caller reads, never nil, as a position holding no schema reads
+// as a boolean.
+func readHead(serviceContext service.Ctx, js *statement.Statement) (statementSchema *statement.Schema, fileReadingValue fileReading, decided bool) {
+	end := serviceContext.Statements().Of(refEnd(serviceContext.Bindings(), statement.ParsedAt(js)))
 	switch {
 	case end.Truth.ReadsFalse():
 		return nil, readsOther, true
 	case end.Truth != statement.Stated:
 		return nil, readsUntyped, true
 	}
-	s = end.Schema
-	if declaresBinary(statement.Parsed(schema.DecidingSchema(c.Ctx, s))) {
+	statementSchema = end.Schema
+	if declaresBinary(statement.Parsed(schema.DecidingSchema(serviceContext.Ctx, statementSchema))) {
 		return nil, readsBinary, true
 	}
-	return s, readsOther, false
+	return statementSchema, readsOther, false
 }
 
 // refEnd returns the schema position the chain of $refs from js ends on, as
@@ -183,12 +184,12 @@ func declaresBinary(s *oas3.Schema) bool {
 	return len(types) == 0 || slices.Contains(types, oas3.SchemaTypeString)
 }
 
-// readOpen reads s, a schema declaring no raw bytes, as a string, untyped or
-// other: other where it writes a keyword no file leaves open (openKeyword), or
-// a type other than string, alone or with null.
-func readOpen(c service.Ctx, s *statement.Schema, unions bool) fileReading {
-	m := statement.Parsed(s)
-	if !writesOnlyOpenKeywords(c, s, unions) {
+// readOpen reads statementSchema, a schema declaring no raw bytes, as a string,
+// untyped or other: other where it writes a keyword no file leaves open
+// (openKeyword), or a type other than string, alone or with null.
+func readOpen(serviceContext service.Ctx, statementSchema *statement.Schema, unions bool) fileReading {
+	m := statement.Parsed(statementSchema)
+	if !writesOnlyOpenKeywords(serviceContext, statementSchema, unions) {
 		return readsOther
 	}
 	types := withoutNull(m.GetType())
@@ -202,20 +203,23 @@ func readOpen(c service.Ctx, s *statement.Schema, unions bool) fileReading {
 	}
 }
 
-// writesOnlyOpenKeywords reports whether every keyword s, a schema of c,
-// writes is one a file's schema may write (openKeyword), a draft's spelling of
-// one read as its twin (schema.TwinKeyword).
-func writesOnlyOpenKeywords(c service.Ctx, s *statement.Schema, unions bool) bool {
-	return writesOnly(s, func(key string) bool { return openKeyword(schema.TwinKeyword(c.Ctx, s, key), unions) })
+// writesOnlyOpenKeywords reports whether every keyword statementSchema, a
+// schema of serviceContext, writes is one a file's schema may write
+// (openKeyword), a draft's spelling of one read as its twin
+// (schema.TwinKeyword).
+func writesOnlyOpenKeywords(serviceContext service.Ctx, statementSchema *statement.Schema, unions bool) bool {
+	return writesOnly(statementSchema, func(key string) bool {
+		return openKeyword(schema.TwinKeyword(serviceContext.Ctx, statementSchema, key), unions)
+	})
 }
 
-// writesOnly reports whether every keyword s writes is one allowed takes, a
-// null standing for a keyword left out passing whatever its key. The keys are
-// the statement's, so a key it leaves out (statement.Schema.Truncated) is not
-// read here either.
-func writesOnly(s *statement.Schema, allowed func(string) bool) bool {
-	for _, k := range s.Keys {
-		if !allowed(k.Name) && !annotation.WritesKeywordLeftOut(s, k.Name) {
+// writesOnly reports whether every keyword statementSchema writes is one
+// allowed takes, a null standing for a keyword left out passing whatever its
+// key. The keys are the statement's, so a key it leaves out
+// (statement.Schema.Truncated) is not read here either.
+func writesOnly(statementSchema *statement.Schema, allowed func(string) bool) bool {
+	for _, key := range statementSchema.Keys {
+		if !allowed(key.Name) && !annotation.WritesKeywordLeftOut(statementSchema, key.Name) {
 			return false
 		}
 	}
@@ -246,27 +250,27 @@ func openKeyword(key string, unions bool) bool {
 // it: the least of them, since a file must be every value any branch admits. A
 // branch admitting no value but null, or none at all, says nothing of the
 // bytes, so it is passed over; a union of nothing else is other.
-func readUnion(c service.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], read branchReader) fileReading {
+func readUnion(serviceContext service.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], read branchReader) fileReading {
 	if !slices.ContainsFunc(branches, func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !admitsNoBytes(c, branch)
+		return !admitsNoBytes(serviceContext, branch)
 	}) {
 		return readsOther
 	}
-	return leastOf(c, branches, func(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-		if admitsNoBytes(c, branch) {
+	return leastOf(serviceContext, branches, func(serviceContextValue service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+		if admitsNoBytes(serviceContextValue, branch) {
 			return readsBinary // the top, which leaves the least of the others
 		}
-		return read(c, branch)
+		return read(serviceContextValue, branch)
 	})
 }
 
 // leastOf returns the least reading read gives any of items, readsBinary for
 // none. It stops at readsOther, which no item read later can lower, so a wide
 // union that one branch decides is read no further than that branch.
-func leastOf[T any](c service.Ctx, items []T, read func(service.Ctx, T) fileReading) fileReading {
+func leastOf[T any](serviceContext service.Ctx, items []T, read func(service.Ctx, T) fileReading) fileReading {
 	least := readsBinary
 	for _, item := range items {
-		if least = min(least, read(c, item)); least == readsOther {
+		if least = min(least, read(serviceContext, item)); least == readsOther {
 			return readsOther
 		}
 	}
@@ -277,13 +281,13 @@ func leastOf[T any](c service.Ctx, items []T, read func(service.Ctx, T) fileRead
 // null, or none at all, read through the $refs it starts: a false schema, or a
 // schema of null alone in any spelling (schema.NullAlone) writing nothing else
 // a reader of a file looks at, the enum or const saying its null aside.
-func admitsNoBytes(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if c.Statements().Of(refEnd(c.Bindings(), branch)).Truth.ReadsFalse() {
+func admitsNoBytes(serviceContext service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if serviceContext.Statements().Of(refEnd(serviceContext.Bindings(), branch)).Truth.ReadsFalse() {
 		return true
 	}
-	s := statementOf(c.Ctx, branch)
-	return statement.Parsed(s) != nil && schema.NullAlone(c.Ctx, s) && writesOnly(s, func(key string) bool {
-		key = schema.TwinKeyword(c.Ctx, s, key)
+	statementSchema := statementOf(serviceContext.Ctx, branch)
+	return statement.Parsed(statementSchema) != nil && schema.NullAlone(serviceContext.Ctx, statementSchema) && writesOnly(statementSchema, func(key string) bool {
+		key = schema.TwinKeyword(serviceContext.Ctx, statementSchema, key)
 		return openKeyword(key, false /* unions */) || key == "enum" || key == "const"
 	})
 }
@@ -297,20 +301,20 @@ func withoutNull(types []oas3.SchemaType) []oas3.SchemaType {
 }
 
 // bodyFile returns the FileInfo of a content entry under mt whose schema reads
-// as r, or nil where it is no file body: declared where the schema declares raw
-// bytes, or where it leaves the media type to say and that is
-// application/octet-stream, which RFC 2046 defines as arbitrary octets; marked
-// where it leaves it to a media type the binary policy names.
-func bodyFile(c service.Ctx, mt string, r fileReading) *ir.FileInfo {
+// as fileReadingValue, or nil where it is no file body: declared where the
+// schema declares raw bytes, or where it leaves the media type to say and that
+// is application/octet-stream, which RFC 2046 defines as arbitrary octets;
+// marked where it leaves it to a media type the binary policy names.
+func bodyFile(serviceContext service.Ctx, mt string, fileReadingValue fileReading) *ir.FileInfo {
 	file := &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 	switch {
-	case r == readsBinary:
+	case fileReadingValue == readsBinary:
 		return file
-	case !r.open():
+	case !fileReadingValue.open():
 		return nil
 	case service.NormalizeMediaType(mt) == octetStream:
 		return file
-	case c.MediaTypeBinary(mt):
+	case serviceContext.MediaTypeBinary(mt):
 		file.Inferred = service.BinaryInferenceHeuristic
 		return file
 	default:

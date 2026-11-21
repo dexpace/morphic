@@ -4,37 +4,37 @@
       "openapi",
       "unresolved"
     ],
-    "e": [
-      "anon",
+    "enum-member": [
+      "anonymous",
       "composed",
       "openapi"
     ],
-    "g": [
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
       "default",
       "extension",
       "path-prefix",
       "tags",
       "webhooks"
     ],
-    "op": [
+    "parameter": [
       "openapi"
     ],
-    "p": [
+    "property": [
       "composed",
-      "openapi"
-    ],
-    "param": [
-      "openapi"
-    ],
-    "s": [
       "openapi"
     ],
     "server": [
       "default",
       "openapi"
     ],
-    "t": [
-      "anon",
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
       "composed",
       "openapi"
     ]
@@ -44,7 +44,7 @@
   "docs": {},
   "services": [
     {
-      "id": "s/openapi/0",
+      "id": "service/openapi/0",
       "name": {
         "source": "MultipartDefaults31",
         "canonical": "multipart_defaults_31"
@@ -52,14 +52,14 @@
       "docs": {},
       "groups": [
         {
-          "id": "g/default",
+          "id": "operation-group/default",
           "name": {
             "hint": "default"
           },
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1upload/post",
+              "id": "operation/openapi/paths/~1upload/post",
               "name": {
                 "source": "upload",
                 "canonical": "upload"
@@ -70,159 +70,159 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses": {
                         "contentTypes": [
                           "application/json"
                         ],
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged": {
                         "explode": false,
                         "style": "form",
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/count": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/count": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared": {
                         "contentTypes": [
                           "application/xml"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/enabled": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/enabled": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata": {
                         "contentTypes": [
                           "application/json"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/nullable": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/nullable": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/ratio": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/ratio": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": false,
-                        "filename": true,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": true,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings": {
                         "contentTypes": [
                           "application/json"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/when": {
+                      "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/when": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -269,7 +269,7 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1form/post",
+              "id": "operation/openapi/paths/~1form/post",
               "name": {
                 "source": "form",
                 "canonical": "form"
@@ -280,46 +280,46 @@
                   {
                     "mediaType": "application/x-www-form-urlencoded",
                     "type": {
-                      "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+                      "target": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
                       "nullable": false
                     },
                     "encoding": {
-                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address": {
+                      "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address": {
                         "contentTypes": [
                           "application/json"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter": {
+                      "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter": {
                         "style": "deepObject",
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/id": {
+                      "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/id": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+                      "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
                         "contentTypes": [
                           "text/plain"
                         ],
-                        "multi": true,
-                        "filename": false,
+                        "repeatsPerArrayItem": true,
+                        "hasFilename": false,
                         "allowReserved": false
                       },
-                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/image": {
+                      "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/image": {
                         "contentTypes": [
                           "application/octet-stream"
                         ],
-                        "multi": false,
-                        "filename": false,
+                        "repeatsPerArrayItem": false,
+                        "hasFilename": false,
                         "allowReserved": false
                       }
                     }
@@ -377,9 +377,9 @@
     }
   ],
   "types": {
-    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+      "id": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
       "name": {
         "hint": "form_request"
       },
@@ -392,21 +392,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
           "name": {
             "source": "address",
             "canonical": "address"
           },
           "wireName": "address",
           "type": {
-            "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
+            "target": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -419,21 +419,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/id",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/id",
           "name": {
             "source": "id",
             "canonical": "id"
           },
           "wireName": "id",
           "type": {
-            "target": "t/prim/uuid",
+            "target": "type/primitive/uuid",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -446,21 +446,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/image",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/image",
           "name": {
             "source": "image",
             "canonical": "image"
           },
           "wireName": "image",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -473,21 +473,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
           "name": {
             "source": "ids",
             "canonical": "ids"
           },
           "wireName": "ids",
           "type": {
-            "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+            "target": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -500,21 +500,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
           "name": {
             "source": "filter",
             "canonical": "filter"
           },
           "wireName": "filter",
           "type": {
-            "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
+            "target": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -531,9 +531,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address": {
       "kind": "model",
-      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
+      "id": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
       "name": {
         "hint": "address"
       },
@@ -546,21 +546,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address/properties/city",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address/properties/city",
           "name": {
             "source": "city",
             "canonical": "city"
           },
           "wireName": "city",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -577,9 +577,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter": {
       "kind": "model",
-      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
+      "id": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter",
       "name": {
         "hint": "filter"
       },
@@ -592,21 +592,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter/properties/q",
+          "id": "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter/properties/q",
           "name": {
             "source": "q",
             "canonical": "q"
           },
           "wireName": "q",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -623,9 +623,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
       "kind": "list",
-      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+      "id": "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
       "name": {
         "hint": "ids"
       },
@@ -636,14 +636,14 @@
         "source": 0,
         "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids"
       },
-      "elem": {
-        "target": "t/prim/integer",
+      "elementType": {
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
       "name": {
         "hint": "upload_request"
       },
@@ -656,21 +656,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
           "name": {
             "source": "metadata",
             "canonical": "metadata"
           },
           "wireName": "metadata",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -683,21 +683,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
           "name": {
             "source": "settings",
             "canonical": "settings"
           },
           "wireName": "settings",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -710,21 +710,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
           "name": {
             "source": "note",
             "canonical": "note"
           },
           "wireName": "note",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -737,21 +737,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/when",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/when",
           "name": {
             "source": "when",
             "canonical": "when"
           },
           "wireName": "when",
           "type": {
-            "target": "t/prim/datetime_offset",
+            "target": "type/primitive/datetime_offset",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -764,21 +764,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/count",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/count",
           "name": {
             "source": "count",
             "canonical": "count"
           },
           "wireName": "count",
           "type": {
-            "target": "t/prim/integer",
+            "target": "type/primitive/integer",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -791,21 +791,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/ratio",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/ratio",
           "name": {
             "source": "ratio",
             "canonical": "ratio"
           },
           "wireName": "ratio",
           "type": {
-            "target": "t/prim/number",
+            "target": "type/primitive/number",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -818,21 +818,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/enabled",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/enabled",
           "name": {
             "source": "enabled",
             "canonical": "enabled"
           },
           "wireName": "enabled",
           "type": {
-            "target": "t/prim/bool",
+            "target": "type/primitive/bool",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -845,21 +845,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -872,21 +872,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
           "name": {
             "source": "fixed",
             "canonical": "fixed"
           },
           "wireName": "fixed",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -899,21 +899,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
           "name": {
             "source": "file",
             "canonical": "file"
           },
           "wireName": "file",
           "type": {
-            "target": "t/prim/bytes",
+            "target": "type/primitive/bytes",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -926,21 +926,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
           "name": {
             "source": "token",
             "canonical": "token"
           },
           "wireName": "token",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -953,21 +953,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
           "name": {
             "source": "blob",
             "canonical": "blob"
           },
           "wireName": "blob",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -980,21 +980,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw",
           "name": {
             "source": "raw",
             "canonical": "raw"
           },
           "wireName": "raw",
           "type": {
-            "target": "t/prim/any",
+            "target": "type/primitive/any",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1009,21 +1009,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
           "name": {
             "source": "tags",
             "canonical": "tags"
           },
           "wireName": "tags",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1036,21 +1036,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
           "name": {
             "source": "addresses",
             "canonical": "addresses"
           },
           "wireName": "addresses",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1063,21 +1063,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
           "name": {
             "source": "either",
             "canonical": "either"
           },
           "wireName": "either",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1090,21 +1090,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
           "name": {
             "source": "labels",
             "canonical": "labels"
           },
           "wireName": "labels",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1117,21 +1117,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/nullable",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/nullable",
           "name": {
             "source": "nullable",
             "canonical": "nullable"
           },
           "wireName": "nullable",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": true
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1144,21 +1144,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
           "name": {
             "source": "declared",
             "canonical": "declared"
           },
           "wireName": "declared",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1171,21 +1171,21 @@
           }
         },
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
           "name": {
             "source": "arranged",
             "canonical": "arranged"
           },
           "wireName": "arranged",
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1202,9 +1202,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses": {
       "kind": "list",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
       "name": {
         "hint": "addresses"
       },
@@ -1215,14 +1215,14 @@
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses"
       },
-      "elem": {
-        "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items",
+      "elementType": {
+        "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items",
       "name": {
         "hint": "addresses_item"
       },
@@ -1235,21 +1235,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items/properties/city",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items/properties/city",
           "name": {
             "source": "city",
             "canonical": "city"
           },
           "wireName": "city",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1266,9 +1266,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged": {
       "kind": "list",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged",
       "name": {
         "hint": "arranged"
       },
@@ -1279,14 +1279,14 @@
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
       "name": {
         "hint": "blob"
       },
@@ -1298,16 +1298,16 @@
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob"
       },
       "base": {
-        "target": "t/prim/string",
+        "target": "type/primitive/string",
         "nullable": false
       },
       "encoding": {
         "name": "base64"
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
       "name": {
         "hint": "declared"
       },
@@ -1322,9 +1322,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either": {
       "kind": "union",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
       "name": {
         "hint": "either"
       },
@@ -1341,7 +1341,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -1351,7 +1351,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1362,9 +1362,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -1379,9 +1379,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed": {
       "kind": "literal",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
       "name": {
         "hint": "fixed"
       },
@@ -1394,13 +1394,13 @@
       },
       "value": {
         "kind": "number",
-        "num": "3"
+        "number": "3"
       },
       "valueType": "number"
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind": {
       "kind": "enum",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
       "name": {
         "hint": "kind"
       },
@@ -1414,26 +1414,26 @@
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind/s:a",
+          "id": "enum-member/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind/string:a",
           "name": {
             "source": "a",
             "canonical": "a"
           },
           "value": {
             "kind": "string",
-            "str": "a"
+            "string": "a"
           },
           "docs": {}
         },
         {
-          "id": "e/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind/s:b",
+          "id": "enum-member/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind/string:b",
           "name": {
             "source": "b",
             "canonical": "b"
           },
           "value": {
             "kind": "string",
-            "str": "b"
+            "string": "b"
           },
           "docs": {}
         }
@@ -1441,9 +1441,9 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
       "kind": "union",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
       "name": {
         "hint": "labels"
       },
@@ -1460,7 +1460,7 @@
             "hint": "variant_0"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "docs": {}
@@ -1470,7 +1470,7 @@
             "hint": "variant_1"
           },
           "type": {
-            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
+            "target": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -1481,9 +1481,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {
       "kind": "list",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
       "name": {
         "hint": "variant_1"
       },
@@ -1494,14 +1494,14 @@
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata": {
       "kind": "model",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
       "name": {
         "hint": "metadata"
       },
@@ -1514,21 +1514,21 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata/properties/name",
+          "id": "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata/properties/name",
           "name": {
             "source": "name",
             "canonical": "name"
           },
           "wireName": "name",
           "type": {
-            "target": "t/prim/string",
+            "target": "type/primitive/string",
             "nullable": false
           },
           "required": false,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
-            "none": false
+            "invisibleInEveryLifecycle": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -1545,9 +1545,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings": {
       "kind": "map",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
       "name": {
         "hint": "settings"
       },
@@ -1559,13 +1559,13 @@
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings"
       },
       "value": {
-        "target": "t/prim/integer",
+        "target": "type/primitive/integer",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
       "kind": "list",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
       "name": {
         "hint": "tags"
       },
@@ -1576,14 +1576,14 @@
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags"
       },
-      "elem": {
-        "target": "t/prim/string",
+      "elementType": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },
-    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
       "kind": "scalar",
-      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+      "id": "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
       "name": {
         "hint": "token"
       },
@@ -1595,20 +1595,20 @@
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token"
       },
       "base": {
-        "target": "t/prim/bytes",
+        "target": "type/primitive/bytes",
         "nullable": false
       },
       "encoding": {
         "name": "base64",
         "wireType": {
-          "target": "t/prim/string",
+          "target": "type/primitive/string",
           "nullable": false
         }
       }
     },
-    "t/prim/any": {
+    "type/primitive/any": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "type/primitive/any",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1616,11 +1616,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "primitiveKind": "any"
     },
-    "t/prim/bool": {
+    "type/primitive/bool": {
       "kind": "primitive",
-      "id": "t/prim/bool",
+      "id": "type/primitive/bool",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1628,11 +1628,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bool"
+      "primitiveKind": "bool"
     },
-    "t/prim/bytes": {
+    "type/primitive/bytes": {
       "kind": "primitive",
-      "id": "t/prim/bytes",
+      "id": "type/primitive/bytes",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1640,11 +1640,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "bytes"
+      "primitiveKind": "bytes"
     },
-    "t/prim/datetime_offset": {
+    "type/primitive/datetime_offset": {
       "kind": "primitive",
-      "id": "t/prim/datetime_offset",
+      "id": "type/primitive/datetime_offset",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1652,11 +1652,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "datetime_offset"
+      "primitiveKind": "datetime_offset"
     },
-    "t/prim/integer": {
+    "type/primitive/integer": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "type/primitive/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1664,11 +1664,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "integer"
+      "primitiveKind": "integer"
     },
-    "t/prim/number": {
+    "type/primitive/number": {
       "kind": "primitive",
-      "id": "t/prim/number",
+      "id": "type/primitive/number",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1676,11 +1676,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "number"
+      "primitiveKind": "number"
     },
-    "t/prim/string": {
+    "type/primitive/string": {
       "kind": "primitive",
-      "id": "t/prim/string",
+      "id": "type/primitive/string",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1688,11 +1688,11 @@
       "provenance": {
         "source": -1
       },
-      "prim": "string"
+      "primitiveKind": "string"
     },
-    "t/prim/uuid": {
+    "type/primitive/uuid": {
       "kind": "primitive",
-      "id": "t/prim/uuid",
+      "id": "type/primitive/uuid",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1700,7 +1700,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "uuid"
+      "primitiveKind": "uuid"
     }
   },
   "servers": {

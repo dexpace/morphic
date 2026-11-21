@@ -28,13 +28,13 @@ func TestVerify_AKeyAndIDThatDifferDrawOneCode(t *testing.T) {
 		name, prefix, mismatch, dangling, path string
 		keyed                                  func(key, id string) *ir.Document
 	}{
-		{"type", "t", "ir/type-id-mismatch", "ir/dangling-type-ref", "types[t/x/A]", func(key, id string) *ir.Document {
+		{"type", "type", "ir/type-id-mismatch", "ir/dangling-type-ref", "types[type/x/A]", func(key, id string) *ir.Document {
 			return &ir.Document{Types: ir.TypeRegistry{ir.TypeID(key): &ir.Model{ID: ir.TypeID(id), Name: named("m"), Provenance: pointerOf(id)}}}
 		}},
-		{"channel", "chan", "ir/channel-id-mismatch", "ir/dangling-channel-ref", "channels[chan/x/A]", func(key, id string) *ir.Document {
+		{"channel", "channel", "ir/channel-id-mismatch", "ir/dangling-channel-ref", "channels[channel/x/A]", func(key, id string) *ir.Document {
 			return &ir.Document{Channels: map[ir.ChannelID]ir.Channel{ir.ChannelID(key): {ID: ir.ChannelID(id), Name: named("c")}}}
 		}},
-		{"message", "msg", "ir/message-id-mismatch", "ir/dangling-message-ref", "messages[msg/x/A]", func(key, id string) *ir.Document {
+		{"message", "message", "ir/message-id-mismatch", "ir/dangling-message-ref", "messages[message/x/A]", func(key, id string) *ir.Document {
 			return &ir.Document{Messages: map[ir.MessageID]ir.Message{ir.MessageID(key): {ID: ir.MessageID(id), Name: named("m")}}}
 		}},
 		{"auth", "auth", "ir/auth-id-mismatch", "ir/dangling-auth-ref", "auth[auth/x/A]", func(key, id string) *ir.Document {
@@ -77,8 +77,8 @@ func pointerOf(id string) ir.Provenance {
 // violationList spells each violation as its code and path.
 func violationList(vs []irverify.Violation) []string {
 	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code+" @ "+v.Path)
+	for _, violation := range vs {
+		out = append(out, violation.Code+" @ "+violation.Path)
 	}
 	return out
 }
@@ -91,17 +91,17 @@ func TestVerify_AReferenceInsideAMismatchedNodeStillDangles(t *testing.T) {
 	t.Parallel()
 	build := func(base ir.TypeID) *ir.Document {
 		return &ir.Document{Types: ir.TypeRegistry{
-			"t/x/A": &ir.Model{ID: "t/x/B", Name: named("b"), Base: &ir.TypeRef{Target: base}},
-			"t/x/D": &ir.Model{ID: "t/x/D", Name: named("d")},
+			"type/x/A": &ir.Model{ID: "type/x/B", Name: named("b"), Base: &ir.TypeRef{Target: base}},
+			"type/x/D": &ir.Model{ID: "type/x/D", Name: named("d")},
 		}}
 	}
 
-	got := verifyDeclared(build("t/x/C"))
-	require.Equal(t, []string{"types[t/x/A]"}, violationPaths(got, "ir/type-id-mismatch"))
-	assert.Equal(t, []string{"doc.Types[t/x/A].Base.Target"}, violationPaths(got, "ir/dangling-type-ref"))
+	got := verifyDeclared(build("type/x/C"))
+	require.Equal(t, []string{"types[type/x/A]"}, violationPaths(got, "ir/type-id-mismatch"))
+	assert.Equal(t, []string{"document.Types[type/x/A].Base.Target"}, violationPaths(got, "ir/dangling-type-ref"))
 
-	twin := verifyDeclared(build("t/x/D"))
-	assert.Equal(t, []string{"types[t/x/A]"}, violationPaths(twin, "ir/type-id-mismatch"))
+	twin := verifyDeclared(build("type/x/D"))
+	assert.Equal(t, []string{"types[type/x/A]"}, violationPaths(twin, "ir/type-id-mismatch"))
 	assert.Empty(t, violationPaths(twin, "ir/dangling-type-ref"), "a Base naming a declared type draws none")
 }
 
@@ -117,13 +117,13 @@ func TestVerify_NoCheckReadsAKeyThatIsNotItsNodesIDAsTheID(t *testing.T) {
 		name, key string
 		node      ir.TypeDef
 	}{
-		{"an enum", "t/x/Other", &ir.Enum{ID: "t/x/Color", Name: named("color"), Provenance: pointerOf("t/x/Color"),
-			ValueType: ir.PrimString, Members: []ir.EnumMember{
-				{ID: "e/x/Color/red", Name: named("red"), Value: ir.Value{Kind: ir.ValueString, Str: "red"}},
+		{"an enum", "type/x/Other", &ir.Enum{ID: "type/x/Color", Name: named("color"), Provenance: pointerOf("type/x/Color"),
+			ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+				{ID: "enum-member/x/Color/red", Name: named("red"), Value: ir.Value{Kind: ir.ValueString, String: "red"}},
 			}}},
-		{"a primitive under another kind's ID", "t/prim/string", &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32, Provenance: shared}},
-		{"a primitive under a declared type's ID", "t/x/Foo", &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32, Provenance: shared}},
-		{"a model under a primitive's ID", "t/prim/foo", &ir.Model{ID: "t/x/Foo", Name: named("foo"), Provenance: pointerOf("t/x/Foo")}},
+		{"a primitive under another kind's ID", "type/primitive/string", &ir.Primitive{ID: "type/primitive/int32", PrimitiveKind: ir.PrimitiveInt32, Provenance: shared}},
+		{"a primitive under a declared type's ID", "type/x/Foo", &ir.Primitive{ID: "type/primitive/int32", PrimitiveKind: ir.PrimitiveInt32, Provenance: shared}},
+		{"a model under a primitive's ID", "type/primitive/foo", &ir.Model{ID: "type/x/Foo", Name: named("foo"), Provenance: pointerOf("type/x/Foo")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -61,18 +61,20 @@ const (
 // lifecycles.
 type Visibility struct {
 	// Only lists the lifecycles the property is visible in; empty = visible in
-	// all (unless None). It is a set: no entry is blank or repeated.
+	// all (unless InvisibleInEveryLifecycle). It is a set: no entry is blank or
+	// repeated.
 	Only []Lifecycle `json:"only,omitempty"`
-	// None marks a property visible in NO lifecycle, excluded from every
-	// projection (TypeSpec @invisible); distinct from the zero value.
-	None bool `json:"none"`
+	// InvisibleInEveryLifecycle marks a property visible in NO lifecycle,
+	// excluded from every projection (TypeSpec @invisible); distinct from the
+	// zero value.
+	InvisibleInEveryLifecycle bool `json:"invisibleInEveryLifecycle"`
 }
 
 // Property is one member of a Model (docs/ir/properties.md). Required (wire
 // presence) is orthogonal to Type.Nullable (this usage admits null).
 type Property struct {
 	// ID is the property's stable synthetic identity.
-	ID PropID `json:"id"`
+	ID PropertyID `json:"id"`
 	// Name is the property's naming.
 	Name Naming `json:"name"`
 	// WireName is the serialized name; defaults to Name.Source. A Header under
