@@ -470,6 +470,9 @@
               "type": "string"
             }
           ],
+          "targets": [
+            "type/openapi/components/schemas/A"
+          ],
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/BoundedKinds/oneOf"

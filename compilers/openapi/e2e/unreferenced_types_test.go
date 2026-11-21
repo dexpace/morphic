@@ -4,13 +4,8 @@
 package e2e_test
 
 import (
-	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"os"
 	"path/filepath"
-	"reflect"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,15 +13,17 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode pins GitHub #2050:
 // when a property redeclared across allOf entries (or across a $ref entry and
-// an inline entry, or at an operation response body) resolves to one
-// declaration's type, an anonymous node lowered for a superseded declaration —
-// and any anonymous node only it reached — does not remain unreferenced in
-// Document.Types.
+// an inline entry, or at an operation response body, or on a distributed union)
+// resolves to one declaration's type, an anonymous node lowered for a
+// superseded declaration — and any anonymous node only it reached — is pruned
+// and the compiled document passes irverify.Verify.
 func TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -205,6 +202,24 @@ components:
 				"type/anonymous/components/schemas/Closed/allOf/0/additionalProperties",
 			},
 		},
+		{
+			name: "unreferenced_defs_ref_chain_is_pruned",
+			spec: `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Unused:
+      type: object
+      $defs:
+        A: {$ref: '#/components/schemas/Unused/$defs/B'}
+        B: {type: object, properties: {x: {type: string}}}
+`,
+			wantGone: []ir.TypeID{
+				"type/anonymous/components/schemas/Unused/$defs/A",
+				"type/anonymous/components/schemas/Unused/$defs/B",
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -217,19 +232,40 @@ components:
 			for _, id := range tc.wantGone {
 				assert.NotContains(t, doc.Types, id, "superseded node %s must be pruned", id)
 			}
-			assert.Empty(t, unreferencedAnonymous(doc), "no anonymous type is left unreferenced")
+			assert.Empty(t, irverify.Verify(doc))
 		})
 	}
 }
 
-// TestCompile_ReferencedLosersAndRootsAreKept pins that pruning removes no node
-// still referenced by a composed field, a $ref (lowered or inside a kept
-// keyword), a $ref to an allOf entry, or an empty-named component schema.
-func TestCompile_ReferencedLosersAndRootsAreKept(t *testing.T) {
+// TestCompile_PromisedLandingsResolveAfterPruning guards against over-pruning:
+// after full compilation and pruning, every kept $ref landing, kept
+// discriminator route, composed loser, direct $ref to a loser, and empty-named
+// root component schema remains in Document.Types, is recorded on the owning
+// UnmodeledEntry.Targets where kept verbatim, and passes irverify.Verify.
+func TestCompile_PromisedLandingsResolveAfterPruning(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
+	spec := `openapi: 3.2.0
 info: {title: t, version: "1"}
-paths: {}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                doc: {type: object, properties: {inner: {type: string}}}
+            encoding:
+              doc:
+                contentType: multipart/form-data
+                encoding:
+                  inner:
+                    headers:
+                      X-Kept: {schema: {$ref: '#/x-defs/FromEncoding'}}
+      responses:
+        "200": {description: ok}
 components:
   schemas:
     "":
@@ -259,6 +295,30 @@ components:
     KeptRef:
       type: object
       not: {$ref: '#/components/schemas/WithKeptRefToLoser/allOf/1/properties/result'}
+    ChainThroughIf:
+      type: object
+      $defs:
+        Mid: {$ref: '#/components/schemas/ChainThroughIf/$defs/End', description: mid}
+        End: {type: integer}
+      if: {$ref: '#/components/schemas/ChainThroughIf/$defs/Mid'}
+    AgreeingAllOfNot:
+      $defs:
+        Sub: {type: object, properties: {a: {type: string}}}
+      allOf:
+        - type: object
+          not: {$ref: '#/components/schemas/AgreeingAllOfNot/$defs/Sub'}
+        - type: object
+          not: {$ref: '#/components/schemas/AgreeingAllOfNot/$defs/Sub'}
+    KeptDiscriminator:
+      type: string
+      $defs:
+        Mapped: {type: object, properties: {m: {type: string}}}
+        Fallback: {type: object, properties: {f: {type: string}}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          m: '#/components/schemas/KeptDiscriminator/$defs/Mapped'
+        defaultMapping: '#/components/schemas/KeptDiscriminator/$defs/Fallback'
     WithEntryRef:
       allOf:
         - type: object
@@ -267,8 +327,16 @@ components:
           properties: {result: {type: object}}
     EntryRef:
       $ref: '#/components/schemas/WithEntryRef/allOf/1'
+x-defs:
+  FromEncoding: {type: object, properties: {e: {type: string}}}
 `
 	doc, _ := parseVerified(t, spec)
+	assert.Empty(t, irverify.Verify(doc))
+
+	emptyComp := doc.Types["type/anonymous/components/schemas/"]
+	require.NotNil(t, emptyComp)
+	assert.False(t, emptyComp.Common().Anonymous, "source empty-named component schema is a declared root")
+
 	wantKept := []ir.TypeID{
 		"type/anonymous/components/schemas/",
 		"type/anonymous/components/schemas//properties/inner",
@@ -276,135 +344,62 @@ components:
 		"type/anonymous/components/schemas/Composed/allOf/1/properties/r",
 		"type/anonymous/components/schemas/WithRefToLoser/allOf/1/properties/result",
 		"type/anonymous/components/schemas/WithKeptRefToLoser/allOf/1/properties/result",
+		"type/anonymous/components/schemas/ChainThroughIf/$defs/Mid",
+		"type/anonymous/components/schemas/ChainThroughIf/$defs/End",
+		"type/anonymous/components/schemas/AgreeingAllOfNot/$defs/Sub",
+		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Mapped",
+		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Fallback",
 		"type/anonymous/components/schemas/WithEntryRef/allOf/1",
 		"type/anonymous/components/schemas/WithEntryRef/allOf/1/properties/result",
+		"type/anonymous/x-defs/FromEncoding",
 	}
 	for _, id := range wantKept {
-		assert.Contains(t, doc.Types, id, "referenced or root node %s must stay", id)
+		assert.Contains(t, doc.Types, id, "promised landing or root %s must resolve after pruning", id)
 	}
+
+	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/WithKeptRefToLoser/allOf/1/properties/result"},
+		doc.Types["type/openapi/components/schemas/KeptRef"].Common().Unmodeled["openapi:not"].Targets)
+	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/ChainThroughIf/$defs/Mid"},
+		doc.Types["type/openapi/components/schemas/ChainThroughIf"].Common().Unmodeled["openapi:if-then-else"].Targets)
+	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/AgreeingAllOfNot/$defs/Sub"},
+		doc.Types["type/openapi/components/schemas/AgreeingAllOfNot"].Common().Unmodeled["openapi:not"].Targets)
+	assert.Equal(t, []ir.TypeID{
+		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Fallback",
+		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Mapped",
+	}, doc.Types["type/openapi/components/schemas/KeptDiscriminator"].Common().Unmodeled["openapi:discriminator"].Targets)
 }
 
-// TestCompile_NoUnreferencedAnonymousTypes sweeps the committed corpus and
-// asserts that every anonymous type in Document.Types is reachable from a
-// non-anonymous type, a typed TypeID outside Document.Types, an empty-named
-// root component schema, or a $ref landing inside Unmodeled.
-func TestCompile_NoUnreferencedAnonymousTypes(t *testing.T) {
+// TestCompile_ExternalKeptRefLandingResolvesAfterPruning verifies that a $ref
+// inside a kept keyword pointing into an external document stays recorded on
+// UnmodeledEntry.Targets, survives pruning, and passes irverify.Verify.
+func TestCompile_ExternalKeptRefLandingResolvesAfterPruning(t *testing.T) {
 	t.Parallel()
-	c := openapi.New()
-	for _, f := range corpusSpecs(t) {
-		t.Run(filepath.Base(f), func(t *testing.T) {
-			t.Parallel()
-			data, err := os.ReadFile(f)
-			require.NoError(t, err)
-			doc, _, err := c.Compile(t.Context(),
-				[]compilers.Source{{Path: filepath.Base(f), Data: data}}, compilers.Options{})
-			if err != nil || doc == nil {
-				t.Skip("compiler refused the input")
-			}
-			assert.Empty(t, unreferencedAnonymous(doc), "%s left unreferenced anonymous types", f)
+	mainSpec := `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Holder:
+      type: object
+      not: {$ref: 'other.yaml#/$defs/ExtSub'}
+`
+	otherSpec := `$defs:
+  ExtSub:
+    type: object
+    properties: {x: {type: string}}
+`
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(otherSpec), 0o600))
+	doc, _, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(mainSpec)}},
+		compilers.Options{
+			Reader:        reader.Disk{},
+			FormatOptions: openapi.Options{AllowExternalRefs: true},
 		})
-	}
-}
-
-var (
-	e2eTypeIDType       = reflect.TypeFor[ir.TypeID]()
-	e2eTypeRegistryType = reflect.TypeFor[ir.TypeRegistry]()
-	e2eUnmodeledType    = reflect.TypeFor[ir.UnmodeledEntry]()
-)
-
-// unreferencedAnonymous returns every anonymous type ID in doc.Types that no
-// non-anonymous type, reference outside doc.Types, empty-named root component,
-// or kept Unmodeled $ref reaches.
-func unreferencedAnonymous(doc *ir.Document) []ir.TypeID {
-	var roots []ir.TypeID
-	for id, td := range doc.Types {
-		if !ir.IsNilTypeDef(td) && !td.Common().Anonymous {
-			roots = append(roots, id)
-		}
-	}
-	if _, ok := doc.Types["type/anonymous/components/schemas/"]; ok {
-		roots = append(roots, "type/anonymous/components/schemas/")
-	}
-	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		switch v.Type() {
-		case e2eTypeRegistryType:
-			return false
-		case e2eTypeIDType:
-			if id := ir.TypeID(v.String()); id != "" {
-				roots = append(roots, id)
-			}
-			return false
-		case e2eUnmodeledType:
-			roots = append(roots, keptRefTargets(v.FieldByName("Value").Bytes(), doc.Types)...)
-			return false
-		default:
-			return true
-		}
-	}))
-	reached := make(map[ir.TypeID]bool, len(doc.Types))
-	for len(roots) > 0 {
-		id := roots[len(roots)-1]
-		roots = roots[:len(roots)-1]
-		if reached[id] {
-			continue
-		}
-		td, ok := doc.Types[id]
-		if !ok || ir.IsNilTypeDef(td) {
-			continue
-		}
-		reached[id] = true
-		ir.WalkValues(td, "type", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-			switch v.Type() {
-			case e2eTypeIDType:
-				if next := ir.TypeID(v.String()); next != "" && !reached[next] {
-					roots = append(roots, next)
-				}
-				return false
-			case e2eUnmodeledType:
-				roots = append(roots, keptRefTargets(v.FieldByName("Value").Bytes(), doc.Types)...)
-				return false
-			default:
-				return true
-			}
-		}))
-	}
-	var dead []ir.TypeID
-	for id, td := range doc.Types {
-		if !ir.IsNilTypeDef(td) && td.Common().Anonymous && !reached[id] {
-			dead = append(dead, id)
-		}
-	}
-	slices.Sort(dead)
-	return dead
-}
-
-// keptRefTargets extracts local JSON Pointer $ref targets from a raw Unmodeled
-// JSON payload and maps each to its anonymous TypeID when present in types.
-func keptRefTargets(raw []byte, types ir.TypeRegistry) []ir.TypeID {
-	var parsed any
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil
-	}
-	var out []ir.TypeID
-	var walk func(x any)
-	walk = func(x any) {
-		switch node := x.(type) {
-		case map[string]any:
-			if ref, ok := node["$ref"].(string); ok && strings.HasPrefix(ref, "#/") {
-				id := ir.TypeID("type/anonymous" + string(jsontext.Pointer(ref[1:])))
-				if _, exists := types[id]; exists {
-					out = append(out, id)
-				}
-			}
-			for _, v := range node {
-				walk(v)
-			}
-		case []any:
-			for _, v := range node {
-				walk(v)
-			}
-		}
-	}
-	walk(parsed)
-	return out
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	const want ir.TypeID = "type/anonymous@other.yaml/$defs/ExtSub"
+	assert.Contains(t, doc.Types, want)
+	assert.Equal(t, []ir.TypeID{want}, doc.Types["type/openapi/components/schemas/Holder"].Common().Unmodeled["openapi:not"].Targets)
+	assert.Empty(t, irverify.Verify(doc))
 }

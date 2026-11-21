@@ -2005,6 +2005,9 @@
                   "id": "a"
                 }
               },
+              "targets": [
+                "type/openapi/components/schemas/Meeting"
+              ],
               "provenance": {
                 "source": 0,
                 "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"

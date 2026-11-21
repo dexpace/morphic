@@ -332,7 +332,9 @@ func otherOpenAPI(twinPlaceValue twinPlace, extra string) string {
 // makes, landing on raw YAML.
 func definedInResource(twinPlaceValue twinPlace) []string {
 	return []string{"entry spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/properties/d: hop resolved 0 raw",
-		"landing spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/$defs/n"}
+		"landing spec.yaml#" + encodingAt + twinPlaceValue.header() + "/schema/$defs/n",
+		"ir /services/0/groups/0/operations/0/request/contents/0/unmodeled/openapi:encoding~1f~1" + twinPlaceValue.key +
+			"/targets/0 type/anonymous" + encodingAt + twinPlaceValue.header() + "/schema/$defs/n"}
 }
 
 // definedInRaw is d's "#/$defs/n" read by the $defs rule, which finds the

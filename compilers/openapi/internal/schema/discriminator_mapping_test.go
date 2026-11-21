@@ -383,10 +383,17 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 	}
 	t.Run("the last position is lowered", func(t *testing.T) {
 		t.Parallel()
-		doc, _ := parseFull(t, openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'")))
-		broken, ok := doc.Types["type/anonymous/components/schemas/B/$defs/Broken"]
-		require.True(t, ok, "only the mapping reaches $defs/Broken")
+		src := openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'"))
+		lowerer, _ := schema.LoweredFor(t, src)
+		lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+		lowered := lowerer.Document(t)
+		broken, ok := lowered.Types["type/anonymous/components/schemas/B/$defs/Broken"]
+		require.True(t, ok, "only the mapping reaches $defs/Broken during lowering")
 		assert.Equal(t, "kept", broken.Common().Docs.Description, "what is written beside its $ref")
+
+		full, _ := parseFull(t, src)
+		assert.NotContains(t, full.Types, ir.TypeID("type/anonymous/components/schemas/B/$defs/Broken"),
+			"unreferenced broken node is pruned after reporting its failing $ref")
 	})
 }
 

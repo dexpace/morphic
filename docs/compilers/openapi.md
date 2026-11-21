@@ -3423,10 +3423,11 @@ within the hierarchy reads to its base. A run reads at most 16,777,216 of their 
 of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
 as does telling whether one part's declaration stands within another's; past that each model left
 folds its own declarations alone, with an `openapi/budget-exceeded` error at the first. Once every
-lowering and settlement has returned, any anonymous type node that no named type, reference outside
-the type registry, empty-named root component schema, or reserved `$ref` or discriminator-mapping
-landing reaches — including nodes lowered for declarations a fold superseded or replaced — is
-removed from the registry.
+lowering and settlement has returned, every kept `Unmodeled` entry records the sorted, deduplicated
+`TypeID`s lowered for `$ref`s and kept `discriminator` routes inside its value (`UnmodeledEntry.Targets`),
+and any anonymous type node that no named type or typed reference outside the type registry reaches —
+including nodes lowered for declarations a fold superseded or replaced — is removed from the registry
+and held by `irverify` (`ir/unreferenced-anonymous-type`).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -3434,9 +3435,10 @@ removed from the registry.
 - Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes`,
   `openapi.TestPruneUnreferencedTypes_FastPathsAndStoppedWalks`,
   `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
+  `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
   `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
-  `e2e.TestCompile_ReferencedLosersAndRootsAreKept`,
-  `e2e.TestCompile_NoUnreferencedAnonymousTypes`,
+  `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
+  `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`,
   `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestReportOnce_SaysEachConflictOnce`,
   `e2e.TestConflictOnce_IsReportedOncePerPairOfDeclarations`,

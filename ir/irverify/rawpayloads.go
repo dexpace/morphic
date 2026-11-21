@@ -98,7 +98,24 @@ func unmodeledEntry(payloadReaderValue *payloadReader, key string, entry reflect
 			Message: "unmodeled entry carries undeclared reason " + strconv.Quote(string(reason)),
 		})
 	}
+	vs = appendTargetOrderViolation(vs, entry.FieldByName("Targets"))
 	return placeEntry(vs, at, key, `[""]`)
+}
+
+// appendTargetOrderViolation reports an UnmodeledEntry.Targets slice whose
+// non-empty IDs are not in strictly ascending order; empty entries are
+// checkEmptyRefs' own report.
+func appendTargetOrderViolation(vs []Violation, targets reflect.Value) []Violation {
+	for i := 1; i < targets.Len(); i++ {
+		prev, cur := targets.Index(i-1).String(), targets.Index(i).String()
+		if prev != "" && cur != "" && cur <= prev {
+			return append(vs, Violation{
+				Code:    "ir/unmodeled-targets-not-canonical",
+				Message: "unmodeled target " + strconv.Quote(cur) + " does not follow " + strconv.Quote(prev) + " in sorted order without repeats",
+			})
+		}
+	}
+	return vs
 }
 
 // rawConfigEntry checks one entry of a RawConfig map. Unlike an Unmodeled entry

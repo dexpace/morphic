@@ -65,7 +65,7 @@
       "name": {
         "hint": "empty"
       },
-      "anonymous": true,
+      "anonymous": false,
       "docs": {},
       "sensitive": false,
       "unmodeled": {

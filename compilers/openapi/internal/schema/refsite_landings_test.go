@@ -84,17 +84,43 @@ func TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached(t *testing.
 	assert.Equal(t, "mid", promised.Types["type/anonymous/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
 }
 
-// TestReservedTargets_ListsEveryPromisedTypeID pins that ReservedTargets
-// returns the anonymous TypeIDs promised by resolvePointer during the run.
-func TestReservedTargets_ListsEveryPromisedTypeID(t *testing.T) {
+// TestReferenceLandings_ListsSchemaRefsAndKeptDiscriminators pins that
+// ReferenceLandings returns resolved schema $refs and kept discriminator
+// routes keyed by their writing LandingSite.
+func TestReferenceLandings_ListsSchemaRefsAndKeptDiscriminators(t *testing.T) {
 	t.Parallel()
-	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Kept:
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.2.0", `    Kept:
       type: object
-      $defs: {Sub: {type: object, properties: {kept: {type: string}}}}
+      $defs:
+        Sub: {type: object, properties: {kept: {type: string}}}
       not: {$ref: '#/components/schemas/Kept/$defs/Sub'}
+    KeptDisc:
+      type: string
+      $defs:
+        Mapped: {type: object, properties: {m: {type: string}}}
+        Fallback: {type: object, properties: {f: {type: string}}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          sub: '#/components/schemas/KeptDisc/$defs/Mapped'
+        defaultMapping: '#/components/schemas/KeptDisc/$defs/Fallback'
+    Bad:
+      type: object
+      not: {$ref: '#/components/schemas/Missing'}
+    NoDiscRoutes:
+      type: string
+      discriminator:
+        propertyName: kind
 `))
 	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 	schema.ReserveNodesAtReferenceTargets(lowerer.Ctx, lowerer.Types)
 	_ = lowerer.Document(t)
-	assert.Contains(t, schema.ReservedTargets(lowerer.Ctx), ir.TypeID("type/anonymous/components/schemas/Kept/$defs/Sub"))
+
+	landings := schema.ReferenceLandings(lowerer.Ctx)
+	assert.Equal(t, []schema.Landing{{ID: "type/anonymous/components/schemas/Kept/$defs/Sub", Ref: "#/components/schemas/Kept/$defs/Sub"}},
+		landings[schema.LandingSite{Source: 0, Pointer: "/components/schemas/Kept/not"}])
+	assert.ElementsMatch(t, []schema.Landing{
+		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Mapped"},
+		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Fallback"},
+	}, landings[schema.LandingSite{Source: 0, Pointer: "/components/schemas/KeptDisc/discriminator"}])
 }

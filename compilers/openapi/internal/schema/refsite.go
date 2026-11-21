@@ -158,28 +158,73 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 	}
 }
 
-// reservedSet holds the anonymous TypeIDs promised by resolvePointer during
-// one compile run, so post-settlement pruning keeps every $ref and
-// discriminator-mapping landing lowered for kept constructs.
-type reservedSet struct {
-	ids map[ir.TypeID]bool
+// LandingSite locates a source construct carrying type references: the input
+// document's index in Document.Sources and the JSON Pointer within it.
+type LandingSite struct {
+	Source  int
+	Pointer jsontext.Pointer
 }
 
-// reservedOf returns the run's reservedSet.
-func reservedOf(loweringContext lowering.Ctx) *reservedSet {
-	return lowering.Settled(loweringContext, func() *reservedSet {
-		return &reservedSet{ids: map[ir.TypeID]bool{}}
+// Landing is one resolved type target written at a LandingSite: ID is the
+// lowered ir.TypeID and Ref is the reference text for a schema $ref (empty for
+// a kept discriminator route).
+type Landing struct {
+	ID  ir.TypeID
+	Ref string
+}
+
+// keptDiscRoutes holds the type IDs resolved by resolveDiscriminatorRoutes for
+// discriminators kept verbatim, keyed by the discriminator's LandingSite.
+type keptDiscRoutes struct {
+	bySite map[LandingSite][]Landing
+}
+
+// keptDiscRoutesOf returns the run's keptDiscRoutes store.
+func keptDiscRoutesOf(loweringContext lowering.Ctx) *keptDiscRoutes {
+	return lowering.Settled(loweringContext, func() *keptDiscRoutes {
+		return &keptDiscRoutes{bySite: map[LandingSite][]Landing{}}
 	})
 }
 
-// ReservedTargets returns every TypeID resolvePointer promised during the run,
-// in no particular order. Call it after compile.Types.Finish so targets
-// promised while fulfilling earlier promises are included too.
-func ReservedTargets(loweringContext lowering.Ctx) []ir.TypeID {
-	set := reservedOf(loweringContext)
-	out := make([]ir.TypeID, 0, len(set.ids))
-	for id := range set.ids {
-		out = append(out, id)
+// recordKeptDiscriminatorRoutes saves every type ID resolved for a verbatim
+// discriminator at pointer so post-settlement attachment records them on its
+// UnmodeledEntry.
+func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontext.Pointer, mapping map[string]ir.TypeID, def ir.TypeID) {
+	if len(mapping) == 0 && def == "" {
+		return
+	}
+	site := LandingSite{Source: loweringContext.Place().Source, Pointer: pointer}
+	routes := keptDiscRoutesOf(loweringContext)
+	for _, id := range mapping {
+		routes.bySite[site] = append(routes.bySite[site], Landing{ID: id})
+	}
+	if def != "" {
+		routes.bySite[site] = append(routes.bySite[site], Landing{ID: def})
+	}
+}
+
+// ReferenceLandings returns every resolved schema $ref landing in the run's
+// bindings table together with every kept discriminator's resolved routes,
+// keyed by the writing position's LandingSite. Call it after
+// compile.Types.Finish so every deferred route is recorded.
+func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
+	out := map[LandingSite][]Landing{}
+	for _, referenceSite := range loweringContext.Bindings().Table().Entries() {
+		if !referenceSite.Lands() {
+			continue
+		}
+		fromCtx, fromOK := lowering.InDocument(loweringContext, referenceSite.Site.Doc)
+		targetCtx, targetOK := lowering.InDocument(loweringContext, referenceSite.Hop.Target.Doc)
+		if fromOK && targetOK {
+			decl := loweringContext.Statements().At(referenceSite.Hop.Target)
+			if id, _, ok := declaredIn(targetCtx, referenceSite.Hop.Target.Pointer, decl); ok {
+				site := LandingSite{Source: fromCtx.Place().Source, Pointer: referenceSite.Site.Pointer}
+				out[site] = append(out[site], Landing{ID: id, Ref: referenceSite.Hop.Ref})
+			}
+		}
+	}
+	for site, routes := range keptDiscRoutesOf(loweringContext).bySite {
+		out[site] = append(out[site], routes...)
 	}
 	return out
 }
@@ -197,7 +242,6 @@ func ReservedTargets(loweringContext lowering.Ctx) []ir.TypeID {
 func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
-		reservedOf(loweringContext).ids[id] = true
 		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}
 	return id, ok

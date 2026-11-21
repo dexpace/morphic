@@ -44,23 +44,25 @@ func prop(wire string, target ir.TypeID) ir.Property {
 func TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes(t *testing.T) {
 	t.Parallel()
 	const (
-		liveFrom  ir.TypeID = "type/anonymous/from-named"
-		liveDeep  ir.TypeID = "type/anonymous/deep"
-		liveOp    ir.TypeID = "type/anonymous/from-op"
-		liveRoot  ir.TypeID = "type/anonymous/extra-root"
-		liveViaR  ir.TypeID = "type/anonymous/via-extra-root"
-		liveDisc  ir.TypeID = "type/anonymous/via-disc"
-		deadLeaf  ir.TypeID = "type/anonymous/dead-leaf"
-		deadSelf  ir.TypeID = "type/anonymous/dead-self"
-		deadCycA  ir.TypeID = "type/anonymous/dead-cycle-a"
-		deadCycB  ir.TypeID = "type/anonymous/dead-cycle-b"
-		primStr   ir.TypeID = "type/primitive/string"
-		nilEntry  ir.TypeID = "type/anonymous/nil-entry"
-		absentExt ir.TypeID = "type/anonymous/not-in-registry"
+		liveFrom ir.TypeID = "type/anonymous/from-named"
+		liveDeep ir.TypeID = "type/anonymous/deep"
+		liveOp   ir.TypeID = "type/anonymous/from-op"
+		liveUnm  ir.TypeID = "type/anonymous/from-unmodeled"
+		liveViaU ir.TypeID = "type/anonymous/via-unmodeled"
+		liveDisc ir.TypeID = "type/anonymous/via-disc"
+		deadLeaf ir.TypeID = "type/anonymous/dead-leaf"
+		deadSelf ir.TypeID = "type/anonymous/dead-self"
+		deadCycA ir.TypeID = "type/anonymous/dead-cycle-a"
+		deadCycB ir.TypeID = "type/anonymous/dead-cycle-b"
+		primStr  ir.TypeID = "type/primitive/string"
+		nilEntry ir.TypeID = "type/anonymous/nil-entry"
 	)
 
 	root := rootModel(prop("a", liveFrom), prop("s", primStr))
 	root.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"d": liveDisc}}
+	root.Unmodeled = ir.Unmodeled{
+		"openapi:not": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"$ref":"#/a"}`), Targets: []ir.TypeID{liveUnm}},
+	}
 
 	doc := &ir.Document{
 		Services: []ir.Service{{
@@ -76,8 +78,8 @@ func TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes(t *testing.
 			liveFrom:    anonModel(liveFrom, prop("deep", liveDeep), prop("again", liveDeep)),
 			liveDeep:    anonModel(liveDeep, prop("back", liveFrom)),
 			liveOp:      anonModel(liveOp),
-			liveRoot:    anonModel(liveRoot, prop("r", liveViaR)),
-			liveViaR:    anonModel(liveViaR),
+			liveUnm:     anonModel(liveUnm, prop("r", liveViaU)),
+			liveViaU:    anonModel(liveViaU),
 			liveDisc:    anonModel(liveDisc),
 			deadLeaf:    anonModel(deadLeaf, prop("s", primStr)),
 			deadSelf:    anonModel(deadSelf, prop("self", deadSelf)),
@@ -87,9 +89,9 @@ func TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes(t *testing.
 		},
 	}
 
-	pruned, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, []ir.TypeID{liveRoot, absentExt}, ir.WalkValuesContext)
+	pruned, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, ir.WalkValuesContext)
 	assert.Empty(t, diags)
-	for _, want := range []ir.TypeID{primStr, rootModelID, liveFrom, liveDeep, liveOp, liveRoot, liveViaR, liveDisc, nilEntry} {
+	for _, want := range []ir.TypeID{primStr, rootModelID, liveFrom, liveDeep, liveOp, liveUnm, liveViaU, liveDisc, nilEntry} {
 		assert.Contains(t, pruned.Types, want, "live or non-anonymous type %s stays", want)
 	}
 	for _, gone := range []ir.TypeID{deadLeaf, deadSelf, deadCycA, deadCycB} {
@@ -107,7 +109,7 @@ func TestPruneUnreferencedTypes_FastPathsAndStoppedWalks(t *testing.T) {
 	t.Run("no anonymous types", func(t *testing.T) {
 		t.Parallel()
 		doc := &ir.Document{Types: ir.TypeRegistry{rootModelID: rootModel()}}
-		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, nil, ir.WalkValuesContext)
+		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, ir.WalkValuesContext)
 		assert.Same(t, doc, got)
 		assert.Empty(t, diags)
 	})
@@ -118,7 +120,7 @@ func TestPruneUnreferencedTypes_FastPathsAndStoppedWalks(t *testing.T) {
 			rootModelID: rootModel(prop("a", anonID)),
 			anonID:      anonModel(anonID),
 		}}
-		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, nil, ir.WalkValuesContext)
+		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, ir.WalkValuesContext)
 		assert.Same(t, doc, got)
 		assert.Empty(t, diags)
 	})
@@ -127,7 +129,7 @@ func TestPruneUnreferencedTypes_FastPathsAndStoppedWalks(t *testing.T) {
 		t.Parallel()
 		doc := &ir.Document{Types: ir.TypeRegistry{anonID: anonModel(anonID)}}
 		stub := func(context.Context, any, string, ...ir.Visitor) (bool, error) { return true, nil }
-		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, nil, stub)
+		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, stub)
 		assert.Same(t, doc, got)
 		assert.Empty(t, diags)
 		assert.Contains(t, got.Types, anonID)
@@ -144,7 +146,7 @@ func TestPruneUnreferencedTypes_FastPathsAndStoppedWalks(t *testing.T) {
 			}
 			return ir.WalkValuesContext(ctx, root, path, visitors...)
 		}
-		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, nil, stub)
+		got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, stub)
 		assert.Same(t, doc, got)
 		assert.Empty(t, diags)
 		assert.Contains(t, got.Types, anonID)
@@ -155,7 +157,7 @@ func TestPruneUnreferencedTypes_FastPathsAndStoppedWalks(t *testing.T) {
 		doc := &ir.Document{Types: ir.TypeRegistry{anonID: anonModel(anonID)}}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		got, diags := openapi.PruneUnreferencedTypesWith(ctx, doc, nil, ir.WalkValuesContext)
+		got, diags := openapi.PruneUnreferencedTypesWith(ctx, doc, ir.WalkValuesContext)
 		assert.Same(t, doc, got)
 		assert.Empty(t, diags)
 		assert.Contains(t, got.Types, anonID)
@@ -176,7 +178,7 @@ func TestPruneUnreferencedTypes_ValueCarriers(t *testing.T) {
 		rootModelID: root,
 		valID:       anonModel(valID),
 	}}
-	got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, nil, ir.WalkValuesContext)
+	got, diags := openapi.PruneUnreferencedTypesWith(t.Context(), doc, ir.WalkValuesContext)
 	require.Empty(t, diags)
 	assert.Contains(t, got.Types, valID)
 }

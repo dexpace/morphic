@@ -226,6 +226,7 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	out.Auth = lowered.Auth
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(svcDiags)
 	schema.ReserveNodesAtReferenceTargets(serviceContext.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
@@ -238,13 +239,14 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
 	out.Types = reg
-	// Pruning runs before compileddoc.New so links, promotions and inferences
-	// read only live types; an empty-named root component schema and every
-	// reserved $ref or discriminator-mapping landing stay roots
-	// (docs/compilers/openapi.md#validation-only).
-	emptyComponent := serviceContext.IDs().ForPointer(ids.Ptr("components", "schemas", ""))
+	// Attach typed Targets to kept Unmodeled entries before pruning so every
+	// kept $ref and discriminator-mapping landing is explicit in the IR for
+	// pruning, irverify, and emitters. Pruning then removes unreachable
+	// anonymous types before compileddoc.New runs links, promotions and
+	// inferences.
+	attachUnmodeledTargets(ctx, out, schema.ReferenceLandings(serviceContext.Ctx))
 	var pruneDiags []ir.Diagnostic
-	out, pruneDiags = pruneUnreferencedTypes(ctx, out, append(schema.ReservedTargets(serviceContext.Ctx), emptyComponent))
+	out, pruneDiags = pruneUnreferencedTypes(ctx, out)
 	acc.AppendAll(pruneDiags)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
@@ -266,7 +268,6 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// an operation writes true reads the root's; its findings keep their place.
 	meta, metaDiags := document.Lower(serviceContext)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, meta.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	// The operations whose extensions speak of a pagination are what the
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that

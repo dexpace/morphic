@@ -126,6 +126,10 @@
                             }
                           }
                         },
+                        "targets": [
+                          "type/anonymous/x-defs/Kept",
+                          "type/openapi/components/schemas/Part"
+                        ],
                         "provenance": {
                           "source": 0,
                           "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding"
@@ -150,6 +154,10 @@
                             }
                           }
                         },
+                        "targets": [
+                          "type/anonymous/x-defs/Kept",
+                          "type/openapi/components/schemas/Part"
+                        ],
                         "provenance": {
                           "source": 0,
                           "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/itemEncoding"
@@ -188,6 +196,10 @@
                               }
                             }
                           }
+                        ],
+                        "targets": [
+                          "type/anonymous/x-defs/Kept",
+                          "type/openapi/components/schemas/Part"
                         ],
                         "provenance": {
                           "source": 0,

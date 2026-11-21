@@ -350,7 +350,7 @@
       "name": {
         "hint": "empty"
       },
-      "anonymous": true,
+      "anonymous": false,
       "docs": {},
       "sensitive": false,
       "provenance": {
@@ -1950,7 +1950,7 @@
     {
       "format": "openapi@3.2",
       "path": "empty-names.yaml",
-      "hash": "4b9ab74e8f16d6fc0d23ccf2b19e0cd0d51a3ccbc86c926b2a40221fff5e0091"
+      "hash": "908f703809ef975cb72aea7e7af1ab9e9d13c0dbcf55393b2491c0cb830ed902"
     }
   ]
 }

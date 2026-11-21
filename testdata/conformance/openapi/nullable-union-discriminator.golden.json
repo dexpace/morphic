@@ -125,6 +125,9 @@
             },
             "propertyName": "kind"
           },
+          "targets": [
+            "type/openapi/components/schemas/Cat"
+          ],
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/MaybeCat/discriminator"

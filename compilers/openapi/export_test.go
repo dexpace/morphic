@@ -24,3 +24,6 @@ var InferencesOf = inferencesOf
 // PruneUnreferencedTypesWith is pruneUnreferencedTypesWith, for the external
 // tests.
 var PruneUnreferencedTypesWith = pruneUnreferencedTypesWith
+
+// AttachUnmodeledTargets is attachUnmodeledTargets, for the external tests.
+var AttachUnmodeledTargets = attachUnmodeledTargets

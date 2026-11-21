@@ -37,7 +37,8 @@ alias, once that pass exists, is followed the same way.
 
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
 declaration, and each reference to it — a `TypeRef`, a `TypeID` a discriminator's mapping or default
-names, or the type a [`DocRef`](../../ir/annotations.md#references-in-prose) marks — is lowered as a
+names, an `UnmodeledEntry.Targets` entry, or the type a
+[`DocRef`](../../ir/annotations.md#references-in-prose) marks — is lowered as a
 reference to its `Alias`, keeping the referring reference's `Nullable`, which answers for the whole
 decorator
 ([type-graph](../../ir/type-graph.md#type-references)). The decorators' annotations fold onto the

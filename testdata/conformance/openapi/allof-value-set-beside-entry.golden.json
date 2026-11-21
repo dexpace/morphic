@@ -343,6 +343,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Target",
+          "targets": [
+            "type/openapi/components/schemas/Target"
+          ],
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/BesideRef"

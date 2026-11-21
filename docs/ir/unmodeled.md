@@ -10,6 +10,7 @@ type UnmodeledReason string     // vendor_extension | validation_only | degraded
 type UnmodeledEntry struct {
     Reason     UnmodeledReason    // why this is here rather than modeled
     Value      RawValue          // the source construct, verbatim
+    Targets    []TypeID          // sorted, deduplicated type IDs lowered for references inside Value
     Provenance Provenance        // where the construct itself was written
 }
 
@@ -37,12 +38,16 @@ Erlang *module attributes* — and Protobuf's own `extensions` means something e
 
 ## What an entry carries
 
-Each entry carries two things beyond the value. **`Reason`** says why the construct is
+Each entry carries three things beyond the value. **`Reason`** says why the construct is
 unmodeled, so a consumer can take the subset it cares about: the validation emitter
 [boundaries](./boundaries.md#validation-only-constructs) anticipates wants `validation_only` and not
 vendor noise, while a spec linter wants `degraded_lowering` and `no_ir_home` and nothing else. It is
 a property of the construct, never of the diagnostic emitted beside it — one diagnostic code
 routinely spans preservation, weakening, and outright dropping, so it says nothing about why.
+**`Targets`** lists, sorted and deduplicated, the `TypeID`s lowered for references inside `Value`
+(such as `$ref`s in kept validation-only or degraded constructs and kept `discriminator` mapping
+values), so emitters and `irverify` see kept type dependencies without parsing format-specific raw
+JSON; omitted when empty.
 **`Provenance`** locates the construct itself rather than the node carrying it, so an emitter can
 report on an entry at its own source position instead of the enclosing schema's — falling back to
 the declaring position only where the entry combines several keywords into one synthesized object

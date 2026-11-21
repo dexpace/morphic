@@ -1264,3 +1264,9 @@ it sees. Changes made together in one bump are listed together under it.
   - **Correlation keys** ([derived facts](./derived-facts.md#correlation-keys)): a key spells a
     group's ID and an enum member's value tag as the IR now does, so `irfacts.CorrelationVersion`
     moves to 5, and a key stored under 4 matches none derived under 5.
+- **0.73.0** — `UnmodeledEntry` gains `Targets []TypeID` (`targets`, omitted when empty) listing the
+  sorted, deduplicated type IDs lowered for references inside `Value` (such as `$ref`s in kept
+  validation-only or degraded constructs and kept `discriminator` mapping values), and an
+  empty-named root OpenAPI component schema (`components.schemas[""]`) is marked `Anonymous: false`
+  so declared top-level types and kept landings are both explicit in the IR for consumers and
+  `irverify`. A consumer pinned to 0.72.0 refuses the document on the new `targets` member.

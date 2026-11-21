@@ -23,21 +23,20 @@ type walkContextFunc func(ctx context.Context, root any, path string, visitors .
 
 // pruneUnreferencedTypes returns doc with every anonymous type in doc.Types
 // that nothing reaches removed through an ir.Editor. A node is live when any
-// non-anonymous type, any TypeID outside doc.Types, or any ID in extraRoots
-// (reserved $ref landings and an empty-named root component schema) reaches it
-// through typed TypeID references. A cancelled or truncated walk removes
-// nothing so no live type is dropped.
-func pruneUnreferencedTypes(ctx context.Context, doc *ir.Document, extraRoots []ir.TypeID) (*ir.Document, []ir.Diagnostic) {
-	return pruneUnreferencedTypesWith(ctx, doc, extraRoots, ir.WalkValuesContext)
+// non-anonymous type or any typed ir.TypeID outside doc.Types reaches it
+// through typed TypeID references (including UnmodeledEntry.Targets). A
+// cancelled or truncated walk removes nothing so no live type is dropped.
+func pruneUnreferencedTypes(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return pruneUnreferencedTypesWith(ctx, doc, ir.WalkValuesContext)
 }
 
 // pruneUnreferencedTypesWith is pruneUnreferencedTypes walking with walk.
-func pruneUnreferencedTypesWith(ctx context.Context, doc *ir.Document, extraRoots []ir.TypeID, walk walkContextFunc) (*ir.Document, []ir.Diagnostic) {
+func pruneUnreferencedTypesWith(ctx context.Context, doc *ir.Document, walk walkContextFunc) (*ir.Document, []ir.Diagnostic) {
 	anon := anonymousTypes(doc.Types)
 	if len(anon) == 0 {
 		return doc, nil
 	}
-	collector := newTypeEdgeCollector(anon, extraRoots)
+	collector := newTypeEdgeCollector(anon)
 	if !collector.walk(ctx, doc, walk) {
 		return doc, nil
 	}
@@ -80,18 +79,10 @@ type typeEdgeCollector struct {
 	ownerAnon bool
 }
 
-// newTypeEdgeCollector returns a collector seeded with the anonymous IDs in
-// extraRoots.
-func newTypeEdgeCollector(anon map[ir.TypeID]bool, extraRoots []ir.TypeID) *typeEdgeCollector {
-	roots := make([]ir.TypeID, 0, len(extraRoots))
-	for _, id := range extraRoots {
-		if anon[id] {
-			roots = append(roots, id)
-		}
-	}
+// newTypeEdgeCollector returns a collector for anon.
+func newTypeEdgeCollector(anon map[ir.TypeID]bool) *typeEdgeCollector {
 	return &typeEdgeCollector{
 		anon:    anon,
-		roots:   roots,
 		edges:   make(map[ir.TypeID][]ir.TypeID),
 		carries: make(map[reflect.Type]bool),
 	}
