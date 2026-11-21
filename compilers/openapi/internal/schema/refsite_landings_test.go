@@ -83,3 +83,18 @@ func TestReserveNodesAtReferenceTargets_LowersWhatNothingElseReached(t *testing.
 	}
 	assert.Equal(t, "mid", promised.Types["type/anonymous/components/schemas/Through/$defs/Mid"].Common().Docs.Description)
 }
+
+// TestReservedTargets_ListsEveryPromisedTypeID pins that ReservedTargets
+// returns the anonymous TypeIDs promised by resolvePointer during the run.
+func TestReservedTargets_ListsEveryPromisedTypeID(t *testing.T) {
+	t.Parallel()
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Kept:
+      type: object
+      $defs: {Sub: {type: object, properties: {kept: {type: string}}}}
+      not: {$ref: '#/components/schemas/Kept/$defs/Sub'}
+`))
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	schema.ReserveNodesAtReferenceTargets(lowerer.Ctx, lowerer.Types)
+	_ = lowerer.Document(t)
+	assert.Contains(t, schema.ReservedTargets(lowerer.Ctx), ir.TypeID("type/anonymous/components/schemas/Kept/$defs/Sub"))
+}

@@ -3422,12 +3422,22 @@ a name, or composes a model redeclaring one it holds, which telling whether that
 within the hierarchy reads to its base. A run reads at most 16,777,216 of their declarations, a read
 of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
 as does telling whether one part's declaration stands within another's; past that each model left
-folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
+folds its own declarations alone, with an `openapi/budget-exceeded` error at the first. Once every
+lowering and settlement has returned, any anonymous type node that no named type, reference outside
+the type registry, empty-named root component schema, or reserved `$ref` or discriminator-mapping
+landing reaches — including nodes lowered for declarations a fold superseded or replaced — is
+removed from the registry.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
-- Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
+- Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes`,
+  `openapi.TestPruneUnreferencedTypes_FastPathsAndStoppedWalks`,
+  `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
+  `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
+  `e2e.TestCompile_ReferencedLosersAndRootsAreKept`,
+  `e2e.TestCompile_NoUnreferencedAnonymousTypes`,
+  `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestReportOnce_SaysEachConflictOnce`,
   `e2e.TestConflictOnce_IsReportedOncePerPairOfDeclarations`,
   `e2e.TestConflictOnce_AModelsOwnDeclarationsListTheMember`,

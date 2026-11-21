@@ -20,3 +20,7 @@ var WithoutRereported = withoutRereported
 
 // InferencesOf is inferencesOf, for the external tests.
 var InferencesOf = inferencesOf
+
+// PruneUnreferencedTypesWith is pruneUnreferencedTypesWith, for the external
+// tests.
+var PruneUnreferencedTypesWith = pruneUnreferencedTypesWith

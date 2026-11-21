@@ -585,11 +585,17 @@ var (
 	// fixtureZ: both entries declare p, as an object of their own.
 	fixtureZ = schemas("AB: {allOf: [{type: object, properties: {p: {type: object, properties: {x: {type: string}}}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
-	// fixtureBeneath: AB's p ties alpha's string and an object AB writes, a
-	// node of its own where p stands in either order, holding beta.
+	// fixtureBeneath: AB's p ties alpha's string and an object AB writes, so
+	// the object survives only in the order where AB's declaration wins.
 	fixtureBeneath = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, "+
 		"{type: object, properties: {p: {type: object, properties: {beta: {type: string}}}}}]}",
 		"alpha: {type: object, properties: {p: {type: string}}}")
+	// fixtureBeneathKept: AB's p composes alpha's object and an inline object
+	// AB writes while their descriptions tie, so AB's inline object stays
+	// referenced in either order and what it says is compared.
+	fixtureBeneathKept = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, "+
+		"{type: object, properties: {p: {type: object, description: b, properties: {beta: {type: string}}}}}]}",
+		"alpha: {type: object, properties: {p: {type: object, description: a, properties: {gamma: {type: string}}}}}")
 	// fixtureSwap: two models composing alpha and beta, whose p disagree, so
 	// the one report of the tie moves from one declaration to the other.
 	// Their q agree.
@@ -1121,10 +1127,11 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			found: false,
 		},
 		{
-			// The object AB writes for p is a node in either order, whichever
-			// declaration p takes, so what it says is compared.
+			// The object AB writes for p is referenced in either order (by the
+			// composed p model), while p's description ties, so what it says
+			// is compared.
 			name: "a node written where a tied member stands, differing",
-			src:  fixtureBeneath,
+			src:  fixtureBeneathKept,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				const written = "type/anonymous/components/schemas/AB/allOf/0/properties/p"
 				if !reversed {
@@ -1407,7 +1414,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // detection rows: each fixture, compiled by the real compiler in both orders,
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
-	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "Agreeing": fixtureAgreeing, "Meeting": fixtureMeeting,
+	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "BeneathKept": fixtureBeneathKept, "Agreeing": fixtureAgreeing, "Meeting": fixtureMeeting,
 		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap, "beside": fixtureBeside,
 		"three": fixtureThree, "trade": fixtureTrade, "far": fixtureFar, "loser": fixtureLoser,
 		"outvoted": fixtureOutvoted, "group": fixtureGroup, "brought": fixtureBrought} {

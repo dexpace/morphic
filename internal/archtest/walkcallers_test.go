@@ -90,6 +90,9 @@ var walkCallers = map[string]walkCaller{
 	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},
+	"compilers/openapi.pruneUnreferencedTypes": {
+		answer: "a stopped walk removes no type, so no live anonymous type is dropped",
+	},
 }
 
 // walkNames returns ir's walks, read off ir: its exported functions that name

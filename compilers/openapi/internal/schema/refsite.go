@@ -158,6 +158,32 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 	}
 }
 
+// reservedSet holds the anonymous TypeIDs promised by resolvePointer during
+// one compile run, so post-settlement pruning keeps every $ref and
+// discriminator-mapping landing lowered for kept constructs.
+type reservedSet struct {
+	ids map[ir.TypeID]bool
+}
+
+// reservedOf returns the run's reservedSet.
+func reservedOf(loweringContext lowering.Ctx) *reservedSet {
+	return lowering.Settled(loweringContext, func() *reservedSet {
+		return &reservedSet{ids: map[ir.TypeID]bool{}}
+	})
+}
+
+// ReservedTargets returns every TypeID resolvePointer promised during the run,
+// in no particular order. Call it after compile.Types.Finish so targets
+// promised while fulfilling earlier promises are included too.
+func ReservedTargets(loweringContext lowering.Ctx) []ir.TypeID {
+	set := reservedOf(loweringContext)
+	out := make([]ir.TypeID, 0, len(set.ids))
+	for id := range set.ids {
+		out = append(out, id)
+	}
+	return out
+}
+
 // resolvePointer resolves a pointer in loweringContext's document to the ID of
 // the schema it addresses: a source component by its stable ID, any other
 // position by the ID its pointer derives there. A reference never builds what
@@ -171,6 +197,7 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
+		reservedOf(loweringContext).ids[id] = true
 		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}
 	return id, ok

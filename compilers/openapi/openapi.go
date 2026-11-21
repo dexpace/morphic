@@ -237,10 +237,18 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// otherwise leave every reference to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
+	out.Types = reg
+	// Pruning runs before compileddoc.New so links, promotions and inferences
+	// read only live types; an empty-named root component schema and every
+	// reserved $ref or discriminator-mapping landing stay roots
+	// (docs/compilers/openapi.md#validation-only).
+	emptyComponent := serviceContext.IDs().ForPointer(ids.Ptr("components", "schemas", ""))
+	var pruneDiags []ir.Diagnostic
+	out, pruneDiags = pruneUnreferencedTypes(ctx, out, append(schema.ReservedTargets(serviceContext.Ctx), emptyComponent))
+	acc.AppendAll(pruneDiags)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
-	out.Types = reg
 	// What is read once the document is whole is read here, in the one order
 	// docs/compilers/openapi.md#policies gives: links, then promotions, then
 	// inferences, an inference filling only what no keyword or promotion

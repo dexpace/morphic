@@ -69,7 +69,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// they return: immediate callbacks. operation's are a union's file reading
 		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    25,
+		"compilers/openapi/internal/schema":    26,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through
@@ -140,6 +140,7 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
+		"compilers/openapi":                    1,
 		"compilers/openapi/internal/promotion": 1,
 		"engine/report":                        1,
 		"internal/census":                      1,

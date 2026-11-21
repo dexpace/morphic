@@ -64,6 +64,7 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 	tied, moved := tiedBy(stated, restated), ties
 	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, tied))))
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
+	ties = prunedByTie(ties, first, second, perm, stated, tied)
 	ties.stated = statedAlone(statedAlone(tied, moved, ties.nodes, first, perm.written), moved, ties.nodes, second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
 	refused := oneRefusal(first, second)
@@ -401,6 +402,57 @@ func inferenceTied(doc *ir.Document, union *ir.Union, isTied func(ir.PropertyDec
 		}
 	}
 	return false
+}
+
+// prunedByTie returns ties with each anonymous type node present in only one
+// of first and second at or beneath a tied member or its tied declarations:
+// when a tie trades which declaration wins, the compiler prunes the losing
+// declaration's unreferenced anonymous node and its descendants, so the node
+// exists only in the order where that declaration won. A node present at the
+// same rebased ID in both documents stays compared.
+func prunedByTie(ties tieSites, first, second *ir.Document, perm permutation, stated []fact, tied []string) tieSites {
+	if first == nil || second == nil || len(ties.members)+len(tied) == 0 {
+		return ties
+	}
+	sites := slices.Clone(ties.members)
+	for _, f := range stated {
+		if _, isTied := slices.BinarySearch(tied, f.member); isTied {
+			sites = append(sites, pointerOf(f.lost), pointerOf(f.kept))
+		}
+	}
+	firstIDs := rebasedTypeIDs(first, nil)
+	secondIDs := rebasedTypeIDs(second, perm.moved)
+	extra := appendPruned(nil, first, nil, perm.written, secondIDs, sites)
+	extra = appendPruned(extra, second, perm.moved, perm.moved, firstIDs, sites)
+	if len(extra) == 0 {
+		return ties
+	}
+	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, extra))))
+	return ties
+}
+
+// rebasedTypeIDs returns the set of doc's type IDs rebased from from into the
+// source-as-written coordinates.
+func rebasedTypeIDs(doc *ir.Document, from sequences) map[string]bool {
+	out := make(map[string]bool, len(doc.Types))
+	for id := range doc.Types {
+		out[rebase(string(id), from)] = true
+	}
+	return out
+}
+
+// appendPruned appends the erased ID of each anonymous type in doc absent from
+// other (by rebased ID) whose erased pointer sits at or beneath sites.
+func appendPruned(dst []string, doc *ir.Document, rebaseFrom, eraseSeqs sequences, other map[string]bool, sites []string) []string {
+	for id, td := range doc.Types {
+		if ir.IsNilTypeDef(td) || !td.Common().Anonymous || other[rebase(string(id), rebaseFrom)] {
+			continue
+		}
+		if atSite(sites, erase(string(td.Common().Provenance.Pointer), eraseSeqs)) {
+			dst = append(dst, erase(string(id), eraseSeqs))
+		}
+	}
+	return dst
 }
 
 // difference returns the reports of a that b does not hold and those of b
