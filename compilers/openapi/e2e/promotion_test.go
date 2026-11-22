@@ -932,3 +932,106 @@ func TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps(t *testing.T) {
 	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
 	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
 }
+
+// ownDeprecationSchema is a list schema that deprecates what holds it, with a
+// message and a replacement, both read by compileOwnDeprecations' policy.
+const ownDeprecationSchema = "{type: array, items: {type: string}, deprecated: true, x-deprecated-reason: schema reason, x-replaced-by: New}"
+
+// compileOwnDeprecations compiles a document whose parameters and headers
+// each have ownDeprecationSchema as their schema, beside parameters, the
+// components declared in the order parameters gives, under a policy reading
+// messages from x-deprecated-reason and replacements from x-replaced-by.
+func compileOwnDeprecations(t *testing.T, parameters []string) *ir.Document {
+	t.Helper()
+	const list = ownDeprecationSchema
+	spec := `openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: p, in: query, deprecated: true, x-deprecated-reason: own reason, x-replaced-by: q, schema: ` + list + `}
+        - {name: k, in: query, x-replaced-by: q, schema: ` + list + `}
+        - {name: inherits, in: query, schema: ` + list + `}
+        - $ref: '#/components/parameters/P'
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-M: {schema: {type: string}}
+            X-L: {deprecated: true, x-deprecated-reason: own reason, x-replaced-by: X-M, schema: ` + list + `}
+            X-I: {schema: ` + list + `}
+components:
+  parameters:
+    ` + strings.Join(parameters, "\n    ") + `
+  schemas:
+    New: {type: string}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetDeprecationMessage:    {{Key: "x-deprecated-reason"}},
+				openapi.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
+			},
+		}}})
+	require.NoError(t, err)
+	assert.Empty(t, diags, "every key is read")
+	return doc
+}
+
+// TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode
+// pins where every member of two deprecations lands, in both orders of the
+// components: a parameter or a header stating a deprecation of its own, by
+// `deprecated: true` or a key read into one, holds its own, and the node its
+// schema hoists keeps the schema's, resolving its replacement itself, as a
+// carrier stating none holds the schema's
+// (docs/compilers/openapi.md#docs-and-deprecation).
+func TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode(t *testing.T) {
+	t.Parallel()
+	parameters := []string{
+		"P: {name: cp, in: query, deprecated: true, x-replaced-by: q, schema: " + ownDeprecationSchema + "}",
+		"Unused: {name: unused, in: query, schema: {type: string}}",
+	}
+	var compiled []*ir.Document
+	inBothOrders(t, parameters, func(t *testing.T, parameters []string) {
+		doc := compileOwnDeprecations(t, parameters)
+		compiled = append(compiled, doc)
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok)
+		require.Len(t, operation.Params, 5)
+		require.Len(t, operation.Responses, 1)
+		headers := operation.Responses[0].Headers
+		header := func(wire string) ir.Header {
+			found, ok := headerByWire(headers, wire)
+			require.True(t, ok, wire)
+			return found
+		}
+		replacedBy := func(ref ir.EntityRef) []ir.EntityRef { return []ir.EntityRef{ref} }
+		schemas := &ir.Deprecation{Message: "schema reason", ReplacedBy: replacedBy(ir.EntityRef{Type: componentID("New")})}
+		q := ir.EntityRef{Param: operation.Params[0].ID}
+		xM := ir.EntityRef{Property: header("X-M").ID}
+		for _, tc := range []struct {
+			name           string
+			dep            *ir.Deprecation
+			typeRef        ir.TypeRef
+			want, wantNode *ir.Deprecation
+		}{
+			{"p", operation.Params[1].Deprecation, operation.Params[1].Type, &ir.Deprecation{Message: "own reason", ReplacedBy: replacedBy(q)}, schemas},
+			{"k", operation.Params[2].Deprecation, operation.Params[2].Type, nil, schemas},
+			{"inherits", operation.Params[3].Deprecation, operation.Params[3].Type, schemas, nil},
+			{"cp", operation.Params[4].Deprecation, operation.Params[4].Type, &ir.Deprecation{ReplacedBy: replacedBy(q)}, schemas},
+			{"X-L", header("X-L").Deprecation, header("X-L").Type, &ir.Deprecation{Message: "own reason", ReplacedBy: replacedBy(xM)}, schemas},
+			{"X-I", header("X-I").Deprecation, header("X-I").Type, schemas, nil},
+		} {
+			assert.Equal(t, tc.want, tc.dep, "%s holds its deprecation", tc.name)
+			node, ok := doc.Types[tc.typeRef.Target]
+			require.True(t, ok, "%s's schema hoists a node", tc.name)
+			assert.Equal(t, tc.wantNode, node.Common().Deprecation, "%s's node", tc.name)
+		}
+	})
+	require.Len(t, compiled, 2)
+	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+}

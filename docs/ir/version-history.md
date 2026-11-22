@@ -1268,9 +1268,12 @@ it sees. Changes made together in one bump are listed together under it.
   hoists a node, a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a `Literal` or a
   `Scalar`, holds the `Docs`, `Deprecation` and `Examples` that schema writes, and the node holds
   none of them ([one home](./annotations.md#one-structural-home-per-declaration)), unless a
-  parameter or a header writes its own documentation or examples, or a Reference Object naming it
-  writes documentation beside its `$ref`: the node then keeps the schema's, as before, for every use
-  of that component, so a use writing none finds them on the node and none on the member. They were the
+  parameter or a header writes its own documentation, deprecation or examples, or a Reference Object
+  naming it writes documentation beside its `$ref`: the node then keeps the schema's, as before, for
+  every use of that component, so a use writing none finds them on the node and none on the member.
+  A parameter or a header writes its own deprecation with `deprecated: true` or a key the promotion
+  policy reads a deprecation or one of its members from, on it or the content entry it elects, and
+  the node then keeps the schema's whole, its message and replacement with it. They were the
   node's, so the carrier was documented, deprecated and exemplified only where its schema hoisted
   nothing. A deprecation the promotion policy reads from a key on that schema follows, with the
   carrier marked `extension-promotion`, and so does a replacement such a key names; the node keeps

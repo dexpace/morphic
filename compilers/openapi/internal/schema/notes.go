@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -29,10 +30,9 @@ type carriedNotes struct {
 // position, pointer, holds, though typeRef names the node that position builds.
 // It holds none unless it holds the position (carriedAt), no reference names
 // it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
-// its conjuncts (allOfRefEntries). Then it holds the deprecation, and each
-// note nothing at its position writes over (writtenOver). Node and carrier
-// both ask it, so each note has one home
-// (docs/ir/annotations.md#one-structural-home-per-declaration).
+// its conjuncts (allOfRefEntries). Then it holds each note nothing at its
+// position writes over (writtenOver). Node and carrier both ask it, so each
+// note has one home (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
 // Elsewhere the node keeps them, which each reference to the position reads,
 // and a $ref is read off what the position writes alone
@@ -48,18 +48,19 @@ func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, poin
 	for range allOfRefEntries(loweringContext, schema) {
 		return carriedNotes{}
 	}
-	docs, examples := writtenOver(loweringContext, at)
-	return carriedNotes{docs: !docs, deprecation: true, examples: !examples}
+	docs, deprecation, examples := writtenOver(loweringContext, at)
+	return carriedNotes{docs: !docs, deprecation: !deprecation, examples: !examples}
 }
 
-// writtenOver reports which of the notes of the schema at, a carried
-// position, the carrier writes over with its own: its documentation where the
-// Parameter or Header Object holding at writes a description, or a Reference
-// Object naming that object writes docs beside its $ref (documentedAtUse), and
-// its examples where that object, or the content entry at lies in, writes an
-// example. The schema's stay on its node, so neither is lost. A property's
-// holder is its schema, which writes over nothing.
-func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (docs, examples bool) {
+// writtenOver reports which notes of the schema at, a carried position, the
+// carrier writes over with its own, each written by the Parameter or Header
+// Object holding at: its documentation, where that object writes a
+// description or a Reference Object naming it writes docs beside its $ref
+// (documentedAtUse); its deprecation, where that object or the content entry
+// at lies in states one (writesDeprecation); and its examples, where either
+// writes an example. The schema's stay on its node, so neither is lost. A
+// property's holder is its schema, which writes over nothing.
+func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (docs, deprecation, examples bool) {
 	holder := reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent()}
 	entry := ""
 	if holder.Pointer.Parent().LastToken() == "content" {
@@ -71,15 +72,39 @@ func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (doc
 		object = componentlookup.WrittenAt(loweringContext.Bindings(), holder, reftable.RefHeader)
 	}
 	if object == nil {
-		return false, false
+		return false, false, false
+	}
+	var entryObject *yaml.Node
+	if entry != "" {
+		entryObject = nodeview.Child(nodeview.Child(object, "content"), entry)
 	}
 	_, docs = componentlookup.DocText(object, "description")
 	docs = docs || documentedAtUse(loweringContext)[holder]
-	examples = writesExample(object)
-	if entry == "" {
-		return docs, examples
+	deprecation = writesDeprecation(loweringContext.Promoter(), object, entryObject)
+	return docs, deprecation, writesExample(object) || writesExample(entryObject)
+}
+
+// writesDeprecation reports whether object, a Parameter or Header Object's
+// mapping, or entry, the content entry it elects or nil, states a deprecation
+// of its own: object writes `deprecated: true`, or either writes a key promoter
+// reads a deprecation or one of its members from, whatever its value says
+// (promotion.DeprecationKey). A Reference Object states none: the keys it
+// writes beside its $ref are promoted nowhere
+// (docs/compilers/openapi.md#reference-object-siblings), so every use of the
+// object agrees.
+func writesDeprecation(promoter promotion.Promoter, object, entry *yaml.Node) bool {
+	flag := nodeview.Deref(nodeview.Child(object, "deprecated"))
+	if flag != nil && flag.Kind == yaml.ScalarNode && flag.ShortTag() == "!!bool" && strings.EqualFold(flag.Value, "true") {
+		return true
 	}
-	return docs, examples || writesExample(nodeview.Child(nodeview.Child(object, "content"), entry))
+	for _, mapping := range [...]*yaml.Node{object, entry} {
+		for _, pair := range nodeview.Pairs(mapping) {
+			if promotion.DeprecationKey(promoter, pair.Key) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // writesExample reports whether object, an object's mapping, writes an
@@ -137,7 +162,10 @@ func CarriedAnnotations(loweringContext lowering.Ctx, schema *statement.Schema, 
 	// reading draws none. Naming no $ref, the position falls back to nothing, so
 	// use speaks as the node's use does (nodeUse).
 	a, _ := annotation.Read(use.SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())
-	carried := annotation.Set{Deprecated: a.Deprecated}
+	var carried annotation.Set
+	if notes.deprecation {
+		carried.Deprecated = a.Deprecated
+	}
 	if notes.docs {
 		carried.Docs = a.Docs
 	}

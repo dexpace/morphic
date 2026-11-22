@@ -117,12 +117,12 @@ func (r *resolver) fillCarrier(carrier deprecated, class string, find func(strin
 // nodeKeys returns the ID and the keys of the node carrier's type names where
 // carrier reads its replacements there: carrier is deprecated, its own keys
 // write none, and the node, which writes some, is the one its declaration
-// built (builtAt, or headerSchemaAt for a header) and holds no deprecation,
-// its schema's being the carrier's
-// (docs/compilers/openapi.md#docs-and-deprecation). Replacement inference asks
-// it too, so a message is not read over those keys. Reading the IR alone, it
-// cannot tell that node from one keeping its notes because a reference names
-// it, so a carrier its own object deprecates reads either's keys.
+// built (builtAt, or headerSchemaAt for a header) and holds no deprecation.
+// One a reference names, or whose carrier deprecates itself, keeps its
+// schema's (docs/compilers/openapi.md#docs-and-deprecation). Replacement
+// inference asks too, so no message is read over those keys. Reading IR
+// alone, it cannot tell a schema stating no deprecation from one the carrier
+// took, so a carrier deprecating itself reads the first's (GitHub #2189).
 func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) {
 	if carrier.dep == nil || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
 		return "", nil, false

@@ -930,8 +930,8 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 // TestParams_NotesAreTheParametersWhateverItsSchemaHoists pins a parameter as
 // the home of what its schema notes where that schema hoists a node, as where
 // it hoists none: written inline, as content and in a component, each schema
-// a list, an enum or a model, the parameter holds the deprecation and a
-// promoted member with its mark, and the documentation and examples unless it
+// a list, an enum or a model, the parameter holds the documentation, the
+// deprecation with a promoted member and its mark, and the examples, unless it
 // writes its own, the node keeping the schema's then, so none is lost
 // (docs/ir/annotations.md#one-structural-home-per-declaration), and a plain
 // use of a component one use describes reads them on the node. Both orders of
@@ -946,6 +946,7 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		"Used: {name: used, in: query, schema: " + list + "}",
 		"Aliased: {$ref: '#/components/parameters/Hopped', description: HOP}",
 		"Hopped: {name: hopped, in: query, schema: " + list + "}",
+		"Flagged: {name: flagged, in: query, deprecated: true, schema: " + list + "}",
 	}
 	compile := func(components []string) (*ir.Document, ir.Service) {
 		doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
@@ -961,6 +962,10 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - $ref: '#/components/parameters/Described'\n"+
 			"        - {$ref: '#/components/parameters/Used', description: USE}\n"+
 			"        - $ref: '#/components/parameters/Aliased'\n"+
+			"        - {name: self, in: query, deprecated: true, x-deprecated-reason: own, schema: "+list+"}\n"+
+			"        - {name: keyed, in: query, x-deprecated-reason: own, schema: "+list+"}\n"+
+			"        - {name: entrykey, in: query, content: {application/json: {x-deprecated-reason: own, schema: "+list+"}}}\n"+
+			"        - $ref: '#/components/parameters/Flagged'\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
 			"        - $ref: '#/components/parameters/Used'\n"+
@@ -971,27 +976,36 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 	}
 	doc, svc := compile(components)
 	operation := openapitest.FirstOperation(t, svc)
+	why, own := &ir.Deprecation{Message: "why"}, &ir.Deprecation{Message: "own"}
 	for _, tc := range []struct {
 		name, docs, nodeDocs   string
 		examples, nodeExamples []string
+		dep, nodeDep           *ir.Deprecation
 	}{
-		{"inline", "DOC", "", []string{"a"}, nil},
-		{"content", "DOC", "", []string{"a"}, nil},
-		{"own", "OWN", "DOC", []string{"a"}, nil},
-		{"en", "OWN", "DOC", []string{"a"}, nil},
-		{"example", "DOC", "", []string{"b"}, []string{"a"}},
-		{"entry", "DOC", "", []string{"b"}, []string{"a"}},
-		{"shared", "DOC", "", []string{"a"}, nil},
-		{"described", "OWN", "DOC", []string{"a"}, nil},
-		{"used", "USE", "DOC", []string{"a"}, nil},
-		{"hopped", "HOP", "DOC", []string{"a"}, nil},
+		{"inline", "DOC", "", []string{"a"}, nil, why, nil},
+		{"content", "DOC", "", []string{"a"}, nil, why, nil},
+		{"own", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"en", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"example", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"entry", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"shared", "DOC", "", []string{"a"}, nil, why, nil},
+		{"described", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"used", "USE", "DOC", []string{"a"}, nil, why, nil},
+		{"hopped", "HOP", "DOC", []string{"a"}, nil, why, nil},
+		// A deprecation the parameter, or the content entry it elects, states
+		// leaves the schema's on the node, members and all.
+		{"self", "DOC", "", []string{"a"}, nil, own, why},
+		{"keyed", "DOC", "", []string{"a"}, nil, nil, why},
+		{"entrykey", "DOC", "", []string{"a"}, nil, nil, why},
+		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
 		assert.Equal(t, tc.docs, param.Docs.Description, tc.name)
 		assert.Equal(t, tc.examples, listedExamples(param.Examples), tc.name)
-		assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, tc.name)
-		assert.Equal(t, ir.Inferred("extension-promotion"), param.Provenance.Inferred, tc.name)
+		assert.Equal(t, tc.dep, param.Deprecation, tc.name)
+		promoted := tc.dep != nil && tc.dep.Message != ""
+		assert.Equal(t, promoted, param.Provenance.Inferred == "extension-promotion", "%s: marked where a key fills it", tc.name)
 		assert.False(t, param.Secret, "%s: the node keeps the redaction", tc.name)
 
 		node, ok := doc.Types[param.Type.Target]
@@ -999,7 +1013,7 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		require.True(t, node.Common().Anonymous, tc.name)
 		assert.Equal(t, tc.nodeDocs, node.Common().Docs.Description, tc.name)
 		assert.Equal(t, tc.nodeExamples, listedExamples(node.Common().Examples), tc.name)
-		assert.Nil(t, node.Common().Deprecation, tc.name)
+		assert.Equal(t, tc.nodeDep, node.Common().Deprecation, tc.name)
 		assert.Equal(t, tc.name != "en", node.Common().Sensitive, tc.name)
 		assert.Contains(t, node.Common().Unmodeled, "openapi:x-deprecated-reason", tc.name)
 	}

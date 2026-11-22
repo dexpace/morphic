@@ -486,20 +486,21 @@ func assertHeaderSerialization(t *testing.T, header ir.Header, diags []ir.Diagno
 // TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists pins a header as the
 // home of what its schema notes where that schema hoists a node: in a response,
 // in a component and in a multipart part's encoding, each schema a list, an
-// enum or a model, the header holds the deprecation, and the documentation and
+// enum or a model, the header holds the documentation, the deprecation and the
 // examples unless it writes its own, the node keeping the schema's then, so
 // none is lost (docs/ir/annotations.md#one-structural-home-per-declaration),
 // and a plain use of a component one use describes reads them on the node.
 // Both orders of the components compile alike.
 func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
-	const notes = "description: DOC, deprecated: true, examples: [[a]], xml: {name: X}"
+	const notes = "description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]], xml: {name: X}"
 	const schema = "{type: array, items: {type: string}, " + notes + "}"
 	components := []string{
 		"Shared: {schema: " + schema + "}",
 		"Described: {description: OWN, schema: {type: object, properties: {a: {type: string}}, " + notes + "}}",
 		"Used: {schema: " + schema + "}",
 		"Summed: {schema: " + schema + "}",
+		"Flagged: {deprecated: true, schema: " + schema + "}",
 	}
 	compile := func(components []string) (*ir.Document, ir.Service) {
 		doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
@@ -515,6 +516,10 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 			"            X-Used: {$ref: '#/components/headers/Used', description: USE}\n"+
 			"            X-Plain: {$ref: '#/components/headers/Used'}\n"+
 			"            X-Summed: {$ref: '#/components/headers/Summed', summary: SUM}\n"+
+			"            X-Self: {deprecated: true, x-deprecated-reason: own, schema: "+schema+"}\n"+
+			"            X-Key: {x-deprecated-reason: own, schema: "+schema+"}\n"+
+			"            X-EntryKey: {content: {text/plain: {x-deprecated-reason: own, schema: "+schema+"}}}\n"+
+			"            X-Flagged: {$ref: '#/components/headers/Flagged'}\n"+
 			"    post:\n      operationId: p\n      requestBody:\n        content:\n          multipart/form-data:\n"+
 			"            schema: {type: object, properties: {file: {type: string}}}\n"+
 			"            encoding:\n              file:\n                headers:\n"+
@@ -526,27 +531,35 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 	}
 	doc, svc := compile(components)
 	headers := headersByWire(svc)
+	why, own := &ir.Deprecation{Message: "why"}, &ir.Deprecation{Message: "own"}
 	for _, tc := range []struct {
 		wire, docs, nodeDocs   string
 		examples, nodeExamples []string
+		dep, nodeDep           *ir.Deprecation
 	}{
-		{"X-Inline", "DOC", "", []string{"a"}, nil},
-		{"X-Own", "OWN", "DOC", []string{"a"}, nil},
-		{"X-En", "OWN", "DOC", []string{"a"}, nil},
-		{"X-Example", "DOC", "", []string{"b"}, []string{"a"}},
-		{"X-Entry", "DOC", "", []string{"b"}, []string{"a"}},
-		{"X-Shared", "DOC", "", []string{"a"}, nil},
-		{"X-Described", "OWN", "DOC", []string{"a"}, nil},
-		{"X-Used", "USE", "DOC", []string{"a"}, nil},
-		{"X-Plain", "", "DOC", []string{"a"}, nil},
-		{"X-Summed", "", "DOC", []string{"a"}, nil},
-		{"X-Part", "DOC", "", []string{"a"}, nil},
+		{"X-Inline", "DOC", "", []string{"a"}, nil, why, nil},
+		{"X-Own", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"X-En", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"X-Example", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"X-Entry", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"X-Shared", "DOC", "", []string{"a"}, nil, why, nil},
+		{"X-Described", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"X-Used", "USE", "DOC", []string{"a"}, nil, why, nil},
+		{"X-Plain", "", "DOC", []string{"a"}, nil, why, nil},
+		{"X-Summed", "", "DOC", []string{"a"}, nil, why, nil},
+		{"X-Part", "DOC", "", []string{"a"}, nil, why, nil},
+		// A deprecation the header, or the content entry it elects, states
+		// leaves the schema's on the node, members and all.
+		{"X-Self", "DOC", "", []string{"a"}, nil, own, why},
+		{"X-Key", "DOC", "", []string{"a"}, nil, nil, why},
+		{"X-EntryKey", "DOC", "", []string{"a"}, nil, nil, why},
+		{"X-Flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 	} {
 		header, ok := headers[tc.wire]
 		require.True(t, ok, tc.wire)
 		assert.Equal(t, tc.docs, header.Docs.Description, tc.wire)
 		assert.Equal(t, tc.examples, listedExamples(header.Examples), tc.wire)
-		assert.NotNil(t, header.Deprecation, tc.wire)
+		assert.Equal(t, tc.dep, header.Deprecation, tc.wire)
 		assert.Nil(t, header.XML, "%s: the node keeps its XML hints", tc.wire)
 
 		node, ok := doc.Types[header.Type.Target]
@@ -554,7 +567,7 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 		require.True(t, node.Common().Anonymous, tc.wire)
 		assert.Equal(t, tc.nodeDocs, node.Common().Docs.Description, tc.wire)
 		assert.Equal(t, tc.nodeExamples, listedExamples(node.Common().Examples), tc.wire)
-		assert.Nil(t, node.Common().Deprecation, tc.wire)
+		assert.Equal(t, tc.nodeDep, node.Common().Deprecation, tc.wire)
 		assert.NotNil(t, node.Common().XML, tc.wire)
 	}
 
