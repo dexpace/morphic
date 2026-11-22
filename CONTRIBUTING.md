@@ -201,7 +201,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   is no such difference: `make sweep` ends on `sweep: cannot fetch the pinned specs`, and the job
   opens `ci: the nightly sweep cannot fetch a pinned spec` instead, unless the step times out
   during the fetch: that leaves no such line, so the job opens the difference title, and the issue
-  says its output names no failure. A finding the compiler should not make is its own to fix or
+  sends the reader to the run's log. A finding the compiler should not make is its own to fix or
   file, as for the schema cases; otherwise rewrite the records, which writes a new line as
   `unclassified`, and give it its reason. A spec joins as a line of the list, its SHA-256 that of
   the fetched copy, and the rewrite writes its record:
