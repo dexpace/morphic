@@ -406,7 +406,7 @@ func TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode(t *testing.T) {
           description: ok
           headers:
             X-Own: {description: H, schema: {$ref: ` + obj + `, description: d}}
-            H1: {description: H, schema: {allOf: [{$ref: ` + obj + `}], description: d, deprecated: true}}
+            X-Ref: {description: H, schema: {allOf: [{$ref: ` + obj + `}], description: d, deprecated: true}}
 components:
   parameters:
     Used: {name: used, in: query, schema: {$ref: ` + obj + `, description: d}}
@@ -468,17 +468,13 @@ components:
 		assert.Nil(t, refObjEx.Deprecation)
 		assert.Equal(t, "{a: p}", exampleOf(t, params["refObjEx"].Examples))
 		assert.NotNil(t, params["refObjEx"].Deprecation)
-		refObjDocs := node("/paths/~1x/get/parameters/7/schema")
-		assert.Equal(t, "d", refObjDocs.Docs.Description)
-		assert.Empty(t, refObjDocs.Examples, "an example nothing writes over is the carrier's")
-		assert.Equal(t, "{a: s}", exampleOf(t, params["refObjDocs"].Examples))
-		h1, ok := headerByWire(operation.Responses[0].Headers, "H1")
+		refHeader, ok := headerByWire(operation.Responses[0].Headers, "X-Ref")
 		require.True(t, ok)
-		h1Node := node("/paths/~1x/get/responses/200/headers/H1/schema")
-		assert.Equal(t, "d", h1Node.Docs.Description)
-		assert.Nil(t, h1Node.Deprecation)
-		assert.Equal(t, "H", h1.Docs.Description)
-		assert.NotNil(t, h1.Deprecation)
+		refHeaderNode := node("/paths/~1x/get/responses/200/headers/X-Ref/schema")
+		assert.Equal(t, "d", refHeaderNode.Docs.Description)
+		assert.Nil(t, refHeaderNode.Deprecation)
+		assert.Equal(t, "H", refHeader.Docs.Description)
+		assert.NotNil(t, refHeader.Deprecation)
 
 		referenced := ir.TypeID("type/anonymous/components/schemas/H/properties/r1")
 		r1, ok := propertyByWire(requireEntryModelOf(t, doc, "H"), "r1")
@@ -489,6 +485,12 @@ components:
 		x, ok := propertyByWire(requireEntryModelOf(t, doc, "X"), "x")
 		require.True(t, ok)
 		assert.Equal(t, referenced, x.Type.Target)
+
+		// Last, as exampleOf requires the example it reads.
+		refObjDocs := node("/paths/~1x/get/parameters/7/schema")
+		assert.Equal(t, "d", refObjDocs.Docs.Description)
+		assert.Empty(t, refObjDocs.Examples, "an example nothing writes over is the carrier's")
+		assert.Equal(t, "{a: s}", exampleOf(t, params["refObjDocs"].Examples))
 	})
 	require.Len(t, compiled, 2)
 	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
