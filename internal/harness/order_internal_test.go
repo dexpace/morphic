@@ -1290,9 +1290,11 @@ func TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab(t *testing.T) {
 // encoder behaviour restyleBlockScalars writes a folded scalar literal for: a
 // folded scalar holding a more-indented, tab-led or whitespace-only line
 // encodes with a line break more before that line, so its value reads back
-// changed. Should the encoder stop doing so, this goes red; the folded scalar
+// changed. Should the encoder stop doing so, this goes red; a folded scalar
 // can keep its style once
-// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is red too.
+// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is red too and
+// the double-quoting in restyleBlockScalars tests a folded scalar as it does a
+// literal one.
 func TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine(t *testing.T) {
 	t.Parallel()
 	assertEachReadsBackChanged(t, map[string]string{
