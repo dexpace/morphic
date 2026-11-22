@@ -121,8 +121,9 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The race detector and every schema case are outside it: a nightly job runs `make race`,
-then `make cases`, on `main`. The `Makefile` holds the step list, and each target
+by side. The race detector, every schema case and the pinned public specs are outside it: a
+nightly job runs `make race`, then `make cases` and `make sweep`, on `main`. The `Makefile` holds
+the step list, and each target
 (`make coverage`, `make race`, `make cases`, `make fuzz`, `make bench` and the rest) runs on its
 own while iterating. Coverage is gated at exactly 100% of statements, counted
 from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
@@ -184,6 +185,25 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   ```bash
   go test ./internal/harness/openapicases -update                   # the core records
   go test ./internal/harness/openapicases -run TestFull_ -full -update  # testdata/full
+  ```
+
+- **Pinned public specs.** `make sweep`, which the nightly job runs on `main` and the gate does not,
+  fetches each spec `internal/harness/pinnedspecs/testdata/specs.txt` lists at the commit it pins,
+  into a directory outside the checkout, refuses a copy of another SHA-256 than the list pins, and
+  holds what `harness.Check` finds in it to its record under `testdata/records`: each diagnostic by
+  code and place, with its severity, and each oracle that found something or declined. A line's
+  reason is a key of `reasons` whose text opens `expected: `, where the spec really says what drew
+  the finding, or `#<issue>: `, where an open issue tracks it. When `make sweep` fails, or the
+  nightly job opens `ci: the nightly sweep of the pinned specs finds a difference on main`, each
+  failure is a line naming the spec, the finding or the record's line, and why it fails. A finding
+  the compiler should not make is its own to fix or file, as for the schema cases; otherwise
+  rewrite the records, which writes a new line as `unclassified`, and give it its reason. A spec
+  joins as a line of the list, its SHA-256 that of the fetched copy, and the rewrite writes its
+  record:
+
+  ```bash
+  d=$(mktemp -d) && ./scripts/fetch-pinned-specs.sh "$d" &&
+    go test ./internal/harness/pinnedspecs -run TestSweep_EachPinnedSpecHoldsItsRecord -pinned "$d" -update
   ```
 
 - **Fuzzing.** `make fuzz` runs every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a

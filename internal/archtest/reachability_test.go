@@ -85,6 +85,8 @@ var testSupport = map[string]string{
 	"internal/exectest": "the child command every test that starts a process builds",
 	"internal/harness": "the annotation-retention vocabulary each format's retention test shares, " +
 		"which leaves the rest of the package unread until the vocabulary moves out (#1123)",
+	"internal/harness/pinnedspecs": "the reading of the pinned specs and the naming of what they draw, " +
+		"for the nightly sweep's test",
 	"internal/jsonshape": "the IR's JSON shape, which IRVersion's pin test describes and the census counts",
 	"internal/keydoc":    "the one reader of the keyed documents, for the tests holding each to the code",
 	"internal/leakcheck": "the goroutine leak check each test binary's TestMain runs",

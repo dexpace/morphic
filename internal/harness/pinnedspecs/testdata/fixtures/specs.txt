@@ -1,0 +1,4 @@
+# The fixtures the sweep's tests read as fetched specs (sweep_test.go). Their
+# repository and commit name nothing: no test fetches them.
+quiet   example/specs  0000000000000000000000000000000000000000  specs/quiet.yaml   fdc2b0cc3280d9703029bc39f3cef8248d504dab21a19e6fddb811fb4eb23c4f
+accept  example/specs  0000000000000000000000000000000000000000  specs/accept.yaml  42304b2cdcdedd70e187cbb572cc4e875f7edb55f200d309db5469d83db7c3d0

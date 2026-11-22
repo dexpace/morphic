@@ -9,6 +9,7 @@
 #   make coverage   the suite once, at exactly 100% coverage
 #   make race       the suite under the race detector, as the nightly job runs it
 #   make cases      every schema case through the case oracles, as the nightly job runs it
+#   make sweep      the pinned public specs through the oracles, as the nightly job runs it
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -79,7 +80,7 @@ FUZZTIME ?= 5s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	cases fuzz bench bench-smoke print-lint-version print-go-version
+	cases sweep fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
@@ -175,6 +176,20 @@ race:
 # rewrites testdata/full.
 cases:
 	$(GO) test ./internal/harness/openapicases -run 'TestFull_' -full -count=1 -timeout 15m
+
+# Each public spec internal/harness/pinnedspecs/testdata/specs.txt lists, fetched
+# at the commit it pins into a directory minted per run outside the tree, held to
+# the SHA-256 it pins, and swept through the oracles. It fails on a finding the
+# spec's record under testdata/records does not list, or a line there naming
+# none, one test log line each. The gate never runs it, as it reads the network;
+# the package's tests hold the sweep to committed fixtures offline. To rewrite the
+# records, fetch into a directory and run the test below with -update.
+sweep:
+	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/morphic-sweep.XXXXXX")" || exit 1; \
+	trap 'rm -rf "$$dir"' EXIT; \
+	./scripts/fetch-pinned-specs.sh "$$dir" && \
+	$(GO) test ./internal/harness/pinnedspecs -run 'TestSweep_EachPinnedSpecHoldsItsRecord' \
+		-pinned "$$dir" -count=1 -timeout 8m
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

@@ -76,6 +76,11 @@ type Result struct {
 	// Verdicts holds one Verdict per oracle, in the order Oracles lists them,
 	// or for a case CaseOracles: what each found, or why it asked nothing.
 	Verdicts []Verdict
+	// Diagnostics is every finding the spec's first compile reported, its
+	// passes' included, in the order the run reported them, whether or not an
+	// oracle reads it. It is empty for a case, and for a run a fault or a
+	// refused verification ended.
+	Diagnostics []ir.Diagnostic
 }
 
 // Faulted reports whether a fault ended r's run: its outcome is neither OK nor
@@ -104,9 +109,10 @@ func Check(ctx context.Context, spec string, data []byte) Result {
 	}
 
 	var verdicts []Verdict
+	var diags []ir.Diagnostic
 	var fault error
 	if err := barrier.Catch(func() {
-		fault = check(ctx, spec, data, func(verdict Verdict) { verdicts = append(verdicts, verdict) })
+		diags, fault = check(ctx, spec, data, func(verdict Verdict) { verdicts = append(verdicts, verdict) })
 	}); err != nil {
 		return judge(spec, append([]Verdict{found(OracleNoPanic, panicDetail(err))}, verdicts...))
 	}
@@ -117,7 +123,9 @@ func Check(ctx context.Context, spec string, data []byte) Result {
 	if fault != nil {
 		return ended(spec, OutcomeError, fault.Error(), verdicts)
 	}
-	return judge(spec, verdicts)
+	res := judge(spec, verdicts)
+	res.Diagnostics = diags
+	return res
 }
 
 // ended is the Result of a run a fault ended before any oracle found anything,
@@ -168,18 +176,19 @@ func panicDetail(err error) string {
 }
 
 // check runs data through the oracles in order, handing each verdict to give,
-// and returns the fault that ends the run before any oracle can ask: a source
-// no compiler takes (errUnrecognized), or a Go error from the compile. A
-// verified run the engine refused is the invariants oracle's finding, and
-// nothing follows it, since the engine returns no document.
-func check(ctx context.Context, spec string, data []byte, give func(Verdict)) error {
+// and returns the first compile's findings, or the fault that ends the run
+// before any oracle can ask: a source no compiler takes (errUnrecognized), or
+// a Go error from the compile. A verified run the engine refused is the
+// invariants oracle's finding, and nothing follows it, since the engine
+// returns no document and no findings.
+func check(ctx context.Context, spec string, data []byte, give func(Verdict)) ([]ir.Diagnostic, error) {
 	doc, diags, err := compile(ctx, spec, data, passes())
 	if verr, ok := errors.AsType[*engine.VerifyError](err); ok {
 		give(found(OracleInvariants, fmt.Sprintf("%s: %+v", verr.Stage, verr.Violations)))
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	give(invariants(doc, diags))
@@ -201,7 +210,7 @@ func check(ctx context.Context, spec string, data []byte, give func(Verdict)) er
 	}
 	give(orderInvariant(ctx, spec, data, doc != nil))
 	give(sequenceOrderInvariant(ctx, spec, data, doc != nil))
-	return nil
+	return diags, nil
 }
 
 // invariants holds what the run returned to irverify's invariants: a document

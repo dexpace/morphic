@@ -687,6 +687,8 @@ var exempt = map[string]string{
 		"so it legitimately imports the Layer-3 engine, whose runs it judges",
 	"internal/harness/openapicases": "the cases the harness asks of the OpenAPI compiler, " +
 		"which it reaches through the engine alone",
+	"internal/harness/pinnedspecs": "the list and records of the public specs the nightly sweep " +
+		"holds to what the harness finds in them",
 }
 
 // unbuilt names the rules entries whose directory does not exist yet, each

@@ -325,6 +325,13 @@ These all exist already — extend them rather than building a parallel mechanis
   spelling at a case writing two keywords is new only where it differs at a place neither case
   writing one of them alone differs at. `make cases` holds every case to those files, and
   `go test ./internal/harness/openapicases -full -update` rewrites `testdata/full`.
+- **Pinned public specs**: `make sweep` fetches each spec `internal/harness/pinnedspecs` lists at
+  the commit it pins, holds it to its SHA-256, and holds what `harness.Check` finds in it, each
+  diagnostic by code and place and each oracle that found something or declined, to its record
+  under that package's `testdata/records`. A record's reason is `expected`, where the spec says
+  what drew the finding, or an open issue. The specs are read in place, as the golden spec is, so
+  the gate never runs it: the package's tests hold the sweep to committed fixtures offline, and the
+  nightly job runs it on `main`.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
@@ -505,10 +512,11 @@ make gate
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI are the same commands; CI splits them across two jobs that run
-side by side. The race detector and every schema case are outside it: a nightly job runs
-`make race`, then `make cases`, on `main`, and opens an issue when either fails. Read the `Makefile`
-for the step list rather than restating it here; `make coverage`, `make race`, `make cases`,
-`make fuzz`, `make bench` and the rest are individually runnable while iterating.
+side by side. The race detector, every schema case and the pinned public specs are outside it: a
+nightly job runs `make race`, then `make cases` and `make sweep`, on `main`, and opens an issue for
+each that fails. Read the `Makefile` for the step list rather than restating it here;
+`make coverage`, `make race`, `make cases`, `make fuzz`, `make bench` and the rest are individually
+runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
@@ -526,12 +534,12 @@ context-switch between repos.
   or invent content for files that aren't there.
 - CI is one `gate` workflow (`.github/workflows/gate.yml`) of two jobs that run side by side, on PR
   and on push to `main`, and a third, the race detector, that runs nightly or by hand and never
-  beside them. After the race run, whether or not it passed, that job runs `make cases`, and each
-  run's failure is reported under an issue title of its own. Keep it that way — add a check as a
-  step of one of the two jobs rather than a new job
-  or workflow; both reference repos converge on one bundled gate over granular per-check pipelines,
-  and two jobs is as far as a pull request's run splits. The gate builds, vets and lints for the
-  host alone; Windows and wasm are not targets it checks.
+  beside them. After the race run, whether or not it passed, that job runs `make cases`, then
+  `make sweep`, and each run's failure is reported under an issue title of its own. Keep it that
+  way — add a check as a step of one of the two jobs rather than a new job or workflow; both
+  reference repos converge on one bundled gate over granular per-check pipelines, and two jobs is
+  as far as a pull request's run splits. The gate builds, vets and lints for the host alone;
+  Windows and wasm are not targets it checks.
 
 ## Commits & pull requests
 

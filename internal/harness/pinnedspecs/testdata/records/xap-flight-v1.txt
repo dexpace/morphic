@@ -1,0 +1,5 @@
+# What harness.Check finds in the spec the list names xap-flight-v1, and the reason
+# each finding stands: a diagnostic by its code and place, or an oracle, then
+# what was found, then the reason (reasons_test.go).
+openapi/reserved-header-name /paths/~1flights~1baggagefees~1{offerToken}/get/parameters/5/name	warning	accept-header
+openapi/reserved-header-name /paths/~1flights~1farerules~1{offerToken}/get/parameters/5/name	warning	accept-header

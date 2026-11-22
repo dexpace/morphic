@@ -1,0 +1,3 @@
+# What the fixture accept draws.
+openapi/reserved-header-name /paths/~1a/get/parameters/0/name	warning	accept-header
+oracle sequence-order-invariance	declined: nothing to permute	no-sequence

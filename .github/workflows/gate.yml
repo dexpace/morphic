@@ -114,21 +114,21 @@ jobs:
         run: make coverage
       - *save
 
-  # The race detector, then every schema case, each night main has moved since
-  # the last scheduled run that finished. It restores and saves no cache. A
-  # failure opens an issue, or comments on the one still open, so it is not left
-  # on a run nobody reads.
+  # The race detector, then every schema case, then the pinned public specs, each
+  # night main has moved since the last scheduled run that finished. It restores
+  # and saves no cache. A failure opens an issue, or comments on the one still
+  # open, so it is not left on a run nobody reads.
   #
   # This job alone may write to issues, and it runs only main's code or a
   # writer's dispatch, never a pull request's. The checkout leaves no credential
-  # in .git/config, and the race and cases steps' environments hold no token, but
-  # checkout and setup-go are handed one as an input's default, and the two steps
-  # that call the API as GH_TOKEN.
+  # in .git/config, and the race, cases and sweep steps' environments hold no
+  # token, but checkout and setup-go are handed one as an input's default, and
+  # the two steps that call the API as GH_TOKEN.
   race:
     name: race detector
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -185,8 +185,16 @@ jobs:
         timeout-minutes: 20
         shell: bash
         run: make cases 2>&1 | tee cases.log
-      # A failed cases step is reported under its own title, and every other
-      # failure, the race run's or a step's before it, under the race run's.
+      # Run whether or not the steps before it passed, as the cases step is.
+      - name: sweep
+        id: sweep
+        if: ${{ !cancelled() && steps.moved.outputs.run == 'true' && steps.build.outcome == 'success' }}
+        timeout-minutes: 10
+        shell: bash
+        run: make sweep 2>&1 | tee sweep.log
+      # A failed cases or sweep step is reported under a title of its own, and
+      # every other failure, the race run's or a step's before it, under the
+      # race run's.
       - name: report the failure
         if: failure()
         env:
@@ -195,6 +203,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RACE: ${{ steps.race.outcome }}
           CASES: ${{ steps.cases.outcome }}
+          SWEEP: ${{ steps.sweep.outcome }}
         run: |
           # report TITLE RUN LOG PATTERN BEFORE opens an issue titled TITLE, or
           # comments on the one open, saying RUN failed, with LOG's lines that
@@ -232,7 +241,7 @@ jobs:
                 --body-file "$RUNNER_TEMP/body.md" --label type:bug --label priority:P1
             fi
           }
-          if [ "$RACE" = failure ] || [ "$CASES" != failure ]; then
+          if [ "$RACE" = failure ] || { [ "$CASES" != failure ] && [ "$SWEEP" != failure ]; }; then
             report "ci: the nightly race run fails on main" race race.log \
               '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' "the suite"
           fi
@@ -242,4 +251,10 @@ jobs:
           if [ "$CASES" = failure ]; then
             report "ci: the nightly cases run finds a difference on main" cases cases.log \
               '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases"
+          fi
+          # A sweep failure is a test log line naming the spec, then the
+          # finding or the record line gone stale, or a fetch's own line.
+          if [ "$SWEEP" = failure ]; then
+            report "ci: the nightly sweep of the pinned specs finds a difference on main" sweep sweep.log \
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: |^fetch-pinned-specs: .*(cannot|names no)|^curl: )' "the sweep"
           fi

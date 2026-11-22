@@ -1,0 +1,4 @@
+# What harness.Check finds in the spec the list names xap-sdp-v1, and the reason
+# each finding stands: a diagnostic by its code and place, or an oracle, then
+# what was found, then the reason (reasons_test.go).
+oracle sequence-order-invariance	declined: nothing to permute	no-sequence

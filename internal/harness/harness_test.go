@@ -266,3 +266,42 @@ func TestReport_ResultsNamedAlikeKeepTheirGivenOrder(t *testing.T) {
 	}
 	assert.Equal(t, want, got, "results sharing a spec render in the order they were given")
 }
+
+// acceptHeader declares a header parameter named Accept, which the compiler
+// lowers and warns of.
+const acceptHeader = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: Accept, in: header, schema: {type: string}}
+      responses:
+        '204': {description: none}
+`
+
+// TestCheck_ResultHoldsTheRunsDiagnostics pins that a Result holds every
+// finding of its spec's compile, the compiler's and a pass's, whether or not
+// an oracle reads it: a warning no oracle finds, and an error the passes
+// report.
+func TestCheck_ResultHoldsTheRunsDiagnostics(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, data, code string
+		outcome          harness.Outcome
+	}{
+		{"a compiler's warning", acceptHeader, "openapi/reserved-header-name", harness.OutcomeOK},
+		{"a pass's error", missingVariant, "pass/discriminator-missing-variant", harness.OutcomeErrorDiag},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := harness.Check(context.Background(), "spec.yaml", []byte(tc.data))
+			require.Equal(t, tc.outcome, result.Outcome, result.Detail)
+			codes := make([]string, 0, len(result.Diagnostics))
+			for _, diagnostic := range result.Diagnostics {
+				codes = append(codes, diagnostic.Code)
+			}
+			assert.Equal(t, []string{tc.code}, codes)
+		})
+	}
+}

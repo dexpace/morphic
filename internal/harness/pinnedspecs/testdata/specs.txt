@@ -1,0 +1,9 @@
+# The specs the nightly sweep reads in place, one a line: the name its record
+# under records/ goes by, the GitHub repository and the commit it is read at,
+# its path there, and the SHA-256 of its bytes at that commit
+# (pinnedspecs.ReadList). scripts/fetch-pinned-specs.sh fetches them.
+#
+# name           repository                 commit                                    path                            sha256
+xap-sdp-v1       ExpediaGroup/xap-java-sdk  0e9cf29230f0e546ec6e03e53e77bb828b8bda4a  specs/xap-sdp-v1.specs.yaml     ead26a54153a18ab272dfb7c42c1db1a24c88cee84c0006c5aeab924309b7721
+xap-flight-v1    ExpediaGroup/xap-java-sdk  0e9cf29230f0e546ec6e03e53e77bb828b8bda4a  specs/xap-flight-v1.specs.yaml  b4d29857fb090158d427dbfd3849577bbc18c40ca585545fec10615a32131d8e
+xap-flight-v2    ExpediaGroup/xap-java-sdk  0e9cf29230f0e546ec6e03e53e77bb828b8bda4a  specs/xap-flight-v2.specs.yaml  3bf3ef7f482e3bfda8c6337445412a07c145e43a74349c9993dbe382a41bd4d5
