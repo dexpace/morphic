@@ -34,8 +34,8 @@ while read -r name repository commit path _; do
 	case "$name" in '' | '#'*) continue ;; esac
 	url="https://raw.githubusercontent.com/$repository/$commit/$path"
 	mkdir -p "$dir/$name"
-	if ! curl --fail --silent --show-error --location --retry 3 \
-		--output "$dir/$name/${path##*/}" "$url"; then
+	if ! curl --fail --silent --show-error --location --proto '=https' --retry 3 \
+		--max-time 120 --output "$dir/$name/${path##*/}" "$url"; then
 		echo "fetch-pinned-specs: $name: cannot fetch $url" >&2
 		exit 1
 	fi
