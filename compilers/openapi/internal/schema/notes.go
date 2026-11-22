@@ -30,8 +30,8 @@ type carriedNotes struct {
 // It holds none unless it holds the position (carriedAt), no reference names
 // it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
 // its conjuncts (allOfRefEntries). Then it holds the deprecation, and each
-// note nothing at its position writes over (writtenOver). Node and carrier both ask
-// it, so each note has one home
+// note nothing at its position writes over (writtenOver). Node and carrier
+// both ask it, so each note has one home
 // (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
 // Elsewhere the node keeps them, which each reference to the position reads,
