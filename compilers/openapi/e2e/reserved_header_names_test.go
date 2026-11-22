@@ -102,3 +102,39 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 		})
 	}
 }
+
+// TestReservedHeaderNames_MessageHoldsWhereNothingLowers holds the finding at
+// a component nothing references, which is kept verbatim under Unmodeled and
+// lowers nowhere, to the words of the finding at one an operation lowers: each
+// says the definition is kept as declared, and neither that it is lowered.
+func TestReservedHeaderNames_MessageHoldsWhereNothingLowers(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: g
+      parameters: [{$ref: '#/components/parameters/Used'}]
+      responses: {"204": {description: ok}}
+components:
+  parameters:
+    Used: {name: Accept, in: header, schema: {type: string}}
+    Unused: {name: Accept, in: header, schema: {type: string}}
+  responses:
+    Unused: {description: ok, headers: {Content-Type: {schema: {type: string}}}}
+`)
+	requireNoErrorDiagnostics(t, diags)
+
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/Used", "an operation lowers it")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/parameters/Unused", "nothing lowers it")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/Unused", "nothing lowers it")
+
+	const parameter = `header parameter "Accept" is reserved: OpenAPI says a definition for Accept SHALL be ` +
+		"ignored, so it is kept as declared and left for the emitter to suppress"
+	assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Used/name"))
+	assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Unused/name"))
+	assert.Equal(t, `header "Content-Type" is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be `+
+		"ignored, so it is kept as declared and left for the emitter to suppress",
+		messageAt(t, diags, diag.ReservedHeaderName, "/components/responses/Unused/headers/Content-Type"))
+}

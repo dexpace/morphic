@@ -81,6 +81,30 @@ func TestCheck_ReservedHeaderEntries(t *testing.T) {
 	})
 }
 
+// TestCheck_ReservedHeaderMessagesHoldUnreferenced pins the words of both
+// reserved-name findings in a document whose components nothing references:
+// the table runs before any lowering and cannot know whether one will reach
+// the object, and a component no lowering reaches is kept verbatim, so neither
+// message may say the object is lowered.
+func TestCheck_ReservedHeaderMessagesHoldUnreferenced(t *testing.T) {
+	diagnostics := run(t, "3.1.0", specrules.Document, "{openapi: 3.1.0, info: {title: t, version: '1'}, components: {"+
+		"parameters: {U: {name: Accept, in: header, schema: {type: string}}}, "+
+		"responses: {R: {description: ok, headers: {content-type: {schema: {type: string}}}}}}}")
+
+	messages := map[string]string{}
+	for _, diagnostic := range diagnostics {
+		require.Equal(t, reservedHeader, diagnostic.Code, "no other finding: %s", diagnostic.Message)
+		messages[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
+	}
+	assert.Equal(t, map[string]string{
+		"/components/parameters/U/name": `header parameter "Accept" is reserved: OpenAPI says a definition for ` +
+			"Accept SHALL be ignored, so it is kept as declared and left for the emitter to suppress",
+		"/components/responses/R/headers/content-type": `header "content-type" is reserved: OpenAPI says a ` +
+			"Content-Type entry in a headers map SHALL be ignored, so it is kept as declared and left for the " +
+			"emitter to suppress",
+	}, messages)
+}
+
 // besideRefDocument writes a key beside the $ref of a Reference Object at every
 // position one is read, and a path item beside its own $ref, which gives the
 // path item's fields their meaning.
