@@ -253,8 +253,9 @@ jobs:
               '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases"
           fi
           # A sweep failure is a test log line naming the spec, then the
-          # finding or the record line gone stale, or a fetch's own line.
+          # finding or the record line gone stale, make sweep's line saying the
+          # test did not run, or a fetch's own line.
           if [ "$SWEEP" = failure ]; then
             report "ci: the nightly sweep of the pinned specs finds a difference on main" sweep sweep.log \
-              '(^panic:|^--- FAIL|_test\.go:[0-9]+: |^fetch-pinned-specs: .*(cannot|names no)|^curl: )' "the sweep"
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: |^sweep: |^fetch-pinned-specs: .*(cannot|names no)|^curl: )' "the sweep"
           fi

@@ -184,12 +184,25 @@ cases:
 # none, one test log line each. The gate never runs it, as it reads the network;
 # the package's tests hold the sweep to committed fixtures offline. To rewrite the
 # records, fetch into a directory and run the test below with -update.
+#
+# The test skips without -pinned, and go test prints ok for a skipped test or a
+# -run matching none, so the sweep passes only on the test's own PASS line.
+SWEEP_TEST := TestSweep_EachPinnedSpecHoldsItsRecord
 sweep:
 	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/morphic-sweep.XXXXXX")" || exit 1; \
 	trap 'rm -rf "$$dir"' EXIT; \
-	./scripts/fetch-pinned-specs.sh "$$dir" && \
-	$(GO) test ./internal/harness/pinnedspecs -run 'TestSweep_EachPinnedSpecHoldsItsRecord' \
-		-pinned "$$dir" -count=1 -timeout 8m
+	./scripts/fetch-pinned-specs.sh "$$dir" || exit 1; \
+	$(GO) test ./internal/harness/pinnedspecs -run '^$(SWEEP_TEST)$$' -pinned "$$dir" \
+		-count=1 -timeout 8m -v >"$$dir/sweep.log" 2>&1; \
+	status=$$?; \
+	cat "$$dir/sweep.log"; \
+	if [ "$$status" -ne 0 ]; then \
+		exit "$$status"; \
+	fi; \
+	if ! grep -q '^--- PASS: $(SWEEP_TEST) ' "$$dir/sweep.log"; then \
+		echo "sweep: $(SWEEP_TEST) did not run" >&2; \
+		exit 1; \
+	fi
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
