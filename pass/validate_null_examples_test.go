@@ -33,10 +33,10 @@ func nullParameter(typ ir.TypeRef, required bool, set *ir.Value) *ir.Document {
 }
 
 // nullHeader is headerOperation's document with its header of type stringT,
-// required as required says, and a null example.
-func nullHeader(required bool) *ir.Document {
+// required as required says, written in encoding, and with a null example.
+func nullHeader(required bool, encoding *ir.Encoding) *ir.Document {
 	return headerOperation(func(header *ir.Header) {
-		header.Type, header.Required, header.Examples = stringT, required, []ir.Example{{Value: null()}}
+		header.Type, header.Required, header.Encoding, header.Examples = stringT, required, encoding, []ir.Example{{Value: null()}}
 	})
 }
 
@@ -51,15 +51,15 @@ func nullExample(required bool, encoding *ir.Encoding) func(*ir.Parameter) {
 // TestValidate_ANullExampleOfAParameterLeftOutIsNotReported holds a null
 // example of a parameter or a header that is not required to be the value left
 // out, not judged in any wording (of a kind, an enum or a literal) under any
-// binding, a content type, an encoding of its own or RPC among them. A required
-// one stays judged, an encoding excusing a kind and not a null, as do a null
+// binding, a content type, an encoding or a media type of its own or RPC among
+// them. A required one stays judged, neither excusing a null, as do a null
 // default, a property's null example, which an object can hold as a member
 // whose value is null, and a scenario's null input, which leaves a parameter
 // out by not naming it.
 func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	t.Parallel()
 	enumT, literalT := ir.TypeRef{Target: "type/e"}, ir.TypeRef{Target: "type/four"}
-	commonError := nullHeader(false)
+	commonError := nullHeader(false, nil)
 	commonError.Services[0].CommonErrors = []ir.ErrorCase{{Headers: commonError.Services[0].Groups[0].Operations[0].Responses[0].Headers}}
 	commonError.Services[0].Groups[0].Operations[0].Responses = nil
 	scenario := nullDoc(parameterOperation(func(parameter *ir.Parameter) { parameter.Type = stringT }))
@@ -67,7 +67,7 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *null()}},
 	}}
 	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
-	encoding := &ir.Encoding{Name: "string"}
+	encoding, mediaType := &ir.Encoding{Name: "string"}, &ir.Encoding{MediaType: "application/json"}
 	rpc := parameterOperation(nullExample(false, nil))
 	rpc.Services[0].Groups[0].Operations[0].Bindings.RPC = &ir.RPCBinding{System: "jsonrpc", FullMethod: "x"}
 	nullOfList := []finding{{"parameter/x/q", "example 0 is null, and type/l is not nullable here"}}
@@ -82,18 +82,23 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a parameter not required, of a list under form", nullDoc(parameterOperation(withExample(null()), bindsQ(styled("form", nil)))), nil},
 		{"a parameter not required, under a content type", parameterOperation(nullExample(false, nil), content), nil},
 		{"a parameter not required, in an encoding of its own", parameterOperation(nullExample(false, encoding)), nil},
+		{"a parameter not required, in a media type of its own", parameterOperation(nullExample(false, mediaType)), nil},
 		{"a parameter not required, under an RPC binding", rpc, nil},
 		{"a required parameter, under a content type", parameterOperation(nullExample(true, nil), content), nullOfList},
 		{"a required parameter, in an encoding of its own", parameterOperation(nullExample(true, encoding)), nullOfList},
+		{"a required parameter, in a media type of its own", parameterOperation(nullExample(true, mediaType)), nullOfList},
 		{"a required parameter, of a string", nullParameter(stringT, true, text("abc")),
 			[]finding{{"parameter/x/q", `example "Optional" is null, and type/primitive/string is not nullable here`}}},
 		{"a required parameter, of an enum", nullParameter(enumT, true, text("open")),
 			[]finding{{"parameter/x/q", `example "Optional" is not a member of enum type/e`}}},
 		{"a required parameter, of a literal", nullParameter(literalT, true, number("4")),
 			[]finding{{"parameter/x/q", `example "Optional" is not the value of literal type/four`}}},
-		{"a response's header not required", nullHeader(false), nil},
+		{"a response's header not required", nullHeader(false, nil), nil},
+		{"a response's header not required, declared by content", nullHeader(false, mediaType), nil},
 		{"a common error's header not required", commonError, nil},
-		{"a required response's header", nullHeader(true),
+		{"a required response's header", nullHeader(true, nil),
+			[]finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}},
+		{"a required response's header, declared by content", nullHeader(true, mediaType),
 			[]finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}},
 		{"a model's property not required", modelOf(property("property/a/e", stringT, exampled(null()))),
 			[]finding{{"property/a/e", "example 0 is null, and type/primitive/string is not nullable here"}}},
