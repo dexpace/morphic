@@ -1330,6 +1330,25 @@ func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 	}
 }
 
+// TestEncodeFaithfully_KeepsTheTagOfAScalarItQuotes pins that a block scalar
+// led by indentation keeps its tag once double-quoted: a tag a string's value
+// does not resolve to is written, and a string's reads back alike unwritten.
+func TestEncodeFaithfully_KeepsTheTagOfAScalarItQuotes(t *testing.T) {
+	t.Parallel()
+	for _, tag := range []string{"!t", "!!binary", "!!str"} {
+		docs, why := parseStream([]byte("- k: " + tag + " |\n    \n    x\n"))
+		require.Empty(t, why)
+		want := docs[0].Content[0].Content[0].Content[1].Tag
+
+		out, why := encodeFaithfully(docs)
+		require.Empty(t, why)
+
+		read, why := parseStream(out)
+		require.Empty(t, why)
+		assert.Equal(t, want, read[0].Content[0].Content[0].Content[1].Tag, "%s is written %q", tag, out)
+	}
+}
+
 // TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten pins that the quoting
 // reaches no scalar the encoder writes back in its own style: a quoted one led
 // by a space, a block scalar led by text, and a block scalar led by a line break

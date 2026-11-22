@@ -448,19 +448,19 @@ func tagEmptyFirstDocument(docs []*yaml.Node) {
 }
 
 // quoteBlockScalarsLedByIndentation double-quotes each literal or folded scalar
-// at or below node whose value starts with a space or a line break, keeping its
-// other style flags, a tag's among them. The encoder writes such a scalar with
-// an indentation indicator of its own indent step, which inside a block
-// sequence item places the content where the decoder reads the scalar as ended
-// (TestEncodeYAML_MisplacesABlockScalarLedByIndentation). Double-quoted, the
-// value is written back as it reads. It declines a tree nested past the bound.
+// at or below node whose value starts with a space or a line break. The encoder
+// writes such a scalar with an indentation indicator of its own indent step,
+// which inside a block sequence item places the content where the decoder reads
+// the scalar as ended (TestEncodeYAML_MisplacesABlockScalarLedByIndentation).
+// Double-quoted, the value is written back as it reads, and so is a tag other
+// than a string's, which such a value never resolves to. It declines a tree
+// nested past the bound.
 func quoteBlockScalarsLedByIndentation(node *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	const block = yaml.LiteralStyle | yaml.FoldedStyle
-	if node.Kind == yaml.ScalarNode && node.Style&block != 0 && ledByIndentation(node.Value) {
-		node.Style = node.Style&^block | yaml.DoubleQuotedStyle
+	if node.Kind == yaml.ScalarNode && node.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 && ledByIndentation(node.Value) {
+		node.Style = yaml.DoubleQuotedStyle
 	}
 	for _, child := range node.Content {
 		if why := quoteBlockScalarsLedByIndentation(child, depth+1); why != "" {
