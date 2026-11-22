@@ -8,6 +8,7 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
 	"slices"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
 )
 
 // reservedNamesBody writes each spelling of a reserved header name beside the
@@ -104,10 +106,15 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 	}
 }
 
+// acceptReserved is the finding at a header parameter named Accept, whatever
+// becomes of the definition.
+const acceptReserved = `header parameter "Accept" is reserved: OpenAPI says a definition for Accept SHALL be ` +
+	"ignored, a rule the compiler leaves to the emitter"
+
 // TestReservedHeaderNames_MessageHoldsWhereNothingLowers pins the words of the
 // finding at three fates: a component an operation lowers, one nothing
-// references, kept verbatim under Unmodeled, and a path item's parameter its
-// operation overrides, which is kept nowhere. The table reports before any
+// references, kept verbatim under Unmodeled, and a path item's inline parameter
+// its operation overrides, which is kept nowhere in the document. The table reports before any
 // lowering decides a fate, so the words state the reservation and who applies
 // it, and claim no fate.
 func TestReservedHeaderNames_MessageHoldsWhereNothingLowers(t *testing.T) {
@@ -136,18 +143,53 @@ components:
 	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
 	require.Len(t, params, 1, "the operation's Accept overrides its path item's")
 	assert.Equal(t, "used", params[0].Docs.Description)
-	for key, entry := range doc.Unmodeled {
-		assert.NotContains(t, string(entry.Value), "path-level", "the overridden definition is kept nowhere: %s", key)
-	}
+	encoded, err := json.Marshal(doc)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "path-level", "the overridden definition is kept nowhere")
 
-	const parameter = `header parameter "Accept" is reserved: OpenAPI says a definition for Accept SHALL be ` +
-		"ignored, a rule the compiler leaves to the emitter"
 	for _, pointer := range []string{
 		"/components/parameters/Used/name", "/components/parameters/Unused/name", "/paths/~1a/parameters/0/name",
 	} {
-		assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
+		assert.Equal(t, acceptReserved, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
 	}
 	assert.Equal(t, `header "Content-Type" is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be `+
 		"ignored, a rule the compiler leaves to the emitter",
 		messageAt(t, diags, diag.ReservedHeaderName, "/components/responses/Unused/headers/Content-Type"))
+}
+
+// TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept writes
+// the overridden path-item parameter by $ref. The override drops the
+// reference, so no lowering reaches the component, which is kept verbatim
+// under Unmodeled like any other nothing references, and the finding at its
+// name reads as it does everywhere else.
+func TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{$ref: '#/components/parameters/PathAccept'}]
+    get:
+      operationId: g
+      parameters: [{name: accept, in: header, description: op-level, schema: {type: string}}]
+      responses: {"204": {description: ok}}
+components:
+  parameters:
+    PathAccept: {name: Accept, in: header, description: path-level, schema: {type: string}}
+`)
+	requireNoErrorDiagnostics(t, diags)
+
+	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
+	require.Len(t, params, 1, "the operation's accept overrides its path item's Accept")
+	assert.Equal(t, "op-level", params[0].Docs.Description)
+	kept, ok := doc.Unmodeled["openapi:components/parameters/PathAccept"]
+	require.True(t, ok, "the overridden component is kept: %v", doc.Unmodeled)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.Contains(t, string(kept.Value), "path-level")
+
+	assert.Equal(t, acceptReserved, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/PathAccept/name"))
+	assert.Equal(t, []string{
+		"warning " + diag.ReservedHeaderName + " /components/parameters/PathAccept/name",
+		"warning " + diag.ReservedHeaderName + " /paths/~1a/get/parameters/0/name",
+	}, findingsOf(diags, diag.ReservedHeaderName), "once at the component, not again at the $ref")
 }

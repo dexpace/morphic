@@ -6685,7 +6685,9 @@ compiler leaves it to the emitter, and claims nothing of the definition's fate.
   `specrules.TestCheck_ReservedHeaderParameter`, `specrules.TestCheck_ReservedHeaderEntries`,
   `specrules.TestCheck_ReservedHeaderMessagesHoldUnreferenced`,
   `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`,
-  `e2e.TestReservedHeaderNames_MessageHoldsWhereNothingLowers`, `e2e.TestUnknownKeys_ObjectsKeptWhole`
+  `e2e.TestReservedHeaderNames_MessageHoldsWhereNothingLowers`,
+  `e2e.TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept`,
+  `e2e.TestUnknownKeys_ObjectsKeptWhole`
 
 ### `idempotency-inference`
 
