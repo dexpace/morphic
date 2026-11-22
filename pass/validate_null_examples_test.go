@@ -70,9 +70,12 @@ func nullExample(required bool, encoding *ir.Encoding) func(*ir.Parameter) {
 func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	t.Parallel()
 	enumT, literalT := ir.TypeRef{Target: "type/e"}, ir.TypeRef{Target: "type/four"}
-	commonError := nullHeader(false, nil)
-	commonError.Services[0].CommonErrors = []ir.ErrorCase{{Headers: commonError.Services[0].Groups[0].Operations[0].Responses[0].Headers}}
-	commonError.Services[0].Groups[0].Operations[0].Responses = nil
+	commonError := func(required bool) *ir.Document {
+		doc := nullHeader(required, nil)
+		doc.Services[0].CommonErrors = []ir.ErrorCase{{Headers: doc.Services[0].Groups[0].Operations[0].Responses[0].Headers}}
+		doc.Services[0].Groups[0].Operations[0].Responses = nil
+		return doc
+	}
 	scenario := nullDoc(parameterOperation(func(parameter *ir.Parameter) { parameter.Type = stringT }))
 	scenario.Services[0].Groups[0].Operations[0].Examples = []ir.Example{{
 		Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *null()}},
@@ -120,7 +123,7 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a response's header not required", nullHeader(false, nil), nil},
 		{"a response's header not required, declared by content", nullHeader(false, mediaType), nil},
 		{"a response's header not required, in an encoding of its own", nullHeader(false, encoding), nil},
-		{"a common error's header not required", commonError, nil},
+		{"a common error's header not required", commonError(false), nil},
 		{"a default response's header not required", movedHeader(false, onDefault), nil},
 		{"an error's header not required", movedHeader(false, onError), nil},
 		{"a part's header not required", movedHeader(false, onPart), nil},
@@ -128,6 +131,7 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a required response's header", nullHeader(true, nil), nullOfHeader},
 		{"a required response's header, declared by content", nullHeader(true, mediaType), nullOfHeader},
 		{"a required response's header, in an encoding of its own", nullHeader(true, encoding), nullOfHeader},
+		{"a required common error's header", commonError(true), nullOfHeader},
 		{"a required default response's header", movedHeader(true, onDefault), nullOfHeader},
 		{"a required error's header", movedHeader(true, onError), nullOfHeader},
 		{"a required part's header", movedHeader(true, onPart), nullOfHeader},
