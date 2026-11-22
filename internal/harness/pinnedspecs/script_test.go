@@ -57,6 +57,7 @@ func TestReadList_ReadsAListAsTheFetchScriptDoes(t *testing.T) {
 		{"fields between runs of spaces and tabs", "a \t o/r\t\t" + commit + "   a.yaml\t" + sum + "\n"},
 		{"white space around a line", " \ta o/r " + commit + " a.yaml " + sum + "\t \n"},
 		{"comment and blank lines", "# c\n\n \t\n   # indented\n#a o/r " + commit + " a.yaml " + sum + "\n" + good},
+		{"a comment ending in a backslash", "# c \\\n" + good},
 		{"no newline at the end", good + strings.TrimSuffix(line("b", "o/r", "b.yaml"), "\n")},
 		{"a no-break space between fields", strings.ReplaceAll(good, " ", "\u00a0")},
 		{"a next-line character between fields", strings.ReplaceAll(good, " ", "\u0085")},
