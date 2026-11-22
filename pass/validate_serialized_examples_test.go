@@ -155,6 +155,65 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 		})), nil},
 		{"a string of an object under no binding", parameterOperation(ofType(objectT, text("R,100"))), objectJudged},
 		{"a string of a map under form", parameterOperation(ofType(mapT, text("R,100")), bindsQ(styled("form", nil))), nil},
+		{"a number of an object under form", parameterOperation(ofType(objectT, number("5")), bindsQ(styled("form", nil))),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/o holds an object"}}},
+		{"a bool of a map under deepObject", parameterOperation(ofType(mapT, &ir.Value{Kind: ir.ValueBool, Bool: true}),
+			bindsQ(styled("deepObject", on))), []finding{{"parameter/x/q", "example 0 is a bool, and type/m holds an object"}}},
+		{"a number of an object under simple", parameterOperation(ofType(objectT, number("42")), bindsQ(styled("simple", nil))),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/o holds an object"}}},
+		{"a bool of a list of integers under form", itemOperation(intT, &ir.Value{Kind: ir.ValueBool, Bool: true}),
+			[]finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a number of a list of bools under form", itemOperation(boolT, number("7")),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, found(t, tc.doc, exampleCode))
+		})
+	}
+}
+
+// itemOperation is parameterOperation under form whose parameter is of the
+// list type/i, of element type element, with the one example value.
+func itemOperation(element ir.TypeRef, value *ir.Value) *ir.Document {
+	doc := parameterOperation(ofType(ir.TypeRef{Target: "type/i"}, value), bindsQ(styled("form", nil)))
+	doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: element, Provenance: provAt("type/i")}
+	return doc
+}
+
+// TestValidate_ANumberOrABoolIsOneItemOfAListsText holds a number or a bool
+// example of a list a style writes to be its text only as the one item it
+// is, since it holds no delimiter: accepted where the element type settles to
+// text, to anything or to a shape admitting the value's kind, and judged where
+// it settles to another shape or to a type the check reads no further, and for
+// a tuple, whose items have no one type. A string is accepted whatever the
+// element type, being text a style may split.
+func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
+	t.Parallel()
+	asNumber := []finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}
+	on := &ir.Value{Kind: ir.ValueBool, Bool: true}
+	decimalT := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}
+	enumT := ir.TypeRef{Target: "type/e"}
+	tuple := itemOperation(intT, number("7"))
+	tuple.Types["type/i"] = &ir.Tuple{ID: "type/i", ElementTypes: []ir.TypeRef{intT}, Provenance: provAt("type/i")}
+	enum := itemOperation(enumT, number("8"))
+	enum.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveInteger, Provenance: provAt("type/e"), Members: []ir.EnumMember{
+		{ID: "enum-member/e/7", Value: *number("7")},
+	}}
+	for _, tc := range []struct {
+		name string
+		doc  *ir.Document
+		want []finding
+	}{
+		{"a number of a list of integers", itemOperation(intT, number("7")), nil},
+		{"a number of a list of strings", itemOperation(stringT, number("7")), nil},
+		{"a number of a list of anything", itemOperation(anyT, number("7")), nil},
+		{"a bool of a list of bools", itemOperation(boolT, on), nil},
+		{"a bool of a list of strings", itemOperation(stringT, on), nil},
+		{"a bool of a list of numbers", itemOperation(decimalT, on), []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a number of a list of an enum it is no member of", enum, asNumber},
+		{"a number of a tuple", tuple, asNumber},
+		{"a string of a list of integers", itemOperation(intT, text("a,b")), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -180,10 +239,11 @@ func TestValidate_ASerializedDefaultOfAListOrAnObjectIsReported(t *testing.T) {
 }
 
 // TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged holds a parameter
-// a binding writes whole through a content type, or whose own Encoding writes
-// it, to have neither its examples nor its default judged, as a header with an
-// Encoding has not, and one a content type writes only a member of to have
-// both judged. A content type's binding ahead of one writing no list still
+// whose own Encoding writes it to have neither its examples nor its default
+// judged, and one a media type alone serializes, through its own Encoding or a
+// binding writing it whole under a content type, to have its examples alone
+// unjudged, since its default is a value of the type. One a content type writes only a member of
+// has both judged. A content type's binding ahead of one writing no list still
 // serializes the parameter.
 func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 	t.Parallel()
@@ -192,34 +252,78 @@ func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 		parameter.Examples, parameter.Default = []ir.Example{{Value: text("a,b")}}, text("a,b")
 	}
 	for _, tc := range []struct {
-		name   string
-		doc    *ir.Document
-		judged bool
+		name                         string
+		doc                          *ir.Document
+		exampleJudged, defaultJudged bool
 	}{
-		{"under a content type", parameterOperation(valued, bindsQ(content)), false},
-		{"under a content type, then a style writing no list", parameterOperation(valued, bindsQ(content), bindsQ(styled("deepObject", nil))), false},
+		{"under a content type", parameterOperation(valued, bindsQ(content)), false, true},
+		{"under a content type, then a style writing no list", parameterOperation(valued, bindsQ(content), bindsQ(styled("deepObject", nil))),
+			false, true},
 		{"under its own encoding", parameterOperation(func(parameter *ir.Parameter) {
 			valued(parameter)
 			parameter.Encoding = &ir.Encoding{Name: "string"}
-		}), false},
+		}), false, false},
+		{"under its own encoding naming a media type alone", parameterOperation(func(parameter *ir.Parameter) {
+			valued(parameter)
+			parameter.Encoding = &ir.Encoding{MediaType: "application/json"}
+		}), false, true},
+		{"under its own encoding and a content type", parameterOperation(func(parameter *ir.Parameter) {
+			valued(parameter)
+			parameter.Encoding = &ir.Encoding{Name: "http-date"}
+		}, bindsQ(content)), false, false},
 		{"where a content type writes a member", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
 			content(pb)
 			pb.ParamPath = []ir.PropertyID{"property/m/a"}
-		})), true},
+		})), true, true},
 		{"where a content type writes another parameter", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
 			content(pb)
 			pb.Param = "parameter/x/other"
-		})), true},
+		})), true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var wantExample, wantDefault []finding
-			if tc.judged {
+			if tc.exampleJudged {
 				wantExample = []finding{{"parameter/x/q", "example 0 is a string, and type/l holds a list"}}
+			}
+			if tc.defaultJudged {
 				wantDefault = []finding{{"parameter/x/q", "default is a string, and type/l holds a list"}}
 			}
 			assert.Equal(t, wantExample, found(t, tc.doc, exampleCode))
 			assert.Equal(t, wantDefault, found(t, tc.doc, defaultCode))
+		})
+	}
+}
+
+// TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged holds a header whose
+// Encoding names a media type alone, as one declared by content has, to have
+// its examples alone unjudged, as a parameter a content type writes has, and
+// one whose Encoding names anything else, or nothing, to have neither judged.
+// Its example is an object, which no style writes for a list.
+func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		encoding      *ir.Encoding
+		defaultJudged bool
+	}{
+		{"a media type alone", &ir.Encoding{MediaType: "application/json"}, true},
+		{"a media type and a name", &ir.Encoding{MediaType: "application/json", Name: "base64"}, false},
+		{"a name alone", &ir.Encoding{Name: "http-date"}, false},
+		{"nothing", &ir.Encoding{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := headerOperation(func(header *ir.Header) {
+				header.Encoding, header.Default = tc.encoding, text("a,b")
+				header.Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}}
+			})
+			var wantDefault []finding
+			if tc.defaultJudged {
+				wantDefault = []finding{{"property/x/h", "default is a string, and type/l holds a list"}}
+			}
+			assert.Empty(t, found(t, doc, exampleCode))
+			assert.Equal(t, wantDefault, found(t, doc, defaultCode))
 		})
 	}
 }

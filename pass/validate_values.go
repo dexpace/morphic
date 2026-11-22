@@ -53,7 +53,8 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
-		// the examples alone: a default is a value
+		// The examples alone: a default is a value of the type.
+		site.encoded = site.encoded || positionValue.mediaTyped
 		site.writtenShapes, site.nullAbsent = positionValue.writtenShapes, positionValue.nullExampleLeftOut
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
@@ -150,8 +151,8 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
 // type nothing declares, one holding anything, a union or an external type, the
-// kind and bounds of a value written in an encoding, and a scalar a serialized
-// site writes for a list or an object, where the site's style writes that shape.
+// kind and bounds of a value written in an encoding, and a scalar that may be a
+// list or an object written out in the site's style, as writtenOut says.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -187,10 +188,36 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked || (scalar(value.Kind) && s.writtenShapes.has(sh)) {
+	if s.encoded || enc || sh == shapeNotChecked || s.writtenOut(value, sh, td) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
+}
+
+// writtenOut reports whether value may be td, of shape sh, written out in a
+// style the site writes sh in: a string as its text, and a number or a bool,
+// holding no delimiter, only as the one item of a list whose element type
+// settles to text, to anything or to a shape admitting its kind. So neither is
+// an object's or a tuple's text, nor one for a list of an enum, a literal or a
+// union, which it may be an item of: telling needs the item judged
+// (docs/ir/values.md#values-held-to-their-type).
+func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef) bool {
+	if !s.writtenShapes.has(sh) {
+		return false
+	}
+	if value.Kind == ir.ValueString {
+		return true
+	}
+	if value.Kind != ir.ValueNumber && value.Kind != ir.ValueBool {
+		return false
+	}
+	list, ok := td.(*ir.List)
+	if !ok {
+		return false
+	}
+	var elementBounds bounds
+	item, _, _ := settle(s.doc, list.ElementType.Target, &elementBounds)
+	return item == shapeText || item == shapeAnything || admits(item, value.Kind)
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the
@@ -229,12 +256,6 @@ func admits(sh shape, valueKind ir.ValueKind) bool {
 	default:
 		return valueKind == ir.ValueObject // shapeObject: no other shape is asked
 	}
-}
-
-// scalar reports whether a value of kind valueKind is a string, a number or a
-// bool, the kinds a style writes a value of as text.
-func scalar(valueKind ir.ValueKind) bool {
-	return valueKind == ir.ValueString || valueKind == ir.ValueNumber || valueKind == ir.ValueBool
 }
 
 // shapeWords says what a type of shape sh holds.
