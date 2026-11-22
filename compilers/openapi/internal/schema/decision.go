@@ -212,7 +212,12 @@ func usesOneRefHolding(loweringContext lowering.Ctx, schema *statement.Schema, c
 	carried := carriedAt(loweringContext, schema)
 	var refKinds kindSet
 	if carried {
-		refKinds, _ = lowersTo(loweringContext, ref)
+		// A kind only the kind-inference policy reads is no kind the referent
+		// declares, so a `type` naming it is the position's own.
+		kinds, inferred := lowersTo(loweringContext, ref)
+		if !inferred {
+			refKinds = kinds
+		}
 	}
 	quiet := func(statementSchema *statement.Schema, notes carriedNotes) bool {
 		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema, notes, refKinds)
@@ -253,7 +258,8 @@ func oneQuietRef(comp allOfComposition) *statement.Statement {
 // carrier holds and a node cannot
 // (docs/compilers/openapi.md#use-bound-annotations), a note notes gives the
 // carrier (carriedNotes.holds), or a `type` naming refKinds alone, the kinds
-// the $ref beside it lowers to (typeNamesOnly).
+// the referent of the $ref beside it declares, none where only the
+// kind-inference policy reads them (typeNamesOnly).
 func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema, notes carriedNotes, refKinds kindSet) bool {
 	return schema.Truth == statement.Stated && !slices.ContainsFunc(schema.Keys, func(key statement.Key) bool {
 		switch {
@@ -270,10 +276,11 @@ func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema, notes 
 	})
 }
 
-// typeNamesOnly reports whether schema's `type` names exactly kinds, what a
-// $ref lowers to (lowersTo): then it narrows nothing that $ref admits. Those
-// kinds hold no null, so a type naming null says something of its own, and so
-// does a word no dialect defines.
+// typeNamesOnly reports whether schema's `type` names exactly kinds, what the
+// referent of a $ref declares it lowers to (lowersTo): then it narrows nothing
+// that $ref admits. A kind the kind-inference policy reads is not among them,
+// so a type naming it is the position's own. Nor is null, so a type naming
+// null says something of its own, and so does a word no dialect defines.
 func typeNamesOnly(schema *statement.Schema, kinds kindSet) bool {
 	var named kindSet
 	for _, typeName := range schema.Types() {

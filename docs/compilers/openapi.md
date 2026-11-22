@@ -1814,7 +1814,7 @@ carrier names the reference and holds them, as over any other target, so
 `{allOf: [{$ref: Obj}], type: object}` at a property name `Obj`. A use-bound keyword or a `type` on
 another entry of the `allOf` counts alike. A `type` that names another kind, or null, or a word no
 dialect defines, says something of its own, and so does `type: object` over a referent naming no
-kind once the kind-inference policy is off, since the referent then lowers to no object.
+kind, whose kind only the kind-inference policy reads.
 A note counts so only where the carrier holds it: where a reference names the position, the
 notes stay on the `Model`, which every reference reads; where the parameter or header writes its
 own documentation, deprecation or examples, or a Reference Object naming it writes documentation

@@ -286,26 +286,31 @@ func TestRefUseBound_ANoteIsTheCarriers(t *testing.T) {
 func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 	t.Parallel()
 	for name, schema := range map[string]string{
-		"an extension":                "{$ref: '#/components/schemas/Obj', description: d, x-note: n}",
-		"an XML hint":                 "{$ref: '#/components/schemas/Obj', description: d, xml: {name: n}}",
-		"a constraint over an object": "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, required: [a]}",
-		"another conjunct":            "{allOf: [{$ref: '#/components/schemas/Obj'}, {description: d}]}",
-		"a note on the $ref's entry":  "{allOf: [{$ref: '#/components/schemas/Obj', description: d}]}",
-		"a type Obj does not have":    "{$ref: '#/components/schemas/Obj', type: array, description: d}",
-		"a type naming null":          "{$ref: '#/components/schemas/Obj', type: [object, 'null'], description: d}",
+		"an extension":                 "{$ref: '#/components/schemas/Obj', description: d, x-note: n}",
+		"an XML hint":                  "{$ref: '#/components/schemas/Obj', description: d, xml: {name: n}}",
+		"a constraint over an object":  "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, required: [a]}",
+		"another conjunct":             "{allOf: [{$ref: '#/components/schemas/Obj'}, {description: d}]}",
+		"a note on the $ref's entry":   "{allOf: [{$ref: '#/components/schemas/Obj', description: d}]}",
+		"a type Obj does not have":     "{$ref: '#/components/schemas/Obj', type: array, description: d}",
+		"a type naming null":           "{$ref: '#/components/schemas/Obj', type: [object, 'null'], description: d}",
+		"a type over an inferred kind": "{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileAnnotationSpec(t, "kept", noteUseSpec("3.1.0", schema))
+			doc, diags := compileAnnotationSpec(t, "kept", noteUseSpec("3.1.0", schema, "Untyped: {properties: {a: {type: string}}}"))
 			assertNoErrorDiags(t, diags)
+			referent := componentID("Obj")
+			if strings.Contains(schema, "Untyped") {
+				referent = componentID("Untyped")
+			}
 			for carrierName, carrier := range noteCarriersOf(t, doc) {
 				id := ir.TypeID("type/anonymous" + noteCarrierPositions[carrierName])
 				assert.Equal(t, id, carrier.target, carrierName)
 				assert.Empty(t, carrier.docs.Description, carrierName)
 				model, ok := kindNode(t, doc, id).(*ir.Model)
-				require.True(t, ok, "%s owns the Model over Obj", carrierName)
+				require.True(t, ok, "%s owns the Model over its referent", carrierName)
 				require.NotNil(t, model.Base, carrierName)
-				assert.Equal(t, componentID("Obj"), model.Base.Target, carrierName)
+				assert.Equal(t, referent, model.Base.Target, carrierName)
 				assert.Equal(t, "d", model.Docs.Description, carrierName)
 			}
 		})
@@ -313,31 +318,29 @@ func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 }
 
 // TestRefUseBound_ATypeItsReferentLowersToBindsTheUse holds that a `type`
-// naming only the kinds the $ref beside it lowers to says nothing of its own:
-// beside the allOf, on another entry, beside a `nullable: true` the policy
-// reads as widening the reference, and over a referent the kind-inference
-// policy reads as an object, each carrier names the referent and holds the
-// note, and no node stands at its position. A position no carrier holds owns
+// naming only the kinds the referent of the $ref beside it declares says
+// nothing of its own: beside the allOf, on another entry and beside a
+// `nullable: true` the policy reads as widening the reference, each carrier
+// names the referent and holds the note, and no node stands at its position. A position no carrier holds owns
 // the Model over the referent, as before.
 func TestRefUseBound_ATypeItsReferentLowersToBindsTheUse(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		version, schema, target, docs string
-		nullable                      bool
+		version, schema, docs string
+		nullable              bool
 	}{
-		"objTyped":            {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, description: d}", "Obj", "d", false},
-		"objTypedNul":         {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, nullable: true, description: d}", "Obj", "d", true},
-		"objTyped31":          {"3.1.0", "{$ref: '#/components/schemas/Obj', type: object, description: d}", "Obj", "d", false},
-		"a type alone":        {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object}", "Obj", "O", false},
-		"on an entry":         {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}, {type: object}], description: d}", "Obj", "d", false},
-		"an untyped referent": {"3.1.0", "{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}", "Untyped", "d", false},
+		"objTyped":     {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, description: d}", "d", false},
+		"objTypedNul":  {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, nullable: true, description: d}", "d", true},
+		"objTyped31":   {"3.1.0", "{$ref: '#/components/schemas/Obj', type: object, description: d}", "d", false},
+		"a type alone": {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object}", "O", false},
+		"on an entry":  {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}, {type: object}], description: d}", "d", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileAnnotationSpec(t, "typed", noteUseSpec(tc.version, tc.schema, "Untyped: {properties: {a: {type: string}}}"))
+			doc, diags := compileAnnotationSpec(t, "typed", noteUseSpec(tc.version, tc.schema))
 			assertNoErrorDiags(t, diags)
 			for carrierName, carrier := range noteCarriersOf(t, doc) {
-				assert.Equal(t, componentID(tc.target), carrier.target, "%s names the referent", carrierName)
+				assert.Equal(t, componentID("Obj"), carrier.target, "%s names the referent", carrierName)
 				assert.Equal(t, tc.docs, carrier.docs.Description, carrierName)
 				assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+noteCarrierPositions[carrierName]), carrierName)
 			}
@@ -350,7 +353,7 @@ func TestRefUseBound_ATypeItsReferentLowersToBindsTheUse(t *testing.T) {
 				model, ok := kindNode(t, doc, id).(*ir.Model)
 				require.True(t, ok, "%s owns the Model over the referent", id)
 				require.NotNil(t, model.Base, id)
-				assert.Equal(t, componentID(tc.target), model.Base.Target, id)
+				assert.Equal(t, componentID("Obj"), model.Base.Target, id)
 			}
 		})
 	}
