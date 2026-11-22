@@ -30,7 +30,7 @@ type carriedNotes struct {
 // It holds none unless it holds the position (carriedAt), no reference names
 // it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
 // its conjuncts (allOfRefEntries). Then it holds the deprecation, and each
-// note its own object does not write (writtenOver). Node and carrier both ask
+// note nothing at its position writes over (writtenOver). Node and carrier both ask
 // it, so each note has one home
 // (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
@@ -94,8 +94,9 @@ type documentedUses struct{}
 // documentedAtUse returns the Parameter and Header Objects a Reference Object
 // whose chain resolves to one writes a summary or a description beside, read
 // once for the run: a carrier reached through it takes them over its
-// declaration's (componentlookup.UseDocs). Each hop of a chain is a Reference
-// Object of its own, ending where the chain does.
+// declaration's (componentlookup.UseDocs). Its schema's node keeps the docs
+// for every use, so a use writing none holds none on its carrier. Each hop of
+// a chain is a Reference Object of its own, ending where the chain does.
 func documentedAtUse(loweringContext lowering.Ctx) map[reftable.DocumentPointer]bool {
 	return lowering.ReadOncePerRun(loweringContext, documentedUses{}, func() map[reftable.DocumentPointer]bool {
 		documented := map[reftable.DocumentPointer]bool{}
@@ -174,8 +175,8 @@ func carriedNoteKeys(loweringContext lowering.Ctx, schema *statement.Schema, typ
 // so the promotion still reports a key it misreads, once, at the node keeping
 // the key, while the carrier reads the key in silence (carriedNoteKeys).
 //
-// So a position a reference names keeps every note here, and one whose carrier
-// writes a note of its own keeps the schema's.
+// So a position a reference names keeps every note here, and one any of whose
+// carriers writes a note of its own keeps the schema's, for every use.
 func placeNotes(loweringContext lowering.Ctx, common *ir.TypeCommon, a annotation.Set, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (**ir.Deprecation, *ir.Provenance) {
 	notes := notesOnCarrier(loweringContext, schema, pointer, target)

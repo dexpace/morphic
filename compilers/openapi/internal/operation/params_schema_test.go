@@ -933,7 +933,8 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 // a list, an enum or a model, the parameter holds the deprecation and a
 // promoted member with its mark, and the documentation and examples unless it
 // writes its own, the node keeping the schema's then, so none is lost
-// (docs/ir/annotations.md#one-structural-home-per-declaration). Both orders of
+// (docs/ir/annotations.md#one-structural-home-per-declaration), and a plain
+// use of a component one use describes reads them on the node. Both orders of
 // the components compile alike.
 func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
@@ -960,6 +961,9 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - $ref: '#/components/parameters/Described'\n"+
 			"        - {$ref: '#/components/parameters/Used', description: USE}\n"+
 			"        - $ref: '#/components/parameters/Aliased'\n"+
+			"      responses: {\"204\": {description: none}}\n"+
+			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
+			"        - $ref: '#/components/parameters/Used'\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"components:\n  parameters:\n    "+strings.Join(components, "\n    ")+"\n")
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -999,6 +1003,18 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		assert.Equal(t, tc.name != "en", node.Common().Sensitive, tc.name)
 		assert.Contains(t, node.Common().Unmodeled, "openapi:x-deprecated-reason", tc.name)
 	}
+
+	described, ok := openapitest.ParamBySource(operation, "used")
+	require.True(t, ok)
+	plain, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "h"), "used")
+	require.True(t, ok)
+	assert.Empty(t, plain.Docs.Description, "a plain use reads the docs on the node")
+	assert.Equal(t, described.Examples, plain.Examples)
+	assert.Equal(t, described.Deprecation, plain.Deprecation)
+	assert.Equal(t, described.Type.Target, plain.Type.Target, "both uses name one node")
+	node, ok := doc.Types[plain.Type.Target]
+	require.True(t, ok)
+	assert.Equal(t, "DOC", node.Common().Docs.Description)
 
 	reversed := slices.Clone(components)
 	slices.Reverse(reversed)

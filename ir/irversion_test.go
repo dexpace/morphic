@@ -189,7 +189,7 @@ var generations = []generation{
 		names: "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb"},
 	{version: "0.73.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
 		names:   "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb",
-		meaning: "a property, parameter or header whose own inline schema hoists a node holds that schema's Docs, Deprecation and Examples, a promoted deprecation and its mark among them and a replacement its node's key names resolved on the carrier, and the node holds none of them, unless the schema names a $ref or a reference names its position, the node keeping the schema's Docs or Examples where a parameter or header writes its own"},
+		meaning: "a property, parameter or header whose own inline schema hoists a node holds that schema's Docs, Deprecation and Examples, a promoted deprecation and its mark among them and a replacement its node's key names resolved on the carrier, and the node holds none of them, unless the schema names a $ref or a reference names its position, the node keeping the schema's Docs or Examples for every use where a parameter or header, or a Reference Object beside its $ref, writes its own"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

@@ -488,7 +488,8 @@ func assertHeaderSerialization(t *testing.T, header ir.Header, diags []ir.Diagno
 // in a component and in a multipart part's encoding, each schema a list, an
 // enum or a model, the header holds the deprecation, and the documentation and
 // examples unless it writes its own, the node keeping the schema's then, so
-// none is lost (docs/ir/annotations.md#one-structural-home-per-declaration).
+// none is lost (docs/ir/annotations.md#one-structural-home-per-declaration),
+// and a plain use of a component one use describes reads them on the node.
 // Both orders of the components compile alike.
 func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
@@ -512,6 +513,7 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 			"            X-Shared: {$ref: '#/components/headers/Shared'}\n"+
 			"            X-Described: {$ref: '#/components/headers/Described'}\n"+
 			"            X-Used: {$ref: '#/components/headers/Used', description: USE}\n"+
+			"            X-Plain: {$ref: '#/components/headers/Used'}\n"+
 			"            X-Summed: {$ref: '#/components/headers/Summed', summary: SUM}\n"+
 			"    post:\n      operationId: p\n      requestBody:\n        content:\n          multipart/form-data:\n"+
 			"            schema: {type: object, properties: {file: {type: string}}}\n"+
@@ -536,6 +538,7 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 		{"X-Shared", "DOC", "", []string{"a"}, nil},
 		{"X-Described", "OWN", "DOC", []string{"a"}, nil},
 		{"X-Used", "USE", "DOC", []string{"a"}, nil},
+		{"X-Plain", "", "DOC", []string{"a"}, nil},
 		{"X-Summed", "", "DOC", []string{"a"}, nil},
 		{"X-Part", "DOC", "", []string{"a"}, nil},
 	} {

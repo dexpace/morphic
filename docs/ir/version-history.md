@@ -1269,7 +1269,8 @@ it sees. Changes made together in one bump are listed together under it.
   `Scalar`, holds the `Docs`, `Deprecation` and `Examples` that schema writes, and the node holds
   none of them ([one home](./annotations.md#one-structural-home-per-declaration)), unless a
   parameter or a header writes its own documentation or examples, or a Reference Object naming it
-  writes documentation beside its `$ref`: the node then keeps the schema's, as before. They were the
+  writes documentation beside its `$ref`: the node then keeps the schema's, as before, for every use
+  of that component, so a use writing none finds them on the node and none on the member. They were the
   node's, so the carrier was documented, deprecated and exemplified only where its schema hoisted
   nothing. A deprecation the promotion policy reads from a key on that schema follows, with the
   carrier marked `extension-promotion`, and so does a replacement such a key names; the node keeps

@@ -168,7 +168,8 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
 // parameter, as schema.CarriedAnnotations reads it: everything where the schema
 // reduced to a shared primitive (GitHub #116), and where it hoisted a node, the
-// notes the parameter does not write itself, the node keeping the rest.
+// notes nothing at its position writes over, the node keeping the rest for
+// every use.
 //
 // fillParamDetail writes the parameter's own afterwards, which replace the
 // schema's description and examples only where no node holds them. Docs,

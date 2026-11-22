@@ -177,9 +177,10 @@ shared primitive and the type graph stays free of an anonymous node per element 
 builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a
 `Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
 has fields for, and the node holds none of them, so a reader of a model's members meets them on the
-member whichever kind its schema is. That holds of each note the carrier's own object does not
-write: where a parameter or a header writes its own documentation or examples beside its schema's,
-the carrier holds its own and the node keeps the schema's. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
+member whichever kind its schema is. That holds of each note nothing at the position writes over: where a
+parameter or a header writes its own documentation or examples beside its schema's, or a Reference
+Object naming a component one writes documentation beside its `$ref`, the node keeps the schema's
+for every use of that position, and each carrier holds only its own. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
 verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
 its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a

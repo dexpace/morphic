@@ -1972,8 +1972,10 @@ its `allOf`, keeps its own on the node it builds. At a position no carrier holds
 node the position owns. A parameter's or header's
 own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
 `$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
-node that schema hoists keeps the schema's documentation, so neither is lost; where the schema
-hoists none, the carrier's own replace it, and nothing keeps the schema's. `deprecated: true` on a parameter or header and on its
+node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema
+keeps its documentation on the node for every use once one Reference Object writes documentation
+beside its `$ref`, so a use writing none reads them there and its carrier holds none; where the
+schema hoists none, the carrier's own replace it, and nothing keeps the schema's. `deprecated: true` on a parameter or header and on its
 schema each deprecate it, neither one's `false` clearing the other. A request body's `description`
 lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
 its own. OpenAPI has no syntax for naming a type in prose, so a `description` is kept as written and
