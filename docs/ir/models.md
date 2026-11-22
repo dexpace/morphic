@@ -368,7 +368,7 @@ already says, or kept whole under its path, a `$ref` a value set narrows under `
 `allOf` whose kinds are an object alone, stating no value set, composes as it always did, one sole `$ref` with nothing beside it a
 decorator ([annotations](./annotations.md#decorators)) for emitters to collapse, unless a carrier
 holds the position and holds all it writes beside the `$ref` but a `type` naming only what the
-target lowers to, which is then the carrier's use of it.
+target declares, which is then the carrier's use of it.
 
 The designs this was weighed against:
 

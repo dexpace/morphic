@@ -1286,7 +1286,7 @@ it sees. Changes made together in one bump are listed together under it.
   one `$ref` to an object or beside an `allOf` of it, only notes the carrier holds, a `title`, a
   `description`, `externalDocs`, `deprecated`, `example` or `examples`, and the keywords that bind
   the use ([`use-bound-annotations`](../compilers/openapi.md#use-bound-annotations)), and a `type`
-  naming only what the referent lowers to, names that object and holds them over the object's own,
+  naming only what the referent declares, names that object and holds them over the object's own,
   and no anonymous `Model` stands at its position
   ([decorators](./annotations.md#decorators),
   [`ref-use-site`](../compilers/openapi.md#ref-use-site)). They were a decorator's, a `Model` whose

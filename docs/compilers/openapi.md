@@ -1805,7 +1805,7 @@ property, parameter or header names the `Model` over the target, a decorator hol
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
 and a `nullable: true` the nullable-inference policy reads, a `type` naming only the kinds the
-referent lowers to, and the notes the carrier holds
+referent declares, and the notes the carrier holds
 ([`docs-and-deprecation`](#docs-and-deprecation)), `title`, `description`, `externalDocs`,
 `deprecated`, `example` and `examples`, beside the `$ref` or beside an `allOf` of it, with nothing
 else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no decorator there: the
@@ -2001,7 +2001,7 @@ Through a `$ref` the referent's land on the carrier under the use site's field b
 its `allOf`, keeps its own on the node it builds, unless it writes beside one `$ref` to an object, or
 beside an `allOf` of it, only these and the keywords that bind the use
 ([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming only what the referent
-lowers to, and the carrier holds them: it then builds no node, and the carrier holds them over the
+declares, and the carrier holds them: it then builds no node, and the carrier holds them over the
 referent's ([`ref-use-site`](#ref-use-site)). Where the node stays only because the carrier writes
 over the schema's documentation, deprecation or examples, a deprecation or an example nothing at
 the carrier writes over is still the carrier's. At a position no carrier holds, they land on the
