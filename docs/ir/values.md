@@ -59,17 +59,17 @@ reading is shallow: the value's kind against the shape of the type, an enum's me
 value, null where the position is not nullable, whole numbers for an integer, and the bounds the
 position declares with those of the alias scalars it reaches. A value that is a reference or a
 constructor, a type holding anything, a union, an external type and an unknown type are not judged,
-and at a position written in an encoding only an enum's members, a literal's value and null are. A
-position is written in an encoding where an `Encoding` writes it, that of a scalar or a list its
-type reaches through aliases or its own as a property, a header or a parameter, and the same holds
-of its default as of its examples, unless its own names a `MediaType` and nothing else, as a header
+and of a value written in an encoding only an enum's members, a literal's value and null are. A value
+is written in an encoding where an `Encoding` writes it: that of a scalar or a list its type reaches
+through aliases, or a position's own, as a property, a header or a parameter has, which writes its
+default as it writes its examples unless it names a `MediaType` and nothing else, as a header
 declared by `content` has. A media type alone writes the value in its format without changing what
 the type holds, so there, and where an HTTP binding writes the whole parameter through a
-`ContentType`, only the examples are judged as at a position written in an encoding: the default, a
-value of the type, is judged whole. The sites are a property's, a parameter's and a header's default
-and examples, a type's own examples (a null one says the example is absent and is not judged), and
-in an operation's examples each input parameter against the parameter it names, and the error
-content against the error's type.
+`ContentType`, only the examples are judged as values written in an encoding: the default, a value of
+the type, is judged as it is at any other position. The sites are a property's, a parameter's and a
+header's default and examples, a type's own examples (a null one says the example is absent and is
+not judged), and in an operation's examples each input parameter against the type and bounds of the
+parameter it names, though not its own `Encoding`, and the error content against the error's type.
 
 A null example of a parameter or a header that is not `Required` stands for the value left out, as a
 source writes one to show that it may be omitted, and is not judged, whatever its type: a query,
@@ -93,12 +93,15 @@ A style can write a shape where OpenAPI's style table gives it a text: a list un
 does not name writes neither. So under `deepObject` a string example of a list is judged, and one of
 an object is not. Such a string is not split on the style's delimiter and judged item by item or
 member by member, which would need each style's grammar. A number or a bool holds no delimiter, so
-it is decided by its kind alone: it is never an object's text, and is a list's text only as its one
-item, where the style writes a list and the list's element type settles to text, to a type holding
-anything, or to a shape admitting the value's kind, as a number does an integer. Every other number
-or bool example of a list is judged: a number for a list of booleans, a bool for a list of numbers,
-either for a tuple, whose items have no one type, and either for a list of an enum, a literal or a
-union, though it may be one of its items, since telling needs the item judged against its type. No
+it is judged as the list's one item: it is never an object's text, and is a list's text only where
+the style writes a list, the list's `minItems` and `maxItems` admit one item, and the element type
+holds that item, judged as a value of it is, whole numbers and bounds included, and as its text
+where the element settles to text, so `true` is four characters long. An element holding anything
+holds every item. Every other number or bool example of a list is judged: a bool for a list of
+numbers, a fraction for a list of integers, a number beyond its item's bounds or under a `minItems`
+of two, either for a tuple, whose items have no one type, and either for a list of an enum, a
+literal or a union, though it may be one of its items, since the check judges no item against such
+a type. No
 other binding writes a value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or
 by no binding, one a binding writes only a member of, and a property, has every scalar example of a
 list or an object judged, unless an encoding writes it. A default is a value of the type, written

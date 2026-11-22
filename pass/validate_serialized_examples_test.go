@@ -181,17 +181,35 @@ func itemOperation(element ir.TypeRef, value *ir.Value) *ir.Document {
 	return doc
 }
 
+// boundedItems is itemOperation whose list declares the bounds list and whose
+// element is the alias type/s of base, declaring the bounds element.
+func boundedItems(base ir.TypeRef, element, list *ir.Constraints, value *ir.Value) *ir.Document {
+	doc := itemOperation(ir.TypeRef{Target: "type/s"}, value)
+	doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: ir.TypeRef{Target: "type/s"}, Constraints: list, Provenance: provAt("type/i")}
+	doc.Types["type/s"] = &ir.Scalar{ID: "type/s", Base: &base, Constraints: element, Provenance: provAt("type/s")}
+	return doc
+}
+
 // TestValidate_ANumberOrABoolIsOneItemOfAListsText holds a number or a bool
-// example of a list a style writes to be its text only as the one item it
-// is, since it holds no delimiter: accepted where the element type settles to
-// text, to anything or to a shape admitting the value's kind, and judged where
-// it settles to another shape or to a type the check reads no further, and for
-// a tuple, whose items have no one type. A string is accepted whatever the
-// element type, being text a style may split.
+// example of a list a style writes to be its text only as its one item, since
+// it holds no delimiter: judged against the list's item counts and the element
+// type, whole numbers and bounds included, as text where the element is text,
+// and accepted where it holds anything. It is judged where the element is a
+// type the check reads no further, and for a tuple, whose items have no one
+// type. A string is accepted whatever the element, being text a style may split.
 func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 	t.Parallel()
 	asNumber := []finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}
+	asBool := []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}
 	on := &ir.Value{Kind: ir.ValueBool, Bool: true}
+	header := func(value *ir.Value) *ir.Document {
+		doc := headerOperation(func(header *ir.Header) {
+			header.Type, header.Examples = ir.TypeRef{Target: "type/i"}, []ir.Example{{Value: value}}
+		})
+		doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: intT, Provenance: provAt("type/i")}
+		return doc
+	}
+	five, two := ir.BigVal("5"), int64(2)
 	decimalT := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}
 	enumT := ir.TypeRef{Target: "type/e"}
 	tuple := itemOperation(intT, number("7"))
@@ -210,7 +228,20 @@ func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 		{"a number of a list of anything", itemOperation(anyT, number("7")), nil},
 		{"a bool of a list of bools", itemOperation(boolT, on), nil},
 		{"a bool of a list of strings", itemOperation(stringT, on), nil},
-		{"a bool of a list of numbers", itemOperation(decimalT, on), []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a bool of a list of numbers", itemOperation(decimalT, on), asBool},
+		{"a fraction of a list of integers", itemOperation(intT, number("8.5")), asNumber},
+		{"a fraction of a list of numbers", itemOperation(decimalT, number("8.5")), nil},
+		{"a number within its item's maximum", boundedItems(intT, &ir.Constraints{Max: &five}, nil, number("5")), nil},
+		{"a number over its item's maximum", boundedItems(intT, &ir.Constraints{Max: &five}, nil, number("8")), asNumber},
+		{"a number under the list's minimum count", boundedItems(intT, nil, &ir.Constraints{MinItems: &two}, number("8")), asNumber},
+		{"a number over the list's maximum count", boundedItems(intT, nil, &ir.Constraints{MaxItems: new(int64(0))}, number("8")), asNumber},
+		{"a number within the list's counts", boundedItems(intT, nil, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(1))}, number("8")), nil},
+		{"a bool longer than its text item's maximum", boundedItems(stringT, &ir.Constraints{MaxLength: &two}, nil, on), asBool},
+		{"a number within its text item's maximum", boundedItems(stringT, &ir.Constraints{MaxLength: &two}, nil, number("12")), nil},
+		{"a number shorter than its text item's minimum", boundedItems(stringT, &ir.Constraints{MinLength: &two}, nil, number("1")), asNumber},
+		{"a number of a list of anything under the list's minimum count", boundedItems(anyT, nil, &ir.Constraints{MinItems: &two}, number("8")), asNumber},
+		{"a fraction of a header's list of integers", header(number("1.5")), []finding{{"property/x/h", "example 0 is a number, and type/i holds a list"}}},
+		{"a number of a header's list of integers", header(number("1")), nil},
 		{"a number of a list of an enum it is no member of", enum, asNumber},
 		{"a number of a tuple", tuple, asNumber},
 		{"a string of a list of integers", itemOperation(intT, text("a,b")), nil},
@@ -238,14 +269,14 @@ func TestValidate_ASerializedDefaultOfAListOrAnObjectIsReported(t *testing.T) {
 	assert.Equal(t, []finding{{"property/x/h", "default is a string, and type/l holds a list"}}, found(t, header, defaultCode))
 }
 
-// TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged holds a parameter
-// whose own Encoding writes it to have neither its examples nor its default
-// judged, and one a media type alone serializes, through its own Encoding or a
-// binding writing it whole under a content type, to have its examples alone
-// unjudged, since its default is a value of the type. One a content type writes only a member of
-// has both judged. A content type's binding ahead of one writing no list still
-// serializes the parameter.
-func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+// TestValidate_AParameterWrittenInAnEncodingHasNoKindJudged holds a parameter
+// whose own Encoding writes it to have the kind of neither its examples nor its
+// default judged, and one a media type alone serializes, through its own
+// Encoding or a binding writing it whole under a content type, that of its
+// examples alone, since its default is a value of the type. One a content type
+// writes only a member of has both judged. A content type's binding ahead of
+// one writing no list still serializes the parameter.
+func TestValidate_AParameterWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 	t.Parallel()
 	content := func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" }
 	valued := func(parameter *ir.Parameter) {
@@ -295,12 +326,12 @@ func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 	}
 }
 
-// TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged holds a header whose
+// TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged holds a header whose
 // Encoding names a media type alone, as one declared by content has, to have
-// its examples alone unjudged, as a parameter a content type writes has, and
-// one whose Encoding names anything else, or nothing, to have neither judged.
-// Its example is an object, which no style writes for a list.
-func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+// the kind of its examples alone unjudged, as a parameter a content type writes
+// has, and one whose Encoding names anything else, or nothing, the kind of
+// neither. Its example is an object, which no style writes for a list.
+func TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name          string
@@ -325,6 +356,68 @@ func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 			assert.Empty(t, found(t, doc, exampleCode))
 			assert.Equal(t, wantDefault, found(t, doc, defaultCode))
 		})
+	}
+}
+
+// TestValidate_AnEncodingExcusesNoMemberAndNoNull holds a value written in an
+// encoding, by a parameter's or a header's own Encoding, a media type alone or
+// a content type writing the parameter whole, to be judged for an enum's
+// members, a literal's value and null all the same, its default and its
+// examples alike: an encoding excuses only the kind, whole numbers and bounds.
+// Each position is required, since a null example of one left out stands for
+// its absence.
+func TestValidate_AnEncodingExcusesNoMemberAndNoNull(t *testing.T) {
+	t.Parallel()
+	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
+	type written func(typ ir.TypeRef, value *ir.Value) *ir.Document
+	parameter := func(encoding *ir.Encoding, bindings ...ir.HTTPBinding) written {
+		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
+			return parameterOperation(func(parameter *ir.Parameter) {
+				parameter.Type, parameter.Encoding, parameter.Default = typ, encoding, value
+				parameter.Required, parameter.Examples = true, []ir.Example{{Value: value}}
+			}, bindings...)
+		}
+	}
+	header := func(encoding *ir.Encoding) written {
+		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
+			return headerOperation(func(header *ir.Header) {
+				header.Type, header.Encoding, header.Default = typ, encoding, value
+				header.Required, header.Examples = true, []ir.Example{{Value: value}}
+			})
+		}
+	}
+	for _, position := range []struct {
+		name string
+		node string
+		doc  written
+	}{
+		{"a parameter under its own encoding", "parameter/x/q", parameter(&ir.Encoding{Name: "string"})},
+		{"a parameter under a media type alone", "parameter/x/q", parameter(&ir.Encoding{MediaType: "application/json"})},
+		{"a parameter under a content type", "parameter/x/q", parameter(nil, content)},
+		{"a header under its own encoding", "property/x/h", header(&ir.Encoding{Name: "http-date"})},
+		{"a header under a media type alone", "property/x/h", header(&ir.Encoding{MediaType: "text/plain"})},
+	} {
+		for _, value := range []struct {
+			name  string
+			typ   ir.TypeRef
+			value *ir.Value
+			why   string
+		}{
+			{"no member of an enum", ir.TypeRef{Target: "type/e"}, text("blue"), "is not a member of enum type/e"},
+			{"another value than a literal's", ir.TypeRef{Target: "type/four"}, number("5"), "is not the value of literal type/four"},
+			{"null where none is admitted", listT, null(), "is null, and type/l is not nullable here"},
+		} {
+			t.Run(position.name+", "+value.name, func(t *testing.T) {
+				t.Parallel()
+				doc := position.doc(value.typ, value.value)
+				doc.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+					{ID: "enum-member/red", Value: *text("red")},
+				}, Provenance: provAt("type/e")}
+				doc.Types["type/four"] = &ir.Literal{ID: "type/four", Value: *number("4"), Provenance: provAt("type/four")}
+				assert.Equal(t, []finding{{position.node, "example 0 " + value.why}}, found(t, doc, exampleCode))
+				assert.Equal(t, []finding{{position.node, "default " + value.why}}, found(t, doc, defaultCode))
+			})
+		}
 	}
 }
 
