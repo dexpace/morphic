@@ -283,45 +283,74 @@ func carrierDoc(old ir.Parameter, node *ir.Scalar) *ir.Document {
 
 // TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt pins where a
 // deprecated carrier whose own keys name no replacement reads them: off the
-// node its type names, as a schema's, where its own position built that node,
-// at the carrier's pointer or its schema's, and the node holds no deprecation
-// (docs/compilers/openapi.md#extension-promotion). A node anywhere else, in
-// another document or deprecated itself, lends nothing, and a key the carrier
-// keeps is its own.
+// node its type names, as a schema's, where its declaration built that node,
+// at the carrier's pointer or its schema's, or, for a header, at any Header
+// Object's schema in any document, and the node holds no deprecation
+// (docs/compilers/openapi.md#extension-promotion). A node anywhere else, or
+// deprecated itself, lends nothing, and a key the carrier keeps is its own.
 func TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt(t *testing.T) {
 	t.Parallel()
 	schema := []ir.EntityRef{{Type: ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")}}
 	at := func(source int, pointer string) ir.Provenance {
 		return ir.Provenance{Source: source, Pointer: jsontext.Pointer(pointer)}
 	}
+	const use = "/paths/~1a/get/responses/200/headers/X"
 	for _, tc := range []struct {
 		name    string
+		header  bool
 		carrier ir.Provenance
 		node    ir.Provenance
 		nodeDep *ir.Deprecation
 		own     ir.Unmodeled
 		want    []ir.EntityRef
 	}{
-		{"a node at the carrier's pointer", at(0, "/p"), at(0, "/p"), nil, nil, schema},
-		{"a node at its schema", at(0, "/p"), at(0, "/p/schema"), nil, nil, schema},
-		{"a node at its content's schema", at(0, "/p"), at(0, "/p/content/application~1json/schema"), nil, nil, schema},
-		{"a node beneath its schema", at(0, "/p"), at(0, "/p/oneOf/1"), nil, nil, nil},
-		{"a node beneath its content", at(0, "/p"), at(0, "/p/content/a/b/schema"), nil, nil, nil},
-		{"a node beneath another keyword", at(0, "/p"), at(0, "/p/allOf/0/schema"), nil, nil, nil},
-		{"a node of another document", at(0, "/p"), at(1, "/p/schema"), nil, nil, nil},
-		{"a carrier of no document", at(ir.NoSource, ""), at(ir.NoSource, ""), nil, nil, nil},
-		{"a node deprecated itself", at(0, "/p"), at(0, "/p/schema"), deprecated(), nil, nil},
-		{"a carrier keeping its own key", at(0, "/p"), at(0, "/p/schema"), nil, names(`"v2"`),
+		{"a node at the carrier's pointer", false, at(0, "/p"), at(0, "/p"), nil, nil, schema},
+		{"a node at its schema", false, at(0, "/p"), at(0, "/p/schema"), nil, nil, schema},
+		{"a node at its content's schema", false, at(0, "/p"), at(0, "/p/content/application~1json/schema"), nil, nil, schema},
+		{"a node beneath its schema", false, at(0, "/p"), at(0, "/p/oneOf/1"), nil, nil, nil},
+		{"a node beneath its content", false, at(0, "/p"), at(0, "/p/content/a/b/schema"), nil, nil, nil},
+		{"a node beneath another keyword", false, at(0, "/p"), at(0, "/p/allOf/0/schema"), nil, nil, nil},
+		{"a node of another document", false, at(0, "/p"), at(1, "/p/schema"), nil, nil, nil},
+		{"a carrier of no document", false, at(ir.NoSource, ""), at(ir.NoSource, ""), nil, nil, nil},
+		{"a node deprecated itself", false, at(0, "/p"), at(0, "/p/schema"), deprecated(), nil, nil},
+		{"a carrier keeping its own key", false, at(0, "/p"), at(0, "/p/schema"), nil, names(`"v2"`),
 			[]ir.EntityRef{{Param: "parameter/v2"}}},
+		{"a header's node at its own schema", true, at(0, use), at(0, use+"/schema"), nil, nil, schema},
+		{"a header's node at a component header's schema", true, at(0, use), at(0, "/components/headers/H/schema"), nil, nil, schema},
+		{"a header's node at a component header's content schema", true, at(0, use),
+			at(0, "/components/headers/H/content/text~1plain/schema"), nil, nil, schema},
+		{"a header's node at a header's schema in another document", true, at(0, use), at(1, "/components/headers/H/schema"), nil, nil, schema},
+		{"a parameter's node at a component header's schema", false, at(0, "/p"), at(0, "/components/headers/H/schema"), nil, nil, nil},
+		{"a header's node beneath a component header's schema", true, at(0, use), at(0, "/components/headers/H/items/schema"), nil, nil, nil},
+		{"a header's node at a component parameter's schema", true, at(0, use), at(0, "/components/parameters/H/schema"), nil, nil, nil},
+		{"a header's node at a header's own position", true, at(0, use), at(0, "/components/headers/H"), nil, nil, nil},
+		{"a header's node of no document", true, at(0, use), at(ir.NoSource, "/components/headers/H/schema"), nil, nil, nil},
+		{"a header's node deprecated itself", true, at(0, use), at(0, "/components/headers/H/schema"), deprecated(), nil, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			node := &ir.Scalar{ID: "type/node", Unmodeled: names(`"v2"`), Provenance: tc.node, Deprecation: tc.nodeDep}
+			if tc.header {
+				doc := headerCarrierDoc(ir.Header{Deprecation: deprecated(), Provenance: tc.carrier, Unmodeled: tc.own}, node)
+				assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc)))
+				assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Deprecation.ReplacedBy)
+				return
+			}
 			doc := carrierDoc(ir.Parameter{Deprecation: deprecated(), Provenance: tc.carrier, Unmodeled: tc.own}, node)
 			assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
+}
+
+// headerCarrierDoc is carrierDoc with old, a response header, as the carrier
+// naming node.
+func headerCarrierDoc(old ir.Header, node *ir.Scalar) *ir.Document {
+	doc := carrierDoc(ir.Parameter{}, node)
+	old.ID, old.Name, old.WireName, old.Type = "property/old", ir.Naming{Source: "old"}, "old", ir.TypeRef{Target: node.ID}
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	operation.Responses = []ir.Response{{Headers: []ir.Header{old}}}
+	return doc
 }
 
 // TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode pins that a key the

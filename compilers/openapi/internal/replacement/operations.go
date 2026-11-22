@@ -81,7 +81,7 @@ func (r *resolver) params(operation *ir.Operation) []ir.Diagnostic {
 	for i := range operation.Params {
 		parameter := &operation.Params[i]
 		diags = append(diags, r.fillCarrier(deprecated{parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance,
-			ir.EntityRef{Param: parameter.ID}, parameter.Type}, "parameter", param)...)
+			ir.EntityRef{Param: parameter.ID}, parameter.Type, false}, "parameter", param)...)
 	}
 	return diags
 }

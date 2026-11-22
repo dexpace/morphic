@@ -116,8 +116,9 @@ func (r *resolver) fillCarrier(carrier deprecated, class string, find func(strin
 
 // nodeKeys returns the ID and the keys of the node carrier's type names where
 // carrier reads its replacements there: carrier is deprecated, its own keys
-// write none, and the node, which writes some, is the one its own position
-// built (builtAt) and holds no deprecation, its schema's being the carrier's
+// write none, and the node, which writes some, is the one its declaration
+// built (builtAt, or headerSchemaAt for a header) and holds no deprecation,
+// its schema's being the carrier's
 // (docs/compilers/openapi.md#docs-and-deprecation). Replacement inference asks
 // it too, so a message is not read over those keys. Reading the IR alone, it
 // cannot tell that node from one keeping its notes because a reference names
@@ -131,7 +132,8 @@ func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) 
 		return "", nil, false
 	}
 	node := td.Common()
-	if node.Deprecation != nil || !builtAt(*carrier.prov, node.Provenance) || !r.p.Writes(node.Unmodeled, promotion.TargetDeprecationReplacedBy) {
+	built := builtAt(*carrier.prov, node.Provenance) || carrier.header && headerSchemaAt(node.Provenance)
+	if node.Deprecation != nil || !built || !r.p.Writes(node.Unmodeled, promotion.TargetDeprecationReplacedBy) {
 		return "", nil, false
 	}
 	return carrier.typeRef.Target, node.Unmodeled, true
@@ -139,8 +141,9 @@ func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) 
 
 // builtAt reports whether node, a type node's provenance, is the position of
 // the carrier at carrier or of that carrier's schema: a property's node is
-// written where the property is, and a parameter's or a header's beneath it,
-// at `schema` or `content/<media type>/schema`.
+// written where the property is, and an inline parameter's or header's, or a
+// parameter's a Reference Object reaches, beneath it, at `schema` or
+// `content/<media type>/schema`.
 func builtAt(carrier, node ir.Provenance) bool {
 	if carrier.Source == ir.NoSource || carrier.Source != node.Source {
 		return false
@@ -156,6 +159,24 @@ func builtAt(carrier, node ir.Provenance) bool {
 	default:
 		return at.Parent().Parent().LastToken() == "content" && at.Parent().Parent().Parent() == carrier.Pointer
 	}
+}
+
+// headerSchemaAt reports whether node, a type node's provenance, is a Header
+// Object's own schema position, `<header>/schema` or
+// `<header>/content/<media type>/schema` beneath a `headers` map, in any
+// document. A header a Reference Object reaches keeps the provenance of its
+// use, while its schema is built at its declaration, which may lie in another
+// document (operation.lowerHeaders), so builtAt's comparison refuses its node.
+func headerSchemaAt(node ir.Provenance) bool {
+	at := node.Pointer
+	if node.Source == ir.NoSource || at.LastToken() != "schema" {
+		return false
+	}
+	declaration := at.Parent()
+	if declaration.Parent().LastToken() == "content" {
+		declaration = declaration.Parent().Parent()
+	}
+	return declaration.Parent().LastToken() == "headers"
 }
 
 // scheme finds the security schemes the document declares under name.
@@ -191,7 +212,7 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	for i := range model.Properties {
 		property := &model.Properties[i]
 		diags = append(diags, r.fillCarrier(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
-			ir.EntityRef{Property: property.ID}, property.Type}, "property", member)...)
+			ir.EntityRef{Property: property.ID}, property.Type, false}, "property", member)...)
 	}
 	return diags
 }
@@ -227,7 +248,7 @@ func (r *resolver) headers(hs []ir.Header) []ir.Diagnostic {
 	for i := range hs {
 		property := &hs[i].Property
 		diags = append(diags, r.fillCarrier(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
-			ir.EntityRef{Property: property.ID}, property.Type}, "header", sibling)...)
+			ir.EntityRef{Property: property.ID}, property.Type, true}, "header", sibling)...)
 	}
 	return diags
 }

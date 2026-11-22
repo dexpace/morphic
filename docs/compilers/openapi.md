@@ -8066,7 +8066,9 @@ model, a schema by its name under `components/schemas`, and a security scheme by
 property, a parameter or a header whose own schema hoists a node holds that schema's deprecation
 ([`docs-and-deprecation`](#docs-and-deprecation)) while the node keeps its keys, so where its own
 keys name no replacement it reads the names that node's keys give, each as a schema's, as the node
-read them when it held the deprecation. A position a reference names keeps its deprecation, and so
+read them when it held the deprecation. That node is the one its declaration builds, at its own
+position or its schema's, or, for a header a Reference Object reaches, which stands at its use, at
+the schema of the Header Object it names, in whichever document declares it. A position a reference names keeps its deprecation, and so
 its names, on its node; where that node holds none, a parameter or a header its own object
 deprecates still reads the names its keys give, which the resolution, reading the document alone,
 cannot tell from a node whose notes are the carrier's. The

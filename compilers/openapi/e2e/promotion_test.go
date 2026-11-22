@@ -9,6 +9,7 @@ package e2e_test // external test package — exercises only the public API
 
 import (
 	"maps"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -780,13 +782,19 @@ paths:
 		"/paths/~1x/get/x-forge-group"}, unread(map[string]string{"grouping": "tags"}))
 }
 
+// carriedListSchema is a list schema deprecated by itself, which keys its
+// message through x-deprecated-reason and its replacement through
+// x-replaced-by.
+const carriedListSchema = "{type: array, items: {type: string}, deprecated: true, x-deprecated-reason: Use `other` instead., x-replaced-by: New}"
+
 // carriedReplacementSpec is a document whose list property, list parameters,
-// one inline, one through its content and one a component, and list header
-// are each deprecated by their own schema, which keys its replacement through
-// x-replaced-by, beside a parameter deprecated by its own object whose schema
-// is the same, and the schemas.
+// one inline, one through its content and one a component, and list headers,
+// one inline, one a component and one in other.yaml, each reached through a
+// $ref, are each deprecated by their own schema, carriedListSchema, beside a
+// parameter deprecated by its own object whose schema is the same, and the
+// schemas.
 func carriedReplacementSpec(schemas []string) string {
-	const list = "{type: array, items: {type: string}, deprecated: true, x-deprecated-reason: Use `other` instead., x-replaced-by: New}"
+	const list = carriedListSchema
 	return `openapi: 3.0.3
 info: {title: t, version: "1"}
 paths:
@@ -800,6 +808,11 @@ paths:
         - {name: other, in: query, schema: {type: string}}
         - {name: shared, in: query, deprecated: true, schema: ` + list + `}
       responses:
+        '200':
+          description: ok
+          headers:
+            X-R: {$ref: '#/components/headers/H'}
+            X-EH: {$ref: 'other.yaml#/components/headers/EH'}
         '204':
           description: none
           headers:
@@ -807,18 +820,30 @@ paths:
 components:
   parameters:
     Listed: {name: listed, in: query, schema: ` + list + `}
+  headers:
+    H: {schema: ` + list + `}
   schemas:
     ` + strings.Join(schemas, "\n    ") + "\n"
 }
 
-// compileCarriedReplacements compiles carriedReplacementSpec(schemas) under a
-// policy reading replacements from x-replaced-by and messages from
-// x-deprecated-reason, replacement inference on.
+// compileCarriedReplacements compiles carriedReplacementSpec(schemas), beside
+// an other.yaml declaring the header EH, under a policy reading replacements
+// from x-replaced-by and messages from x-deprecated-reason, replacement
+// inference on.
 func compileCarriedReplacements(t *testing.T, schemas []string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"other.yaml": `openapi: 3.0.3
+info: {title: o, version: "1"}
+paths: {}
+components:
+  headers:
+    EH: {schema: ` + carriedListSchema + `}
+`})
+	path := filepath.Join(dir, "spec.yaml")
 	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(carriedReplacementSpec(schemas))}},
-		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+		[]compilers.Source{{Path: path, Data: []byte(carriedReplacementSpec(schemas))}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true, Promotions: openapi.ExtensionPromotions{
 			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
 				openapi.TargetDeprecationMessage:    {{Key: "x-deprecated-reason"}},
 				openapi.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
@@ -860,8 +885,16 @@ func TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps(t *testing.T) {
 		operation, ok := operationByName(doc, "getA")
 		require.True(t, ok)
 		require.Len(t, operation.Params, 5)
-		require.Len(t, operation.Responses, 1)
-		require.Len(t, operation.Responses[0].Headers, 1)
+		require.Len(t, operation.Responses, 2)
+		header := func(wire string) ir.Header {
+			for _, response := range operation.Responses {
+				if found, ok := headerByWire(response.Headers, wire); ok {
+					return found
+				}
+			}
+			require.Failf(t, "no header", "%s", wire)
+			return ir.Header{}
+		}
 		holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 		require.True(t, ok)
 		list, ok := propertyByWire(holder, "list")
@@ -871,12 +904,13 @@ func TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps(t *testing.T) {
 			prov ir.Provenance
 			to   ir.TypeRef
 		}{
-			"a property":            {list.Deprecation, list.Provenance, list.Type},
-			"a parameter":           {operation.Params[0].Deprecation, operation.Params[0].Provenance, operation.Params[0].Type},
-			"a content parameter":   {operation.Params[1].Deprecation, operation.Params[1].Provenance, operation.Params[1].Type},
-			"a component parameter": {operation.Params[2].Deprecation, operation.Params[2].Provenance, operation.Params[2].Type},
-			"a header": {operation.Responses[0].Headers[0].Deprecation, operation.Responses[0].Headers[0].Provenance,
-				operation.Responses[0].Headers[0].Type},
+			"a property":                   {list.Deprecation, list.Provenance, list.Type},
+			"a parameter":                  {operation.Params[0].Deprecation, operation.Params[0].Provenance, operation.Params[0].Type},
+			"a content parameter":          {operation.Params[1].Deprecation, operation.Params[1].Provenance, operation.Params[1].Type},
+			"a component parameter":        {operation.Params[2].Deprecation, operation.Params[2].Provenance, operation.Params[2].Type},
+			"a header":                     {header("X-List").Deprecation, header("X-List").Provenance, header("X-List").Type},
+			"a component header":           {header("X-R").Deprecation, header("X-R").Provenance, header("X-R").Type},
+			"a header of another document": {header("X-EH").Deprecation, header("X-EH").Provenance, header("X-EH").Type},
 		}
 		for name, carrier := range carriers {
 			require.NotNil(t, carrier.dep, name)

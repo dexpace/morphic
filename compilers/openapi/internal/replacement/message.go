@@ -46,12 +46,12 @@ func (r *resolver) inferService() []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, operation := range operations {
 		diags = append(diags, r.message(deprecated{operation.Unmodeled, operation.Deprecation, &operation.Provenance,
-			ir.EntityRef{Operation: operation.ID}, ir.TypeRef{}}, scope{"operation", routes.named, routes.find})...)
+			ir.EntityRef{Operation: operation.ID}, ir.TypeRef{}, false}, scope{"operation", routes.named, routes.find})...)
 		param := r.paramFinder(operation)
 		for i := range operation.Params {
 			parameter := &operation.Params[i]
 			diags = append(diags, r.message(deprecated{parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance,
-				ir.EntityRef{Param: parameter.ID}, parameter.Type}, scope{"parameter", codeSpans, param})...)
+				ir.EntityRef{Param: parameter.ID}, parameter.Type, false}, scope{"parameter", codeSpans, param})...)
 		}
 	}
 	return diags
@@ -65,20 +65,22 @@ func (r *resolver) inferMembers(diags []ir.Diagnostic, model *ir.Model) []ir.Dia
 	for i := range model.Properties {
 		property := &model.Properties[i]
 		diags = append(diags, r.message(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
-			ir.EntityRef{Property: property.ID}, property.Type}, scope{"property", codeSpans, member})...)
+			ir.EntityRef{Property: property.ID}, property.Type, false}, scope{"property", codeSpans, member})...)
 	}
 	return diags
 }
 
 // deprecated is a node whose replacements Resolve or Infer reads: the keys it
 // keeps, its deprecation, the provenance a replacement read marks, the entity
-// it is, and, for a carrier, the type it names (nodeKeys).
+// it is, and, for a carrier, the type it names and whether it is a header
+// (nodeKeys).
 type deprecated struct {
 	own     ir.Unmodeled
 	dep     *ir.Deprecation
 	prov    *ir.Provenance
 	self    ir.EntityRef
 	typeRef ir.TypeRef
+	header  bool
 }
 
 // scope is how a message names an entity of one class: the class, as a report
