@@ -1270,8 +1270,9 @@ it sees. Changes made together in one bump are listed together under it.
   none of them ([one home](./annotations.md#one-structural-home-per-declaration)). They were the
   node's, so the carrier was documented, deprecated and exemplified only where its schema hoisted
   nothing. A deprecation the promotion policy reads from a key on that schema follows, with the
-  carrier marked `extension-promotion`; the node keeps the key, its XML hints, its redaction, its
-  bounds and what is kept verbatim. A schema naming a `$ref`, beside its keywords or as a conjunct
-  of its `allOf`, keeps them on the node it builds, as before. A consumer pinned to 0.72.0
-  refuses the document; one reading an older document reads such a member's notes off the node its
-  type names, and finds none on the member.
+  carrier marked `extension-promotion`, and so does a replacement such a key names; the node keeps
+  the key, its XML hints, its redaction, its bounds and what is kept verbatim. A schema naming a
+  `$ref`, beside its keywords or as a conjunct of its `allOf`, and a position a reference names, a
+  `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
+  before. A consumer pinned to 0.72.0 refuses the document; one reading an older document reads
+  such a member's notes off the node its type names, and finds none on the member.

@@ -4,6 +4,7 @@
 package replacement_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"testing"
@@ -261,4 +262,77 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = deep.Groups[0]
 	}
 	assert.Empty(t, deep.Operations[0].Deprecation.ReplacedBy)
+}
+
+// carrierDoc is a document whose operation's parameter "old", deprecated and
+// keeping own, names node as its type, beside a parameter v2 and the schema
+// v2, each a replacement it can name.
+func carrierDoc(old ir.Parameter, node *ir.Scalar) *ir.Document {
+	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
+	old.ID, old.Name, old.Type = "parameter/old", ir.Naming{Source: "old"}, ir.TypeRef{Target: node.ID}
+	return &ir.Document{
+		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "operation/a",
+			Params: []ir.Parameter{old, {ID: "parameter/v2", Name: ir.Naming{Source: "v2"}}},
+			Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+				{Param: "parameter/old", Location: ir.HTTPLocationQuery}, {Param: "parameter/v2", Location: ir.HTTPLocationQuery},
+			}}}},
+		}}}}}},
+		Types: ir.TypeRegistry{v2: &ir.Model{ID: v2}, node.ID: node},
+	}
+}
+
+// TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt pins where a
+// deprecated carrier whose own keys name no replacement reads them: off the
+// node its type names, as a schema's, where its own position built that node,
+// at the carrier's pointer or its schema's, and the node holds no deprecation
+// (docs/compilers/openapi.md#extension-promotion). A node anywhere else, in
+// another document or deprecated itself, lends nothing, and a key the carrier
+// keeps is its own.
+func TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt(t *testing.T) {
+	t.Parallel()
+	schema := []ir.EntityRef{{Type: ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")}}
+	at := func(source int, pointer string) ir.Provenance {
+		return ir.Provenance{Source: source, Pointer: jsontext.Pointer(pointer)}
+	}
+	for _, tc := range []struct {
+		name    string
+		carrier ir.Provenance
+		node    ir.Provenance
+		nodeDep *ir.Deprecation
+		own     ir.Unmodeled
+		want    []ir.EntityRef
+	}{
+		{"a node at the carrier's pointer", at(0, "/p"), at(0, "/p"), nil, nil, schema},
+		{"a node at its schema", at(0, "/p"), at(0, "/p/schema"), nil, nil, schema},
+		{"a node at its content's schema", at(0, "/p"), at(0, "/p/content/application~1json/schema"), nil, nil, schema},
+		{"a node beneath its schema", at(0, "/p"), at(0, "/p/oneOf/1"), nil, nil, nil},
+		{"a node beneath its content", at(0, "/p"), at(0, "/p/content/a/b/schema"), nil, nil, nil},
+		{"a node beneath another keyword", at(0, "/p"), at(0, "/p/allOf/0/schema"), nil, nil, nil},
+		{"a node of another document", at(0, "/p"), at(1, "/p/schema"), nil, nil, nil},
+		{"a carrier of no document", at(ir.NoSource, ""), at(ir.NoSource, ""), nil, nil, nil},
+		{"a node deprecated itself", at(0, "/p"), at(0, "/p/schema"), deprecated(), nil, nil},
+		{"a carrier keeping its own key", at(0, "/p"), at(0, "/p/schema"), nil, names(`"v2"`),
+			[]ir.EntityRef{{Param: "parameter/v2"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			node := &ir.Scalar{ID: "type/node", Unmodeled: names(`"v2"`), Provenance: tc.node, Deprecation: tc.nodeDep}
+			doc := carrierDoc(ir.Parameter{Deprecation: deprecated(), Provenance: tc.carrier, Unmodeled: tc.own}, node)
+			assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc)))
+			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
+		})
+	}
+}
+
+// TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode pins that a key the
+// node keeps that names no replacement is reported once, by the node, and not
+// again by the carrier reading it.
+func TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode(t *testing.T) {
+	t.Parallel()
+	node := &ir.Scalar{ID: "type/node", Unmodeled: names(`5`), Provenance: ir.Provenance{Pointer: "/p/schema"}}
+	doc := carrierDoc(ir.Parameter{Deprecation: deprecated(), Provenance: ir.Provenance{Pointer: "/p"}}, node)
+	diags := replacement.Resolve(mapped(), compileddoc.New(doc))
+	require.Len(t, diags, 1, "%v", diags)
+	assert.Equal(t, jsontext.Pointer("/x-replaced-by"), diags[0].Provenance.Pointer)
+	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 }

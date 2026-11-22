@@ -358,16 +358,15 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
 		reference, owner string
 		revisited        string
 		wantUnmodeled    []string
-		carried          bool
 	}{
 		{"a property, through a $ref", openapitest.ComponentSpec, ref(property), ownerProperty,
-			property, []string{"openapi:format"}, true},
+			property, []string{"openapi:format"}},
 		{"items, through a $ref", openapitest.ComponentSpec, ref(items), ownerItems,
-			items, []string{"openapi:format", "openapi:readOnly"}, false},
+			items, []string{"openapi:format", "openapi:readOnly"}},
 		{"a property, through a discriminator mapping", openapitest.ComponentSpec, mapping(property), ownerSubtype,
-			property, []string{"openapi:format"}, false},
+			property, []string{"openapi:format"}},
 		{"items beneath /paths", openapitest.PathsSpec, pathRef, pathOwner,
-			response, []string{"openapi:format"}, false},
+			response, []string{"openapi:format"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -381,7 +380,7 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
 			for _, doc := range []*ir.Document{refFirst, declFirst} {
 				td, ok := doc.Types[id]
 				require.True(t, ok, "the revisited position is interned")
-				assert.Equal(t, "kept", carrierOrNodeDocs(t, doc, td, tc.carried), "its declaration's annotations reach it")
+				assert.Equal(t, "kept", td.Common().Docs.Description, "its declaration's annotations reach it")
 				for _, key := range tc.wantUnmodeled {
 					assert.Contains(t, td.Common().Unmodeled, key, "and what it declares with no home is kept")
 				}
@@ -390,26 +389,6 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
 				"the registry is the same whichever lowering reaches the position first")
 		})
 	}
-}
-
-// carrierOrNodeDocs returns the description the declaration of td is noted
-// with: on the property carrying it, the one property of p's model whose type
-// td is, where carried, and on td otherwise, as at a position naming a $ref
-// (docs/ir/annotations.md#one-structural-home-per-declaration).
-func carrierOrNodeDocs(t *testing.T, doc *ir.Document, td ir.TypeDef, carried bool) string {
-	t.Helper()
-	if !carried {
-		return td.Common().Docs.Description
-	}
-	assert.Empty(t, td.Common().Docs.Description, "the node holds none of what its carrier notes")
-	model, ok := doc.Types["type/anonymous/components/schemas/X/properties/p"].(*ir.Model)
-	require.True(t, ok)
-	for _, property := range model.Properties {
-		if property.Type.Target == td.Common().ID {
-			return property.Docs.Description
-		}
-	}
-	return ""
 }
 
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome pins that a $ref naming an

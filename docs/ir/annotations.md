@@ -174,15 +174,16 @@ hoists only when the declaration says something** one of those homes holds — a
 shared primitive and the type graph stays free of an anonymous node per element position.
 
 **A carrier holds its notes whatever its schema lowered to.** Where the schema at a carried position
-builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Scalar` — the
-carrier holds its documentation, deprecation and examples, the three it has fields for, and the node
-holds none of them, so a reader of a model's members meets them on the member whichever kind its
-schema is. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
+builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a
+`Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
+has fields for, and the node holds none of them, so a reader of a model's members meets them on the
+member whichever kind its schema is. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
 verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
 its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
-[decorator](#decorators) among them, which an emitter folds onto the carrier. A node at a carried position that a `$ref` from a position no
-carrier holds names holds none of them either, so that reference reads none of them.
+[decorator](#decorators) among them, which an emitter folds onto the carrier. A carried position
+that a reference names keeps them on its node too, its carrier holding none, so every reference to
+it reads them where it lands.
 
 Where a carrier holds annotations of its own alongside a schema's — a header and a parameter both
 write a `description` beside their schema — the carrier's own win: they describe that input,

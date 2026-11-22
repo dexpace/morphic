@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -777,4 +778,123 @@ paths:
 	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises"}, custom)
 	assert.Equal(t, []string{"/paths/~1x/get/x-forge-aliases", "/paths/~1x/get/x-forge-alises",
 		"/paths/~1x/get/x-forge-group"}, unread(map[string]string{"grouping": "tags"}))
+}
+
+// carriedReplacementSpec is a document whose list property, list parameters,
+// one inline, one through its content and one a component, and list header
+// are each deprecated by their own schema, which keys its replacement through
+// x-replaced-by, beside a parameter deprecated by its own object whose schema
+// is the same, and the schemas.
+func carriedReplacementSpec(schemas []string) string {
+	const list = "{type: array, items: {type: string}, deprecated: true, x-deprecated-reason: Use `other` instead., x-replaced-by: New}"
+	return `openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: list, in: query, schema: ` + list + `}
+        - {name: content, in: query, content: {application/json: {schema: ` + list + `}}}
+        - $ref: '#/components/parameters/Listed'
+        - {name: other, in: query, schema: {type: string}}
+        - {name: shared, in: query, deprecated: true, schema: ` + list + `}
+      responses:
+        '204':
+          description: none
+          headers:
+            X-List: {schema: ` + list + `}
+components:
+  parameters:
+    Listed: {name: listed, in: query, schema: ` + list + `}
+  schemas:
+    ` + strings.Join(schemas, "\n    ") + "\n"
+}
+
+// compileCarriedReplacements compiles carriedReplacementSpec(schemas) under a
+// policy reading replacements from x-replaced-by and messages from
+// x-deprecated-reason, replacement inference on.
+func compileCarriedReplacements(t *testing.T, schemas []string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(carriedReplacementSpec(schemas))}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetDeprecationMessage:    {{Key: "x-deprecated-reason"}},
+				openapi.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
+			},
+		}}})
+	require.NoError(t, err)
+	return doc, diags
+}
+
+// TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps pins a replacement
+// keyed on a carrier's own schema that hoists a node, in both orders of the
+// components: the carrier holds the schema's deprecation, so it resolves the
+// names the node's key gives, as a schema, as that node did, marked promoted,
+// and its message naming another member is not read over them. A position a
+// $ref names keeps its deprecation on its node, which resolves them itself,
+// and a carrier deprecated by its own object reads none of them there
+// (docs/compilers/openapi.md#extension-promotion).
+func TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"New: {type: string}",
+		"Holder: {type: object, properties: {list: {type: array, items: {type: string}, deprecated: true, " +
+			"x-deprecated-reason: Use `other` instead., x-replaced-by: New}, other: {type: string}, " +
+			"scalar: {type: string, deprecated: true, x-replaced-by: New}}}",
+		"Named: {type: object, properties: {list: {type: array, items: {type: string}, deprecated: true, x-replaced-by: New}}}",
+		"Out: {$ref: '#/components/schemas/Named/properties/list'}",
+		"Shared: {$ref: '#/paths/~1a/get/parameters/4/schema'}",
+	}
+	newSchema := ir.EntityRef{Type: componentID("New")}
+	var compiled []*ir.Document
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileCarriedReplacements(t, schemas)
+		compiled = append(compiled, doc)
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Len(t, diags, 1, "the scalar's key alone is reported")
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
+			"/components/schemas/Holder/properties/scalar/x-replaced-by"), "it names no property")
+
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok)
+		require.Len(t, operation.Params, 5)
+		require.Len(t, operation.Responses, 1)
+		require.Len(t, operation.Responses[0].Headers, 1)
+		holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+		require.True(t, ok)
+		list, ok := propertyByWire(holder, "list")
+		require.True(t, ok)
+		carriers := map[string]struct {
+			dep  *ir.Deprecation
+			prov ir.Provenance
+			to   ir.TypeRef
+		}{
+			"a property":            {list.Deprecation, list.Provenance, list.Type},
+			"a parameter":           {operation.Params[0].Deprecation, operation.Params[0].Provenance, operation.Params[0].Type},
+			"a content parameter":   {operation.Params[1].Deprecation, operation.Params[1].Provenance, operation.Params[1].Type},
+			"a component parameter": {operation.Params[2].Deprecation, operation.Params[2].Provenance, operation.Params[2].Type},
+			"a header": {operation.Responses[0].Headers[0].Deprecation, operation.Responses[0].Headers[0].Provenance,
+				operation.Responses[0].Headers[0].Type},
+		}
+		for name, carrier := range carriers {
+			require.NotNil(t, carrier.dep, name)
+			assert.Equal(t, []ir.EntityRef{newSchema}, carrier.dep.ReplacedBy, "%s resolves its node's key", name)
+			assert.Equal(t, ir.Inferred("extension-promotion"), carrier.prov.Inferred, "%s is marked promoted, and inferred nothing", name)
+			assert.Nil(t, doc.Types[carrier.to.Target].Common().Deprecation, "%s's node holds no deprecation", name)
+		}
+
+		for _, id := range []ir.TypeID{"type/anonymous/components/schemas/Named/properties/list", "type/anonymous/paths/~1a/get/parameters/4/schema"} {
+			node := doc.Types[id].Common()
+			require.NotNil(t, node.Deprecation, "a position a $ref names keeps its deprecation")
+			assert.Equal(t, []ir.EntityRef{newSchema}, node.Deprecation.ReplacedBy, "and resolves its own key")
+		}
+		shared := operation.Params[4]
+		require.NotNil(t, shared.Deprecation, "a parameter its own object deprecates")
+		assert.Empty(t, shared.Deprecation.ReplacedBy, "reads no replacement off a node holding its own deprecation")
+	})
+	require.Len(t, compiled, 2)
+	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
 }

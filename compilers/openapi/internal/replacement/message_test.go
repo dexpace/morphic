@@ -305,3 +305,24 @@ func TestCodeSpans_ReadsCommonMarksSpans(t *testing.T) {
 		assert.Equal(t, tc.want, replacement.CodeSpans(tc.text), "%q", tc.text)
 	}
 }
+
+// TestMessage_AKeyACarriersNodeKeepsIsNotReadOver pins that a carrier reading
+// its replacements off its node's key (Resolve) has no message read over them,
+// while the same message beside a node keeping no key names the parameter it
+// names (docs/compilers/openapi.md#replacement-inference).
+func TestMessage_AKeyACarriersNodeKeepsIsNotReadOver(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		keys ir.Unmodeled
+		want []ir.EntityRef
+	}{
+		{"a node keeping a key", names(`"v2"`), nil},
+		{"a node keeping none", nil, []ir.EntityRef{{Param: "parameter/v2"}}},
+	} {
+		node := &ir.Scalar{ID: "type/node", Unmodeled: tc.keys, Provenance: ir.Provenance{Pointer: "/p/schema"}}
+		doc := carrierDoc(ir.Parameter{Deprecation: says("Use `v2` instead."), Provenance: ir.Provenance{Pointer: "/p"}}, node)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc)), tc.name)
+		assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy, tc.name)
+	}
+}

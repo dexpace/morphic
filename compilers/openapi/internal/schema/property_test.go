@@ -406,6 +406,122 @@ func TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode(t *testing.T) {
 	}
 }
 
+// carriedNotes is what a carrier holds of its schema's notes, and the type it
+// names.
+type carriedNotes struct {
+	description string
+	deprecation *ir.Deprecation
+	typeRef     ir.TypeRef
+}
+
+// referencedSpec is a document whose operation getA writes a list parameter,
+// one through its content and a list header, each carrying a note, beside
+// components.
+func referencedSpec(version, components string) string {
+	return "openapi: " + version + `
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: list, in: query, schema: {type: array, deprecated: true, description: DOC, items: {type: string}}}
+        - name: content
+          in: query
+          content: {application/json: {schema: {type: array, deprecated: true, description: DOC, items: {type: string}}}}
+      responses:
+        '204':
+          description: none
+          headers:
+            X-List: {schema: {type: array, deprecated: true, description: DOC, items: {type: string}}}
+components:
+  schemas:
+    Holder: {type: object, properties: {list: {type: array, deprecated: true, description: DOC, items: {type: string}}}}
+` + components
+}
+
+// TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode pins
+// where the notes of a carried position that a reference names land: on its
+// node, which every reference reads, and not on its carrier, whichever carrier
+// holds the position and whichever reference names it: a $ref, a $dynamicRef
+// spelling one, an expanding $dynamicRef and a discriminator's mapping value
+// (docs/compilers/openapi.md#docs-and-deprecation).
+func TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode(t *testing.T) {
+	t.Parallel()
+	holder := func(t *testing.T, doc *ir.Document) carriedNotes {
+		property := propertyOf(t, doc, "Holder", "list")
+		return carriedNotes{property.Docs.Description, property.Deprecation, property.Type}
+	}
+	param := func(name string) func(t *testing.T, doc *ir.Document) carriedNotes {
+		return func(t *testing.T, doc *ir.Document) carriedNotes {
+			parameter, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "getA"), name)
+			require.True(t, ok)
+			return carriedNotes{parameter.Docs.Description, parameter.Deprecation, parameter.Type}
+		}
+	}
+	header := func(t *testing.T, doc *ir.Document) carriedNotes {
+		headers := openapitest.FindOperation(t, doc, "getA").Responses[0].Headers
+		require.Len(t, headers, 1)
+		return carriedNotes{headers[0].Docs.Description, headers[0].Deprecation, headers[0].Type}
+	}
+	const parameters = "type/anonymous/paths/~1a/get/parameters/"
+	for _, tc := range []struct {
+		name, version, components string
+		node                      ir.TypeID
+		carrier                   func(t *testing.T, doc *ir.Document) carriedNotes
+	}{
+		{"a property a $ref names", "3.0.3", "    Out: {$ref: '#/components/schemas/Holder/properties/list'}\n",
+			"type/anonymous/components/schemas/Holder/properties/list", holder},
+		{"a parameter's schema a $ref names", "3.0.3", "    Out: {$ref: '#/paths/~1a/get/parameters/0/schema'}\n",
+			parameters + "0/schema", param("list")},
+		{"a content parameter's schema a $ref names", "3.0.3",
+			"    Out: {$ref: '#/paths/~1a/get/parameters/1/content/application~1json/schema'}\n",
+			parameters + "1/content/application~1json/schema", param("content")},
+		{"a header's schema a $ref names", "3.0.3", "    Out: {$ref: '#/paths/~1a/get/responses/204/headers/X-List/schema'}\n",
+			"type/anonymous/paths/~1a/get/responses/204/headers/X-List/schema", header},
+		{"a property a $dynamicRef spelling a $ref names", "3.1.0",
+			"    Out: {$dynamicRef: '#/components/schemas/Holder/properties/list'}\n",
+			"type/anonymous/components/schemas/Holder/properties/list", holder},
+		{"a property a mapping value names", "3.0.3",
+			"    Tagged: {type: string, discriminator: {propertyName: kind, mapping: {m: '#/components/schemas/Holder/properties/list'}}}\n",
+			"type/anonymous/components/schemas/Holder/properties/list", holder},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, referencedSpec(tc.version, tc.components))
+			openapitest.RequireNoErrorDiags(t, diags)
+			carried := tc.carrier(t, doc)
+			require.Equal(t, tc.node, carried.typeRef.Target, "the carrier names the position's node")
+			assert.Empty(t, carried.description, "the carrier holds none of the notes")
+			assert.Nil(t, carried.deprecation)
+			node := doc.Types[tc.node].Common()
+			assert.Equal(t, "DOC", node.Docs.Description, "the node holds them")
+			assert.NotNil(t, node.Deprecation)
+		})
+	}
+}
+
+// TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget pins
+// the same for the target of a $dynamicRef that expands: the carried position
+// declaring its anchor keeps its notes on its node.
+func TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
+      type: object
+      properties:
+        list: {$dynamicAnchor: L, type: array, deprecated: true, description: DOC, items: {type: string}}
+    Out: {$dynamicRef: '#L'}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	property := propertyOf(t, doc, "Holder", "list")
+	require.Equal(t, ir.TypeID("type/anonymous/components/schemas/Holder/properties/list"), property.Type.Target)
+	assert.Empty(t, property.Docs.Description, "the carrier holds none of the notes")
+	assert.Nil(t, property.Deprecation)
+	node := doc.Types[property.Type.Target].Common()
+	assert.Equal(t, "DOC", node.Docs.Description, "the node holds them")
+	assert.NotNil(t, node.Deprecation)
+}
+
 // TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
 // rule, and the reason a property never hoists an alias of its own: a scalar
 // property's declaration has ir.Property to land on already.

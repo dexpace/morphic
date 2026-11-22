@@ -1960,15 +1960,16 @@ variable take `description`, an example `summary` and `description`, and a secur
 `deprecated` (3.2). `info` and the root `externalDocs` make the Document's one `Docs`, while the
 Service takes `info.description` alone. A schema's documentation and deprecation land on the
 property, parameter or header that carries its position, whatever node the schema hoists there, a
-list, a map, an enum, a model, a union or a scalar, and that node holds neither ([one
-home](../ir/annotations.md#one-structural-home-per-declaration)); a deprecation a key states or
-annotates follows them, its node keeping the key, but for a replacement a key the policy maps to
-`deprecation.replacedBy` names there, which fills no `ReplacedBy`, since it is read off the
-deprecated node keeping the key ([`extension-promotion`](#extension-promotion)). Through a `$ref`
-the referent's land there under the use site's field by field ([`ref-use-site`](#ref-use-site)), and
-a schema naming one, beside its keywords or as a conjunct of its `allOf`, keeps its own on the node
-it builds. At a position no carrier holds, they land on the node the position owns, so a `$ref`
-naming a carried position from such a position reads none of them there. A parameter's or header's
+list, a map, an enum, a model, a union, a tuple, a literal or a scalar, and that node holds neither
+([one home](../ir/annotations.md#one-structural-home-per-declaration)); a deprecation a key states
+or annotates follows them, its node keeping the key, and so does a replacement a key the policy maps
+to `deprecation.replacedBy` names there ([`extension-promotion`](#extension-promotion)). A carried
+position a reference names, a `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`,
+keeps them on its node, which every reference to it reads, and its carrier holds none of them.
+Through a `$ref` the referent's land on the carrier under the use site's field by field
+([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
+its `allOf`, keeps its own on the node it builds. At a position no carrier holds, they land on the
+node the position owns. A parameter's or header's
 own `description` wins over its schema's. `deprecated: true` on a parameter or header and on its
 schema each deprecate it, neither one's `false` clearing the other. A request body's `description`
 lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
@@ -1985,7 +1986,10 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `schema.TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode`,
   `operation.TestParams_NotesAreTheParametersWhateverItsSchemaHoists`,
   `operation.TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists`,
-  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`
+  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`,
+  `schema.TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode`,
+  `schema.TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget`,
+  `reftable.TestReferenced_NamesWhereEachReferenceLands`
 
 ### `replacement-inference`
 
@@ -1993,8 +1997,9 @@ The replacement policy, `Options.ReplacementInference` and the text option `repl
 ([`policies`](#policies)), reads what a deprecation's message names as its replacement into
 `Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)). It reads the message
 [`extension-promotion`](#extension-promotion) fills on three classes of deprecated node, each where
-no key the promotion maps to `deprecation.replacedBy` is written beside it, and reports a message
-naming a replacement it cannot settle as an info `openapi/undecided-replacement`:
+no key the promotion maps to `deprecation.replacedBy` is written beside it or on the node whose keys
+a carrier reads its replacements from, and reports a message naming a replacement it cannot settle
+as an info `openapi/undecided-replacement`:
 
 1. An operation's message names an operation by its route: a word that is a method an operation of
    the document is bound with, a backtick or a parenthesis before it aside, then, after white
@@ -2051,7 +2056,8 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
   `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
   `replacement.TestMessage_CostsItsLength`, `replacement.TestMessage_UseOpensItsSentence`,
-  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`,
+  `replacement.TestMessage_AKeyACarriersNodeKeepsIsNotReadOver`
 - Status: open: a `use` after a colon, a parenthesis or a dash is no cue, so
   ``Deprecated: use `b` instead.``, which `main` read, names nothing (#1956).
 
@@ -8056,9 +8062,12 @@ of strings, names each replacement as the document names an entity of the node's
 by its `operationId`, a parameter of the same operation as a link's key names one (`<in>.<name>` or
 a name one parameter carries), a header by its name among the headers beside it, a response's or
 those an encoding gives a part or a stream's items, in any case, a property by its name within its
-model, a schema by its name under `components/schemas`, and a security scheme by its key. A property
-whose schema lowers to a type of its own, such as an inline object or enum, is deprecated on that
-type ([`docs-and-deprecation`](#docs-and-deprecation)), so a name there is read as a schema's. The
+model, a schema by its name under `components/schemas`, and a security scheme by its key. A
+property, a parameter or a header whose own schema hoists a node holds that schema's deprecation
+([`docs-and-deprecation`](#docs-and-deprecation)) while the node keeps its keys, so where its own
+keys name no replacement it reads the names that node's keys give, each as a schema's, as the node
+read them when it held the deprecation. A position a reference names keeps its deprecation, and so
+its names, on its node. The
 names are resolved once the document is whole, since a replacement may be declared after what it
 replaces, and they fill the field all or none: a name that names nothing, names more than one
 entity, or names the node itself, leaves the field unset and is reported as an info
@@ -8094,6 +8103,9 @@ saying why.
   `service.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
+  `e2e.TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps`,
+  `replacement.TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt`,
+  `replacement.TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode`,
   `promotion.TestServerName_ReadsTheDefaultKey`,
   `promotion.TestTokenEndpointAuthMethods_ReadsASet`,
   `promotion.TestAllowReserved_OnlyTrueAsksForIt`,
