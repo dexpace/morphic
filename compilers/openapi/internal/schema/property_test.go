@@ -504,12 +504,12 @@ func TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode(t *te
 // TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode
 // pins the answer note by note: a parameter or a header whose own object, or a
 // Reference Object naming it, writes a description, or whose object writes an
-// example, holds its own while the node its schema hoists keeps the schema's,
-// and still holds the deprecation. A property, whose holder is its schema,
-// holds them all.
+// example or states a deprecation, by its keyword or a key read into one,
+// holds its own while the node its schema hoists keeps the schema's. A
+// property, whose holder is its schema, holds them all.
 func TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode(t *testing.T) {
 	t.Parallel()
-	const list = "{type: array, items: {type: string}, description: DOC, deprecated: true, example: [a]}"
+	const list = "{type: array, items: {type: string}, description: DOC, deprecated: true, x-deprecated-reason: why, example: [a]}"
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -519,11 +519,13 @@ paths:
       parameters:
         - {name: own, in: query, description: OWN, schema: `+list+`}
         - {$ref: '#/components/parameters/Used', description: USE}
+        - {name: flagged, in: query, deprecated: true, schema: `+list+`}
       responses:
         '200':
           description: ok
           headers:
             X-Example: {example: [b], schema: `+list+`}
+            X-Keyed: {x-deprecated-reason: own, schema: `+list+`}
         '201': {$ref: '#/components/responses/Plain'}
 components:
   parameters:
@@ -539,29 +541,37 @@ components:
 	require.True(t, ok)
 	used, ok := openapitest.ParamBySource(operation, "used")
 	require.True(t, ok)
-	require.Len(t, operation.Responses[0].Headers, 1)
-	header := operation.Responses[0].Headers[0]
+	flagged, ok := openapitest.ParamBySource(operation, "flagged")
+	require.True(t, ok)
+	headers := operation.Responses[0].Headers
+	require.Len(t, headers, 2)
+	header, keyed := headers[0], headers[1]
 	property := propertyOf(t, doc, "Holder", "list")
+	why := &ir.Deprecation{Message: "why"}
 	for _, tc := range []struct {
 		name                   string
 		carrier                ir.Property
 		docs, nodeDocs         string
 		examples, nodeExamples []ir.Value
+		dep, nodeDep           *ir.Deprecation
 	}{
 		{"a parameter writing its own description", ir.Property{Docs: own.Docs, Deprecation: own.Deprecation, Examples: own.Examples, Type: own.Type},
-			"OWN", "DOC", []ir.Value{listOf("a")}, nil},
+			"OWN", "DOC", []ir.Value{listOf("a")}, nil, why, nil},
 		{"a parameter a Reference Object describes", ir.Property{Docs: used.Docs, Deprecation: used.Deprecation, Examples: used.Examples, Type: used.Type},
-			"USE", "DOC", []ir.Value{listOf("a")}, nil},
-		{"a header writing its own example", header.Property, "DOC", "", []ir.Value{listOf("b")}, []ir.Value{listOf("a")}},
-		{"a property", property, "DOC", "", []ir.Value{listOf("a")}, nil},
+			"USE", "DOC", []ir.Value{listOf("a")}, nil, why, nil},
+		{"a parameter deprecating itself", ir.Property{Docs: flagged.Docs, Deprecation: flagged.Deprecation, Examples: flagged.Examples, Type: flagged.Type},
+			"DOC", "", []ir.Value{listOf("a")}, nil, &ir.Deprecation{}, why},
+		{"a header writing its own example", header.Property, "DOC", "", []ir.Value{listOf("b")}, []ir.Value{listOf("a")}, why, nil},
+		{"a header writing a deprecation key", keyed.Property, "DOC", "", []ir.Value{listOf("a")}, nil, nil, why},
+		{"a property", property, "DOC", "", []ir.Value{listOf("a")}, nil, why, nil},
 	} {
 		assert.Equal(t, tc.docs, tc.carrier.Docs.Description, tc.name)
 		assert.Equal(t, tc.examples, valuesOf(tc.carrier.Examples), tc.name)
-		assert.NotNil(t, tc.carrier.Deprecation, "%s holds the deprecation", tc.name)
+		assert.Equal(t, tc.dep, tc.carrier.Deprecation, tc.name)
 		node := doc.Types[tc.carrier.Type.Target].Common()
 		assert.Equal(t, tc.nodeDocs, node.Docs.Description, tc.name)
 		assert.Equal(t, tc.nodeExamples, valuesOf(node.Examples), tc.name)
-		assert.Nil(t, node.Deprecation, tc.name)
+		assert.Equal(t, tc.nodeDep, node.Deprecation, tc.name)
 	}
 }
 
