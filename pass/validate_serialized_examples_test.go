@@ -178,17 +178,35 @@ func itemOperation(element ir.TypeRef, value *ir.Value) *ir.Document {
 	return doc
 }
 
+// boundedItems is itemOperation whose list declares the bounds list and whose
+// element is the alias type/s of base, declaring the bounds element.
+func boundedItems(base ir.TypeRef, element, list *ir.Constraints, value *ir.Value) *ir.Document {
+	doc := itemOperation(ir.TypeRef{Target: "type/s"}, value)
+	doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: ir.TypeRef{Target: "type/s"}, Constraints: list, Provenance: provAt("type/i")}
+	doc.Types["type/s"] = &ir.Scalar{ID: "type/s", Base: &base, Constraints: element, Provenance: provAt("type/s")}
+	return doc
+}
+
 // TestValidate_ANumberOrABoolIsOneItemOfAListsText holds a number or a bool
-// example of a list a style writes to be its text only as the one item it
-// is, since it holds no delimiter: accepted where the element type settles to
-// text, to anything or to a shape admitting the value's kind, and judged where
-// it settles to another shape or to a type the check reads no further, and for
-// a tuple, whose items have no one type. A string is accepted whatever the
-// element type, being text a style may split.
+// example of a list a style writes to be its text only as its one item, since
+// it holds no delimiter: judged against the list's item counts and the element
+// type, whole numbers and bounds included, as text where the element is text,
+// and accepted where it holds anything. It is judged where the element is a
+// type the check reads no further, and for a tuple, whose items have no one
+// type. A string is accepted whatever the element, being text a style may split.
 func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 	t.Parallel()
 	asNumber := []finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}
+	asBool := []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}
 	on := &ir.Value{Kind: ir.ValueBool, Bool: true}
+	header := func(value *ir.Value) *ir.Document {
+		doc := headerOperation(func(header *ir.Header) {
+			header.Type, header.Examples = ir.TypeRef{Target: "type/i"}, []ir.Example{{Value: value}}
+		})
+		doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: intT, Provenance: provAt("type/i")}
+		return doc
+	}
+	five, two := ir.BigVal("5"), int64(2)
 	decimalT := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}
 	enumT := ir.TypeRef{Target: "type/e"}
 	tuple := itemOperation(intT, number("7"))
@@ -207,7 +225,20 @@ func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 		{"a number of a list of anything", itemOperation(anyT, number("7")), nil},
 		{"a bool of a list of bools", itemOperation(boolT, on), nil},
 		{"a bool of a list of strings", itemOperation(stringT, on), nil},
-		{"a bool of a list of numbers", itemOperation(decimalT, on), []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a bool of a list of numbers", itemOperation(decimalT, on), asBool},
+		{"a fraction of a list of integers", itemOperation(intT, number("8.5")), asNumber},
+		{"a fraction of a list of numbers", itemOperation(decimalT, number("8.5")), nil},
+		{"a number within its item's maximum", boundedItems(intT, &ir.Constraints{Max: &five}, nil, number("5")), nil},
+		{"a number over its item's maximum", boundedItems(intT, &ir.Constraints{Max: &five}, nil, number("8")), asNumber},
+		{"a number under the list's minimum count", boundedItems(intT, nil, &ir.Constraints{MinItems: &two}, number("8")), asNumber},
+		{"a number over the list's maximum count", boundedItems(intT, nil, &ir.Constraints{MaxItems: new(int64(0))}, number("8")), asNumber},
+		{"a number within the list's counts", boundedItems(intT, nil, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(1))}, number("8")), nil},
+		{"a bool longer than its text item's maximum", boundedItems(stringT, &ir.Constraints{MaxLength: &two}, nil, on), asBool},
+		{"a number within its text item's maximum", boundedItems(stringT, &ir.Constraints{MaxLength: &two}, nil, number("12")), nil},
+		{"a number shorter than its text item's minimum", boundedItems(stringT, &ir.Constraints{MinLength: &two}, nil, number("1")), asNumber},
+		{"a number of a list of anything under the list's minimum count", boundedItems(anyT, nil, &ir.Constraints{MinItems: &two}, number("8")), asNumber},
+		{"a fraction of a header's list of integers", header(number("1.5")), []finding{{"property/x/h", "example 0 is a number, and type/i holds a list"}}},
+		{"a number of a header's list of integers", header(number("1")), nil},
 		{"a number of a list of an enum it is no member of", enum, asNumber},
 		{"a number of a tuple", tuple, asNumber},
 		{"a string of a list of integers", itemOperation(intT, text("a,b")), nil},

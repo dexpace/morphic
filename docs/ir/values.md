@@ -80,12 +80,15 @@ A style can write a shape where OpenAPI's style table gives it a text: a list un
 does not name writes neither. So under `deepObject` a string example of a list is judged, and one of
 an object is not. Such a string is not split on the style's delimiter and judged item by item or
 member by member, which would need each style's grammar. A number or a bool holds no delimiter, so
-it is decided by its kind alone: it is never an object's text, and is a list's text only as its one
-item, where the style writes a list and the list's element type settles to text, to a type holding
-anything, or to a shape admitting the value's kind, as a number does an integer. Every other number
-or bool example of a list is judged: a number for a list of booleans, a bool for a list of numbers,
-either for a tuple, whose items have no one type, and either for a list of an enum, a literal or a
-union, though it may be one of its items, since telling needs the item judged against its type. No
+it is judged as the list's one item: it is never an object's text, and is a list's text only where
+the style writes a list, the list's `minItems` and `maxItems` admit one item, and the element type
+holds that item, judged as a value of it is, whole numbers and bounds included, and as its text
+where the element settles to text, so `true` is four characters long. An element holding anything
+holds every item. Every other number or bool example of a list is judged: a bool for a list of
+numbers, a fraction for a list of integers, a number beyond its item's bounds or under a `minItems`
+of two, either for a tuple, whose items have no one type, and either for a list of an enum, a
+literal or a union, though it may be one of its items, since the check judges no item against such
+a type. No
 other binding writes a value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or
 by no binding, one a binding writes only a member of, and a property, has every scalar example of a
 list or an object judged, unless an encoding writes it. A default is a value of the type, written

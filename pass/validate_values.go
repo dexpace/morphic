@@ -187,20 +187,19 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked || s.writtenOut(value, sh, td) {
+	if s.encoded || enc || sh == shapeNotChecked || s.writtenOut(value, sh, td, &b) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
 }
 
 // writtenOut reports whether value may be td, of shape sh, written out in a
-// style the site writes sh in: a string as its text, and a number or a bool,
-// holding no delimiter, only as the one item of a list whose element type
-// settles to text, to anything or to a shape admitting its kind. So neither is
-// an object's or a tuple's text, nor one for a list of an enum, a literal or a
-// union, which it may be an item of: telling needs the item judged
+// style the site writes sh in, b holding td's bounds: a string as its text,
+// and a number or a bool, holding no delimiter, only as the one item of a list
+// whose item counts admit one and whose element type holds that item, as
+// oneItem judges it. So neither is an object's or a tuple's text
 // (docs/ir/values.md#values-held-to-their-type).
-func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef) bool {
+func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef, b *bounds) bool {
 	if !s.writtenShapes.has(sh) {
 		return false
 	}
@@ -211,12 +210,35 @@ func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef) bool {
 		return false
 	}
 	list, ok := td.(*ir.List)
-	if !ok {
+	if !ok || beyond(1, b.minItems, b.maxItems) {
 		return false
 	}
+	return oneItem(s.doc, value, list.ElementType.Target)
+}
+
+// oneItem reports whether value, a number or a bool, is a value of the element
+// type target, as fitsShape judges one, bounds included: as its text where the
+// element settles to text, and as itself otherwise, whatever encoding the
+// element names, so bytes hold neither. An element holding anything holds it,
+// and an enum, a literal, a union or another type the check reads no further
+// holds none, since the check judges no item against such a type.
+func oneItem(doc *ir.Document, value *ir.Value, target ir.TypeID) bool {
 	var elementBounds bounds
-	item, _, _ := settle(s.doc, list.ElementType.Target, &elementBounds)
-	return item == shapeText || item == shapeAnything || admits(item, value.Kind)
+	item, _, _ := settle(doc, target, &elementBounds)
+	switch item {
+	case shapeAnything:
+		return true
+	case shapeNotChecked:
+		return false
+	case shapeText:
+		written := ir.Value{Kind: ir.ValueString, String: string(value.Number)}
+		if value.Kind == ir.ValueBool {
+			written.String = strconv.FormatBool(value.Bool)
+		}
+		return fitsShape(&written, item, target, &elementBounds) == ""
+	default:
+		return fitsShape(value, item, target, &elementBounds) == ""
+	}
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the
