@@ -59,10 +59,14 @@ reading is shallow: the value's kind against the shape of the type, an enum's me
 value, null where the position is not nullable, whole numbers for an integer, and the bounds the
 position declares with those of the alias scalars it reaches. A value that is a reference or a
 constructor, a type holding anything, a union, an external type, an unknown type and a position written
-in an encoding are not judged. The sites are a property's, a parameter's and a header's default and
-examples, a type's own examples (a null one says the example is absent and is not judged), and in an
-operation's examples each input parameter against the parameter it names, and the error content
-against the error's type.
+in an encoding are not judged. A position is written in an encoding where an `Encoding` writes it,
+that of a scalar or a list its type reaches through aliases or its own as a property, a header or a
+parameter, or where an HTTP binding writes the whole parameter through a `ContentType`, a media type
+serializing it as one does a header declared by `content`. Its default then goes unjudged with its
+examples. The sites are a property's, a parameter's and a header's default and examples, a type's
+own examples (a null one says the example is absent and is not judged), and in an operation's
+examples each input parameter against the parameter it names, and the error content against the
+error's type.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string, number or bool example of a list or an object (a model or a map) is
@@ -74,15 +78,15 @@ under every style but `deepObject`, and an object under every style, `deepObject
 style the table does not name writes neither. So under `deepObject` a scalar example of a list is
 judged, and one of an object is not. Such a scalar is not split on the style's delimiter and judged
 item by item or member by member, which would need each style's grammar. No other binding writes a
-value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or by no binding, a
-parameter whose `ContentType` serializes it, one a binding writes only a member of, and a property,
-has a scalar example of a list or an object judged. A default is a value of the type, written into
-code, and so is a scenario's input, which holds each parameter's value whatever its binding, and a
-type's own examples, which OpenAPI's Schema Object gives without regard to how a parameter is
-written, even where the type is a parameter's own: each stays judged. An example's `Value` does not
-say which form it is in, so one position's examples may mix the two, and a scalar written as the
-list's or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a position:
-telling the two apart needs `ir.Example` to record the form.
+value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or by no binding, one a
+binding writes only a member of, and a property, has a scalar example of a list or an object judged,
+unless an encoding writes it. A default is a value of the type, written into code, and so is a
+scenario's input, which holds each parameter's value whatever its binding, and a type's own
+examples, which OpenAPI's Schema Object gives without regard to how a parameter is written, even
+where the type is a parameter's own: a style excuses none of them. An example's `Value` does not say
+which form it is in, so one position's examples may mix the two, and a scalar written as the list's
+or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a position: telling the
+two apart needs `ir.Example` to record the form.
 
 Not judged: a content's and a message's examples, which are in a media type's format, not the type's
 value (whether a JSON content's are held is #1949); a scenario's `Body` and `Output`, which are one

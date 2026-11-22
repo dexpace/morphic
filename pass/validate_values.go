@@ -24,10 +24,10 @@ type valueSite struct {
 	// encoded says the value is written in an encoding, so its kind says
 	// nothing of what the type holds.
 	encoded bool
-	// serialized is the shapes the position's style writes the value in on
-	// the wire, so a scalar of such a shape may be a list or an object written
+	// writtenShapes are the structured shapes the position's style can write
+	// as text, so a scalar example of one of them may be that value written
 	// out.
-	serialized shapeSet
+	writtenShapes shapeSet
 	// typeLevel says the value is an example of the type itself, for which
 	// null stands for an example that is absent and is never judged.
 	typeLevel bool
@@ -52,7 +52,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
-		site.serialized = positionValue.serializedExamples // the examples alone: a default is a value
+		site.writtenShapes = positionValue.writtenShapes // the examples alone: a default is a value
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
@@ -185,7 +185,7 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked || (scalar(value.Kind) && s.serialized.has(sh)) {
+	if s.encoded || enc || sh == shapeNotChecked || (scalar(value.Kind) && s.writtenShapes.has(sh)) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
