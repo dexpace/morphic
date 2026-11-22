@@ -968,6 +968,7 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - $ref: '#/components/parameters/Flagged'\n"+
 			"        - {name: capitalised, in: query, deprecated: True, schema: "+list+"}\n"+
 			"        - {name: unflagged, in: query, deprecated: false, schema: "+list+"}\n"+
+			"        - {name: tiered, in: query, x-stability: beta, schema: "+list+"}\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
 			"        - $ref: '#/components/parameters/Used'\n"+
@@ -1001,8 +1002,10 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		{"entrykey", "DOC", "", []string{"a"}, nil, nil, why},
 		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 		{"capitalised", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
-		// A `deprecated: false` states nothing, so the schema's stands.
+		// A `deprecated: false` states nothing, so the schema's stands. A key
+		// read into a deprecation speaks to it whatever its value says.
 		{"unflagged", "DOC", "", []string{"a"}, nil, why, nil},
+		{"tiered", "DOC", "", []string{"a"}, nil, nil, why},
 	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
@@ -1058,4 +1061,31 @@ func listedExamples(examples []ir.Example) []string {
 		}
 	}
 	return listed
+}
+
+// TestParams_AQuotedDeprecatedStatesNoDeprecation pins the deprecation verdict
+// to the parser's reading of the keyword: a `deprecated` written as the string
+// "true" is refused, and the Parameter Object it is written on is read as not
+// deprecated, so the parameter states no deprecation of its own and holds its
+// schema's, the node holding none.
+func TestParams_AQuotedDeprecatedStatesNoDeprecation(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+		"        - {name: quoted, in: query, deprecated: \"true\", "+
+		"schema: {type: array, items: {type: string}, deprecated: true, x-deprecated-reason: why}}\n"+
+		"      responses: {\"204\": {description: none}}\n")
+	var refused []string
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == ir.SeverityError {
+			refused = append(refused, string(diagnostic.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/paths/~1x/get/parameters/0/deprecated"}, refused, "the quoted keyword is refused")
+	param, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, svc), "quoted")
+	require.True(t, ok)
+	assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, "the parameter holds its schema's")
+	node, ok := doc.Types[param.Type.Target]
+	require.True(t, ok, "the schema hoists a node")
+	assert.Nil(t, node.Common().Deprecation)
 }
