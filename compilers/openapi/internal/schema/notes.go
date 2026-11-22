@@ -86,15 +86,16 @@ func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (doc
 
 // writesDeprecation reports whether object, a Parameter or Header Object's
 // mapping, or entry, the content entry it elects or nil, states a deprecation
-// of its own: object writes `deprecated: true`, or either writes a key promoter
-// reads a deprecation or one of its members from, whatever its value says
+// of its own: object writes `deprecated: true`, a value of another type read
+// as left out (load.turnRefused), or either writes a key promoter reads a
+// deprecation or one of its members from, whatever its value says
 // (promotion.DeprecationKey). A Reference Object states none: the keys it
 // writes beside its $ref are promoted nowhere
 // (docs/compilers/openapi.md#reference-object-siblings), so every use of the
 // object agrees.
 func writesDeprecation(promoter promotion.Promoter, object, entry *yaml.Node) bool {
 	flag := nodeview.Deref(nodeview.Child(object, "deprecated"))
-	if flag != nil && flag.ShortTag() == "!!bool" && strings.EqualFold(flag.Value, "true") {
+	if flag != nil && strings.EqualFold(flag.Value, "true") {
 		return true
 	}
 	for _, mapping := range [...]*yaml.Node{object, entry} {

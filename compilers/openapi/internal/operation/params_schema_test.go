@@ -1065,9 +1065,9 @@ func listedExamples(examples []ir.Example) []string {
 
 // TestParams_AQuotedDeprecatedStatesNoDeprecation pins the deprecation verdict
 // to the parser's reading of the keyword: a `deprecated` written as the string
-// "true" is refused, and the Parameter Object it is written on is read as not
-// deprecated, so the parameter states no deprecation of its own and holds its
-// schema's, the node holding none.
+// "true" is refused and read as left out, so the Parameter Object states no
+// deprecation of its own, and the parameter holds its schema's, the node
+// holding none.
 func TestParams_AQuotedDeprecatedStatesNoDeprecation(t *testing.T) {
 	t.Parallel()
 	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
