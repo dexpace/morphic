@@ -187,9 +187,12 @@ cases:
 #
 # The test skips without -pinned, and go test prints ok for a skipped test or a
 # -run matching none, so the sweep passes only on the test's own PASS line. A
-# failed fetch says so on a line of its own, which the nightly job reports under
-# a title of its own: it is no difference in what the specs draw.
+# run that rewrites a record, as -update does, fails too, since the test then
+# passes over any difference. A failed fetch says so on a line of its own, which
+# the nightly job reports under a title of its own: it is no difference in what
+# the specs draw.
 SWEEP_TEST := TestSweep_EachPinnedSpecHoldsItsRecord
+SWEEP_RECORDS := internal/harness/pinnedspecs/testdata/records/*.txt
 sweep:
 	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/morphic-sweep.XXXXXX")" || exit 1; \
 	trap 'rm -rf "$$dir"' EXIT; \
@@ -197,10 +200,15 @@ sweep:
 		echo "sweep: cannot fetch the pinned specs" >&2; \
 		exit 1; \
 	fi; \
+	records="$$(cksum $(SWEEP_RECORDS))" || exit 1; \
 	$(GO) test ./internal/harness/pinnedspecs -run '^$(SWEEP_TEST)$$' -pinned "$$dir" \
 		-count=1 -timeout 8m -v >"$$dir/sweep.log" 2>&1; \
 	status=$$?; \
 	cat "$$dir/sweep.log"; \
+	if [ "$$(cksum $(SWEEP_RECORDS))" != "$$records" ]; then \
+		echo "sweep: the run rewrote a record" >&2; \
+		exit 1; \
+	fi; \
 	if [ "$$status" -ne 0 ]; then \
 		exit "$$status"; \
 	fi; \
