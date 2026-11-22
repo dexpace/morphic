@@ -178,9 +178,9 @@ builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`
 `Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
 has fields for, and the node holds none of them, so a reader of a model's members meets them on the
 member whichever kind its schema is. That holds of each note nothing at the position writes over: where a
-parameter or a header writes its own documentation or examples beside its schema's, or a Reference
-Object naming a component one writes documentation beside its `$ref`, the node keeps the schema's
-for every use of that position, and each carrier holds only its own. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
+parameter or a header writes its own documentation, deprecation or examples beside its schema's, or a
+Reference Object naming a component one writes documentation beside its `$ref`, the node keeps the
+schema's for every use of that position, and each carrier holds only its own. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
 verbatim, which stays where the promotion reads a key. A schema at a carrier writing these notes
 beside one `$ref` to an object, or beside an `allOf` of it, and nothing the carrier has no field
@@ -192,11 +192,14 @@ carried position that a reference names keeps them on its node too, its carrier 
 every reference to it reads them where it lands.
 
 Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
-write a `description` beside their schema, and an `example` — the two stay apart: the carrier's own
-describe that input, and the schema's describe its type, so they stay with the node that type is.
-A deprecation is no such pair: either one deprecating the carrier deprecates it, so the carrier
-holds both. Where the schema hoists no node, the carrier's own still replace the schema's, which no
-node holds.
+write a `description` beside their schema, an `example`, and a deprecation — the two stay apart: the
+carrier's own describe that input, and the schema's describe its type, so they stay with the node
+that type is. A deprecation is the carrier's own where its object writes `deprecated: true` or a key
+the compiler's promotion policy reads a deprecation or one of its members from, as does the content
+entry it elects; a Reference Object states none. The node then keeps the schema's deprecation whole,
+its message, dates and replacements with it, so a member of either is lost to neither. Where the
+schema hoists no node, the carrier's own documentation and examples still replace the schema's, which
+no node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a

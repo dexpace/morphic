@@ -1386,3 +1386,23 @@ func TestUnheldDeprecation_ReportsEachKeyStatingOne(t *testing.T) {
 	assert.Empty(t, at(ir.Unmodeled{"openapi:x-deprecated-reason": entry("x-deprecated-reason", `"old"`)}, true),
 		"a member beside no deprecation states none")
 }
+
+// TestDeprecationKey_NamesTheKeysOfEveryDeprecationTarget pins DeprecationKey
+// to the vocabulary: a key a mapping names for the deprecation or any of its
+// members, its replacements among them, is one, whatever its value would say,
+// and a key mapped to another target, or mapped to none, is not. The
+// deprecation's targets are read off their names, so one added later is
+// asked of too.
+func TestDeprecationKey_NamesTheKeysOfEveryDeprecationTarget(t *testing.T) {
+	t.Parallel()
+	for _, target := range promotion.Targets() {
+		t.Run(string(target), func(t *testing.T) {
+			t.Parallel()
+			promoter := promotion.New(mapping(target, promotion.ExtensionSource{Key: "x-k", Member: "m"}))
+			deprecation := target == promotion.TargetDeprecation || strings.HasPrefix(string(target), string(promotion.TargetDeprecation)+".")
+			assert.Equal(t, deprecation, promotion.DeprecationKey(promoter, "x-k"))
+			assert.False(t, promotion.DeprecationKey(promoter, "x-other"), "a key the mapping names for nothing")
+		})
+	}
+	assert.False(t, promotion.DeprecationKey(promotion.Promoter{}, "x-deprecated-reason"), "the disabled policy reads no key")
+}

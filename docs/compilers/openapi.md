@@ -2011,8 +2011,15 @@ own `description`, or a `summary` or `description` a Reference Object naming it 
 node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema
 keeps its documentation on the node for every use once one Reference Object writes documentation
 beside its `$ref`, so a use writing none reads them there and its carrier holds none; where the
-schema hoists none, the carrier's own replace it, and nothing keeps the schema's. `deprecated: true` on a parameter or header and on its
-schema each deprecate it, neither one's `false` clearing the other. A request body's `description`
+schema hoists none, the carrier's own replace it, and nothing keeps the schema's. A deprecation a
+parameter or a header states itself stands on it the same way: where its object writes
+`deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
+deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
+whole, members and replacement with it, and the carrier holds its own alone. A Reference Object
+states none, as the keys beside its `$ref` are promoted nowhere
+([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
+hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,
+neither one's `false` clearing the other. A request body's `description`
 lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
 its own. OpenAPI has no syntax for naming a type in prose, so a `description` is kept as written and
 no span of it is marked ([references in prose](../ir/annotations.md#references-in-prose)).
@@ -2031,7 +2038,8 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `schema.TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode`,
   `schema.TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget`,
   `reftable.TestReferenced_NamesWhereEachReferenceLands`,
-  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`
+  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`
 
 ### `replacement-inference`
 
@@ -7959,8 +7967,9 @@ A carrier also reads the objects whose keys it keeps beneath a scope: an operati
 (`openapi:pathItem/`), and a parameter or a header the content entry it elects (`content/<mt>/`) and
 the schema of its spelling (`schema/` or `content/<mt>/schema/`). A property, a parameter or a header
 whose schema hoists a node reads that node's keys the same way for its deprecation alone, beneath
-every scope, as the deprecation the keyword states is the carrier's
-([`docs-and-deprecation`](#docs-and-deprecation)); the node keeps the keys, and its redaction. It reads them two ways, as
+every scope, where the deprecation the keyword states is the carrier's, a parameter or a header
+stating none of its own ([`docs-and-deprecation`](#docs-and-deprecation)); the node keeps the keys,
+and its redaction. It reads them two ways, as
 [annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
 single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
 states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws
@@ -8112,15 +8121,17 @@ by its `operationId`, a parameter of the same operation as a link's key names on
 a name one parameter carries), a header by its name among the headers beside it, a response's or
 those an encoding gives a part or a stream's items, in any case, a property by its name within its
 model, a schema by its name under `components/schemas`, and a security scheme by its key. A
-property, a parameter or a header whose own schema hoists a node holds that schema's deprecation
-([`docs-and-deprecation`](#docs-and-deprecation)) while the node keeps its keys, so where its own
-keys name no replacement it reads the names that node's keys give, each as a schema's, as the node
-read them when it held the deprecation. That node is the one its declaration builds, at its own
-position or its schema's, or, for a header a Reference Object reaches, which stands at its use, at
-the schema of the Header Object it names, in whichever document declares it. A position a reference names keeps its deprecation, and so
-its names, on its node; where that node holds none, a parameter or a header its own object
-deprecates still reads the names its keys give, which the resolution, reading the document alone,
-cannot tell from a node whose notes are the carrier's. The
+property, a parameter or a header whose own schema hoists a node holds that schema's deprecation,
+unless a parameter or a header states one of its own ([`docs-and-deprecation`](#docs-and-deprecation)),
+while the node keeps its keys, so where its own keys name no replacement it reads the names that
+node's keys give, each as a schema's, as the node read them when it held the deprecation. That node
+is the one its declaration builds, at its own position or its schema's, or, for a header a Reference
+Object reaches, which stands at its use, at the schema of the Header Object it names, in whichever
+document declares it. A node keeping its deprecation, as one a reference names does and one whose
+parameter or header states its own does, resolves its names itself, and its carrier reads none of
+them. Where that node holds none because its schema states no deprecation, a parameter or a header
+deprecating itself still reads the names its keys give, which the resolution, reading the document
+alone, cannot tell from a node whose deprecation is the carrier's. The
 names are resolved once the document is whole, since a replacement may be declared after what it
 replaces, and they fill the field all or none: a name that names nothing, names more than one
 entity, or names the node itself, leaves the field unset and is reported as an info
@@ -8194,13 +8205,16 @@ saying why.
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
   `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`,
   `promotion.TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt`,
-  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
+  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`,
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`
 - Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
   object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,
   where beside a `$ref` to a string it lands on the carrier (#2061); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field.
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a parameter or a
+  header deprecating itself reads the replacement its schema's key names where that schema states
+  no deprecation, though a member beside none annotates nothing (#2189).
 
 ### `mutually-exclusive-parameters`
 
