@@ -52,7 +52,9 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
-		site.writtenShapes = positionValue.writtenShapes // the examples alone: a default is a value
+		// The examples alone: a default is a value of the type.
+		site.encoded = site.encoded || positionValue.mediaTyped
+		site.writtenShapes = positionValue.writtenShapes
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID

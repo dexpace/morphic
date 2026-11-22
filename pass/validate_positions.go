@@ -23,6 +23,9 @@ type position struct {
 	// encoded says the value is written in an encoding of its own, so its kind
 	// says nothing of what the type holds.
 	encoded bool
+	// mediaTyped says a media type serializes the position, so an example is in
+	// its format. Its default is a value of the type all the same.
+	mediaTyped bool
 	// writtenShapes are the structured shapes the position's style can write
 	// as text, so a scalar example of one of them is that value written out.
 	// Its default is a value of the type all the same. An example does not say
@@ -45,8 +48,8 @@ type positionScratch struct {
 // the structured shapes their styles can write as text, and whether a content
 // type serializes it.
 type wholeWriting struct {
-	shapes  shapeSet
-	encoded bool
+	shapes     shapeSet
+	mediaTyped bool
 }
 
 // eachPosition calls visit with each property of a live model, in liveTypeIDs
@@ -85,16 +88,25 @@ func propertyPosition(positionValue *position, pr *ir.Property, owner string) *p
 	if node == "" {
 		node = owner
 	}
+	mediaTyped := mediaTypeAlone(pr.Encoding)
 	*positionValue = position{
 		node: node, from: pr.Provenance, typ: pr.Type, own: pr.Constraints,
-		encoded: pr.Encoding != nil, def: pr.Default, examples: pr.Examples,
+		encoded: pr.Encoding != nil && !mediaTyped, mediaTyped: mediaTyped, def: pr.Default, examples: pr.Examples,
 	}
 	return positionValue
 }
 
+// mediaTypeAlone reports whether enc names a media type and nothing else, as
+// the Encoding of a header declared by content does: a media type serializes
+// the value, so its examples are in that format, while its default is a value
+// of the type, which an encoding of another kind may write another way.
+func mediaTypeAlone(enc *ir.Encoding) bool {
+	return enc != nil && enc.MediaType != "" && *enc == ir.Encoding{MediaType: enc.MediaType}
+}
+
 // headerPositions visits each of headers, which belong to owner. A header
-// stating no style is written in simple's, unless an encoding serializes it,
-// which encoded says already.
+// stating no style is written in simple's, unless an encoding or a media type
+// serializes it, which encoded or mediaTyped says already.
 func headerPositions(positionValue *position, headers []ir.Header, owner string, visit func(*position)) {
 	for i := range headers {
 		header := &headers[i]
@@ -164,7 +176,7 @@ func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.Paramet
 			}
 			writing := written[pb.Param]
 			writing.shapes |= shapesWritten(pb.Style, pb.Explode)
-			writing.encoded = writing.encoded || pb.ContentType != ""
+			writing.mediaTyped = writing.mediaTyped || pb.ContentType != ""
 			written[pb.Param] = writing
 		}
 	}
@@ -172,16 +184,19 @@ func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.Paramet
 }
 
 // operationPositions visits the positions of operation. A parameter is written
-// in an encoding where its own Encoding or a binding's content type writes it,
-// as a header is where its Encoding does.
+// in an encoding where its own Encoding writes it, and serialized by a media
+// type where that Encoding names one alone or a binding's content type writes
+// it whole, as a header declared by content is.
 func operationPositions(positionValue *position, operation *ir.Operation, scratch *positionScratch, visit func(*position)) {
 	whole := wholeParameters(operation, &scratch.whole)
 	for i := range operation.Params {
 		pm := &operation.Params[i]
 		writing := whole[pm.ID]
+		mediaTyped := mediaTypeAlone(pm.Encoding)
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			encoded: pm.Encoding != nil || writing.encoded, writtenShapes: writing.shapes, def: pm.Default, examples: pm.Examples,
+			encoded: pm.Encoding != nil && !mediaTyped, mediaTyped: mediaTyped || writing.mediaTyped,
+			writtenShapes: writing.shapes, def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}

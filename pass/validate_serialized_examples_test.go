@@ -177,10 +177,11 @@ func TestValidate_ASerializedDefaultOfAListOrAnObjectIsReported(t *testing.T) {
 }
 
 // TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged holds a parameter
-// a binding writes whole through a content type, or whose own Encoding writes
-// it, to have neither its examples nor its default judged, as a header with an
-// Encoding has not, and one a content type writes only a member of to have
-// both judged. A content type's binding ahead of one writing no list still
+// whose own Encoding writes it to have neither its examples nor its default
+// judged, and one a media type alone serializes, through its own Encoding or a
+// binding writing it whole under a content type, to have its examples alone
+// unjudged, since its default is a value of the type. One a content type writes only a member of
+// has both judged. A content type's binding ahead of one writing no list still
 // serializes the parameter.
 func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 	t.Parallel()
@@ -189,34 +190,78 @@ func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 		parameter.Examples, parameter.Default = []ir.Example{{Value: text("a,b")}}, text("a,b")
 	}
 	for _, tc := range []struct {
-		name   string
-		doc    *ir.Document
-		judged bool
+		name                         string
+		doc                          *ir.Document
+		exampleJudged, defaultJudged bool
 	}{
-		{"under a content type", parameterOperation(valued, bindsQ(content)), false},
-		{"under a content type, then a style writing no list", parameterOperation(valued, bindsQ(content), bindsQ(styled("deepObject", nil))), false},
+		{"under a content type", parameterOperation(valued, bindsQ(content)), false, true},
+		{"under a content type, then a style writing no list", parameterOperation(valued, bindsQ(content), bindsQ(styled("deepObject", nil))),
+			false, true},
 		{"under its own encoding", parameterOperation(func(parameter *ir.Parameter) {
 			valued(parameter)
 			parameter.Encoding = &ir.Encoding{Name: "string"}
-		}), false},
+		}), false, false},
+		{"under its own encoding naming a media type alone", parameterOperation(func(parameter *ir.Parameter) {
+			valued(parameter)
+			parameter.Encoding = &ir.Encoding{MediaType: "application/json"}
+		}), false, true},
+		{"under its own encoding and a content type", parameterOperation(func(parameter *ir.Parameter) {
+			valued(parameter)
+			parameter.Encoding = &ir.Encoding{Name: "http-date"}
+		}, bindsQ(content)), false, false},
 		{"where a content type writes a member", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
 			content(pb)
 			pb.ParamPath = []ir.PropertyID{"property/m/a"}
-		})), true},
+		})), true, true},
 		{"where a content type writes another parameter", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
 			content(pb)
 			pb.Param = "parameter/x/other"
-		})), true},
+		})), true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var wantExample, wantDefault []finding
-			if tc.judged {
+			if tc.exampleJudged {
 				wantExample = []finding{{"parameter/x/q", "example 0 is a string, and type/l holds a list"}}
+			}
+			if tc.defaultJudged {
 				wantDefault = []finding{{"parameter/x/q", "default is a string, and type/l holds a list"}}
 			}
 			assert.Equal(t, wantExample, found(t, tc.doc, exampleCode))
 			assert.Equal(t, wantDefault, found(t, tc.doc, defaultCode))
+		})
+	}
+}
+
+// TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged holds a header whose
+// Encoding names a media type alone, as one declared by content has, to have
+// its examples alone unjudged, as a parameter a content type writes has, and
+// one whose Encoding names anything else, or nothing, to have neither judged.
+// Its example is an object, which no style writes for a list.
+func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		encoding      *ir.Encoding
+		defaultJudged bool
+	}{
+		{"a media type alone", &ir.Encoding{MediaType: "application/json"}, true},
+		{"a media type and a name", &ir.Encoding{MediaType: "application/json", Name: "base64"}, false},
+		{"a name alone", &ir.Encoding{Name: "http-date"}, false},
+		{"nothing", &ir.Encoding{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := headerOperation(func(header *ir.Header) {
+				header.Encoding, header.Default = tc.encoding, text("a,b")
+				header.Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}}
+			})
+			var wantDefault []finding
+			if tc.defaultJudged {
+				wantDefault = []finding{{"property/x/h", "default is a string, and type/l holds a list"}}
+			}
+			assert.Empty(t, found(t, doc, exampleCode))
+			assert.Equal(t, wantDefault, found(t, doc, defaultCode))
 		})
 	}
 }
