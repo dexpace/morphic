@@ -1804,19 +1804,32 @@ that lowers to an object alone the keywords beside the `$ref` are a conjunct at 
 property, parameter or header names the `Model` over the target, a decorator holding them that the
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
-and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
-it, with nothing else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no
-decorator there: the carrier names the reference and holds them, as over any other target, so
-`{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
-read off where the schema is written, a property a schema lists or a parameter's or a header's
-schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
-over the object the position owns for it, keeping the keywords as a declaration does. At a position that
-carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf` branch, an `items`, a
-component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
-the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
-anything else, and in an `allOf` entry they are an inline conjunct of the composition, an entry of
-their own at the entry's pointer that writes no reference, as `{allOf: [{$ref: T}, {K}]}` writes
-them, so the reference is read, kept and reported once
+and a `nullable: true` the nullable-inference policy reads, and the notes the carrier holds
+([`docs-and-deprecation`](#docs-and-deprecation)), `title`, `description`, `externalDocs`,
+`deprecated`, `example` and `examples`, beside the `$ref` or beside an `allOf` of it, with nothing
+else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no decorator there: the
+carrier names the reference and holds them, as over any other target, so
+`{$ref: Obj, readOnly: true}` and `{allOf: [{$ref: Obj}], description: d}` at a property name `Obj`.
+A note counts so only where the carrier holds it: where a reference names the position, or the
+parameter or header writes its own documentation or examples, or a Reference Object naming it
+writes documentation beside its `$ref`, the note stays on the `Model`, which every reference reads
+and which keeps the schema's note beside the carrier's own. A note an entry of the `allOf` writes,
+as in `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
+conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
+extension, `xml` or a constraint among them. The node holding the note at a carrier as well was
+weighed and withdrawn. It kept the two spellings alike, as this does, but left a carrier's
+own `Docs` set over a string target and empty over an object one, so a reader of the carrier alone,
+a differ, `pass` or a docs emitter not behind the fold, found the note on one and not the other, and
+a target changed from a string to an object moved its users' notes. Whether a carrier holds the
+position is read off where the schema is written, a property a schema lists or a parameter's or a
+header's schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the
+`Model` over the object the position owns for it, keeping the keywords as a declaration does. At a
+position that carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf`
+branch, an `items`, a component — the keywords beside the `$ref` are a conjunct of that position,
+as beside an `allOf` of the `$ref`: the node the position owns holds them, the `Model` over an
+object or the alias over anything else, and in an `allOf` entry they are an inline conjunct of the
+composition, an entry of their own at the entry's pointer that writes no reference, as
+`{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and reported once
 ([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
 than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
@@ -1844,6 +1857,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `e2e.TestRefUseBound_ACarriedUseIsTheReference`, `e2e.TestRefUseBound_AnotherKeywordKeepsTheModel`,
   `e2e.TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder`,
+  `e2e.TestRefUseBound_ANoteIsTheCarriers`,
+  `e2e.TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode`,
+  `e2e.TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode`,
+  `schema.TestCarriedAnnotations_ANoteBesideARefIsTheCarriers`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
@@ -1968,8 +1985,10 @@ position a reference names, a `$ref`, a discriminator's mapping value or an expa
 keeps them on its node, which every reference to it reads, and its carrier holds none of them.
 Through a `$ref` the referent's land on the carrier under the use site's field by field
 ([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
-its `allOf`, keeps its own on the node it builds. At a position no carrier holds, they land on the
-node the position owns. A parameter's or header's
+its `allOf`, keeps its own on the node it builds, unless they are all it writes beside one `$ref` to
+an object, or beside an `allOf` of it, and the carrier holds them: it then builds no node, and the
+carrier holds them over the referent's ([`ref-use-site`](#ref-use-site)). At a position no carrier
+holds, they land on the node the position owns. A parameter's or header's
 own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
 `$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
 node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema

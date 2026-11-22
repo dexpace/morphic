@@ -182,11 +182,13 @@ parameter or a header writes its own documentation or examples beside its schema
 Object naming a component one writes documentation beside its `$ref`, the node keeps the schema's
 for every use of that position, and each carrier holds only its own. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
-verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
-its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
-[decorator](#decorators) among them, which an emitter folds onto the carrier. A carried position
-that a reference names keeps them on its node too, its carrier holding none, so every reference to
-it reads them where it lands.
+verbatim, which stays where the promotion reads a key. A schema at a carrier writing these notes
+beside one `$ref` to an object, or beside an `allOf` of it, and nothing the carrier has no field
+for, builds no node: the carrier names the target and holds them ([decorators](#decorators)). One
+writing anything else beside them, or a note on a conjunct of its `allOf`, keeps them on the node
+it builds, a [decorator](#decorators) among them, which an emitter folds onto the carrier. A
+carried position that a reference names keeps them on its node too, its carrier holding none, so
+every reference to it reads them where it lands.
 
 Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
 write a `description` beside their schema, and an `example` — the two stay apart: the carrier's own
@@ -260,7 +262,7 @@ place it was declared and the one place it is recorded.
 ## Decorators
 
 A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
-OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
+OpenAPI 3.0 writes `items: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
 losslessly as an anonymous `Model` whose `Base` is `Status`, where `Status` can be an object, and as
 the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies)). 3.1 writes the
 same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
@@ -268,8 +270,16 @@ wherever no carrier holds the annotations
 ([one structural home per declaration](#one-structural-home-per-declaration)).
 A keyword that binds only the use, `readOnly`, `writeOnly`, `default` or a `nullable` a policy reads
 as widening the reference, makes no decorator where a carrier holds the use: the carrier holds it
-and names `Status` itself.
-Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
+and names `Status` itself. Nor does a note the carrier holds, its documentation, deprecation or
+examples, so `state: {allOf: [{$ref: Status}], description: …}` at a property names `Status` and
+holds the description, in either spelling. A note no carrier holds makes the decorator: one at an
+`items`, a union's branch or a component, one at a carried position a reference names, and one a
+parameter's or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a
+keyword beside it that only a node keeps and a note written on a conjunct of the `allOf`. A decorator holding a carrier's note as well was
+weighed and withdrawn (#2071): the two spellings agreed either way, but a reader of the carrier
+alone found the note there over a string target and not over an object one, and a target that
+became an object moved every user's note onto a node.
+Neither the `Model` nor the alias says anything about a value that its `Base` does not. Such a node is a **decorator**,
 and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
 which is
 

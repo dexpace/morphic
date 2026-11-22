@@ -1,17 +1,24 @@
 # Decorators collapse into their references
 
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
-wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. Where `Status` can
+wrapping it: `items: {allOf: [{$ref: Status}], description: the widget state}`. Where `Status` can
 be an object the compiler keeps that losslessly, as an anonymous `Model` whose `Base` is `Status` and
 which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
 the position is a use of `Status` as the 3.1 spelling is
 ([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
 `{$ref: Status, description: …}`, is the same conjunction and lowers as that `allOf` does
-([`ref-use-site`](../../compilers/openapi.md#ref-use-site)), to the same `Model` at a property or
-parameter too; where no `Model` stands it hoists an anonymous `Scalar` alias over `Status` wherever
-no property or parameter holds the annotations
+([`ref-use-site`](../../compilers/openapi.md#ref-use-site)), to the same `Model`; where no `Model`
+stands it hoists an anonymous `Scalar` alias over `Status` wherever no property, parameter or header
+holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
-annotation alone on a non-carrier position, `items: {type: string, example: x}`. None of these nodes
+annotation alone on a non-carrier position, `items: {type: string, example: x}`. At a property, a
+parameter or a header holding the annotations, where they are all the position writes beyond its
+`$ref`, either spelling builds no node: the carrier names `Status` and holds them
+([annotations](../../ir/annotations.md#decorators)). So `CollapseAliases` keeps its work for the
+positions no carrier holds, an `items`, a union variant, a component, and for a carrier whose
+position writes beside its notes what only a node keeps, such as an extension, or whose own notes
+leave the schema's on the node ([`docs-and-deprecation`](../../compilers/openapi.md#docs-and-deprecation)).
+None of these nodes
 says anything about a value that its `Base` does not. Lowered as written, each would be a type of
 its own — a struct repeating a wrapped model's fields, or a second name for a wrapped enum
 ([scalars](scalars.md)), named from a hint — where every user expects the type it wraps.

@@ -314,13 +314,12 @@ const decoratedComponents = `    OldObject: {type: object, deprecated: true, x-d
 // TestPromotion_ADecoratorMatchesTheRefItStandsFor pins the two spellings of one
 // use to one answer. A 3.0 document annotates a use by wrapping the $ref in an
 // allOf. Over a target admitting no object that is a refinement, whose carriers
-// read the target as the $ref's do. Over an object, a note alone beside it is
-// the carrier's, which reads the target as it reads one admitting no object
-// (docs/compilers/openapi.md#ref-use-site). A key beside it makes a decorator,
-// which an emitter folds onto the carrier (docs/emitters/refine/decorators.md),
-// so the $ref, the same conjunction, lowers to the same decorator, which holds
-// the deprecation, its mark and the kept member key in both spellings (GitHub
-// #1220, #1258, #2024).
+// read the target as the $ref's do, and so is a note alone over an object
+// (docs/compilers/openapi.md#ref-use-site). A key over an object makes a
+// decorator, which an emitter folds onto the carrier
+// (docs/emitters/refine/decorators.md), so the $ref lowers to the same
+// decorator, holding the deprecation, its mark and the kept member key in both
+// spellings (GitHub #1220, #1258, #2024).
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

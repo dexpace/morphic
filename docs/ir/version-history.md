@@ -1279,3 +1279,15 @@ it sees. Changes made together in one bump are listed together under it.
   `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
   before. A consumer pinned to 0.72.0 refuses the document; one reading an older document reads
   such a member's notes off the node its type names, and finds none on the member.
+- **0.74.0** — no change of shape. A property, a parameter or a header whose schema writes, beside
+  one `$ref` to an object or beside an `allOf` of it, only notes the carrier holds, a `title`, a
+  `description`, `externalDocs`, `deprecated`, `example` or `examples`, names that object and holds
+  them over the object's own, and no anonymous `Model` stands at its position
+  ([decorators](./annotations.md#decorators),
+  [`ref-use-site`](../compilers/openapi.md#ref-use-site)). They were a decorator's, a `Model` whose
+  `Base` is the object, which the carrier named and an emitter folded back onto it. The `Model`
+  stays, as before, where the position writes beside its notes what a carrier has no field for, or
+  writes a note on a conjunct of its `allOf`, where a reference names the position, and where the
+  parameter or header, or a Reference Object naming it, writes its own documentation or examples
+  over the schema's. A consumer pinned to 0.73.0 refuses the document; one reading an older
+  document finds such a use's notes on the decorator its type names, and none on the carrier.
