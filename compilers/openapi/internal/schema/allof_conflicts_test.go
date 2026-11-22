@@ -497,9 +497,12 @@ func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) 
 	assert.True(t, tok.Required)
 	sc, ok := doc.Types[tok.Type.Target].(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, "the access token", sc.Docs.Description, "the description stays on the scalar that wrote it")
-	assert.NotNil(t, sc.Deprecation, "so does the deprecation")
-	assert.Len(t, sc.Examples, 1, "and the examples")
+	assert.Equal(t, "the access token", tok.Docs.Description, "the description is the field's")
+	assert.NotNil(t, tok.Deprecation, "so is the deprecation")
+	assert.Len(t, tok.Examples, 1, "and the examples")
+	assert.Empty(t, sc.Docs.Description, "which the scalar holds none of")
+	assert.Nil(t, sc.Deprecation)
+	assert.Empty(t, sc.Examples)
 	require.NotNil(t, tok.Default)
 	assert.Nil(t, tok.Constraints, "the field leaves its bound to the scalar it names")
 	require.NotNil(t, sc.Constraints)
@@ -1193,8 +1196,11 @@ func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
 // TestAllOf_AnObjectSayingMoreThanItsTypeComposes pins what keeps a declaration
 // from being taken for a bare object. A type the winner composes stays reachable
 // through it, and a bare object it narrows does not, so a declaration saying
-// anything else, or an alias that may, composes with a model in either order,
-// and the composition reaches what it says.
+// anything else its node holds, or an alias that may, composes with a model in
+// either order, and the composition reaches what it says. A note says nothing
+// of the node, since the field holds it
+// (docs/ir/annotations.md#one-structural-home-per-declaration), so a bare object
+// noted is narrowed to the model and the field keeps the note.
 func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 	t.Parallel()
 	const spec = `    A:
@@ -1220,12 +1226,8 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 		says       func(entry int) ir.TypeID
 	}{
 		{"a constrained alias", "{$ref: '#/components/schemas/MinTwo'}", func(int) ir.TypeID { return componentID("MinTwo") }},
-		{"a title", "{type: object, title: Held}", inline},
-		{"a description", "{type: object, description: Held}", inline},
-		{"a deprecation", "{type: object, deprecated: true}", inline},
 		{"a redaction", "{type: object, format: password}", inline},
 		{"an XML name", "{type: object, xml: {name: held}}", inline},
-		{"an example", "{type: object, example: {a: held}}", inline},
 	} {
 		for entry, order := range [][2]string{{tc.decl, model}, {model, tc.decl}} {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
@@ -1239,6 +1241,56 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 			}
 			assert.ElementsMatch(t, []ir.TypeRef{{Target: componentID("A")}, {Target: tc.says(entry)}}, parts, tc.name)
 		}
+	}
+}
+
+// TestAllOf_ANotedBareObjectIsNarrowedToAModel is the other half of
+// TestAllOf_AnObjectSayingMoreThanItsTypeComposes: a bare object writing a
+// note alone, in either entry order, gives the field the model and the note.
+// An example is a value the fold adopts only where it shows the field's type
+// admits it, which it does not show of an object, so the declaration giving
+// one is kept and reported, as at any field.
+func TestAllOf_ANotedBareObjectIsNarrowedToAModel(t *testing.T) {
+	t.Parallel()
+	const spec = `    A:
+      type: object
+      properties:
+        a: {type: string}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	model := "{$ref: '#/components/schemas/A'}"
+	for _, tc := range []struct {
+		name, decl string
+		holds      func(property ir.Property) bool
+	}{
+		{"a title", "{type: object, title: Held}", func(property ir.Property) bool { return property.Docs.Summary == "Held" }},
+		{"a description", "{type: object, description: Held}", func(property ir.Property) bool { return property.Docs.Description == "Held" }},
+		{"a deprecation", "{type: object, deprecated: true}", func(property ir.Property) bool { return property.Deprecation != nil }},
+	} {
+		for _, order := range [][2]string{{tc.decl, model}, {model, tc.decl}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, tc.name)
+			property := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, property.Unmodeled, tc.name)
+			assert.Equal(t, componentID("A"), property.Type.Target, tc.name)
+			assert.True(t, tc.holds(property), "%s: the field holds the note", tc.name)
+		}
+	}
+
+	const example = "{type: object, example: {a: held}}"
+	for entry, order := range [][2]string{{example, model}, {model, example}} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+		openapitest.RequireNoErrorDiags(t, diags)
+		property := propertyOf(t, doc, "T", "v")
+		assert.Equal(t, componentID("A"), property.Type.Target)
+		assert.Empty(t, property.Examples, "the fold does not adopt what it cannot show the model admits")
+		assert.Contains(t, property.Unmodeled, fmt.Sprintf("openapi:conflicting-redeclaration/components/schemas/T/allOf/%d/properties/v", entry))
+		require.Len(t, diags, 1)
+		assert.Contains(t, diags[0].Message, "admits the examples")
 	}
 }
 
@@ -1605,10 +1657,11 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
 // stating no instance type that holds docs or a deprecation, beside a string,
 // in both entry orders. Reached through a $ref, the reference carries them
-// down to the property, so the string takes the field and the property keeps
-// them. Written at the declaration, alone or composing what it reaches, they
-// are the structure's own, which a string would lose, so the two overlap: the
-// field keeps the first and reports the other.
+// down to the property, and written at the declaration alone they are the
+// property's (docs/ir/annotations.md#one-structural-home-per-declaration), so
+// the string takes the field and the property keeps them. Composing what it
+// reaches, they are the structure's own, which a string would lose, so the two
+// overlap: the field keeps the first and reports the other.
 func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 	t.Parallel()
 	const spec = `    Described: {description: D, properties: {a: {type: string}}}
@@ -1623,16 +1676,24 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 		return propertyOf(t, doc, "T", "f"), diags
 	}
 	const text, described = "{type: string}", "{$ref: '#/components/schemas/Described'}"
-	for _, order := range [][2]string{{text, described}, {described, text}} {
-		property, diags := compile(order[0], order[1])
-		assert.Empty(t, diags, "%v", order)
-		assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "%v", order)
-		assert.Equal(t, "D", property.Docs.Description, "%v", order)
+	for _, carried := range []struct {
+		decl  string
+		holds func(property ir.Property) bool
+	}{
+		{described, func(property ir.Property) bool { return property.Docs.Description == "D" }},
+		{"{description: D, properties: {a: {type: string}}}", func(property ir.Property) bool { return property.Docs.Description == "D" }},
+		{"{deprecated: true, properties: {a: {type: string}}}", func(property ir.Property) bool { return property.Deprecation != nil }},
+	} {
+		for _, order := range [][2]string{{text, carried.decl}, {carried.decl, text}} {
+			property, diags := compile(order[0], order[1])
+			assert.Empty(t, diags, "%v", order)
+			assert.Equal(t, ir.TypeID("type/primitive/string"), property.Type.Target, "%v", order)
+			assert.True(t, carried.holds(property), "%v", order)
+			assert.Empty(t, property.Unmodeled, "%v", order)
+		}
 	}
 
 	for _, inline := range []string{
-		"{description: D, properties: {a: {type: string}}}",
-		"{deprecated: true, properties: {a: {type: string}}}",
 		"{description: D, allOf: [" + described + "]}",
 	} {
 		for i, order := range [][2]string{{text, inline}, {inline, text}} {

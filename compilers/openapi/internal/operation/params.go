@@ -166,10 +166,9 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
-// parameter. ir.Parameter is the carrier here as ir.Property is for a
-// model property, so a schema that reduced to a shared primitive keeps what it
-// wrote (GitHub #116); one that hoisted a node keeps them there, one home per
-// declaration.
+// parameter, as schema.CarriedAnnotations reads it: everything where the schema
+// reduced to a shared primitive (GitHub #116), and the notes alone where it
+// hoisted a node, which keeps the rest.
 //
 // fillParamDetail writes the parameter's own annotations afterwards, and they
 // win where both are set. Docs, deprecation and redaction read what use falls
@@ -179,33 +178,33 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
 	statementSchema *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	// Visibility is kept before the own-node guard, not after it. The guard exists
-	// so an annotation with a home on the node is not also copied to the carrier,
-	// but readOnly/writeOnly have no home on either: the residue a declaration
-	// keeps on its node skips this position because a parameter is an
-	// annotation.HomeCarrier, and ir.Parameter has no Visibility field. Keeping
-	// them after the guard would drop them for exactly the parameters whose
+	// Visibility is kept before the own-node return, not after it. That return
+	// exists so an annotation with a home on the node is not also copied to the
+	// carrier, but readOnly/writeOnly have no home on either: the residue a
+	// declaration keeps on its node skips this position because a parameter is
+	// an annotation.HomeCarrier, and ir.Parameter has no Visibility field.
+	// Keeping them after it would drop them for exactly the parameters whose
 	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
 	for _, foldedAllOfEntry := range schema.FoldedEntriesInOverwriteOrder(use.FoldedAllOfEntries) {
 		diags = append(diags, preserveParamVisibility(serviceContext, written, foldedAllOfEntry.Node, foldedAllOfEntry.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(serviceContext, written, statementSchema, pointer)...)
-	if schema.LoweredToOwnNode(serviceContext.Ctx, pointer, param.Type) {
-		return diags
-	}
-	a, readDiags := annotation.Read(use.SiteAt(serviceContext.Ctx, statementSchema, pointer), pointer, serviceContext.Place())
+	a, ownsNode, readDiags := schema.CarriedAnnotations(serviceContext.Ctx, statementSchema, use, param.Type, pointer)
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
 	if a.Deprecated {
 		param.Deprecation = &ir.Deprecation{}
 	}
-	if a.Sensitive {
-		param.Secret = true
-	}
 	if len(a.Examples) > 0 {
 		param.Examples = a.Examples
+	}
+	if ownsNode {
+		return diags
+	}
+	if a.Sensitive {
+		param.Secret = true
 	}
 	for _, foldedAllOfEntry := range slices.Backward(use.FoldedAllOfEntries) {
 		diags = append(diags, preserveParamXML(serviceContext, written, foldedAllOfEntry.Node, foldedAllOfEntry.At)...)

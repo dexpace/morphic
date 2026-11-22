@@ -547,14 +547,6 @@
       "anonymous": true,
       "docs": {},
       "sensitive": false,
-      "examples": [
-        {
-          "value": {
-            "kind": "number",
-            "number": "1"
-          }
-        }
-      ],
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Edition/properties/number"
@@ -754,6 +746,14 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "number",
+                "number": "1"
+              }
+            }
+          ],
           "docs": {},
           "provenance": {
             "source": 0,

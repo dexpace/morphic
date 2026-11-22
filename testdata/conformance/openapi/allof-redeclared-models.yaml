@@ -196,15 +196,26 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Meeting'}
-    # Only a type the winner composes stays reachable through it. An object saying
-    # anything else, and an alias of a bare object, which may say more, are no bare
-    # object, so each composes and keeps what it says. Beside what it stands for,
-    # an alias is still the narrower.
+    # Only a type the winner composes stays reachable through it. An alias of a
+    # bare object, which may say more, is no bare object, so it composes and keeps
+    # what it says. Beside what it stands for, an alias is still the narrower. A
+    # title says nothing of the object, as the property holds it, so a titled bare
+    # object is narrowed to the model and the field keeps the title.
     TitledAndModel:
       allOf:
         - type: object
           properties:
             data: {type: object, title: Held on the composition}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    # Beside an XML name, which the node holds, the titled object says more than
+    # the model, so the two compose and the composition takes the title's name.
+    HintedAndModel:
+      allOf:
+        - type: object
+          properties:
+            data: {type: object, title: Held on the composition, xml: {name: held}}
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Meeting'}

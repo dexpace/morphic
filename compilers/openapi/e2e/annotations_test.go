@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1287,4 +1288,83 @@ func underSchema(unmodeled ir.Unmodeled) ir.Unmodeled {
 		}
 	}
 	return out
+}
+
+// TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles the document
+// GitHub #2150 reports, in both orders of its components, beside a $ref naming
+// a carried position and an allOf redeclaring it. A property, a parameter and a
+// header hold the documentation, deprecation and examples their own schema
+// writes whatever node it hoists, and the node holds none of them
+// (docs/ir/annotations.md#one-structural-home-per-declaration).
+func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: plain, in: query, schema: {type: string, deprecated: true, description: plain note}}
+        - {name: list, in: query, schema: {type: array, deprecated: true, description: list note, items: {type: string}}}
+      responses:
+        '204':
+          description: none
+          headers:
+            X-Plain: {schema: {type: string, deprecated: true}}
+            X-List: {schema: {type: array, deprecated: true, items: {type: string}}}
+`
+	schemas := []string{
+		`Holder:
+      type: object
+      properties:
+        plain: {type: string, deprecated: true, description: plain note, example: a}
+        list: {type: array, deprecated: true, description: list note, example: [a], items: {type: string}}
+        map: {type: object, deprecated: true, description: map note, additionalProperties: {type: string}}
+        enum: {type: string, deprecated: true, description: enum note, enum: [a, b]}
+        model: {type: object, deprecated: true, description: model note, properties: {x: {type: string}}}`,
+		"Out: {$ref: '#/components/schemas/Holder/properties/list'}",
+		"Redeclared: {allOf: [{$ref: '#/components/schemas/Holder'}, {properties: {list: {type: array, items: {type: string}}}}]}",
+	}
+	var compiled []*ir.Document
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "carrier notes", admissionSpec("3.0.3", paths, schemas...))
+		assert.Empty(t, diags)
+		compiled = append(compiled, doc)
+
+		holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+		require.True(t, ok)
+		redeclared, ok := doc.Types[componentID("Redeclared")].(*ir.Model)
+		require.True(t, ok)
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok)
+		require.Len(t, operation.Responses, 1)
+		carriers := make([]ir.Property, 0, len(holder.Properties)+len(redeclared.Properties)+len(operation.Params)+len(operation.Responses[0].Headers))
+		carriers = append(carriers, holder.Properties...)
+		carriers = append(carriers, redeclared.Properties...)
+		for _, param := range operation.Params {
+			carriers = append(carriers, ir.Property{WireName: param.Name.Source, Type: param.Type, Docs: param.Docs,
+				Deprecation: param.Deprecation, Examples: param.Examples})
+		}
+		for _, header := range operation.Responses[0].Headers {
+			carriers = append(carriers, header.Property)
+		}
+		require.Len(t, carriers, 10)
+		for _, carried := range carriers {
+			assert.NotNil(t, carried.Deprecation, "%s is deprecated", carried.WireName)
+			if carried.WireName != "X-Plain" && carried.WireName != "X-List" {
+				assert.Equal(t, carried.WireName+" note", carried.Docs.Description, carried.WireName)
+			}
+		}
+		for _, property := range []ir.Property{holder.Properties[0], holder.Properties[1], redeclared.Properties[0]} {
+			require.Len(t, property.Examples, 1, "%s holds its example", property.WireName)
+			assert.NotNil(t, property.Examples[0].Value, property.WireName)
+		}
+		for id, td := range doc.Types {
+			assert.Nil(t, td.Common().Deprecation, "%s holds no deprecation", id)
+			assert.Empty(t, td.Common().Docs.Description, "%s holds no description", id)
+			assert.Empty(t, td.Common().Examples, "%s holds no example", id)
+		}
+	})
+	require.Len(t, compiled, 2)
+	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
 }

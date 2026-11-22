@@ -289,8 +289,8 @@ func closedAfterComposition(td ir.TypeDef) bool {
 }
 
 // attachDeclaredAnnotations records every annotation schema declares on td, in
-// hand, the type node pointer owns, the one structural home they have
-// (ir.TypeCommon).
+// hand, the type node pointer owns (ir.TypeCommon), but for the notes a
+// carrier takes (placeNotes).
 //
 // It reads every declaration's annotations, above lower()'s dispatch: each
 // reaches it through the finishing of the node its position builds
@@ -299,8 +299,8 @@ func closedAfterComposition(td ir.TypeDef) bool {
 //
 // A schema whose body reduced to a shared primitive owns no node; its
 // annotations stay with the declaring property (FillPropertyDetail). Only the
-// build of the node converts them, so its conversion diagnostics are drawn
-// once. target says what speaks there (nodeUse).
+// build of the node converts them, so its findings are drawn once. target
+// says what speaks there (nodeUse).
 func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	td ir.TypeDef,
 ) []ir.Diagnostic {
@@ -314,10 +314,7 @@ func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, 
 	diags = append(diags, heldDiags...)
 
 	common := td.Common()
-	common.Docs = a.Docs
-	if a.Deprecated {
-		common.Deprecation = &ir.Deprecation{}
-	}
+	deprecation, deprecationProvenance := placeNotes(loweringContext, common, a, schema, pointer, target)
 	if a.Sensitive {
 		common.Sensitive = true
 	}
@@ -330,7 +327,7 @@ func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, 
 	promotion.DropContained(loweringContext.Promoter(), &common.Unmodeled, "openapi:discriminator")
 	dropFoldedIntoWhole(loweringContext, &common.Unmodeled)
 	from := use.fallbackKeys(loweringContext)
-	diags = append(diags, loweringContext.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
+	diags = append(diags, loweringContext.Promoter().Deprecation(common.Unmodeled, from, deprecation, deprecationProvenance)...)
 	diags = append(diags, loweringContext.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The openness promotions are applied here rather than where the Enum or
 	// Union is built, for the same reason the deprecation one is: a promotion
@@ -350,9 +347,6 @@ func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, 
 		diags = append(diags, openness(loweringContext.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
 	default:
 		// Openness is a fact of an enum's or a union's value space alone.
-	}
-	if len(a.Examples) > 0 {
-		common.Examples = a.Examples
 	}
 	diags = append(diags, recordUnplacedContent(loweringContext, &common.Unmodeled, schema, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(loweringContext, &common.Unmodeled, schema, pointer)...)

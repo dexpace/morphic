@@ -924,3 +924,44 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 	}
 	assert.Equal(t, []string{"openapi/unlowered-construct /paths/~1x/get/parameters/0/schema/default"}, found)
 }
+
+// TestParams_NotesAreTheParametersWhateverItsSchemaHoists pins a parameter as
+// the home of what its schema notes where that schema hoists a node, as where
+// it hoists none: written inline, as content and in a component, each schema
+// an array or an object, the parameter holds the documentation, the
+// deprecation, a promoted member with its mark, and the examples, and the node
+// holds none of them (docs/ir/annotations.md#one-structural-home-per-declaration).
+// The parameter's own description still wins over its schema's.
+func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
+	t.Parallel()
+	const notes = "description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]], format: password"
+	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+		"        - {name: inline, in: query, schema: {type: array, items: {type: string}, "+notes+"}}\n"+
+		"        - {name: content, in: query, content: {application/json: {schema: {type: array, items: {type: string}, "+notes+"}}}}\n"+
+		"        - {name: own, in: query, description: OWN, schema: {type: array, items: {type: string}, "+notes+"}}\n"+
+		"        - $ref: '#/components/parameters/Shared'\n"+
+		"      responses: {\"204\": {description: none}}\n"+
+		"components:\n  parameters:\n"+
+		"    Shared: {name: shared, in: query, schema: {type: object, properties: {a: {type: string}}, "+notes+"}}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+	operation := openapitest.FirstOperation(t, svc)
+	for _, tc := range []struct{ name, docs string }{{"inline", "DOC"}, {"content", "DOC"}, {"own", "OWN"}, {"shared", "DOC"}} {
+		param, ok := openapitest.ParamBySource(operation, tc.name)
+		require.True(t, ok, tc.name)
+		assert.Equal(t, tc.docs, param.Docs.Description, tc.name)
+		assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, tc.name)
+		assert.Equal(t, ir.Inferred("extension-promotion"), param.Provenance.Inferred, tc.name)
+		assert.Len(t, param.Examples, 1, tc.name)
+		assert.False(t, param.Secret, "%s: the node keeps the redaction", tc.name)
+
+		node, ok := doc.Types[param.Type.Target]
+		require.True(t, ok, "%s: the schema hoists a node", tc.name)
+		require.True(t, node.Common().Anonymous, tc.name)
+		assert.Equal(t, ir.Docs{}, node.Common().Docs, tc.name)
+		assert.Nil(t, node.Common().Deprecation, tc.name)
+		assert.Empty(t, node.Common().Examples, tc.name)
+		assert.True(t, node.Common().Sensitive, tc.name)
+		assert.Contains(t, node.Common().Unmodeled, "openapi:x-deprecated-reason", tc.name)
+	}
+}

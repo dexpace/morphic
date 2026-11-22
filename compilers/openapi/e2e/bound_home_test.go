@@ -269,9 +269,9 @@ func TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce(t *testing.T) {
 
 // TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds holds that
 // a property declared by a base and again by an inline entry, whose type the
-// fold composes into a node of its own, keeps the folded bounds on the
-// property while the composed node holds none: the fold has no one position to
-// give the bound to. It holds in both orders of the components and of the
+// fold composes into a node of its own, the base's holding an XML name the
+// entry's does not, keeps the folded bounds on the property while the composed
+// node holds none: the fold has no one position to give the bound to. It holds in both orders of the components and of the
 // entries, at both versions.
 func TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds(t *testing.T) {
 	t.Parallel()
@@ -284,7 +284,7 @@ func TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds(t *testi
 				entries = inline + ", {$ref: '#/components/schemas/Rule'}"
 			}
 			schemas := []string{
-				"Rule: {type: object, properties: {action_parameters: {type: object, description: d}}}",
+				"Rule: {type: object, properties: {action_parameters: {type: object, xml: {name: d}}}}",
 				"LogRule: {allOf: [" + entries + "]}",
 			}
 			t.Run(fmt.Sprintf("%s/entries-swapped-%t", version, swapped), func(t *testing.T) {

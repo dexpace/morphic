@@ -274,34 +274,136 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 	}
 }
 
-// TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode asserts the settlement of
-// the double storage: a property whose schema hoists a node keeps that
-// declaration's annotations there and not also on the ir.Property, so the two
-// copies can never drift apart.
-func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
+// TestPropertyAnnotations_NotesAreThePropertysWhateverItsSchemaHoists pins the
+// one home of a property's notes, its documentation, deprecation and examples,
+// at every kind of node a property's own schema hoists: the property holds them,
+// as where the schema hoists none, and the node holds none of them, while
+// keeping what only a node holds, its XML hints, its redaction and its
+// extensions (docs/ir/annotations.md#one-structural-home-per-declaration).
+func TestPropertyAnnotations_NotesAreThePropertysWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    A:\n      type: object\n      properties:\n"+
-			"        p: {type: object, description: DOC, deprecated: true, xml: {name: X}, x-vendor: V}\n"))
+	const notes = "title: T, description: DOC, deprecated: true, example: EX, xml: {name: X}, format: password, x-vendor: V"
+	for _, tc := range []struct {
+		name, schema string
+		kind         ir.TypeKind
+	}{
+		{"a list", "{type: array, items: {type: string}, " + notes + "}", ir.KindList},
+		{"a map", "{type: object, additionalProperties: {type: string}, " + notes + "}", ir.KindMap},
+		{"an enum", "{type: string, enum: [EX], " + notes + "}", ir.KindEnum},
+		{"a model", "{type: object, properties: {a: {type: string}}, " + notes + "}", ir.KindModel},
+		{"a union", "{oneOf: [{type: string}, {type: integer}], " + notes + "}", ir.KindUnion},
+		{"a literal", "{const: EX, " + notes + "}", ir.KindLiteral},
+		{"a tuple", "{type: array, prefixItems: [{type: string}], " + notes + "}", ir.KindTuple},
+		{"a scalar", "{type: string, contentMediaType: image/png, contentEncoding: base64, " + notes + "}", ir.KindScalar},
+		{"an inline refinement", "{allOf: [{type: string, enum: [EX]}], " + notes + "}", ir.KindEnum},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+				"    A:\n      type: object\n      properties:\n        p: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			property := propertyOf(t, doc, "A", "p")
+			require.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/p"), property.Type.Target,
+				"the schema hoists a node of its own")
+			assert.Equal(t, ir.Docs{Summary: "T", Description: "DOC"}, property.Docs)
+			assert.Equal(t, &ir.Deprecation{}, property.Deprecation)
+			require.Len(t, property.Examples, 1)
+			assert.Equal(t, "EX", property.Examples[0].Value.String)
+			assert.False(t, property.Secret, "the node keeps the redaction")
+			assert.Nil(t, property.XML)
+			assert.Empty(t, property.Unmodeled)
+
+			node := doc.Types[property.Type.Target]
+			require.NotNil(t, node)
+			assert.Equal(t, tc.kind, node.Kind())
+			common := node.Common()
+			assert.Equal(t, ir.Docs{}, common.Docs, "one home")
+			assert.Nil(t, common.Deprecation)
+			assert.Empty(t, common.Examples)
+			assert.True(t, common.Sensitive)
+			require.NotNil(t, common.XML)
+			assert.Equal(t, "X", common.XML.Name)
+			assert.Contains(t, common.Unmodeled, "openapi:x-vendor")
+		})
+	}
+}
+
+// TestPropertyAnnotations_APromotedDeprecationIsTheCarriers pins the
+// deprecation a key states or annotates on a schema hoisting a node: the
+// property holds it with its members and the extension-promotion mark, and the
+// node, which keeps the keys, holds neither, as a keyword's deprecation is the
+// property's (docs/compilers/openapi.md#extension-promotion). A key no member
+// holds is reported once, where it is written.
+func TestPropertyAnnotations_APromotedDeprecationIsTheCarriers(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A:
+      type: object
+      properties:
+        keyword: {type: array, items: {type: string}, deprecated: true, x-deprecated-reason: why, x-sensitive: true}
+        key: {type: array, items: {type: string}, x-fern-availability: deprecated, x-sunset: "2030-01-01"}
+        misfit: {type: array, items: {type: string}, deprecated: true, x-deprecated-since: 5}
+        live: {type: array, items: {type: string}, x-deprecated-since: "2"}
+`))
 	openapitest.RequireNoErrorDiags(t, diags)
+	for _, tc := range []struct {
+		wire   string
+		want   *ir.Deprecation
+		key    string
+		marked bool
+	}{
+		{"keyword", &ir.Deprecation{Message: "why"}, "openapi:x-deprecated-reason", true},
+		{"key", &ir.Deprecation{RemovalDate: "2030-01-01"}, "openapi:x-sunset", true},
+		{"misfit", &ir.Deprecation{}, "openapi:x-deprecated-since", false},
+		{"live", nil, "openapi:x-deprecated-since", false},
+	} {
+		property := propertyOf(t, doc, "A", tc.wire)
+		assert.Equal(t, tc.want, property.Deprecation, tc.wire)
+		assert.Equal(t, tc.marked, property.Provenance.Inferred == "extension-promotion", "%s: the carrier is marked", tc.wire)
+		assert.Empty(t, property.Unmodeled, tc.wire)
+		node := doc.Types[property.Type.Target].Common()
+		assert.Nil(t, node.Deprecation, tc.wire)
+		assert.Contains(t, node.Unmodeled, tc.key, "%s: the node keeps the key", tc.wire)
+	}
+	keyword := doc.Types[propertyOf(t, doc, "A", "keyword").Type.Target].Common()
+	assert.True(t, keyword.Sensitive, "a redaction stays on the node")
+	assert.Equal(t, ir.Inferred("extension-promotion"), keyword.Provenance.Inferred, "which its mark explains")
+	assert.False(t, propertyOf(t, doc, "A", "keyword").Secret)
+	assert.Equal(t, ir.Inferred(""), doc.Types[propertyOf(t, doc, "A", "key").Type.Target].Common().Provenance.Inferred,
+		"a node promoting nothing is not marked")
 
-	owner, ok := doc.Types[componentID("A")].(*ir.Model)
-	require.True(t, ok)
-	property, ok := openapitest.PropertiesByWire(owner.Properties)["p"]
-	require.True(t, ok)
-	assert.Empty(t, property.Docs.Description, "the node the schema owns is the one home")
-	assert.Nil(t, property.Deprecation)
-	assert.Nil(t, property.XML)
-	assert.Empty(t, property.Unmodeled)
+	misfits := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/A/properties/misfit/x-deprecated-since")
+	assert.Len(t, misfits, 1, "the misreading is reported once, at its key")
+}
 
-	inner := doc.Types["type/anonymous/components/schemas/A/properties/p"]
-	require.NotNil(t, inner)
-	typeCommon := inner.Common()
-	assert.Equal(t, "DOC", typeCommon.Docs.Description)
-	assert.NotNil(t, typeCommon.Deprecation)
-	require.NotNil(t, typeCommon.XML)
-	assert.Equal(t, "X", typeCommon.XML.Name)
-	assert.Contains(t, typeCommon.Unmodeled, "openapi:x-vendor")
+// TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode pins what the rule
+// leaves: a position naming a $ref, beside its keywords or as a conjunct of its
+// allOf, keeps its notes on the node it builds, which an emitter folds onto the
+// carrier where it is a decorator (docs/emitters/refine/decorators.md). Each
+// spelling of one use reads that alike, the union beside an allOf of the $ref
+// included.
+func TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {b: {type: string}}}
+    A:
+      type: object
+      properties:
+        decorator: {allOf: [{$ref: '#/components/schemas/Base'}], description: DOC, deprecated: true}
+        beside: {$ref: '#/components/schemas/Base', description: DOC, deprecated: true}
+        composed: {allOf: [{$ref: '#/components/schemas/Base'}], properties: {x: {type: string}}, description: DOC, deprecated: true}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Base'}], oneOf: [{required: [b]}, {required: [x]}], description: DOC, deprecated: true}
+        entry: {allOf: [{$ref: '#/components/schemas/Base'}, {oneOf: [{required: [b]}, {required: [x]}], description: DOC, deprecated: true}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"decorator", "beside", "composed", "wrapped", "entry"} {
+		property := propertyOf(t, doc, "A", wire)
+		require.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/"+wire), property.Type.Target, wire)
+		assert.Empty(t, property.Docs.Description, wire)
+		assert.Nil(t, property.Deprecation, wire)
+		node := doc.Types[property.Type.Target].Common()
+		assert.Equal(t, "DOC", node.Docs.Description, wire)
+		assert.NotNil(t, node.Deprecation, wire)
+	}
 }
 
 // TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that

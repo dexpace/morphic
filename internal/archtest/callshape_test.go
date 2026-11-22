@@ -98,9 +98,10 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/load": 29,
 	},
 	"compilers/openapi/internal/promotion": {
-		// Promoter.Referent calls the function it is handed before it returns: an
-		// immediate callback.
-		"compilers/openapi/internal/schema": 1,
+		// Promoter.Referent calls the function it is handed before it returns,
+		// reading a $ref target's keys and those of a node whose notes its
+		// carrier holds: an immediate callback.
+		"compilers/openapi/internal/schema": 2,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

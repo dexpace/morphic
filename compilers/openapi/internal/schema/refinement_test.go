@@ -1621,8 +1621,9 @@ func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *t
 
 // TestRefinement_AnEntryHoldsWhatItsNodeDoes pins an inline principal: a value
 // set's node stands at the position, holding what the entry writes as any
-// conjunct's voice, a keyword nothing reads kept with the entry whole, and one
-// that reduces to a shared primitive speaks at the position.
+// conjunct's voice, a keyword nothing reads kept with the entry whole, but for
+// the notes the property holds, and one that reduces to a shared primitive
+// speaks at the position.
 func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
@@ -1646,7 +1647,8 @@ func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 		"the node stands at the position, whichever conjunct decides it")
 	en, ok := doc.Types[owned.Type.Target].(*ir.Enum)
 	require.True(t, ok)
-	assert.Equal(t, "mine", en.Docs.Description)
+	assert.Equal(t, "mine", owned.Docs.Description, "the property holds what its position notes")
+	assert.Empty(t, en.Docs.Description)
 	assert.Contains(t, en.Unmodeled, "openapi:x-kept")
 	assert.NotContains(t, owned.Unmodeled, "openapi:x-kept", "one home per declaration")
 	assert.Empty(t, owned.Unmodeled, "and its node keeps what the position does")

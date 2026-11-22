@@ -22,7 +22,7 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("OldModel")].(*ir.Model)
 	require.True(t, ok)
 	assert.NotNil(t, model.Deprecation)
-	require.Len(t, model.Properties, 1)
+	require.Len(t, model.Properties, 2)
 	assert.NotNil(t, model.Properties[0].Deprecation)
 
 	// A parameter is its own carrier: deprecated written on the parameter object
@@ -30,21 +30,45 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	legacy, ok := openapitest.ParamBySource(operation, "legacy")
 	require.True(t, ok)
 	assert.NotNil(t, legacy.Deprecation)
+
+	// A deprecated schema deprecates the property, parameter or header carrying
+	// it whatever node it hoists, a list here, and the node is not deprecated
+	// (docs/ir/annotations.md#one-structural-home-per-declaration).
+	list, ok := openapitest.ParamBySource(operation, "legacyList")
+	require.True(t, ok)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
+	for _, carried := range []struct {
+		deprecation *ir.Deprecation
+		target      ir.TypeID
+	}{
+		{model.Properties[1].Deprecation, model.Properties[1].Type.Target},
+		{list.Deprecation, list.Type.Target},
+		{header.Deprecation, header.Type.Target},
+	} {
+		assert.NotNil(t, carried.deprecation, carried.target)
+		node, ok := doc.Types[carried.target]
+		require.True(t, ok, carried.target)
+		assert.Equal(t, ir.KindList, node.Kind(), carried.target)
+		assert.Nil(t, node.Common().Deprecation, carried.target)
+	}
 }
 
 func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	model, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
-	// A schema that reduced to a shared primitive keeps its examples on the
-	// declaring property; one that hoists a node of its own keeps them there.
+	// A property's schema keeps its examples on the declaring property, whether
+	// it reduced to a shared primitive or hoists a node of its own, which then
+	// holds none (docs/ir/annotations.md#one-structural-home-per-declaration).
 	property, ok := propertyByWire(model, "n")
 	require.True(t, ok)
 	assert.Len(t, property.Examples, 2)
 	inner, ok := propertyByWire(model, "inner")
 	require.True(t, ok)
-	assert.Empty(t, inner.Examples, "an inline object holds its own examples")
-	require.Len(t, doc.Types[inner.Type.Target].Common().Examples, 1)
+	require.Len(t, inner.Examples, 1, "the property holds an inline object's examples")
+	assert.Empty(t, doc.Types[inner.Type.Target].Common().Examples)
 
 	// A component's example belongs to the component, not to a use site.
 	typeDef, ok := doc.Types[componentID("C")]

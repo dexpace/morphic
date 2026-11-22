@@ -479,3 +479,61 @@ func assertHeaderSerialization(t *testing.T, header ir.Header, diags []ir.Diagno
 	assert.NotContains(t, header.Unmodeled, "openapi:explode")
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }
+
+// TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists pins a header as the
+// home of what its schema notes where that schema hoists a node: in a response,
+// in a component and in a multipart part's encoding, the header holds the
+// documentation, the deprecation and the examples, and the node holds none of
+// them (docs/ir/annotations.md#one-structural-home-per-declaration). The
+// header's own description still wins over its schema's.
+func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
+	t.Parallel()
+	const schema = "{type: array, items: {type: string}, description: DOC, deprecated: true, examples: [[a]], xml: {name: X}}"
+	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+		"        \"200\":\n          description: ok\n          headers:\n"+
+		"            X-Inline: {schema: "+schema+"}\n"+
+		"            X-Own: {description: OWN, schema: "+schema+"}\n"+
+		"            X-Shared: {$ref: '#/components/headers/Shared'}\n"+
+		"    post:\n      operationId: p\n      requestBody:\n        content:\n          multipart/form-data:\n"+
+		"            schema: {type: object, properties: {file: {type: string}}}\n"+
+		"            encoding:\n              file:\n                headers:\n"+
+		"                  X-Part: {schema: "+schema+"}\n"+
+		"      responses: {\"204\": {description: none}}\n"+
+		"components:\n  headers:\n    Shared: {schema: "+schema+"}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+	headers := map[string]ir.Header{}
+	for _, operation := range svc.Groups[0].Operations {
+		for _, response := range operation.Responses {
+			for _, header := range response.Headers {
+				headers[header.WireName] = header
+			}
+		}
+		if operation.Request == nil {
+			continue
+		}
+		for _, content := range operation.Request.Contents {
+			for _, encoding := range content.Encoding {
+				for _, header := range encoding.Headers {
+					headers[header.WireName] = header
+				}
+			}
+		}
+	}
+	for _, tc := range []struct{ wire, docs string }{{"X-Inline", "DOC"}, {"X-Own", "OWN"}, {"X-Shared", "DOC"}, {"X-Part", "DOC"}} {
+		header, ok := headers[tc.wire]
+		require.True(t, ok, tc.wire)
+		assert.Equal(t, tc.docs, header.Docs.Description, tc.wire)
+		assert.NotNil(t, header.Deprecation, tc.wire)
+		assert.Len(t, header.Examples, 1, tc.wire)
+		assert.Nil(t, header.XML, "%s: the node keeps its XML hints", tc.wire)
+
+		node, ok := doc.Types[header.Type.Target]
+		require.True(t, ok, "%s: the schema hoists a node", tc.wire)
+		require.True(t, node.Common().Anonymous, tc.wire)
+		assert.Equal(t, ir.Docs{}, node.Common().Docs, tc.wire)
+		assert.Nil(t, node.Common().Deprecation, tc.wire)
+		assert.Empty(t, node.Common().Examples, tc.wire)
+		assert.NotNil(t, node.Common().XML, tc.wire)
+	}
+}

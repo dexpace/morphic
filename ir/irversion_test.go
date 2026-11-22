@@ -187,6 +187,9 @@ var generations = []generation{
 		names: "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7"},
 	{version: "0.72.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
 		names: "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb"},
+	{version: "0.73.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
+		names:   "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb",
+		meaning: "a property, parameter or header whose own inline schema hoists a node holds that schema's Docs, Deprecation and Examples, a promoted deprecation and its mark among them, and the node holds none of them, unless the schema names a $ref"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

@@ -1952,27 +1952,40 @@ declaration that owns it.
 keyword states no message, version, date or replacement, which only
 [`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
 where no keyword does; a replacement the message it supplies names is read too
-([`replacement-inference`](#replacement-inference)). An operation, and a
-tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
-beside its `description` and `externalDocs`; a response and an error case take `description` and
-`summary` ([`response-summary`](#response-summary)); a request
-body, a security scheme, a server and a server variable take `description`, an example `summary` and
-`description`, and a security scheme `deprecated` (3.2). `info` and the root `externalDocs` make the
-Document's one `Docs`, while the Service takes `info.description` alone. A schema's documentation
-lands on the node its position owns; where the position owns none (a shared primitive, a `$ref`), it
-lands on the property, parameter or header that carries it, the referent's under the use site's
-field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
-over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
-neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
-no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
-marked ([references in prose](../ir/annotations.md#references-in-prose)).
+([`replacement-inference`](#replacement-inference)). An operation, and a tag on its `TagDef` and on
+the group it names, take all three; a schema's `title` is the `Summary`, beside its `description`
+and `externalDocs`; a response and an error case take `description` and `summary`
+([`response-summary`](#response-summary)); a request body, a security scheme, a server and a server
+variable take `description`, an example `summary` and `description`, and a security scheme
+`deprecated` (3.2). `info` and the root `externalDocs` make the Document's one `Docs`, while the
+Service takes `info.description` alone. A schema's documentation and deprecation land on the
+property, parameter or header that carries its position, whatever node the schema hoists there, a
+list, a map, an enum, a model, a union or a scalar, and that node holds neither ([one
+home](../ir/annotations.md#one-structural-home-per-declaration)); a deprecation a key states or
+annotates follows them, its node keeping the key, but for a replacement a key the policy maps to
+`deprecation.replacedBy` names there, which fills no `ReplacedBy`, since it is read off the
+deprecated node keeping the key ([`extension-promotion`](#extension-promotion)). Through a `$ref`
+the referent's land there under the use site's field by field ([`ref-use-site`](#ref-use-site)), and
+a schema naming one, beside its keywords or as a conjunct of its `allOf`, keeps its own on the node
+it builds. At a position no carrier holds, they land on the node the position owns, so a `$ref`
+naming a carried position from such a position reads none of them there. A parameter's or header's
+own `description` wins over its schema's. `deprecated: true` on a parameter or header and on its
+schema each deprecate it, neither one's `false` clearing the other. A request body's `description`
+lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
+its own. OpenAPI has no syntax for naming a type in prose, so a `description` is kept as written and
+no span of it is marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
-  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`,
+  `schema.TestPropertyAnnotations_NotesAreThePropertysWhateverItsSchemaHoists`,
+  `schema.TestPropertyAnnotations_APromotedDeprecationIsTheCarriers`,
+  `schema.TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode`,
+  `operation.TestParams_NotesAreTheParametersWhateverItsSchemaHoists`,
+  `operation.TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists`,
+  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`
 
 ### `replacement-inference`
 
@@ -2147,9 +2160,11 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
 ### `schema-examples`
 
 A schema's `example`, then each entry of its `examples` in order, lowers to `Examples`, one
-`Example` apiece holding the value ([`values`](#values)), on the node the position owns or, where it
-owns none, on the property that carries it. An example written beside a `$ref` describes the
-position, not the referent, whose own examples stay on its node. A value no `Value` holds is dropped
+`Example` apiece holding the value ([`values`](#values)), where its documentation does
+([`docs-and-deprecation`](#docs-and-deprecation)): on the property, parameter or header that carries
+the position, whatever node it hoists, and elsewhere on the node the position owns. An example
+written beside a `$ref` describes the position, not the referent, whose own examples stay on its
+node. A value no `Value` holds is dropped
 with an `openapi/degraded-construct` warning at it.
 
 - Cases: `examples`
@@ -5465,8 +5480,8 @@ listed number is that variant's alone, so a width beside `integer` and `number` 
 ### `password`
 
 `format: password` is a redaction request rather than a pairing of type and format, so the shape
-lowers without it, and it lands where a declaration's annotations do: on the node the position owns,
-whatever its kind, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
+lowers without it, and it lands on the node the position owns, whatever its kind and whether or not
+a carrier holds the position, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
 property, header or parameter that owns none, as `Secret`, inherited from a `$ref` target as
 `deprecated` is. An inline `allOf` entry writing it folds as any annotation does
 ([`allof-inline-residue`](#allof-inline-residue)).
@@ -7881,12 +7896,16 @@ is the precedence among the sources: the first source stating a value fills the 
 one stating another is reported as an info `openapi/degraded-construct` at its own key. An absent
 member states nothing, and a key with no members to read is reported the same way, once however many
 sources read it. The node keeping the extension is marked as [`policies`](#policies) marks a
-promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
-untouched.
+promotion, as is a use its `$ref`'s target lends a field to and a carrier the node its schema hoists
+lends a deprecation to ([`docs-and-deprecation`](#docs-and-deprecation)), and the extension stays in
+`Unmodeled` untouched.
 
 A carrier also reads the objects whose keys it keeps beneath a scope: an operation its path item
 (`openapi:pathItem/`), and a parameter or a header the content entry it elects (`content/<mt>/`) and
-the schema of its spelling (`schema/` or `content/<mt>/schema/`). It reads them two ways, as
+the schema of its spelling (`schema/` or `content/<mt>/schema/`). A property, a parameter or a header
+whose schema hoists a node reads that node's keys the same way for its deprecation alone, beneath
+every scope, as the deprecation the keyword states is the carrier's
+([`docs-and-deprecation`](#docs-and-deprecation)); the node keeps the keys, and its redaction. It reads them two ways, as
 [annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
 single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
 states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws

@@ -693,5 +693,8 @@ func assertTitleHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		assert.Equal(t, hint, node.Common().Name.Hint, "%s", id)
 	}
 	address := doc.Types["type/anonymous/components/schemas/Holder/properties/address"]
-	assert.Equal(t, "Postal Address", address.Common().Docs.Summary, "the title stays the summary")
+	assert.Empty(t, address.Common().Docs.Summary, "the title names the node a property's schema hoists")
+	property, ok := propertyByWire(holder, "address")
+	require.True(t, ok)
+	assert.Equal(t, "Postal Address", property.Docs.Summary, "and stays the summary of the property carrying it")
 }

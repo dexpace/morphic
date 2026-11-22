@@ -84,6 +84,24 @@
                     "source": 0,
                     "pointer": "/paths/~1old/get/parameters/0"
                   }
+                },
+                {
+                  "id": "parameter/openapi/paths/~1old/get/parameters/legacyList/query",
+                  "name": {
+                    "source": "legacyList",
+                    "canonical": "legacy_list"
+                  },
+                  "type": {
+                    "target": "type/anonymous/paths/~1old/get/parameters/1/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1old/get/parameters/1"
+                  }
                 }
               ],
               "responses": [
@@ -99,6 +117,36 @@
                       }
                     ]
                   },
+                  "headers": [
+                    {
+                      "id": "property/openapi/paths/~1old/get/responses/200/headers/X-Old",
+                      "name": {
+                        "source": "X-Old",
+                        "canonical": "x_old"
+                      },
+                      "wireName": "X-Old",
+                      "type": {
+                        "target": "type/anonymous/paths/~1old/get/responses/200/headers/X-Old/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "invisibleInEveryLifecycle": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "deprecation": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1old/get/responses/200/headers/X-Old"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "ok"
                   }
@@ -116,6 +164,14 @@
                         "param": "parameter/openapi/paths/~1old/get/parameters/legacy/query",
                         "location": "query",
                         "wireName": "legacy",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "parameter/openapi/paths/~1old/get/parameters/legacyList/query",
+                        "location": "query",
+                        "wireName": "legacyList",
                         "style": "form",
                         "allowReserved": false,
                         "allowEmptyValue": false
@@ -143,6 +199,60 @@
     }
   ],
   "types": {
+    "type/anonymous/components/schemas/OldModel/properties/oldList": {
+      "kind": "list",
+      "id": "type/anonymous/components/schemas/OldModel/properties/oldList",
+      "name": {
+        "hint": "old_list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OldModel/properties/oldList"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
+    "type/anonymous/paths/~1old/get/parameters/1/schema": {
+      "kind": "list",
+      "id": "type/anonymous/paths/~1old/get/parameters/1/schema",
+      "name": {
+        "hint": "legacy_list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1old/get/parameters/1/schema"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
+    "type/anonymous/paths/~1old/get/responses/200/headers/X-Old/schema": {
+      "kind": "list",
+      "id": "type/anonymous/paths/~1old/get/responses/200/headers/X-Old/schema",
+      "name": {
+        "hint": "x_old"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1old/get/responses/200/headers/X-Old/schema"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
     "type/openapi/components/schemas/OldModel": {
       "kind": "model",
       "id": "type/openapi/components/schemas/OldModel",
@@ -186,6 +296,34 @@
             "source": 0,
             "pointer": "/components/schemas/OldModel/properties/oldField"
           }
+        },
+        {
+          "id": "property/openapi/components/schemas/OldModel/properties/oldList",
+          "name": {
+            "source": "oldList",
+            "canonical": "old_list"
+          },
+          "wireName": "oldList",
+          "type": {
+            "target": "type/anonymous/components/schemas/OldModel/properties/oldList",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OldModel/properties/oldList"
+          }
         }
       ],
       "abstract": false,
@@ -222,7 +360,7 @@
     {
       "format": "openapi@3.1",
       "path": "deprecation.yaml",
-      "hash": "9d8bfa71e7bb6b2f5d3a13a69e70b9f48ef73e4411de2571f757ac8b8e929556"
+      "hash": "2962d0d16fb0ce4bf3c589c862f5ddf0aa9579eb2d94e3eff28b09b5551c562a"
     }
   ]
 }

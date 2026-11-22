@@ -72,11 +72,11 @@ func fillPropertyConstraints(loweringContext lowering.Ctx, property *ir.Property
 	return diags
 }
 
-// fillPropertyAnnotations records the annotations the property's schema
-// declares on the property, but only when that schema lowered to no node of its
-// own. A shared primitive must never carry one declaration's annotations, and a
-// node keeps them itself (attachDeclaredAnnotations), so the two homes never
-// double.
+// fillPropertyAnnotations records what the property's schema declares on the
+// property (CarriedAnnotations): everything where that schema lowered to no
+// node of its own, as a shared primitive must never carry one declaration's
+// annotations, and the notes alone where it did, the node keeping the rest
+// (attachDeclaredAnnotations).
 //
 // A node another $ref hoisted at the property's pointer is not that node. It
 // carries what the schema declares and so does the property: two IR entities
@@ -85,23 +85,22 @@ func fillPropertyConstraints(loweringContext lowering.Ctx, property *ir.Property
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
 func fillPropertyAnnotations(loweringContext lowering.Ctx, property *ir.Property, ref *statement.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
-	if LoweredToOwnNode(loweringContext, pointer, property.Type) {
-		return nil
-	}
-	a, diags := annotation.Read(use.SiteAt(loweringContext, ref, pointer), pointer, loweringContext.Place())
-
+	a, ownsNode, diags := CarriedAnnotations(loweringContext, ref, use, property.Type, pointer)
 	property.Docs = a.Docs
 	if a.Deprecated {
 		property.Deprecation = &ir.Deprecation{}
+	}
+	if len(a.Examples) > 0 {
+		property.Examples = a.Examples
+	}
+	if ownsNode {
+		return diags
 	}
 	if a.Sensitive {
 		property.Secret = true
 	}
 	if a.XML != nil {
 		property.XML = a.XML
-	}
-	if len(a.Examples) > 0 {
-		property.Examples = a.Examples
 	}
 	property.Unmodeled = annotation.MergeUnmodeled(property.Unmodeled, a.Unmodeled)
 	return append(diags, PreserveCarriedKeywords(loweringContext, &property.Unmodeled, ref, pointer)...)
@@ -137,18 +136,27 @@ func PromoteUse(loweringContext lowering.Ctx, from promotion.Referent, unmodeled
 
 // FallbackKeysForCarrier returns what the mapped keys of what a carrier of js
 // falls back to lend it, js written at pointer and lowered to typeRef
-// (Use.fallbackKeys). A position owning a node lends its carrier none, as it
-// lends no keyword: the node takes them (attachDeclaredAnnotations).
+// (Use.fallbackKeys). A position owning a node lends its carrier the keys that
+// node keeps where the carrier holds its notes (carriedNoteKeys), so a promoted
+// deprecation follows the keyword's, and none otherwise: the node takes them
+// (attachDeclaredAnnotations).
 func FallbackKeysForCarrier(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
-	if js.Truth != statement.Stated || LoweredToOwnNode(loweringContext, pointer, typeRef) {
+	switch {
+	case js.Truth != statement.Stated:
 		return promotion.Referent{}
+	case notesOnCarrier(loweringContext, js.Schema, pointer, typeRef):
+		return carriedNoteKeys(loweringContext, js.Schema, typeRef, pointer)
+	case LoweredToOwnNode(loweringContext, pointer, typeRef):
+		return promotion.Referent{}
+	default:
+		return readUse(loweringContext, js, typeRef, pointer).fallbackKeys(loweringContext)
 	}
-	return readUse(loweringContext, js, typeRef, pointer).fallbackKeys(loweringContext)
 }
 
 // LoweredToOwnNode reports whether typeRef, what the declaration at pointer in
 // loweringContext's document lowered to, is a type node of its own — the node
-// attachDeclaredAnnotations then fills, leaving its carrier nothing to hold.
+// attachDeclaredAnnotations then fills, leaving its carrier the notes at most
+// (notesOnCarrier).
 //
 // A position's node, whatever its kind, takes the ID its pointer names
 // (internNode), so typeRef names it exactly when typeRef names that ID. Nothing
