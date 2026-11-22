@@ -61,6 +61,12 @@ func (u Use) Site(schema *statement.Schema) annotation.SchemaPositionAnnotationS
 	return annotation.SchemaPositionAnnotationSources{Kind: annotation.Reference, Node: schema, FoldedAllOfEntries: u.FoldedAllOfEntries, Referents: u.Referents}
 }
 
+// own is u without what the position falls back to: what it writes itself,
+// beside the entries of its allOf read as written there.
+func (u Use) own() Use {
+	return Use{FoldedAllOfEntries: u.FoldedAllOfEntries, nullable: u.nullable}
+}
+
 // SiteAt is Site for schema written at pointer, saying what the dialect schema
 // is read in spells otherwise, which annotation.Read keeps (dialectIn).
 func (u Use) SiteAt(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer) annotation.SchemaPositionAnnotationSources {

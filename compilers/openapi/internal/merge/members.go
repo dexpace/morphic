@@ -30,6 +30,11 @@ type RedeclaredWireNameTable map[string]Declared
 type Declared struct {
 	ir.PropertyDecl
 	TypeAt []ir.Provenance
+	// settled says a fold settled the member, so written holds the Details it
+	// kept from a declaration writing them (Merger.fold); the fold reading an
+	// unsettled one asks where it is written (FieldDeclarationContext.Written).
+	settled bool
+	written Details
 }
 
 // DeclaredAt is propertyDecl as a model's flattening takes it unsettled: its
@@ -77,8 +82,8 @@ func (idx *ModelPropertyDeclarations) members(shared map[string]bool, inherited 
 			continue
 		}
 		declared := DeclaredAt(ir.PropertyDecl{Owner: idx.m.ID, Property: property})
-		if at, settled := idx.typeAt[property.WireName]; settled {
-			declared.TypeAt = at
+		if member, settled := idx.settled[property.WireName]; settled {
+			declared.TypeAt, declared.settled, declared.written = member.typeAt, true, member.written
 		}
 		out[property.WireName] = declared
 	}
@@ -99,9 +104,9 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 		return nil
 	}
 	if !slices.ContainsFunc(decls, isBrought) {
-		merged, diags := merger.fold(decls)
+		merged, written, diags := merger.fold(decls)
 		idx.place(pos, merged)
-		idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
+		idx.settled[merged.WireName] = settledMember{typeAt: merger.typeSites(merged, decls), written: written}
 		return deciding(diags, merged.ID)
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
@@ -114,7 +119,7 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	if !kept {
 		assembled = assembledFrom(decls)
 	}
-	merged, diags := merger.foldAt(decls, field, assembled)
+	merged, written, diags := merger.foldAt(decls, field, assembled)
 	inferred := merged.Provenance.Inferred
 	if kept {
 		merged.ID, merged.Provenance = own[0].property.ID, own[0].property.Provenance
@@ -127,7 +132,7 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 		merged.Required = true
 	}
 	idx.place(pos, merged)
-	idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
+	idx.settled[merged.WireName] = settledMember{typeAt: merger.typeSites(merged, decls), written: written}
 	return deciding(naming(diags, merged.ID), merged.ID)
 }
 
@@ -526,7 +531,8 @@ func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool
 // its marker is read as covering that too (declaration.secretBy), as
 // foldAnnotations reads one covering a deprecation.
 func broughtDeclaration(from Declared, via *composedEntry) declaration {
-	declarationValue := declaration{property: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
+	declarationValue := declaration{property: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner,
+		settled: from.settled, written: from.written}
 	if declarationValue.property.Secret {
 		declarationValue.secretBy = declarationValue.property.Provenance.Inferred
 	}

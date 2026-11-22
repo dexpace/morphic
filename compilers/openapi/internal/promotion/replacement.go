@@ -42,6 +42,17 @@ func (p Promoter) Writes(own ir.Unmodeled, target ExtensionTarget) bool {
 	return false
 }
 
+// WritesDeprecation reports whether own keeps a key the policy reads a
+// deprecation or any member of one from (Writes), which a carrier writing it
+// has said of its own deprecation, whatever a referent lends beneath it.
+func (p Promoter) WritesDeprecation(own ir.Unmodeled) bool {
+	if p.Writes(own, TargetDeprecation) || p.Writes(own, TargetDeprecationReplacedBy) {
+		return true
+	}
+	members := deprecationMembers(&ir.Deprecation{})
+	return slices.ContainsFunc(members[:], func(member deprecationMember) bool { return p.Writes(own, member.target) })
+}
+
 // replacementReading reads a value as the names of replacements, held as the
 // text of their list so two sources compare as firstStated compares any value,
 // a name and a list holding it alone stating one replacement.

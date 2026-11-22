@@ -5,11 +5,13 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
@@ -34,6 +36,33 @@ func FillPropertyDetail(loweringContext lowering.Ctx, ts *compile.Types, propert
 	diags = append(diags, fillPropertyConstraints(loweringContext, property, js.Schema, use.FoldedAllOfEntries, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(loweringContext, property, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(loweringContext, ts, &property.Unmodeled, js, property.Type, pointer)...)
+}
+
+// ownDetails returns the merge.Details the declaration of property, js, writes
+// itself, read as FillPropertyDetail and PromoteUse read them but for the
+// referents its use falls back to (Use.own): its own keywords and keys and
+// those of the allOf entries read as written beside it. A $ref's referent
+// lends the rest.
+func ownDetails(loweringContext lowering.Ctx, js *statement.Statement, property ir.Property) merge.Details {
+	chain := readUse(loweringContext, js, property.Type, property.Provenance.Pointer).own().Site(js.Schema).Chain()
+	var docs ir.Docs
+	annotation.FillCarrierDocs(&docs, chain)
+	var details merge.Details
+	for _, written := range []struct {
+		detail merge.Details
+		is     bool
+	}{
+		{merge.DetailTitle, docs.Summary != ""},
+		{merge.DetailDescription, docs.Description != ""},
+		{merge.DetailExternalDocs, len(docs.ExternalDocs) > 0},
+		{merge.DetailDeprecation, annotation.EffectiveDeprecated(chain) || loweringContext.Promoter().WritesDeprecation(property.Unmodeled)},
+		{merge.DetailDefault, slices.ContainsFunc(chain, func(schema *statement.Schema) bool { return schema.Default() != nil })},
+	} {
+		if written.is {
+			details |= written.detail
+		}
+	}
+	return details
 }
 
 // fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports

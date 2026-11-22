@@ -42,9 +42,16 @@ type ModelPropertyDeclarations struct {
 	read int
 	// redeclared reports whether a wire name has been declared twice.
 	redeclared bool
-	// typeAt is where the nodes of the type of each member Settle folded may
-	// be written, by wire name (Merger.typeSites).
-	typeAt map[string][]ir.Provenance
+	// settled is what Settle left of each member it folded, by wire name.
+	settled map[string]settledMember
+}
+
+// settledMember is what a model's settlement left of one member it folded:
+// where the nodes of its type may be written (Merger.typeSites), and the
+// Details it kept from a declaration writing them.
+type settledMember struct {
+	typeAt  []ir.Provenance
+	written Details
 }
 
 // field is one wire name the model declares: where its property sits, and
@@ -66,7 +73,7 @@ type composedEntry struct {
 // NewModelPropertyDeclarations returns an empty index of model's properties;
 // model holds none yet, so every property reaches it through MergeProperty.
 func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
-	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
+	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, settled: map[string]settledMember{}}
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration

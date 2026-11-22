@@ -5,6 +5,7 @@ package promotion_test
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,6 +114,22 @@ func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
 				assert.Equal(t, other == target, promoter.Writes(own, other), "asked of %s", other)
 			}
 		})
+	}
+}
+
+// TestPromoter_WritesDeprecationKnowsEveryDeprecationTarget pins
+// WritesDeprecation to the vocabulary: a key a mapping names for the
+// deprecation or any member of one, every target named under "deprecation",
+// is the document speaking to its deprecation, and a key of any other target
+// is not.
+func TestPromoter_WritesDeprecationKnowsEveryDeprecationTarget(t *testing.T) {
+	t.Parallel()
+	own := ir.Unmodeled{"openapi:x-k": vendorExtension(`false`)}
+	for _, target := range promotion.Targets() {
+		promoter := promotion.New(mapping(target, promotion.ExtensionSource{Key: "x-k"}))
+		deprecation := target == promotion.TargetDeprecation || strings.HasPrefix(string(target), string(promotion.TargetDeprecation)+".")
+		assert.Equal(t, deprecation, promoter.WritesDeprecation(own), "%s", target)
+		assert.False(t, promoter.WritesDeprecation(nil), "%s with no key", target)
 	}
 }
 

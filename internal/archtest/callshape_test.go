@@ -74,10 +74,10 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through
 		// merge.FieldDeclarationContext: Alike three times, Admits once, Mint
-		// once and Interned once. merge.DeclarationConstructRenderer, a lazy
-		// render of a declaration nobody may keep. And the predicate SelectBase
-		// calls before it returns, an immediate callback.
-		"compilers/openapi/internal/schema": 8,
+		// once, Interned once and Written once. merge.DeclarationConstructRenderer,
+		// a lazy render of a declaration nobody may keep. And the predicate
+		// SelectBase calls before it returns, an immediate callback.
+		"compilers/openapi/internal/schema": 9,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal

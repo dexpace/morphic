@@ -3287,7 +3287,15 @@ or a multiple past what a `BigVal` holds. The title, description, external links
 hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
 declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
 the one written first is the field's, in the document listed first and then at the pointer sorting
-first, since two files each holding one schema write the same pointers. An entry two declarations
+first, since two files each holding one schema write the same pointers. A title, description,
+external link, deprecation or default that a declaration's `$ref` target lends it
+([`ref-use-site`](#ref-use-site)), where the declaration writes none of it itself, beside the `$ref`,
+by a key or in an `allOf` entry read as written there, is no party to a report: losing it sets aside
+nothing the declaration wrote, so that declaration is neither reported nor kept for it. A member a
+fold settled lends a later fold what it kept from a declaration writing none, and a declaration in
+another document than the model composing it is read as writing every one. Declaration order still
+decides which is kept, so a lent detail written last is kept over one written before it, which is
+reported. An entry two declarations
 write alike is one where it writes no relative `$ref`, or both read it against one base: under an
 `$id` naming another URI, a `$ref` spelled alike names another schema.
 
@@ -3435,6 +3443,16 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
+  `merge.TestFold_ABorrowedDetailIsNoConflict`,
+  `merge.TestFold_ABorrowedDetailThatIsKeptStillOutvotesAWrittenOne`,
+  `merge.TestFold_ADetailNoReferentLendsIsAlwaysWritten`,
+  `merge.TestFold_ReturnsTheDetailsItKeepsFromADeclarationWritingThem`,
+  `schema.TestWritten_ReadsWhatADeclarationWritesItself`,
+  `schema.TestAllOf_ALentDetailIsNoPartyToAConflict`,
+  `schema.TestAllOf_ADetailWrittenBesideARefIsAPartyToAConflict`,
+  `schema.TestAllOf_AMemberAFoldSettledLendsWhatItKept`,
+  `e2e.TestCompile_ALentDescriptionIsNoPartyToAConflict`,
+  `promotion.TestPromoter_WritesDeprecationKnowsEveryDeprecationTarget`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
