@@ -40,13 +40,22 @@ func nullHeader(required bool) *ir.Document {
 	})
 }
 
+// nullExample gives a parameter of listT a null example, the requirement
+// required and the encoding encoding.
+func nullExample(required bool, encoding *ir.Encoding) func(*ir.Parameter) {
+	return func(parameter *ir.Parameter) {
+		parameter.Required, parameter.Encoding, parameter.Examples = required, encoding, []ir.Example{{Value: null()}}
+	}
+}
+
 // TestValidate_ANullExampleOfAParameterLeftOutIsNotReported holds a null
 // example of a parameter or a header that is not required to be the value left
-// out, which a parameter and a header have no null to send for, and so not
-// judged in any of its wordings: of a kind, an enum or a literal. A required
-// one stays judged, and so do a null default, a property's null example, which
-// an object can hold as a member whose value is null, and a scenario's null
-// input, which leaves a parameter out by not naming it.
+// out, not judged in any wording (of a kind, an enum or a literal) under any
+// binding, a content type, an encoding of its own or RPC among them. A required
+// one stays judged, an encoding excusing a kind and not a null, as do a null
+// default, a property's null example, which an object can hold as a member
+// whose value is null, and a scenario's null input, which leaves a parameter
+// out by not naming it.
 func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	t.Parallel()
 	enumT, literalT := ir.TypeRef{Target: "type/e"}, ir.TypeRef{Target: "type/four"}
@@ -54,11 +63,14 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	commonError.Services[0].CommonErrors = []ir.ErrorCase{{Headers: commonError.Services[0].Groups[0].Operations[0].Responses[0].Headers}}
 	commonError.Services[0].Groups[0].Operations[0].Responses = nil
 	scenario := nullDoc(parameterOperation(func(parameter *ir.Parameter) { parameter.Type = stringT }))
-	scenarioOperation := &scenario.Services[0].Groups[0].Operations[0]
-	scenarioOperation.Provenance = provAt("operation/x")
-	scenarioOperation.Examples = []ir.Example{{
+	scenario.Services[0].Groups[0].Operations[0].Examples = []ir.Example{{
 		Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *null()}},
 	}}
+	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
+	encoding := &ir.Encoding{Name: "string"}
+	rpc := parameterOperation(nullExample(false, nil))
+	rpc.Services[0].Groups[0].Operations[0].Bindings.RPC = &ir.RPCBinding{System: "jsonrpc", FullMethod: "x"}
+	nullOfList := []finding{{"parameter/x/q", "example 0 is null, and type/l is not nullable here"}}
 	for _, tc := range []struct {
 		name string
 		doc  *ir.Document
@@ -68,6 +80,11 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a parameter not required, of an enum", nullParameter(enumT, false, text("open")), nil},
 		{"a parameter not required, of a literal", nullParameter(literalT, false, number("4")), nil},
 		{"a parameter not required, of a list under form", nullDoc(parameterOperation(withExample(null()), bindsQ(styled("form", nil)))), nil},
+		{"a parameter not required, under a content type", parameterOperation(nullExample(false, nil), content), nil},
+		{"a parameter not required, in an encoding of its own", parameterOperation(nullExample(false, encoding)), nil},
+		{"a parameter not required, under an RPC binding", rpc, nil},
+		{"a required parameter, under a content type", parameterOperation(nullExample(true, nil), content), nullOfList},
+		{"a required parameter, in an encoding of its own", parameterOperation(nullExample(true, encoding)), nullOfList},
 		{"a required parameter, of a string", nullParameter(stringT, true, text("abc")),
 			[]finding{{"parameter/x/q", `example "Optional" is null, and type/primitive/string is not nullable here`}}},
 		{"a required parameter, of an enum", nullParameter(enumT, true, text("open")),

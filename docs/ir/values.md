@@ -58,25 +58,27 @@ a default is written into the code an emitter generates and an example reaches i
 reading is shallow: the value's kind against the shape of the type, an enum's members, a literal's
 value, null where the position is not nullable, whole numbers for an integer, and the bounds the
 position declares with those of the alias scalars it reaches. A value that is a reference or a
-constructor, a type holding anything, a union, an external type, an unknown type and a position written
-in an encoding are not judged. A position is written in an encoding where an `Encoding` writes it,
-that of a scalar or a list its type reaches through aliases or its own as a property, a header or a
-parameter, or where an HTTP binding writes the whole parameter through a `ContentType`, a media type
-serializing it as one does a header declared by `content`. Its default then goes unjudged with its
-examples. The sites are a property's, a parameter's and a header's default and examples, a type's
-own examples (a null one says the example is absent and is not judged), and in an operation's
-examples each input parameter against the parameter it names, and the error content against the
-error's type.
+constructor, a type holding anything, a union, an external type and an unknown type are not judged,
+and at a position written in an encoding only an enum's members, a literal's value and null are. A
+position is written in an encoding where an `Encoding` writes it, that of a scalar or a list its
+type reaches through aliases or its own as a property, a header or a parameter, or where an HTTP
+binding writes the whole parameter through a `ContentType`, a media type serializing it as one does
+a header declared by `content`. The same holds of its default as of its examples. The sites are a
+property's, a parameter's and a header's default and examples, a type's own examples (a null one
+says the example is absent and is not judged), and in an operation's examples each input parameter
+against the parameter it names, and the error content against the error's type.
 
 A null example of a parameter or a header that is not `Required` stands for the value left out, as a
 source writes one to show that it may be omitted, and is not judged, whatever its type: a query,
-path, cookie or header field has no null to write, so absent is all a null there can mean. A
-parameter a binding's `ContentType` serializes is read alike: its media type could write a null, but
-its type admits none, so a null example is no value it sends. Still judged: a null example of a
-required one; a null default, which is written into code; a property's null example, since an object
-can hold a member whose value is null, a state `Property.Required` and `TypeRef.Nullable` keep apart
-from the member left out; and a scenario's null input, since a scenario leaves a parameter out by
-not naming it.
+path, cookie or header field has no null to write, so absent is all a null there can mean. The rule
+reads every binding alike, so a parameter a binding could send a null for is read as left out too:
+one a binding's `ContentType` serializes, in a media type that could write a null, or one an RPC
+binding passes. Its type admits no null, so a null example is no value it sends. A parameter written
+in an encoding has its null example left alone by this rule, not by the encoding's, which judges a
+null. Still judged: a null example of a required one, written in an encoding or not; a null default,
+which is written into code; a property's null example, since an object can hold a member whose value
+is null, a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and
+a scenario's null input, since a scenario leaves a parameter out by not naming it.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string, number or bool example of a list or an object (a model or a map) is
