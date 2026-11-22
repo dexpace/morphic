@@ -1115,14 +1115,14 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 		"a second json.WithMarshalers replaces orderFree")
 }
 
-// TestCheck_OrderOraclesAskOfABlockScalarLedByABreak holds both order oracles
-// to asking of a spec whose block scalar starts with a line break inside a
-// block sequence item (#2153), where the encoder writes an indentation
-// indicator the decoder reads as ending the scalar. The neighbours that never
-// tripped it, the scalar outside a sequence item, led by text, or written
-// double-quoted, stay asked. The sequence oracle reverses the allOf of the last
-// rows, which holds the scalar in one of its entries.
-func TestCheck_OrderOraclesAskOfABlockScalarLedByABreak(t *testing.T) {
+// TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation holds both order
+// oracles to asking of a spec whose block scalar starts with a line break or a
+// space inside a block sequence item (#2153), where the encoder writes an
+// indentation indicator the decoder reads as ending the scalar. The neighbours
+// that never tripped it, the scalar outside a sequence item, led by text, or
+// written double-quoted, stay asked. The sequence oracle reverses the allOf of
+// the last rows, which holds the scalar in one of its entries.
+func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
 	const opening = "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\npaths: {}\n"
 	allOf := func(description string) string {
 		return opening + "components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n" +
@@ -1180,9 +1180,9 @@ func TestCheck_OrderOraclesAskOfABlockScalarLedByABreak(t *testing.T) {
 	}
 }
 
-// inSequenceItem is a stream of one document holding scalar as a mapping's
-// value inside a block sequence item, the place the encoder misplaces an
-// indentation indicator.
+// inSequenceItem is a stream of one document holding scalar as a value of the
+// mapping a block sequence item opens, a place the encoder misplaces an
+// indentation indicator at.
 func inSequenceItem(scalar *yaml.Node) []*yaml.Node {
 	item := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalarNode("k"), scalar}}
 	sequence := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{item}}
