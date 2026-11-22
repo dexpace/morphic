@@ -450,8 +450,9 @@ func tagEmptyFirstDocument(docs []*yaml.Node) {
 // quoteBlockScalarsLedByIndentation double-quotes each literal or folded scalar
 // at or below node whose value starts with a space or a line break. The encoder
 // writes such a scalar with an indentation indicator of its own indent step,
-// which inside a block sequence item places the content where the decoder reads
-// the scalar as ended (TestEncodeYAML_MisplacesABlockScalarLedByIndentation).
+// which, for a block sequence's item or a key or value of the mapping an item
+// opens, places the content where the decoder reads the scalar as ended
+// (TestEncodeYAML_MisplacesABlockScalarLedByIndentation).
 // Double-quoted, the value is written back as it reads, and so is a tag other
 // than a string's, which such a value never resolves to. It declines a tree
 // nested past the bound.

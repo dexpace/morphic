@@ -1219,9 +1219,9 @@ func scalarValues(t *testing.T, docs []*yaml.Node) []string {
 
 // TestEncodeYAML_MisplacesABlockScalarLedByIndentation is the record of the
 // encoder behaviour quoteBlockScalarsLedByIndentation exists for: a literal or
-// folded scalar led by a space or a line break, inside a block sequence item,
-// encodes to text that does not parse. Should the encoder stop doing so, this
-// goes red and the quoting can go.
+// folded scalar led by a space or a line break, as a value of the mapping a
+// block sequence item opens, encodes to text that does not parse. Should the
+// encoder stop doing so, this goes red and the quoting can go.
 func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
 	t.Parallel()
 	for _, style := range []yaml.Style{yaml.LiteralStyle, yaml.FoldedStyle} {
