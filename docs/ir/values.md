@@ -58,17 +58,18 @@ a default is written into the code an emitter generates and an example reaches i
 reading is shallow: the value's kind against the shape of the type, an enum's members, a literal's
 value, null where the position is not nullable, whole numbers for an integer, and the bounds the
 position declares with those of the alias scalars it reaches. A value that is a reference or a
-constructor, a type holding anything, a union, an external type, an unknown type and a position
-written in an encoding are not judged. A position is written in an encoding where an `Encoding`
-writes it, that of a scalar or a list its type reaches through aliases or its own as a property, a
-header or a parameter, and its default then goes unjudged with its examples. A media type alone
-writes the value in its format without changing what the type holds: where a position's own
-`Encoding` names a `MediaType` and nothing else, as a header declared by `content` has, or where an
-HTTP binding writes the whole parameter through a `ContentType`, its examples are in that format and
-go unjudged, while its default, a value of the type, is judged. The sites are a property's, a
-parameter's and a header's default and examples, a type's own examples (a null one says the example
-is absent and is not judged), and in an operation's examples each input parameter against the
-parameter it names, and the error content against the error's type.
+constructor, a type holding anything, a union, an external type and an unknown type are not judged,
+and of a value written in an encoding only an enum's members, a literal's value and null are. A value
+is written in an encoding where an `Encoding` writes it: that of a scalar or a list its type reaches
+through aliases, or a position's own, as a property, a header or a parameter has, which writes its
+default as it writes its examples unless it names a `MediaType` and nothing else, as a header
+declared by `content` has. A media type alone writes the value in its format without changing what
+the type holds, so there, and where an HTTP binding writes the whole parameter through a
+`ContentType`, only the examples are judged as values written in an encoding: the default, a value of
+the type, is judged as it is at any other position. The sites are a property's, a parameter's and a
+header's default and examples, a type's own examples (a null one says the example is absent and is
+not judged), and in an operation's examples each input parameter against the type and bounds of the
+parameter it names, though not its own `Encoding`, and the error content against the error's type.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value

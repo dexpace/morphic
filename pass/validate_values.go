@@ -149,9 +149,11 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
-// type nothing declares, one holding anything, a union or an external type, a
-// value written in an encoding, and a scalar that may be a list or an object
-// written out in the site's style, as writtenOut says.
+// type nothing declares, one holding anything, a union or an external type, the
+// kind, whole numbers and bounds of a value written in an encoding, whose enum
+// membership, literal value and null are judged all the same, and a scalar that
+// may be a list or an object written out in the site's style, as writtenOut
+// says.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""

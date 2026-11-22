@@ -266,14 +266,14 @@ func TestValidate_ASerializedDefaultOfAListOrAnObjectIsReported(t *testing.T) {
 	assert.Equal(t, []finding{{"property/x/h", "default is a string, and type/l holds a list"}}, found(t, header, defaultCode))
 }
 
-// TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged holds a parameter
-// whose own Encoding writes it to have neither its examples nor its default
-// judged, and one a media type alone serializes, through its own Encoding or a
-// binding writing it whole under a content type, to have its examples alone
-// unjudged, since its default is a value of the type. One a content type writes only a member of
-// has both judged. A content type's binding ahead of one writing no list still
-// serializes the parameter.
-func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+// TestValidate_AParameterWrittenInAnEncodingHasNoKindJudged holds a parameter
+// whose own Encoding writes it to have the kind of neither its examples nor its
+// default judged, and one a media type alone serializes, through its own
+// Encoding or a binding writing it whole under a content type, that of its
+// examples alone, since its default is a value of the type. One a content type
+// writes only a member of has both judged. A content type's binding ahead of
+// one writing no list still serializes the parameter.
+func TestValidate_AParameterWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 	t.Parallel()
 	content := func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" }
 	valued := func(parameter *ir.Parameter) {
@@ -323,12 +323,12 @@ func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 	}
 }
 
-// TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged holds a header whose
+// TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged holds a header whose
 // Encoding names a media type alone, as one declared by content has, to have
-// its examples alone unjudged, as a parameter a content type writes has, and
-// one whose Encoding names anything else, or nothing, to have neither judged.
-// Its example is an object, which no style writes for a list.
-func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+// the kind of its examples alone unjudged, as a parameter a content type writes
+// has, and one whose Encoding names anything else, or nothing, the kind of
+// neither. Its example is an object, which no style writes for a list.
+func TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name          string
@@ -353,6 +353,66 @@ func TestValidate_AHeaderWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
 			assert.Empty(t, found(t, doc, exampleCode))
 			assert.Equal(t, wantDefault, found(t, doc, defaultCode))
 		})
+	}
+}
+
+// TestValidate_AnEncodingExcusesNoMemberAndNoNull holds a value written in an
+// encoding, by a parameter's or a header's own Encoding, a media type alone or
+// a content type writing the parameter whole, to be judged for an enum's
+// members, a literal's value and null all the same, its default and its
+// examples alike: an encoding excuses only the kind, whole numbers and bounds.
+func TestValidate_AnEncodingExcusesNoMemberAndNoNull(t *testing.T) {
+	t.Parallel()
+	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
+	type written func(typ ir.TypeRef, value *ir.Value) *ir.Document
+	parameter := func(encoding *ir.Encoding, bindings ...ir.HTTPBinding) written {
+		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
+			return parameterOperation(func(parameter *ir.Parameter) {
+				parameter.Type, parameter.Encoding, parameter.Default = typ, encoding, value
+				parameter.Examples = []ir.Example{{Value: value}}
+			}, bindings...)
+		}
+	}
+	header := func(encoding *ir.Encoding) written {
+		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
+			return headerOperation(func(header *ir.Header) {
+				header.Type, header.Encoding, header.Default = typ, encoding, value
+				header.Examples = []ir.Example{{Value: value}}
+			})
+		}
+	}
+	for _, position := range []struct {
+		name string
+		node string
+		doc  written
+	}{
+		{"a parameter under its own encoding", "parameter/x/q", parameter(&ir.Encoding{Name: "string"})},
+		{"a parameter under a media type alone", "parameter/x/q", parameter(&ir.Encoding{MediaType: "application/json"})},
+		{"a parameter under a content type", "parameter/x/q", parameter(nil, content)},
+		{"a header under its own encoding", "property/x/h", header(&ir.Encoding{Name: "http-date"})},
+		{"a header under a media type alone", "property/x/h", header(&ir.Encoding{MediaType: "text/plain"})},
+	} {
+		for _, value := range []struct {
+			name  string
+			typ   ir.TypeRef
+			value *ir.Value
+			why   string
+		}{
+			{"no member of an enum", ir.TypeRef{Target: "type/e"}, text("blue"), "is not a member of enum type/e"},
+			{"another value than a literal's", ir.TypeRef{Target: "type/four"}, number("5"), "is not the value of literal type/four"},
+			{"null where none is admitted", listT, null(), "is null, and type/l is not nullable here"},
+		} {
+			t.Run(position.name+", "+value.name, func(t *testing.T) {
+				t.Parallel()
+				doc := position.doc(value.typ, value.value)
+				doc.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{
+					{ID: "enum-member/red", Value: *text("red")},
+				}, Provenance: provAt("type/e")}
+				doc.Types["type/four"] = &ir.Literal{ID: "type/four", Value: *number("4"), Provenance: provAt("type/four")}
+				assert.Equal(t, []finding{{position.node, "example 0 " + value.why}}, found(t, doc, exampleCode))
+				assert.Equal(t, []finding{{position.node, "default " + value.why}}, found(t, doc, defaultCode))
+			})
+		}
 	}
 }
 
