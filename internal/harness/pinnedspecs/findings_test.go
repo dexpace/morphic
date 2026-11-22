@@ -60,11 +60,14 @@ func TestFindings_NamesEachDiagnosticByCodeAndPlace(t *testing.T) {
 // TestFindings_NamesEachOracleThatDidNotPass pins how a record names an
 // oracle's verdict: one that passed is none, one that declined says why, and
 // one that found something gives its detail's first line, quoted where it
-// holds a tab.
+// holds a tab, but for the no-error-diagnostic oracle, which gives its error's
+// code and none of a message naming a file.
 func TestFindings_NamesEachOracleThatDidNotPass(t *testing.T) {
 	t.Parallel()
 	result := harness.Result{Spec: "spec.yaml", Outcome: harness.OutcomeOrderDependent, Verdicts: []harness.Verdict{
 		{Oracle: harness.OracleNoPanic, Outcome: harness.OutcomeOK},
+		{Oracle: harness.OracleNoErrorDiagnostic, Outcome: harness.OutcomeErrorDiag,
+			Detail: `openapi/unresolved-ref: unresolved $ref "./b.yaml": open /tmp/run-1/a/b.yaml: no such file`},
 		{Oracle: harness.OracleOrder, Outcome: harness.OutcomeOrderDependent, Detail: "first line\nsecond line"},
 		{Oracle: harness.OracleDeterminism, Outcome: harness.OutcomeNondeterministic, Detail: "a\tb"},
 		{Oracle: harness.OracleSequenceOrder, Declined: harness.DeclineNothingToPermute},
@@ -74,6 +77,7 @@ func TestFindings_NamesEachOracleThatDidNotPass(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []harness.Finding{
+		{Name: "oracle no-error-diagnostic", What: "openapi/unresolved-ref"},
 		{Name: "oracle order-invariance", What: "first line"},
 		{Name: "oracle determinism", What: `"a\tb"`},
 		{Name: "oracle sequence-order-invariance", What: "declined: nothing to permute"},

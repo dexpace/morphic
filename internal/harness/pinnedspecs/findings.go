@@ -19,9 +19,10 @@ import (
 // diagnostic of the spec's compile, named by its code and place (place), what
 // was found being its severity, and each oracle that found something or
 // declined, named "oracle" and the oracle, what being its detail's first line
-// or why it declined. Diagnostics of one code at one place are one finding,
-// listing each one's severity. A result a fault ended is refused: its oracles
-// asked nothing, and what it holds is no account of the spec.
+// or why it declined. The no-error-diagnostic oracle's is its error's code
+// alone: the message can name the directory a run fetched into. Diagnostics of
+// one code at one place are one finding, listing each one's severity. A result
+// a fault ended is refused: its oracles asked nothing.
 func Findings(result harness.Result) ([]harness.Finding, error) {
 	if result.Spec == "" {
 		return nil, errors.New("pinnedspecs: a result naming no spec")
@@ -45,6 +46,9 @@ func Findings(result harness.Result) ([]harness.Finding, error) {
 		switch {
 		case !verdict.Asked():
 			findings = append(findings, harness.Finding{Name: name, What: "declined: " + string(verdict.Declined)})
+		case verdict.Found() && verdict.Oracle == harness.OracleNoErrorDiagnostic:
+			code, _, _ := strings.Cut(verdict.Detail, ": ")
+			findings = append(findings, harness.Finding{Name: name, What: recordable(code)})
 		case verdict.Found():
 			first, _, _ := strings.Cut(verdict.Detail, "\n")
 			findings = append(findings, harness.Finding{Name: name, What: recordable(first)})
