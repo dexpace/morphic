@@ -1242,8 +1242,9 @@ func scalarValues(t *testing.T, docs []*yaml.Node) []string {
 // encoder behaviour restyleBlockScalars double-quotes for: a literal or
 // folded scalar led by a space or a line break, as a value of the mapping a
 // block sequence item opens, encodes to text that does not parse. Should the
-// encoder stop doing so, this goes red and a space and the line breaks can
-// leave ledByIndentation.
+// encoder stop doing so, this goes red and a space can leave ledByIndentation,
+// and the line breaks can once
+// TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar is red too.
 func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
 	t.Parallel()
 	for _, style := range []yaml.Style{yaml.LiteralStyle, yaml.FoldedStyle} {
@@ -1315,16 +1316,17 @@ func TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines(t *testing.T) {
 
 // TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar is the record of
 // the encoder behaviour restyleBlockScalars double-quotes a literal scalar
-// ending in two line breaks for: written kept as the last node of a document a
+// ending in a blank line for: written kept as the last node of a document a
 // comment ends, it encodes with a line break more before the comment. Should
 // the encoder stop doing so, this goes red and endsInTwoLineBreaks can go.
 func TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar(t *testing.T) {
 	t.Parallel()
 	assertEachReadsBackChanged(t, map[string]string{
-		"a root mapping's value":   "a: |+\n  x\n\n# c\n",
-		"an item":                  "- |+\n  x\n\n# c\n",
-		"a nested mapping's value": "a:\n  b: |+\n    x\n\n  # c\n",
-		"before another document":  "a: |+\n  x\n\n# c\n---\nb: 1\n",
+		"a root mapping's value":    "a: |+\n  x\n\n# c\n",
+		"an item":                   "- |+\n  x\n\n# c\n",
+		"a nested mapping's value":  "a:\n  b: |+\n    x\n\n  # c\n",
+		"before another document":   "a: |+\n  x\n\n# c\n---\nb: 1\n",
+		"a value of one line break": "a: |+\n\n# c\n",
 	})
 }
 
@@ -1419,6 +1421,7 @@ func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 		"anchored and aliased":                parsed("a:\n  - k: &n |\n      \n      x\n  - j: *n\n"),
 		"a long value, which the quote folds": parsed("a:\n  - k: |\n      \n      " + strings.Repeat("word ", 40) + "\n"),
 		"a root mapping's value led by a tab": parsed("a: |2\n  \tx\n"),
+		"a kept line break before a comment":  parsed("a: |+\n\n# c\n"),
 	}
 	for _, leader := range leaders {
 		tests[fmt.Sprintf("built, led by %q", leader)] = func(*testing.T) []*yaml.Node {

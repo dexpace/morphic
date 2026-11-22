@@ -493,9 +493,10 @@ func ledByIndentation(value string) bool {
 // the encoder writes a block scalar kept for: a line feed, a line separator or
 // a paragraph separator. Kept, a literal scalar as the last node of a document
 // a comment ends reads back with a line break more at its end
-// (TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar). A value
-// ending in a carriage return or a next line the encoder writes double-quoted
-// itself.
+// (TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar). A value of
+// one of those line breaks alone is written kept too, and ledByIndentation
+// quotes it. A value ending in a carriage return or a next line the encoder
+// writes double-quoted itself.
 func endsInTwoLineBreaks(value string) bool {
 	last, size := utf8.DecodeLastRuneInString(value)
 	before, _ := utf8.DecodeLastRuneInString(value[:len(value)-size])
