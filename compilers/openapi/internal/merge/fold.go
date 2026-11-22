@@ -658,8 +658,10 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
 // settles its docs: neither is bound to a shape. A promotion marks the
 // declaration it read (promotion.Promoter.Deprecation), so the field takes the
-// marker of the declaration whose deprecation it keeps, whichever declaration
-// that is.
+// marker of the declaration whose deprecation it keeps (lastWritten), whichever
+// declaration that is. Of two written declarations stating one deprecation
+// alike, the later is kept, so whether the field carries a marker only one of
+// them has still follows their order.
 func (f *folding) foldAnnotations() {
 	var deprecatedBy int
 	f.merged.Deprecation, deprecatedBy = lastWritten(f, "deprecation", DetailDeprecation, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
