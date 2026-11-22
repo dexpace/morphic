@@ -22,12 +22,12 @@ const (
 )
 
 // TestReadList_ReadsEachSpecInOrder pins the shape of a list: a spec a line,
-// its fields between any run of spaces or tabs, comment and blank lines
-// skipped.
+// each line ending in a newline, its fields between any run of spaces or tabs,
+// comment and blank lines skipped.
 func TestReadList_ReadsEachSpecInOrder(t *testing.T) {
 	t.Parallel()
 	list := "# a comment\n\nb-1  owner/repo.x  " + commit + "  dir/b.yaml  " + sum + "\n" +
-		"  a\tOwner-2/r_e-p\t" + commit + "\ta.json\t" + sum
+		"  a\tOwner-2/r_e-p\t" + commit + "\ta.json\t" + sum + "\n"
 	specs, err := pinnedspecs.ReadList([]byte(list))
 	require.NoError(t, err)
 	assert.Equal(t, []pinnedspecs.Spec{
@@ -37,8 +37,9 @@ func TestReadList_ReadsEachSpecInOrder(t *testing.T) {
 }
 
 // TestReadList_RefusesWhatItCannotFetchSafely pins each line a list refuses,
-// each field held to a form that names one file of one revision and stays
-// inside the directory a fetch writes to, and the line it is on.
+// each line read as the fetch script reads it and each field held to a form
+// that names one file of one revision and stays inside the directory a fetch
+// writes to, and the line it is on.
 func TestReadList_RefusesWhatItCannotFetchSafely(t *testing.T) {
 	t.Parallel()
 	line := func(name, repository, commit, path, sum string) string {
@@ -48,6 +49,14 @@ func TestReadList_RefusesWhatItCannotFetchSafely(t *testing.T) {
 	for _, tc := range []struct{ name, list, want string }{
 		{"a field missing", "# c\n" + "a o/r " + commit + " a.yaml\n", "list line 2: want name, repository, commit, path and SHA-256"},
 		{"a field more", "a o/r " + commit + " a.yaml " + sum + " x\n", "list line 1: want name"},
+		{"no newline at the end", good + strings.TrimSuffix(good, "\n"), "list line 2: want a newline at its end"},
+		{"a comment with no newline at the end", good + "# c", "list line 2: want a newline at its end"},
+		{"a no-break space between fields", strings.ReplaceAll(good, " ", "\u00a0"), "list line 1: want name"},
+		{"a vertical tab between fields", strings.ReplaceAll(good, " ", "\v"), "list line 1: want name"},
+		{"a next-line character between fields", strings.ReplaceAll(good, " ", "\u0085"), "list line 1: want name"},
+		{"a form feed between fields", strings.ReplaceAll(good, " ", "\f"), "list line 1: want name"},
+		{"a blank line of a carriage return", "\r\n" + good, `list line 1: want name, repository, commit, path and SHA-256, got "\r"`},
+		{"a line ending in a carriage return", strings.ReplaceAll(good, "\n", "\r\n"), `a: SHA-256 "` + sum + `\r"`},
 		{"a name with a slash", line("a/b", "o/r", commit, "a.yaml", sum), `name "a/b"`},
 		{"a name climbing out", line("..", "o/r", commit, "a.yaml", sum), `name ".."`},
 		{"a name in capitals", line("A", "o/r", commit, "a.yaml", sum), `name "A"`},
