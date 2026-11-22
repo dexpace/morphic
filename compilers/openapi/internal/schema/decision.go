@@ -191,14 +191,21 @@ func unionAside(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 }
 
 // usesOneRef reports whether schema, whose flattened conjuncts are comp, is a
-// use of one target saying nothing of it: one conjunct is a $ref writing
-// nothing read beside it, as an entry read whole may (statement.ReadBeside),
-// and schema and every other conjunct state nothing (statesNothing), or, where
-// a carrier holds schema's position (carriedAt), nothing but what binds the use
-// (bindsUseOnly) and, beside the $ref or the allOf, the notes the carrier holds
-// (carriedNotesAt), all of which the carrier holds. It is the reference, as the
-// $ref alone is (docs/compilers/openapi.md#allof-classification).
+// use of one target saying nothing of it (usesOneRefHolding), the carrier
+// holding the notes carriedNotesAt gives it. It is the reference, as the $ref
+// alone is (docs/compilers/openapi.md#allof-classification).
 func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) bool {
+	return usesOneRefHolding(loweringContext, schema, comp, carriedNotesAt(loweringContext, schema))
+}
+
+// usesOneRefHolding reports whether schema, whose flattened conjuncts are comp,
+// uses one target saying nothing of it but what a carrier holds: one conjunct
+// is a $ref writing nothing read beside it, as an entry read whole may
+// (statement.ReadBeside), and schema and every other conjunct state nothing
+// (statesNothing), or, where a carrier holds schema's position (carriedAt),
+// nothing but what binds the use (bindsUseOnly) and, beside the $ref or the
+// allOf, the notes notes names.
+func usesOneRefHolding(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, notes carriedNotes) bool {
 	carried := carriedAt(loweringContext, schema)
 	quiet := func(statementSchema *statement.Schema, notes carriedNotes) bool {
 		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema, notes)
@@ -218,7 +225,7 @@ func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp all
 			return false
 		}
 	}
-	return refs == 1 && quiet(schema, carriedNotesAt(loweringContext, schema))
+	return refs == 1 && quiet(schema, notes)
 }
 
 // bindsUseOnly reports whether every key schema writes that says something of

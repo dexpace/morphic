@@ -26,20 +26,22 @@ type carriedNotes struct {
 }
 
 // notesOnCarrier returns which notes schema writes the carrier holding its
-// position, pointer, holds, though typeRef names the node that position builds.
-// It holds none where schema names a $ref among its conjuncts
-// (allOfRefEntries), and otherwise those carriedNotesAt gives it. Node and
-// carrier both ask it, so each note has one home
-// (docs/ir/annotations.md#one-structural-home-per-declaration).
+// position, pointer, holds, though typeRef names the node that position builds:
+// those carriedNotesAt gives it. Node and carrier both ask it, so each note has
+// one home (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
-// Where schema names a $ref the node keeps them, as a decorator does, a $ref
-// beside notes alone building no node where the carrier holds them all
-// (usesOneRef).
+// A position naming a $ref among its conjuncts (allOfRefEntries) holds none
+// unless it is a use of that $ref once its carrier holds every note
+// (usesOneRefHolding). So a referent's own notes, at a position writing another
+// conjunct, an enum's among them, stay on that position's node.
 func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) carriedNotes {
 	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) {
 		return carriedNotes{}
 	}
 	for range allOfRefEntries(loweringContext, schema) {
+		if usesOneRefHolding(loweringContext, schema, allOfEntries(loweringContext, schema, ""), carriedNotes{docs: true, deprecation: true, examples: true}) {
+			break
+		}
 		return carriedNotes{}
 	}
 	return carriedNotesAt(loweringContext, schema)
