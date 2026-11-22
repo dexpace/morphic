@@ -81,7 +81,10 @@ in an encoding or by a media type has its null example left alone by this rule, 
 judge a null. Still judged: a null example of a required one, whatever writes it; a null default,
 which is written into code; a property's null example, since an object can hold a member whose value
 is null, a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and
-a scenario's null input, since a scenario leaves a parameter out by not naming it.
+a scenario's null input, since a scenario leaves a parameter out by not naming it. The emitter
+contract still holds a null example of a parameter or a header that is not required to its type
+([one set of examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to
+change.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value
