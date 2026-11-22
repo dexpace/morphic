@@ -205,7 +205,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   of the list, its SHA-256 that of the fetched copy, and the rewrite writes its record:
 
   ```bash
-  d=$(mktemp -d) && ./scripts/fetch-pinned-specs.sh "$d" &&
+  d=$(cd "$(mktemp -d)" && pwd -P) && ./scripts/fetch-pinned-specs.sh "$d" &&
     go test ./internal/harness/pinnedspecs -run TestSweep_EachPinnedSpecHoldsItsRecord -pinned "$d" -update
   ```
 

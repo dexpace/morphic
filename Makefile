@@ -188,14 +188,16 @@ cases:
 # The test skips without -pinned, and go test prints ok for a skipped test or a
 # -run matching none, so the sweep passes only on the test's own PASS line. A
 # run that rewrites a record, as -update does, fails too, since the test then
-# passes over any difference. A failed fetch says so on a line of its own, which
-# the nightly job reports under a title of its own: it is no difference in what
-# the specs draw.
+# passes over any difference. The fetch directory is made absolute, as go test
+# runs in the package's directory. A failed fetch says so on a line of its own,
+# which the nightly job reports under a title of its own: it is no difference in
+# what the specs draw.
 SWEEP_TEST := TestSweep_EachPinnedSpecHoldsItsRecord
 SWEEP_RECORDS := internal/harness/pinnedspecs/testdata/records/*.txt
 sweep:
 	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/morphic-sweep.XXXXXX")" || exit 1; \
 	trap 'rm -rf "$$dir"' EXIT; \
+	dir="$$(cd "$$dir" && pwd -P)" || exit 1; \
 	if ! ./scripts/fetch-pinned-specs.sh "$$dir"; then \
 		echo "sweep: cannot fetch the pinned specs" >&2; \
 		exit 1; \
