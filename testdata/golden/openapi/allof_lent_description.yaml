@@ -1,0 +1,29 @@
+# A member two allOf entries declare, one writing a description and the other a
+# bare $ref whose target describes itself (GitHub #2152). The entry writing the
+# description comes first, the order in which a fold by declaration order alone
+# kept the target's description: the member keeps the one written, draws no
+# report, and Money keeps its own.
+openapi: 3.0.3
+info: {title: Lent description, version: "1"}
+paths: {}
+components:
+  schemas:
+    Money:
+      type: object
+      description: Container for price information.
+      properties:
+        Value: {type: string}
+    Warning:
+      type: object
+      properties:
+        OriginalPrice: {$ref: '#/components/schemas/Money'}
+    Response:
+      type: object
+      properties:
+        Warnings:
+          type: array
+          items:
+            allOf:
+              - properties:
+                  OriginalPrice: {description: The price before the change.}
+              - $ref: '#/components/schemas/Warning'

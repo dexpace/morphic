@@ -107,8 +107,8 @@ func TestFold_AWrittenDetailIsKeptOverALentOne(t *testing.T) {
 // TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne pins what GitHub
 // #2152 leaves to declaration order: of declarations each borrowing a detail,
 // none writing one, the last is kept and an earlier one lending another is
-// reported and kept, as two written are. A declaration writing the detail
-// outvotes every one of them, so none is reported.
+// reported as borrowed, not given, and kept, as two written are. A declaration
+// writing the detail outvotes every one of them, so none is reported.
 func TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne(t *testing.T) {
 	t.Parallel()
 	for _, tc := range lendable {
@@ -124,7 +124,9 @@ func TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne(t *testing.T) {
 		assert.Equal(t, later.property.Default, got.Default, tc.name)
 		assert.Zero(t, written, "%s: the field keeps it from no declaration writing it", tc.name)
 		require.Len(t, diags, 1, tc.name)
-		assert.Contains(t, diags[0].Message, "give its "+tc.name+" differently", tc.name)
+		assert.Contains(t, diags[0].Message, "borrow its "+tc.name+" differently from the schemas their $refs name; "+
+			"kept the one the declaration at /later borrows over the one at /first", tc.name)
+		assert.NotContains(t, diags[0].Message, "give its", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/first", tc.name)
 
 		writing := givingAt("/written", tc.give, "written")

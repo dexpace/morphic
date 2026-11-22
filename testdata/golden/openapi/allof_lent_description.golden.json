@@ -1,0 +1,322 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "enum-member": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ],
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "parameter": [
+      "openapi"
+    ],
+    "property": [
+      "composed",
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Lent description",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "service/openapi/0",
+      "name": {
+        "source": "Lent description",
+        "canonical": "lent_description"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "type/anonymous/components/schemas/Response/properties/Warnings": {
+      "kind": "list",
+      "id": "type/anonymous/components/schemas/Response/properties/Warnings",
+      "name": {
+        "hint": "warnings"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Response/properties/Warnings"
+      },
+      "elementType": {
+        "target": "type/anonymous/components/schemas/Response/properties/Warnings/items",
+        "nullable": false
+      }
+    },
+    "type/anonymous/components/schemas/Response/properties/Warnings/items": {
+      "kind": "model",
+      "id": "type/anonymous/components/schemas/Response/properties/Warnings/items",
+      "name": {
+        "hint": "warnings_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Response/properties/Warnings/items"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Response/properties/Warnings/items/allOf/0/properties/OriginalPrice",
+          "name": {
+            "source": "OriginalPrice",
+            "canonical": "original_price"
+          },
+          "wireName": "OriginalPrice",
+          "type": {
+            "target": "type/openapi/components/schemas/Money",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The price before the change."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Response/properties/Warnings/items/allOf/0/properties/OriginalPrice"
+          }
+        }
+      ],
+      "base": {
+        "target": "type/openapi/components/schemas/Warning",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/Money": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Money",
+      "name": {
+        "source": "Money",
+        "canonical": "money"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Container for price information."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Money"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Money/properties/Value",
+          "name": {
+            "source": "Value",
+            "canonical": "value"
+          },
+          "wireName": "Value",
+          "type": {
+            "target": "type/primitive/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Money/properties/Value"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/Response": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Response",
+      "name": {
+        "source": "Response",
+        "canonical": "response"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Response"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Response/properties/Warnings",
+          "name": {
+            "source": "Warnings",
+            "canonical": "warnings"
+          },
+          "wireName": "Warnings",
+          "type": {
+            "target": "type/anonymous/components/schemas/Response/properties/Warnings",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Response/properties/Warnings"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/Warning": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Warning",
+      "name": {
+        "source": "Warning",
+        "canonical": "warning"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Warning"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Warning/properties/OriginalPrice",
+          "name": {
+            "source": "OriginalPrice",
+            "canonical": "original_price"
+          },
+          "wireName": "OriginalPrice",
+          "type": {
+            "target": "type/openapi/components/schemas/Money",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Container for price information."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Warning/properties/OriginalPrice"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "type/primitive/any": {
+      "kind": "primitive",
+      "id": "type/primitive/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "primitiveKind": "any"
+    },
+    "type/primitive/string": {
+      "kind": "primitive",
+      "id": "type/primitive/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "primitiveKind": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "allof_lent_description.yaml",
+      "hash": "7c20b9fdaf5749995af58aa56880e52c112b0a95b636ac0fcaa8fa20c2d2a9b0"
+    }
+  ]
+}

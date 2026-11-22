@@ -681,10 +681,10 @@ func (f *folding) foldAnnotations() {
 // where a spec writes the specialization. A value a $ref's referent lent, of
 // lendable (zero for none), loses in either order to one written, which sets
 // aside nothing written (docs/ir/annotations.md#what-a-reference-carries-down);
-// lent values tie only where none is written. An earlier declaration of the
-// kept side giving another value is reported and kept. Each caller says what
-// is the same; one code lowered every declaration, so spellings written alike
-// land on one side.
+// lent values tie only where none is written, and are reported as borrowed.
+// An earlier one of the kept side giving another value is reported and kept.
+// Each caller says what is the same; one code lowered every declaration, so
+// spellings alike land on one side.
 func lastWritten[T any](foldingValue *folding, detail string, lendable Details, of func(i int, property *ir.Property) (T, bool), same func(a, b T) bool) (T, int) {
 	keepWritten := false
 	for i := range foldingValue.decls {
@@ -692,6 +692,14 @@ func lastWritten[T any](foldingValue *folding, detail string, lendable Details, 
 			keepWritten = true
 			break
 		}
+	}
+	tie := "declarations of field %q give its %s differently; kept the one the declaration at %s gives " +
+		"over the one at %s, which %s"
+	// Where keepWritten is false, every declaration giving the detail borrows
+	// it: one giving a detail no referent lends writes it (writes).
+	if !keepWritten {
+		tie = "declarations of field %q borrow its %s differently from the schemas their $refs name; " +
+			"kept the one the declaration at %s borrows over the one at %s, which %s"
 	}
 	var kept T
 	at := -1
@@ -703,9 +711,7 @@ func lastWritten[T any](foldingValue *folding, detail string, lendable Details, 
 			kept, at = v, i
 		case !same(kept, v):
 			foldingValue.lost[i] = true
-			foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-				"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
-					"over the one at %s, which %s",
+			foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct, tie,
 				foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), foldingValue.decls[i].keptAs())
 		}
 	}

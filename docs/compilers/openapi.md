@@ -3294,9 +3294,10 @@ by a key or in an `allOf` entry read as written there, loses in either order to 
 writes, as a referent's loses to its use site's
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)). The referent still holds it,
 so losing it sets aside nothing written, and that declaration is neither reported nor kept for it.
-Lent values tie only where no declaration writes the detail, the last keeping it and an earlier one
-lending another reported and kept. A deprecation keeps its single side: the field is deprecated
-where any declaration states one, and only which one it carries is chosen so. A member a fold
+Lent values tie only where no declaration writes the detail, the last keeping it, and an earlier one
+lending another is kept and reported as borrowing it, not giving it, from the schema its `$ref`
+names. A deprecation keeps its single side: the field is deprecated where any declaration states
+one, and only which one it carries is chosen so. A member a fold
 settled lends a later fold what it kept from a declaration writing none, and a declaration in
 another document than the model composing it is read as writing every one. Declaration order alone
 was weighed and declined: reversing two `allOf` entries, which conjoin alike, would change which
@@ -3459,7 +3460,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ALentDetailIsNoPartyToAConflict`,
   `schema.TestAllOf_ADetailWrittenBesideARefIsAPartyToAConflict`,
   `schema.TestAllOf_AMemberAFoldSettledLendsWhatItKept`,
-  `e2e.TestCompile_AWrittenDescriptionIsKeptOverALentOne`,
+  `e2e.TestCompile_AWrittenDescriptionIsKeptOverALentOne`, `e2e.TestGolden_AllOfLentDescription`,
   `promotion.TestPromoter_WritesDeprecationKnowsEveryDeprecationTarget`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
