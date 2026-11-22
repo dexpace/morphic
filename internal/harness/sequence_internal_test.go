@@ -371,6 +371,19 @@ func TestReverseSequences_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+// TestReverseSequences_APermutationThatReadsOtherwiseIsDeclined is the
+// counterpart of TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined.
+func TestReverseSequences_APermutationThatReadsOtherwiseIsDeclined(t *testing.T) {
+	orig := encodeYAML
+	t.Cleanup(func() { encodeYAML = orig })
+	encodeYAML = func([]*yaml.Node) ([]byte, error) { return []byte("allOf: [b, c]\n"), nil }
+
+	got, _, why := reverseSequences([]byte("allOf: [a, b]\n"))
+
+	assert.Equal(t, DeclineReencodingReadsOtherwise, why)
+	assert.Nil(t, got)
+}
+
 // TestReverseSequences_AnAnchorGivenTwiceIsDeclined pins that a source whose
 // anchors could be rebound by the move undoing an alias written above its
 // anchor is declined once something is reversed, as the mapping rewrite

@@ -13,6 +13,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -333,11 +334,7 @@ func reencodeMappings(src []byte) ([]byte, Decline) {
 	if why != "" {
 		return nil, why
 	}
-	out, err := encodeYAML(docs)
-	if err != nil {
-		return nil, DeclineUnencodable
-	}
-	return out, ""
+	return encodeFaithfully(docs)
 }
 
 // reverseMappings returns src with the entry order of every YAML mapping
@@ -348,7 +345,8 @@ func reencodeMappings(src []byte) ([]byte, Decline) {
 //
 // Reversing can carry an alias above its anchor, which YAML forbids, so each
 // anchor moves to the first place naming it (hoistAnchors). A permutation that
-// does not parse again is declined, as the rewrite's fault, not the compiler's.
+// does not read back as written is declined, as the rewrite's fault, not the
+// compiler's (encodeFaithfully).
 func reverseMappings(src []byte) ([]byte, Decline) {
 	docs, why := parseStream(src)
 	if why != "" {
@@ -362,14 +360,7 @@ func reverseMappings(src []byte) ([]byte, Decline) {
 			return nil, why
 		}
 	}
-	out, err := encodeYAML(docs)
-	if err != nil {
-		return nil, DeclineUnencodable
-	}
-	if _, why := parseStream(out); why != "" {
-		return nil, DeclinePermutationUnparsable
-	}
-	return out, ""
+	return encodeFaithfully(docs)
 }
 
 // parseStream parses src as a YAML stream, a node per document, or says why
@@ -397,16 +388,115 @@ func parseStream(src []byte) ([]*yaml.Node, Decline) {
 }
 
 // encodeYAML encodes a parsed or permuted stream. It is a package-level seam:
-// a tree that has just parsed cannot fail to re-encode, nor encode to text that
-// does not parse, and tests replace it to drive those otherwise-unreachable
-// defensive paths, as reserializeJSON is a seam over json.Marshal for the same
-// reason.
+// a tree that has just parsed cannot fail to re-encode, nor, once
+// encodeFaithfully has restyled it, encode to text that does not read back, and
+// tests replace it to drive those otherwise-unreachable defensive paths, as
+// reserializeJSON is a seam over json.Marshal for the same reason.
 var encodeYAML = func(docs []*yaml.Node) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := encodeStream(&buf, docs); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// encodeFaithfully encodes a parsed or permuted stream and parses the encoding
+// back, or says why it cannot stand for the stream: a tree nested past the
+// bound, one the encoder refuses, text that does not parse, or text that reads
+// otherwise, which would have the oracles compile another spec. What the
+// encoder would drop or misplace is restyled first: an empty first document
+// (tagEmptyFirstDocument) and a block scalar led by indentation
+// (quoteBlockScalarsLedByIndentation).
+func encodeFaithfully(docs []*yaml.Node) ([]byte, Decline) {
+	tagEmptyFirstDocument(docs)
+	for _, doc := range docs {
+		if why := quoteBlockScalarsLedByIndentation(doc, 0); why != "" {
+			return nil, why
+		}
+	}
+	out, err := encodeYAML(docs)
+	if err != nil {
+		return nil, DeclineUnencodable
+	}
+	read, why := parseStream(out)
+	if why != "" {
+		return nil, DeclinePermutationUnparsable
+	}
+	if len(read) != len(docs) {
+		return nil, DeclineReencodingReadsOtherwise
+	}
+	for i, doc := range docs {
+		if why := readsBackAsWritten(doc, read[i], 0); why != "" {
+			return nil, why
+		}
+	}
+	return out, ""
+}
+
+// tagEmptyFirstDocument has the encoder write the tag of the first document's
+// root when that root is an empty plain scalar, as an empty document's is. The
+// encoder writes the first document without a start marker, so such a root
+// writes nothing and the stream reads back without the document
+// (TestEncodeYAML_DropsAnEmptyFirstDocument); tagged, it reads back as written.
+func tagEmptyFirstDocument(docs []*yaml.Node) {
+	if len(docs) == 0 || len(docs[0].Content) != 1 {
+		return
+	}
+	if root := docs[0].Content[0]; root.Kind == yaml.ScalarNode && root.Value == "" && root.Style == 0 {
+		root.Style = yaml.TaggedStyle
+	}
+}
+
+// quoteBlockScalarsLedByIndentation double-quotes each literal or folded scalar
+// at or below node whose value starts with a space or a line break, keeping its
+// other style flags, a tag's among them. The encoder writes such a scalar with
+// an indentation indicator of its own indent step, which inside a block
+// sequence item places the content where the decoder reads the scalar as ended
+// (TestEncodeYAML_MisplacesABlockScalarLedByIndentation). Double-quoted, the
+// value is written back as it reads. It declines a tree nested past the bound.
+func quoteBlockScalarsLedByIndentation(node *yaml.Node, depth int) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	const block = yaml.LiteralStyle | yaml.FoldedStyle
+	if node.Kind == yaml.ScalarNode && node.Style&block != 0 && ledByIndentation(node.Value) {
+		node.Style = node.Style&^block | yaml.DoubleQuotedStyle
+	}
+	for _, child := range node.Content {
+		if why := quoteBlockScalarsLedByIndentation(child, depth+1); why != "" {
+			return why
+		}
+	}
+	return ""
+}
+
+// ledByIndentation reports whether value starts with what the encoder writes a
+// block scalar's indentation indicator for: a space, a line feed, a line
+// separator or a paragraph separator. A value led by the other line breaks, a
+// carriage return or a next line, the encoder writes double-quoted itself.
+func ledByIndentation(value string) bool {
+	first, _ := utf8.DecodeRuneInString(value)
+	return strings.ContainsRune(" \n\u2028\u2029", first)
+}
+
+// readsBackAsWritten declines read, a node of an encoding parsed back, where it
+// or a node below it differs from its counterpart in written in kind, value or
+// number of entries, and a tree nested past the bound. Tags are not compared:
+// the encoder writes a flow mapping's implicit null back as an empty string,
+// which both arms of an oracle compile alike (reencodeMappings).
+func readsBackAsWritten(written, read *yaml.Node, depth int) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	if written.Kind != read.Kind || written.Value != read.Value || len(written.Content) != len(read.Content) {
+		return DeclineReencodingReadsOtherwise
+	}
+	for i, child := range written.Content {
+		if why := readsBackAsWritten(child, read.Content[i], depth+1); why != "" {
+			return why
+		}
+	}
+	return ""
 }
 
 // encodeStream writes docs to w as one YAML stream, a document each. A stream

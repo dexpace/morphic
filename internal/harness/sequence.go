@@ -48,12 +48,9 @@ func reverseSequences(src []byte) ([]byte, permutation, Decline) {
 			return nil, permutation{}, why
 		}
 	}
-	out, err := encodeYAML(docs)
-	if err != nil {
-		return nil, permutation{}, DeclineUnencodable
-	}
-	if _, why := parseStream(out); why != "" {
-		return nil, permutation{}, DeclinePermutationUnparsable
+	out, why := encodeFaithfully(docs)
+	if why != "" {
+		return nil, permutation{}, why
 	}
 	return out, perm, ""
 }

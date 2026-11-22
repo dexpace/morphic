@@ -1114,3 +1114,306 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 	assert.Greater(t, bytes.Index(replaced, []byte("property/x/a")), bytes.Index(replaced, []byte("property/x/b")),
 		"a second json.WithMarshalers replaces orderFree")
 }
+
+// TestCheck_OrderOraclesAskOfABlockScalarLedByABreak holds both order oracles
+// to asking of a spec whose block scalar starts with a line break inside a
+// block sequence item (#2153), where the encoder writes an indentation
+// indicator the decoder reads as ending the scalar. The neighbours that never
+// tripped it, the scalar outside a sequence item, led by text, or written
+// double-quoted, stay asked. The sequence oracle reverses the allOf of the last
+// rows, which holds the scalar in one of its entries.
+func TestCheck_OrderOraclesAskOfABlockScalarLedByABreak(t *testing.T) {
+	const opening = "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\npaths: {}\n"
+	allOf := func(description string) string {
+		return opening + "components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n" +
+			"          description: " + description + "\n        - title: b\n"
+	}
+	tests := []struct {
+		name     string
+		src      string
+		sequence Verdict
+	}{
+		{
+			name:     "a tag's description led by a break",
+			src:      opening + "tags:\n  - name: x\n    description: |\n      \n      text after a blank first line\n",
+			sequence: declined(OracleSequenceOrder, DeclineNothingToPermute),
+		},
+		{
+			name: "the info's description led by a break",
+			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n" +
+				"  description: |\n    \n    text after a blank first line\npaths: {}\n",
+			sequence: declined(OracleSequenceOrder, DeclineNothingToPermute),
+		},
+		{
+			name:     "a tag's description led by text",
+			src:      opening + "tags:\n  - name: x\n    description: |\n      text\n",
+			sequence: declined(OracleSequenceOrder, DeclineNothingToPermute),
+		},
+		{
+			name:     "a tag's description double-quoted",
+			src:      opening + "tags:\n  - name: x\n    description: \"\\ntext after a blank first line\\n\"\n",
+			sequence: declined(OracleSequenceOrder, DeclineNothingToPermute),
+		},
+		{
+			name:     "an allOf entry's description led by a break",
+			src:      allOf("|\n\n            text after a blank first line"),
+			sequence: passed(OracleSequenceOrder),
+		},
+		{
+			name:     "an allOf entry's description folded and led by spaces",
+			src:      allOf(">2\n             text led by a space"),
+			sequence: passed(OracleSequenceOrder),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := Check(context.Background(), "spec.yaml", []byte(tc.src))
+			require.Equal(t, OutcomeOK, result.Outcome, "detail: %s", result.Detail)
+
+			verdicts := map[Oracle]Verdict{}
+			for _, verdict := range result.Verdicts {
+				verdicts[verdict.Oracle] = verdict
+			}
+			assert.Equal(t, passed(OracleOrder), verdicts[OracleOrder])
+			assert.Equal(t, tc.sequence, verdicts[OracleSequenceOrder])
+		})
+	}
+}
+
+// inSequenceItem is a stream of one document holding scalar as a mapping's
+// value inside a block sequence item, the place the encoder misplaces an
+// indentation indicator.
+func inSequenceItem(scalar *yaml.Node) []*yaml.Node {
+	item := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalarNode("k"), scalar}}
+	sequence := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{item}}
+	return []*yaml.Node{{Kind: yaml.DocumentNode, Content: []*yaml.Node{sequence}}}
+}
+
+// leaders are a space and every YAML line break, each leading a value. The
+// encoder writes a block scalar's indentation indicator for the ones indicated
+// lists, and writes the others double-quoted itself.
+var (
+	leaders   = []string{" ", "\r", "\n", "\u0085", "\u2028", "\u2029"}
+	indicated = []string{" ", "\n", "\u2028", "\u2029"}
+)
+
+// scalarValues is every scalar's value in docs, in the order the encoder
+// writes them, read independently of the walk under test.
+func scalarValues(t *testing.T, docs []*yaml.Node) []string {
+	t.Helper()
+	var values []string
+	var visit func(node *yaml.Node)
+	visit = func(node *yaml.Node) {
+		if node.Kind == yaml.ScalarNode {
+			values = append(values, node.Value)
+		}
+		for _, child := range node.Content {
+			visit(child)
+		}
+	}
+	for _, doc := range docs {
+		visit(doc)
+	}
+	return values
+}
+
+// TestEncodeYAML_MisplacesABlockScalarLedByIndentation is the record of the
+// encoder behaviour quoteBlockScalarsLedByIndentation exists for: a literal or
+// folded scalar led by a space or a line break, inside a block sequence item,
+// encodes to text that does not parse. Should the encoder stop doing so, this
+// goes red and the quoting can go.
+func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
+	t.Parallel()
+	for _, style := range []yaml.Style{yaml.LiteralStyle, yaml.FoldedStyle} {
+		for _, leader := range indicated {
+			t.Run(fmt.Sprintf("%v %q", style, leader), func(t *testing.T) {
+				t.Parallel()
+				out, err := encodeYAML(inSequenceItem(&yaml.Node{Kind: yaml.ScalarNode, Style: style, Value: leader + "x\n"}))
+				require.NoError(t, err)
+
+				_, why := parseStream(out)
+				assert.Equal(t, DeclineNotYAML, why, "the encoder wrote %q", out)
+			})
+		}
+	}
+}
+
+// TestEncodeYAML_DropsAnEmptyFirstDocument is the record of the encoder
+// behaviour tagEmptyFirstDocument exists for: a stream whose first document is
+// empty encodes to text that reads back without it, while an empty document
+// after the first is kept. Should the encoder keep the first, this goes red and
+// the tagging can go.
+func TestEncodeYAML_DropsAnEmptyFirstDocument(t *testing.T) {
+	t.Parallel()
+	for src, want := range map[string]int{"---\n---\na: 1\n": 1, "---\n": 0, "a: 1\n---\n---\nb: 2\n": 3} {
+		docs, why := parseStream([]byte(src))
+		require.Empty(t, why)
+		out, err := encodeYAML(docs)
+		require.NoError(t, err)
+
+		read, why := parseStream(out)
+		require.Empty(t, why)
+		assert.Len(t, read, want, "%q encodes to %q", src, out)
+	}
+}
+
+// TestEncodeFaithfully_KeepsAnEmptyFirstDocument holds a stream whose first
+// document is empty to reading back with it, and a stream whose first
+// document is not to the encoding it had.
+func TestEncodeFaithfully_KeepsAnEmptyFirstDocument(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ src, want string }{
+		{src: "---\n---\na: 1\n", want: "!!null\n---\na: 1\n"},
+		{src: "---\n", want: "!!null\n"},
+		{src: "--- ''\n---\na: 1\n", want: "''\n---\na: 1\n"},
+		{src: "--- ~\n---\na: 1\n", want: "~\n---\na: 1\n"},
+		{src: "a: 1\n---\n---\nb: 2\n", want: "a: 1\n---\n\n---\nb: 2\n"},
+	}
+	for _, tc := range tests {
+		docs, why := parseStream([]byte(tc.src))
+		require.Empty(t, why)
+
+		out, why := encodeFaithfully(docs)
+		require.Empty(t, why, "%q", tc.src)
+		assert.Equal(t, tc.want, string(out), "%q", tc.src)
+	}
+	assert.NotPanics(t, func() { tagEmptyFirstDocument([]*yaml.Node{{Kind: yaml.DocumentNode}}) },
+		"a document holding no root is the encoder's to refuse")
+}
+
+// TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack holds each place
+// and spelling of a block scalar led by a space or a line break to reading back
+// with every scalar's value as written: written by the decoder, and built with
+// each leader the decoder cannot be made to write.
+func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
+	t.Parallel()
+	parsed := func(src string) func(t *testing.T) []*yaml.Node {
+		return func(t *testing.T) []*yaml.Node {
+			t.Helper()
+			docs, why := parseStream([]byte(src))
+			require.Empty(t, why)
+			return docs
+		}
+	}
+	tests := map[string]func(t *testing.T) []*yaml.Node{
+		"a mapping's value in an item":        parsed("a:\n  - k: |\n      \n      x\n"),
+		"a mapping's value led by spaces":     parsed("a:\n  - k: |2\n       x\n"),
+		"folded and led by a break":           parsed("a:\n  - k: >\n      \n      x\n"),
+		"folded and led by spaces":            parsed("a:\n  - k: >2\n       x\n"),
+		"kept":                                parsed("a:\n  - k: |+\n      \n      x\n\n"),
+		"stripped":                            parsed("a:\n  - k: |-\n      \n      x\n"),
+		"an item itself":                      parsed("a:\n  - |\n    \n    x\n"),
+		"a key in an item":                    parsed("a:\n  - ? |\n      \n      x\n    : v\n"),
+		"in an item of a root sequence":       parsed("- k: |\n    \n    x\n"),
+		"tagged":                              parsed("a:\n  - k: !t |\n      \n      x\n"),
+		"anchored and aliased":                parsed("a:\n  - k: &n |\n      \n      x\n  - j: *n\n"),
+		"a long value, which the quote folds": parsed("a:\n  - k: |\n      \n      " + strings.Repeat("word ", 40) + "\n"),
+	}
+	for _, leader := range leaders {
+		tests[fmt.Sprintf("built, led by %q", leader)] = func(*testing.T) []*yaml.Node {
+			return inSequenceItem(&yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: leader + "x\n"})
+		}
+	}
+	for name, docs := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			written := docs(t)
+			want := scalarValues(t, written)
+
+			out, why := encodeFaithfully(written)
+			require.Empty(t, why, "the encoding of %q", out)
+
+			read, why := parseStream(out)
+			require.Empty(t, why)
+			assert.Equal(t, want, scalarValues(t, read))
+		})
+	}
+}
+
+// TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten pins that the quoting
+// reaches no scalar the encoder writes back in its own style: a quoted one led
+// by a space, a block scalar led by text, and a block scalar led by a line break
+// the encoder quotes itself.
+func TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten(t *testing.T) {
+	t.Parallel()
+	styles := func(docs []*yaml.Node) []yaml.Style {
+		item := docs[0].Content[0].Content[0]
+		var out []yaml.Style
+		for i := 1; i < len(item.Content); i += 2 {
+			out = append(out, item.Content[i].Style)
+		}
+		return out
+	}
+	docs, why := parseStream([]byte("- k: ' x'\n  j: \" x\"\n  l: |\n    text\n  f: >\n    text\n"))
+	require.Empty(t, why)
+	item := docs[0].Content[0].Content[0]
+	item.Content = append(item.Content, scalarNode("r"), &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: "\rx\n"})
+	want := styles(docs)
+
+	out, why := encodeFaithfully(docs)
+	require.Empty(t, why)
+
+	read, why := parseStream(out)
+	require.Empty(t, why)
+	assert.Equal(t, want, styles(docs), "the quoting restyles no scalar of these")
+	assert.Equal(t, []yaml.Style{yaml.SingleQuotedStyle, yaml.DoubleQuotedStyle, yaml.LiteralStyle, yaml.FoldedStyle, yaml.DoubleQuotedStyle},
+		styles(read), "each is written in its own style but the last, which the encoder quotes itself")
+}
+
+// TestEncodeFaithfully_AnEncodingThatReadsOtherwiseIsDeclined drives the check
+// holding a re-encoding to the values it was written from. The seam writes
+// text that parses but reads otherwise, as no encoding of a parsed tree is
+// known to, differing from the source in one of the ways the check compares
+// alone.
+func TestEncodeFaithfully_AnEncodingThatReadsOtherwiseIsDeclined(t *testing.T) {
+	tests := []struct {
+		name         string
+		src, encoded string
+	}{
+		{name: "another value", src: "a: 1\nb: 2\n", encoded: "a: 1\nb: 3\n"},
+		{name: "another kind", src: "a: ''\n", encoded: "a: {}\n"},
+		{name: "more entries", src: "a: 1\n", encoded: "a: 1\nb: 2\n"},
+		{name: "more documents", src: "a: 1\n", encoded: "a: 1\n---\nb: 2\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := encodeYAML
+			t.Cleanup(func() { encodeYAML = orig })
+			encodeYAML = func([]*yaml.Node) ([]byte, error) { return []byte(tc.encoded), nil }
+
+			got, why := reencodeMappings([]byte(tc.src))
+			assert.Equal(t, DeclineReencodingReadsOtherwise, why)
+			assert.Nil(t, got)
+		})
+	}
+}
+
+// TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined and its
+// counterpart for sequences pin that each rewrite holds its permutation to the
+// values it was written from.
+func TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined(t *testing.T) {
+	orig := encodeYAML
+	t.Cleanup(func() { encodeYAML = orig })
+	encodeYAML = func([]*yaml.Node) ([]byte, error) { return []byte("b: 2\na: 3\n"), nil }
+
+	got, why := reverseMappings([]byte("a: 1\nb: 2\n"))
+	assert.Equal(t, DeclineReencodingReadsOtherwise, why)
+	assert.Nil(t, got)
+}
+
+// TestEncodeFaithfully_DepthBound covers the bound of both walks
+// encodeFaithfully makes. A tree reaching the comparison has passed the
+// quoting's bound, so the comparison's is driven directly.
+func TestEncodeFaithfully_DepthBound(t *testing.T) {
+	t.Parallel()
+	deep := yamlMapping()
+	assert.Equal(t, DeclineTooDeep, quoteBlockScalarsLedByIndentation(&deep, maxReverseDepth+1))
+	assert.Equal(t, DeclineTooDeep, readsBackAsWritten(&deep, &deep, maxReverseDepth+1))
+
+	nested := &yaml.Node{Kind: yaml.ScalarNode, Value: "v"}
+	for range maxReverseDepth + 1 {
+		nested = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{nested}}
+	}
+	_, why := encodeFaithfully([]*yaml.Node{{Kind: yaml.DocumentNode, Content: []*yaml.Node{nested}}})
+	assert.Equal(t, DeclineTooDeep, why, "a tree past the bound is declined before it is encoded")
+}
