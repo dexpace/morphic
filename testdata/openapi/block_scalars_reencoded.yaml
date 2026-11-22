@@ -1,0 +1,39 @@
+# Block scalars the order oracles re-encode before they compile a permutation
+# (#2153). The YAML encoder writes a block scalar led by a blank line, inside a
+# block sequence's item, with an indentation indicator that ends the scalar
+# early, and a folded scalar's more-indented line with a line break more before
+# it. Each oracle restyles both before encoding, so this spec is asked rather
+# than declined: the tag's description is literal and led by a blank line, the
+# info's is folded around an indented example, and the allOf entry's, which the
+# sequence oracle reverses, is both.
+openapi: 3.0.3
+info:
+  title: block scalars re-encoded
+  version: "1"
+  description: >
+    Call it like this:
+
+      curl https://example.com
+
+    and read the reply.
+tags:
+  - name: widgets
+    description: |
+
+      Text after a blank first line.
+paths: {}
+components:
+  schemas:
+    Widget:
+      allOf:
+        - type: object
+          description: >
+
+            A widget, called like this:
+
+              curl https://example.com/widgets
+
+            and read the reply.
+          properties:
+            id: {type: string}
+        - title: widget
