@@ -317,13 +317,13 @@ func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 	}
 }
 
-// TestRefUseBound_ATypeItsReferentLowersToBindsTheUse holds that a `type`
+// TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse holds that a `type`
 // naming only the kinds the referent of the $ref beside it declares says
 // nothing of its own: beside the allOf, on another entry and beside a
 // `nullable: true` the policy reads as widening the reference, each carrier
-// names the referent and holds the note, and no node stands at its position. A position no carrier holds owns
-// the Model over the referent, as before.
-func TestRefUseBound_ATypeItsReferentLowersToBindsTheUse(t *testing.T) {
+// names the referent and holds the note, and no node stands at its position.
+// A position no carrier holds owns the Model over the referent, as before.
+func TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		version, schema, docs string

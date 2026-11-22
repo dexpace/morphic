@@ -457,12 +457,12 @@ func TestCarriedAnnotations_ANoteBesideARefIsTheCarriers(t *testing.T) {
 	}
 }
 
-// TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentHasIt holds
-// that a `type` beside a $ref to an object binds the use only where it names
-// the object alone: then the property names Base and holds the note, and a
-// type naming another kind, naming null, or listing a word no dialect defines,
-// whose error the document draws, keeps the node holding the note.
-func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentHasIt(t *testing.T) {
+// TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt
+// holds that a `type` beside a $ref to an object binds the use only where it
+// names the object alone: then the property names Base and holds the note, and
+// a type naming another kind, naming null, or listing a word no dialect
+// defines, whose error the document draws, keeps the node holding the note.
+func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt(t *testing.T) {
 	t.Parallel()
 	const base = "    Base: {type: object, properties: {b: {type: string}}}\n"
 	for name, tc := range map[string]struct {

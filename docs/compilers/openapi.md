@@ -1871,7 +1871,7 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `e2e.TestRefUseBound_ANoteIsTheCarriers`,
   `e2e.TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode`,
   `e2e.TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode`,
-  `e2e.TestRefUseBound_ATypeItsReferentLowersToBindsTheUse`,
+  `e2e.TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse`,
   `e2e.TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode`,
   `schema.TestCarriedAnnotations_ANoteBesideARefIsTheCarriers`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
