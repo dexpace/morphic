@@ -8067,7 +8067,9 @@ property, a parameter or a header whose own schema hoists a node holds that sche
 ([`docs-and-deprecation`](#docs-and-deprecation)) while the node keeps its keys, so where its own
 keys name no replacement it reads the names that node's keys give, each as a schema's, as the node
 read them when it held the deprecation. A position a reference names keeps its deprecation, and so
-its names, on its node. The
+its names, on its node; where that node holds none, a parameter or a header its own object
+deprecates still reads the names its keys give, which the resolution, reading the document alone,
+cannot tell from a node whose notes are the carrier's. The
 names are resolved once the document is whole, since a replacement may be declared after what it
 replaces, and they fill the field all or none: a name that names nothing, names more than one
 entity, or names the node itself, leaves the field unset and is reported as an info
