@@ -257,7 +257,9 @@ jobs:
           # title of its own, which make sweep's "cannot fetch" line selects.
           # Any other sweep failure is a test log line naming the spec, then
           # the finding or the record line gone stale, or make sweep's line
-          # saying the test did not run.
+          # saying the test did not run. A step that times out during the
+          # fetch leaves no "cannot fetch" line, so it is reported under the
+          # difference title.
           if [ "$SWEEP" = failure ] && grep -q '^sweep: cannot fetch ' sweep.log 2>/dev/null; then
             report "ci: the nightly sweep cannot fetch a pinned spec" sweep sweep.log \
               '^(sweep: |fetch-pinned-specs: |curl: )' "the fetch" priority:P4
