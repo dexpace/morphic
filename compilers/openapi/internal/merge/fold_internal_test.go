@@ -363,6 +363,30 @@ func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 	assert.Equal(t, promoted.property.Provenance.Pointer, (*recorded)[0].Provenance.Pointer)
 }
 
+// TestFold_ThePromotionMarkerFollowsAWrittenDeprecationOverALentOne pins that
+// the marker is the kept deprecation's, not the last deprecating
+// declaration's: a deprecation a referent lent, promoted from an extension,
+// loses to one written, alike or not, in either order, and brings no marker.
+func TestFold_ThePromotionMarkerFollowsAWrittenDeprecationOverALentOne(t *testing.T) {
+	t.Parallel()
+	for _, lentDeprecation := range []ir.Deprecation{{}, {Message: "use q"}} {
+		lent := stringAt("/allOf/0/properties/p", `{}`)
+		lent.property.Deprecation = &lentDeprecation
+		lent.property.Provenance.Inferred = "extension-promotion"
+		declared := stringAt("/allOf/1/properties/p", `{"deprecated":true}`)
+		declared.property.Deprecation = &ir.Deprecation{}
+
+		for _, order := range [][]declaration{{lent, declared}, {declared, lent}} {
+			stubbed, recorded := stubMerger(narrowingRegistry())
+			stubbed.walk.borrowed = map[jsontext.Pointer]Details{lent.property.Provenance.Pointer: DetailDeprecation}
+			got := stubbed.fold(order)
+			assert.Equal(t, &ir.Deprecation{}, got.Deprecation, "lent %+v", lentDeprecation)
+			assert.Empty(t, got.Provenance.Inferred, "lent %+v: the written deprecation is kept", lentDeprecation)
+			assert.Empty(t, *recorded, "lent %+v", lentDeprecation)
+		}
+	}
+}
+
 // TestFold_DeclarationsPastTheBoundAreKeptUnjudged pins the bound on one fold:
 // the first maxFoldDeclarations declarations fold as a set, and each later one,
 // whatever it says, is kept verbatim under one budget error at the first of

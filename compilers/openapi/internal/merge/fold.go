@@ -537,10 +537,10 @@ func (f *folding) foldValues() {
 			f.refuse(i, refused)
 		}
 	}
-	f.merged.Default = lastWritten(f, "default", DetailDefault, func(i int, property *ir.Property) (*ir.Value, bool) {
+	f.merged.Default, _ = lastWritten(f, "default", DetailDefault, func(i int, property *ir.Property) (*ir.Value, bool) {
 		return property.Default, takesDefault[i] && property.Default != nil
 	}, func(a, b *ir.Value) bool { return sameValue(*a, *b) })
-	f.merged.Examples = lastWritten(f, "examples", 0, func(i int, property *ir.Property) ([]ir.Example, bool) {
+	f.merged.Examples, _ = lastWritten(f, "examples", 0, func(i int, property *ir.Property) ([]ir.Example, bool) {
 		return property.Examples, takesExamples[i] && len(property.Examples) > 0
 	}, sameExamples)
 }
@@ -631,17 +631,18 @@ func (f *folding) foldUse() {
 }
 
 // foldDocs settles the field's title, description and external links, each the
-// last declaration's to give one (lastWritten), from every declaration: docs
-// describe the field, not a shape, so a dropped declaration's count too.
+// last declaration's to give one, a written one over a borrowed one
+// (lastWritten), from every declaration: docs describe the field, not a shape,
+// so a dropped declaration's count too.
 func (f *folding) foldDocs() {
 	same := func(a, b string) bool { return a == b }
-	f.merged.Docs.Summary = lastWritten(f, "title", DetailTitle, func(_ int, property *ir.Property) (string, bool) {
+	f.merged.Docs.Summary, _ = lastWritten(f, "title", DetailTitle, func(_ int, property *ir.Property) (string, bool) {
 		return property.Docs.Summary, property.Docs.Summary != ""
 	}, same)
-	f.merged.Docs.Description = lastWritten(f, "description", DetailDescription, func(_ int, property *ir.Property) (string, bool) {
+	f.merged.Docs.Description, _ = lastWritten(f, "description", DetailDescription, func(_ int, property *ir.Property) (string, bool) {
 		return property.Docs.Description, property.Docs.Description != ""
 	}, same)
-	f.merged.Docs.ExternalDocs = lastWritten(f, "external docs", DetailExternalDocs, func(_ int, property *ir.Property) ([]ir.Link, bool) {
+	f.merged.Docs.ExternalDocs, _ = lastWritten(f, "external docs", DetailExternalDocs, func(_ int, property *ir.Property) ([]ir.Link, bool) {
 		return property.Docs.ExternalDocs, len(property.Docs.ExternalDocs) > 0
 	}, slices.Equal[[]ir.Link])
 }
@@ -660,40 +661,45 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 // marker of the declaration whose deprecation it keeps, whichever declaration
 // that is.
 func (f *folding) foldAnnotations() {
-	f.merged.Deprecation = lastWritten(f, "deprecation", DetailDeprecation, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
+	var deprecatedBy int
+	f.merged.Deprecation, deprecatedBy = lastWritten(f, "deprecation", DetailDeprecation, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
 		return property.Deprecation, property.Deprecation != nil
 	}, sameDeprecation)
-	for _, declaration := range slices.Backward(f.decls) {
-		if declaration.property.Deprecation != nil {
-			f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, declaration.property.Provenance.Inferred)
-			break
-		}
+	if deprecatedBy >= 0 {
+		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[deprecatedBy].property.Provenance.Inferred)
 	}
 	// XMLHints.Wrapped is a pointer, which == would compare by address.
-	f.merged.XML = lastWritten(f, "xml", 0, func(_ int, property *ir.Property) (*ir.XMLHints, bool) {
+	f.merged.XML, _ = lastWritten(f, "xml", 0, func(_ int, property *ir.Property) (*ir.XMLHints, bool) {
 		return property.XML, property.XML != nil
 	}, func(a, b *ir.XMLHints) bool { return reflect.DeepEqual(a, b) })
 }
 
-// lastWritten returns the last value of detail a declaration gives (of), or the
-// zero value when none gives one: a later declaration is where a spec writes
-// the specialization. An earlier one giving another value is reported and kept,
-// as the field has one slot, unless that value is lendable, the Details a $ref's
-// referent may lend, zero for none, and the declaration only borrowed it.
-//
-// Each caller says what is the same. Values and example lists compare deeply,
-// telling nil from empty, but one code lowered every declaration, so two
-// spellings written alike land on one side.
-func lastWritten[T any](foldingValue *folding, detail string, lendable Details, of func(i int, property *ir.Property) (T, bool), same func(a, b T) bool) T {
+// lastWritten returns the last value of detail a declaration gives (of), and
+// that declaration's index, or the zero value and -1: a later declaration is
+// where a spec writes the specialization. A value a $ref's referent lent, of
+// lendable (zero for none), loses in either order to one written, which sets
+// aside nothing written (docs/ir/annotations.md#what-a-reference-carries-down);
+// lent values tie only where none is written. An earlier declaration of the
+// kept side giving another value is reported and kept. Each caller says what
+// is the same; one code lowered every declaration, so spellings written alike
+// land on one side.
+func lastWritten[T any](foldingValue *folding, detail string, lendable Details, of func(i int, property *ir.Property) (T, bool), same func(a, b T) bool) (T, int) {
+	keepWritten := false
+	for i := range foldingValue.decls {
+		if _, gives := of(i, &foldingValue.decls[i].property); gives && foldingValue.written.writes(i, lendable) {
+			keepWritten = true
+			break
+		}
+	}
 	var kept T
 	at := -1
 	for i := len(foldingValue.decls) - 1; i >= 0; i-- {
 		v, gives := of(i, &foldingValue.decls[i].property)
 		switch {
-		case !gives:
+		case !gives || foldingValue.written.writes(i, lendable) != keepWritten:
 		case at < 0:
 			kept, at = v, i
-		case !same(kept, v) && foldingValue.written.writes(i, lendable):
+		case !same(kept, v):
 			foldingValue.lost[i] = true
 			foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 				"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
@@ -701,10 +707,10 @@ func lastWritten[T any](foldingValue *folding, detail string, lendable Details, 
 				foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), foldingValue.decls[i].keptAs())
 		}
 	}
-	if at >= 0 && foldingValue.written.writes(at, lendable) {
+	if at >= 0 && keepWritten {
 		foldingValue.keptWritten |= lendable
 	}
-	return kept
+	return kept, at
 }
 
 // note records a diagnostic for decls[i], reported when the fold finishes.

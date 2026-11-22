@@ -5,9 +5,9 @@ package merge
 
 // Details is a set of the details of a field a $ref's referent may lend the
 // property declaring it, beneath what the declaration writes itself
-// (docs/compilers/openapi.md#ref-use-site). A fold reports no conflict over a
-// detail a declaration only borrowed (lastWritten): it set aside nothing the
-// declaration wrote.
+// (docs/compilers/openapi.md#ref-use-site). A fold keeps a detail a
+// declaration writes over one another only borrowed, in either order, and
+// reports no conflict (lastWritten): it set aside nothing written.
 type Details uint8
 
 // The details a referent may lend. Examples and XML hints stay on the

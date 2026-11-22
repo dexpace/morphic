@@ -19,22 +19,22 @@ import (
 
 // lentDetails is each detail a $ref's referent lends a property, as the
 // referent Lender writes it and as an allOf entry restating the property
-// writes another, with the value the field holds.
+// writes another, with the value the field holds of the entry's.
 var lentDetails = []struct {
 	detail, lender, entry string
 	held                  func(ir.Property) any
-	lent, written         any
+	written               any
 }{
 	{"description", "description: Lent.", "description: Written.",
-		func(p ir.Property) any { return p.Docs.Description }, "Lent.", "Written."},
+		func(p ir.Property) any { return p.Docs.Description }, "Written."},
 	{"title", "title: Lent", "title: Written",
-		func(p ir.Property) any { return p.Docs.Summary }, "Lent", "Written"},
+		func(p ir.Property) any { return p.Docs.Summary }, "Written"},
 	{"external docs", "externalDocs: {url: 'https://lent.example'}", "externalDocs: {url: 'https://written.example'}",
-		func(p ir.Property) any { return p.Docs.ExternalDocs[0].URL }, "https://lent.example", "https://written.example"},
+		func(p ir.Property) any { return p.Docs.ExternalDocs[0].URL }, "https://written.example"},
 	{"deprecation", "deprecated: true, x-deprecated-reason: lent", "deprecated: true",
-		func(p ir.Property) any { return *p.Deprecation }, ir.Deprecation{Message: "lent"}, ir.Deprecation{}},
+		func(p ir.Property) any { return *p.Deprecation }, ir.Deprecation{}},
 	{"default", "default: lent", "default: written",
-		func(p ir.Property) any { return p.Default.String }, "lent", "written"},
+		func(p ir.Property) any { return p.Default.String }, "written"},
 }
 
 // lentSpec declares Lender, a string writing lender, Base, whose field f is a
@@ -60,11 +60,10 @@ func conflictNotes(diags []ir.Diagnostic) []ir.Diagnostic {
 
 // TestAllOf_ALentDetailIsNoPartyToAConflict pins GitHub #2152: where an allOf
 // entry restates a member to give it a detail its declaration's $ref target
-// lends, nothing that declaration wrote is set aside, so nothing is reported
-// or kept beside the field, for a base brought by its entry and for a
-// declaration the model writes. The field keeps the entry's value. Written
-// the other way round, the lent value is last and the field keeps it, as
-// declaration order decides a tie, reporting the entry's it set aside.
+// lends, the field keeps the entry's value in either order of the entries,
+// for a base brought by its entry and for a declaration the model writes.
+// Nothing that declaration wrote is set aside, so nothing is reported or kept
+// beside the field.
 func TestAllOf_ALentDetailIsNoPartyToAConflict(t *testing.T) {
 	t.Parallel()
 	const (
@@ -73,22 +72,14 @@ func TestAllOf_ALentDetailIsNoPartyToAConflict(t *testing.T) {
 	)
 	for _, tc := range lentDetails {
 		entry := "{properties: {f: {" + tc.entry + "}}}"
-		for _, lending := range []string{base, bareRef} {
-			doc, diags := schema.LowerSpec(t, lentSpec(tc.lender, lending, entry))
+		for _, entries := range [][2]string{{base, entry}, {entry, base}, {bareRef, entry}, {entry, bareRef}} {
+			doc, diags := schema.LowerSpec(t, lentSpec(tc.lender, entries[0], entries[1]))
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Empty(t, conflictNotes(diags), "%s through %s", tc.detail, lending)
+			assert.Empty(t, conflictNotes(diags), "%s in %v", tc.detail, entries)
 			field := propertyOf(t, doc, "Composed", "f")
-			assert.Equal(t, tc.written, tc.held(field), tc.detail)
-			assert.Empty(t, field.Unmodeled, "%s: nothing is kept beside the field", tc.detail)
+			assert.Equal(t, tc.written, tc.held(field), "%s in %v", tc.detail, entries)
+			assert.Empty(t, field.Unmodeled, "%s in %v: nothing is kept beside the field", tc.detail, entries)
 		}
-
-		doc, diags := schema.LowerSpec(t, lentSpec(tc.lender, entry, base))
-		openapitest.RequireNoErrorDiags(t, diags)
-		notes := conflictNotes(diags)
-		require.Len(t, notes, 1, "%s written first", tc.detail)
-		assert.Contains(t, notes[0].Message, "give its "+tc.detail+" differently", tc.detail)
-		assert.Equal(t, "/components/schemas/Composed/allOf/0/properties/f", string(notes[0].Provenance.Pointer), tc.detail)
-		assert.Equal(t, tc.lent, tc.held(propertyOf(t, doc, "Composed", "f")), tc.detail)
 	}
 }
 
@@ -119,9 +110,9 @@ func TestAllOf_ADetailWrittenBesideARefIsAPartyToAConflict(t *testing.T) {
 // TestAllOf_AMemberAFoldSettledLendsWhatItKept pins GitHub #2152 through a
 // part whose member a fold settled, of the part's own declarations or beside
 // one its entry brings: the member kept a lent description or a written one,
-// which the pointer it takes does not say, and a model restating the member
-// reports only the written one, at the entry bringing the part. The part's own
-// fold reports only a written description it set aside.
+// in either order, which the pointer it takes does not say, and a model
+// restating the member reports only the written one, at the entry bringing
+// the part. The part's own fold sets aside nothing written, so reports nothing.
 func TestAllOf_AMemberAFoldSettledLendsWhatItKept(t *testing.T) {
 	t.Parallel()
 	const (
@@ -136,9 +127,9 @@ func TestAllOf_AMemberAFoldSettledLendsWhatItKept(t *testing.T) {
 	}{
 		{"brought, lent kept", []string{base, "{properties: {f: {readOnly: true}}}"}, nil},
 		{"brought, written kept", []string{base, "{properties: {f: {description: Part wrote this.}}}"}, []string{composing}},
-		{"own, lent kept", []string{"{properties: {f: {description: Part wrote this.}}}", bareRef},
-			[]string{"/components/schemas/Part/allOf/0/properties/f"}},
-		{"own, written kept", []string{bareRef, "{properties: {f: {description: Part wrote this.}}}"}, []string{composing}},
+		{"own, lent kept", []string{bareRef, "{properties: {f: {readOnly: true}}}"}, nil},
+		{"own, written first", []string{"{properties: {f: {description: Part wrote this.}}}", bareRef}, []string{composing}},
+		{"own, written last", []string{bareRef, "{properties: {f: {description: Part wrote this.}}}"}, []string{composing}},
 	} {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Lender: {type: string, description: Lent.}
     Base: {type: object, properties: {f: {$ref: '#/components/schemas/Lender'}}}

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -54,35 +53,37 @@ func lentDescriptionSpec(entries string, responseFirst bool) string {
 	return openapitest.ComponentSpecVer("3.0.3", lentMoney+lentWarning+response)
 }
 
-// TestCompile_ALentDescriptionIsNoPartyToAConflict pins GitHub #2152 end to
-// end: an allOf entry describing a member whose base declaration is a bare
-// $ref to a described target draws no report, as that declaration wrote no
-// description. The member keeps the entry's description and the target its
-// own, whichever order the components are declared in. Written first, the
-// entry's description is the one set aside, which is reported.
-func TestCompile_ALentDescriptionIsNoPartyToAConflict(t *testing.T) {
+// TestCompile_AWrittenDescriptionIsKeptOverALentOne pins GitHub #2152 end to
+// end: an allOf entry describing a member whose other declaration is a bare
+// $ref to a described target keeps its description in either order of the
+// entries and of the components, and draws no report, as that declaration
+// wrote none. The target keeps its own. The documents are one but for the
+// member's identity, the entry restating it, which moves with that entry.
+func TestCompile_AWrittenDescriptionIsKeptOverALentOne(t *testing.T) {
 	t.Parallel()
-	inOrder := "[" + warningEntry + ", " + restatedEntry + "]"
-	doc, diags := parseVerified(t, lentDescriptionSpec(inOrder, false))
+	const itemsID = "type/anonymous/components/schemas/Response/properties/Warnings/items"
+	inOrder, reversed := "["+warningEntry+", "+restatedEntry+"]", "["+restatedEntry+", "+warningEntry+"]"
+	want, diags := parseVerified(t, lentDescriptionSpec(inOrder, false))
 	assert.Empty(t, diags)
-	items, ok := doc.Types["type/anonymous/components/schemas/Response/properties/Warnings/items"].(*ir.Model)
+	wantItems, ok := want.Types[itemsID].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, items.Properties, 1)
-	assert.Equal(t, "The price before the change.", items.Properties[0].Docs.Description)
-	assert.Empty(t, items.Properties[0].Unmodeled)
-	assert.Equal(t, "Container for price information.", doc.Types["type/openapi/components/schemas/Money"].Common().Docs.Description)
+	require.Len(t, wantItems.Properties, 1)
+	assert.Equal(t, "The price before the change.", wantItems.Properties[0].Docs.Description)
+	assert.Empty(t, wantItems.Properties[0].Unmodeled)
+	assert.Equal(t, "Container for price information.", want.Types["type/openapi/components/schemas/Money"].Common().Docs.Description)
 
-	swapped, swappedDiags := parseVerified(t, lentDescriptionSpec(inOrder, true))
-	assert.Empty(t, cmp.Diff(doc.Types, swapped.Types), "the components' order decides nothing")
-	assert.Empty(t, swappedDiags)
-
-	reversed, reversedDiags := parseVerified(t, lentDescriptionSpec("["+restatedEntry+", "+warningEntry+"]", false))
-	require.Len(t, reversedDiags, 1)
-	assert.Equal(t, diag.DegradedConstruct, reversedDiags[0].Code)
-	assert.Equal(t, "/components/schemas/Response/properties/Warnings/items/allOf/0/properties/OriginalPrice",
-		string(reversedDiags[0].Provenance.Pointer))
-	reversedItems, ok := reversed.Types["type/anonymous/components/schemas/Response/properties/Warnings/items"].(*ir.Model)
-	require.True(t, ok)
-	require.Len(t, reversedItems.Properties, 1)
-	assert.Equal(t, "Container for price information.", reversedItems.Properties[0].Docs.Description, "the lent description, written last")
+	for _, tc := range []struct {
+		entries       string
+		responseFirst bool
+	}{{inOrder, true}, {reversed, false}, {reversed, true}} {
+		got, gotDiags := parseVerified(t, lentDescriptionSpec(tc.entries, tc.responseFirst))
+		assert.Empty(t, gotDiags, "%s, Response first: %t", tc.entries, tc.responseFirst)
+		items, ok := got.Types[itemsID].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, items.Properties, 1)
+		if tc.entries == reversed {
+			items.Properties[0].ID, items.Properties[0].Provenance = wantItems.Properties[0].ID, wantItems.Properties[0].Provenance
+		}
+		assert.Empty(t, cmp.Diff(want.Types, got.Types), "%s, Response first: %t", tc.entries, tc.responseFirst)
+	}
 }

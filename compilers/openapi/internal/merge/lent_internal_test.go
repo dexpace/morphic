@@ -79,17 +79,45 @@ func TestFold_ABorrowedDetailIsNoConflict(t *testing.T) {
 	}
 }
 
-// TestFold_ABorrowedDetailThatIsKeptStillOutvotesAWrittenOne pins what GitHub
-// #2152 leaves to declaration order: a lent detail written last is the one
-// the field keeps, and the earlier declaration writing another is reported.
-func TestFold_ABorrowedDetailThatIsKeptStillOutvotesAWrittenOne(t *testing.T) {
+// TestFold_AWrittenDetailIsKeptOverALentOne pins GitHub #2152's rule: in
+// either order, the field keeps the detail a declaration wrote over the one
+// another's referent lent, which set aside nothing written, so nothing is
+// reported or kept beside the field, and it says it kept the detail written.
+func TestFold_AWrittenDetailIsKeptOverALentOne(t *testing.T) {
 	t.Parallel()
 	for _, tc := range lendable {
-		stubbedValue, _ := stubMerger(narrowingRegistry())
-		stubbedValue.walk.borrowed = map[jsontext.Pointer]Details{"/later": tc.detail}
-		later := givingAt("/later", tc.give, "later")
+		lent, writing := givingAt("/lent", tc.give, "lent"), givingAt("/written", tc.give, "written")
+		for _, order := range [][]declaration{{lent, writing}, {writing, lent}} {
+			stubbedValue, _ := stubMerger(narrowingRegistry())
+			stubbedValue.walk.borrowed = map[jsontext.Pointer]Details{"/lent": tc.detail}
 
-		got, written, diags := stubbedValue.Merger.fold([]declaration{givingAt("/first", tc.give, "first"), later})
+			got, written, diags := stubbedValue.Merger.fold(order)
+
+			first := order[0].property.Provenance.Pointer
+			assert.Equal(t, writing.property.Docs, got.Docs, "%s, %s first", tc.name, first)
+			assert.Equal(t, writing.property.Deprecation, got.Deprecation, "%s, %s first", tc.name, first)
+			assert.Equal(t, writing.property.Default, got.Default, "%s, %s first", tc.name, first)
+			assert.Equal(t, tc.detail, written, "%s, %s first", tc.name, first)
+			assert.Empty(t, diags, "%s, %s first", tc.name, first)
+			assert.Empty(t, got.Unmodeled, "%s, %s first", tc.name, first)
+		}
+	}
+}
+
+// TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne pins what GitHub
+// #2152 leaves to declaration order: of declarations each borrowing a detail,
+// none writing one, the last is kept and an earlier one lending another is
+// reported and kept, as two written are. A declaration writing the detail
+// outvotes every one of them, so none is reported.
+func TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne(t *testing.T) {
+	t.Parallel()
+	for _, tc := range lendable {
+		first, later := givingAt("/first", tc.give, "first"), givingAt("/later", tc.give, "later")
+		borrowed := map[jsontext.Pointer]Details{"/first": tc.detail, "/later": tc.detail}
+		stubbedValue, _ := stubMerger(narrowingRegistry())
+		stubbedValue.walk.borrowed = borrowed
+
+		got, written, diags := stubbedValue.Merger.fold([]declaration{first, later})
 
 		assert.Equal(t, later.property.Docs, got.Docs, tc.name)
 		assert.Equal(t, later.property.Deprecation, got.Deprecation, tc.name)
@@ -98,6 +126,19 @@ func TestFold_ABorrowedDetailThatIsKeptStillOutvotesAWrittenOne(t *testing.T) {
 		require.Len(t, diags, 1, tc.name)
 		assert.Contains(t, diags[0].Message, "give its "+tc.name+" differently", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/first", tc.name)
+
+		writing := givingAt("/written", tc.give, "written")
+		stubbedValue, _ = stubMerger(narrowingRegistry())
+		stubbedValue.walk.borrowed = borrowed
+
+		got, written, diags = stubbedValue.Merger.fold([]declaration{writing, first, later})
+
+		assert.Equal(t, writing.property.Docs, got.Docs, tc.name)
+		assert.Equal(t, writing.property.Deprecation, got.Deprecation, tc.name)
+		assert.Equal(t, writing.property.Default, got.Default, tc.name)
+		assert.Equal(t, tc.detail, written, tc.name)
+		assert.Empty(t, diags, "%s: no lent detail is a party to a report beside a written one", tc.name)
+		assert.Empty(t, got.Unmodeled, tc.name)
 	}
 }
 
