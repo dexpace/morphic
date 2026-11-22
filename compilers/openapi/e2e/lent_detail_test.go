@@ -70,7 +70,9 @@ func TestCompile_AWrittenDescriptionIsKeptOverALentOne(t *testing.T) {
 	require.Len(t, wantItems.Properties, 1)
 	assert.Equal(t, "The price before the change.", wantItems.Properties[0].Docs.Description)
 	assert.Empty(t, wantItems.Properties[0].Unmodeled)
-	assert.Equal(t, "Container for price information.", want.Types["type/openapi/components/schemas/Money"].Common().Docs.Description)
+	wantMoney, ok := want.Types["type/openapi/components/schemas/Money"].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "Container for price information.", wantMoney.Docs.Description)
 
 	for _, tc := range []struct {
 		entries       string

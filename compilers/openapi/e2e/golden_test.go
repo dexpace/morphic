@@ -94,7 +94,9 @@ func TestGolden_AllOfLentDescription(t *testing.T) {
 	require.Len(t, items.Properties, 1)
 	assert.Equal(t, "The price before the change.", items.Properties[0].Docs.Description)
 	assert.Empty(t, items.Properties[0].Unmodeled)
-	assert.Equal(t, "Container for price information.", doc.Types["type/openapi/components/schemas/Money"].Common().Docs.Description)
+	money, ok := doc.Types["type/openapi/components/schemas/Money"].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "Container for price information.", money.Docs.Description)
 	// Last: under -update the compare refuses a test whose assertions failed.
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/allof_lent_description.golden.json", doc)
 }
