@@ -186,12 +186,17 @@ cases:
 # records, fetch into a directory and run the test below with -update.
 #
 # The test skips without -pinned, and go test prints ok for a skipped test or a
-# -run matching none, so the sweep passes only on the test's own PASS line.
+# -run matching none, so the sweep passes only on the test's own PASS line. A
+# failed fetch says so on a line of its own, which the nightly job reports under
+# a title of its own: it is no difference in what the specs draw.
 SWEEP_TEST := TestSweep_EachPinnedSpecHoldsItsRecord
 sweep:
 	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/morphic-sweep.XXXXXX")" || exit 1; \
 	trap 'rm -rf "$$dir"' EXIT; \
-	./scripts/fetch-pinned-specs.sh "$$dir" || exit 1; \
+	if ! ./scripts/fetch-pinned-specs.sh "$$dir"; then \
+		echo "sweep: cannot fetch the pinned specs" >&2; \
+		exit 1; \
+	fi; \
 	$(GO) test ./internal/harness/pinnedspecs -run '^$(SWEEP_TEST)$$' -pinned "$$dir" \
 		-count=1 -timeout 8m -v >"$$dir/sweep.log" 2>&1; \
 	status=$$?; \

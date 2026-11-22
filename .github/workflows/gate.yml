@@ -205,9 +205,10 @@ jobs:
           CASES: ${{ steps.cases.outcome }}
           SWEEP: ${{ steps.sweep.outcome }}
         run: |
-          # report TITLE RUN LOG PATTERN BEFORE opens an issue titled TITLE, or
-          # comments on the one open, saying RUN failed, with LOG's lines that
-          # PATTERN matches, or that it failed before BEFORE ran.
+          # report TITLE RUN LOG PATTERN BEFORE PRIORITY opens an issue titled
+          # TITLE, labelled type:bug and PRIORITY, or comments on the one open,
+          # saying RUN failed, with LOG's lines that PATTERN matches, or that it
+          # failed before BEFORE ran.
           report() {
             {
               echo "The $2 run failed on $GITHUB_REF_NAME at $GITHUB_SHA: $RUN_URL"
@@ -238,24 +239,29 @@ jobs:
               gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
             else
               gh issue create --repo "$GITHUB_REPOSITORY" --title "$1" \
-                --body-file "$RUNNER_TEMP/body.md" --label type:bug --label priority:P1
+                --body-file "$RUNNER_TEMP/body.md" --label type:bug --label "$6"
             fi
           }
           if [ "$RACE" = failure ] || { [ "$CASES" != failure ] && [ "$SWEEP" != failure ]; }; then
             report "ci: the nightly race run fails on main" race race.log \
-              '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' "the suite"
+              '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' "the suite" priority:P1
           fi
           # Each failure is a test log line, its file and line then a case, its
           # values joined by "/", and what was found or the record line gone
           # stale; panic: and --- FAIL lines end the run itself.
           if [ "$CASES" = failure ]; then
             report "ci: the nightly cases run finds a difference on main" cases cases.log \
-              '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases"
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases" priority:P1
           fi
-          # A sweep failure is a test log line naming the spec, then the
-          # finding or the record line gone stale, make sweep's line saying the
-          # test did not run, or a fetch's own line.
-          if [ "$SWEEP" = failure ]; then
+          # A failed fetch is no difference in what the specs draw, so it has a
+          # title of its own, which make sweep's "cannot fetch" line selects.
+          # Any other sweep failure is a test log line naming the spec, then
+          # the finding or the record line gone stale, or make sweep's line
+          # saying the test did not run.
+          if [ "$SWEEP" = failure ] && grep -q '^sweep: cannot fetch ' sweep.log 2>/dev/null; then
+            report "ci: the nightly sweep cannot fetch a pinned spec" sweep sweep.log \
+              '^(sweep: |fetch-pinned-specs: |curl: )' "the fetch" priority:P4
+          elif [ "$SWEEP" = failure ]; then
             report "ci: the nightly sweep of the pinned specs finds a difference on main" sweep sweep.log \
-              '(^panic:|^--- FAIL|_test\.go:[0-9]+: |^sweep: |^fetch-pinned-specs: .*(cannot|names no)|^curl: )' "the sweep"
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: |^sweep: )' "the sweep" priority:P1
           fi
