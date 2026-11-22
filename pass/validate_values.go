@@ -193,32 +193,30 @@ func (s *valueSite) fits(value *ir.Value) string {
 	return fitsShape(value, sh, target, &b)
 }
 
-// writtenOut reports whether value, which is not null, may be a value of td, of
-// shape sh, written out in the site's style, where the style writes that shape:
-// a string as its text, and a number or a bool, which holds no delimiter, only
-// as the one item of a list whose element type settles to text, to anything or
-// to a shape admitting its kind. So it is never an object's text, nor a tuple's,
-// whose items have no one type, and no other kind is ever text. A number or a
-// bool for a list of an enum, a literal or a union is judged against the list,
-// though it may be one of its items: telling needs the item judged.
+// writtenOut reports whether value may be td, of shape sh, written out in a
+// style the site writes sh in: a string as its text, and a number or a bool,
+// holding no delimiter, only as the one item of a list whose element type
+// settles to text, to anything or to a shape admitting its kind. So neither is
+// an object's or a tuple's text, nor one for a list of an enum, a literal or a
+// union, which it may be an item of: telling needs the item judged
+// (docs/ir/values.md#values-held-to-their-type).
 func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef) bool {
 	if !s.writtenShapes.has(sh) {
 		return false
 	}
-	switch value.Kind {
-	case ir.ValueString:
+	if value.Kind == ir.ValueString {
 		return true
-	case ir.ValueNumber, ir.ValueBool:
-		list, ok := td.(*ir.List)
-		if !ok {
-			return false
-		}
-		var elementBounds bounds
-		item, _, _ := settle(s.doc, list.ElementType.Target, &elementBounds)
-		return item == shapeText || item == shapeAnything || admits(item, value.Kind)
-	default:
+	}
+	if value.Kind != ir.ValueNumber && value.Kind != ir.ValueBool {
 		return false
 	}
+	list, ok := td.(*ir.List)
+	if !ok {
+		return false
+	}
+	var elementBounds bounds
+	item, _, _ := settle(s.doc, list.ElementType.Target, &elementBounds)
+	return item == shapeText || item == shapeAnything || admits(item, value.Kind)
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the
