@@ -1298,7 +1298,8 @@ func underSchema(unmodeled ir.Unmodeled) ir.Unmodeled {
 // node it hoists, and the node holds none of them
 // (docs/ir/annotations.md#one-structural-home-per-declaration), unless a
 // reference names the position: its node holds them, read by every reference,
-// and its carrier none.
+// and its carrier none. A parameter or a header writing its own description or
+// example leaves its schema's on the node, so neither is lost.
 func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
 	const paths = `paths:
@@ -1383,7 +1384,51 @@ func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
 	require.Len(t, compiled, 2)
 	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
 	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+
+	t.Run("a carrier writing its own notes", func(t *testing.T) {
+		t.Parallel()
+		doc, diags := compileAnnotationSpec(t, "own notes", ownNotesSpec)
+		assert.Empty(t, diags)
+		encoded, err := json.Marshal(doc)
+		require.NoError(t, err)
+		for _, text := range []string{"P-li", "S-li", "P-en", "S-en", "H-li", "HS-li", "pex-li", "sex-li"} {
+			assert.Equal(t, 1, strings.Count(string(encoded), `"`+text+`"`), "%s is kept, once", text)
+		}
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok)
+		header, ok := headerByWire(operation.Responses[0].Headers, "X-L")
+		require.True(t, ok)
+		for name, carrier := range map[string]struct {
+			docs        ir.Docs
+			to          ir.TypeRef
+			own, schema string
+		}{
+			"li":  {operation.Params[1].Docs, operation.Params[1].Type, "P-li", "S-li"},
+			"en":  {operation.Params[2].Docs, operation.Params[2].Type, "P-en", "S-en"},
+			"X-L": {header.Docs, header.Type, "H-li", "HS-li"},
+		} {
+			assert.Equal(t, carrier.own, carrier.docs.Description, "%s holds its own", name)
+			assert.Equal(t, carrier.schema, doc.Types[carrier.to.Target].Common().Docs.Description, "%s's node keeps its schema's", name)
+		}
+	})
 }
+
+// ownNotesSpec is a document whose parameters and header each write a
+// description, and two an example, beside the schema's own, whose schema
+// hoists nothing (sc), a list (li, X-L) or an enum (en).
+const ownNotesSpec = `openapi: 3.1.0
+info: {title: own, version: '1'}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: sc, in: query, description: P-sc, example: pex-sc, schema: {type: string, description: S-sc, example: sex-sc}}
+        - {name: li, in: query, description: P-li, example: [pex-li], schema: {type: array, items: {type: string}, description: S-li, example: [sex-li]}}
+        - {name: en, in: query, description: P-en, schema: {type: string, enum: [a, b], description: S-en}}
+      responses:
+        '200': {description: ok, headers: {X-L: {description: H-li, schema: {type: array, items: {type: string}, description: HS-li}}}}
+`
 
 // carriersOfNotes returns the carriers of the document
 // TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles, each read as

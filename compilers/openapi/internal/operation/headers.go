@@ -99,10 +99,12 @@ func lowerHeader(serviceContext, dc service.Ctx, loweringState operationLowering
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on
-// itself onto property, after its schema's. A header carries both, and the
-// header's own are the more specific of the two — they describe this header
-// rather than the type it happens to be. media is what its elected content
-// entry wrote.
+// itself onto property, after its schema's. The header's own are the more
+// specific of the two: they describe this header rather than the type it
+// happens to be. Where the schema hoists a node, that node keeps the notes the
+// header writes over (schema.CarriedAnnotations), so neither is lost; where it
+// hoists none, the header's replace its schema's description and examples.
+// media is what its elected content entry wrote.
 func applyHeaderAnnotations(serviceContext service.Ctx, property *ir.Property, h *soa.Header, hdecl jsontext.Pointer, media []ir.Example) []ir.Diagnostic {
 	if d := h.GetDescription(); d != "" {
 		property.Docs.Description = d

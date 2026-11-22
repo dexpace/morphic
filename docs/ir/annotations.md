@@ -177,7 +177,9 @@ shared primitive and the type graph stays free of an anonymous node per element 
 builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a
 `Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
 has fields for, and the node holds none of them, so a reader of a model's members meets them on the
-member whichever kind its schema is. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
+member whichever kind its schema is. That holds of each note the carrier's own object does not
+write: where a parameter or a header writes its own documentation or examples beside its schema's,
+the carrier holds its own and the node keeps the schema's. The node keeps what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
 verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
 its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
@@ -185,9 +187,12 @@ its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, 
 that a reference names keeps them on its node too, its carrier holding none, so every reference to
 it reads them where it lands.
 
-Where a carrier holds annotations of its own alongside a schema's — a header and a parameter both
-write a `description` beside their schema — the carrier's own win: they describe that input,
-while the schema's describe its type.
+Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
+write a `description` beside their schema, and an `example` — the two stay apart: the carrier's own
+describe that input, and the schema's describe its type, so they stay with the node that type is.
+A deprecation is no such pair: either one deprecating the carrier deprecates it, so the carrier
+holds both. Where the schema hoists no node, the carrier's own still replace the schema's, which no
+node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a

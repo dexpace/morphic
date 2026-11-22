@@ -501,6 +501,90 @@ func TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode(t *te
 	}
 }
 
+// TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode
+// pins the answer note by note: a parameter or a header whose own object, or a
+// Reference Object naming it, writes a description, or whose object writes an
+// example, holds its own while the node its schema hoists keeps the schema's,
+// and still holds the deprecation. A property, whose holder is its schema,
+// holds them all.
+func TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode(t *testing.T) {
+	t.Parallel()
+	const list = "{type: array, items: {type: string}, description: DOC, deprecated: true, example: [a]}"
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: own, in: query, description: OWN, schema: `+list+`}
+        - {$ref: '#/components/parameters/Used', description: USE}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Example: {example: [b], schema: `+list+`}
+        '201': {$ref: '#/components/responses/Plain'}
+components:
+  parameters:
+    Used: {name: used, in: query, schema: `+list+`}
+  responses:
+    Plain: {description: plain}
+  schemas:
+    Holder: {type: object, properties: {list: `+list+`}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	operation := openapitest.FindOperation(t, doc, "getA")
+	own, ok := openapitest.ParamBySource(operation, "own")
+	require.True(t, ok)
+	used, ok := openapitest.ParamBySource(operation, "used")
+	require.True(t, ok)
+	require.Len(t, operation.Responses[0].Headers, 1)
+	header := operation.Responses[0].Headers[0]
+	property := propertyOf(t, doc, "Holder", "list")
+	for _, tc := range []struct {
+		name                   string
+		carrier                ir.Property
+		docs, nodeDocs         string
+		examples, nodeExamples []ir.Value
+	}{
+		{"a parameter writing its own description", ir.Property{Docs: own.Docs, Deprecation: own.Deprecation, Examples: own.Examples, Type: own.Type},
+			"OWN", "DOC", []ir.Value{listOf("a")}, nil},
+		{"a parameter a Reference Object describes", ir.Property{Docs: used.Docs, Deprecation: used.Deprecation, Examples: used.Examples, Type: used.Type},
+			"USE", "DOC", []ir.Value{listOf("a")}, nil},
+		{"a header writing its own example", header.Property, "DOC", "", []ir.Value{listOf("b")}, []ir.Value{listOf("a")}},
+		{"a property", property, "DOC", "", []ir.Value{listOf("a")}, nil},
+	} {
+		assert.Equal(t, tc.docs, tc.carrier.Docs.Description, tc.name)
+		assert.Equal(t, tc.examples, valuesOf(tc.carrier.Examples), tc.name)
+		assert.NotNil(t, tc.carrier.Deprecation, "%s holds the deprecation", tc.name)
+		node := doc.Types[tc.carrier.Type.Target].Common()
+		assert.Equal(t, tc.nodeDocs, node.Docs.Description, tc.name)
+		assert.Equal(t, tc.nodeExamples, valuesOf(node.Examples), tc.name)
+		assert.Nil(t, node.Deprecation, tc.name)
+	}
+}
+
+// listOf is the list value of items, each a string.
+func listOf(items ...string) ir.Value {
+	list := ir.Value{Kind: ir.ValueList}
+	for _, item := range items {
+		list.List = append(list.List, ir.Value{Kind: ir.ValueString, String: item})
+	}
+	return list
+}
+
+// valuesOf returns the value each of examples holds, nil where there are none.
+func valuesOf(examples []ir.Example) []ir.Value {
+	var values []ir.Value
+	for _, example := range examples {
+		if example.Value != nil {
+			values = append(values, *example.Value)
+		}
+	}
+	return values
+}
+
 // TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget pins
 // the same for the target of a $dynamicRef that expands: the carried position
 // declaring its anchor keeps its notes on its node.

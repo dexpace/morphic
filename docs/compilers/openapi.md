@@ -1970,7 +1970,10 @@ Through a `$ref` the referent's land on the carrier under the use site's field b
 ([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
 its `allOf`, keeps its own on the node it builds. At a position no carrier holds, they land on the
 node the position owns. A parameter's or header's
-own `description` wins over its schema's. `deprecated: true` on a parameter or header and on its
+own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
+`$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
+node that schema hoists keeps the schema's documentation, so neither is lost; where the schema
+hoists none, the carrier's own replace it, and nothing keeps the schema's. `deprecated: true` on a parameter or header and on its
 schema each deprecate it, neither one's `false` clearing the other. A request body's `description`
 lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
 its own. OpenAPI has no syntax for naming a type in prose, so a `description` is kept as written and
@@ -1989,7 +1992,8 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`,
   `schema.TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode`,
   `schema.TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget`,
-  `reftable.TestReferenced_NamesWhereEachReferenceLands`
+  `reftable.TestReferenced_NamesWhereEachReferenceLands`,
+  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`
 
 ### `replacement-inference`
 
@@ -2170,13 +2174,20 @@ A schema's `example`, then each entry of its `examples` in order, lowers to `Exa
 ([`docs-and-deprecation`](#docs-and-deprecation)): on the property, parameter or header that carries
 the position, whatever node it hoists, and elsewhere on the node the position owns. An example
 written beside a `$ref` describes the position, not the referent, whose own examples stay on its
-node. A value no `Value` holds is dropped
+node. Where a parameter or a header writes an `example` or `examples` of its own, or the content
+entry it elects does, those stand on the carrier in place of its schema's, and the node the schema
+hoists keeps the schema's, so neither is lost; where the schema hoists none, the carrier's own
+replace them, and nothing keeps the schema's. A value no `Value` holds is dropped
 with an `openapi/degraded-construct` warning at it.
 
 - Cases: `examples`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestSchemaExamplesAt_ReadsBothKeywordsInOrder`,
-  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
+  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
+  `operation.TestParams_NotesAreTheParametersWhateverItsSchemaHoists`,
+  `operation.TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists`,
+  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`,
+  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`
 
 ### `xml-hints`
 

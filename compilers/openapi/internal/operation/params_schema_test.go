@@ -5,10 +5,12 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -928,40 +930,97 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 // TestParams_NotesAreTheParametersWhateverItsSchemaHoists pins a parameter as
 // the home of what its schema notes where that schema hoists a node, as where
 // it hoists none: written inline, as content and in a component, each schema
-// an array or an object, the parameter holds the documentation, the
-// deprecation, a promoted member with its mark, and the examples, and the node
-// holds none of them (docs/ir/annotations.md#one-structural-home-per-declaration).
-// The parameter's own description still wins over its schema's.
+// a list, an enum or a model, the parameter holds the deprecation and a
+// promoted member with its mark, and the documentation and examples unless it
+// writes its own, the node keeping the schema's then, so none is lost
+// (docs/ir/annotations.md#one-structural-home-per-declaration). Both orders of
+// the components compile alike.
 func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 	t.Parallel()
 	const notes = "description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]], format: password"
-	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
-		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
-		"        - {name: inline, in: query, schema: {type: array, items: {type: string}, "+notes+"}}\n"+
-		"        - {name: content, in: query, content: {application/json: {schema: {type: array, items: {type: string}, "+notes+"}}}}\n"+
-		"        - {name: own, in: query, description: OWN, schema: {type: array, items: {type: string}, "+notes+"}}\n"+
-		"        - $ref: '#/components/parameters/Shared'\n"+
-		"      responses: {\"204\": {description: none}}\n"+
-		"components:\n  parameters:\n"+
-		"    Shared: {name: shared, in: query, schema: {type: object, properties: {a: {type: string}}, "+notes+"}}\n")
-	openapitest.RequireNoErrorDiags(t, diags)
+	const list = "{type: array, items: {type: string}, " + notes + "}"
+	components := []string{
+		"Shared: {name: shared, in: query, schema: {type: object, properties: {a: {type: string}}, " + notes + "}}",
+		"Described: {name: described, in: query, description: OWN, schema: " + list + "}",
+		"Used: {name: used, in: query, schema: " + list + "}",
+		"Aliased: {$ref: '#/components/parameters/Hopped', description: HOP}",
+		"Hopped: {name: hopped, in: query, schema: " + list + "}",
+	}
+	compile := func(components []string) (*ir.Document, ir.Service) {
+		doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+			"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: inline, in: query, schema: "+list+"}\n"+
+			"        - {name: content, in: query, content: {application/json: {schema: "+list+"}}}\n"+
+			"        - {name: own, in: query, description: OWN, schema: "+list+"}\n"+
+			"        - {name: en, in: query, description: OWN, schema: {type: string, enum: [a, b], "+
+			"description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]]}}\n"+
+			"        - {name: example, in: query, example: [b], schema: "+list+"}\n"+
+			"        - {name: entry, in: query, content: {application/json: {examples: {e: {value: [b]}}, schema: "+list+"}}}\n"+
+			"        - $ref: '#/components/parameters/Shared'\n"+
+			"        - $ref: '#/components/parameters/Described'\n"+
+			"        - {$ref: '#/components/parameters/Used', description: USE}\n"+
+			"        - $ref: '#/components/parameters/Aliased'\n"+
+			"      responses: {\"204\": {description: none}}\n"+
+			"components:\n  parameters:\n    "+strings.Join(components, "\n    ")+"\n")
+		openapitest.RequireNoErrorDiags(t, diags)
+		return doc, svc
+	}
+	doc, svc := compile(components)
 	operation := openapitest.FirstOperation(t, svc)
-	for _, tc := range []struct{ name, docs string }{{"inline", "DOC"}, {"content", "DOC"}, {"own", "OWN"}, {"shared", "DOC"}} {
+	for _, tc := range []struct {
+		name, docs, nodeDocs   string
+		examples, nodeExamples []string
+	}{
+		{"inline", "DOC", "", []string{"a"}, nil},
+		{"content", "DOC", "", []string{"a"}, nil},
+		{"own", "OWN", "DOC", []string{"a"}, nil},
+		{"en", "OWN", "DOC", []string{"a"}, nil},
+		{"example", "DOC", "", []string{"b"}, []string{"a"}},
+		{"entry", "DOC", "", []string{"b"}, []string{"a"}},
+		{"shared", "DOC", "", []string{"a"}, nil},
+		{"described", "OWN", "DOC", []string{"a"}, nil},
+		{"used", "USE", "DOC", []string{"a"}, nil},
+		{"hopped", "HOP", "DOC", []string{"a"}, nil},
+	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
 		assert.Equal(t, tc.docs, param.Docs.Description, tc.name)
+		assert.Equal(t, tc.examples, listedExamples(param.Examples), tc.name)
 		assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, tc.name)
 		assert.Equal(t, ir.Inferred("extension-promotion"), param.Provenance.Inferred, tc.name)
-		assert.Len(t, param.Examples, 1, tc.name)
 		assert.False(t, param.Secret, "%s: the node keeps the redaction", tc.name)
 
 		node, ok := doc.Types[param.Type.Target]
 		require.True(t, ok, "%s: the schema hoists a node", tc.name)
 		require.True(t, node.Common().Anonymous, tc.name)
-		assert.Equal(t, ir.Docs{}, node.Common().Docs, tc.name)
+		assert.Equal(t, tc.nodeDocs, node.Common().Docs.Description, tc.name)
+		assert.Equal(t, tc.nodeExamples, listedExamples(node.Common().Examples), tc.name)
 		assert.Nil(t, node.Common().Deprecation, tc.name)
-		assert.Empty(t, node.Common().Examples, tc.name)
-		assert.True(t, node.Common().Sensitive, tc.name)
+		assert.Equal(t, tc.name != "en", node.Common().Sensitive, tc.name)
 		assert.Contains(t, node.Common().Unmodeled, "openapi:x-deprecated-reason", tc.name)
 	}
+
+	reversed := slices.Clone(components)
+	slices.Reverse(reversed)
+	reversedDoc, reversedSvc := compile(reversed)
+	assert.Empty(t, cmp.Diff(doc.Types, reversedDoc.Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(svc, reversedSvc), "nor do the parameters")
+}
+
+// listedExamples returns the strings each of examples lists, or the string it
+// is, in order, nil where there are none.
+func listedExamples(examples []ir.Example) []string {
+	var listed []string
+	for _, example := range examples {
+		if example.Value == nil {
+			continue
+		}
+		if example.Value.Kind == ir.ValueString {
+			listed = append(listed, example.Value.String)
+		}
+		for _, item := range example.Value.List {
+			listed = append(listed, item.String)
+		}
+	}
+	return listed
 }

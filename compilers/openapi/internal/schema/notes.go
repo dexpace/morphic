@@ -6,43 +6,119 @@ package schema
 import (
 	"encoding/json/jsontext"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
-// notesOnCarrier reports whether the carrier holding the position schema is
-// written at, pointer, holds the notes schema writes, its documentation,
-// deprecation and examples, though typeRef names the node the position's own
-// lowering builds there: a carrier holds the position (carriedAt), no reference
-// names it (reftable.ReferenceTargetTable.Referenced), and schema names no $ref
-// among its conjuncts (allOfRefEntries). Node and carrier both ask it, so the
-// notes have one home (docs/ir/annotations.md#one-structural-home-per-declaration).
+// carriedNotes is which of the notes a schema writes, its documentation,
+// deprecation and examples, the carrier holding its position holds, the node
+// the position builds keeping the rest (notesOnCarrier).
+type carriedNotes struct {
+	docs, deprecation, examples bool
+}
+
+// notesOnCarrier returns which notes schema writes the carrier holding its
+// position, pointer, holds, though typeRef names the node that position builds.
+// It holds none unless it holds the position (carriedAt), no reference names
+// it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
+// its conjuncts (allOfRefEntries). Then it holds the deprecation, and each
+// note its own object does not write (writtenOver). Node and carrier both ask
+// it, so each note has one home
+// (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
-// Elsewhere the node keeps them, which each reference to the position reads;
-// a $ref is read off what the position writes alone, so every spelling of one
-// use reads alike (docs/compilers/openapi.md#ref-use-site).
-func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) bool {
+// Elsewhere the node keeps them, which each reference to the position reads,
+// and a $ref is read off what the position writes alone
+// (docs/compilers/openapi.md#ref-use-site).
+func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) carriedNotes {
 	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) || !carriedAt(loweringContext, schema) {
-		return false
+		return carriedNotes{}
 	}
-	if at, _ := siteOf(schema); loweringContext.Bindings().Table().Referenced(at) {
-		return false
+	at, _ := siteOf(schema)
+	if loweringContext.Bindings().Table().Referenced(at) {
+		return carriedNotes{}
 	}
 	for range allOfRefEntries(loweringContext, schema) {
-		return false
+		return carriedNotes{}
 	}
-	return true
+	docs, examples := writtenOver(loweringContext, at)
+	return carriedNotes{docs: !docs, deprecation: true, examples: !examples}
+}
+
+// writtenOver reports which of the notes of the schema at, a carried
+// position, the carrier writes over with its own: its documentation where the
+// Parameter or Header Object holding at writes a description, or a Reference
+// Object naming that object writes docs beside its $ref (documentedAtUse), and
+// its examples where that object, or the content entry at lies in, writes an
+// example. The schema's stay on its node, so neither is lost. A property's
+// holder is its schema, which writes over nothing.
+func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (docs, examples bool) {
+	holder := reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent()}
+	entry := ""
+	if holder.Pointer.Parent().LastToken() == "content" {
+		entry = holder.Pointer.LastToken()
+		holder.Pointer = holder.Pointer.Parent().Parent()
+	}
+	object := componentlookup.WrittenAt(loweringContext.Bindings(), holder, reftable.RefParameter)
+	if object == nil {
+		object = componentlookup.WrittenAt(loweringContext.Bindings(), holder, reftable.RefHeader)
+	}
+	if object == nil {
+		return false, false
+	}
+	_, docs = componentlookup.DocText(object, "description")
+	docs = docs || documentedAtUse(loweringContext)[holder]
+	examples = writesExample(object)
+	if entry == "" {
+		return docs, examples
+	}
+	return docs, examples || writesExample(nodeview.Child(nodeview.Child(object, "content"), entry))
+}
+
+// writesExample reports whether object, an object's mapping, writes an
+// example, under `example` or as an entry of `examples`.
+func writesExample(object *yaml.Node) bool {
+	return nodeview.Child(object, "example") != nil || len(nodeview.Pairs(nodeview.Child(object, "examples"))) > 0
+}
+
+// documentedUses keys documentedAtUse's reading.
+type documentedUses struct{}
+
+// documentedAtUse returns the Parameter and Header Objects a Reference Object
+// whose chain resolves to one writes a summary or a description beside, read
+// once for the run: a carrier reached through it takes them over its
+// declaration's (componentlookup.UseDocs). Each hop of a chain is a Reference
+// Object of its own, ending where the chain does.
+func documentedAtUse(loweringContext lowering.Ctx) map[reftable.DocumentPointer]bool {
+	return lowering.ReadOncePerRun(loweringContext, documentedUses{}, func() map[reftable.DocumentPointer]bool {
+		documented := map[reftable.DocumentPointer]bool{}
+		for _, reference := range loweringContext.Bindings().Table().References() {
+			if reference.Chain.Status != reftable.Resolved || reference.Kind != reftable.RefParameter && reference.Kind != reftable.RefHeader {
+				continue
+			}
+			written := componentlookup.WrittenAt(loweringContext.Bindings(), reference.Site, reference.Kind)
+			_, summary := componentlookup.DocText(written, "summary")
+			_, description := componentlookup.DocText(written, "description")
+			if summary || description {
+				documented[reference.Chain.End] = true
+			}
+		}
+		return documented
+	})
 }
 
 // CarriedAnnotations returns what a carrier holds of the annotations schema,
 // written at pointer and lowered to typeRef, declares, read through use, and
 // whether the position owns the node typeRef names. Where it owns none, the
 // carrier holds them all. Where it owns one, the node keeps everything but the
-// notes, which are the carrier's where notesOnCarrier says so and the node's
-// otherwise.
+// notes notesOnCarrier gives the carrier.
 //
 // It is the one reading a property, a header and a parameter share, so the
 // three cannot differ in what they hold.
@@ -52,14 +128,22 @@ func CarriedAnnotations(loweringContext lowering.Ctx, schema *statement.Schema, 
 		a, diags := annotation.Read(use.SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())
 		return a, false, diags
 	}
-	if !notesOnCarrier(loweringContext, schema, pointer, typeRef) {
+	notes := notesOnCarrier(loweringContext, schema, pointer, typeRef)
+	if notes == (carriedNotes{}) {
 		return annotation.Set{}, true, nil
 	}
 	// The node's build read the same declaration and drew its findings, so this
 	// reading draws none. Naming no $ref, the position falls back to nothing, so
 	// use speaks as the node's use does (nodeUse).
 	a, _ := annotation.Read(use.SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())
-	return annotation.Set{Docs: a.Docs, Deprecated: a.Deprecated, Examples: a.Examples}, true, nil
+	carried := annotation.Set{Deprecated: a.Deprecated}
+	if notes.docs {
+		carried.Docs = a.Docs
+	}
+	if notes.examples {
+		carried.Examples = a.Examples
+	}
+	return carried, true, nil
 }
 
 // carriedNotesOf keys what carriedNoteKeys reads of one schema.
@@ -68,7 +152,7 @@ type carriedNotesOf struct {
 }
 
 // carriedNoteKeys returns what the mapped keys the node at pointer keeps of
-// schema, which lowered to typeRef, lend the carrier holding its notes: a
+// schema, which lowered to typeRef, lend the carrier holding its deprecation: a
 // deprecation a key states, and its members, read as the keys of an object the
 // carrier carries are (promotion.Promoter.WithOwnCarriedState). The node keeps
 // its redaction, so a key asking for one lends nothing here. A replacement is
@@ -84,29 +168,32 @@ func carriedNoteKeys(loweringContext lowering.Ctx, schema *statement.Schema, typ
 }
 
 // placeNotes writes the notes a holds on common, the node schema, written at
-// pointer and lowered to target, finishes, unless its carrier holds them
+// pointer and lowered to target, finishes, but those its carrier holds
 // (notesOnCarrier). It returns where the promotion writes the node's
 // deprecation: common's own, or one nothing keeps where the carrier holds it,
 // so the promotion still reports a key it misreads, once, at the node keeping
 // the key, while the carrier reads the key in silence (carriedNoteKeys).
 //
-// A position a reference names keeps the notes here, its carrier holding none,
-// so each reference to it reads them where it lands.
+// So a position a reference names keeps every note here, and one whose carrier
+// writes a note of its own keeps the schema's.
 func placeNotes(loweringContext lowering.Ctx, common *ir.TypeCommon, a annotation.Set, schema *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (**ir.Deprecation, *ir.Provenance) {
+	notes := notesOnCarrier(loweringContext, schema, pointer, target)
+	if !notes.docs {
+		common.Docs = a.Docs
+	}
+	if !notes.examples && len(a.Examples) > 0 {
+		common.Examples = a.Examples
+	}
 	var withheld *ir.Deprecation
 	if a.Deprecated {
 		withheld = &ir.Deprecation{}
 	}
-	if notesOnCarrier(loweringContext, schema, pointer, target) {
+	if notes.deprecation {
 		return &withheld, &ir.Provenance{}
 	}
-	common.Docs = a.Docs
 	if withheld != nil {
 		common.Deprecation = withheld
-	}
-	if len(a.Examples) > 0 {
-		common.Examples = a.Examples
 	}
 	return &common.Deprecation, &common.Provenance
 }

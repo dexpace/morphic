@@ -167,14 +167,15 @@ func fillParamSchema(serviceContext service.Ctx, ts *compile.Types, param *ir.Pa
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
 // parameter, as schema.CarriedAnnotations reads it: everything where the schema
-// reduced to a shared primitive (GitHub #116), and the notes alone where it
-// hoisted a node, which keeps the rest.
+// reduced to a shared primitive (GitHub #116), and where it hoisted a node, the
+// notes the parameter does not write itself, the node keeping the rest.
 //
-// fillParamDetail writes the parameter's own annotations afterwards, and they
-// win where both are set. Docs, deprecation and redaction read what use falls
-// back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
-// visibility keywords stay with the position, which they describe, and its
-// folded entries. What has no field of the parameter goes to written.
+// fillParamDetail writes the parameter's own afterwards, which replace the
+// schema's description and examples only where no node holds them. Docs,
+// deprecation and redaction read what use falls back to
+// (docs/compilers/openapi.md#ref-use-site); examples, xml and the visibility
+// keywords stay with the position and its folded entries. What has no field of
+// the parameter goes to written.
 func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
 	statementSchema *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
