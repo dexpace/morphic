@@ -23,12 +23,12 @@ type position struct {
 	// encoded says the value is written in an encoding of its own, so its kind
 	// says nothing of what the type holds.
 	encoded bool
-	// serializedExamples is the shapes the position's style writes on the
-	// wire, so a scalar example of a list or an object of one of them is that
-	// value written out. Its default is a value of the type all the same. An
-	// example does not say which form it is in, so a scalar written as the
-	// value's data goes unjudged (docs/ir/values.md#values-held-to-their-type).
-	serializedExamples shapeSet
+	// writtenShapes are the structured shapes the position's style can write
+	// as text, so a scalar example of one of them is that value written out.
+	// Its default is a value of the type all the same. An example does not say
+	// which form it is in, so a scalar written as the value's data goes
+	// unjudged (docs/ir/values.md#values-held-to-their-type).
+	writtenShapes shapeSet
 	// nullExampleLeftOut says the position is a parameter or a header that is
 	// not required, so a null example is the value left out, not a null sent.
 	// Its default is a value of the type all the same.
@@ -38,12 +38,19 @@ type position struct {
 }
 
 // positionScratch is what eachPosition reads a document through, emptied
-// between operations: a content's part keys in sorted order, and the
-// parameters of one operation an HTTP binding writes whole in a style that
-// can write a list or an object, with the shapes it can write.
+// between operations: a content's part keys in sorted order, and how the HTTP
+// bindings of one operation write each parameter they write whole.
 type positionScratch struct {
-	keys   []ir.PropertyID
-	styled scratchstate.Map[ir.ParameterID, shapeSet]
+	keys  []ir.PropertyID
+	whole scratchstate.Map[ir.ParameterID, wholeWriting]
+}
+
+// wholeWriting is how an operation's HTTP bindings write one parameter whole:
+// the structured shapes their styles can write as text, and whether a content
+// type serializes it.
+type wholeWriting struct {
+	shapes  shapeSet
+	encoded bool
 }
 
 // eachPosition calls visit with each property of a live model, in liveTypeIDs
@@ -100,7 +107,7 @@ func headerPositions(positionValue *position, headers []ir.Header, owner string,
 		if style == "" {
 			style = "simple"
 		}
-		positionValue.serializedExamples = shapesWritten(style, header.Explode)
+		positionValue.writtenShapes = shapesWritten(style, header.Explode)
 		positionValue.nullExampleLeftOut = !header.Required
 		visit(positionValue)
 	}
@@ -148,30 +155,39 @@ func shapesWritten(style string, explode *bool) shapeSet {
 	}
 }
 
-// styledParameters returns the parameters of operation its HTTP bindings
-// write whole in a style that can write a list or an object, each with the
-// shapes those styles can write, in the emptied map styled holds.
-func styledParameters(operation *ir.Operation, styled *scratchstate.Map[ir.ParameterID, shapeSet]) map[ir.ParameterID]shapeSet {
-	written := styled.Emptied()
+// wholeParameters returns how the HTTP bindings of operation write each
+// parameter a binding writes whole, rather than a member of, in the emptied map
+// whole holds. What any binding writes counts: the shapes of every style, and a
+// content type whichever binding states it.
+func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.ParameterID, wholeWriting]) map[ir.ParameterID]wholeWriting {
+	written := whole.Emptied()
 	for i := range operation.Bindings.HTTP {
 		for j := range operation.Bindings.HTTP[i].ParamBindings {
 			pb := &operation.Bindings.HTTP[i].ParamBindings[j]
-			if shapes := shapesWritten(pb.Style, pb.Explode); len(pb.ParamPath) == 0 && shapes != 0 {
-				written[pb.Param] |= shapes
+			if len(pb.ParamPath) != 0 {
+				continue
 			}
+			writing := written[pb.Param]
+			writing.shapes |= shapesWritten(pb.Style, pb.Explode)
+			writing.encoded = writing.encoded || pb.ContentType != ""
+			written[pb.Param] = writing
 		}
 	}
 	return written
 }
 
-// operationPositions visits the positions of operation.
+// operationPositions visits the positions of operation. A parameter is written
+// in an encoding where its own Encoding or a binding's content type writes it,
+// as a header is where its Encoding does.
 func operationPositions(positionValue *position, operation *ir.Operation, scratch *positionScratch, visit func(*position)) {
-	styled := styledParameters(operation, &scratch.styled)
+	whole := wholeParameters(operation, &scratch.whole)
 	for i := range operation.Params {
 		pm := &operation.Params[i]
+		writing := whole[pm.ID]
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			serializedExamples: styled[pm.ID], nullExampleLeftOut: !pm.Required, def: pm.Default, examples: pm.Examples,
+			encoded: pm.Encoding != nil || writing.encoded, writtenShapes: writing.shapes, nullExampleLeftOut: !pm.Required,
+			def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}

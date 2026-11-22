@@ -37,6 +37,7 @@ func parameterOperation(set func(*ir.Parameter), bindings ...ir.HTTPBinding) *ir
 	set(&parameter)
 	doc.Services = []ir.Service{{ID: "service/x", Groups: []ir.OperationGroup{{ID: "operation-group/x", Operations: []ir.Operation{{
 		ID: "operation/x", Params: []ir.Parameter{parameter}, Bindings: ir.OperationBindings{HTTP: bindings},
+		Provenance: provAt("operation/x"),
 	}}}}}}
 	return doc
 }
@@ -66,11 +67,12 @@ func ofType(typ ir.TypeRef, value *ir.Value) func(*ir.Parameter) {
 // TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted holds a
 // scalar example of a list-typed or object-typed parameter to be the value
 // written out where an HTTP binding writes the whole parameter in a style that
-// can write that shape, as OpenAPI reads a parameter's example, and to be
-// judged everywhere else: under no binding, a content type, a style that writes
-// no such shape or a binding of a member, as null of a required parameter or
-// the other structured shape, for a type of neither shape, and as an example
-// the type gives.
+// can write that shape, as OpenAPI reads a parameter's example, or a content
+// type serializes it, and to be judged everywhere else: under no binding, a
+// style that writes no such shape or a binding of a member, as null of a
+// required parameter, bytes, a symbol or the other structured shape, for a
+// type of neither shape, as an example the type gives and as a scenario's
+// input.
 func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *testing.T) {
 	t.Parallel()
 	asString := "example 0 is a string, and type/l holds a list"
@@ -97,7 +99,7 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 		{"a string under a style nothing defines", parameterOperation(withExample(text("a")), bindsQ(styled("csv", nil))), judged},
 		{"a string under a content type", parameterOperation(withExample(text("a")), bindsQ(func(pb *ir.HTTPParamBinding) {
 			pb.Style, pb.ContentType = "", "application/json"
-		})), judged},
+		})), nil},
 		{"a string under no binding", parameterOperation(withExample(text("a"))), judged},
 		{"a string where a binding writes a member", parameterOperation(withExample(text("a")), bindsQ(func(pb *ir.HTTPParamBinding) {
 			pb.ParamPath = []ir.PropertyID{"property/m/a"}
@@ -128,6 +130,17 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 		}, bindsQ(styled("form", nil))), []finding{{"parameter/x/q", "example 0 is a string, and type/primitive/integer holds an integer"}}},
 		{"an object under form", parameterOperation(withExample(&ir.Value{Kind: ir.ValueObject}), bindsQ(styled("form", nil))),
 			[]finding{{"parameter/x/q", "example 0 is an object, and type/l holds a list"}}},
+		{"bytes under form", parameterOperation(withExample(&ir.Value{Kind: ir.ValueBytes, Bytes: []byte("a,b")}), bindsQ(styled("form", nil))),
+			[]finding{{"parameter/x/q", "example 0 is bytes, and type/l holds a list"}}},
+		{"a symbol under form", parameterOperation(withExample(&ir.Value{Kind: ir.ValueSymbol, String: "a"}), bindsQ(styled("form", nil))),
+			[]finding{{"parameter/x/q", "example 0 is a symbol, and type/l holds a list"}}},
+		{"a scenario's string input under form", func() *ir.Document {
+			doc := parameterOperation(func(*ir.Parameter) {}, bindsQ(styled("form", off)))
+			doc.Services[0].Groups[0].Operations[0].Examples = []ir.Example{{
+				Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *text("a,b")}},
+			}}
+			return doc
+		}(), []finding{{"operation/x", `scenario "s" parameter "parameter/x/q" is a string, and type/l holds a list`}}},
 		{"a string of an object under form", parameterOperation(ofType(objectT, text("R,100,G,200")), bindsQ(styled("form", off))), nil},
 		{"a string of an object under exploded form", parameterOperation(ofType(objectT, text("R=100&G=200")), bindsQ(styled("form", nil))), nil},
 		{"a string of an object under deepObject", parameterOperation(ofType(objectT, text("q[R]=100")), bindsQ(styled("deepObject", on))), nil},
@@ -139,7 +152,7 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 			bindsQ(styled("spaceDelimited", on))), objectJudged},
 		{"a string of an object under a content type", parameterOperation(ofType(objectT, text("R,100")), bindsQ(func(pb *ir.HTTPParamBinding) {
 			pb.Style, pb.ContentType = "", "application/json"
-		})), objectJudged},
+		})), nil},
 		{"a string of an object under no binding", parameterOperation(ofType(objectT, text("R,100"))), objectJudged},
 		{"a string of a map under form", parameterOperation(ofType(mapT, text("R,100")), bindsQ(styled("form", nil))), nil},
 	} {
@@ -164,6 +177,51 @@ func TestValidate_ASerializedDefaultOfAListOrAnObjectIsReported(t *testing.T) {
 	assert.Equal(t, []finding{{"parameter/x/q", "default is a string, and type/l holds a list"}}, found(t, parameter, defaultCode))
 	assert.Equal(t, []finding{{"parameter/x/q", "default is a string, and type/o holds an object"}}, found(t, object, defaultCode))
 	assert.Equal(t, []finding{{"property/x/h", "default is a string, and type/l holds a list"}}, found(t, header, defaultCode))
+}
+
+// TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged holds a parameter
+// a binding writes whole through a content type, or whose own Encoding writes
+// it, to have neither its examples nor its default judged, as a header with an
+// Encoding has not, and one a content type writes only a member of to have
+// both judged. A content type's binding ahead of one writing no list still
+// serializes the parameter.
+func TestValidate_AParameterWrittenInAnEncodingHasNoValueJudged(t *testing.T) {
+	t.Parallel()
+	content := func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" }
+	valued := func(parameter *ir.Parameter) {
+		parameter.Examples, parameter.Default = []ir.Example{{Value: text("a,b")}}, text("a,b")
+	}
+	for _, tc := range []struct {
+		name   string
+		doc    *ir.Document
+		judged bool
+	}{
+		{"under a content type", parameterOperation(valued, bindsQ(content)), false},
+		{"under a content type, then a style writing no list", parameterOperation(valued, bindsQ(content), bindsQ(styled("deepObject", nil))), false},
+		{"under its own encoding", parameterOperation(func(parameter *ir.Parameter) {
+			valued(parameter)
+			parameter.Encoding = &ir.Encoding{Name: "string"}
+		}), false},
+		{"where a content type writes a member", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
+			content(pb)
+			pb.ParamPath = []ir.PropertyID{"property/m/a"}
+		})), true},
+		{"where a content type writes another parameter", parameterOperation(valued, bindsQ(func(pb *ir.HTTPParamBinding) {
+			content(pb)
+			pb.Param = "parameter/x/other"
+		})), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var wantExample, wantDefault []finding
+			if tc.judged {
+				wantExample = []finding{{"parameter/x/q", "example 0 is a string, and type/l holds a list"}}
+				wantDefault = []finding{{"parameter/x/q", "default is a string, and type/l holds a list"}}
+			}
+			assert.Equal(t, wantExample, found(t, tc.doc, exampleCode))
+			assert.Equal(t, wantDefault, found(t, tc.doc, defaultCode))
+		})
+	}
 }
 
 // headerOperation is structuredDoc holding one operation whose response
