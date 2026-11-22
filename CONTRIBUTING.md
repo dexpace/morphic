@@ -196,9 +196,10 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   the finding, or `#<issue>: `, where an open issue tracks it. When `make sweep` fails after its
   fetch, or the nightly job opens
   `ci: the nightly sweep of the pinned specs finds a difference on main`, each failure is a line
-  naming the spec, the finding or the record's line, and why it fails, or one saying the test did
-  not run. A failed fetch is no such difference: `make sweep` ends on
-  `sweep: cannot fetch the pinned specs`, and the job opens
+  naming the spec, the finding or the record's line, and why it fails, or a line of `make sweep`'s
+  own, opening `sweep: `, saying the test did not run or the run rewrote a record. A failed fetch
+  is no such difference: `make sweep` ends on `sweep: cannot fetch the pinned specs`, and the job
+  opens
   `ci: the nightly sweep cannot fetch a pinned spec` instead. A finding the
   compiler should not make is its own to fix or file, as for the schema cases; otherwise rewrite the
   records, which writes a new line as `unclassified`, and give it its reason. A spec joins as a line
