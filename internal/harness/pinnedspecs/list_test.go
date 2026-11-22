@@ -27,12 +27,14 @@ const (
 func TestReadList_ReadsEachSpecInOrder(t *testing.T) {
 	t.Parallel()
 	list := "# a comment\n\nb-1  owner/repo.x  " + commit + "  dir/b.yaml  " + sum + "\n" +
-		"  a\tOwner-2/r_e-p\t" + commit + "\ta.json\t" + sum + "\n"
+		"  a\tOwner-2/r_e-p\t" + commit + "\ta.json\t" + sum + "\n" +
+		"c o/.r " + commit + " .github/c_1.yaml " + sum + "\n"
 	specs, err := pinnedspecs.ReadList([]byte(list))
 	require.NoError(t, err)
 	assert.Equal(t, []pinnedspecs.Spec{
 		{Name: "b-1", Repository: "owner/repo.x", Commit: commit, Path: "dir/b.yaml", SHA256: sum},
 		{Name: "a", Repository: "Owner-2/r_e-p", Commit: commit, Path: "a.json", SHA256: sum},
+		{Name: "c", Repository: "o/.r", Commit: commit, Path: ".github/c_1.yaml", SHA256: sum},
 	}, specs)
 }
 
@@ -62,12 +64,21 @@ func TestReadList_RefusesWhatItCannotFetchSafely(t *testing.T) {
 		{"a name in capitals", line("A", "o/r", commit, "a.yaml", sum), `name "A"`},
 		{"a repository with no owner", line("a", "r", commit, "a.yaml", sum), `a: repository "r"`},
 		{"a repository with a path", line("a", "o/r/x", commit, "a.yaml", sum), `repository "o/r/x"`},
+		{"a repository of the parent", line("a", "o/..", commit, "a.yaml", sum), `repository "o/.."`},
+		{"a repository of the owner", line("a", "o/.", commit, "a.yaml", sum), `repository "o/."`},
 		{"a short commit", line("a", "o/r", commit[:7], "a.yaml", sum), `a: commit "0e9cf29"`},
 		{"a branch for a commit", line("a", "o/r", "main", "a.yaml", sum), `commit "main"`},
 		{"an absolute path", line("a", "o/r", commit, "/a.yaml", sum), `a: path "/a.yaml"`},
 		{"a path climbing out", line("a", "o/r", commit, "../a.yaml", sum), `path "../a.yaml"`},
 		{"a path of the parent", line("a", "o/r", commit, "..", sum), `path ".."`},
 		{"an unclean path", line("a", "o/r", commit, "d//a.yaml", sum), `path "d//a.yaml"`},
+		{"a path of the repository", line("a", "o/r", commit, ".", sum), `path "."`},
+		{"a path through itself", line("a", "o/r", commit, "d/./a.yaml", sum), `path "d/./a.yaml"`},
+		{"a path climbing inside", line("a", "o/r", commit, "d/../a.yaml", sum), `path "d/../a.yaml"`},
+		{"a path of a directory", line("a", "o/r", commit, "d/", sum), `path "d/"`},
+		{"a path with a query", line("a", "o/r", commit, "a.yaml?x=1", sum), `path "a.yaml?x=1"`},
+		{"a path with a fragment", line("a", "o/r", commit, "a#b.yaml", sum), `path "a#b.yaml"`},
+		{"a path escaped", line("a", "o/r", commit, "%2e%2e/%2e%2e/x/y/"+commit+"/a.yaml", sum), `path "%2e%2e/`},
 		{"a short SHA-256", line("a", "o/r", commit, "a.yaml", sum[:63]), `a: SHA-256 "` + sum[:63] + `"`},
 		{"a SHA-256 in capitals", line("a", "o/r", commit, "a.yaml", strings.ToUpper(sum)), "SHA-256"},
 		{"a name listed twice", good + good, `list line 2: "a" is listed twice`},

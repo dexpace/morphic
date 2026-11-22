@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -24,10 +25,13 @@ type Spec struct {
 
 // The forms of a Spec's fields. A name and a path become a path under the
 // directory a fetch writes to, and a repository, a commit and a path a URL, so
-// each is held to a form that can escape neither.
+// each is held to a form that can escape neither: no segment of a repository
+// or a path is "." or "..", which a URL's reader collapses, and none holds a
+// character a URL reads as other than itself, such as "?", "#" or "%".
 var (
 	namePattern       = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 	repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
+	segmentPattern    = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 	commitPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	sha256Pattern     = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
@@ -81,22 +85,30 @@ func separator(r rune) bool {
 	return r == ' ' || r == '\t'
 }
 
+// segmentForm says what segment holds a part to, for an error refusing one.
+const segmentForm = "of letters, digits, ., _ and -, and neither . nor .."
+
+// segment reports whether part is one segment of a path a URL names as
+// written: characters of segmentPattern, and neither "." nor "..".
+func segment(part string) bool {
+	return segmentPattern.MatchString(part) && part != "." && part != ".."
+}
+
 // validate holds each of s's fields to its form: a name of lowercase words
 // joined by "-", an owner and a repository, a full commit hash, a relative
-// path that is clean and climbs out of nothing, and a SHA-256 in hex.
+// path of segments (segment), and a SHA-256 in hex.
 func (s Spec) validate() error {
 	if !namePattern.MatchString(s.Name) {
 		return fmt.Errorf("name %q: want lowercase letters and digits, joined by -", s.Name)
 	}
-	if !repositoryPattern.MatchString(s.Repository) {
-		return fmt.Errorf("%s: repository %q: want owner/name", s.Name, s.Repository)
+	if !repositoryPattern.MatchString(s.Repository) || !segment(path.Base(s.Repository)) {
+		return fmt.Errorf("%s: repository %q: want owner/name, the name %s", s.Name, s.Repository, segmentForm)
 	}
 	if !commitPattern.MatchString(s.Commit) {
 		return fmt.Errorf("%s: commit %q: want the full hash, in lowercase hex", s.Name, s.Commit)
 	}
-	if s.Path == "" || path.IsAbs(s.Path) || path.Clean(s.Path) != s.Path || s.Path == ".." ||
-		strings.HasPrefix(s.Path, "../") {
-		return fmt.Errorf("%s: path %q: want a clean path inside the repository", s.Name, s.Path)
+	if slices.ContainsFunc(strings.Split(s.Path, "/"), func(part string) bool { return !segment(part) }) {
+		return fmt.Errorf("%s: path %q: want a relative path, each segment %s", s.Name, s.Path, segmentForm)
 	}
 	if !sha256Pattern.MatchString(s.SHA256) {
 		return fmt.Errorf("%s: SHA-256 %q: want 64 lowercase hex digits", s.Name, s.SHA256)
