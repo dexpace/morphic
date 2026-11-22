@@ -1804,16 +1804,23 @@ that lowers to an object alone the keywords beside the `$ref` are a conjunct at 
 property, parameter or header names the `Model` over the target, a decorator holding them that the
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
-and a `nullable: true` the nullable-inference policy reads, and the notes the carrier holds
+and a `nullable: true` the nullable-inference policy reads, a `type` naming only the kinds the
+referent lowers to, and the notes the carrier holds
 ([`docs-and-deprecation`](#docs-and-deprecation)), `title`, `description`, `externalDocs`,
 `deprecated`, `example` and `examples`, beside the `$ref` or beside an `allOf` of it, with nothing
 else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no decorator there: the
 carrier names the reference and holds them, as over any other target, so
-`{$ref: Obj, readOnly: true}` and `{allOf: [{$ref: Obj}], description: d}` at a property name `Obj`.
-A note counts so only where the carrier holds it: where a reference names the position, or the
-parameter or header writes its own documentation or examples, or a Reference Object naming it
-writes documentation beside its `$ref`, the note stays on the `Model`, which every reference reads
-and which keeps the schema's note beside the carrier's own. A note an entry of the `allOf` writes,
+`{$ref: Obj, readOnly: true}`, `{allOf: [{$ref: Obj}], description: d}` and
+`{allOf: [{$ref: Obj}], type: object}` at a property name `Obj`. A use-bound keyword or a `type` on
+another entry of the `allOf` counts alike. A `type` that names another kind, or null, or a word no
+dialect defines, says something of its own, and so does `type: object` over a referent naming no
+kind once the kind-inference policy is off, since the referent then lowers to no object.
+A note counts so only where the carrier holds it: where a reference names the position, the
+notes stay on the `Model`, which every reference reads; where the parameter or header writes its
+own documentation or examples, or a Reference Object naming it writes documentation beside its
+`$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own, while a
+deprecation, or an example nothing writes over, is still the carrier's, each note placed on its
+own as an inline schema's is. A note an entry of the `allOf` writes,
 as in `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
 conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
 extension, `xml` or a constraint among them. The node holding the note at a carrier as well was
@@ -1842,7 +1849,11 @@ refinements, an alias between two spending none of them: what the target declare
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
 or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
 that lowers to; its examples stay on its node, as any target's do
-([`schema-examples`](#schema-examples)). A `default` a `$ref` lends across a conjunct admitting less
+([`schema-examples`](#schema-examples)). One case is open: at a carried position writing the value
+set on another conjunct, as `allOf: [{$ref: X}, {type: string, enum: [a, b]}]` does, the referent's
+documentation and deprecation sit on the enum the position owns, and the carrier holds neither,
+since a position naming a `$ref` beside another conjunct gives its carrier none of the notes its
+node holds. A `default` a `$ref` lends across a conjunct admitting less
 than it does counts only where the position takes it, and with no such conjunct it reads as beside
 the `$ref`, whatever the target's own type says of it. A `default` written with the value set is the
 position's own, in the set or not, as a plain `enum`'s is. A composition of a sole `$ref` holds what
@@ -1860,6 +1871,8 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `e2e.TestRefUseBound_ANoteIsTheCarriers`,
   `e2e.TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode`,
   `e2e.TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode`,
+  `e2e.TestRefUseBound_ATypeItsReferentLowersToBindsTheUse`,
+  `e2e.TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode`,
   `schema.TestCarriedAnnotations_ANoteBesideARefIsTheCarriers`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
@@ -1985,9 +1998,13 @@ position a reference names, a `$ref`, a discriminator's mapping value or an expa
 keeps them on its node, which every reference to it reads, and its carrier holds none of them.
 Through a `$ref` the referent's land on the carrier under the use site's field by field
 ([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
-its `allOf`, keeps its own on the node it builds, unless they are all it writes beside one `$ref` to
-an object, or beside an `allOf` of it, and the carrier holds them: it then builds no node, and the
-carrier holds them over the referent's ([`ref-use-site`](#ref-use-site)). At a position no carrier
+its `allOf`, keeps its own on the node it builds, unless it writes beside one `$ref` to an object, or
+beside an `allOf` of it, only these and the keywords that bind the use
+([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming only what the referent
+lowers to, and the carrier holds them: it then builds no node, and the carrier holds them over the
+referent's ([`ref-use-site`](#ref-use-site)). Where the node stays only because the carrier writes
+over the schema's documentation or examples, a deprecation, or an example nothing writes over, is
+still the carrier's. At a position no carrier
 holds, they land on the node the position owns. A parameter's or header's
 own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
 `$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the

@@ -184,7 +184,8 @@ for every use of that position, and each carrier holds only its own. The node ke
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
 verbatim, which stays where the promotion reads a key. A schema at a carrier writing these notes
 beside one `$ref` to an object, or beside an `allOf` of it, and nothing the carrier has no field
-for, builds no node: the carrier names the target and holds them ([decorators](#decorators)). One
+for but a `type` naming only what the target lowers to, builds no node: the carrier names the
+target and holds them ([decorators](#decorators)). One
 writing anything else beside them, or a note on a conjunct of its `allOf`, keeps them on the node
 it builds, a [decorator](#decorators) among them, which an emitter folds onto the carrier. A
 carried position that a reference names keeps them on its node too, its carrier holding none, so
@@ -270,12 +271,14 @@ wherever no carrier holds the annotations
 ([one structural home per declaration](#one-structural-home-per-declaration)).
 A keyword that binds only the use, `readOnly`, `writeOnly`, `default` or a `nullable` a policy reads
 as widening the reference, makes no decorator where a carrier holds the use: the carrier holds it
-and names `Status` itself. Nor does a note the carrier holds, its documentation, deprecation or
-examples, so `state: {allOf: [{$ref: Status}], description: …}` at a property names `Status` and
-holds the description, in either spelling. A note no carrier holds makes the decorator: one at an
-`items`, a union's branch or a component, one at a carried position a reference names, and one a
-parameter's or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a
-keyword beside it that only a node keeps and a note written on a conjunct of the `allOf`. A decorator holding a carrier's note as well was
+and names `Status` itself. Nor does a `type` naming only the kinds `Status` lowers to, nor a note
+the carrier holds, its documentation, deprecation or examples, so
+`state: {allOf: [{$ref: Status}], description: …}` at a property names `Status` and holds the
+description, in either spelling. A note no carrier holds makes the decorator: one at an `items`, a
+union's branch or a component, one at a carried position a reference names, and one a parameter's
+or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a keyword beside
+it that only a node keeps and a note written on a conjunct of the `allOf`. Where a written-over note
+makes it, a deprecation, or an example nothing writes over, is still the carrier's. A decorator holding a carrier's note as well was
 weighed and withdrawn (#2071): the two spellings agreed either way, but a reader of the carrier
 alone found the note there over a string target and not over an object one, and a target that
 became an object moved every user's note onto a node.
