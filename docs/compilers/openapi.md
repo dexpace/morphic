@@ -1829,16 +1829,16 @@ own `Docs` set over a string target and empty over an object one, so a reader of
 a differ, `pass` or a docs emitter not behind the fold, found the note on one and not the other, and
 a target changed from a string to an object moved its users' notes. Whether a carrier holds the
 position is read off where the schema is written, a property a schema lists or a parameter's or a
-header's schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the
-`Model` over the object the position owns for it, keeping the keywords as a declaration does. At a
-position that carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf`
-branch, an `items`, a component — the keywords beside the `$ref` are a conjunct of that position,
-as beside an `allOf` of the `$ref`: the node the position owns holds them, the `Model` over an
-object or the alias over anything else, and in an `allOf` entry they are an inline conjunct of the
+header's schema, never off the lowering that reaches it, so a `$ref` naming such a position reads
+the `Model` over the object the position owns for it, keeping the keywords as a declaration does. At
+a position that carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf`
+branch, an `items`, a component — the keywords beside the `$ref` are a conjunct of that position, as
+beside an `allOf` of the `$ref`: the node the position owns holds them, the `Model` over an object
+or the alias over anything else, and in an `allOf` entry they are an inline conjunct of the
 composition, an entry of their own at the entry's pointer that writes no reference, as
 `{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and reported once
-([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
-than override, so each position keeps the ones it declared and none is copied to a use site
+([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin
+rather than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
@@ -1998,8 +1998,8 @@ position a reference names, a `$ref`, a discriminator's mapping value or an expa
 keeps them on its node, which every reference to it reads, and its carrier holds none of them.
 Through a `$ref` the referent's land on the carrier under the use site's field by field
 ([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
-its `allOf`, keeps its own on the node it builds, unless it writes beside one `$ref` to an object, or
-beside an `allOf` of it, only these and the keywords that bind the use
+its `allOf`, keeps its own on the node it builds, unless it writes beside one `$ref` to an object,
+or beside an `allOf` of it, only these and the keywords that bind the use
 ([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming only what the referent
 declares, and the carrier holds them: it then builds no node, and the carrier holds them over the
 referent's ([`ref-use-site`](#ref-use-site)). Where the node stays only because the carrier writes

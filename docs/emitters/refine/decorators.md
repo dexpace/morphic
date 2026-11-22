@@ -13,14 +13,14 @@ holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
 annotation alone on a non-carrier position, `items: {type: string, example: x}`. At a property, a
 parameter or a header holding the annotations, where they and a `type` naming only what `Status`
-declares are all the position writes beyond its `$ref`, either spelling builds no node: the carrier names `Status` and holds them
-([annotations](../../ir/annotations.md#decorators)). So `CollapseAliases` keeps its work for the
-positions no carrier holds, an `items`, a union variant, a component, and for a carrier whose
-position writes beside its notes what only a node keeps, such as an extension, or whose own notes
-leave the schema's on the node ([`docs-and-deprecation`](../../compilers/openapi.md#docs-and-deprecation)),
-for a note written on a conjunct of the `allOf`, and for a carried position a reference names.
-None of these nodes
-says anything about a value that its `Base` does not. Lowered as written, each would be a type of
+declares are all the position writes beyond its `$ref`, either spelling builds no node: the
+carrier names `Status` and holds them ([annotations](../../ir/annotations.md#decorators)). So
+`CollapseAliases` keeps its work for the positions no carrier holds, an `items`, a union variant, a
+component, and for a carrier whose position writes beside its notes what only a node keeps, such
+as an extension, or whose own notes leave the schema's on the node
+([`docs-and-deprecation`](../../compilers/openapi.md#docs-and-deprecation)), for a note written on
+a conjunct of the `allOf`, and for a carried position a reference names. None of these nodes says
+anything about a value that its `Base` does not. Lowered as written, each would be a type of
 its own — a struct repeating a wrapped model's fields, or a second name for a wrapped enum
 ([scalars](scalars.md)), named from a hint — where every user expects the type it wraps.
 

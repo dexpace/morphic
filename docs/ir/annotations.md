@@ -285,9 +285,9 @@ makes it, a deprecation or an example nothing at the carrier writes over is stil
 decorator holding a carrier's note as well was weighed and withdrawn (#2071): the two spellings
 agreed either way, but a reader of the carrier alone found the note there over a string target and
 not over an object one, and a target that became an object moved every user's note onto a node.
-Neither the `Model` nor the alias says anything about a value that its `Base` does not. Such a node is a **decorator**,
-and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
-which is
+Neither the `Model` nor the alias says anything about a value that its `Base` does not. Such a node
+is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type whose
+`Base` is set, and which is
 
 - a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
   `Encoding`; and

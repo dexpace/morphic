@@ -94,7 +94,7 @@ func TestRefUseBound_ACarriedUseIsTheReference(t *testing.T) {
 // the $ref, which a node keeps and a carrier cannot, keeps the Model over Obj
 // at a carrier, and with the nullable-inference policy off a `nullable` there
 // widens nothing and is no use-bound keyword. With the kind-inference policy
-// off, an object a referent naming no kind does not lower to, a `type: object`
+// off, a referent naming no kind lowers to no object, so a `type: object`
 // beside it says something of its own, and the Model keeps the $ref it cannot
 // compose.
 func TestRefUseBound_AnotherKeywordKeepsTheModel(t *testing.T) {
@@ -279,10 +279,10 @@ func TestRefUseBound_ANoteIsTheCarriers(t *testing.T) {
 
 // TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode holds the other side of
 // the gate: where a carried position writes, beside its $ref and its note,
-// what a carrier has no field for, a type Obj does not lower to among it, or
-// writes the note on a conjunct of its own, the position owns the Model over
-// Obj, which holds the note, and each carrier names it and holds none of it,
-// as before.
+// what a carrier has no field for, a type Obj does not lower to, or a type
+// whose kind only the kind-inference policy reads, or writes the note on a
+// conjunct of its own, the position owns the Model over its referent, which
+// holds the note, and each carrier names it and holds none of it, as before.
 func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 	t.Parallel()
 	for name, schema := range map[string]string{
