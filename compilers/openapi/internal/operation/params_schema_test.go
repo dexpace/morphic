@@ -966,6 +966,8 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - {name: keyed, in: query, x-deprecated-reason: own, schema: "+list+"}\n"+
 			"        - {name: entrykey, in: query, content: {application/json: {x-deprecated-reason: own, schema: "+list+"}}}\n"+
 			"        - $ref: '#/components/parameters/Flagged'\n"+
+			"        - {name: capitalised, in: query, deprecated: True, schema: "+list+"}\n"+
+			"        - {name: unflagged, in: query, deprecated: false, schema: "+list+"}\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
 			"        - $ref: '#/components/parameters/Used'\n"+
@@ -998,6 +1000,9 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		{"keyed", "DOC", "", []string{"a"}, nil, nil, why},
 		{"entrykey", "DOC", "", []string{"a"}, nil, nil, why},
 		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		{"capitalised", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// A `deprecated: false` states nothing, so the schema's stands.
+		{"unflagged", "DOC", "", []string{"a"}, nil, why, nil},
 	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
