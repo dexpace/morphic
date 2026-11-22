@@ -362,8 +362,8 @@ func (r ruler) inapplicable(rule Rule) {
 // graded by the rule's level: the value of a string field, at the field, or a
 // key of a map field, at the key. OpenAPI says a definition under it SHALL be
 // ignored, a rule the compiler leaves to the emitter. The table runs before any
-// lowering decides whether the definition lowers, is kept verbatim or is
-// overridden, so the words claim none of those.
+// lowering decides what becomes of the definition, so the words claim nothing
+// of its fate.
 func reservedNames(rulerValue ruler, rule Rule) {
 	node := nodeview.Deref(rulerValue.f.byKey[rule.Field])
 	if node == nil || rulerValue.f.test(rule.When) != answerYes {

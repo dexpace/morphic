@@ -6674,10 +6674,11 @@ elsewhere, and an entry under it is reported the same way at the entry. Names co
 as HTTP compares field names. The rule table reports both ([`validation`](#validation)), wherever
 the object is written, so a component nothing references is reported, and one many operations use
 is reported once. The table runs before any lowering decides what becomes of the definition: an
-operation may lower it, a component nothing references is kept verbatim
-([`unreferenced-components`](#unreferenced-components)), and a path item's parameter an operation
-overrides is kept nowhere ([`parameters`](#parameters)). So the message states the reservation and
-that the compiler leaves it to the emitter, and claims nothing of the definition's fate.
+operation may lower it, an operation's own parameter may override it ([`parameters`](#parameters)),
+and it may be kept verbatim, as a component nothing references is
+([`unreferenced-components`](#unreferenced-components)) and a path item mounting no operation keeps
+its parameters ([`parameters`](#parameters)). So the message states the reservation and that the
+compiler leaves it to the emitter, and claims nothing of the definition's fate.
 
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
