@@ -1817,11 +1817,11 @@ dialect defines, says something of its own, and so does `type: object` over a re
 kind once the kind-inference policy is off, since the referent then lowers to no object.
 A note counts so only where the carrier holds it: where a reference names the position, the
 notes stay on the `Model`, which every reference reads; where the parameter or header writes its
-own documentation or examples, or a Reference Object naming it writes documentation beside its
-`$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own, while a
-deprecation, or an example nothing writes over, is still the carrier's, each note placed on its
-own as an inline schema's is. A note an entry of the `allOf` writes,
-as in `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
+own documentation, deprecation or examples, or a Reference Object naming it writes documentation
+beside its `$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own,
+while a deprecation or an example nothing at the carrier writes over is still the carrier's, each
+note placed on its own as an inline schema's is. A note an entry of the `allOf` writes, as in
+`{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
 conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
 extension, `xml` or a constraint among them. The node holding the note at a carrier as well was
 weighed and withdrawn. It kept the two spellings alike, as this does, but left a carrier's
@@ -2003,9 +2003,9 @@ beside an `allOf` of it, only these and the keywords that bind the use
 ([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming only what the referent
 lowers to, and the carrier holds them: it then builds no node, and the carrier holds them over the
 referent's ([`ref-use-site`](#ref-use-site)). Where the node stays only because the carrier writes
-over the schema's documentation or examples, a deprecation, or an example nothing writes over, is
-still the carrier's. At a position no carrier
-holds, they land on the node the position owns. A parameter's or header's
+over the schema's documentation, deprecation or examples, a deprecation or an example nothing at
+the carrier writes over is still the carrier's. At a position no carrier holds, they land on the
+node the position owns. A parameter's or header's
 own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
 `$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
 node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema

@@ -1294,8 +1294,8 @@ it sees. Changes made together in one bump are listed together under it.
   and no note, that `Model` held nothing. The `Model`
   stays, as before, where the position writes beside its notes what a carrier has no field for, or
   writes a note on a conjunct of its `allOf`, where a reference names the position, and where the
-  parameter or header, or a Reference Object naming it, writes its own documentation or examples
-  over the schema's. There a deprecation, or an example nothing writes over, is the carrier's even
-  though the node stays for the written-over docs, and the node holds neither. A consumer pinned
-  to 0.73.0 refuses the document; one reading an older document finds such a use's notes on the
-  decorator its type names, and none on the carrier.
+  parameter or header, or a Reference Object naming it, writes its own documentation, deprecation
+  or examples over the schema's. There a deprecation or an example nothing at the carrier writes
+  over is the carrier's even though the node stays for the written-over notes, and the node holds
+  neither. A consumer pinned to 0.73.0 refuses the document; one reading an older document finds
+  such a use's notes on the decorator its type names, and none on the carrier.

@@ -381,10 +381,10 @@ func TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode(t *testing.T) {
 // note follows (docs/ir/annotations.md#one-structural-home-per-declaration):
 // a parameter or header writing its own, or a Reference Object naming it
 // writing docs beside its $ref, leaves the schema's on the node, and a
-// position a $ref names keeps them for every reference. A note nothing writes
-// over is still the carrier's, beside one that is: a deprecation, which
-// either side states, and an example where only docs are written over. Both
-// component orders compile to one document.
+// position a $ref names keeps them for every reference. Each note is placed
+// on its own: one nothing at the carrier writes over, a deprecation or an
+// example, is still the carrier's beside one that is. Both component orders
+// compile to one document.
 func TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode(t *testing.T) {
 	t.Parallel()
 	const obj = "'#/components/schemas/Obj'"
@@ -401,6 +401,7 @@ func TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode(t *testing.T) {
         - {name: refObj, in: query, description: P, schema: {$ref: ` + obj + `, description: d, deprecated: true}}
         - {name: refObjEx, in: query, example: {a: p}, schema: {$ref: ` + obj + `, examples: [{a: s}], deprecated: true}}
         - {name: refObjDocs, in: query, description: P, schema: {$ref: ` + obj + `, description: d, example: {a: s}}}
+        - {name: refObjDep, in: query, deprecated: true, schema: {$ref: ` + obj + `, description: d, deprecated: true}}
       responses:
         "200":
           description: ok
@@ -434,7 +435,7 @@ components:
 		for _, param := range operation.Params {
 			params[param.Name.Source] = param
 		}
-		require.Len(t, params, 8)
+		require.Len(t, params, 9)
 
 		assert.Equal(t, "P", params["own"].Docs.Description)
 		assert.Equal(t, "d", node("/paths/~1x/get/parameters/0/schema").Docs.Description, "the schema's docs stay on the node")
@@ -475,6 +476,11 @@ components:
 		assert.Nil(t, refHeaderNode.Deprecation)
 		assert.Equal(t, "H", refHeader.Docs.Description)
 		assert.NotNil(t, refHeader.Deprecation)
+		refObjDep := node("/paths/~1x/get/parameters/8/schema")
+		assert.NotNil(t, refObjDep.Deprecation, "the written-over deprecation stays on the node")
+		assert.Empty(t, refObjDep.Docs.Description, "docs nothing at the carrier writes over are the carrier's")
+		assert.Equal(t, "d", params["refObjDep"].Docs.Description)
+		assert.NotNil(t, params["refObjDep"].Deprecation)
 
 		referenced := ir.TypeID("type/anonymous/components/schemas/H/properties/r1")
 		r1, ok := propertyByWire(requireEntryModelOf(t, doc, "H"), "r1")
@@ -489,7 +495,7 @@ components:
 		// Last, as exampleOf requires the example it reads.
 		refObjDocs := node("/paths/~1x/get/parameters/7/schema")
 		assert.Equal(t, "d", refObjDocs.Docs.Description)
-		assert.Empty(t, refObjDocs.Examples, "an example nothing writes over is the carrier's")
+		assert.Empty(t, refObjDocs.Examples, "an example nothing at the carrier writes over is the carrier's")
 		assert.Equal(t, "{a: s}", exampleOf(t, params["refObjDocs"].Examples))
 	})
 	require.Len(t, compiled, 2)
