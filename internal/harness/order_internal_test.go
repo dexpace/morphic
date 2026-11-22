@@ -1238,11 +1238,12 @@ func scalarValues(t *testing.T, docs []*yaml.Node) []string {
 	return values
 }
 
-// TestEncodeYAML_MisplacesABlockScalarLedByIndentation is the record of the
+// TestEncodeYAML_MisplacesABlockScalarLedByIndentation is the record of an
 // encoder behaviour restyleBlockScalars double-quotes for: a literal or
 // folded scalar led by a space or a line break, as a value of the mapping a
 // block sequence item opens, encodes to text that does not parse. Should the
-// encoder stop doing so, this goes red and the quoting can go.
+// encoder stop doing so, this goes red and a space and the line breaks can
+// leave ledByIndentation.
 func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
 	t.Parallel()
 	for _, style := range []yaml.Style{yaml.LiteralStyle, yaml.FoldedStyle} {
@@ -1259,11 +1260,11 @@ func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
 	}
 }
 
-// TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab is the record of the
-// other encoder behaviour restyleBlockScalars double-quotes for: a block scalar
-// led by a tab is written with no indentation indicator, at a root mapping's
-// value as in an item, and that text does not parse. Should the encoder stop
-// doing so, this goes red and a tab can leave ledByIndentation.
+// TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab is the record of an
+// encoder behaviour restyleBlockScalars double-quotes for: a block scalar led
+// by a tab is written with no indentation indicator, at a root mapping's value
+// as in an item, and that text does not parse. Should the encoder stop doing
+// so, this goes red and a tab can leave ledByIndentation.
 func TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab(t *testing.T) {
 	t.Parallel()
 	for name, src := range map[string]string{
@@ -1284,12 +1285,13 @@ func TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab(t *testing.T) {
 	}
 }
 
-// TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine is the record of the
+// TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine is the record of an
 // encoder behaviour restyleBlockScalars writes a folded scalar literal for: a
 // folded scalar holding a more-indented, tab-led or whitespace-only line
 // encodes with a line break more before that line, so its value reads back
-// changed. Should the encoder stop doing so, this goes red and the folded
-// scalar can keep its style.
+// changed. Should the encoder stop doing so, this goes red; the folded scalar
+// can keep its style once
+// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is red too.
 func TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine(t *testing.T) {
 	t.Parallel()
 	assertEachReadsBackChanged(t, map[string]string{
@@ -1300,9 +1302,9 @@ func TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine(t *testing.T) {
 }
 
 // TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is the record of
-// an encoder behaviour restyleBlockScalars double-quotes a scalar ending in two
-// line breaks for: a kept folded scalar ending in a blank line encodes with a
-// line break more at its end. Should the encoder stop doing so, this goes red.
+// an encoder behaviour restyleBlockScalars writes a folded scalar literal for:
+// a kept folded scalar ending in a blank line encodes with a line break more at
+// its end. Should the encoder stop doing so, this goes red.
 func TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines(t *testing.T) {
 	t.Parallel()
 	assertEachReadsBackChanged(t, map[string]string{

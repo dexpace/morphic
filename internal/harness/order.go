@@ -450,9 +450,11 @@ func tagEmptyFirstDocument(docs []*yaml.Node) {
 // double-quotes each literal one led by a space, a tab or a line break
 // (ledByIndentation) or ending in two line breaks (endsInTwoLineBreaks).
 // Encoded folded, a value holding a more-indented, tab-led or whitespace-only
-// line gains a break (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine);
-// literal, it reads alike. Double-quoted, the value and a tag other than a
-// string's are written back. It declines a tree nested past the bound.
+// line gains a break (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine),
+// and so does one kept and ending blank
+// (TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines); literal, it
+// reads alike. Double-quoted, the value and a tag other than a string's are
+// written back. It declines a tree nested past the bound.
 func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
@@ -489,10 +491,8 @@ func ledByIndentation(value string) bool {
 
 // endsInTwoLineBreaks reports whether value's last two runes are line breaks
 // the encoder writes a block scalar kept for: a line feed, a line separator or
-// a paragraph separator. Kept, a folded scalar ending in a blank line reads
-// back with a line break more at its end
-// (TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines), and so does a
-// literal one as the last node of a document a comment ends
+// a paragraph separator. Kept, a literal scalar as the last node of a document
+// a comment ends reads back with a line break more at its end
 // (TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar). A value
 // ending in a carriage return or a next line the encoder writes double-quoted
 // itself.
