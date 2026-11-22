@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // position is a place where a type, bounds and a value meet: a property, a
@@ -21,22 +22,37 @@ type position struct {
 	own  *ir.Constraints
 	// encoded says the value is written in an encoding of its own, so its kind
 	// says nothing of what the type holds.
-	encoded  bool
-	def      *ir.Value
-	examples []ir.Example
+	encoded bool
+	// serializedExamples says the position's examples are its value as its
+	// style writes it on the wire, so a scalar one of a list is the list
+	// written out. Its default is a value of the type all the same. An example
+	// does not say which form it is in, so a scalar written as the list's data
+	// goes unjudged (docs/ir/values.md#values-held-to-their-type).
+	serializedExamples bool
+	def                *ir.Value
+	examples           []ir.Example
+}
+
+// positionScratch is what eachPosition reads a document through, emptied
+// between operations: a content's part keys in sorted order, and the
+// parameters of one operation an HTTP binding writes whole in a style that
+// can write a list.
+type positionScratch struct {
+	keys   []ir.PropertyID
+	styled scratchstate.Map[ir.ParameterID, struct{}]
 }
 
 // eachPosition calls visit with each property of a live model, in liveTypeIDs
 // order, then each header of a service's common errors, then each parameter and
 // header of each operation as ir.ForEachOperation visits them: its parameters,
 // the headers of its responses, its default and its errors, and last the
-// headers of a content's parts, the parts in sorted order, read through keys.
-// visit must not keep its argument.
+// headers of a content's parts, the parts in sorted order, read through
+// scratch, which each operation empties. visit must not keep its argument.
 //
 // Not read: Property.Args, which is GraphQL's, and a resource's properties,
 // which no compiler writes (#1413). A stop of ir.ForEachOperation is the one
 // Validate reports for each check that visits operations.
-func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, visit func(*position)) {
+func eachPosition(doc *ir.Document, live []ir.TypeID, scratch *positionScratch, visit func(*position)) {
 	var positionValue position
 	for _, id := range live {
 		model, ok := doc.Types[id].(*ir.Model)
@@ -52,7 +68,7 @@ func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropertyID, vis
 			headerPositions(&positionValue, doc.Services[i].CommonErrors[j].Headers, string(doc.Services[i].ID), visit)
 		}
 	}
-	ir.ForEachOperation(doc, func(operation ir.Operation) { operationPositions(&positionValue, &operation, keys, visit) })
+	ir.ForEachOperation(doc, func(operation ir.Operation) { operationPositions(&positionValue, &operation, scratch, visit) })
 }
 
 // propertyPosition fills positionValue from pr, a property of owner, which
@@ -69,20 +85,63 @@ func propertyPosition(positionValue *position, pr *ir.Property, owner string) *p
 	return positionValue
 }
 
-// headerPositions visits each of headers, which belong to owner.
+// headerPositions visits each of headers, which belong to owner. A header
+// stating no style is written in simple's, unless an encoding serializes it,
+// which encoded says already.
 func headerPositions(positionValue *position, headers []ir.Header, owner string, visit func(*position)) {
 	for i := range headers {
-		visit(propertyPosition(positionValue, &headers[i].Property, owner))
+		header := &headers[i]
+		propertyPosition(positionValue, &header.Property, owner)
+		style := header.Style
+		if style == "" {
+			style = "simple"
+		}
+		positionValue.serializedExamples = writesList(style, header.Explode)
+		visit(positionValue)
 	}
 }
 
+// writesList reports whether a value written in style, exploded as explode
+// says, may be a list: OpenAPI's style table gives a list a text under every
+// style but deepObject, and under a delimited style only where it does not
+// explode, its default. A style it does not define writes none
+// (docs/ir/values.md#values-held-to-their-type).
+func writesList(style string, explode *bool) bool {
+	switch style {
+	case "simple", "form", "label", "matrix", "cookie":
+		return true
+	case "spaceDelimited", "pipeDelimited":
+		return explode == nil || !*explode
+	default:
+		return false
+	}
+}
+
+// styledParameters returns the parameters of operation one of its HTTP
+// bindings writes whole in a style that can write a list, in the emptied map
+// styled holds.
+func styledParameters(operation *ir.Operation, styled *scratchstate.Map[ir.ParameterID, struct{}]) map[ir.ParameterID]struct{} {
+	written := styled.Emptied()
+	for i := range operation.Bindings.HTTP {
+		for j := range operation.Bindings.HTTP[i].ParamBindings {
+			pb := &operation.Bindings.HTTP[i].ParamBindings[j]
+			if len(pb.ParamPath) == 0 && writesList(pb.Style, pb.Explode) {
+				written[pb.Param] = struct{}{}
+			}
+		}
+	}
+	return written
+}
+
 // operationPositions visits the positions of operation.
-func operationPositions(positionValue *position, operation *ir.Operation, keys *[]ir.PropertyID, visit func(*position)) {
+func operationPositions(positionValue *position, operation *ir.Operation, scratch *positionScratch, visit func(*position)) {
+	styled := styledParameters(operation, &scratch.styled)
 	for i := range operation.Params {
 		pm := &operation.Params[i]
+		_, serialized := styled[pm.ID]
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			def: pm.Default, examples: pm.Examples,
+			serializedExamples: serialized, def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}
@@ -96,15 +155,15 @@ func operationPositions(positionValue *position, operation *ir.Operation, keys *
 	for i := range operation.Errors {
 		headerPositions(positionValue, operation.Errors[i].Headers, owner, visit)
 	}
-	partPositions(positionValue, operation.Request, owner, keys, visit)
+	partPositions(positionValue, operation.Request, owner, &scratch.keys, visit)
 	for i := range operation.Responses {
-		partPositions(positionValue, operation.Responses[i].Payload, owner, keys, visit)
+		partPositions(positionValue, operation.Responses[i].Payload, owner, &scratch.keys, visit)
 	}
 	if operation.Default != nil {
-		partPositions(positionValue, operation.Default.Payload, owner, keys, visit)
+		partPositions(positionValue, operation.Default.Payload, owner, &scratch.keys, visit)
 	}
 	for i := range operation.Errors {
-		partPositions(positionValue, operation.Errors[i].Payload, owner, keys, visit)
+		partPositions(positionValue, operation.Errors[i].Payload, owner, &scratch.keys, visit)
 	}
 }
 

@@ -24,6 +24,9 @@ type valueSite struct {
 	// encoded says the value is written in an encoding, so its kind says
 	// nothing of what the type holds.
 	encoded bool
+	// serialized says the value is written as the position's style writes it
+	// on the wire, so a scalar may be a list written out.
+	serialized bool
 	// typeLevel says the value is an example of the type itself, for which
 	// null stands for an example that is absent and is never judged.
 	typeLevel bool
@@ -42,12 +45,13 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
 		diags = site.appendExamples(diags, typeCommon.Examples)
 	}
-	var keys []ir.PropertyID
-	eachPosition(doc, live, &keys, func(positionValue *position) {
+	var scratch positionScratch
+	eachPosition(doc, live, &scratch, func(positionValue *position) {
 		site := valueSite{doc: doc, node: positionValue.node, from: positionValue.from, ref: positionValue.typ, own: positionValue.own, encoded: positionValue.encoded}
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
+		site.serialized = positionValue.serializedExamples // the examples alone: a default is a value
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
@@ -142,8 +146,9 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
-// type nothing declares, one holding anything, a union or an external type, and
-// a value written in an encoding.
+// type nothing declares, one holding anything, a union or an external type, a
+// value written in an encoding, and a scalar a serialized site writes for a
+// list.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -179,7 +184,7 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked {
+	if s.encoded || enc || sh == shapeNotChecked || (s.serialized && sh == shapeList && scalar(value.Kind)) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
@@ -221,6 +226,12 @@ func admits(sh shape, valueKind ir.ValueKind) bool {
 	default:
 		return valueKind == ir.ValueObject // shapeObject: no other shape is asked
 	}
+}
+
+// scalar reports whether a value of kind valueKind is a string, a number or a
+// bool, the kinds a style writes a value of as text.
+func scalar(valueKind ir.ValueKind) bool {
+	return valueKind == ir.ValueString || valueKind == ir.ValueNumber || valueKind == ir.ValueBool
 }
 
 // shapeWords says what a type of shape sh holds.
