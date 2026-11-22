@@ -28,9 +28,10 @@ type valueSite struct {
 	// the wire, so a scalar of such a shape may be a list or an object written
 	// out.
 	serialized shapeSet
-	// typeLevel says the value is an example of the type itself, for which
-	// null stands for an example that is absent and is never judged.
-	typeLevel bool
+	// nullAbsent says a null value stands for an example that is absent and
+	// is never judged: an example of the type itself, and one of a parameter
+	// or a header that is not required, the value left out.
+	nullAbsent bool
 }
 
 // checkValues reports each default and each example whose value its type does
@@ -43,7 +44,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range live {
 		typeCommon := doc.Types[id].Common()
-		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
+		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, nullAbsent: true}
 		diags = site.appendExamples(diags, typeCommon.Examples)
 	}
 	var scratch positionScratch
@@ -52,7 +53,8 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
-		site.serialized = positionValue.serializedExamples // the examples alone: a default is a value
+		// the examples alone: a default is a value
+		site.serialized, site.nullAbsent = positionValue.serializedExamples, positionValue.nullExampleLeftOut
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
@@ -161,7 +163,7 @@ func (s *valueSite) fits(value *ir.Value) string {
 		return ""
 	}
 	target := s.ref.Target
-	nullOK := s.ref.Nullable || s.typeLevel
+	nullOK := s.ref.Nullable || s.nullAbsent
 	switch t := td.(type) {
 	case *ir.Union, *ir.External:
 		return ""

@@ -29,6 +29,10 @@ type position struct {
 	// example does not say which form it is in, so a scalar written as the
 	// value's data goes unjudged (docs/ir/values.md#values-held-to-their-type).
 	serializedExamples shapeSet
+	// nullExampleLeftOut says the position is a parameter or a header that is
+	// not required, so a null example is the value left out, not a null sent.
+	// Its default is a value of the type all the same.
+	nullExampleLeftOut bool
 	def                *ir.Value
 	examples           []ir.Example
 }
@@ -97,6 +101,7 @@ func headerPositions(positionValue *position, headers []ir.Header, owner string,
 			style = "simple"
 		}
 		positionValue.serializedExamples = shapesWritten(style, header.Explode)
+		positionValue.nullExampleLeftOut = !header.Required
 		visit(positionValue)
 	}
 }
@@ -166,7 +171,7 @@ func operationPositions(positionValue *position, operation *ir.Operation, scratc
 		pm := &operation.Params[i]
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			serializedExamples: styled[pm.ID], def: pm.Default, examples: pm.Examples,
+			serializedExamples: styled[pm.ID], nullExampleLeftOut: !pm.Required, def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}

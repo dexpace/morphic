@@ -64,6 +64,16 @@ examples, a type's own examples (a null one says the example is absent and is no
 operation's examples each input parameter against the parameter it names, and the error content
 against the error's type.
 
+A null example of a parameter or a header that is not `Required` stands for the value left out, as a
+source writes one to show that it may be omitted, and is not judged, whatever its type: a query,
+path, cookie or header field has no null to write, so absent is all a null there can mean. A
+parameter a binding's `ContentType` serializes is read alike: its media type could write a null, but
+its type admits none, so a null example is no value it sends. Still judged: a null example of a
+required one; a null default, which is written into code; a property's null example, since an object
+can hold a member whose value is null, a state `Property.Required` and `TypeRef.Nullable` keep apart
+from the member left out; and a scenario's null input, since a scenario leaves a parameter out by
+not naming it.
+
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string, number or bool example of a list or an object (a model or a map) is
 that value written out where the position is written in a style that can write its shape: a

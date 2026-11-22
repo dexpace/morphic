@@ -68,8 +68,9 @@ func ofType(typ ir.TypeRef, value *ir.Value) func(*ir.Parameter) {
 // written out where an HTTP binding writes the whole parameter in a style that
 // can write that shape, as OpenAPI reads a parameter's example, and to be
 // judged everywhere else: under no binding, a content type, a style that writes
-// no such shape or a binding of a member, as null or the other structured
-// shape, for a type of neither shape, and as an example the type gives.
+// no such shape or a binding of a member, as null of a required parameter or
+// the other structured shape, for a type of neither shape, and as an example
+// the type gives.
 func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *testing.T) {
 	t.Parallel()
 	asString := "example 0 is a string, and type/l holds a list"
@@ -113,7 +114,9 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 			parameter.Examples = []ir.Example{{Value: list}}
 			parameter.Constraints = &ir.Constraints{MaxItems: new(int64(1))}
 		}, bindsQ(styled("form", nil))), []finding{{"parameter/x/q", "example 0 lies outside the bounds declared for it"}}},
-		{"null under form", parameterOperation(withExample(null()), bindsQ(styled("form", nil))),
+		{"null of a required parameter under form", parameterOperation(func(parameter *ir.Parameter) {
+			parameter.Required, parameter.Examples = true, []ir.Example{{Value: null()}}
+		}, bindsQ(styled("form", nil))),
 			[]finding{{"parameter/x/q", "example 0 is null, and type/l is not nullable here"}}},
 		{"a string the parameter's list type gives under form", func() *ir.Document {
 			doc := parameterOperation(func(*ir.Parameter) {}, bindsQ(styled("form", nil)))
