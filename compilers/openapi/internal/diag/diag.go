@@ -402,10 +402,11 @@ const (
 	//   - §4.8.17, a Content-Type entry in a response's headers map;
 	//   - §4.8.15, a Content-Type entry in an encoding's headers map.
 	//
-	// The declaration is kept, since dropping it is a loss and an emitter's call
-	// (invariant 2; GitHub #39); the diagnostic lets an emitter suppress it. It is
-	// unconditional, not an Options switch, because nothing is inferred (invariant
-	// 6). Warning, not error: the document is well-formed.
+	// The compiler drops no declaration for its name, since dropping it is a
+	// loss and an emitter's call (invariant 2; GitHub #39); the diagnostic lets
+	// an emitter suppress it. It is unconditional, not an Options switch,
+	// because nothing is inferred (invariant 6). Warning, not error: the
+	// document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnloweredConstruct reports a construct malformed or contradictory, so not
 	// lowered as written: a consumer gets the IR without it. A default no

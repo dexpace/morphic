@@ -83,9 +83,9 @@ func TestCheck_ReservedHeaderEntries(t *testing.T) {
 
 // TestCheck_ReservedHeaderMessagesHoldUnreferenced pins the words of both
 // reserved-name findings in a document whose components nothing references:
-// the table runs before any lowering and cannot know whether one will reach
-// the object, and a component no lowering reaches is kept verbatim, so neither
-// message may say the object is lowered.
+// the table runs before any lowering and cannot know what becomes of the
+// object, so each message states the reservation and who applies it, and
+// claims no fate for the definition.
 func TestCheck_ReservedHeaderMessagesHoldUnreferenced(t *testing.T) {
 	diagnostics := run(t, "3.1.0", specrules.Document, "{openapi: 3.1.0, info: {title: t, version: '1'}, components: {"+
 		"parameters: {U: {name: Accept, in: header, schema: {type: string}}}, "+
@@ -98,10 +98,9 @@ func TestCheck_ReservedHeaderMessagesHoldUnreferenced(t *testing.T) {
 	}
 	assert.Equal(t, map[string]string{
 		"/components/parameters/U/name": `header parameter "Accept" is reserved: OpenAPI says a definition for ` +
-			"Accept SHALL be ignored, so it is kept as declared and left for the emitter to suppress",
+			"Accept SHALL be ignored, a rule the compiler leaves to the emitter",
 		"/components/responses/R/headers/content-type": `header "content-type" is reserved: OpenAPI says a ` +
-			"Content-Type entry in a headers map SHALL be ignored, so it is kept as declared and left for the " +
-			"emitter to suppress",
+			"Content-Type entry in a headers map SHALL be ignored, a rule the compiler leaves to the emitter",
 	}, messages)
 }
 

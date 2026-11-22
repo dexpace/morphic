@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
@@ -103,23 +104,26 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 	}
 }
 
-// TestReservedHeaderNames_MessageHoldsWhereNothingLowers holds the finding at
-// a component nothing references, which is kept verbatim under Unmodeled and
-// lowers nowhere, to the words of the finding at one an operation lowers: each
-// says the definition is kept as declared, and neither that it is lowered.
+// TestReservedHeaderNames_MessageHoldsWhereNothingLowers pins the words of the
+// finding at three fates: a component an operation lowers, one nothing
+// references, kept verbatim under Unmodeled, and a path item's parameter its
+// operation overrides, which is kept nowhere. The table reports before any
+// lowering decides a fate, so the words state the reservation and who applies
+// it, and claim no fate.
 func TestReservedHeaderNames_MessageHoldsWhereNothingLowers(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
+    parameters: [{name: Accept, in: header, description: path-level, schema: {type: string}}]
     get:
       operationId: g
       parameters: [{$ref: '#/components/parameters/Used'}]
       responses: {"204": {description: ok}}
 components:
   parameters:
-    Used: {name: Accept, in: header, schema: {type: string}}
+    Used: {name: Accept, in: header, description: used, schema: {type: string}}
     Unused: {name: Accept, in: header, schema: {type: string}}
   responses:
     Unused: {description: ok, headers: {Content-Type: {schema: {type: string}}}}
@@ -129,12 +133,21 @@ components:
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/Used", "an operation lowers it")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/parameters/Unused", "nothing lowers it")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/Unused", "nothing lowers it")
+	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
+	require.Len(t, params, 1, "the operation's Accept overrides its path item's")
+	assert.Equal(t, "used", params[0].Docs.Description)
+	for key, entry := range doc.Unmodeled {
+		assert.NotContains(t, string(entry.Value), "path-level", "the overridden definition is kept nowhere: %s", key)
+	}
 
 	const parameter = `header parameter "Accept" is reserved: OpenAPI says a definition for Accept SHALL be ` +
-		"ignored, so it is kept as declared and left for the emitter to suppress"
-	assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Used/name"))
-	assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Unused/name"))
+		"ignored, a rule the compiler leaves to the emitter"
+	for _, pointer := range []string{
+		"/components/parameters/Used/name", "/components/parameters/Unused/name", "/paths/~1a/parameters/0/name",
+	} {
+		assert.Equal(t, parameter, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
+	}
 	assert.Equal(t, `header "Content-Type" is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be `+
-		"ignored, so it is kept as declared and left for the emitter to suppress",
+		"ignored, a rule the compiler leaves to the emitter",
 		messageAt(t, diags, diag.ReservedHeaderName, "/components/responses/Unused/headers/Content-Type"))
 }
