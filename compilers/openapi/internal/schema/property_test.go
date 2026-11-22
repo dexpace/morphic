@@ -457,6 +457,50 @@ func TestCarriedAnnotations_ANoteBesideARefIsTheCarriers(t *testing.T) {
 	}
 }
 
+// TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentHasIt holds
+// that a `type` beside a $ref to an object binds the use only where it names
+// the object alone: then the property names Base and holds the note, and a
+// type naming another kind, naming null, or listing a word no dialect defines,
+// whose error the document draws, keeps the node holding the note.
+func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentHasIt(t *testing.T) {
+	t.Parallel()
+	const base = "    Base: {type: object, properties: {b: {type: string}}}\n"
+	for name, tc := range map[string]struct {
+		schema string
+		use    bool
+		errs   []string
+	}{
+		"the referent's kind": {"{allOf: [{$ref: '#/components/schemas/Base'}], type: object, description: D}", true, nil},
+		"another kind":        {"{$ref: '#/components/schemas/Base', type: array, description: D}", false, nil},
+		"null":                {"{$ref: '#/components/schemas/Base', type: [object, 'null'], description: D}", false, nil},
+		"an undefined word": {"{$ref: '#/components/schemas/Base', type: [object, objekt], description: D}", false,
+			[]string{"openapi/validation/validation-allowed-values"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", base+"    A: {type: object, properties: {p: "+tc.schema+"}}\n"))
+			var errs []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					errs = append(errs, d.Code)
+				}
+			}
+			assert.Equal(t, tc.errs, errs)
+			property := propertyOf(t, doc, "A", "p")
+			node := ir.TypeID("type/anonymous/components/schemas/A/properties/p")
+			if tc.use {
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"), property.Type.Target)
+				assert.Equal(t, "D", property.Docs.Description)
+				assert.NotContains(t, doc.Types, node)
+				return
+			}
+			assert.Equal(t, node, property.Type.Target)
+			assert.Empty(t, property.Docs.Description)
+			assert.Equal(t, "D", doc.Types[node].Common().Docs.Description)
+		})
+	}
+}
+
 // carriedNotes is what a carrier holds of its schema's notes, and the type it
 // names.
 type carriedNotes struct {
