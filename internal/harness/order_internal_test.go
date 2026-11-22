@@ -1466,7 +1466,7 @@ func TestEncodeFaithfully_WritesAScalarEndingInTwoLineBreaksBack(t *testing.T) {
 			return docs
 		}
 	}
-	for _, value := range []string{"x\u2028\n", "x\n\u2029", "x\u2028\u2028"} {
+	for _, value := range []string{"x\u2028\n", "x\n\u2029", "x\u2029\u2028"} {
 		tests[fmt.Sprintf("built, ending %q", value)] = func(*testing.T) []*yaml.Node {
 			mapping := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
 				scalarNode("a"), {Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: value},
@@ -1525,7 +1525,7 @@ func TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten(t *testing.T) {
 		}
 		return out
 	}
-	docs, why := parseStream([]byte("- k: ' x'\n  j: \" x\"\n  l: |\n    text\n  m: |-\n    text\n    more\n"))
+	docs, why := parseStream([]byte("- k: ' x'\n  j: \" x\"\n  l: |\n    text\n  m: |-\n    text\n    x\n"))
 	require.Empty(t, why)
 	item := docs[0].Content[0].Content[0]
 	item.Content = append(item.Content, scalarNode("r"), &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: "\rx\n"})
