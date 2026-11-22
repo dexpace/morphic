@@ -94,7 +94,7 @@ func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (doc
 // object agrees.
 func writesDeprecation(promoter promotion.Promoter, object, entry *yaml.Node) bool {
 	flag := nodeview.Deref(nodeview.Child(object, "deprecated"))
-	if flag != nil && flag.Kind == yaml.ScalarNode && flag.ShortTag() == "!!bool" && strings.EqualFold(flag.Value, "true") {
+	if flag != nil && flag.ShortTag() == "!!bool" && strings.EqualFold(flag.Value, "true") {
 		return true
 	}
 	for _, mapping := range [...]*yaml.Node{object, entry} {
