@@ -150,8 +150,8 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
 // type nothing declares, one holding anything, a union or an external type, a
-// value written in an encoding, and a scalar a serialized site writes for a
-// list or an object, where the site's style writes that shape.
+// value written in an encoding, and a scalar that may be a list or an object
+// written out in the site's style, as writtenOut says.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -187,10 +187,38 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked || (scalar(value.Kind) && s.writtenShapes.has(sh)) {
+	if s.encoded || enc || sh == shapeNotChecked || s.writtenOut(value, sh, td) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
+}
+
+// writtenOut reports whether value, which is not null, may be a value of td, of
+// shape sh, written out in the site's style, where the style writes that shape:
+// a string as its text, and a number or a bool, which holds no delimiter, only
+// as the one item of a list whose element type settles to text, to anything or
+// to a shape admitting its kind. So it is never an object's text, nor a tuple's,
+// whose items have no one type, and no other kind is ever text. A number or a
+// bool for a list of an enum, a literal or a union is judged against the list,
+// though it may be one of its items: telling needs the item judged.
+func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef) bool {
+	if !s.writtenShapes.has(sh) {
+		return false
+	}
+	switch value.Kind {
+	case ir.ValueString:
+		return true
+	case ir.ValueNumber, ir.ValueBool:
+		list, ok := td.(*ir.List)
+		if !ok {
+			return false
+		}
+		var elementBounds bounds
+		item, _, _ := settle(s.doc, list.ElementType.Target, &elementBounds)
+		return item == shapeText || item == shapeAnything || admits(item, value.Kind)
+	default:
+		return false
+	}
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the
@@ -229,12 +257,6 @@ func admits(sh shape, valueKind ir.ValueKind) bool {
 	default:
 		return valueKind == ir.ValueObject // shapeObject: no other shape is asked
 	}
-}
-
-// scalar reports whether a value of kind valueKind is a string, a number or a
-// bool, the kinds a style writes a value of as text.
-func scalar(valueKind ir.ValueKind) bool {
-	return valueKind == ir.ValueString || valueKind == ir.ValueNumber || valueKind == ir.ValueBool
 }
 
 // shapeWords says what a type of shape sh holds.

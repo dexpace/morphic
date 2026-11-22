@@ -71,24 +71,31 @@ is absent and is not judged), and in an operation's examples each input paramete
 parameter it names, and the error content against the error's type.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
-OpenAPI reads them, so a string, number or bool example of a list or an object (a model or a map) is
-that value written out where the position is written in a style that can write its shape: a
-parameter an HTTP binding writes whole under a `Style`, and a header under its `Style`, `simple`
-where it states none. A style can write a shape where OpenAPI's style table gives it a text: a list
-under every style but `deepObject`, and an object under every style, `deepObject` included at any
-`Explode`, while `spaceDelimited` or `pipeDelimited` writes either only where it does not explode; a
-style the table does not name writes neither. So under `deepObject` a scalar example of a list is
-judged, and one of an object is not. Such a scalar is not split on the style's delimiter and judged
-item by item or member by member, which would need each style's grammar. No other binding writes a
-value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or by no binding, one a
-binding writes only a member of, and a property, has a scalar example of a list or an object judged,
-unless an encoding writes it. A default is a value of the type, written into code, and so is a
-scenario's input, which holds each parameter's value whatever its binding, and a type's own
-examples, which OpenAPI's Schema Object gives without regard to how a parameter is written, even
-where the type is a parameter's own: a style excuses none of them. An example's `Value` does not say
-which form it is in, so one position's examples may mix the two, and a scalar written as the list's
-or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a position: telling the
-two apart needs `ir.Example` to record the form.
+OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value
+written out where the position is written in a style that can write its shape: a parameter an HTTP
+binding writes whole under a `Style`, and a header under its `Style`, `simple` where it states none.
+A style can write a shape where OpenAPI's style table gives it a text: a list under every style but
+`deepObject`, and an object under every style, `deepObject` included at any `Explode`, while
+`spaceDelimited` or `pipeDelimited` writes either only where it does not explode; a style the table
+does not name writes neither. So under `deepObject` a string example of a list is judged, and one of
+an object is not. Such a string is not split on the style's delimiter and judged item by item or
+member by member, which would need each style's grammar. A number or a bool holds no delimiter, so
+it is decided by its kind alone: it is never an object's text, and is a list's text only as its one
+item, where the style writes a list and the list's element type settles to text, to a type holding
+anything, or to a shape admitting the value's kind, as a number does an integer. Every other number
+or bool example of a list is judged: a number for a list of booleans, a bool for a list of numbers,
+either for a tuple, whose items have no one type, and either for a list of an enum, a literal or a
+union, though it may be one of its items, since telling needs the item judged against its type. No
+other binding writes a value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or
+by no binding, one a binding writes only a member of, and a property, has every scalar example of a
+list or an object judged, unless an encoding writes it. A default is a value of the type, written
+into code, and so is a scenario's input, which holds each parameter's value whatever its binding,
+and a type's own examples, which OpenAPI's Schema Object gives without regard to how a parameter is
+written, even where the type is a parameter's own: a style excuses none of them. An example's
+`Value` does not say which form it is in, so one position's examples may mix the two, and a scalar
+written as the list's or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a
+position wherever it could be that value written out: telling the two apart needs `ir.Example` to
+record the form.
 
 Not judged: a content's and a message's examples, which are in a media type's format, not the type's
 value (whether a JSON content's are held is #1949); a scenario's `Body` and `Output`, which are one

@@ -152,6 +152,65 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 		})), nil},
 		{"a string of an object under no binding", parameterOperation(ofType(objectT, text("R,100"))), objectJudged},
 		{"a string of a map under form", parameterOperation(ofType(mapT, text("R,100")), bindsQ(styled("form", nil))), nil},
+		{"a number of an object under form", parameterOperation(ofType(objectT, number("5")), bindsQ(styled("form", nil))),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/o holds an object"}}},
+		{"a bool of a map under deepObject", parameterOperation(ofType(mapT, &ir.Value{Kind: ir.ValueBool, Bool: true}),
+			bindsQ(styled("deepObject", on))), []finding{{"parameter/x/q", "example 0 is a bool, and type/m holds an object"}}},
+		{"a number of an object under simple", parameterOperation(ofType(objectT, number("42")), bindsQ(styled("simple", nil))),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/o holds an object"}}},
+		{"a bool of a list of integers under form", itemOperation(intT, &ir.Value{Kind: ir.ValueBool, Bool: true}),
+			[]finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a number of a list of bools under form", itemOperation(boolT, number("7")),
+			[]finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, found(t, tc.doc, exampleCode))
+		})
+	}
+}
+
+// itemOperation is parameterOperation under form whose parameter is of the
+// list type/i, of element type element, with the one example value.
+func itemOperation(element ir.TypeRef, value *ir.Value) *ir.Document {
+	doc := parameterOperation(ofType(ir.TypeRef{Target: "type/i"}, value), bindsQ(styled("form", nil)))
+	doc.Types["type/i"] = &ir.List{ID: "type/i", ElementType: element, Provenance: provAt("type/i")}
+	return doc
+}
+
+// TestValidate_ANumberOrABoolIsOneItemOfAListsText holds a number or a bool
+// example of a list a style writes to be its text only as the one item it
+// is, since it holds no delimiter: accepted where the element type settles to
+// text, to anything or to a shape admitting the value's kind, and judged where
+// it settles to another shape or to a type the check reads no further, and for
+// a tuple, whose items have no one type. A string is accepted whatever the
+// element type, being text a style may split.
+func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
+	t.Parallel()
+	asNumber := []finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}
+	on := &ir.Value{Kind: ir.ValueBool, Bool: true}
+	decimalT := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}
+	enumT := ir.TypeRef{Target: "type/e"}
+	tuple := itemOperation(intT, number("7"))
+	tuple.Types["type/i"] = &ir.Tuple{ID: "type/i", ElementTypes: []ir.TypeRef{intT}, Provenance: provAt("type/i")}
+	enum := itemOperation(enumT, number("8"))
+	enum.Types["type/e"] = &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveInteger, Provenance: provAt("type/e"), Members: []ir.EnumMember{
+		{ID: "enum-member/e/7", Value: *number("7")},
+	}}
+	for _, tc := range []struct {
+		name string
+		doc  *ir.Document
+		want []finding
+	}{
+		{"a number of a list of integers", itemOperation(intT, number("7")), nil},
+		{"a number of a list of strings", itemOperation(stringT, number("7")), nil},
+		{"a number of a list of anything", itemOperation(anyT, number("7")), nil},
+		{"a bool of a list of bools", itemOperation(boolT, on), nil},
+		{"a bool of a list of strings", itemOperation(stringT, on), nil},
+		{"a bool of a list of numbers", itemOperation(decimalT, on), []finding{{"parameter/x/q", "example 0 is a bool, and type/i holds a list"}}},
+		{"a number of a list of an enum it is no member of", enum, asNumber},
+		{"a number of a tuple", tuple, asNumber},
+		{"a string of a list of integers", itemOperation(intT, text("a,b")), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
