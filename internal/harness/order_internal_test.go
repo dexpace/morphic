@@ -1120,9 +1120,10 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 // space inside a block sequence item (#2153), where the encoder writes an
 // indentation indicator the decoder reads as ending the scalar. The neighbours
 // that never tripped it, the scalar outside a sequence item, led by text, or
-// written double-quoted, stay asked, and so does the info's description folded
-// around a more-indented line, which the encoder writes a break more before.
-// The sequence oracle reverses the allOf of the last rows.
+// written double-quoted, stay asked. So do two the encoder trips on anywhere:
+// the info's description folded around a more-indented line, given a break
+// more, and led by a tab, given no indicator. The sequence oracle reverses the
+// allOf of the last rows.
 func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
 	const opening = "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\npaths: {}\n"
 	allOf := func(description string) string {
@@ -1169,6 +1170,12 @@ func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
 			name: "the info's description folded around an indented line",
 			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n  description: >\n    Call it like this:\n\n" +
 				"      curl https://example.com\n\n    and read the reply.\npaths: {}\n" +
+				"components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n",
+			sequence: passed(OracleSequenceOrder),
+		},
+		{
+			name: "the info's description led by a tab",
+			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n  description: |2\n    \ttext led by a tab\npaths: {}\n" +
 				"components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n",
 			sequence: passed(OracleSequenceOrder),
 		},
@@ -1243,6 +1250,31 @@ func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
 				assert.Equal(t, DeclineNotYAML, why, "the encoder wrote %q", out)
 			})
 		}
+	}
+}
+
+// TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab is the record of the
+// other encoder behaviour restyleBlockScalars double-quotes for: a block scalar
+// led by a tab is written with no indentation indicator, at a root mapping's
+// value as in an item, and that text does not parse. Should the encoder stop
+// doing so, this goes red and a tab can leave ledByIndentation.
+func TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab(t *testing.T) {
+	t.Parallel()
+	for name, src := range map[string]string{
+		"a root mapping's value":  "a: |2\n  \tx\n",
+		"an item's mapping value": "- k: |2\n    \tx\n",
+		"an item, folded":         "- >2\n  \tx\n  y\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			docs, why := parseStream([]byte(src))
+			require.Empty(t, why)
+			out, err := encodeYAML(docs)
+			require.NoError(t, err)
+
+			_, why = parseStream(out)
+			assert.Equal(t, DeclineNotYAML, why, "%q encodes to %q", src, out)
+		})
 	}
 }
 
@@ -1337,9 +1369,9 @@ func TestEncodeFaithfully_KeepsAnEmptyFirstDocument(t *testing.T) {
 }
 
 // TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack holds each place
-// and spelling of a block scalar led by a space or a line break to reading back
-// with every scalar's value as written: written by the decoder, and built with
-// each leader the decoder cannot be made to write.
+// and spelling of a block scalar led by a space, a tab or a line break to
+// reading back with every scalar's value as written: written by the decoder,
+// and built with each leader the decoder cannot be made to write.
 func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 	t.Parallel()
 	parsed := func(src string) func(t *testing.T) []*yaml.Node {
@@ -1363,6 +1395,7 @@ func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 		"tagged":                              parsed("a:\n  - k: !t |\n      \n      x\n"),
 		"anchored and aliased":                parsed("a:\n  - k: &n |\n      \n      x\n  - j: *n\n"),
 		"a long value, which the quote folds": parsed("a:\n  - k: |\n      \n      " + strings.Repeat("word ", 40) + "\n"),
+		"a root mapping's value led by a tab": parsed("a: |2\n  \tx\n"),
 	}
 	for _, leader := range leaders {
 		tests[fmt.Sprintf("built, led by %q", leader)] = func(*testing.T) []*yaml.Node {

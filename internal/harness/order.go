@@ -447,16 +447,17 @@ func tagEmptyFirstDocument(docs []*yaml.Node) {
 }
 
 // restyleBlockScalars writes each folded scalar at or below node literal, and
-// double-quotes each literal one led by a space or a line break. The encoder
-// adds a line break to a folded scalar holding a more-indented, tab-led or
-// whitespace-only line, or kept and ending blank
+// double-quotes each literal one led by a space, a tab or a line break. Encoded
+// folded, a value holding a more-indented, tab-led or whitespace-only line, or
+// kept and ending blank, gains a break
 // (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine,
-// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines), while its
-// value, already folded, reads alike written literal. It ends a block scalar
-// led by indentation early in a block sequence's item or the mapping an item
-// opens (TestEncodeYAML_MisplacesABlockScalarLedByIndentation); double-quoted,
-// the value and a tag other than a string's are written back. It declines a
-// tree nested past the bound.
+// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines); literal, it
+// reads alike. Literal, one led by a space or a break ends early in a sequence
+// item (TestEncodeYAML_MisplacesABlockScalarLedByIndentation), and one led by a
+// tab is written with no indicator anywhere
+// (TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab); double-quoted, the
+// value and a tag other than a string's are written back. It declines a tree
+// nested past the bound.
 func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
@@ -475,13 +476,15 @@ func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 	return ""
 }
 
-// ledByIndentation reports whether value starts with what the encoder writes a
-// block scalar's indentation indicator for: a space, a line feed, a line
-// separator or a paragraph separator. A value led by the other line breaks, a
-// carriage return or a next line, the encoder writes double-quoted itself.
+// ledByIndentation reports whether value starts with a rune the encoder gets a
+// block scalar's indentation indicator wrong for: a space or a line break (a
+// line feed, a line separator or a paragraph separator), for which it writes an
+// indicator of its own indent step, or a tab, for which it writes none. A value
+// led by the other line breaks, a carriage return or a next line, the encoder
+// writes double-quoted itself.
 func ledByIndentation(value string) bool {
 	first, _ := utf8.DecodeRuneInString(value)
-	return strings.ContainsRune(" \n\u2028\u2029", first)
+	return strings.ContainsRune(" \t\n\u2028\u2029", first)
 }
 
 // readsBackAsWritten declines read, a node of an encoding parsed back, where it
