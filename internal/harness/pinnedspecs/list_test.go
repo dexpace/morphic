@@ -76,7 +76,7 @@ func TestReadList_RefusesWhatItCannotFetchSafely(t *testing.T) {
 		{"a path through itself", line("a", "o/r", commit, "d/./a.yaml", sum), `path "d/./a.yaml"`},
 		{"a path climbing inside", line("a", "o/r", commit, "d/../a.yaml", sum), `path "d/../a.yaml"`},
 		{"a path of a directory", line("a", "o/r", commit, "d/", sum), `path "d/"`},
-		{"a path with a query", line("a", "o/r", commit, "a.yaml?x=1", sum), `path "a.yaml?x=1"`},
+		{"a path with a query", line("a", "o/r", commit, "a.yaml?raw", sum), `path "a.yaml?raw"`},
 		{"a path with a fragment", line("a", "o/r", commit, "a#b.yaml", sum), `path "a#b.yaml"`},
 		{"a path escaped", line("a", "o/r", commit, "%2e%2e/%2e%2e/x/y/"+commit+"/a.yaml", sum), `path "%2e%2e/`},
 		{"a short SHA-256", line("a", "o/r", commit, "a.yaml", sum[:63]), `a: SHA-256 "` + sum[:63] + `"`},
