@@ -24,9 +24,10 @@ type valueSite struct {
 	// encoded says the value is written in an encoding, so its kind says
 	// nothing of what the type holds.
 	encoded bool
-	// serialized says the value is written as the position's style writes it
-	// on the wire, so a scalar may be a list written out.
-	serialized bool
+	// serialized is the shapes the position's style writes the value in on
+	// the wire, so a scalar of such a shape may be a list or an object written
+	// out.
+	serialized shapeSet
 	// typeLevel says the value is an example of the type itself, for which
 	// null stands for an example that is absent and is never judged.
 	typeLevel bool
@@ -148,7 +149,7 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 // or the check leaves it alone: a value that is a reference or a constructor, a
 // type nothing declares, one holding anything, a union or an external type, a
 // value written in an encoding, and a scalar a serialized site writes for a
-// list.
+// list or an object, where the site's style writes that shape.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -184,7 +185,7 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked || (s.serialized && sh == shapeList && scalar(value.Kind)) {
+	if s.encoded || enc || sh == shapeNotChecked || (scalar(value.Kind) && s.serialized.has(sh)) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)

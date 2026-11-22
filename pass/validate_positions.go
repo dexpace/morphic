@@ -23,12 +23,12 @@ type position struct {
 	// encoded says the value is written in an encoding of its own, so its kind
 	// says nothing of what the type holds.
 	encoded bool
-	// serializedExamples says the position's examples are its value as its
-	// style writes it on the wire, so a scalar one of a list is the list
-	// written out. Its default is a value of the type all the same. An example
-	// does not say which form it is in, so a scalar written as the list's data
-	// goes unjudged (docs/ir/values.md#values-held-to-their-type).
-	serializedExamples bool
+	// serializedExamples is the shapes the position's style writes on the
+	// wire, so a scalar example of a list or an object of one of them is that
+	// value written out. Its default is a value of the type all the same. An
+	// example does not say which form it is in, so a scalar written as the
+	// value's data goes unjudged (docs/ir/values.md#values-held-to-their-type).
+	serializedExamples shapeSet
 	def                *ir.Value
 	examples           []ir.Example
 }
@@ -36,10 +36,10 @@ type position struct {
 // positionScratch is what eachPosition reads a document through, emptied
 // between operations: a content's part keys in sorted order, and the
 // parameters of one operation an HTTP binding writes whole in a style that
-// can write a list.
+// can write a list or an object, with the shapes it can write.
 type positionScratch struct {
 	keys   []ir.PropertyID
-	styled scratchstate.Map[ir.ParameterID, struct{}]
+	styled scratchstate.Map[ir.ParameterID, shapeSet]
 }
 
 // eachPosition calls visit with each property of a live model, in liveTypeIDs
@@ -96,37 +96,63 @@ func headerPositions(positionValue *position, headers []ir.Header, owner string,
 		if style == "" {
 			style = "simple"
 		}
-		positionValue.serializedExamples = writesList(style, header.Explode)
+		positionValue.serializedExamples = shapesWritten(style, header.Explode)
 		visit(positionValue)
 	}
 }
 
-// writesList reports whether a value written in style, exploded as explode
-// says, may be a list: OpenAPI's style table gives a list a text under every
-// style but deepObject, and under a delimited style only where it does not
-// explode, its default. A style it does not define writes none
-// (docs/ir/values.md#values-held-to-their-type).
-func writesList(style string, explode *bool) bool {
-	switch style {
-	case "simple", "form", "label", "matrix", "cookie":
-		return true
-	case "spaceDelimited", "pipeDelimited":
-		return explode == nil || !*explode
+// shapeSet is a set of the structured shapes, shapeList and shapeObject.
+type shapeSet uint8
+
+const (
+	shapeSetList shapeSet = 1 << iota
+	shapeSetObject
+)
+
+// has reports whether sh is a shape of the set.
+func (set shapeSet) has(sh shape) bool {
+	switch sh {
+	case shapeList:
+		return set&shapeSetList != 0
+	case shapeObject:
+		return set&shapeSetObject != 0
 	default:
 		return false
 	}
 }
 
-// styledParameters returns the parameters of operation one of its HTTP
-// bindings writes whole in a style that can write a list, in the emptied map
-// styled holds.
-func styledParameters(operation *ir.Operation, styled *scratchstate.Map[ir.ParameterID, struct{}]) map[ir.ParameterID]struct{} {
+// shapesWritten returns the structured shapes a value written in style,
+// exploded as explode says, may be: OpenAPI's style table gives a list and an
+// object a text under every style it defines, but a list none under
+// deepObject, whatever explode says, and neither under a delimited style that
+// explodes, which it does not by default. A style the table does not define
+// writes neither (docs/ir/values.md#values-held-to-their-type).
+func shapesWritten(style string, explode *bool) shapeSet {
+	switch style {
+	case "simple", "form", "label", "matrix", "cookie":
+		return shapeSetList | shapeSetObject
+	case "spaceDelimited", "pipeDelimited":
+		if explode == nil || !*explode {
+			return shapeSetList | shapeSetObject
+		}
+		return 0
+	case "deepObject":
+		return shapeSetObject
+	default:
+		return 0
+	}
+}
+
+// styledParameters returns the parameters of operation its HTTP bindings
+// write whole in a style that can write a list or an object, each with the
+// shapes those styles can write, in the emptied map styled holds.
+func styledParameters(operation *ir.Operation, styled *scratchstate.Map[ir.ParameterID, shapeSet]) map[ir.ParameterID]shapeSet {
 	written := styled.Emptied()
 	for i := range operation.Bindings.HTTP {
 		for j := range operation.Bindings.HTTP[i].ParamBindings {
 			pb := &operation.Bindings.HTTP[i].ParamBindings[j]
-			if len(pb.ParamPath) == 0 && writesList(pb.Style, pb.Explode) {
-				written[pb.Param] = struct{}{}
+			if shapes := shapesWritten(pb.Style, pb.Explode); len(pb.ParamPath) == 0 && shapes != 0 {
+				written[pb.Param] |= shapes
 			}
 		}
 	}
@@ -138,10 +164,9 @@ func operationPositions(positionValue *position, operation *ir.Operation, scratc
 	styled := styledParameters(operation, &scratch.styled)
 	for i := range operation.Params {
 		pm := &operation.Params[i]
-		_, serialized := styled[pm.ID]
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			serializedExamples: serialized, def: pm.Default, examples: pm.Examples,
+			serializedExamples: styled[pm.ID], def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
 	}
