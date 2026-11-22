@@ -338,6 +338,7 @@ func conformanceCases() []conformanceCase {
 		{"ref-beside-keys", assertRefBesideKeys},
 		{"catch-all-encoding", assertCatchAllEncoding},
 		{"examples-32", assertExamples32},
+		{"parameter-serialized-examples", assertParameterSerializedExamples},
 		{"tags-grouping-32", assertTagsGrouping32},
 		{"response-summary-32", assertResponseSummary32},
 		{"component-media-types-32", assertComponentMediaTypes32},

@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -355,4 +356,35 @@ func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Zone/properties/created"},
 		openapitest.PointersOf(diags, "openapi/undecided-replacement"))
 	assertReplacementPhrases(t, doc, diags)
+}
+
+// assertParameterSerializedExamples pins a parameter's examples as written, a
+// list's text beside the list itself, and that pass.Validate holds none of them
+// outside its type: form writes a list as text, and a content type serializes
+// the header's (docs/ir/values.md#values-held-to-their-type).
+func assertParameterSerializedExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	operation, ok := operationByName(doc, "getThings")
+	require.True(t, ok)
+	text := func(s string) ir.Value { return ir.Value{Kind: ir.ValueString, String: s} }
+	for _, tc := range []struct {
+		name string
+		want []ir.Value
+	}{
+		{"classes", []ir.Value{text("C,E")}},
+		{"amenity", []ir.Value{text("pool"), {Kind: ir.ValueList, List: []ir.Value{text("pool"), text("spa")}}}},
+		{"X-Filter", []ir.Value{text(`["a","b"]`)}},
+	} {
+		parameter, ok := openapitest.ParamBySource(operation, tc.name)
+		require.True(t, ok, tc.name)
+		var got []ir.Value
+		for _, example := range parameter.Examples {
+			require.NotNil(t, example.Value, tc.name)
+			got = append(got, *example.Value)
+		}
+		assert.Equal(t, tc.want, got, tc.name)
+	}
+
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
 }

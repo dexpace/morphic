@@ -1,0 +1,29 @@
+# A parameter's example is its value as written on the wire: a list joined by
+# form's commas, one item of an exploded form, and a JSON text the content type
+# serializes, beside a list example in the value's own form.
+openapi: 3.0.3
+info: {title: Serialized parameter examples, version: "1"}
+paths:
+  /things:
+    get:
+      operationId: getThings
+      parameters:
+        - name: classes
+          in: query
+          explode: false
+          schema: {type: array, items: {type: string}}
+          example: C,E
+        - name: amenity
+          in: query
+          schema: {type: array, items: {type: string}}
+          examples:
+            Single: {value: pool}
+            Multiple: {value: [pool, spa]}
+        - name: X-Filter
+          in: header
+          content:
+            application/json:
+              schema: {type: array, items: {type: string}}
+          example: '["a","b"]'
+      responses:
+        "204": {description: none}
