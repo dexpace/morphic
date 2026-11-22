@@ -187,7 +187,9 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
 	// The keywords beside the $ref are a conjunct of the use, so p names the
-	// model over Maybe they make, as the allOf of the two does.
+	// model over Maybe they make, as the allOf of the two does, unless the
+	// policy reads the nullable as widening the reference: the type names only
+	// what Maybe lowers to, so p is then the reference.
 	model := ir.TypeID("type/anonymous" + at)
 	maybe := ir.TypeRef{Target: model, Nullable: true}
 	for _, tc := range []struct {
@@ -199,7 +201,7 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 		{"3.0 off", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
 			"    Maybe: {type: object, nullable: true}\n", true, maybe, nil},
 		{"3.0 on", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
-			"    Maybe: {type: object, nullable: true}\n", false, maybe, nil},
+			"    Maybe: {type: object, nullable: true}\n", false, ir.TypeRef{Target: componentID("Maybe"), Nullable: true}, nil},
 		{"3.1 off", "3.1.0", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
 			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: model},
 			[]jsontext.Pointer{at + "/nullable"}},

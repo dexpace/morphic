@@ -93,23 +93,37 @@ func TestRefUseBound_ACarriedUseIsTheReference(t *testing.T) {
 // TestRefUseBound_AnotherKeywordKeepsTheModel holds the gate: a key beside
 // the $ref, which a node keeps and a carrier cannot, keeps the Model over Obj
 // at a carrier, and with the nullable-inference policy off a `nullable` there
-// widens nothing and is no use-bound keyword.
+// widens nothing and is no use-bound keyword. With the kind-inference policy
+// off, an object a referent naming no kind does not lower to, a `type: object`
+// beside it says something of its own, and the Model keeps the $ref it cannot
+// compose.
 func TestRefUseBound_AnotherKeywordKeepsTheModel(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
 	for name, tc := range map[string]struct {
-		schema string
-		off    bool
+		schema           string
+		nullableOff      bool
+		kindInferenceOff bool
 	}{
-		"an extension":         {"{$ref: '#/components/schemas/Obj', readOnly: true, description: d, x-note: n}", false},
-		"nullable, policy off": {"{allOf: [{$ref: '#/components/schemas/Obj'}], nullable: true}", true},
+		"an extension":         {"{$ref: '#/components/schemas/Obj', readOnly: true, description: d, x-note: n}", false, false},
+		"nullable, policy off": {"{allOf: [{$ref: '#/components/schemas/Obj'}], nullable: true}", true, false},
+		"type, policy off":     {"{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}", false, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}"),
-				openapi.Options{NullableInference: openapi.NullableInference{Disabled: tc.off}})
+			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}",
+				"Untyped: {properties: {a: {type: string}}}"),
+				openapi.Options{
+					NullableInference: openapi.NullableInference{Disabled: tc.nullableOff},
+					KindInference:     openapi.KindInference{Disabled: tc.kindInferenceOff},
+				})
 			model, ok := kindNode(t, doc, ir.TypeID("type/anonymous"+at)).(*ir.Model)
-			require.True(t, ok, "the position owns the Model over Obj")
+			require.True(t, ok, "the position owns the Model")
+			if tc.kindInferenceOff {
+				assert.Nil(t, model.Base)
+				assert.Contains(t, model.Unmodeled, "openapi:$ref")
+				return
+			}
 			require.NotNil(t, model.Base)
 			assert.Equal(t, componentID("Obj"), model.Base.Target)
 		})
@@ -265,9 +279,10 @@ func TestRefUseBound_ANoteIsTheCarriers(t *testing.T) {
 
 // TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode holds the other side of
 // the gate: where a carried position writes, beside its $ref and its note,
-// what a carrier has no field for, or writes the note on a conjunct of its
-// own, the position owns the Model over Obj, which holds the note, and each
-// carrier names it and holds none of it, as before.
+// what a carrier has no field for, a type Obj does not lower to among it, or
+// writes the note on a conjunct of its own, the position owns the Model over
+// Obj, which holds the note, and each carrier names it and holds none of it,
+// as before.
 func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 	t.Parallel()
 	for name, schema := range map[string]string{
@@ -276,6 +291,8 @@ func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 		"a constraint over an object": "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, required: [a]}",
 		"another conjunct":            "{allOf: [{$ref: '#/components/schemas/Obj'}, {description: d}]}",
 		"a note on the $ref's entry":  "{allOf: [{$ref: '#/components/schemas/Obj', description: d}]}",
+		"a type Obj does not have":    "{$ref: '#/components/schemas/Obj', type: array, description: d}",
+		"a type naming null":          "{$ref: '#/components/schemas/Obj', type: [object, 'null'], description: d}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -293,6 +310,70 @@ func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRefUseBound_ATypeItsReferentLowersToBindsTheUse holds that a `type`
+// naming only the kinds the $ref beside it lowers to says nothing of its own:
+// beside the allOf, on another entry, beside a `nullable: true` the policy
+// reads as widening the reference, and over a referent the kind-inference
+// policy reads as an object, each carrier names the referent and holds the
+// note, and no node stands at its position. A position no carrier holds owns
+// the Model over the referent, as before.
+func TestRefUseBound_ATypeItsReferentLowersToBindsTheUse(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		version, schema, target, docs string
+		nullable                      bool
+	}{
+		"objTyped":            {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, description: d}", "Obj", "d", false},
+		"objTypedNul":         {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, nullable: true, description: d}", "Obj", "d", true},
+		"objTyped31":          {"3.1.0", "{$ref: '#/components/schemas/Obj', type: object, description: d}", "Obj", "d", false},
+		"a type alone":        {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object}", "Obj", "O", false},
+		"on an entry":         {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}, {type: object}], description: d}", "Obj", "d", false},
+		"an untyped referent": {"3.1.0", "{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}", "Untyped", "d", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, "typed", noteUseSpec(tc.version, tc.schema, "Untyped: {properties: {a: {type: string}}}"))
+			assertNoErrorDiags(t, diags)
+			for carrierName, carrier := range noteCarriersOf(t, doc) {
+				assert.Equal(t, componentID(tc.target), carrier.target, "%s names the referent", carrierName)
+				assert.Equal(t, tc.docs, carrier.docs.Description, carrierName)
+				assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+noteCarrierPositions[carrierName]), carrierName)
+			}
+			holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
+			require.True(t, ok)
+			property, ok := propertyByWire(holder, "p")
+			require.True(t, ok)
+			assert.Equal(t, tc.nullable, property.Type.Nullable)
+			for _, id := range []ir.TypeID{componentID("Pos"), "type/anonymous/components/schemas/Els/items"} {
+				model, ok := kindNode(t, doc, id).(*ir.Model)
+				require.True(t, ok, "%s owns the Model over the referent", id)
+				require.NotNil(t, model.Base, id)
+				assert.Equal(t, componentID(tc.target), model.Base.Target, id)
+			}
+		})
+	}
+}
+
+// TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode holds that a `type`
+// listing, beside the kind Obj lowers to, a word no dialect defines is no
+// type Obj has: the property owns the Model over Obj, which holds the note,
+// beside the error the word draws.
+func TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/p"
+	doc, diags := compileAnnotationSpec(t, "word", conjunctionSpec("3.1.0", "{$ref: '#/components/schemas/Obj', type: [object, objekt], description: d}",
+		"Obj: {type: object, properties: {a: {type: string}}}"))
+	assertOnlyErrorDiags(t, diags, []string{"openapi/validation/validation-allowed-values"})
+	property, ok := propertyByWire(requireEntryModelOf(t, doc, "Holder"), "p")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("type/anonymous"+at), property.Type.Target)
+	model, ok := kindNode(t, doc, property.Type.Target).(*ir.Model)
+	require.True(t, ok, "the position owns the Model over Obj")
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Obj"), model.Base.Target)
+	assert.Equal(t, "d", model.Docs.Description)
 }
 
 // TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode holds where a note

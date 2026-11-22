@@ -102,27 +102,6 @@
       "closed": true,
       "flags": false
     },
-    "type/anonymous/components/schemas/Holder/properties/typedComposed": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/Holder/properties/typedComposed",
-      "name": {
-        "hint": "typed_composed"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Holder/properties/typedComposed"
-      },
-      "base": {
-        "target": "type/openapi/components/schemas/Pet",
-        "nullable": false
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "type/anonymous/components/schemas/Holder/properties/unlisted": {
       "kind": "enum",
       "id": "type/anonymous/components/schemas/Holder/properties/unlisted",
@@ -327,7 +306,7 @@
           },
           "wireName": "typedComposed",
           "type": {
-            "target": "type/anonymous/components/schemas/Holder/properties/typedComposed",
+            "target": "type/openapi/components/schemas/Pet",
             "nullable": true,
             "inferred": "nullable-inference"
           },
