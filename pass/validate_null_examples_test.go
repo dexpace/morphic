@@ -40,6 +40,17 @@ func nullHeader(required bool, encoding *ir.Encoding) *ir.Document {
 	})
 }
 
+// movedHeader is nullHeader's document with its header moved off the response
+// by place, which gives the operation the headers somewhere else to be read.
+func movedHeader(required bool, place func(*ir.Operation, []ir.Header)) *ir.Document {
+	doc := nullHeader(required, nil)
+	operation := &doc.Services[0].Groups[0].Operations[0]
+	headers := operation.Responses[0].Headers
+	operation.Responses = nil
+	place(operation, headers)
+	return doc
+}
+
 // nullExample gives a parameter of listT a null example, the requirement
 // required and the encoding encoding.
 func nullExample(required bool, encoding *ir.Encoding) func(*ir.Parameter) {
@@ -70,7 +81,20 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	encoding, mediaType := &ir.Encoding{Name: "string"}, &ir.Encoding{MediaType: "application/json"}
 	rpc := parameterOperation(nullExample(false, nil))
 	rpc.Services[0].Groups[0].Operations[0].Bindings.RPC = &ir.RPCBinding{System: "jsonrpc", FullMethod: "x"}
+	onDefault := func(operation *ir.Operation, headers []ir.Header) {
+		operation.Default = &ir.Response{Headers: headers}
+	}
+	onError := func(operation *ir.Operation, headers []ir.Header) {
+		operation.Errors = []ir.ErrorCase{{Headers: headers}}
+	}
+	onPart := func(operation *ir.Operation, headers []ir.Header) {
+		operation.Request = &ir.Payload{Contents: []ir.Content{{Encoding: map[ir.PropertyID]ir.PartEncoding{"property/p": {Headers: headers}}}}}
+	}
+	onItem := func(operation *ir.Operation, headers []ir.Header) {
+		operation.Request = &ir.Payload{Contents: []ir.Content{{ItemEncoding: &ir.PartEncoding{Headers: headers}}}}
+	}
 	nullOfList := []finding{{"parameter/x/q", "example 0 is null, and type/l is not nullable here"}}
+	nullOfHeader := []finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}
 	for _, tc := range []struct {
 		name string
 		doc  *ir.Document
@@ -97,12 +121,17 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a response's header not required, declared by content", nullHeader(false, mediaType), nil},
 		{"a response's header not required, in an encoding of its own", nullHeader(false, encoding), nil},
 		{"a common error's header not required", commonError, nil},
-		{"a required response's header", nullHeader(true, nil),
-			[]finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}},
-		{"a required response's header, declared by content", nullHeader(true, mediaType),
-			[]finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}},
-		{"a required response's header, in an encoding of its own", nullHeader(true, encoding),
-			[]finding{{"property/x/h", "example 0 is null, and type/primitive/string is not nullable here"}}},
+		{"a default response's header not required", movedHeader(false, onDefault), nil},
+		{"an error's header not required", movedHeader(false, onError), nil},
+		{"a part's header not required", movedHeader(false, onPart), nil},
+		{"an item encoding's header not required", movedHeader(false, onItem), nil},
+		{"a required response's header", nullHeader(true, nil), nullOfHeader},
+		{"a required response's header, declared by content", nullHeader(true, mediaType), nullOfHeader},
+		{"a required response's header, in an encoding of its own", nullHeader(true, encoding), nullOfHeader},
+		{"a required default response's header", movedHeader(true, onDefault), nullOfHeader},
+		{"a required error's header", movedHeader(true, onError), nullOfHeader},
+		{"a required part's header", movedHeader(true, onPart), nullOfHeader},
+		{"a required item encoding's header", movedHeader(true, onItem), nullOfHeader},
 		{"a model's property not required", modelOf(property("property/a/e", stringT, exampled(null()))),
 			[]finding{{"property/a/e", "example 0 is null, and type/primitive/string is not nullable here"}}},
 		{"a scenario's input of a parameter not required", scenario,
