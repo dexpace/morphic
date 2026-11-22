@@ -447,17 +447,12 @@ func tagEmptyFirstDocument(docs []*yaml.Node) {
 }
 
 // restyleBlockScalars writes each folded scalar at or below node literal, and
-// double-quotes each literal one led by a space, a tab or a line break. Encoded
-// folded, a value holding a more-indented, tab-led or whitespace-only line, or
-// kept and ending blank, gains a break
-// (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine,
-// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines); literal, it
-// reads alike. Literal, one led by a space or a break ends early in a sequence
-// item (TestEncodeYAML_MisplacesABlockScalarLedByIndentation), and one led by a
-// tab is written with no indicator anywhere
-// (TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab); double-quoted, the
-// value and a tag other than a string's are written back. It declines a tree
-// nested past the bound.
+// double-quotes each literal one led by a space, a tab or a line break
+// (ledByIndentation) or ending in two line breaks (endsInTwoLineBreaks).
+// Encoded folded, a value holding a more-indented, tab-led or whitespace-only
+// line gains a break (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine);
+// literal, it reads alike. Double-quoted, the value and a tag other than a
+// string's are written back. It declines a tree nested past the bound.
 func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
@@ -465,7 +460,8 @@ func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 	if node.Kind == yaml.ScalarNode && node.Style&yaml.FoldedStyle != 0 {
 		node.Style = node.Style&^yaml.FoldedStyle | yaml.LiteralStyle
 	}
-	if node.Kind == yaml.ScalarNode && node.Style&yaml.LiteralStyle != 0 && ledByIndentation(node.Value) {
+	if node.Kind == yaml.ScalarNode && node.Style&yaml.LiteralStyle != 0 &&
+		(ledByIndentation(node.Value) || endsInTwoLineBreaks(node.Value)) {
 		node.Style = yaml.DoubleQuotedStyle
 	}
 	for _, child := range node.Content {
@@ -477,14 +473,33 @@ func restyleBlockScalars(node *yaml.Node, depth int) Decline {
 }
 
 // ledByIndentation reports whether value starts with a rune the encoder gets a
-// block scalar's indentation indicator wrong for: a space or a line break (a
-// line feed, a line separator or a paragraph separator), for which it writes an
-// indicator of its own indent step, or a tab, for which it writes none. A value
-// led by the other line breaks, a carriage return or a next line, the encoder
-// writes double-quoted itself.
+// block scalar's indentation indicator wrong for. For a space or a line break
+// (a line feed, a line separator or a paragraph separator) it writes an
+// indicator of its own indent step, which ends the scalar early in a block
+// sequence's item or the mapping an item opens
+// (TestEncodeYAML_MisplacesABlockScalarLedByIndentation); for a tab it writes
+// none, which the decoder refuses at any position
+// (TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab). A value led by the
+// other line breaks, a carriage return or a next line, the encoder writes
+// double-quoted itself.
 func ledByIndentation(value string) bool {
 	first, _ := utf8.DecodeRuneInString(value)
 	return strings.ContainsRune(" \t\n\u2028\u2029", first)
+}
+
+// endsInTwoLineBreaks reports whether value's last two runes are line breaks
+// the encoder writes a block scalar kept for: a line feed, a line separator or
+// a paragraph separator. Kept, a folded scalar ending in a blank line reads
+// back with a line break more at its end
+// (TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines), and so does a
+// literal one as the last node of a document a comment ends
+// (TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar). A value
+// ending in a carriage return or a next line the encoder writes double-quoted
+// itself.
+func endsInTwoLineBreaks(value string) bool {
+	last, size := utf8.DecodeLastRuneInString(value)
+	before, _ := utf8.DecodeLastRuneInString(value[:len(value)-size])
+	return strings.ContainsRune("\n\u2028\u2029", last) && strings.ContainsRune("\n\u2028\u2029", before)
 }
 
 // readsBackAsWritten declines read, a node of an encoding parsed back, where it
