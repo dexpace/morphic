@@ -16,10 +16,11 @@ import (
 
 // TestFindings_NamesEachDiagnosticByCodeAndPlace pins how a record names a
 // diagnostic: its code, then its pointer, the IR node it names where it has
-// no pointer, its line and column where it has neither, or the document, each
-// after a source that is not the spec's own; a place holding a tab or a line
-// break quoted; and one finding for diagnostics of one code at one place,
-// listing their severities.
+// no pointer, its line and column where it has neither, or the document. A
+// pointer, a line and column or the document comes after a source that is not
+// the spec's own; a node is named alone, whatever its source. A place holding
+// a tab or a line break is quoted, and diagnostics of one code at one place
+// are one finding listing their severities.
 func TestFindings_NamesEachDiagnosticByCodeAndPlace(t *testing.T) {
 	t.Parallel()
 	at := func(severity ir.Severity, code string, provenance ir.Provenance) ir.Diagnostic {

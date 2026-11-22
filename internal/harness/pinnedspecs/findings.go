@@ -54,9 +54,10 @@ func Findings(result harness.Result) ([]harness.Finding, error) {
 }
 
 // place is where a diagnostic at provenance sits, as a record names it: its
-// pointer, or failing one the IR node it names, its line and column, or the
-// document as a whole, after its source's index where that source is not the
-// spec's own.
+// pointer, failing that its line and column, failing both the document, each
+// after its source's index where that source is not the spec's own; or, with
+// no pointer but an IR node, that node alone, because an IR ID names one node
+// whichever source it came from.
 func place(provenance ir.Provenance) string {
 	if provenance.Pointer == "" && provenance.Node != "" {
 		return "node " + recordable(provenance.Node)
