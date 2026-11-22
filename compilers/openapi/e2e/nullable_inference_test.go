@@ -121,11 +121,11 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok)
 	owner, ok := propertyByWire(pet, "owner")
 	require.True(t, ok)
-	// The keywords beside the $ref are a conjunct of the use, so owner names
-	// the decorator over Person they make, which holds the description.
-	decorator := ir.TypeID("type/anonymous/components/schemas/Pet/properties/owner")
-	assert.Equal(t, inferred(decorator), owner.Type)
-	assert.Equal(t, "The pet's owner.", doc.Types[decorator].Common().Docs.Description, "the use site's description wins")
+	// The keywords beside the $ref are all the property holds, so owner names
+	// Person and holds the description, and no decorator stands at it.
+	assert.Equal(t, inferred(componentID("Person")), owner.Type)
+	assert.Equal(t, "The pet's owner.", owner.Docs.Description, "the use site's description wins")
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Pet/properties/owner"))
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
 
 	alias := doc.Types[componentID("Owner")]

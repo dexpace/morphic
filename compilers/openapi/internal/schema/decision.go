@@ -195,12 +195,13 @@ func unionAside(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 // nothing read beside it, as an entry read whole may (statement.ReadBeside),
 // and schema and every other conjunct state nothing (statesNothing), or, where
 // a carrier holds schema's position (carriedAt), nothing but what binds the use
-// (bindsUseOnly), which the carrier holds. It is the reference, as the $ref
-// alone is (docs/compilers/openapi.md#allof-classification).
+// (bindsUseOnly) and, beside the $ref or the allOf, the notes the carrier holds
+// (carriedNotesAt), all of which the carrier holds. It is the reference, as the
+// $ref alone is (docs/compilers/openapi.md#allof-classification).
 func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) bool {
 	carried := carriedAt(loweringContext, schema)
-	quiet := func(statementSchema *statement.Schema) bool {
-		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema)
+	quiet := func(statementSchema *statement.Schema, notes carriedNotes) bool {
+		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema, notes)
 	}
 	refs := 0
 	for _, entry := range comp.entries {
@@ -211,24 +212,27 @@ func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp all
 			return false
 		case entry.schema.Ref != nil:
 			refs++
-		case !quiet(entry.schema.Schema):
+		case !quiet(entry.schema.Schema, carriedNotes{}):
+			// An entry writing a note is a conjunct of its own, which keeps
+			// the node.
 			return false
 		}
 	}
-	return refs == 1 && quiet(schema)
+	return refs == 1 && quiet(schema, carriedNotesAt(loweringContext, schema))
 }
 
 // bindsUseOnly reports whether every key schema writes that says something of
 // the instance binds a use of the type rather than the type: one of
-// residueKeywords, or a `nullable: true` the nullable-inference policy reads as
+// residueKeywords, a `nullable: true` the nullable-inference policy reads as
 // widening the reference (docs/compilers/openapi.md#nullable), each of which a
 // carrier holds and a node cannot
-// (docs/compilers/openapi.md#use-bound-annotations).
-func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+// (docs/compilers/openapi.md#use-bound-annotations), or a note notes gives
+// the carrier (carriedNotes.holds).
+func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema, notes carriedNotes) bool {
 	return schema.Truth == statement.Stated && !slices.ContainsFunc(schema.Keys, func(key statement.Key) bool {
 		switch {
 		case key.Name == "allOf" && len(schema.AllOf) > 0, !statement.ReadBeside(key.Name, key.Node, ""),
-			slices.Contains(residueKeywords, key.Name):
+			slices.Contains(residueKeywords, key.Name), notes.holds(key):
 			return false
 		case key.Name == "nullable":
 			return !loweringContext.NullableInference.Honours() || !nullableTrue(schema)

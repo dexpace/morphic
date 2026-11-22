@@ -27,29 +27,55 @@ type carriedNotes struct {
 
 // notesOnCarrier returns which notes schema writes the carrier holding its
 // position, pointer, holds, though typeRef names the node that position builds.
-// It holds none unless it holds the position (carriedAt), no reference names
-// it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
-// its conjuncts (allOfRefEntries). Then it holds the deprecation, and each
-// note nothing at its position writes over (writtenOver). Node and carrier
-// both ask it, so each note has one home
+// It holds none where schema names a $ref among its conjuncts
+// (allOfRefEntries), and otherwise those carriedNotesAt gives it. Node and
+// carrier both ask it, so each note has one home
 // (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
-// Elsewhere the node keeps them, which each reference to the position reads,
-// and a $ref is read off what the position writes alone
-// (docs/compilers/openapi.md#ref-use-site).
+// Where schema names a $ref the node keeps them, as a decorator does, a $ref
+// beside notes alone building no node where the carrier holds them all
+// (usesOneRef).
 func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) carriedNotes {
-	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) || !carriedAt(loweringContext, schema) {
+	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) {
+		return carriedNotes{}
+	}
+	for range allOfRefEntries(loweringContext, schema) {
+		return carriedNotes{}
+	}
+	return carriedNotesAt(loweringContext, schema)
+}
+
+// carriedNotesAt returns which notes schema writes the carrier holding its
+// position holds: none unless it holds the position (carriedAt) and no
+// reference names it (reftable.ReferenceTargetTable.Referenced), and then the
+// deprecation and each note nothing at its position writes over
+// (writtenOver). It reads where schema is written alone, so the node's build,
+// its carrier and the decision on a $ref beside notes read one answer.
+func carriedNotesAt(loweringContext lowering.Ctx, schema *statement.Schema) carriedNotes {
+	if !carriedAt(loweringContext, schema) {
 		return carriedNotes{}
 	}
 	at, _ := siteOf(schema)
 	if loweringContext.Bindings().Table().Referenced(at) {
 		return carriedNotes{}
 	}
-	for range allOfRefEntries(loweringContext, schema) {
-		return carriedNotes{}
-	}
 	docs, examples := writtenOver(loweringContext, at)
 	return carriedNotes{docs: !docs, deprecation: true, examples: !examples}
+}
+
+// holds reports whether key writes a note notes gives the carrier: a keyword
+// that documents, deprecates or exemplifies the instance.
+func (notes carriedNotes) holds(key statement.Key) bool {
+	switch key.Name {
+	case "title", "description", "externalDocs":
+		return notes.docs
+	case "deprecated":
+		return notes.deprecation
+	case "example", "examples":
+		return notes.examples
+	default:
+		return false
+	}
 }
 
 // writtenOver reports which of the notes of the schema at, a carried

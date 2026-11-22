@@ -100,29 +100,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/Pet/properties/owner": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/Pet/properties/owner",
-      "name": {
-        "hint": "owner"
-      },
-      "anonymous": true,
-      "docs": {
-        "description": "The pet's owner."
-      },
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Pet/properties/owner"
-      },
-      "base": {
-        "target": "type/openapi/components/schemas/Person",
-        "nullable": false
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "type/openapi/components/schemas/Owner": {
       "kind": "model",
       "id": "type/openapi/components/schemas/Owner",
@@ -219,7 +196,7 @@
           },
           "wireName": "owner",
           "type": {
-            "target": "type/anonymous/components/schemas/Pet/properties/owner",
+            "target": "type/openapi/components/schemas/Person",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -238,7 +215,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "description": "The pet's owner."
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Pet/properties/owner"

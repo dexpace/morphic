@@ -197,8 +197,10 @@ func TestPromotion_ARefinementFallsBackToWhatItRefines(t *testing.T) {
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"nor does an entry's", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
+		{"a note beside an object's $ref is a use of it",
+			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, &ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"a decorator lends its carrier nothing, as its node holds it",
-			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, nil, false},
+			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], x-note: d}`, nil, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -312,52 +314,57 @@ const decoratedComponents = `    OldObject: {type: object, deprecated: true, x-d
 // TestPromotion_ADecoratorMatchesTheRefItStandsFor pins the two spellings of one
 // use to one answer. A 3.0 document annotates a use by wrapping the $ref in an
 // allOf. Over a target admitting no object that is a refinement, whose carriers
-// read the target as the $ref's do. Over an object it is a decorator, which an
-// emitter folds onto the carrier (docs/emitters/refine/decorators.md), so the
-// $ref, the same conjunction, lowers to the same decorator, which holds the
-// deprecation, its mark and the kept member key in both spellings (GitHub
+// read the target as the $ref's do. Over an object, a note alone beside it is
+// the carrier's, which reads the target as it reads one admitting no object
+// (docs/compilers/openapi.md#ref-use-site). A key beside it makes a decorator,
+// which an emitter folds onto the carrier (docs/emitters/refine/decorators.md),
+// so the $ref, the same conjunction, lowers to the same decorator, which holds
+// the deprecation, its mark and the kept member key in both spellings (GitHub
 // #1220, #1258, #2024).
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, target, annotation string
+		decorates                bool
 	}{
-		{"a key deprecating the target", "Spent", "description: d"},
-		{"a keyword on a live target", "Dated", "deprecated: true"},
-		{"a key on a live target", "Dated", "x-fern-availability: deprecated"},
-		{"a target deprecated with members", "Old", "description: d"},
+		{"a key deprecating the target", "Spent", "description: d", false},
+		{"a keyword on a live target", "Dated", "deprecated: true", false},
+		{"a key on a live target", "Dated", "x-fern-availability: deprecated", true},
+		{"a target deprecated with members", "Old", "description: d", false},
 	} {
-		for _, object := range []bool{false, true} {
-			name, target := tc.name, tc.target
-			if object {
-				name, target = name+" over an object", target+"Object"
-			}
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spellings := func(target string) map[string]*ir.Document {
 				ref := "{$ref: '#/components/schemas/" + target + "'"
-				beside := compileClean(t, useSiteSpec(ref+", "+tc.annotation+"}")+decoratedComponents, openapi.Options{})
-				wrapped := compileClean(t, useSiteSpec("{allOf: ["+ref+"}], "+tc.annotation+"}")+decoratedComponents,
-					openapi.Options{})
-
-				// The two spellings are one conjunction: each carrier and the node it
-				// names hold the same deprecation, mark and kept entry, a decorator
-				// over an object holding them in both (docs/ir/unmodeled.md#promotion).
-				assert.Equal(t, useSitesOf(t, wrapped), useSitesOf(t, beside))
-				for spelling, doc := range map[string]*ir.Document{"beside": beside, "wrapped": wrapped} {
-					if !object {
-						continue
-					}
-					operation, ok := operationByName(doc, "x")
-					require.True(t, ok)
-					param, ok := openapitest.ParamBySource(operation, "use")
-					require.True(t, ok)
-					decorator := doc.Types[param.Type.Target].Common()
-					assert.Equal(t, foldedDeprecation(t, wrapped), foldedDeprecation(t, doc), spelling)
-					assert.Equal(t, decoratorOf(t, wrapped), string(decorator.Provenance.Inferred)+" "+
-						strings.Join(slices.Sorted(maps.Keys(decorator.Unmodeled)), ","), spelling)
+				return map[string]*ir.Document{
+					"beside": compileClean(t, useSiteSpec(ref+", "+tc.annotation+"}")+decoratedComponents, openapi.Options{}),
+					"wrapped": compileClean(t, useSiteSpec("{allOf: ["+ref+"}], "+tc.annotation+"}")+decoratedComponents,
+						openapi.Options{}),
 				}
-			})
-		}
+			}
+			scalar, object := spellings(tc.target), spellings(tc.target+"Object")
+
+			// The two spellings are one conjunction: each carrier and the node it
+			// names hold the same deprecation, mark and kept entry, a decorator
+			// over an object holding them in both (docs/ir/unmodeled.md#promotion).
+			assert.Equal(t, useSitesOf(t, scalar["wrapped"]), useSitesOf(t, scalar["beside"]))
+			assert.Equal(t, useSitesOf(t, object["wrapped"]), useSitesOf(t, object["beside"]))
+			for spelling, doc := range object {
+				operation, ok := operationByName(doc, "x")
+				require.True(t, ok)
+				param, ok := openapitest.ParamBySource(operation, "use")
+				require.True(t, ok)
+				if !tc.decorates {
+					assert.Equal(t, componentID(tc.target+"Object"), param.Type.Target, "%s names the object", spelling)
+					assert.Equal(t, useSitesOf(t, scalar[spelling]), useSitesOf(t, doc), "%s reads the object as the string", spelling)
+					continue
+				}
+				decorator := doc.Types[param.Type.Target].Common()
+				assert.Equal(t, foldedDeprecation(t, object["wrapped"]), foldedDeprecation(t, doc), spelling)
+				assert.Equal(t, decoratorOf(t, object["wrapped"]), string(decorator.Provenance.Inferred)+" "+
+					strings.Join(slices.Sorted(maps.Keys(decorator.Unmodeled)), ","), spelling)
+			}
+		})
 	}
 }
 
