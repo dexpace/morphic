@@ -176,9 +176,9 @@ func TestFold_ANoteTwoOwnDeclarationsGiveDifferentlyStaysOnItsNode(t *testing.T)
 // verbatim, as for any note the field does not keep: a node the field's type
 // does not hold once it holds the note, as of two lists judged apart for a
 // note alone, which takeBack writes back as it was; a node holding that note
-// already; a node written elsewhere; and the node of a declaration the model
-// writes itself that a model of its own holds too (apart), whose member
-// carries the note.
+// already; a named node, a node written elsewhere or in another document; and
+// the node of a declaration the model writes itself that a model of its own
+// holds too (apart), whose member carries the note.
 func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -195,6 +195,16 @@ func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 		}, "is kept verbatim under Unmodeled"},
 		{"a node written elsewhere", func(reg map[ir.TypeID]ir.TypeDef) declaration {
 			return ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/elsewhere"))
+		}, "is kept verbatim under Unmodeled"},
+		{"a named node", func(reg map[ir.TypeID]ir.TypeDef) declaration {
+			declarationValue := ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/allOf/0/p"))
+			reg[declarationValue.property.Type.Target].Common().Anonymous = false
+			return declarationValue
+		}, "is kept verbatim under Unmodeled"},
+		{"a node another document writes at the pointer", func(reg map[ir.TypeID]ir.TypeDef) declaration {
+			declarationValue := ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/allOf/0/p"))
+			reg[declarationValue.property.Type.Target].Common().Provenance.Source = 1
+			return declarationValue
 		}, "is kept verbatim under Unmodeled"},
 		{"a declaration another model holds too", func(reg map[ir.TypeID]ir.TypeDef) declaration {
 			declarationValue := ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/allOf/0/p"))
@@ -222,6 +232,81 @@ func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 			assert.Contains(t, (*recorded)[0].Message, "give its description differently")
 			assert.Contains(t, (*recorded)[0].Message, tc.keptAs)
 		})
+	}
+}
+
+// TestFold_ANoteTakenBackLeavesTheNodeAsItWas pins takeBack: where two lists
+// judged apart for their notes alone differ in every note, a title, a
+// description, external links and a deprecation a promotion read, the earlier
+// list's node is left whole as it was, its mark too, in either order, and
+// each note it gave is reported kept verbatim, as the declaration is.
+func TestFold_ANoteTakenBackLeavesTheNodeAsItWas(t *testing.T) {
+	t.Parallel()
+	inBothOrders([]declaration{{}, {}}, func(label string, _ []declaration) {
+		reg := narrowingRegistry()
+		element := primitiveRef(ir.PrimitiveString)
+		decls := []declaration{
+			ownDeclaration(ownNodeAt(reg, &ir.List{ElementType: element}, "/allOf/0/p")),
+			ownDeclaration(ownNodeAt(reg, &ir.List{ElementType: element}, "/allOf/1/p")),
+		}
+		decls[1].property.Provenance = ptrAt("/allOf/1/p")
+		if label == "order 1" {
+			slices.Reverse(decls)
+		}
+		for k, value := range []string{"earlier", "later"} {
+			for _, note := range noteCases {
+				note.write(&decls[k].property, value)
+			}
+		}
+		decls[0].property.Provenance.Inferred = promoted
+		before := *reg[decls[0].property.Type.Target].Common()
+		stubbed, recorded := stubMerger(reg)
+
+		got := stubbed.fold(decls)
+
+		assert.Empty(t, cmp.Diff(before, *reg[decls[0].property.Type.Target].Common()), "%s: the earlier's node is as it was", label)
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(decls[0].property.Provenance.Pointer), "%s", label)
+		require.Len(t, *recorded, len(noteCases), "%s: each note is reported, the types judged as with none left", label)
+		for _, report := range *recorded {
+			assert.Contains(t, report.Message, "which is kept verbatim under Unmodeled", label)
+		}
+	})
+}
+
+// TestFold_ANoteTheFieldKeepsIsLeftOnNoNode pins that leaveNotesOnNodes leaves
+// a note only where it differs from the one the field keeps: two or three
+// declarations the model writes itself, each whose type is a model its schema
+// builds, giving the kept note alike leave every node bare, in either order,
+// and report nothing.
+func TestFold_ANoteTheFieldKeepsIsLeftOnNoNode(t *testing.T) {
+	t.Parallel()
+	for _, note := range noteCases {
+		for _, count := range []int{2, 3} {
+			inBothOrders(make([]declaration, count), func(label string, _ []declaration) {
+				reg := narrowingRegistry()
+				decls := make([]declaration, count)
+				for k := range decls {
+					at := jsontext.Pointer(fmt.Sprintf("/allOf/%d/p", k))
+					decls[k] = ownDeclaration(ownNodeAt(reg, &ir.Model{}, at))
+					decls[k].property.Provenance = ptrAt(at)
+					note.write(&decls[k].property, "alike")
+				}
+				if label == "order 1" {
+					slices.Reverse(decls)
+				}
+				stubbed, recorded := stubMerger(reg)
+
+				got := stubbed.fold(decls)
+
+				assert.Equal(t, "alike", note.read(got.Docs, got.Deprecation), "%s, %d, %s", note.detail, count, label)
+				for _, declarationValue := range decls {
+					node := reg[declarationValue.property.Type.Target].Common()
+					assert.Empty(t, node.Docs, "%s, %d, %s: every node stays bare", note.detail, count, label)
+					assert.Nil(t, node.Deprecation, "%s, %d, %s", note.detail, count, label)
+				}
+				assert.Empty(t, *recorded, "%s, %d, %s", note.detail, count, label)
+			})
+		}
 	}
 }
 

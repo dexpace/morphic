@@ -310,7 +310,7 @@ func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
 						assert.Equal(t, want, typedNotes(t, doc), "%s: each note is typed once", label)
 						assert.Len(t, field.Unmodeled, 1, "%s: the named entry's declaration is kept verbatim", label)
 						requireErrorsAndWarnings(t, diags, nil)
-						requireTieReportsTrue(t, doc, field, diags, func(int) string { return "" })
+						requireTieReportsTrue(t, doc, field, diags, func(int, string) string { return "" })
 					}
 				}
 				for _, swap := range []int{0, 1} {
@@ -356,9 +356,35 @@ func TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept(t *testing.T) {
 				doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
 
 				requireErrorsAndWarnings(t, diags, nil)
-				reports := requireTieReportsTrue(t, doc, field, diags, func(k int) string { return note.typed(values[k]) })
+				reports := requireTieReportsTrue(t, doc, field, diags, func(k int, _ string) string { return note.typed(values[k]) })
 				assert.Equal(t, count-1, reports, "%s: each note the field does not keep is reported", label)
 			}
+		}
+	}
+
+	// One entry gives a title alone and two a title and a deprecation, in every
+	// order, so the node the enums meet in can adopt one entry's deprecation
+	// and another's title.
+	title, deprecation := foldedNotes[1], foldedNotes[3]
+	for _, shape := range shapes[:2] {
+		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+			entries := make([]string, 3)
+			for k, writer := range order {
+				schema := strings.ReplaceAll(shape.schema, "%s", "x"+values[writer])
+				written := title.write(values[writer])
+				if writer > 0 {
+					written += ", " + deprecation.write(values[writer])
+				}
+				entries[k] = "{type: object, properties: {f: {" + schema + ", " + written + "}}}"
+			}
+			label := fmt.Sprintf("%s, a title beside a deprecation, written in the order %v", shape.name, order)
+			doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
+
+			requireErrorsAndWarnings(t, diags, nil)
+			reports := requireTieReportsTrue(t, doc, field, diags, func(k int, detail string) string {
+				return map[string]foldedNote{"title": title, "deprecation": deprecation}[detail].typed(values[order[k]])
+			})
+			assert.Equal(t, 3, reports, "%s: two titles and a deprecation are reported", label)
 		}
 	}
 }
@@ -369,11 +395,11 @@ var tieReport = regexp.MustCompile(`give its ([a-z ]+) differently; kept the one
 // requireTieReportsTrue holds each report diags make of a note Coll's
 // declarations give differently to the document: a declaration whose note
 // "the field's type holds" gives one the field's type or a model it composes
-// holds, as typed(k) names the note of Coll's k-th allOf entry, empty where
-// that is not to be checked; and one "kept verbatim" is under field's
+// holds, as typed(k, detail) names the note of detail Coll's k-th allOf entry
+// gives, empty where that is not to be checked; and one "kept verbatim" is under field's
 // Unmodeled. One staying on its model, as another model's fold reports, is
 // read and not checked. It returns how many reports it read.
-func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, diags []ir.Diagnostic, typed func(k int) string) int {
+func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, diags []ir.Diagnostic, typed func(k int, detail string) string) int {
 	t.Helper()
 	read := 0
 	for _, d := range diags {
@@ -388,7 +414,7 @@ func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, di
 			var k int
 			_, err := fmt.Sscanf(lost, "/components/schemas/Coll/allOf/%d/properties/f", &k)
 			require.NoError(t, err, d.Message)
-			want := typed(k)
+			want := typed(k, match[1])
 			if want == "" {
 				continue
 			}
