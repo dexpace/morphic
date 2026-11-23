@@ -1068,7 +1068,9 @@ func memberOnlyKeys(replaced string) map[string]string {
 // the components declared in the order their names sort, or the reverse.
 func compileMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	var params, headers, componentParams, componentHeaders []string
+	carriers := len(memberOnlySchemas) * len(memberOnlyKeys(""))
+	params, headers := make([]string, 0, 3*carriers), make([]string, 0, 3*carriers)
+	componentParams, componentHeaders := make([]string, 0, carriers), make([]string, 0, carriers)
 	for _, schemaName := range slices.Sorted(maps.Keys(memberOnlySchemas)) {
 		schema := memberOnlySchemas[schemaName]
 		for _, member := range slices.Sorted(maps.Keys(memberOnlyKeys(""))) {
