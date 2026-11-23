@@ -253,9 +253,9 @@ func TestBuild_ReadsSensitiveAlongTheBaseChain(t *testing.T) {
 	members := ir.FlattenedProperties(doc.Types, holder.ID).Properties
 	require.Len(t, members, len(holder.Properties))
 	for _, member := range members {
-		of := member.Property.Type.Target
-		assert.Equal(t, member.Secret, built.Types[of].Sensitive,
-			"the plan and the flattening disagree on whether %s is sensitive", of)
+		memberType := member.Property.Type.Target
+		assert.Equal(t, member.Secret, built.Types[memberType].Sensitive,
+			"the plan and the flattening disagree on whether %s is sensitive", memberType)
 	}
 	assert.Equal(t, []ir.PropertyID{"type/holds-secret/key"}, built.Types["type/holds-secret"].Redacted,
 		"a member of a sensitive type is redacted, and the model holding it is not sensitive for that")

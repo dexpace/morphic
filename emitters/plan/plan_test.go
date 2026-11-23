@@ -149,11 +149,12 @@ const versionGolden = "testdata/version.golden.txt"
 
 // TestBuild_VersionIsPinned holds the version of one document, under each
 // policy, to a golden (T-31): what Build hashes is the same from run to run
-// and from build to build, so a toolchain or a codec that moves a byte of a
-// document's or a policy's encoding fails here, and -update records the move.
-// The document is stamped with a version of its own, so a bump of the IR's
-// moves nothing. A change to the bytes this document encodes to does, and a
-// field it leaves unset and the encoding omits moves nothing.
+// and from build to build, so a toolchain or a codec that moves a byte of it,
+// a policy's encoding or a document's but for its sources and diagnostics,
+// fails here, and -update records the move. The document is stamped with a
+// version of its own, so a bump of the IR's moves nothing, and neither do the
+// document's sources and diagnostics nor a field it leaves unset that the
+// encoding omits.
 func TestBuild_VersionIsPinned(t *testing.T) {
 	t.Parallel()
 	doc := widgetDoc()
