@@ -85,7 +85,7 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 				route("operation/v2-post", http.MethodPost, "/v2/zones", nil),
 				ir.Operation{ID: "operation/hook", Bindings: ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
-				replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
+				replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc), nil))
 			operation := doc.Services[0].Groups[0].Operations[0]
 			assert.Equal(t, tc.want, operation.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
@@ -119,7 +119,7 @@ func TestMessage_ARouteTwoOperationsShareNamesNone(t *testing.T) {
 		}
 		doc := routes(route("operation/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
 		assert.Equal(t, undecided(`"GET /v2." names more than one operation`, ir.Provenance{}),
-			replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)), "first %t", first)
+			replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc), nil), "first %t", first)
 		assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy, "first %t", first)
 	}
 }
@@ -171,7 +171,7 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 				want = slices.Concat(undecided(fmt.Sprintf(tc.why, "parameter"), atParam),
 					undecided(fmt.Sprintf(tc.why, "property"), atMember))
 			}
-			assert.Equal(t, want, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
+			assert.Equal(t, want, replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc), nil))
 
 			members := make([]ir.EntityRef, 0, len(tc.want))
 			params := make([]ir.EntityRef, 0, len(tc.want))
@@ -217,7 +217,7 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 			}
 			doc := routes(operation)
 			doc.Types = ir.TypeRegistry{"type/nil": (*ir.Model)(nil), "type/s": &ir.Scalar{ID: "type/s"}}
-			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc)))
+			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), compileddoc.New(doc), nil))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
@@ -268,8 +268,8 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := build(tc.own, tc.dep)
-			replacement.Resolve(tc.p, compileddoc.New(doc))
-			assert.Empty(t, replacement.Infer(tc.policy, tc.p, compileddoc.New(doc)))
+			replacement.Resolve(tc.p, compileddoc.New(doc), nil)
+			assert.Empty(t, replacement.Infer(tc.policy, tc.p, compileddoc.New(doc), nil))
 			assert.Equal(t, tc.want, replaced(doc))
 		})
 	}
@@ -322,7 +322,26 @@ func TestMessage_AKeyACarriersNodeKeepsIsNotReadOver(t *testing.T) {
 	} {
 		node := &ir.Scalar{ID: "type/node", Unmodeled: tc.keys, Provenance: ir.Provenance{Pointer: "/p/schema"}}
 		doc := carrierDoc(ir.Parameter{Deprecation: says("Use `v2` instead."), Provenance: ir.Provenance{Pointer: "/p"}}, node)
-		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc)), tc.name)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc), nil), tc.name)
 		assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy, tc.name)
+	}
+}
+
+// TestMessage_AMemberItsModelDeclaresAgainIsReadOverItsNodesKey pins the same
+// members for a message: the node's key is none of theirs, so their message
+// names the replacement, as where the node keeps no key.
+func TestMessage_AMemberItsModelDeclaresAgainIsReadOverItsNodesKey(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		again map[ir.PropertyID]bool
+		want  []ir.EntityRef
+	}{
+		{"declared once", nil, nil},
+		{"declared again", map[ir.PropertyID]bool{"property/old": true}, []ir.EntityRef{{Property: "property/v2"}}},
+	} {
+		doc := memberDoc(says("Use `v2` instead."))
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc), tc.again), tc.name)
+		assert.Equal(t, tc.want, doc.Types["type/M"].(*ir.Model).Properties[0].Deprecation.ReplacedBy, tc.name)
 	}
 }

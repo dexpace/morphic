@@ -136,8 +136,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 // TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
 // hoists a Scalar over the bare kind narrows it whichever entry is first, and
 // the format's own details land on the field or its scalar rather than being
-// parked, the bound on the scalar alone (GitHub #1988) and the description on
-// the field alone.
+// parked, the bound on the scalar alone (GitHub #1988).
 func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	plain := "{type: string}"
@@ -159,8 +158,7 @@ func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 		require.NotNil(t, sc.Constraints, "order %d", i)
 		require.NotNil(t, sc.Constraints.MinLength, "order %d", i)
 		assert.Equal(t, int64(8), *sc.Constraints.MinLength, "order %d", i)
-		assert.Equal(t, "the token", property.Docs.Description, "the description is the field's (order %d)", i)
-		assert.Empty(t, sc.Docs.Description, "and not the scalar's (order %d)", i)
+		assert.Equal(t, "the token", sc.Docs.Description, "the description stays on the scalar that wrote it (order %d)", i)
 		assert.Empty(t, property.Unmodeled, "nothing is parked (order %d)", i)
 		assert.Empty(t, diags, "order %d", i)
 	}
@@ -701,17 +699,14 @@ func nonBareSpec(extra, schemaA, schemaB string) string {
 
 // TestAllOf_EnumsAndListsNarrowToWhatTheyShare pins GitHub #1042 in both entry
 // orders: an enum within another is the field's type, and a list whose element
-// is narrower than a described list's is the narrower declaration's list, the
-// description the field's, as a carrier holds what its position notes
-// (docs/ir/annotations.md#one-structural-home-per-declaration). A minItems or
-// an x- extension on the broader list is adopted into a list minted for the
-// field. Nothing is kept or reported.
+// is narrower than a described list's is a list of the narrower element holding
+// the description, minted for the field. A minItems or an x- extension on the
+// broader list is adopted the same way. Nothing is kept or reported.
 func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, broad, narrow string
 		check               func(t *testing.T, doc *ir.Document, target ir.TypeID)
-		docs                string
 	}{
 		{"an enum within another", "{type: string, enum: [a, b]}", "{type: string, enum: [a]}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
@@ -720,7 +715,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				require.True(t, ok)
 				require.Len(t, enum.Members, 1)
 				assert.Equal(t, "a", enum.Members[0].Value.String)
-			}, ""},
+			}},
 		{"a described list", "{type: array, description: d, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
@@ -728,8 +723,8 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				list, ok := doc.Types[target].(*ir.List)
 				require.True(t, ok)
 				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
-				assert.Empty(t, list.Docs.Description)
-			}, "d"},
+				assert.Equal(t, "d", list.Docs.Description)
+			}},
 		{"a bounded list", "{type: array, minItems: 1, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
@@ -738,7 +733,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
 				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
-			}, ""},
+			}},
 		{"an extended list", "{type: array, x-kept: 1, items: {type: integer}}",
 			"{type: array, items: {type: integer, format: int32}}",
 			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
@@ -747,7 +742,7 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, ir.TypeID("type/primitive/int32"), list.ElementType.Target)
 				assert.Contains(t, list.Unmodeled, "openapi:x-kept")
-			}, ""},
+			}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -755,7 +750,6 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 				property, doc, diags := redeclared(t, order[0], order[1])
 				assert.Empty(t, diags, "%v", order)
 				assert.Empty(t, property.Unmodeled, "%v", order)
-				assert.Equal(t, tc.docs, property.Docs.Description, "%v", order)
 				tc.check(t, doc, property.Type.Target)
 			}
 		})

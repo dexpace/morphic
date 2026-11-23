@@ -103,12 +103,6 @@
             {
               "value": {
                 "kind": "number",
-                "number": "1"
-              }
-            },
-            {
-              "value": {
-                "kind": "number",
                 "number": "2"
               }
             }
@@ -417,6 +411,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its examples differently; kept the one the declaration at /components/schemas/Described/allOf/1/properties/id gives over the one at /components/schemas/Described/allOf/0/properties/id, which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/0/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "declarations of field \"id\" give its title differently; kept the one the declaration at /components/schemas/Described/allOf/1/properties/id gives over the one at /components/schemas/Described/allOf/0/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
@@ -505,7 +508,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-conflicting-type.yaml",
-      "hash": "08248abd95e96870a8d7000179ff87f2b37b0e4f32af217ae4e1a7f4b64fdba9"
+      "hash": "a39850af1e3fb70048076ee94f48199da6cb9364869c7dc7bcd4beefcaa3e946"
     }
   ]
 }

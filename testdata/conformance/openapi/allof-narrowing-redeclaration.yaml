@@ -352,8 +352,9 @@ components:
             p: {type: string, enum: [a, b]}
         - properties:
             p: {type: string, enum: [b, c]}
-    # A list narrower in its element meets a broader one described: the field
-    # takes the narrower list and holds the description itself, in either order.
+    # A list narrower in its element meets a broader one holding a description:
+    # the field takes a list of the narrower element holding the description,
+    # in either order.
     ListWideFirst:
       allOf:
         - properties:

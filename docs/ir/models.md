@@ -305,8 +305,8 @@ Deprecation accumulates where visibility does not because no declaration can lif
 "not deprecated" to state, a declaration without `Deprecation` saying nothing of it, and JSON Schema
 2020-12 (Validation §9.3) holds an instance location deprecated where any applicable `deprecated` is
 true. The OpenAPI compiler's fold of a field redeclared across inline `allOf` branches keeps a
-deprecation wherever any of them states one, so taking the declaration's alone would make a field
-current or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
+deprecation wherever any of them gives the field one, so taking the declaration's alone would make a
+field current or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
 (`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at `0cd087ff6`) no member's taken
 declaration lacks a deprecation an overridden one states, of 63,587 members across 18,017 models,
 nor any of the 2,184 members of the shapes the models narrowing a union take, so the rule moves no

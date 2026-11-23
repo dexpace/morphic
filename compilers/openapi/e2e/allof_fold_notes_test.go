@@ -5,18 +5,13 @@ package e2e_test
 
 import (
 	"encoding/json/v2"
-	"fmt"
-	"path"
-	"regexp"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,9 +20,8 @@ import (
 // declaration writes it, given the value's name, and how typedNotes names it
 // typed.
 type foldedNote struct {
-	name          string
-	write, typed  func(value string) string
-	objectExample bool
+	name         string
+	write, typed func(value string) string
 }
 
 // foldedNotes are the notes the model's own declarations of a folded field
@@ -42,14 +36,14 @@ var foldedNotes = []foldedNote{
 		typed: func(v string) string {
 			return `example {"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"` +
 				exampleCount(v) + `"}}]}`
-		}, objectExample: true},
+		}},
 	{name: "deprecation", write: func(v string) string { return "deprecated: true, x-deprecated-reason: " + v },
 		typed: func(v string) string { return "deprecation " + v }},
 }
 
 // exampleCount is the count the example named v writes.
 func exampleCount(v string) string {
-	return map[string]string{"own": "1", "base": "2", "a": "1", "b": "2", "c": "3", "d": "4"}[v]
+	return map[string]string{"own": "1", "base": "2"}[v]
 }
 
 // notedFoldSpec is a document whose Coll writes entries as its allOf, beside
@@ -176,75 +170,6 @@ func TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings(t *testing.T) {
 	}
 }
 
-// TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder
-// pins that where two allOf entries of the composing model write a note of a
-// field differently, both stay typed in every order of the entries and of the
-// components, wherever the field composes or narrows the two: of bare objects
-// or objects with properties, the note the field does not keep stays on the
-// node the other's schema builds, which the field's type reaches, and both
-// examples are the field's, of two lists too. Two lists differing in a note
-// alone are judged apart, so the field keeps the later and the earlier
-// declaration verbatim (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder(t *testing.T) {
-	t.Parallel()
-	shapes := []struct {
-		name, a, b string
-		composes   bool
-	}{
-		{"bare objects", "type: object", "type: object", true},
-		{"objects with properties", "type: object, properties: {count: {type: integer}}",
-			"type: object, properties: {page: {type: integer}}", true},
-		{"lists", "type: array, items: {type: object}", "type: array, items: {type: object}", false},
-	}
-	for _, shape := range shapes {
-		for _, note := range foldedNotes {
-			if note.objectExample && !shape.composes {
-				note = listExample
-			}
-			entries := [2]string{
-				"{properties: {f: {" + shape.a + ", " + note.write("a") + "}}}",
-				"{properties: {f: {" + shape.b + ", " + note.write("b") + "}}}",
-			}
-			var compiled [2][2]*ir.Document
-			for _, swap := range []bool{false, true} {
-				for _, collFirst := range []bool{false, true} {
-					label := shape.name + ", " + note.name + ", " + layoutName(swap, collFirst)
-					doc, field, diags := notedField(t, notedFoldSpec(entries, "", swap, collFirst))
-					compiled[boolIndex(swap)][boolIndex(collFirst)] = doc
-
-					want, verbatim := []string{note.typed("a"), note.typed("b")}, 0
-					if !shape.composes && note.name != "example" {
-						want, verbatim = []string{note.typed(map[bool]string{false: "b", true: "a"}[swap])}, 1
-					}
-					slices.Sort(want)
-					assert.Equal(t, want, typedNotes(t, doc), "%s: the notes typed", label)
-					assert.Len(t, field.Unmodeled, verbatim, "%s: the declarations kept verbatim", label)
-					requireErrorsAndWarnings(t, diags, nil)
-					// Lists keeping deprecation keys that differ are two types apart whatever
-					// their notes, so that overlap is reported beside the tie.
-					reports := map[string]int{"example": 0, "deprecation": 1 + boolIndex(!shape.composes)}[note.name]
-					if note.name == "description" || note.name == "title" {
-						reports = 1
-					}
-					assert.Equal(t, reports, codeCounts(diags)[diag.DegradedConstruct],
-						"%s: the tie is reported, the types judged as with no note left", label)
-				}
-			}
-			for _, swap := range []int{0, 1} {
-				assert.Empty(t, cmp.Diff(compiled[swap][0].Types, compiled[swap][1].Types),
-					"%s, %s: the types do not depend on component order", shape.name, note.name)
-			}
-		}
-	}
-}
-
-// listExample is the example note of a list of objects.
-var listExample = foldedNote{name: "example", write: func(v string) string { return "example: [{count: " + exampleCount(v) + "}]" },
-	typed: func(v string) string {
-		return `example {"kind":"list","list":[{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"` +
-			exampleCount(v) + `"}}]}]}`
-	}}
-
 // fieldNotes lists the notes field holds itself, as typedNotes names them.
 func fieldNotes(t *testing.T, field ir.Property) []string {
 	t.Helper()
@@ -259,364 +184,4 @@ func boolIndex(b bool) int {
 		return 1
 	}
 	return 0
-}
-
-// TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce pins that where a
-// reference names an allOf entry of the composing model, which then lowers as
-// a model of its own whose member carries that entry's note, the fold leaves
-// the note on no node: the field keeps the other entry's, the named entry's
-// declaration is kept verbatim, and each note is typed once, in every order of
-// the entries and of the components, whether a property's $ref or another
-// model's allOf names the entry. Examples are
-// TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields'
-// (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
-	t.Parallel()
-	shapes := []struct{ name, schema string }{
-		{"bare objects", "type: object"},
-		{"objects with properties", "type: object, properties: {count: {type: integer}}"},
-		{"lists", "type: array, items: {type: object}"},
-	}
-	for _, shape := range shapes {
-		for _, note := range foldedNotes {
-			if note.objectExample {
-				continue
-			}
-			entry := func(v string) string { return "{properties: {f: {" + shape.schema + ", " + note.write(v) + "}}}" }
-			namers := []struct{ name, schema, writes string }{
-				{"a property's $ref", "    Other: {type: object, properties: {g: {$ref: '#/components/schemas/Coll/allOf/0'}}}\n", ""},
-				{"another model's allOf", "    Other: {allOf: [{$ref: '#/components/schemas/Coll/allOf/0'}, " + entry("c") + "]}\n", "c"},
-			}
-			for _, namer := range namers {
-				want := []string{note.typed("a"), note.typed("b")}
-				if namer.writes != "" {
-					want = append(want, note.typed(namer.writes))
-				}
-				slices.Sort(want)
-				var compiled [2][2]*ir.Document
-				for _, swap := range []bool{false, true} {
-					for _, collFirst := range []bool{false, true} {
-						label := shape.name + ", " + note.name + ", " + namer.name + ", " + layoutName(swap, collFirst)
-						entries := [2]string{entry("a"), entry("b")}
-						if swap {
-							entries[0], entries[1] = entries[1], entries[0]
-						}
-						coll := "    Coll: {allOf: [" + entries[0] + ", " + entries[1] + "]}\n"
-						src := openapitest.ComponentSpec(namer.schema + coll)
-						if collFirst {
-							src = openapitest.ComponentSpec(coll + namer.schema)
-						}
-						doc, field, diags := notedField(t, src)
-						compiled[boolIndex(swap)][boolIndex(collFirst)] = doc
-
-						assert.Equal(t, want, typedNotes(t, doc), "%s: each note is typed once", label)
-						assert.Len(t, field.Unmodeled, 1, "%s: the named entry's declaration is kept verbatim", label)
-						requireErrorsAndWarnings(t, diags, nil)
-						requireTieReportsTrue(t, doc, field, diags, func(int, string) string { return "" })
-					}
-				}
-				for _, swap := range []int{0, 1} {
-					assert.Empty(t, cmp.Diff(compiled[swap][0].Types, compiled[swap][1].Types),
-						"%s, %s, %s: the types do not depend on component order", shape.name, note.name, namer.name)
-				}
-			}
-		}
-	}
-}
-
-// TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields pins that the
-// examples two or three allOf entries of the composing model give are the
-// field's alike whether or not a reference names one of the entries, as JSON
-// Schema collects an annotation from every subschema, named or not: each is
-// the field's, none is reported or kept verbatim, and the named entry, which
-// lowers as a model of its own, holds its own on its member, in either order
-// of the entries and of the components
-// (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields(t *testing.T) {
-	t.Parallel()
-	shapes := []struct {
-		name, schema string
-		note         foldedNote
-	}{
-		{"integers", "type: integer", foldedNote{name: "example", write: func(v string) string { return "example: " + exampleCount(v) },
-			typed: func(v string) string { return `example {"kind":"number","number":"` + exampleCount(v) + `"}` }}},
-		{"objects with properties", "type: object, properties: {count: {type: integer}}", foldedNotes[2]},
-		{"lists", "type: array, items: {type: object}", listExample},
-	}
-	values := []string{"a", "b", "c"}
-	for _, shape := range shapes {
-		for _, count := range []int{2, 3} {
-			entries := make([]string, count)
-			want := make([]string, count)
-			for k := range count {
-				entries[k] = "{type: object, properties: {f: {" + shape.schema + ", " + shape.note.write(values[k]) + "}}}"
-				want[k] = shape.note.typed(values[k])
-			}
-			slices.Sort(want)
-			for _, reversed := range []bool{false, true} {
-				written := slices.Clone(entries)
-				if reversed {
-					slices.Reverse(written)
-				}
-				for _, collFirst := range []bool{false, true} {
-					var unnamed []ir.Example
-					for named := -1; named < count; named++ {
-						label := fmt.Sprintf("%s, %d entries, reversed %t, Coll first %t, entry %d named", shape.name, count, reversed, collFirst, named)
-						coll := "    Coll: {allOf: [" + strings.Join(written, ", ") + "]}\n"
-						other := fmt.Sprintf("    Other: {type: object, properties: {g: {$ref: '#/components/schemas/Coll/allOf/%d'}}}\n", named)
-						if named < 0 {
-							other = "    Other: {type: object, properties: {g: {type: integer}}}\n"
-						}
-						src := openapitest.ComponentSpec(other + coll)
-						if collFirst {
-							src = openapitest.ComponentSpec(coll + other)
-						}
-						doc, field, diags := notedField(t, src)
-
-						requireErrorsAndWarnings(t, diags, nil)
-						assert.Equal(t, want, fieldNotes(t, field), "%s: the field holds every entry's example", label)
-						assert.Empty(t, field.Unmodeled, "%s: and keeps no declaration verbatim", label)
-						for _, d := range diags {
-							assert.NotContains(t, d.Message, "give its examples differently", "%s: nor reports one", label)
-						}
-						if named < 0 {
-							unnamed = field.Examples
-							continue
-						}
-						assert.Empty(t, cmp.Diff(unnamed, field.Examples), "%s: the field's examples are those it holds where none is named", label)
-						entryModel, isModel := doc.Types[requireProperty(t, doc, "Other", "g").Type.Target].(*ir.Model)
-						require.True(t, isModel, "%s: the named entry is a model", label)
-						member, ok := propertyByWire(entryModel, "f")
-						require.True(t, ok, "%s: the named entry holds f", label)
-						assert.Equal(t, []string{shape.note.typed(values[map[bool]int{false: named, true: count - 1 - named}[reversed]])},
-							fieldNotes(t, member), "%s: the named entry's member holds its own", label)
-					}
-				}
-			}
-		}
-	}
-}
-
-// requireProperty returns the property of the model named name whose wire
-// name is wire, failing where doc holds neither.
-func requireProperty(t *testing.T, doc *ir.Document, name, wire string) ir.Property {
-	t.Helper()
-	model, isModel := typeByName(doc, name).(*ir.Model)
-	require.True(t, isModel, "%s is a model", name)
-	property, ok := propertyByWire(model, wire)
-	require.True(t, ok, "%s holds %s", name, wire)
-	return property
-}
-
-// TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept pins that every report of
-// a note three or four allOf entries of the composing model give differently
-// says truly where the note it did not keep is: on the field's type, which
-// then holds it, or verbatim under Unmodeled, which then holds that
-// declaration. Enums sharing some members meet in a node the fold builds,
-// which adopts one note alone; lists, maps and bare objects are judged as
-// their kinds are (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept(t *testing.T) {
-	t.Parallel()
-	shapes := []struct{ name, schema string }{
-		{"enums", "type: string, enum: [b, c, %s]"},
-		{"lists of enums", "type: array, items: {type: string, enum: [b, c, %s]}"},
-		{"maps", "type: object, additionalProperties: {type: string}"},
-		{"bare objects", "type: object"},
-	}
-	values := []string{"a", "b", "c", "d"}
-	for _, shape := range shapes {
-		for _, note := range foldedNotes {
-			if note.objectExample {
-				continue
-			}
-			for _, count := range []int{3, 4} {
-				entries := make([]string, count)
-				for k := range count {
-					schema := shape.schema
-					if strings.Contains(schema, "%s") {
-						schema = strings.ReplaceAll(schema, "%s", "x"+values[k])
-					}
-					entries[k] = "{type: object, properties: {f: {" + schema + ", " + note.write(values[k]) + "}}}"
-				}
-				label := fmt.Sprintf("%s, %s, %d entries", shape.name, note.name, count)
-				doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
-
-				requireErrorsAndWarnings(t, diags, nil)
-				reports := requireTieReportsTrue(t, doc, field, diags, func(k int, _ string) string { return note.typed(values[k]) })
-				assert.Equal(t, count-1, reports, "%s: each note the field does not keep is reported", label)
-			}
-		}
-	}
-
-	// One entry gives a title alone and two a title and a deprecation, in every
-	// order, so the node the enums meet in can adopt one entry's deprecation
-	// and another's title.
-	title, deprecation := foldedNotes[1], foldedNotes[3]
-	for _, shape := range shapes[:2] {
-		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-			entries := make([]string, 3)
-			for k, writer := range order {
-				schema := strings.ReplaceAll(shape.schema, "%s", "x"+values[writer])
-				written := title.write(values[writer])
-				if writer > 0 {
-					written += ", " + deprecation.write(values[writer])
-				}
-				entries[k] = "{type: object, properties: {f: {" + schema + ", " + written + "}}}"
-			}
-			label := fmt.Sprintf("%s, a title beside a deprecation, written in the order %v", shape.name, order)
-			doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
-
-			requireErrorsAndWarnings(t, diags, nil)
-			reports := requireTieReportsTrue(t, doc, field, diags, func(k int, detail string) string {
-				return map[string]foldedNote{"title": title, "deprecation": deprecation}[detail].typed(values[order[k]])
-			})
-			assert.Equal(t, 3, reports, "%s: two titles and a deprecation are reported", label)
-		}
-	}
-}
-
-// TestAllOfFold_ABuiltNodeHoldsADeprecationBesideItsOwnKeys pins that where
-// three allOf entries of the composing model, two giving a deprecation
-// differently, are enums or lists of enums meeting in a node the fold builds,
-// that node holds a deprecation the field does not keep only beside the keys
-// it was read from, and otherwise none, in every order: the field holds the
-// last entry's, the node another's where the last states its own by the
-// keyword alone, and each report says truly where the other is
-// (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_ABuiltNodeHoldsADeprecationBesideItsOwnKeys(t *testing.T) {
-	t.Parallel()
-	shapes := []string{"type: string, enum: [b, c, x%d]", "type: array, items: {type: string, enum: [b, c, x%d]}"}
-	writes := map[byte]func(k int) (string, string){
-		'P': func(k int) (string, string) {
-			return fmt.Sprintf("deprecated: true, x-deprecated-reason: r%d", k), fmt.Sprintf("deprecation r%d", k)
-		},
-		'W': func(int) (string, string) { return "deprecated: true", "deprecation " },
-		'S': func(k int) (string, string) {
-			return fmt.Sprintf("deprecated: true, x-deprecated-since: s%d", k), "deprecation "
-		},
-		'F': func(k int) (string, string) { return fmt.Sprintf("x-foo: f%d", k), "" },
-		'N': func(int) (string, string) { return "", "" },
-	}
-	for _, shape := range shapes {
-		for _, given := range []string{"PPN", "PWN", "WPN", "PSN", "PPF", "PPW"} {
-			for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-				entries := make([]string, 3)
-				typed := make([]string, 3)
-				kept, keptByKeyword := "", false
-				for k, writer := range order {
-					written, note := writes[given[writer]](k)
-					entries[k] = "{type: object, properties: {f: {" + fmt.Sprintf(shape, k) + map[bool]string{true: ", " + written}[written != ""] + "}}}"
-					typed[k] = note
-					if strings.HasPrefix(written, "deprecated") {
-						kept, keptByKeyword = note, given[writer] == 'W'
-					}
-				}
-				label := fmt.Sprintf("%s, %s in the order %v", shape, given, order)
-				doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
-
-				requireErrorsAndWarnings(t, diags, nil)
-				assert.Equal(t, []string{kept}, fieldNotes(t, ir.Property{Deprecation: field.Deprecation}), "%s: the field holds the last", label)
-				requireTieReportsTrue(t, doc, field, diags, func(k int, detail string) string {
-					return map[bool]string{true: typed[k]}[detail == "deprecation"]
-				})
-				td, ok := doc.Types[field.Type.Target]
-				require.True(t, ok, label)
-				assert.Equal(t, keptByKeyword, td.Common().Deprecation != nil,
-					"%s: the built node holds another's deprecation where the field's holds no key", label)
-				requireDeprecationBesideItsKeys(t, td.Common(), label)
-			}
-		}
-	}
-}
-
-// requireDeprecationBesideItsKeys holds node, where it is deprecated, to the
-// keys it keeps that the default promotion reads a deprecation from: each
-// written in one declaration, and stating what the deprecation holds.
-func requireDeprecationBesideItsKeys(t *testing.T, node *ir.TypeCommon, label string) {
-	t.Helper()
-	if node.Deprecation == nil {
-		return
-	}
-	stated := map[string]string{}
-	written := map[string]bool{}
-	for key, field := range map[string]string{"openapi:x-deprecated-reason": "message", "openapi:x-deprecated-since": "since"} {
-		entry, ok := node.Unmodeled[key]
-		if !ok {
-			continue
-		}
-		var value string
-		require.NoError(t, json.Unmarshal(entry.Value, &value), label)
-		stated[field] = value
-		written[path.Dir(string(entry.Provenance.Pointer))] = true
-	}
-	holds := map[string]string{}
-	for field, value := range map[string]string{"message": node.Deprecation.Message, "since": node.Deprecation.Since} {
-		if value != "" {
-			holds[field] = value
-		}
-	}
-	assert.Equal(t, stated, holds, "%s: the built node's deprecation is what its keys state", label)
-	assert.LessOrEqual(t, len(written), 1, "%s: and its keys are one declaration's", label)
-}
-
-// tieReport reads a report of a note two declarations give differently.
-var tieReport = regexp.MustCompile(`give its ([a-z ]+) differently; kept the one the declaration at (\S+) gives over the one at (\S+), which (.+)$`)
-
-// requireTieReportsTrue holds each report diags make of a note Coll's
-// declarations give differently to the document: a declaration whose note
-// "the field's type holds" gives one the field's type or a model it composes
-// holds, as typed(k, detail) names the note of detail Coll's k-th allOf entry
-// gives, empty where that is not to be checked; and one "kept verbatim" is under field's
-// Unmodeled. One staying on its model, as another model's fold reports, is
-// read and not checked. It returns how many reports it read.
-func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, diags []ir.Diagnostic, typed func(k int, detail string) string) int {
-	t.Helper()
-	read := 0
-	for _, d := range diags {
-		match := tieReport.FindStringSubmatch(d.Message)
-		if match == nil {
-			continue
-		}
-		read++
-		lost := match[3]
-		switch match[4] {
-		case "the field's type holds":
-			var k int
-			_, err := fmt.Sscanf(lost, "/components/schemas/Coll/allOf/%d/properties/f", &k)
-			require.NoError(t, err, d.Message)
-			want := typed(k, match[1])
-			if want == "" {
-				continue
-			}
-			holders := append([]ir.TypeID{field.Type.Target}, mixinsOf(doc, field.Type.Target)...)
-			held := make([]string, 0, len(holders))
-			for _, id := range holders {
-				td, ok := doc.Types[id]
-				require.True(t, ok, id)
-				common := td.Common()
-				held = append(held, fieldNotes(t, ir.Property{Docs: common.Docs, Examples: common.Examples, Deprecation: common.Deprecation})...)
-			}
-			assert.Contains(t, held, want, "%s: the field's type holds it", d.Message)
-		case "is kept verbatim under Unmodeled":
-			assert.Contains(t, field.Unmodeled, "openapi:conflicting-redeclaration"+lost, "%s: it is kept verbatim", d.Message)
-		case "stays declared on its model":
-		default:
-			assert.Fail(t, "a report saying neither", d.Message)
-		}
-	}
-	return read
-}
-
-// mixinsOf lists the types the model id names composes, none where it is no
-// model.
-func mixinsOf(doc *ir.Document, id ir.TypeID) []ir.TypeID {
-	model, isModel := doc.Types[id].(*ir.Model)
-	if !isModel {
-		return nil
-	}
-	out := make([]ir.TypeID, 0, len(model.Mixins))
-	for _, mixin := range model.Mixins {
-		out = append(out, mixin.Target)
-	}
-	return out
 }

@@ -1282,13 +1282,11 @@ it sees. Changes made together in one bump are listed together under it.
   the key, its XML hints, its redaction, its bounds and what is kept verbatim. A schema naming a
   `$ref`, beside its keywords or as a conjunct of its `allOf`, and a position a reference names, a
   `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
-  before. A member an `allOf` redeclares holds one of each note its declarations give, the one a
-  declaration the model writes itself gives over one another model's declaration brings, which
-  stays on that model; where those the model writes itself give one note differently, the node
-  another's schema builds keeps that one's, or the node the fold builds of them adopts one of the
-  others, a deprecation only beside the keys it was read from, wherever the member's type holds
-  that node and no reference names that declaration's `allOf` entry, whose own member then holds
-  it, and any other is kept verbatim; and the member holds every example they give that it takes
+  before. A member a model declares more than once itself, in its own properties, an inline `allOf`
+  entry or one nested in another, keeps them on the node each declaration builds, as before. Where an
+  `allOf` entry brings a declaration another model holds, the member holds the note its own model's
+  declaration gives over that one's, which stays on that model, and takes an example its own model's
+  gives that the fold has no judge for
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
   off the node its type names, and finds none on the member.

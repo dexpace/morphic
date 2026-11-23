@@ -117,35 +117,25 @@ func TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped(t *testing.T) {
 }
 
 // TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut pins that an example the
-// field takes keeps out one it refuses, in either order of the entries: a later
-// example its integer type refuses, and, at a field whose model the merge has
-// no judge for, one of another kind, which the field adopts only where it takes
-// no other. Each refused example is kept verbatim at its declaration, never put
-// on the field over the one it takes.
+// field takes keeps out one it refuses, in either order of the entries: of an
+// integer's and a number's, the example the integer type refuses is kept
+// verbatim at its declaration, never put on the field over the one it takes.
 func TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut(t *testing.T) {
 	t.Parallel()
 	integer := "        - {properties: {result_info: {type: integer, example: 1}}}\n"
 	number := "        - {properties: {result_info: {type: number, example: 1.5}}}\n"
-	model := "        - {properties: {result_info: {type: object, properties: {count: {type: integer}}, example: {count: 1}}}}\n"
-	text := "        - {properties: {result_info: {type: object, example: abc}}}\n"
-	const (
-		one   = `[{"value":{"kind":"number","number":"1"}}]`
-		count = `[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`
-	)
 	for name, tc := range map[string]struct {
-		entries, taken, refused, value string
+		entries, refused string
 	}{
-		"the integer's first": {integer + number, one, "/allOf/1/properties/result_info", "1.5"},
-		"the integer's last":  {number + integer, one, "/allOf/0/properties/result_info", "1.5"},
-		"the model's first":   {model + text, count, "/allOf/1/properties/result_info", "abc"},
-		"the model's last":    {text + model, count, "/allOf/0/properties/result_info", "abc"},
+		"the integer's first": {integer + number, "/allOf/1/properties/result_info"},
+		"the integer's last":  {number + integer, "/allOf/0/properties/result_info"},
 	} {
 		field, diags, _ := collField(t, openapitest.ComponentSpec("    Coll:\n      allOf:\n"+tc.entries))
 
-		assert.Equal(t, tc.taken, examplesJSON(t, field.Examples), "%s: the example the field takes", name)
+		assert.Equal(t, `[{"value":{"kind":"number","number":"1"}}]`, examplesJSON(t, field.Examples), "%s: the example the field takes", name)
 		require.Len(t, field.Unmodeled, 1, name)
 		entry := unmodeledEntry(t, field.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/Coll"+tc.refused)
-		assert.Contains(t, string(entry.Value), tc.value, "%s: the refused one is kept at its declaration", name)
+		assert.Contains(t, string(entry.Value), "1.5", "%s: the refused one is kept at its declaration", name)
 		assert.Equal(t, 1, countCode(diags, diag.DegradedConstruct, "/components/schemas/Coll"+tc.refused), name)
 		assert.Zero(t, codeCounts(diags)[exampleOutsideType], "%s: the field holds no example outside its type", name)
 	}

@@ -69,16 +69,15 @@ var callShapeBaseline = map[string]map[string]int{
 		// they return: immediate callbacks. operation's are a union's file reading
 		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    26,
+		"compilers/openapi/internal/schema":    27,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through
 		// merge.FieldDeclarationContext: Alike three times, Admits once, Mint
-		// once, Interned once and DeprecationKey once.
-		// merge.DeclarationConstructRenderer, a lazy render of a declaration
-		// nobody may keep. And the predicate SelectBase calls before it
-		// returns, an immediate callback.
-		"compilers/openapi/internal/schema": 9,
+		// once and Interned once. merge.DeclarationConstructRenderer, a lazy
+		// render of a declaration nobody may keep. And the predicate SelectBase
+		// calls before it returns, an immediate callback.
+		"compilers/openapi/internal/schema": 8,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal

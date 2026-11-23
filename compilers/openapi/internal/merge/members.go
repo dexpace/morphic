@@ -98,22 +98,17 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	if len(decls) < 2 {
 		return nil
 	}
-	// An own declaration another model holds too leaves no note on its node,
-	// as that model's member holds them. The reader of apart reads via beside
-	// it, but heldAlone reads a pointer in the model's own document, where a
-	// brought declaration need not be written.
-	for i := range decls {
-		if !isBrought(decls[i]) {
-			decls[i].apart = !idx.heldAlone(merger, decls[i])
-		}
-	}
-	if !slices.ContainsFunc(decls, isBrought) {
+	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
+	// A member the model declares more than once itself keeps its notes on the
+	// nodes its declarations build, so each is judged with its notes there,
+	// those another model's property carries among them.
+	merger.noted = len(own) > 1
+	if len(own) == len(decls) {
 		merged, diags := merger.fold(decls)
 		idx.place(pos, merged)
 		idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
 		return deciding(diags, merged.ID)
 	}
-	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
 	field := composedMember(merger.IDs, idx.m, decls[0].property.WireName)
 	kept := len(own) > 0 && idx.heldAlone(merger, own[0])
 	if kept {

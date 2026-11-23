@@ -106,7 +106,7 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
 	promoter := mapped()
 	doc := replacementDoc(`"v2"`)
-	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc), nil))
 
 	operation := doc.Services[0].Groups[0].Operations[0]
 	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
@@ -151,7 +151,7 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 	for _, value := range []string{`["v2","gone"]`, `"old"`, `["getOld"]`, `"X-Old"`} {
 		promoter := mapped()
 		doc := replacementDoc(value)
-		diags := replacement.Resolve(promoter, compileddoc.New(doc))
+		diags := replacement.Resolve(promoter, compileddoc.New(doc), nil)
 		require.NotEmpty(t, diags, value)
 		for _, diagnostic := range diags {
 			assert.Equal(t, diag.DegradedConstruct, diagnostic.Code, value)
@@ -198,7 +198,7 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 		promoter := mapped()
 		doc := replacementDoc(`"v2"`)
 		severalV2(doc, first)
-		diags := replacement.Resolve(promoter, compileddoc.New(doc))
+		diags := replacement.Resolve(promoter, compileddoc.New(doc), nil)
 
 		messages := make([]string, 0, len(diags))
 		for _, diagnostic := range diags {
@@ -234,14 +234,14 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	t.Parallel()
 	unmapped := promotion.New(promotion.ExtensionPromotions{})
 	doc := replacementDoc(`"v2"`)
-	assert.Empty(t, replacement.Resolve(unmapped, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(unmapped, compileddoc.New(doc), nil))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)
 
 	promoter := mapped()
 	doc = replacementDoc(`"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
 	doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
-	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc), nil))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }
 
@@ -257,7 +257,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deep}}}}
-	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc)))
+	assert.Empty(t, replacement.Resolve(promoter, compileddoc.New(doc), nil))
 	for range ir.MaxGroupDepth + 1 {
 		deep = deep.Groups[0]
 	}
@@ -332,14 +332,49 @@ func TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt(t *testing.T) {
 			node := &ir.Scalar{ID: "type/node", Unmodeled: names(`"v2"`), Provenance: tc.node, Deprecation: tc.nodeDep}
 			if tc.header {
 				doc := headerCarrierDoc(ir.Header{Deprecation: deprecated(), Provenance: tc.carrier, Unmodeled: tc.own}, node)
-				assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc)))
+				assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc), nil))
 				assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Deprecation.ReplacedBy)
 				return
 			}
 			doc := carrierDoc(ir.Parameter{Deprecation: deprecated(), Provenance: tc.carrier, Unmodeled: tc.own}, node)
-			assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc)))
+			assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc), nil))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
+	}
+}
+
+// memberDoc is a document whose model declares the members old, deprecated and
+// naming the node built at its position, which keeps a key naming the schema
+// v2, and v2.
+func memberDoc(dep *ir.Deprecation) *ir.Document {
+	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
+	at := ir.Provenance{Pointer: "/components/schemas/M/allOf/0/properties/old"}
+	return &ir.Document{Types: ir.TypeRegistry{
+		v2:          &ir.Model{ID: v2},
+		"type/node": &ir.Scalar{ID: "type/node", Unmodeled: names(`"v2"`), Provenance: at},
+		"type/M": &ir.Model{ID: "type/M", Properties: []ir.Property{
+			{ID: "property/old", Name: ir.Naming{Source: "old"}, WireName: "old", Type: ir.TypeRef{Target: "type/node"}, Deprecation: dep, Provenance: at},
+			{ID: "property/v2", Name: ir.Naming{Source: "v2"}, WireName: "v2"},
+		}},
+	}}
+}
+
+// TestResolve_AMemberItsModelDeclaresAgainReadsNoNodesKeys pins the members a
+// model declares more than once itself: their deprecation is not their node's,
+// so none reads the key its node keeps, where any other member does.
+func TestResolve_AMemberItsModelDeclaresAgainReadsNoNodesKeys(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		again map[ir.PropertyID]bool
+		want  []ir.EntityRef
+	}{
+		{"declared once", map[ir.PropertyID]bool{"property/v2": true}, []ir.EntityRef{{Type: ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")}}},
+		{"declared again", map[ir.PropertyID]bool{"property/old": true}, nil},
+	} {
+		doc := memberDoc(deprecated())
+		assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc), tc.again), tc.name)
+		assert.Equal(t, tc.want, doc.Types["type/M"].(*ir.Model).Properties[0].Deprecation.ReplacedBy, tc.name)
 	}
 }
 
@@ -360,7 +395,7 @@ func TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode(t *testing.T) {
 	t.Parallel()
 	node := &ir.Scalar{ID: "type/node", Unmodeled: names(`5`), Provenance: ir.Provenance{Pointer: "/p/schema"}}
 	doc := carrierDoc(ir.Parameter{Deprecation: deprecated(), Provenance: ir.Provenance{Pointer: "/p"}}, node)
-	diags := replacement.Resolve(mapped(), compileddoc.New(doc))
+	diags := replacement.Resolve(mapped(), compileddoc.New(doc), nil)
 	require.Len(t, diags, 1, "%v", diags)
 	assert.Equal(t, jsontext.Pointer("/x-replaced-by"), diags[0].Provenance.Pointer)
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)

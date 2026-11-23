@@ -22,10 +22,10 @@ import (
 // among the headers beside it, a property by name within its model, a schema by
 // its components name, and a security scheme by its key
 // (docs/compilers/openapi.md#extension-promotion), a carrier naming none
-// reading its node's (nodeKeys). promoter is the run's promoter, and
-// compiledDocumentView the document, which is whole.
-func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
-	resolverValue := resolver{p: promoter, w: compiledDocumentView}
+// reading its node's (nodeKeys), but for a member of declaredAgain
+// (schema.MembersDeclaredAgain). compiledDocumentView is whole.
+func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, declaredAgain map[ir.PropertyID]bool) []ir.Diagnostic {
+	resolverValue := resolver{p: promoter, w: compiledDocumentView, declaredAgain: declaredAgain}
 	if !resolverValue.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
@@ -55,6 +55,9 @@ func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.Comp
 type resolver struct {
 	p promotion.Promoter
 	w *compileddoc.CompiledDocumentView
+	// declaredAgain is the members whose declarations' notes stay on the nodes
+	// their schemas build, so none reads a node's keys (nodeKeys).
+	declaredAgain map[ir.PropertyID]bool
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
@@ -118,13 +121,13 @@ func (r *resolver) fillCarrier(carrier deprecated, class string, find func(strin
 // carrier reads its replacements there: carrier is deprecated, its own keys
 // write none, and the node, which writes some, is the one its declaration
 // built (builtAt, or headerSchemaAt for a header) and holds no deprecation.
-// One a reference names, or whose carrier deprecates itself, keeps its
-// schema's (docs/compilers/openapi.md#docs-and-deprecation). Replacement
-// inference asks too, so no message is read over those keys. Reading IR
-// alone, it cannot tell a schema stating no deprecation from one the carrier
-// took, so a carrier deprecating itself reads the first's (GitHub #2189).
+// One a reference names, whose carrier deprecates itself, or of a member
+// declared again keeps its schema's (docs/compilers/openapi.md#docs-and-deprecation).
+// Replacement inference asks too, so no message is read over those keys. It
+// cannot tell a schema stating no deprecation from one the carrier took, so one
+// deprecating itself reads the first's (GitHub #2189).
 func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) {
-	if carrier.dep == nil || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
+	if carrier.dep == nil || r.declaredAgain[carrier.self.Property] || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
 		return "", nil, false
 	}
 	td := r.w.Types[carrier.typeRef.Target]

@@ -94,8 +94,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stubbed, *[]ir.Diagnostic) {
 // stubWalk is the walk a test folds under. Mint registers a node in reg under
 // composedAt's ID and counts it in minted, Interned answers for the schemas
 // interned lists, Alike reads every two sites against one base unless apart
-// says they are read apart, Admits answers untypedAt, exactly, and
-// DeprecationKey names deprecationKey alone.
+// says they are read apart, and Admits answers untypedAt, exactly.
 type stubWalk struct {
 	reg      map[ir.TypeID]ir.TypeDef
 	interned []jsontext.Pointer
@@ -130,13 +129,6 @@ func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
 func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact bool) {
 	return untypedAt(at), true
 }
-
-// DeprecationKey is FieldDeclarationContext.DeprecationKey, reading a
-// deprecation's message from the key the default promotion maps to it.
-func (w *stubWalk) DeprecationKey(key string) bool { return key == deprecationKey }
-
-// deprecationKey is the key stubWalk reads a deprecation from.
-const deprecationKey = "openapi:x-deprecated-reason"
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.

@@ -195,26 +195,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/HintedAndModel/allOf/0/properties/data": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/HintedAndModel/allOf/0/properties/data",
-      "name": {
-        "hint": "held_on_the_composition"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "xml": {
-        "name": "held"
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/HintedAndModel/allOf/0/properties/data"
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -811,7 +791,9 @@
         "hint": "held_on_the_composition"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "summary": "Held on the composition"
+      },
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -1167,33 +1149,6 @@
       "mixins": [
         {
           "target": "type/openapi/components/schemas/Recording",
-          "nullable": false
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/composed/components/schemas/HintedAndModel/allOf/1/properties/data": {
-      "kind": "model",
-      "id": "type/composed/components/schemas/HintedAndModel/allOf/1/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/HintedAndModel/allOf/1/properties/data"
-      },
-      "base": {
-        "target": "type/openapi/components/schemas/Meeting",
-        "nullable": false
-      },
-      "mixins": [
-        {
-          "target": "type/anonymous/components/schemas/HintedAndModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1589,6 +1544,33 @@
         },
         {
           "target": "type/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TitledAndModel/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "type/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -2344,55 +2326,6 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/FirstWrapperUser/properties/wrapper"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/openapi/components/schemas/HintedAndModel": {
-      "kind": "model",
-      "id": "type/openapi/components/schemas/HintedAndModel",
-      "name": {
-        "source": "HintedAndModel",
-        "canonical": "hinted_and_model"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/HintedAndModel"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/HintedAndModel/allOf/0/properties/data",
-          "name": {
-            "source": "data",
-            "canonical": "data"
-          },
-          "wireName": "data",
-          "type": {
-            "target": "type/composed/components/schemas/HintedAndModel/allOf/1/properties/data",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {
-            "summary": "Held on the composition"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/HintedAndModel/allOf/0/properties/data"
           }
         }
       ],
@@ -3339,7 +3272,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "type/openapi/components/schemas/Meeting",
+            "target": "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -3352,9 +3285,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "summary": "Held on the composition"
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/TitledAndModel/allOf/0/properties/data"
@@ -3763,7 +3694,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "e9e98a44e5f4afece47bb4e7896c900dfb11434c84d7cdc7765b9a6737ba6254"
+      "hash": "381d19aacd5087e3b5a8eaa726e6520194caa92ca0a29ffedb5c1c1578c099ca"
     }
   ]
 }

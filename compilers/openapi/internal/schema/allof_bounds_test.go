@@ -139,9 +139,11 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 
 // TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder pins nodes alike
 // in their members whose declarations differ in bounds and in a fact a node
-// holds beside them, XML hints (GitHub #1042). Neither node says all the other
-// does, so the field takes a node built of both, holding every bound and the
-// fact whichever declaration writes it, with nothing kept or reported.
+// holds beside them, a deprecation or XML hints (GitHub #1042). Neither node
+// says all the other does, so the field takes a node built of both, holding
+// every bound and the fact whichever declaration writes it, with nothing kept
+// or reported. Two that give one fact differently say what no node holds at
+// once, so the field takes the later's and the earlier is reported and kept.
 func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
@@ -149,10 +151,12 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	tuple := func(extra string) string { return "{type: array, prefixItems: [{type: string}]" + extra + "}" }
 	custom := func(extra string) string { return "{type: string, format: x-custom" + extra + "}" }
 	for _, tc := range []struct{ name, a, b string }{
-		{"two lists meeting", list(", minItems: 1, xml: {wrapped: true}"), list(", maxItems: 5")},
-		{"two maps meeting", mapOf(", minProperties: 1, xml: {name: m}"), mapOf(", maxProperties: 5")},
-		{"two tuples meeting", tuple(", minItems: 1, xml: {wrapped: true}"), tuple(", maxItems: 5")},
-		{"two scalars meeting", custom(", minLength: 1, xml: {name: s}"), custom(", maxLength: 5")},
+		{"two lists meeting, one deprecated", list(", minItems: 1, deprecated: true"), list(", maxItems: 5")},
+		{"two lists meeting, one with XML hints", list(", minItems: 1, xml: {wrapped: true}"), list(", maxItems: 5")},
+		{"a narrower list and a broader one deprecated", list(", minItems: 1, maxItems: 5"), list(", minItems: 1, deprecated: true")},
+		{"two maps meeting, one deprecated", mapOf(", minProperties: 1, deprecated: true"), mapOf(", maxProperties: 5")},
+		{"two tuples meeting, one deprecated", tuple(", minItems: 1, deprecated: true"), tuple(", maxItems: 5")},
+		{"two scalars meeting, one deprecated", custom(", minLength: 1, deprecated: true"), custom(", maxLength: 5")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -164,99 +168,19 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 				assert.Empty(t, property.Unmodeled)
 				assert.Empty(t, diags)
 				node := doc.Types[property.Type.Target]
-				assert.NotNil(t, node.Common().XML, "the fact is held")
+				assert.True(t, node.Common().Deprecation != nil || node.Common().XML != nil, "the fact is held")
 				built = append(built, node)
 			}
 			assert.Empty(t, cmp.Diff(built[0], built[1], cmpopts.IgnoreFields(ir.TypeCommon{}, "Name")),
 				"the node does not depend on entry order")
 		})
 	}
-}
 
-// TestAllOf_ADeprecationIsTheFieldsInEitherOrder pins the same declarations
-// deprecated rather than hinted. A deprecation written on a carried position is
-// its carrier's (docs/ir/annotations.md#one-structural-home-per-declaration), so
-// it says nothing of the nodes: the field takes the node its bounds alone give,
-// a node built of both where each adds a bound and the narrower where one says
-// all, and holds the deprecation whichever declaration writes it. Two that
-// describe the field differently are a fold's to settle: it keeps the later on
-// the field and the earlier on the node both lists meet in, and reports the
-// tie.
-func TestAllOf_ADeprecationIsTheFieldsInEitherOrder(t *testing.T) {
-	t.Parallel()
-	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
-	mapOf := func(extra string) string { return "{type: object, additionalProperties: {type: string}" + extra + "}" }
-	custom := func(extra string) string { return "{type: string, format: x-custom" + extra + "}" }
-	for _, tc := range []struct{ name, a, b, typed string }{
-		{"two lists meeting", list(", minItems: 1, deprecated: true"), list(", maxItems: 5"), "type/composed/components/schemas/T/allOf/1/properties/v"},
-		{"two maps meeting", mapOf(", minProperties: 1, deprecated: true"), mapOf(", maxProperties: 5"), "type/composed/components/schemas/T/allOf/1/properties/v"},
-		{"two scalars meeting", custom(", minLength: 1, deprecated: true"), custom(", maxLength: 5"), "type/composed/components/schemas/T/allOf/1/properties/v"},
-		{"a narrower list and a broader one deprecated", list(", minItems: 1, maxItems: 5"), list(", minItems: 1, deprecated: true"), "type/anonymous/components/schemas/T/allOf/0/properties/v"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
-				property, doc, diags := redeclared(t, order[0], order[1])
-
-				assert.NotNil(t, property.Deprecation, "the field holds the deprecation")
-				assert.Empty(t, property.Unmodeled)
-				assert.Empty(t, diags)
-				for id, td := range doc.Types {
-					assert.Nil(t, td.Common().Deprecation, "and no node does: %s", id)
-				}
-			}
-			property, _, _ := redeclared(t, tc.a, tc.b)
-			reversed, _, _ := redeclared(t, tc.b, tc.a)
-			assert.Equal(t, ir.TypeID(tc.typed), property.Type.Target)
-			if tc.typed != "type/composed/components/schemas/T/allOf/1/properties/v" {
-				assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/allOf/1/properties/v"), reversed.Type.Target,
-					"the narrower declaration's node, at whichever entry it stands")
-				return
-			}
-			assert.Equal(t, property.Type.Target, reversed.Type.Target)
-		})
-	}
-
-	irProperty, doc, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
-	assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), irProperty.Type.Target)
-	assert.Equal(t, "one", doc.Types[irProperty.Type.Target].Common().Docs.Description)
-	assert.Equal(t, "other", irProperty.Docs.Description)
-	assert.Empty(t, irProperty.Unmodeled)
-	for _, own := range []ir.TypeID{"type/anonymous/components/schemas/T/allOf/0/properties/v", "type/anonymous/components/schemas/T/allOf/1/properties/v"} {
-		assert.Empty(t, doc.Types[own].Common().Docs.Description, "%s holds no second copy", own)
-	}
+	irProperty, _, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/T/allOf/1/properties/v"), irProperty.Type.Target)
+	assert.Contains(t, irProperty.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "which the field's type holds")
-}
-
-// TestAllOf_ABuiltNodeHoldsNoDeprecationBesideAnothersKey pins the keys the
-// walk says a deprecation is read from (modelFields.DeprecationKey): of three
-// enums meeting, two deprecated by x-deprecated-reason, the field holds the
-// later's and the node they meet in, which holds that one's key, holds none,
-// the earlier kept verbatim, in either order of the two.
-func TestAllOf_ABuiltNodeHoldsNoDeprecationBesideAnothersKey(t *testing.T) {
-	t.Parallel()
-	entry := func(value, extra string) string {
-		return "{type: object, properties: {v: {type: string, enum: [b, c, " + value + "]" + extra + "}}}"
-	}
-	for _, order := range [][2]string{{"a", "k"}, {"k", "a"}} {
-		deprecated := func(k int) string {
-			return entry(order[k], ", deprecated: true, x-deprecated-reason: "+order[k])
-		}
-		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T: {allOf: ["+deprecated(0)+", "+deprecated(1)+", "+entry("n", "")+"]}\n"))
-		openapitest.RequireNoErrorDiags(t, diags)
-		model, ok := doc.Types[componentID("T")].(*ir.Model)
-		require.True(t, ok)
-		property := model.Properties[0]
-
-		assert.Equal(t, &ir.Deprecation{Message: order[1]}, property.Deprecation, "%v: the field holds the later's", order)
-		built := doc.Types[property.Type.Target].Common()
-		assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), built.ID, "%v: a node the fold built", order)
-		assert.Nil(t, built.Deprecation, "%v: which holds none beside the later's key", order)
-		assert.Equal(t, ir.RawValue(`"`+order[1]+`"`), built.Unmodeled["openapi:x-deprecated-reason"].Value, "%v", order)
-		assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v", "%v", order)
-	}
 }
 
 // TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder pins a default

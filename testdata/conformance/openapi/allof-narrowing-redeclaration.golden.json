@@ -760,7 +760,9 @@
         "hint": "p"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "description": "Counts"
+      },
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -778,7 +780,9 @@
         "hint": "p"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "description": "Counts"
+      },
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -1126,6 +1130,46 @@
       ],
       "closed": true,
       "flags": false
+    },
+    "type/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "type/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListNarrowFirst/allOf/1/properties/p"
+      },
+      "elementType": {
+        "target": "type/primitive/int32",
+        "nullable": false
+      }
+    },
+    "type/composed/components/schemas/ListWideFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "type/composed/components/schemas/ListWideFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListWideFirst/allOf/1/properties/p"
+      },
+      "elementType": {
+        "target": "type/primitive/int32",
+        "nullable": false
+      }
     },
     "type/openapi/components/schemas/AliasMeetsFirst": {
       "kind": "model",
@@ -2499,7 +2543,7 @@
           },
           "wireName": "p",
           "type": {
-            "target": "type/anonymous/components/schemas/ListNarrowFirst/allOf/0/properties/p",
+            "target": "type/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
@@ -2512,9 +2556,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "description": "Counts"
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/ListNarrowFirst/allOf/0/properties/p"
@@ -2549,7 +2591,7 @@
           },
           "wireName": "p",
           "type": {
-            "target": "type/anonymous/components/schemas/ListWideFirst/allOf/1/properties/p",
+            "target": "type/composed/components/schemas/ListWideFirst/allOf/1/properties/p",
             "nullable": false
           },
           "required": false,
@@ -2562,9 +2604,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "description": "Counts"
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/ListWideFirst/allOf/0/properties/p"
@@ -3908,7 +3948,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "10ccdf06963affb2c1c0bd181570396070682cb0feda76a6fa1e9df9d17299d4"
+      "hash": "0ca7366eca433fecde5333f2d72650d7136eaa83f1906a4b94240f6e746b5bc9"
     }
   ]
 }

@@ -194,3 +194,13 @@ func UnreadKeys(schema *statement.Schema, read []string) []string {
 
 // ReadDomain returns readDomain.
 func ReadDomain() []string { return slices.Clone(readDomain) }
+
+// MembersDeclaredAgainIn lowers src as LowerSpec does, and returns the members
+// its models declare more than once themselves (MembersDeclaredAgain).
+func MembersDeclaredAgainIn(t *testing.T, src string) map[ir.PropertyID]bool {
+	t.Helper()
+	lowerer, _ := LoweredFor(t, src)
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	lowerer.Document(t)
+	return MembersDeclaredAgain(lowerer.Ctx)
+}

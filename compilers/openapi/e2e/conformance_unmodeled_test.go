@@ -390,11 +390,9 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 			`"externalDocs":{"url":"https://example.com/first"},"example":1}`)
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", describedPtr),
 		"agreeing types are not a conflict")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", describedPtr),
-		"the title, the description, the external link and the default are each named as differing")
-	assert.Equal(t, []ir.Example{{Value: &ir.Value{Kind: ir.ValueNumber, Number: "1"}}, {Value: &ir.Value{Kind: ir.ValueNumber, Number: "2"}}},
-		did.Examples, "while the field holds the example of each")
+		"the title, the description, the external link, the default and the example are each named as differing")
 
 	overlapping, ok := doc.Types[componentID("Overlapping")].(*ir.Model)
 	require.True(t, ok)

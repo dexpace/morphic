@@ -240,33 +240,10 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	}
 	typeCommon := built.Common()
 	*typeCommon = adopt(*typeCommon, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
-	b.keepDeprecationWhole(typeCommon)
 	if list, ok := built.(*ir.List); ok && list.Encoding == nil {
 		b.adoptEncoding(list, all, nodes)
 	}
 	return built
-}
-
-// keepDeprecationWhole drops from typeCommon, a node built of others, a
-// deprecation the fold left on one declaration's node (leaveNotesOnNodes)
-// where a key it holds that a deprecation is read from
-// (FieldDeclarationContext.DeprecationKey) is not that node's alike, as where
-// another declaration's key, whose deprecation the field holds, came first. It
-// holds every key of that node already (adoptUnmodeled), and one it holds that
-// the node lacks reads as an empty entry, which no kept value is. So the node
-// holds a deprecation beside its own keys or none, and takeBack keeps that
-// declaration verbatim; each key stays, annotating nothing alone.
-func (b *builder) keepDeprecationWhole(typeCommon *ir.TypeCommon) {
-	for _, left := range b.f.left {
-		if left.holds["deprecation"] == nil || left.node.Deprecation != typeCommon.Deprecation {
-			continue
-		}
-		for key, entry := range typeCommon.Unmodeled {
-			if b.f.g.Walk.DeprecationKey(key) && !sameEntry(b.f.g.Walk, entry, left.node.Unmodeled[key]) {
-				typeCommon.Deprecation = nil
-			}
-		}
-	}
 }
 
 // adoptEncoding sets on list, a list giving no encoding, the first one

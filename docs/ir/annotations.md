@@ -180,13 +180,10 @@ has fields for, and the node holds none of them, so a reader of a model's member
 member whichever kind its schema is. That holds of each note nothing at the position writes over: where a
 parameter or a header writes its own documentation, deprecation or examples beside its schema's, or a
 Reference Object naming a component one writes documentation beside its `$ref`, the node keeps the
-schema's for every use of that position, and each carrier holds only its own. A member an `allOf`
-redeclares has one slot for each note: where declarations the model writes itself give one
-differently, the member holds one, and the node another's schema builds keeps that one's, as
-before its carrier took it, or the node the fold builds of them adopts one of the others, a
-deprecation only beside the keys it was read from, wherever the member's type holds that node and
-no reference names that declaration's `allOf` entry, whose own member then holds it; any other is
-kept verbatim
+schema's for every use of that position, and each carrier holds only its own. A member a model
+declares more than once itself, in its own properties, an inline `allOf` entry or one nested in
+another, has one slot for the notes of several declarations, so the node each declaration's schema
+builds keeps that declaration's, as before 0.73.0
 ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
 what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
