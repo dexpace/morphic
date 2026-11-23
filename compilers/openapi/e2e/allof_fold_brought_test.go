@@ -132,6 +132,16 @@ func TestAllOfFold_AnEntryOrderDecidesNoTypeItsNotesSettle(t *testing.T) {
 			assert.Equal(t, tc.dropped, len(foldReports(diags)) > 0, "%s, %v: %v", tc.name, order, foldReports(diags))
 		}
 	}
+
+	// Two of the model's own saying the same stand as the first-sorting node,
+	// wherever the noted one they narrow is written among them.
+	const own, entry = "{properties: {f: {type: string, enum: [a, b]}}}", "{$ref: '#/components/schemas/A'}"
+	for entries, want := range map[string]int{own + ", " + own + ", " + entry: 0, own + ", " + entry + ", " + own: 0, entry + ", " + own + ", " + own: 1} {
+		doc, diags := parseVerified(t, openapitest.ComponentSpec(
+			"    A: {properties: {f: {type: string, enum: [a, b, c], description: text}}}\n    M: {allOf: ["+entries+"]}\n"))
+		assert.Equal(t, fmt.Sprintf("[description text] M/allOf/%d/properties/f enum a b", want), memberText(t, doc, componentID("M")), entries)
+		assert.Empty(t, diags, entries)
+	}
 }
 
 // TestAllOfFold_ABuiltNodeHoldsNoNoteItsFieldHolds pins where a note stands
@@ -145,6 +155,7 @@ func TestAllOfFold_ABuiltNodeHoldsNoNoteItsFieldHolds(t *testing.T) {
 	t.Parallel()
 	const base = "type: string, enum: [a, b, c], title: Tb, description: Db, externalDocs: {url: 'https://e.test/b'}, deprecated: true, x-deprecated-reason: Rb"
 	const held = "[title Tb, description Db, link https://e.test/b, deprecated Rb] "
+	const deprecated = "type: string, enum: [a, b, c], deprecated: true, x-deprecated-reason: Rb"
 	for _, tc := range []struct {
 		name, want string
 		own        []string
@@ -158,20 +169,26 @@ func TestAllOfFold_ABuiltNodeHoldsNoNoteItsFieldHolds(t *testing.T) {
 			[]string{"type: string, enum: [a, b, d]", "type: string, enum: [a, b, d, e]"}, "", nil},
 		{"declared twice, beside a dropped type", held + "composed/M/allOf/1/properties/f enum a b",
 			[]string{"type: string, enum: [a, b, d]", "type: string, enum: [a, b, d, e]"}, ", {$ref: '#/components/schemas/Other'}", []string{"incompatible types"}},
-		{"declared twice, one's node described",
-			"[title Tb, link https://e.test/b, deprecated Rb] composed/M/allOf/1/properties/f enum a b [description D0]",
+		{"declared twice, one's node described, dropped", "[title Tb, description D0, link https://e.test/b, deprecated Rb] composed/M/allOf/1/properties/f enum a b",
 			[]string{"type: string, enum: [a, b, d], description: D0", "type: string, enum: [a, b, d, e]"}, "",
-			[]string{"give its description differently; kept the one the declaration at /components/schemas/M/allOf/0/properties/f gives over the one at " +
-				"/components/schemas/Base/properties/f, which stays declared on its model"}},
+			[]string{"whose values overlap but that the merge does not narrow to one", "give its description differently; kept the one the declaration at " +
+				"/components/schemas/M/allOf/0/properties/f gives over the one at /components/schemas/Base/properties/f, which stays declared on its model"}},
+		{"declared twice, one's node described, met", "[deprecated Rb] composed/M/allOf/1/properties/f enum a b [description D0]",
+			[]string{"type: string, enum: [a, b, d]", "type: string, enum: [a, b, d, e], description: D0"}, "", nil},
 	} {
 		entries := make([]string, len(tc.own))
 		for i, own := range tc.own {
 			entries[i] = "{properties: {f: {" + own + "}}}"
 		}
-		doc, diags := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {"+base+"}}}\n    Other: {properties: {f: {type: integer}}}\n"+
+		brought, broughtHeld := base, held
+		if strings.HasPrefix(tc.want, "[deprecated Rb] ") {
+			brought, broughtHeld = deprecated, "[deprecated Rb] "
+		}
+		doc, diags := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {"+brought+"}}}\n    Other: {properties: {f: {type: integer}}}\n"+
 			"    M: {allOf: ["+strings.Join(entries, ", ")+", {$ref: '#/components/schemas/Base'}"+tc.rest+"]}\n"))
-		assert.Equal(t, tc.want, memberText(t, doc, componentID("M")), tc.name)
-		assert.Equal(t, held+"Base/properties/f enum a b c", memberText(t, doc, componentID("Base")), tc.name)
+		got, _, _ := strings.Cut(memberText(t, doc, componentID("M")), " | verbatim")
+		assert.Equal(t, tc.want, got, tc.name)
+		assert.Equal(t, broughtHeld+"Base/properties/f enum a b c", memberText(t, doc, componentID("Base")), tc.name)
 		reports := foldReports(diags)
 		require.Len(t, reports, len(tc.reports), "%s: %v", tc.name, reports)
 		for i, report := range tc.reports {
@@ -258,11 +275,6 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 		typed := func(v string) string { return "[" + fmt.Sprintf(note.typed, v) + "]" }
 		plain := "{properties: {f: {" + list + "}}}"
 		noted := note.name + " "
-		// Two deprecations keyed apart meet in no node, so the brought one is the type.
-		adopted := "composed/M/allOf/1/properties/f list " + typed("o0")
-		if strings.HasPrefix(note.name, "deprecation") {
-			adopted = typed("o0") + " A/properties/f list"
-		}
 		for _, tc := range []struct {
 			name, brought, entries, rest string
 			want                         string
@@ -271,8 +283,8 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 			{"the later own node is the type", list, own("o0") + ", " + entry + ", " + own("o1"), "", "M/allOf/2/properties/f list " + typed("o1"), 1},
 			{"the brought node is the type", list, own("o0") + ", " + own("o1") + ", " + entry, "", typed("o1") + " A/properties/f list", 2},
 			{"the own ones agree", list, own("o0") + ", " + own("o0") + ", " + entry, "", "M/allOf/0/properties/f list " + typed("o0"), 1},
-			{"a node built of the brought one adopts it", narrow, plain + ", " + own("o0") + ", " + entry, "", adopted, 1},
-			{"it says the same", narrow, plain + ", " + own("b") + ", " + entry, "", "composed/M/allOf/1/properties/f list " + typed("b"), 0},
+			{"the brought node narrows one saying another", narrow, plain + ", " + own("o0") + ", " + entry, "", typed("o0") + " A/properties/f list", 1},
+			{"it says the same", narrow, plain + ", " + own("b") + ", " + entry, "", typed("b") + " A/properties/f list", 0},
 			{"the brought node is the type, beside a dropped one, and it says the same", narrow,
 				own("b") + ", {properties: {f: {type: integer}}}, " + entry, "", typed("b") + " A/properties/f list", 0},
 			{"a reference names the own one", list, entry + ", " + own("o0"),
@@ -351,18 +363,20 @@ func TestAllOfFold_AFieldHoldsNoBroughtExampleOverItsTypesOwn(t *testing.T) {
 	own := func(schema, example string) string {
 		return "{properties: {f: {" + schema + ", examples: [" + example + "]}}}"
 	}
-	for _, tc := range []struct{ name, entries, want, report string }{
-		{"the own node is the type", own(narrow, "a") + ", {properties: {f: {" + wide + "}}}", "M/allOf/0/properties/f enum a b " + fmt.Sprintf(held, "a"),
+	for _, tc := range []struct{ name, entries, brought, rest, want, report string }{
+		{"the own node is the type, a reference naming it", own(narrow, "a"), "b", "    U: {properties: {h: {$ref: '#/components/schemas/M/allOf/0/properties/f'}}}\n",
+			"M/allOf/0/properties/f enum a b " + fmt.Sprintf(held, "a"),
 			"give its examples differently; kept the one the declaration at /components/schemas/M/allOf/0/properties/f gives"},
-		{"the brought node is the type", own(wide, "a") + ", " + own(wide, "c"), fmt.Sprintf(held, "b") + " A/properties/f enum a b c",
+		{"the own node is the type, saying the same", own(narrow, "a") + ", {properties: {f: {" + wide + "}}}", "a", "",
+			"M/allOf/0/properties/f enum a b " + fmt.Sprintf(held, "a"), ""},
+		{"the brought node is the type", own(wide, "a") + ", " + own(wide, "c"), "b", "", fmt.Sprintf(held, "b") + " A/properties/f enum a b c",
 			"whose values overlap but that the merge does not narrow to one; kept the type the declaration at /components/schemas/A/properties/f gives"},
 	} {
-		doc, diags := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+wide+", examples: [b]}}}\n"+
-			"    M: {allOf: ["+tc.entries+", {$ref: '#/components/schemas/A'}]}\n"))
+		doc, diags := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+wide+", examples: ["+tc.brought+"]}}}\n"+
+			"    M: {allOf: ["+tc.entries+", {$ref: '#/components/schemas/A'}]}\n"+tc.rest))
 		got, _, _ := strings.Cut(memberText(t, doc, componentID("M")), " | verbatim")
 		assert.Equal(t, tc.want, got, tc.name)
 		reports := foldReports(diags)
-		require.NotEmpty(t, reports, tc.name)
-		assert.Contains(t, reports[0], tc.report, tc.name)
+		assert.True(t, slices.ContainsFunc(reports, func(report string) bool { return strings.Contains(report, tc.report) }) || tc.report == "", "%s: %v", tc.name, reports)
 	}
 }

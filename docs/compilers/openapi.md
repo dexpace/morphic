@@ -3380,19 +3380,20 @@ brought declaration's, the field holds the last its own declarations write, each
 for an example, which nothing shows that type to admit, and for a replacement only a key names,
 which stays on the node keeping the key.
 
-Beside a declaration another model brings, however often the model declares the member itself, the
-fold judges the types as their nodes stand, a node whose notes a property carries holding none of
-them. Where they keep every declaration's type, that judgment is the field's. Where they drop any,
-the fold judges them again with each node read as holding the notes a property carries off it, as it
-held them before IR 0.73.0: so a type that a note holds apart from what would drop it, the model's
-own or another's, is not lost to the note's move, and of two that a note alone tells apart the later
-is kept, as it was. Either way the field's type is built of the nodes as they stand, so a node the
-merge builds holds no note the field holds, and types only a note tells apart meet in the narrower
-one's own node. The field's type is wider than it was only beside a brought member its own model
-settled, which is judged by the type it settled to, narrower where no note of its declarations held
-their types apart, so a declaration beside it can lose to it what it would not to those noted types.
-And an example of the model's own is judged by the type the field then has, so one outside a
-narrower type is refused and kept verbatim.
+Beside a declaration another model brings, the fold judges the types as their nodes stand, a node
+whose notes a property carries holding none of them. Where they compose, they reach each
+declaration's node, and where they drop none of a member the model declares at most once, they keep
+each declaration's type, so that judgment is the field's. Elsewhere, where they drop any or the
+model's own nodes hold the notes of several, the fold judges them again with each node read as
+holding the notes a property carries off it, as it held them before IR 0.73.0: so a type that a note
+holds apart from what would drop it, the model's own or another's, is not lost to the note's move,
+and of two that a note alone tells apart the later is kept, as it was. Either way the field's type
+is built of the nodes as they stand, so a node the merge builds holds no note the field holds, and
+types only a note tells apart meet in the narrower one's own node. The field's type is wider than it
+was only beside a brought member its own model settled, which is judged by the type it settled to,
+narrower where no note of its declarations held their types apart, so a declaration beside it can
+lose to it what it would not to those noted types. And an example of the model's own is judged by
+the type the field then has, so one outside a narrower type is refused and kept verbatim.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write
@@ -3562,6 +3563,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes`,
   `e2e.TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain`,
   `e2e.TestAllOfFold_ADistributedModelsMemberDeclaredAgainKeepsItsNotes`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother`,
   `e2e.TestAllOfFold_AMemberIsDeclaredAgainInItsOwnDocument`,
   `e2e.TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes`,
   `e2e.TestAllOfFold_ATypeANoteHeldApartIsNotLostToTheNotesMove`,

@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"maps"
@@ -256,6 +257,19 @@ func TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes(t *testing.T) {
 	}
 }
 
+// TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother pins
+// which of two declarations saying the same a node is built of where each meets
+// a third and nothing is brought: the later, whose extension the node keeps.
+func TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother(t *testing.T) {
+	t.Parallel()
+	const same = "{properties: {f: {type: string, enum: [a, b], x-foo: 1}}}"
+	doc, diags := parseVerified(t, openapitest.ComponentSpec("    M: {allOf: ["+same+", {properties: {f: {type: string, enum: [b, c]}}}, "+same+"]}\n"))
+	assert.Empty(t, diags)
+	assert.Equal(t, "composed/M/allOf/1/properties/f enum b", memberText(t, doc, componentID("M")))
+	built := doc.Types["type/composed/components/schemas/M/allOf/1/properties/f"].Common()
+	assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/2/properties/f/x-foo"), built.Unmodeled["openapi:x-foo"].Provenance.Pointer)
+}
+
 // TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain pins that
 // naming one allOf entry of a model, under a keyword a lowering reads or one
 // nothing does, changes nothing of what the model's member folds to but its
@@ -461,16 +475,15 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testi
 	}
 
 	// Two enums sharing no value: the one within the brought enum would win with
-	// it, and the later wins where each is told apart by its note. Two that share
-	// theirs are one type with it as they stand, so its note tells none apart.
+	// it, and the later wins where each is told apart by its note. So does one
+	// within neither, where the types as they stand drop none.
 	doc, _ := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [b, a], description: B}}}\n"+
 		"    M: {properties: {f: {type: string, enum: [d], description: D0}}, allOf: [{properties: {f: {type: string, enum: [b], description: D1}}}, "+
 		"{$ref: '#/components/schemas/Base'}]}\n"))
 	assert.Equal(t, "M/properties/f enum d [description D0] | verbatim M/allOf/0/properties/f", memberText(t, doc, componentID("M")))
-	doc, diags := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [a, b], description: B}}}\n"+
+	doc, _ = parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [a, b], description: B}}}\n"+
 		"    M: {allOf: [{properties: {f: {type: string, enum: [a, b]}}}, {properties: {f: {type: string, enum: [a, b, c]}}}, {$ref: '#/components/schemas/Base'}]}\n"))
-	assert.Empty(t, diags)
-	assert.Equal(t, "[description B] Base/properties/f enum a b", memberText(t, doc, componentID("M")))
+	assert.Equal(t, "[description B] Base/properties/f enum a b | verbatim M/allOf/0/properties/f", memberText(t, doc, componentID("M")))
 }
 
 // TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType pins a member a

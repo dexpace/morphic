@@ -240,14 +240,15 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 
 // readingNotes returns stands, a fold judged as its declarations' nodes stand,
 // judged again with each node read holding the notes a property carries off it
-// (Merger.noted), where stands drops a type beside one an entry brings, and nil
-// elsewhere. A fold dropping none holds every declaration's type. One dropping
-// some may drop one that a note held apart from what drops it, leaving a wider
-// type, or one of two that a note alone tells apart, by their order. Read with
-// their notes, the declarations settle the type their nodes settled while those
-// held them.
+// (Merger.noted), and nil where stands is the field's: where no entry brings a
+// declaration, its types compose, or it drops none and the model declares the
+// member at most once. Dropping a type, it may drop one that a note held apart,
+// leaving a wider type, or one of two that a note alone tells apart, by their
+// order. Dropping none, it may leave a note that a node of a member declared
+// again holds.
 func (g *Merger) readingNotes(stands *folding) *folding {
-	if !slices.ContainsFunc(stands.decls, isBrought) || !slices.Contains(stands.cone, false) {
+	own := len(slices.DeleteFunc(slices.Clone(stands.decls), isBrought))
+	if len(stands.conjuncts) > 0 || own == len(stands.decls) || own < 2 && !slices.Contains(stands.cone, false) {
 		return nil
 	}
 	reading := *g
