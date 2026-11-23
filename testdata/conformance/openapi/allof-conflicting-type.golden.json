@@ -472,7 +472,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"n\" give types whose values overlap but that the merge does not narrow to one; kept type/primitive/uint32 (from /components/schemas/Overlapping/allOf/1/properties/n) over the declaration at /components/schemas/Overlapping/allOf/0/properties/n, which is kept verbatim under Unmodeled",
+      "message": "declarations of field \"n\" give types type/primitive/uint32 and type/primitive/int32 whose values overlap but that the merge does not narrow to one; kept the type the declaration at /components/schemas/Overlapping/allOf/1/properties/n gives over the one at /components/schemas/Overlapping/allOf/0/properties/n, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Overlapping/allOf/0/properties/n"

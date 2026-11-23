@@ -354,29 +354,49 @@ func (f *folding) meetField() ir.TypeID {
 func (f *folding) drop(i int) {
 	f.lost[i] = true
 	kept, loser := f.merged.Type.Target, f.decls[i].property.Type.Target
+	pruned := loserMayBePruned(f, loser, i)
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
-		f.disagree(i, f.winner, incompatibleDetail(f, kept, loser, i))
+		f.disagree(i, f.winner, incompatibleDetail(f, kept, loser, i, pruned))
 	case relOverlap, secondTypeIsNarrower, relMeet:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types whose values overlap but that the merge does not "+
-				"narrow to one; kept %s (from %s) over the declaration at %s, which %s",
-			f.merged.WireName, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+		f.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s",
+			degradedTypeMessage(f, kept, loser, i, pruned, "whose values overlap but that the merge does not narrow to one"))
 	default:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types that the merge does not compare; kept %s (from %s) "+
-				"over the declaration at %s, which %s",
-			f.merged.WireName, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+		f.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s",
+			degradedTypeMessage(f, kept, loser, i, pruned, "that the merge does not compare"))
 	}
 }
 
-// incompatibleDetail formats a type-disjointness detail without citing an
-// anonymous losing type ID that post-settlement pruning may remove.
-func incompatibleDetail(f *folding, kept, loser ir.TypeID, i int) string {
-	if td, ok := f.g.resolve(loser); ok && td.Common().Anonymous {
+// loserMayBePruned reports whether decls[i]'s losing type is an anonymous node
+// hoisted at an inline declaration rather than held by a composed model or
+// reached through a $ref, so post-settlement pruning may remove it.
+func loserMayBePruned(f *folding, loser ir.TypeID, i int) bool {
+	if f.decls[i].via != nil {
+		return false
+	}
+	td, ok := f.g.resolve(loser)
+	return ok && hoistedUnder(td.Common(), f.decls[i].property.Provenance)
+}
+
+// incompatibleDetail formats a type-disjointness detail, omitting a losing
+// type ID that post-settlement pruning may remove.
+func incompatibleDetail(f *folding, kept, loser ir.TypeID, i int, pruned bool) string {
+	if pruned {
 		return fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, f.at(i))
 	}
 	return fmt.Sprintf("incompatible types %s and %s", kept, loser)
+}
+
+// degradedTypeMessage formats a drop diagnostic, keeping both type IDs when
+// the losing type stays in the document and naming only the kept type and the
+// losing declaration's location when post-settlement pruning may remove it.
+func degradedTypeMessage(f *folding, kept, loser ir.TypeID, i int, pruned bool, relation string) string {
+	if pruned {
+		return fmt.Sprintf("declarations of field %q give types %s; kept %s (from %s) over the declaration at %s, which %s",
+			f.merged.WireName, relation, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+	}
+	return fmt.Sprintf("declarations of field %q give types %s and %s %s; kept the type the declaration at %s gives over the one at %s, which %s",
+		f.merged.WireName, kept, loser, relation, f.at(f.winner), f.at(i), f.decls[i].keptAs())
 }
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says

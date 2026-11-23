@@ -436,27 +436,40 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	assert.True(t, folding.lost[1])
 }
 
-// TestFold_DropOmitsAnonymousLoserTypeID pins that (*folding).drop never embeds
-// an anonymous losing type ID (which post-settlement pruning may remove) in
-// relDisjoint, relOverlap, or default diagnostic messages, while keeping
-// non-anonymous losing type IDs in relDisjoint messages.
+// TestFold_DropOmitsAnonymousLoserTypeID pins that (*folding).drop omits a
+// losing type ID only when it is an anonymous node hoisted at an inline
+// declaration (which post-settlement pruning may remove), while keeping both
+// type IDs for non-anonymous types, declarations brought from a composed model
+// (via != nil), and anonymous types referenced from elsewhere.
 func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
 	t.Parallel()
-	const anonLoser ir.TypeID = "type/anonymous/allOf/1/properties/p"
+	const (
+		inlineAnon ir.TypeID = "type/anonymous/allOf/1/properties/p"
+		otherAnon  ir.TypeID = "type/anonymous/components/schemas/Other/properties/p"
+		primLoser  ir.TypeID = "type/primitive/integer"
+	)
 	reg := narrowingRegistry()
-	reg[anonLoser] = &ir.Model{ID: anonLoser, Anonymous: true, Provenance: ptrAt("/allOf/1/properties/p")}
+	reg[inlineAnon] = &ir.Model{ID: inlineAnon, Anonymous: true, Provenance: ptrAt("/allOf/1/properties/p")}
+	reg[otherAnon] = &ir.Model{ID: otherAnon, Anonymous: true, Provenance: ptrAt("/components/schemas/Other/properties/p")}
+	broughtEntry := &composedEntry{at: "/allOf/1"}
 
 	for _, tc := range []struct {
 		name     string
 		rel      relation
 		loser    ir.TypeID
+		via      *composedEntry
 		wantSub  string
 		wantGone string
 	}{
-		{"disjoint anonymous loser omits ID", relDisjoint, anonLoser, "/allOf/1/properties/p", string(anonLoser)},
-		{"disjoint primitive loser keeps ID", relDisjoint, "type/primitive/integer", "type/primitive/integer", ""},
-		{"overlap anonymous loser omits ID", relOverlap, anonLoser, "whose values overlap", string(anonLoser)},
-		{"uncompared anonymous loser omits ID", relUnrelated, anonLoser, "that the merge does not compare", string(anonLoser)},
+		{"disjoint inline hoisted anonymous omits ID", relDisjoint, inlineAnon, nil, "/allOf/1/properties/p", string(inlineAnon)},
+		{"disjoint primitive keeps ID", relDisjoint, primLoser, nil, string(primLoser), ""},
+		{"disjoint brought anonymous keeps ID", relDisjoint, inlineAnon, broughtEntry, string(inlineAnon), ""},
+		{"disjoint referenced anonymous keeps ID", relDisjoint, otherAnon, nil, string(otherAnon), ""},
+		{"overlap inline hoisted anonymous omits ID", relOverlap, inlineAnon, nil, "whose values overlap", string(inlineAnon)},
+		{"overlap primitive keeps ID", relOverlap, primLoser, nil, "give types type/primitive/string and " + string(primLoser), ""},
+		{"overlap brought anonymous keeps ID", relOverlap, inlineAnon, broughtEntry, "give types type/primitive/string and " + string(inlineAnon), ""},
+		{"uncompared inline hoisted anonymous omits ID", relUnrelated, inlineAnon, nil, "that the merge does not compare", string(inlineAnon)},
+		{"uncompared primitive keeps ID", relUnrelated, primLoser, nil, "give types type/primitive/string and " + string(primLoser), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -465,6 +478,7 @@ func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
 			d1 := declaration{
 				property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.loser}, Provenance: ptrAt("/allOf/1/properties/p")},
 				source:   written(`{}`),
+				via:      tc.via,
 			}
 			decls := []declaration{d0, d1}
 			_, field := fieldSpan(decls)
