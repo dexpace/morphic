@@ -32,30 +32,59 @@ type carriedNotes struct {
 }
 
 // notesOnCarrier returns which notes schema writes the carrier holding its
-// position, pointer, holds, though typeRef names the node that position builds.
-// It holds none unless it holds the position (carriedAt), no reference names
-// it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
-// its conjuncts (allOfRefEntries). Then it holds each note nothing at its
-// position writes over (writtenOver), deprecated where the schema is either
-// way. Node and carrier both ask it, so each note has one home
-// (docs/ir/annotations.md#one-structural-home-per-declaration).
+// position, pointer, holds, though typeRef names the node that position builds:
+// those carriedNotesAt gives it. Node and carrier both ask it, so each note has
+// one home (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
-// Elsewhere the node keeps them, which each reference to the position reads,
-// and a $ref is read off what the position writes alone
-// (docs/compilers/openapi.md#ref-use-site).
+// A position naming a $ref among its conjuncts (allOfRefEntries) holds none
+// unless it is a use of that $ref once its carrier holds every note
+// (usesOneRefHolding). So a referent's own notes, at a position writing another
+// conjunct, an enum's among them, stay on that position's node.
 func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) carriedNotes {
-	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) || !carriedAt(loweringContext, schema) {
+	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) {
+		return carriedNotes{}
+	}
+	for range allOfRefEntries(loweringContext, schema) {
+		if usesOneRefHolding(loweringContext, schema, allOfEntries(loweringContext, schema, ""), carriedNotes{docs: true, deprecation: true, examples: true}) {
+			break
+		}
+		return carriedNotes{}
+	}
+	return carriedNotesAt(loweringContext, schema)
+}
+
+// carriedNotesAt returns which notes schema writes the carrier holding its
+// position holds: none unless it holds the position (carriedAt) and no
+// reference names it (reftable.ReferenceTargetTable.Referenced), and then
+// each note nothing at its position writes over (writtenOver), deprecated
+// where the schema is either way. It reads where schema is written alone, so
+// the node's build, its carrier and the decision on a $ref beside notes read
+// one answer.
+func carriedNotesAt(loweringContext lowering.Ctx, schema *statement.Schema) carriedNotes {
+	if !carriedAt(loweringContext, schema) {
 		return carriedNotes{}
 	}
 	at, _ := siteOf(schema)
 	if loweringContext.Bindings().Table().Referenced(at) {
 		return carriedNotes{}
 	}
-	for range allOfRefEntries(loweringContext, schema) {
-		return carriedNotes{}
-	}
 	docs, deprecation, examples := writtenOver(loweringContext, at)
 	return carriedNotes{docs: !docs, deprecation: !deprecation, examples: !examples, deprecatedAsSchema: true}
+}
+
+// holds reports whether key writes a note notes gives the carrier: a keyword
+// that documents, deprecates or exemplifies the instance.
+func (notes carriedNotes) holds(key statement.Key) bool {
+	switch key.Name {
+	case "title", "description", "externalDocs":
+		return notes.docs
+	case "deprecated":
+		return notes.deprecation
+	case "example", "examples":
+		return notes.examples
+	default:
+		return false
+	}
 }
 
 // writtenOver reports which notes of the schema at, a carried position, the
@@ -192,7 +221,9 @@ type carriedNotesOf struct {
 // carrier carries are (promotion.Promoter.WithOwnCarriedState). The node keeps
 // its redaction, so a key asking for one lends nothing here. A replacement is
 // read once the document is whole, the carrier reading the key its node keeps
-// (docs/compilers/openapi.md#extension-promotion).
+// (docs/compilers/openapi.md#extension-promotion). A $ref target's key is
+// not among them, so it deprecates no carrier where the target's keyword would,
+// a case left open (docs/compilers/openapi.md#ref-use-site).
 func carriedNoteKeys(loweringContext lowering.Ctx, schema *statement.Schema, typeRef ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	lent := loweringContext.Promoter().Referent(carriedNotesOf{schema}, true, func() ir.Unmodeled {
 		a, _ := annotation.Read(nodeUse(loweringContext, schema, pointer, typeRef).SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())

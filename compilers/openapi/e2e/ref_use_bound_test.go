@@ -6,12 +6,18 @@ package e2e_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -88,26 +94,40 @@ func TestRefUseBound_ACarriedUseIsTheReference(t *testing.T) {
 	}
 }
 
-// TestRefUseBound_AnotherKeywordKeepsTheModel holds the gate: a note beside
-// the $ref, which a node holds, keeps the Model over Obj at a carrier, and
-// with the nullable-inference policy off a `nullable` there widens nothing
-// and is no use-bound keyword.
+// TestRefUseBound_AnotherKeywordKeepsTheModel holds the gate: a key beside
+// the $ref, which a node keeps and a carrier cannot, keeps the Model over Obj
+// at a carrier, and with the nullable-inference policy off a `nullable` there
+// widens nothing and is no use-bound keyword. With the kind-inference policy
+// off, a referent naming no kind lowers to no object, so a `type: object`
+// beside it says something of its own, and the Model keeps the $ref it cannot
+// compose.
 func TestRefUseBound_AnotherKeywordKeepsTheModel(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
 	for name, tc := range map[string]struct {
-		schema string
-		off    bool
+		schema           string
+		nullableOff      bool
+		kindInferenceOff bool
 	}{
-		"a description":        {"{$ref: '#/components/schemas/Obj', readOnly: true, description: d}", false},
-		"nullable, policy off": {"{allOf: [{$ref: '#/components/schemas/Obj'}], nullable: true}", true},
+		"an extension":         {"{$ref: '#/components/schemas/Obj', readOnly: true, description: d, x-note: n}", false, false},
+		"nullable, policy off": {"{allOf: [{$ref: '#/components/schemas/Obj'}], nullable: true}", true, false},
+		"type, policy off":     {"{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}", false, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}"),
-				openapi.Options{NullableInference: openapi.NullableInference{Disabled: tc.off}})
+			doc := compileClean(t, conjunctionSpec("3.1.0", tc.schema, "Obj: {type: object, properties: {a: {type: string}}}",
+				"Untyped: {properties: {a: {type: string}}}"),
+				openapi.Options{
+					NullableInference: openapi.NullableInference{Disabled: tc.nullableOff},
+					KindInference:     openapi.KindInference{Disabled: tc.kindInferenceOff},
+				})
 			model, ok := kindNode(t, doc, ir.TypeID("type/anonymous"+at)).(*ir.Model)
-			require.True(t, ok, "the position owns the Model over Obj")
+			require.True(t, ok, "the position owns the Model")
+			if tc.kindInferenceOff {
+				assert.Nil(t, model.Base)
+				assert.Contains(t, model.Unmodeled, "openapi:$ref")
+				return
+			}
 			require.NotNil(t, model.Base)
 			assert.Equal(t, componentID("Obj"), model.Base.Target)
 		})
@@ -144,4 +164,598 @@ func TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder(t *testing
 		assert.Contains(t, node.Unmodeled, "openapi:readOnly")
 		assert.Contains(t, degradedInfoPointers(diags), jsontext.Pointer(at+"/readOnly"))
 	})
+}
+
+// noteKeywords are the notes a carrier has a field for, each written beside a
+// $ref, with what the carrier holding it shows of it.
+var noteKeywords = []struct {
+	name, keyword string
+	holds         func(notes noteCarrier) bool
+}{
+	{"description", "description: d", func(notes noteCarrier) bool { return notes.docs.Description == "d" }},
+	{"title", "title: s", func(notes noteCarrier) bool { return notes.docs.Summary == "s" }},
+	{"externalDocs", "externalDocs: {url: 'https://example.com/d'}", func(notes noteCarrier) bool {
+		return len(notes.docs.ExternalDocs) == 1 && notes.docs.ExternalDocs[0].URL == "https://example.com/d"
+	}},
+	{"deprecated", "deprecated: true", func(notes noteCarrier) bool { return notes.deprecation != nil }},
+	{"example", "example: {a: x}", func(notes noteCarrier) bool { return len(notes.examples) == 1 }},
+	{"examples", "examples: [{a: x}]", func(notes noteCarrier) bool { return len(notes.examples) == 1 }},
+}
+
+// noteCarrier is what a carrier holds of its notes, and the type it names.
+type noteCarrier struct {
+	target      ir.TypeID
+	docs        ir.Docs
+	deprecation *ir.Deprecation
+	examples    []ir.Example
+}
+
+// noteCarrierPositions are where noteUseSpec writes its schema at a carrier,
+// by the carrier's name in noteCarriersOf.
+var noteCarrierPositions = map[string]jsontext.Pointer{
+	"property":          "/components/schemas/Holder/properties/p",
+	"parameter":         "/paths/~1x/get/parameters/0/schema",
+	"content parameter": "/paths/~1x/get/parameters/1/content/text~1plain/schema",
+	"header":            "/paths/~1x/get/responses/200/headers/X-H/schema",
+	"content header":    "/paths/~1x/get/responses/200/headers/X-C/content/text~1plain/schema",
+}
+
+// noteUseSpec declares schema, a flow-style schema object, at each carrier of
+// noteCarrierPositions, and at three positions no carrier holds: the component
+// Pos, a list's items and a union's first branch. Obj, the object it names,
+// writes a description of its own.
+func noteUseSpec(version, schema string, components ...string) string {
+	paths := "paths:\n  /x:\n    get:\n      operationId: x\n      parameters:\n" +
+		"        - {name: q, in: query, schema: " + schema + "}\n" +
+		"        - {name: c, in: query, content: {text/plain: {schema: " + schema + "}}}\n" +
+		"      responses:\n        \"200\":\n          description: ok\n          headers:\n" +
+		"            X-H: {schema: " + schema + "}\n" +
+		"            X-C: {content: {text/plain: {schema: " + schema + "}}}\n"
+	return admissionSpec(version, paths, append([]string{
+		"Obj: {type: object, description: O, properties: {a: {type: string}}}",
+		"Holder: {type: object, properties: {p: " + schema + "}}",
+		"Pos: " + schema,
+		"Els: {type: array, items: " + schema + "}",
+		"Un: {oneOf: [" + schema + ", {type: string}]}",
+	}, components...)...)
+}
+
+// noteCarriersOf returns what each carrier noteUseSpec declares holds.
+func noteCarriersOf(t *testing.T, doc *ir.Document) map[string]noteCarrier {
+	t.Helper()
+	holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
+	require.True(t, ok)
+	property, ok := propertyByWire(holder, "p")
+	require.True(t, ok)
+	operation := operationAt(t, doc, "GET", "/x")
+	require.Len(t, operation.Params, 2)
+	require.Len(t, operation.Responses, 1)
+	carriers := map[string]noteCarrier{
+		"property":          {property.Type.Target, property.Docs, property.Deprecation, property.Examples},
+		"parameter":         {operation.Params[0].Type.Target, operation.Params[0].Docs, operation.Params[0].Deprecation, operation.Params[0].Examples},
+		"content parameter": {operation.Params[1].Type.Target, operation.Params[1].Docs, operation.Params[1].Deprecation, operation.Params[1].Examples},
+	}
+	for name, wire := range map[string]string{"header": "X-H", "content header": "X-C"} {
+		header, ok := headerByWire(operation.Responses[0].Headers, wire)
+		require.True(t, ok, wire)
+		carriers[name] = noteCarrier{header.Type.Target, header.Docs, header.Deprecation, header.Examples}
+	}
+	return carriers
+}
+
+// TestRefUseBound_ANoteIsTheCarriers holds that a note beside a $ref to an
+// object, all a carried position writes beyond it, is the carrier's, in both
+// spellings and at both versions: each carrier names Obj and holds the note,
+// the two spellings give it the same, and no node stands at its position. A
+// position no carrier holds owns the Model over Obj holding the note, as
+// before (docs/compilers/openapi.md#ref-use-site).
+func TestRefUseBound_ANoteIsTheCarriers(t *testing.T) {
+	t.Parallel()
+	for _, note := range noteKeywords {
+		for _, version := range []string{"3.0.3", "3.1.0"} {
+			t.Run(note.name+"/"+version, func(t *testing.T) {
+				t.Parallel()
+				bySpelling := map[string]map[string]noteCarrier{}
+				for spelling, layout := range useBoundSpellings {
+					doc, diags := compileAnnotationSpec(t, "note", noteUseSpec(version, fmt.Sprintf(layout, note.keyword)))
+					assertNoErrorDiags(t, diags)
+					carriers := noteCarriersOf(t, doc)
+					for name, carrier := range carriers {
+						assert.Equal(t, componentID("Obj"), carrier.target, "%s %s names the reference", spelling, name)
+						assert.True(t, note.holds(carrier), "%s %s holds the note: %+v", spelling, name, carrier)
+						assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+noteCarrierPositions[name]), "%s %s", spelling, name)
+					}
+					for _, id := range []ir.TypeID{componentID("Pos"), "type/anonymous/components/schemas/Els/items", "type/anonymous/components/schemas/Un/oneOf/0"} {
+						model, ok := kindNode(t, doc, id).(*ir.Model)
+						require.True(t, ok, "%s %s owns the Model over Obj", spelling, id)
+						require.NotNil(t, model.Base, id)
+						assert.Equal(t, componentID("Obj"), model.Base.Target, id)
+						assert.True(t, note.holds(noteCarrier{docs: model.Docs, deprecation: model.Deprecation, examples: model.Examples}),
+							"%s %s holds the note", spelling, id)
+					}
+					bySpelling[spelling] = carriers
+				}
+				assert.Empty(t, cmp.Diff(bySpelling["beside the allOf"], bySpelling["beside the ref"], cmp.AllowUnexported(noteCarrier{})))
+			})
+		}
+	}
+}
+
+// TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode holds the other side of
+// the gate: where a carried position writes, beside its $ref and its note,
+// what a carrier has no field for, a type Obj does not lower to, or a type
+// whose kind only the kind-inference policy reads, or writes the note on a
+// conjunct of its own, the position owns the Model over its referent, which
+// holds the note, and each carrier names it and holds none of it, as before.
+func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	for name, schema := range map[string]string{
+		"an extension":                 "{$ref: '#/components/schemas/Obj', description: d, x-note: n}",
+		"an XML hint":                  "{$ref: '#/components/schemas/Obj', description: d, xml: {name: n}}",
+		"a constraint over an object":  "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, required: [a]}",
+		"another conjunct":             "{allOf: [{$ref: '#/components/schemas/Obj'}, {description: d}]}",
+		"a note on the $ref's entry":   "{allOf: [{$ref: '#/components/schemas/Obj', description: d}]}",
+		"a type Obj does not have":     "{$ref: '#/components/schemas/Obj', type: array, description: d}",
+		"a type naming null":           "{$ref: '#/components/schemas/Obj', type: [object, 'null'], description: d}",
+		"a type over an inferred kind": "{allOf: [{$ref: '#/components/schemas/Untyped'}], type: object, description: d}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, "kept", noteUseSpec("3.1.0", schema, "Untyped: {properties: {a: {type: string}}}"))
+			assertNoErrorDiags(t, diags)
+			referent := componentID("Obj")
+			if strings.Contains(schema, "Untyped") {
+				referent = componentID("Untyped")
+			}
+			for carrierName, carrier := range noteCarriersOf(t, doc) {
+				id := ir.TypeID("type/anonymous" + noteCarrierPositions[carrierName])
+				assert.Equal(t, id, carrier.target, carrierName)
+				assert.Empty(t, carrier.docs.Description, carrierName)
+				model, ok := kindNode(t, doc, id).(*ir.Model)
+				require.True(t, ok, "%s owns the Model over its referent", carrierName)
+				require.NotNil(t, model.Base, carrierName)
+				assert.Equal(t, referent, model.Base.Target, carrierName)
+				assert.Equal(t, "d", model.Docs.Description, carrierName)
+			}
+		})
+	}
+}
+
+// TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode holds that a `type`
+// naming one kind of a union referent, which narrows what its $ref admits, is
+// the position's own: each carrier names the position's Model, which holds the
+// note and keeps the $ref under Unmodeled, and holds none of the note.
+func TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "union", noteUseSpec("3.1.0", "{allOf: [{$ref: '#/components/schemas/U'}], type: object, description: d}",
+		"U: {oneOf: [{type: object, properties: {b: {type: string}}}, {type: string}]}"))
+	assertNoErrorDiags(t, diags)
+	for carrierName, carrier := range noteCarriersOf(t, doc) {
+		id := ir.TypeID("type/anonymous" + noteCarrierPositions[carrierName])
+		assert.Equal(t, id, carrier.target, carrierName)
+		assert.Empty(t, carrier.docs.Description, carrierName)
+		model, ok := kindNode(t, doc, id).(*ir.Model)
+		require.True(t, ok, "%s owns its Model", carrierName)
+		assert.Equal(t, "d", model.Docs.Description, carrierName)
+		assert.Equal(t, `"#/components/schemas/U"`, string(unmodeledEntry(t, model.Unmodeled, "openapi:$ref").Value), carrierName)
+	}
+}
+
+// TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse holds that a `type`
+// naming exactly the kinds the referent of the $ref beside it declares says
+// nothing of its own: beside the allOf, on another entry and beside a
+// `nullable: true` the policy reads as widening the reference, each carrier
+// names the referent and holds the note, and no node stands at its position.
+// A position no carrier holds owns the Model over the referent, as before.
+func TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		version, schema, docs string
+		nullable              bool
+	}{
+		"objTyped":     {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, description: d}", "d", false},
+		"objTypedNul":  {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object, nullable: true, description: d}", "d", true},
+		"objTyped31":   {"3.1.0", "{$ref: '#/components/schemas/Obj', type: object, description: d}", "d", false},
+		"a type alone": {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}], type: object}", "O", false},
+		"on an entry":  {"3.0.3", "{allOf: [{$ref: '#/components/schemas/Obj'}, {type: object}], description: d}", "d", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, "typed", noteUseSpec(tc.version, tc.schema))
+			assertNoErrorDiags(t, diags)
+			for carrierName, carrier := range noteCarriersOf(t, doc) {
+				assert.Equal(t, componentID("Obj"), carrier.target, "%s names the referent", carrierName)
+				assert.Equal(t, tc.docs, carrier.docs.Description, carrierName)
+				assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+noteCarrierPositions[carrierName]), carrierName)
+			}
+			holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
+			require.True(t, ok)
+			property, ok := propertyByWire(holder, "p")
+			require.True(t, ok)
+			assert.Equal(t, tc.nullable, property.Type.Nullable)
+			for _, id := range []ir.TypeID{componentID("Pos"), "type/anonymous/components/schemas/Els/items"} {
+				model, ok := kindNode(t, doc, id).(*ir.Model)
+				require.True(t, ok, "%s owns the Model over the referent", id)
+				require.NotNil(t, model.Base, id)
+				assert.Equal(t, componentID("Obj"), model.Base.Target, id)
+			}
+		})
+	}
+}
+
+// TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode holds that a `type`
+// listing, beside the kind Obj lowers to, a word no dialect defines is no
+// type Obj has: the property owns the Model over Obj, which holds the note,
+// beside the error the word draws.
+func TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/p"
+	doc, diags := compileAnnotationSpec(t, "word", conjunctionSpec("3.1.0", "{$ref: '#/components/schemas/Obj', type: [object, objekt], description: d}",
+		"Obj: {type: object, properties: {a: {type: string}}}"))
+	assertOnlyErrorDiags(t, diags, []string{"openapi/validation/validation-allowed-values"})
+	property, ok := propertyByWire(requireEntryModelOf(t, doc, "Holder"), "p")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("type/anonymous"+at), property.Type.Target)
+	model, ok := kindNode(t, doc, property.Type.Target).(*ir.Model)
+	require.True(t, ok, "the position owns the Model over Obj")
+	require.NotNil(t, model.Base)
+	assert.Equal(t, componentID("Obj"), model.Base.Target)
+	assert.Equal(t, "d", model.Docs.Description)
+}
+
+// TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode holds where a note
+// beside a carried $ref stays on the node, by the rule an inline schema's
+// note follows (docs/ir/annotations.md#one-structural-home-per-declaration):
+// a parameter or header writing its own, or a Reference Object naming it
+// writing docs beside its $ref, leaves the schema's on the node, and a
+// position a $ref names keeps them for every reference. Each note is placed
+// on its own: one of a kind nothing at the carrier writes over, its
+// documentation, deprecation or examples, is still the carrier's beside one
+// that is. Both component orders compile to one document.
+func TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	const obj = "'#/components/schemas/Obj'"
+	const paths = `paths:
+  /x:
+    get:
+      operationId: x
+      parameters:
+        - {name: own, in: query, description: P, schema: {$ref: ` + obj + `, description: d}}
+        - {name: ownExample, in: query, example: {a: p}, schema: {$ref: ` + obj + `, example: {a: s}}}
+        - {name: ownDeprecated, in: query, description: P, schema: {$ref: ` + obj + `, deprecated: true}}
+        - {name: ownDocs, in: query, description: P, schema: {$ref: ` + obj + `, example: {a: s}}}
+        - {$ref: '#/components/parameters/Used', description: U}
+        - {name: refObj, in: query, description: P, schema: {$ref: ` + obj + `, description: d, deprecated: true}}
+        - {name: refObjEx, in: query, example: {a: p}, schema: {$ref: ` + obj + `, examples: [{a: s}], deprecated: true}}
+        - {name: refObjDocs, in: query, description: P, schema: {$ref: ` + obj + `, description: d, example: {a: s}}}
+        - {name: refObjDep, in: query, deprecated: true, schema: {$ref: ` + obj + `, description: d, deprecated: true}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Own: {description: H, schema: {$ref: ` + obj + `, description: d}}
+            X-Ref: {description: H, schema: {allOf: [{$ref: ` + obj + `}], description: d, deprecated: true}}
+components:
+  parameters:
+    Used: {name: used, in: query, schema: {$ref: ` + obj + `, description: d}}
+`
+	schemas := []string{
+		"Obj: {type: object, properties: {a: {type: string}}}",
+		"H: {type: object, properties: {r1: {$ref: " + obj + ", description: d}}}",
+		"X: {type: object, properties: {x: {$ref: '#/components/schemas/H/properties/r1'}}}",
+	}
+	var compiled []*ir.Document
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "kept", strings.Replace(admissionSpec("3.1.0", paths, schemas...), "components:\n  schemas:\n", "  schemas:\n", 1))
+		assertNoErrorDiags(t, diags)
+		compiled = append(compiled, doc)
+		node := func(at string) ir.TypeCommon {
+			t.Helper()
+			model, ok := kindNode(t, doc, ir.TypeID("type/anonymous"+at)).(*ir.Model)
+			require.True(t, ok, "%s owns the Model over Obj", at)
+			require.NotNil(t, model.Base, at)
+			assert.Equal(t, componentID("Obj"), model.Base.Target, at)
+			return model.TypeCommon
+		}
+		operation := operationAt(t, doc, "GET", "/x")
+		params := map[string]ir.Parameter{}
+		for _, param := range operation.Params {
+			params[param.Name.Source] = param
+		}
+		require.Len(t, params, 9)
+
+		assert.Equal(t, "P", params["own"].Docs.Description)
+		assert.Equal(t, "d", node("/paths/~1x/get/parameters/0/schema").Docs.Description, "the schema's docs stay on the node")
+		assert.Equal(t, "{a: p}", exampleOf(t, params["ownExample"].Examples))
+		assert.Equal(t, "{a: s}", exampleOf(t, node("/paths/~1x/get/parameters/1/schema").Examples), "the schema's example stays on the node")
+		assert.Equal(t, "d", node("/components/parameters/Used/schema").Docs.Description, "a use documenting it leaves the docs on the node")
+		assert.Equal(t, "U", params["used"].Docs.Description)
+
+		for name, want := range map[string]string{"ownDeprecated": "", "ownDocs": "{a: s}"} {
+			assert.Equal(t, componentID("Obj"), params[name].Type.Target, "%s names Obj", name)
+			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous"+params[name].Provenance.Pointer+"/schema"), name)
+			assert.Equal(t, "P", params[name].Docs.Description, name)
+			if want != "" {
+				assert.Equal(t, want, exampleOf(t, params[name].Examples), name)
+			}
+		}
+		assert.NotNil(t, params["ownDeprecated"].Deprecation)
+
+		header, ok := headerByWire(operation.Responses[0].Headers, "X-Own")
+		require.True(t, ok)
+		assert.Equal(t, "H", header.Docs.Description)
+		assert.Equal(t, "d", node("/paths/~1x/get/responses/200/headers/X-Own/schema").Docs.Description)
+
+		refObj := node("/paths/~1x/get/parameters/5/schema")
+		assert.Equal(t, "d", refObj.Docs.Description, "the written-over docs stay on the node")
+		assert.Nil(t, refObj.Deprecation, "the deprecation is the carrier's alone")
+		assert.Equal(t, "P", params["refObj"].Docs.Description)
+		assert.NotNil(t, params["refObj"].Deprecation)
+		refObjEx := node("/paths/~1x/get/parameters/6/schema")
+		assert.Equal(t, "{a: s}", exampleOf(t, refObjEx.Examples), "the written-over example stays on the node")
+		assert.Nil(t, refObjEx.Deprecation)
+		assert.Equal(t, "{a: p}", exampleOf(t, params["refObjEx"].Examples))
+		assert.NotNil(t, params["refObjEx"].Deprecation)
+		refHeader, ok := headerByWire(operation.Responses[0].Headers, "X-Ref")
+		require.True(t, ok)
+		refHeaderNode := node("/paths/~1x/get/responses/200/headers/X-Ref/schema")
+		assert.Equal(t, "d", refHeaderNode.Docs.Description)
+		assert.Nil(t, refHeaderNode.Deprecation)
+		assert.Equal(t, "H", refHeader.Docs.Description)
+		assert.NotNil(t, refHeader.Deprecation)
+		refObjDep := node("/paths/~1x/get/parameters/8/schema")
+		assert.NotNil(t, refObjDep.Deprecation, "the written-over deprecation stays on the node")
+		assert.Empty(t, refObjDep.Docs.Description, "docs nothing at the carrier writes over are the carrier's")
+		assert.Equal(t, "d", params["refObjDep"].Docs.Description)
+		assert.NotNil(t, params["refObjDep"].Deprecation)
+
+		referenced := ir.TypeID("type/anonymous/components/schemas/H/properties/r1")
+		r1, ok := propertyByWire(requireEntryModelOf(t, doc, "H"), "r1")
+		require.True(t, ok)
+		assert.Equal(t, referenced, r1.Type.Target, "a referenced position keeps its node")
+		assert.Empty(t, r1.Docs.Description)
+		assert.Equal(t, "d", node("/components/schemas/H/properties/r1").Docs.Description)
+		x, ok := propertyByWire(requireEntryModelOf(t, doc, "X"), "x")
+		require.True(t, ok)
+		assert.Equal(t, referenced, x.Type.Target)
+
+		// Last, as exampleOf requires the example it reads.
+		refObjDocs := node("/paths/~1x/get/parameters/7/schema")
+		assert.Equal(t, "d", refObjDocs.Docs.Description)
+		assert.Empty(t, refObjDocs.Examples, "an example nothing at the carrier writes over is the carrier's")
+		assert.Equal(t, "{a: s}", exampleOf(t, params["refObjDocs"].Examples))
+	})
+	require.Len(t, compiled, 2)
+	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+}
+
+// refMemberOnlySchemas are one use of Obj in two spellings, beside its $ref
+// and beside an allOf of it, each writing a description, an example and
+// `deprecated: true`, all notes a carrier holds.
+var refMemberOnlySchemas = map[string]string{
+	"beside": "{$ref: '#/components/schemas/Obj', description: d, example: {a: s}, deprecated: true}",
+	"allOf":  "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, example: {a: s}, deprecated: true}",
+}
+
+// compileRefMemberOnlyCarriers compiles a document holding, for each of
+// memberOnlyKeys beside each of refMemberOnlySchemas, a parameter and a header
+// writing the key inline, on the content entry it elects and in a component,
+// and, beside each spelling, a parameter and a header writing their own
+// description, example and message. The components are declared in the order
+// their names sort, or the reverse.
+func compileRefMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	carriers := len(refMemberOnlySchemas) * len(memberOnlyKeys(""))
+	params, headers := make([]string, 0, 3*carriers+2), make([]string, 0, 3*carriers+2)
+	componentParams, componentHeaders := make([]string, 0, carriers), make([]string, 0, carriers)
+	for _, spelling := range slices.Sorted(maps.Keys(refMemberOnlySchemas)) {
+		schema := refMemberOnlySchemas[spelling]
+		for _, member := range slices.Sorted(maps.Keys(memberOnlyKeys(""))) {
+			suffix := member + "-" + spelling
+			paramKey, headerKey := memberOnlyKeys("q")[member], memberOnlyKeys("X-M")[member]
+			params = append(params,
+				"- {name: inline-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}",
+				"- {name: entry-"+suffix+", in: query, content: {application/json: {"+paramKey+", schema: "+schema+"}}}",
+				"- $ref: '#/components/parameters/P-"+suffix+"'")
+			headers = append(headers,
+				"X-Inline-"+suffix+": {"+headerKey+", schema: "+schema+"}",
+				"X-Entry-"+suffix+": {content: {text/plain: {"+headerKey+", schema: "+schema+"}}}",
+				"X-Component-"+suffix+": {$ref: '#/components/headers/H-"+suffix+"'}")
+			componentParams = append(componentParams, "P-"+suffix+": {name: component-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}")
+			componentHeaders = append(componentHeaders, "H-"+suffix+": {"+headerKey+", schema: "+schema+"}")
+		}
+		const own = "description: OWN, example: {a: p}, x-deprecated-reason: own reason"
+		params = append(params, "- {name: written-"+spelling+", in: query, "+own+", schema: "+schema+"}")
+		headers = append(headers, "X-Written-"+spelling+": {"+own+", schema: "+schema+"}")
+	}
+	if reversed {
+		slices.Reverse(componentParams)
+		slices.Reverse(componentHeaders)
+	}
+	spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: getA\n" +
+		"      parameters:\n        - {name: q, in: query, schema: {type: string}}\n        " + strings.Join(params, "\n        ") + "\n" +
+		"      responses:\n        '200':\n          description: ok\n          headers:\n" +
+		"            X-M: {schema: {type: string}}\n            " + strings.Join(headers, "\n            ") + "\n" +
+		"components:\n  parameters:\n    " + strings.Join(componentParams, "\n    ") + "\n" +
+		"  headers:\n    " + strings.Join(componentHeaders, "\n    ") + "\n" +
+		"  schemas:\n    Obj: {type: object, properties: {a: {type: string}}}\n"
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, memberOnlyPolicy())
+	require.NoError(t, err)
+	requireVerifies(t, doc, diags)
+	return doc, diags
+}
+
+// TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema holds a
+// parameter or a header writing a deprecation's member or a tier, and no
+// `deprecated: true`, beside a deprecated use of one $ref to an object, in
+// either spelling, to the rule an inline schema's carrier follows
+// (docs/compilers/openapi.md#docs-and-deprecation): the Model stays and keeps
+// the schema's deprecation whole, and the carrier is deprecated, holding its
+// own member alone and the notes nothing at it writes over. So is one writing
+// every note over. Inline, on the elected content entry and in a component,
+// in both orders of the components.
+func TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileRefMemberOnlyCarriers(t, false)
+	operation, ok := operationByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, operation.Responses, 1)
+	q, ok := openapitest.ParamBySource(operation, "q")
+	require.True(t, ok)
+	xM, ok := headerByWire(operation.Responses[0].Headers, "X-M")
+	require.True(t, ok)
+	own := func(replaced ir.EntityRef) map[string]*ir.Deprecation {
+		return map[string]*ir.Deprecation{
+			"message": {Message: "own reason"}, "since": {Since: "2.0"}, "version": {RemovalVersion: "3.0"},
+			"date": {RemovalDate: "2027-01-01"}, "replaced": {ReplacedBy: []ir.EntityRef{replaced}}, "beta": {},
+		}
+	}
+	type carrier struct {
+		name     string
+		property ir.Property
+		want     *ir.Deprecation
+		docs     string
+		example  string
+	}
+	carriers := make([]carrier, 0, len(refMemberOnlySchemas)*(3*2*len(memberOnlyKeys(""))+2))
+	for _, spelling := range slices.Sorted(maps.Keys(refMemberOnlySchemas)) {
+		for member := range memberOnlyKeys("") {
+			suffix := member + "-" + spelling
+			for _, position := range []string{"inline", "entry", "component"} {
+				param, ok := openapitest.ParamBySource(operation, position+"-"+suffix)
+				require.True(t, ok, position+"-"+suffix)
+				wire := "X-" + strings.ToUpper(position[:1]) + position[1:] + "-" + suffix
+				header, ok := headerByWire(operation.Responses[0].Headers, wire)
+				require.True(t, ok, wire)
+				paramWant, headerWant := own(ir.EntityRef{Param: q.ID})[member], own(ir.EntityRef{Property: xM.ID})[member]
+				if position == "entry" && member == "replaced" {
+					// A content entry's replacement key resolves nowhere, as beside
+					// an inline schema.
+					paramWant, headerWant = &ir.Deprecation{}, &ir.Deprecation{}
+				}
+				carriers = append(carriers,
+					carrier{param.Name.Source, ir.Property{Docs: param.Docs, Deprecation: param.Deprecation, Examples: param.Examples, Type: param.Type}, paramWant, "d", "{a: s}"},
+					carrier{wire, header.Property, headerWant, "d", "{a: s}"})
+			}
+		}
+		param, ok := openapitest.ParamBySource(operation, "written-"+spelling)
+		require.True(t, ok)
+		header, ok := headerByWire(operation.Responses[0].Headers, "X-Written-"+spelling)
+		require.True(t, ok)
+		carriers = append(carriers,
+			carrier{param.Name.Source, ir.Property{Docs: param.Docs, Deprecation: param.Deprecation, Examples: param.Examples, Type: param.Type},
+				&ir.Deprecation{Message: "own reason"}, "OWN", "{a: p}"},
+			carrier{header.WireName, header.Property, &ir.Deprecation{Message: "own reason"}, "OWN", "{a: p}"})
+	}
+	require.Len(t, carriers, cap(carriers), "every carrier is asked")
+	for _, tc := range carriers {
+		assert.Equal(t, tc.want, tc.property.Deprecation, "%s is deprecated, holding its own member alone", tc.name)
+		assert.Equal(t, tc.docs, tc.property.Docs.Description, tc.name)
+		assert.Equal(t, tc.example, exampleOf(t, tc.property.Examples), tc.name)
+		model, ok := kindNode(t, doc, tc.property.Type.Target).(*ir.Model)
+		require.True(t, ok, "%s names the Model its position owns", tc.name)
+		require.True(t, model.Anonymous, tc.name)
+		require.NotNil(t, model.Base, tc.name)
+		assert.Equal(t, componentID("Obj"), model.Base.Target, tc.name)
+		assert.Equal(t, &ir.Deprecation{}, model.Deprecation, "%s's node keeps the schema's deprecation whole", tc.name)
+		if tc.docs == "d" {
+			assert.Empty(t, model.Docs.Description, "%s holds the docs nothing at it writes over", tc.name)
+			assert.Empty(t, model.Examples, "%s holds the example nothing at it writes over", tc.name)
+		} else {
+			assert.Equal(t, "d", model.Docs.Description, "%s's node keeps the written-over docs", tc.name)
+			assert.Equal(t, "{a: s}", exampleOf(t, model.Examples), "%s's node keeps the written-over example", tc.name)
+		}
+	}
+	for _, diagnostic := range diags {
+		assert.Equal(t, "openapi/degraded-construct", diagnostic.Code, diagnostic.Message)
+		assert.Equal(t, "x-stability", diagnostic.Provenance.Pointer.LastToken(), diagnostic.Message)
+	}
+	assert.Len(t, diags, len(refMemberOnlySchemas)*3*2, "one finding per carrier writing the tier, every other key read")
+
+	reversedDoc, _ := compileRefMemberOnlyCarriers(t, true)
+	assert.Empty(t, cmp.Diff(doc.Types, reversedDoc.Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(doc.Services, reversedDoc.Services), "nor do the operations")
+}
+
+// TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated holds
+// that a parameter writing only a deprecation's member beside a deprecated
+// $ref whose Model stays for something a carrier cannot hold, an extension, a
+// constraint or a note on an allOf entry, holds none of the schema's notes:
+// it is not deprecated, its member kept under Unmodeled alone, and the Model
+// keeps the deprecation, as at a position a reference names
+// (docs/compilers/openapi.md#docs-and-deprecation).
+func TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated(t *testing.T) {
+	t.Parallel()
+	const obj = "'#/components/schemas/Obj'"
+	for name, schema := range map[string]string{
+		"an extension beside the $ref":    "{$ref: " + obj + ", description: d, deprecated: true, x-foo: 1}",
+		"an extension beside the allOf":   "{allOf: [{$ref: " + obj + "}], description: d, deprecated: true, x-foo: 1}",
+		"a constraint beside the allOf":   "{allOf: [{$ref: " + obj + "}], maxProperties: 3, deprecated: true}",
+		"a note on an entry of the allOf": "{allOf: [{$ref: " + obj + "}, {description: d}], deprecated: true}",
+	} {
+		spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: getA\n" +
+			"      parameters:\n        - {name: p, in: query, x-deprecated-reason: own, schema: " + schema + "}\n" +
+			"      responses: {'200': {description: ok}}\n" +
+			"components:\n  schemas:\n    Obj: {type: object, properties: {a: {type: string}}}\n"
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, memberOnlyPolicy())
+		require.NoError(t, err, name)
+		assert.Empty(t, diags, name)
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok, name)
+		require.Len(t, operation.Params, 1, name)
+		parameter := operation.Params[0]
+
+		assert.Nil(t, parameter.Deprecation, "%s: the parameter is not deprecated", name)
+		entry := unmodeledEntry(t, parameter.Unmodeled, "openapi:x-deprecated-reason")
+		assert.JSONEq(t, `"own"`, string(entry.Value), "%s: its member is kept verbatim", name)
+		model, ok := doc.Types[parameter.Type.Target].(*ir.Model)
+		require.True(t, ok, "%s: the parameter names the Model", name)
+		require.NotNil(t, model.Base, name)
+		assert.Equal(t, componentID("Obj"), model.Base.Target, name)
+		assert.Equal(t, &ir.Deprecation{}, model.Deprecation, "%s: which keeps the deprecation", name)
+	}
+}
+
+// TestRefUseBound_AnExampleBesideAModelThatStaysIsTypedOnIt holds that an
+// example beside a $ref keeping its Model for an extension, at a field an
+// allOf entry redeclares over a model's $ref, lands typed on that Model, which
+// the field names over the referent: beside the $ref and beside an allOf of
+// it, in every order of the entries and of the components, kept nowhere
+// verbatim and reported nowhere (docs/compilers/openapi.md#ref-use-site).
+func TestRefUseBound_AnExampleBesideAModelThatStaysIsTypedOnIt(t *testing.T) {
+	t.Parallel()
+	const (
+		info  = "'#/components/schemas/Info'"
+		count = `[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`
+	)
+	for name, inline := range map[string]string{
+		"beside the $ref":       "{$ref: " + info + ", example: {count: 1}, x-foo: 1}",
+		"beside an allOf of it": "{allOf: [{$ref: " + info + "}], description: own, example: {count: 1}, x-foo: 1}",
+	} {
+		for _, layout := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
+			field, diags, doc := collField(t, foldedExampleSpec("{$ref: "+info+"}", inline, layout[0], layout[1]))
+			label := fmt.Sprintf("%s, entry first %v, Coll first %v", name, layout[0], layout[1])
+
+			assert.Empty(t, field.Examples, "%s: the field holds none of its own", label)
+			assert.Empty(t, field.Unmodeled, label)
+			model, ok := doc.Types[field.Type.Target].(*ir.Model)
+			require.True(t, ok, "%s: the field names a model", label)
+			require.NotNil(t, model.Base, label)
+			assert.Equal(t, componentID("Info"), model.Base.Target, "%s: over the referent", label)
+			assert.Equal(t, count, examplesJSON(t, model.Examples), "%s: holding the example typed", label)
+			assert.Empty(t, codeCounts(diags), "%s: and nothing is reported", label)
+		}
+	}
+}
+
+// exampleOf renders the one example of examples as flow-style YAML of one
+// object of strings.
+func exampleOf(t *testing.T, examples []ir.Example) string {
+	t.Helper()
+	require.Len(t, examples, 1)
+	require.NotNil(t, examples[0].Value)
+	fields := examples[0].Value.Object
+	require.Len(t, fields, 1)
+	return "{" + fields[0].Name + ": " + fields[0].Value.String + "}"
 }

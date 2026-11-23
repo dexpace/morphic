@@ -188,11 +188,15 @@ member's type holds that node
 ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
 what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
-verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
-its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
-[decorator](#decorators) among them, which an emitter folds onto the carrier. A carried position
-that a reference names keeps them on its node too, its carrier holding none, so every reference to
-it reads them where it lands.
+verbatim, which stays where the promotion reads a key. A schema at a carrier writing these notes
+beside one `$ref` to an object, or beside an `allOf` of it, and nothing the carrier has no field
+for but a `type` naming exactly what the target declares, builds no node: the carrier names the
+target and holds them ([decorators](#decorators)), but for a member another declaration the model
+writes itself gives one of them otherwise. One
+writing anything else beside them, or a note on a conjunct of its `allOf`, keeps them on the node
+it builds, a [decorator](#decorators) among them, which an emitter folds onto the carrier. A
+carried position that a reference names keeps them on its node too, its carrier holding none, so
+every reference to it reads them where it lands.
 
 Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
 write a `description` beside their schema, an `example`, and a deprecation — the two stay apart: the
@@ -201,12 +205,14 @@ that type is. A deprecation is the carrier's own where its object writes `deprec
 the compiler's promotion policy reads a deprecation or one of its members from, as does the content
 entry it elects; a Reference Object states none. The node then keeps the schema's deprecation whole,
 its message, dates and replacements with it, and the carrier holds its own members alone. Where the
-carrier holds the schema's notes, it is deprecated wherever its schema is: one writing only a
-message, a date, a replacement or a tier beside a deprecated schema is deprecated as one writing
+carrier holds the schema's notes, an inline schema's or those beside one `$ref` to an object
+([decorators](#decorators)), it is deprecated wherever its schema is: one writing only a message, a
+date, a replacement or a tier beside a deprecated schema is deprecated as one writing
 `deprecated: true` is, so it and the node are both deprecated and each member has one home. At a
-position a reference names, the node keeps the deprecation and the carrier holds none, its own
-member kept under `Unmodeled` alone. Where the schema hoists no node, the carrier's own
-documentation and examples still replace the schema's, which no node holds.
+position a reference names, and beside a `$ref` whose decorator stays for a keyword only a node
+keeps or for a note on a conjunct of its `allOf`, the node keeps the deprecation and the carrier
+holds none, its own member kept under `Unmodeled` alone. Where the schema hoists no node, the
+carrier's own documentation and examples still replace the schema's, which no node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a
@@ -273,7 +279,7 @@ place it was declared and the one place it is recorded.
 ## Decorators
 
 A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
-OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
+OpenAPI 3.0 writes `items: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
 losslessly as an anonymous `Model` whose `Base` is `Status`, where `Status` can be an object, and as
 the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies)). 3.1 writes the
 same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
@@ -281,10 +287,27 @@ wherever no carrier holds the annotations
 ([one structural home per declaration](#one-structural-home-per-declaration)).
 A keyword that binds only the use, `readOnly`, `writeOnly`, `default` or a `nullable` a policy reads
 as widening the reference, makes no decorator where a carrier holds the use: the carrier holds it
-and names `Status` itself.
-Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
-and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
-which is
+and names `Status` itself. Nor does a `type` naming exactly the kinds `Status` declares, nor a note
+the carrier holds, its documentation, deprecation or examples, so
+`state: {allOf: [{$ref: Status}], description: …}` at a property names `Status` and holds the
+description, in either spelling. A note no carrier holds makes the decorator: one at an `items`, a
+union's branch or a component, one at a carried position a reference names, and one a parameter's
+or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a keyword beside
+it that only a node keeps and a note written on a conjunct of the `allOf`. Where a written-over note
+alone makes it, each note of a kind nothing at the carrier writes over, its documentation,
+deprecation or examples, is still the carrier's, and one writing its own deprecation, even a member
+alone, is deprecated where the schema writes `deprecated: true`, holding its own members alone ([one
+home](#one-structural-home-per-declaration)); where anything else makes it, the carrier holds none
+of the schema's notes, but for one case. At a property whose member another declaration the model
+writes itself gives one of the notes otherwise, the decorator stays holding none of them: the
+carrier holds them all, and the `allOf` fold leaves on the decorator the note the member does not
+keep ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A decorator
+holding a carrier's note as well was weighed and withdrawn (#2071): the two spellings agreed either
+way, but a reader of the carrier alone found the note there over a string target and not over an
+object one, and a target that became an object moved every user's note onto a node.
+Neither the `Model` nor the alias says anything about a value that its `Base` does not. Such a node
+is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type whose
+`Base` is set, and which is
 
 - a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
   `Encoding`; and

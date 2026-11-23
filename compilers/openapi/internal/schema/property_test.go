@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -378,10 +379,12 @@ func TestPropertyAnnotations_APromotedDeprecationIsTheCarriers(t *testing.T) {
 
 // TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode pins what the rule
 // leaves: a position naming a $ref, beside its keywords or as a conjunct of its
-// allOf, keeps its notes on the node it builds, which an emitter folds onto the
-// carrier where it is a decorator (docs/emitters/refine/decorators.md). Each
-// spelling of one use reads that alike, the union beside an allOf of the $ref
-// included.
+// allOf, keeps its notes on the node it builds where it writes what the
+// property cannot hold beside them, a property or a union here. Each spelling
+// of one use reads that alike, the union beside an allOf of the $ref
+// included. A $ref beside notes alone is the property's
+// (docs/compilers/openapi.md#ref-use-site): it names the $ref's target and
+// holds them, in either spelling.
 func TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {b: {type: string}}}
@@ -395,7 +398,7 @@ func TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode(t *testing.T) {
         entry: {allOf: [{$ref: '#/components/schemas/Base'}, {oneOf: [{required: [b]}, {required: [x]}], description: DOC, deprecated: true}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, wire := range []string{"decorator", "beside", "composed", "wrapped", "entry"} {
+	for _, wire := range []string{"composed", "wrapped", "entry"} {
 		property := propertyOf(t, doc, "A", wire)
 		require.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/"+wire), property.Type.Target, wire)
 		assert.Empty(t, property.Docs.Description, wire)
@@ -403,6 +406,102 @@ func TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode(t *testing.T) {
 		node := doc.Types[property.Type.Target].Common()
 		assert.Equal(t, "DOC", node.Docs.Description, wire)
 		assert.NotNil(t, node.Deprecation, wire)
+	}
+	for _, wire := range []string{"decorator", "beside"} {
+		property := propertyOf(t, doc, "A", wire)
+		assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"), property.Type.Target, wire)
+		assert.Equal(t, "DOC", property.Docs.Description, wire)
+		assert.NotNil(t, property.Deprecation, wire)
+		assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/A/properties/"+wire), wire)
+	}
+}
+
+// TestCarriedAnnotations_ANoteBesideARefIsTheCarriers pins each note a carrier
+// has a field for, written beside a $ref to an object in either spelling, as
+// the property's own (docs/compilers/openapi.md#ref-use-site): the property
+// names Base and holds the note, and no node stands at its position.
+func TestCarriedAnnotations_ANoteBesideARefIsTheCarriers(t *testing.T) {
+	t.Parallel()
+	notes := []struct {
+		keyword string
+		holds   func(property ir.Property) bool
+	}{
+		{"title: S", func(property ir.Property) bool { return property.Docs.Summary == "S" }},
+		{"description: D", func(property ir.Property) bool { return property.Docs.Description == "D" }},
+		{"externalDocs: {url: 'https://example.com'}", func(property ir.Property) bool { return len(property.Docs.ExternalDocs) == 1 }},
+		{"deprecated: true", func(property ir.Property) bool { return property.Deprecation != nil }},
+		{"example: {b: x}", func(property ir.Property) bool { return len(property.Examples) == 1 }},
+		{"examples: [{b: x}]", func(property ir.Property) bool { return len(property.Examples) == 1 }},
+	}
+	layouts := []string{"{$ref: '#/components/schemas/Base', %s}", "{allOf: [{$ref: '#/components/schemas/Base'}], %s}"}
+	var properties strings.Builder
+	for i, note := range notes {
+		for j, layout := range layouts {
+			fmt.Fprintf(&properties, "        p%d_%d: "+layout+"\n", i, j, note.keyword)
+		}
+	}
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {b: {type: string}}}
+    A:
+      type: object
+      properties:
+`+properties.String()))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for i, note := range notes {
+		for j := range layouts {
+			wire := fmt.Sprintf("p%d_%d", i, j)
+			property := propertyOf(t, doc, "A", wire)
+			assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"), property.Type.Target, wire)
+			assert.True(t, note.holds(property), "%s holds %s", wire, note.keyword)
+			assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/A/properties/"+wire), wire)
+		}
+	}
+}
+
+// TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt
+// holds that a `type` beside a $ref binds the use only where it names every
+// kind the referent declares and no other: then the property names Base and
+// holds the note, and a type naming another kind, one kind of a union U,
+// null, or a word no dialect defines, whose error the document draws, keeps
+// the node holding the note.
+func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt(t *testing.T) {
+	t.Parallel()
+	const base = "    Base: {type: object, properties: {b: {type: string}}}\n" +
+		"    U: {oneOf: [{type: object, properties: {b: {type: string}}}, {type: string}]}\n"
+	for name, tc := range map[string]struct {
+		schema string
+		use    bool
+		errs   []string
+	}{
+		"the referent's kind": {"{allOf: [{$ref: '#/components/schemas/Base'}], type: object, description: D}", true, nil},
+		"another kind":        {"{$ref: '#/components/schemas/Base', type: array, description: D}", false, nil},
+		"one kind of a union": {"{allOf: [{$ref: '#/components/schemas/U'}], type: object, description: D}", false, nil},
+		"null":                {"{$ref: '#/components/schemas/Base', type: [object, 'null'], description: D}", false, nil},
+		"an undefined word": {"{$ref: '#/components/schemas/Base', type: [object, objekt], description: D}", false,
+			[]string{"openapi/validation/validation-allowed-values"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", base+"    A: {type: object, properties: {p: "+tc.schema+"}}\n"))
+			var errs []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					errs = append(errs, d.Code)
+				}
+			}
+			assert.Equal(t, tc.errs, errs)
+			property := propertyOf(t, doc, "A", "p")
+			node := ir.TypeID("type/anonymous/components/schemas/A/properties/p")
+			if tc.use {
+				assert.Equal(t, ir.TypeID("type/openapi/components/schemas/Base"), property.Type.Target)
+				assert.Equal(t, "D", property.Docs.Description)
+				assert.NotContains(t, doc.Types, node)
+				return
+			}
+			assert.Equal(t, node, property.Type.Target)
+			assert.Empty(t, property.Docs.Description)
+			require.Contains(t, doc.Types, node)
+			assert.Equal(t, "D", doc.Types[node].Common().Docs.Description)
+		})
 	}
 }
 

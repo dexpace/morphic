@@ -248,7 +248,7 @@ func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
         wrapped: {allOf: [{$ref: '#/components/schemas/Old'}], x-sunset: "2099-01-01"}
         wrappedStated: {allOf: [{$ref: '#/components/schemas/Stated'}], x-sunset: "2099-01-01"}
         live: {allOf: [{$ref: '#/components/schemas/Live'}], x-sunset: "2099-01-01"}
-        bare: {allOf: [{$ref: '#/components/schemas/Old'}], description: d}
+        bare: {allOf: [{$ref: '#/components/schemas/Old'}], x-note: d}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	want := &ir.Deprecation{RemovalDate: "2099-01-01"}

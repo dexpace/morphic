@@ -191,51 +191,113 @@ func unionAside(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 }
 
 // usesOneRef reports whether schema, whose flattened conjuncts are comp, is a
-// use of one target saying nothing of it: one conjunct is a $ref writing
-// nothing read beside it, as an entry read whole may (statement.ReadBeside),
-// and schema and every other conjunct state nothing (statesNothing), or, where
-// a carrier holds schema's position (carriedAt), nothing but what binds the use
-// (bindsUseOnly), which the carrier holds. It is the reference, as the $ref
-// alone is (docs/compilers/openapi.md#allof-classification).
+// use of one target saying nothing of it (usesOneRefHolding), the carrier
+// holding the notes carriedNotesAt gives it. It is the reference, as the $ref
+// alone is (docs/compilers/openapi.md#allof-classification). Where another
+// declaration of its member gives one of those notes otherwise
+// (notesGivenApart), a note is not quiet here, so the position keeps the node
+// the fold leaves on it the note the field does not keep.
 func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) bool {
-	carried := carriedAt(loweringContext, schema)
-	quiet := func(statementSchema *statement.Schema) bool {
-		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema)
+	notes := carriedNotesAt(loweringContext, schema)
+	if notes != (carriedNotes{}) && notesGivenApart(loweringContext, schema) {
+		notes = carriedNotes{}
 	}
-	refs := 0
+	return usesOneRefHolding(loweringContext, schema, comp, notes)
+}
+
+// usesOneRefHolding reports whether schema, whose flattened conjuncts are comp,
+// uses one target saying nothing of it but what a carrier holds: one conjunct
+// is a $ref writing nothing read beside it (oneQuietRef), and schema and every
+// other conjunct state nothing (statesNothing), or, where a carrier holds
+// schema's position (carriedAt), nothing but what binds the use (bindsUseOnly)
+// and, beside the $ref or the allOf, the notes notes names.
+func usesOneRefHolding(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition, notes carriedNotes) bool {
+	ref := oneQuietRef(comp)
+	if ref == nil {
+		return false
+	}
+	carried := carriedAt(loweringContext, schema)
+	var refKinds kindSet
+	if carried {
+		// A kind only the kind-inference policy reads is no kind the referent
+		// declares, so a `type` naming it is the position's own.
+		kinds, inferred := lowersTo(loweringContext, ref)
+		if !inferred {
+			refKinds = kinds
+		}
+	}
+	quiet := func(statementSchema *statement.Schema, notes carriedNotes) bool {
+		return statesNothing(statementSchema) || carried && bindsUseOnly(loweringContext, statementSchema, notes, refKinds)
+	}
 	for _, entry := range comp.entries {
-		switch {
-		case entry.schema.Ref != nil && slices.ContainsFunc(entry.schema.Keys, func(key statement.Key) bool {
-			return statement.ReadBeside(key.Name, key.Node, entry.schema.Ref.Keyword)
-		}):
-			return false
-		case entry.schema.Ref != nil:
-			refs++
-		case !quiet(entry.schema.Schema):
+		if entry.schema.Ref == nil && !quiet(entry.schema.Schema, carriedNotes{}) {
+			// An entry writing a note is a conjunct of its own, which keeps
+			// the node.
 			return false
 		}
 	}
-	return refs == 1 && quiet(schema)
+	return quiet(schema, notes)
+}
+
+// oneQuietRef returns the statement of comp's one $ref entry, and nil where
+// it writes none or several, or one writing something read beside its $ref, as
+// an entry read whole may (statement.ReadBeside).
+func oneQuietRef(comp allOfComposition) *statement.Statement {
+	var ref *statement.Statement
+	for _, entry := range comp.entries {
+		if entry.schema.Ref == nil {
+			continue
+		}
+		if ref != nil || slices.ContainsFunc(entry.schema.Keys, func(key statement.Key) bool {
+			return statement.ReadBeside(key.Name, key.Node, entry.schema.Ref.Keyword)
+		}) {
+			return nil
+		}
+		ref = entry.schema
+	}
+	return ref
 }
 
 // bindsUseOnly reports whether every key schema writes that says something of
 // the instance binds a use of the type rather than the type: one of
-// residueKeywords, or a `nullable: true` the nullable-inference policy reads as
+// residueKeywords, a `nullable: true` the nullable-inference policy reads as
 // widening the reference (docs/compilers/openapi.md#nullable), each of which a
 // carrier holds and a node cannot
-// (docs/compilers/openapi.md#use-bound-annotations).
-func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema) bool {
+// (docs/compilers/openapi.md#use-bound-annotations), a note notes gives the
+// carrier (carriedNotes.holds), or a `type` naming refKinds alone, the kinds
+// the referent of the $ref beside it declares, none where only the
+// kind-inference policy reads them (typeNamesOnly).
+func bindsUseOnly(loweringContext lowering.Ctx, schema *statement.Schema, notes carriedNotes, refKinds kindSet) bool {
 	return schema.Truth == statement.Stated && !slices.ContainsFunc(schema.Keys, func(key statement.Key) bool {
 		switch {
 		case key.Name == "allOf" && len(schema.AllOf) > 0, !statement.ReadBeside(key.Name, key.Node, ""),
-			slices.Contains(residueKeywords, key.Name):
+			slices.Contains(residueKeywords, key.Name), notes.holds(key):
 			return false
 		case key.Name == "nullable":
 			return !loweringContext.NullableInference.Honours() || !nullableTrue(schema)
+		case key.Name == "type":
+			return !typeNamesOnly(schema, refKinds)
 		default:
 			return true
 		}
 	})
+}
+
+// typeNamesOnly reports whether schema's `type` names exactly kinds, what the
+// referent of a $ref declares it lowers to (lowersTo): then it narrows nothing
+// that $ref admits. A kind the kind-inference policy reads is not among them,
+// so a type naming it is the position's own. Nor is null, so a type naming
+// null says something of its own, and so does a word no dialect defines.
+func typeNamesOnly(schema *statement.Schema, kinds kindSet) bool {
+	var named kindSet
+	for _, typeName := range schema.Types() {
+		kind := kindOfType(typeName)
+		if kind == 0 {
+			return false
+		}
+		named |= kind
+	}
+	return named == kinds
 }
 
 // carriedAt reports whether a carrier holds the position the bindings place

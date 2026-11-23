@@ -1804,21 +1804,56 @@ that lowers to an object alone the keywords beside the `$ref` are a conjunct at 
 property, parameter or header names the `Model` over the target, a decorator holding them that the
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
-and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
-it, with nothing else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no
-decorator there: the carrier names the reference and holds them, as over any other target, so
-`{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
-read off where the schema is written, a property a schema lists or a parameter's or a header's
-schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
-over the object the position owns for it, keeping the keywords as a declaration does. At a position that
-carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf` branch, an `items`, a
-component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
-the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
-anything else, and in an `allOf` entry they are an inline conjunct of the composition, an entry of
-their own at the entry's pointer that writes no reference, as `{allOf: [{$ref: T}, {K}]}` writes
-them, so the reference is read, kept and reported once
-([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
-than override, so each position keeps the ones it declared and none is copied to a use site
+and a `nullable: true` the nullable-inference policy reads, a `type` naming exactly the kinds the
+referent declares, and the notes the carrier holds
+([`docs-and-deprecation`](#docs-and-deprecation)), `title`, `description`, `externalDocs`,
+`deprecated`, `example` and `examples`, beside the `$ref` or beside an `allOf` of it, with nothing
+else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no decorator there: the
+carrier names the reference and holds them, as over any other target, so
+`{$ref: Obj, readOnly: true}`, `{allOf: [{$ref: Obj}], description: d}` and
+`{allOf: [{$ref: Obj}], type: object}` at a property name `Obj`. A use-bound keyword or a `type` on
+another entry of the `allOf` counts alike. A `type` that names another kind, some of a union
+referent's kinds but not all, null, or a word no dialect defines, says something of its own, and so
+does `type: object` over a referent naming no kind, whose kind only the kind-inference policy reads.
+A note counts so only where the carrier holds it: where a reference names the position, the
+notes stay on the `Model`, which every reference reads; where the parameter or header writes its
+own documentation, deprecation or examples, or a Reference Object naming it writes documentation
+beside its `$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own,
+while each note of a kind nothing at the carrier writes over, its documentation, deprecation or
+examples, is still the carrier's, each placed on its own as an inline schema's is. So where a
+written-over note alone keeps the `Model`, the carrier holds the schema's notes, and a parameter or
+a header writing its own deprecation, even a member or a tier alone, is deprecated where the schema
+writes `deprecated: true`, holding its own members alone, while the `Model` keeps the schema's
+deprecation whole ([`docs-and-deprecation`](#docs-and-deprecation)). One case is open
+there: beside a written-over note, the target's own `deprecated: true` deprecates the carrier and a
+key on the target stating a deprecation does not, though either deprecates a use
+([`extension-promotion`](#extension-promotion)). At a property, the `Model` stays too where another
+declaration of the same member that the model writes itself, in its own `properties` or an inline
+entry of its `allOf`, gives one of the position's notes otherwise. It holds none of them, the
+carrier holding them all, and the [fold](#allof-redeclared-property) leaves on it the note the
+member does not keep. Two values compare as they encode, so one spelt two ways, as `1` and `1.0` or
+under `example` and under `examples`, reads as given otherwise and keeps the `Model`, which loses
+nothing. A note an entry of the `allOf` writes, as in
+`{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
+conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
+extension, `xml` or a constraint among them. There, as where a reference names the position, the
+carrier holds none of the schema's notes, so one writing only a deprecation's member or a tier is
+not deprecated, its member kept under `Unmodeled` alone. The node holding the note at a carrier as
+well was weighed and withdrawn. It kept the two spellings alike, as this does, but left a carrier's
+own `Docs` set over a string target and empty over an object one, so a reader of the carrier alone,
+a differ, `pass` or a docs emitter not behind the fold, found the note on one and not the other, and
+a target changed from a string to an object moved its users' notes. Whether a carrier holds the
+position is read off where the schema is written, a property a schema lists or a parameter's or a
+header's schema, never off the lowering that reaches it, so a `$ref` naming such a position reads
+the `Model` over the object the position owns for it, keeping the keywords as a declaration does. At
+a position that carries no property, parameter or header — an `allOf` entry, a `oneOf` or `anyOf`
+branch, an `items`, a component — the keywords beside the `$ref` are a conjunct of that position, as
+beside an `allOf` of the `$ref`: the node the position owns holds them, the `Model` over an object
+or the alias over anything else, and in an `allOf` entry they are an inline conjunct of the
+composition, an entry of their own at the entry's pointer that writes no reference, as
+`{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and reported once
+([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin
+rather than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
@@ -1829,7 +1864,11 @@ refinements, an alias between two spending none of them: what the target declare
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
 or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
 that lowers to; its examples stay on its node, as any target's do
-([`schema-examples`](#schema-examples)). A `default` a `$ref` lends across a conjunct admitting less
+([`schema-examples`](#schema-examples)). One case is open: at a carried position writing the value
+set on another conjunct, as `allOf: [{$ref: X}, {type: string, enum: [a, b]}]` does, the referent's
+documentation and deprecation sit on the enum the position owns, and the carrier holds neither,
+since a position naming a `$ref` beside another conjunct gives its carrier none of the notes its
+node holds. A `default` a `$ref` lends across a conjunct admitting less
 than it does counts only where the position takes it, and with no such conjunct it reads as beside
 the `$ref`, whatever the target's own type says of it. A `default` written with the value set is the
 position's own, in the set or not, as a plain `enum`'s is. A composition of a sole `$ref` holds what
@@ -1844,6 +1883,20 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `e2e.TestRefUseBound_ACarriedUseIsTheReference`, `e2e.TestRefUseBound_AnotherKeywordKeepsTheModel`,
   `e2e.TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder`,
+  `e2e.TestRefUseBound_ANoteIsTheCarriers`,
+  `e2e.TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode`,
+  `e2e.TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode`,
+  `e2e.TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `e2e.TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated`,
+  `e2e.TestRefUseBound_AnExampleBesideAModelThatStaysIsTypedOnIt`,
+  `e2e.TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse`,
+  `e2e.TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode`,
+  `e2e.TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode`,
+  `schema.TestCarriedAnnotations_ANoteBesideARefIsTheCarriers`,
+  `e2e.TestAllOfFold_TwoOwnDeclarationsBesideAReferenceKeepEachNote`,
+  `e2e.TestAllOfFold_OwnUsesAgreeingOnANoteNameTheReferent`,
+  `schema.TestRefUseRedeclared_ANoteGivenApartKeepsTheNode`,
+  `schema.TestRefUseRedeclared_AParameterReadsNoMember`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
@@ -1968,8 +2021,15 @@ position a reference names, a `$ref`, a discriminator's mapping value or an expa
 keeps them on its node, which every reference to it reads, and its carrier holds none of them.
 Through a `$ref` the referent's land on the carrier under the use site's field by field
 ([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
-its `allOf`, keeps its own on the node it builds. At a position no carrier holds, they land on the
-node the position owns. A parameter's or header's
+its `allOf`, keeps its own on the node it builds, unless it writes beside one `$ref` to an object,
+or beside an `allOf` of it, only these and the keywords that bind the use
+([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming exactly what the referent
+declares, and the carrier holds them: it then builds no node, and the carrier holds them over the
+referent's ([`ref-use-site`](#ref-use-site)), but for a member another declaration the model writes
+itself gives one of them otherwise. Where the node stays only because the carrier writes
+over the schema's documentation, deprecation or examples, each note of a kind nothing at the
+carrier writes over, its documentation, deprecation or examples, is still the carrier's. At a
+position no carrier holds, they land on the node the position owns. A parameter's or header's
 own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
 `$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
 node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema
@@ -1980,11 +2040,13 @@ parameter or a header states itself stands on it the same way: where its object 
 `deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
 deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
 whole, members and replacement with it, and the carrier holds its own members alone. Where its
-carrier holds the schema's notes, it is deprecated wherever its schema is, by its keyword or a key,
+carrier holds the schema's notes, an inline schema's or those beside one `$ref` to an object
+([`ref-use-site`](#ref-use-site)), it is deprecated wherever its schema is, by its keyword or a key,
 so one writing only a message, a date, a replacement or a tier beside a deprecated schema is
 deprecated as one writing `deprecated: true` is, it and the node then both deprecated. At a position
-a reference names, the node keeps the deprecation and the carrier holds none, its own member kept
-under `Unmodeled` alone. A Reference Object
+a reference names, and beside a `$ref` whose `Model` stays for a keyword a carrier has no field for
+or for a note on an entry of its `allOf`, the node keeps the deprecation and the carrier holds none,
+its own member kept under `Unmodeled` alone. A Reference Object
 states none, as the keys beside its `$ref` are promoted nowhere
 ([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
 hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,
@@ -2010,6 +2072,8 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
   `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
   `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `e2e.TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `e2e.TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated`,
   `operation.TestParams_AQuotedDeprecatedStatesNoDeprecation`
 
 ### `replacement-inference`
@@ -3356,8 +3420,10 @@ deprecation describe the field, so of those a declaration the model writes itsel
 another model holds, in either order: that one stays declared on its model. A declaration the model
 writes itself giving one of them otherwise than the declaration kept keeps it on the node its schema
 builds, where the schema hoisted one at the declaration holding none, as it did before its carrier
-took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). The note
-is left there before the types are judged, so that node is judged holding it, as a node saying what
+took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). A use of a
+`$ref` writing such a note builds that node, the `Model` over its referent, which a use writing no
+note another declaration gives otherwise does not ([`ref-use-site`](#ref-use-site)). The note is
+left there before the types are judged, so that node is judged holding it, as a node saying what
 the other lacks, and the field's type holds it: the node itself, a conjunct the field composes, or a
 node the field's declarations meet in, which adopts the note and leaves its own copy bare. Where the
 field's type would not hold it, as of two lists that differ only in that note, which are judged two
@@ -3520,6 +3586,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold`,
   `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
   `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
+  `e2e.TestAllOfFold_ANoteBesideAReferenceTheModelWritesIsTheFields`,
+  `e2e.TestAllOfFold_TwoOwnUsesAndABroughtOneKeepEachNote`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,

@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"encoding/json/v2"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,7 +46,7 @@ var foldedNotes = []foldedNote{
 
 // exampleCount is the count the example named v writes.
 func exampleCount(v string) string {
-	return map[string]string{"own": "1", "base": "2", "a": "1", "b": "2"}[v]
+	return map[string]string{"own": "1", "base": "2", "a": "1", "b": "2", "c": "3"}[v]
 }
 
 // notedFoldSpec is a document whose Coll writes entries as its allOf, beside
@@ -73,21 +74,37 @@ func notedFoldSpec(entries [2]string, base string, swap, collFirst bool) string 
 // node nothing names, is not among them.
 func typedNotes(t *testing.T, doc *ir.Document) []string {
 	t.Helper()
+	placed := placedNotes(t, doc)
+	out := make([]string, 0, len(placed))
+	for _, line := range placed {
+		_, note, _ := strings.Cut(line, ": ")
+		out = append(out, note)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// placedNotes lists the notes typedNotes does, sorted, each after where it is
+// typed and a colon: a named type by its name, an anonymous one as "node" and
+// the pointer it was built at, and a property of either after a dot by its
+// wire name.
+func placedNotes(t *testing.T, doc *ir.Document) []string {
+	t.Helper()
 	var out []string
-	add := func(docs ir.Docs, examples []ir.Example, deprecation *ir.Deprecation) {
+	add := func(place string, docs ir.Docs, examples []ir.Example, deprecation *ir.Deprecation) {
 		if docs.Description != "" {
-			out = append(out, "description "+docs.Description)
+			out = append(out, place+": description "+docs.Description)
 		}
 		if docs.Summary != "" {
-			out = append(out, "title "+docs.Summary)
+			out = append(out, place+": title "+docs.Summary)
 		}
 		for _, example := range examples {
 			raw, err := json.Marshal(example.Value, json.Deterministic(true))
 			require.NoError(t, err)
-			out = append(out, "example "+string(raw))
+			out = append(out, place+": example "+string(raw))
 		}
 		if deprecation != nil {
-			out = append(out, "deprecation "+deprecation.Message)
+			out = append(out, place+": deprecation "+deprecation.Message)
 		}
 	}
 	var pending []ir.TypeID
@@ -106,10 +123,14 @@ func typedNotes(t *testing.T, doc *ir.Document) []string {
 		}
 		seen[id] = true
 		common := td.Common()
-		add(common.Docs, common.Examples, common.Deprecation)
+		place := common.Name.Source
+		if common.Anonymous {
+			place = "node " + string(common.Provenance.Pointer)
+		}
+		add(place, common.Docs, common.Examples, common.Deprecation)
 		if model, isModel := td.(*ir.Model); isModel {
 			for _, property := range model.Properties {
-				add(property.Docs, property.Examples, property.Deprecation)
+				add(place+"."+property.WireName, property.Docs, property.Examples, property.Deprecation)
 			}
 		}
 		pending = slices.AppendSeq(pending, ir.TypeEdges(td))

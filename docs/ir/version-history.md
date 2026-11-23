@@ -1290,3 +1290,29 @@ it sees. Changes made together in one bump are listed together under it.
   it takes ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A
   consumer pinned to 0.72.0 refuses the document; one reading an older document reads such a
   member's notes off the node its type names, and finds none on the member.
+- **0.74.0** — no change of shape. A property, a parameter or a header whose schema writes, beside
+  one `$ref` to an object or beside an `allOf` of it, only notes the carrier holds, a `title`, a
+  `description`, `externalDocs`, `deprecated`, `example` or `examples`, and the keywords that bind
+  the use ([`use-bound-annotations`](../compilers/openapi.md#use-bound-annotations)), and a `type`
+  naming exactly what the referent declares, names that object and holds them over the object's own,
+  and no anonymous `Model` stands at its position
+  ([decorators](./annotations.md#decorators),
+  [`ref-use-site`](../compilers/openapi.md#ref-use-site)). They were a decorator's, a `Model` whose
+  `Base` is the object, which the carrier named and an emitter folded back onto it; with a `type`
+  and no note, that `Model` held nothing. The `Model`
+  stays, as before, where the position writes beside its notes what a carrier has no field for, or
+  writes a note on a conjunct of its `allOf`, where a reference names the position, and where the
+  parameter or header, or a Reference Object naming it, writes its own documentation, deprecation
+  or examples over the schema's. Where it stays for such a written-over note alone, each note of a
+  kind nothing at the carrier writes over, its documentation, deprecation or examples, is the
+  carrier's, and the node holds none of them; a carrier writing its own deprecation, even a member
+  alone, is deprecated where the schema writes `deprecated: true` and holds its own members alone,
+  the node keeping the schema's whole, as 0.73.0 has it beside an inline schema. Where it stays for
+  anything else, the carrier holds none of the schema's notes, and one writing only a member is not
+  deprecated, as 0.73.0 has it at a position a reference names, but for one case: at a property
+  whose member another declaration the model writes itself gives one of the notes otherwise, the
+  `Model` stays holding none of them, the carrier holds them all, and the `allOf` fold leaves on the
+  `Model` the note the member does not keep
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.73.0 refuses the document; one reading an older document finds such a use's notes on
+  the decorator its type names, and none on the carrier.

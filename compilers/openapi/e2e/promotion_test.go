@@ -1101,19 +1101,24 @@ func compileMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.
 		"components:\n  parameters:\n    " + strings.Join(componentParams, "\n    ") + "\n" +
 		"  headers:\n    " + strings.Join(componentHeaders, "\n    ") + "\n" +
 		"  schemas:\n    New: {type: string}\n"
-	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
-		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
-			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
-				openapi.TargetDeprecation:               {{Key: "x-stability", Values: []string{"deprecated"}}},
-				openapi.TargetDeprecationMessage:        {{Key: "x-deprecated-reason"}},
-				openapi.TargetDeprecationSince:          {{Key: "x-deprecated-since"}},
-				openapi.TargetDeprecationRemovalVersion: {{Key: "x-removal-version"}},
-				openapi.TargetDeprecationRemovalDate:    {{Key: "x-sunset"}},
-				openapi.TargetDeprecationReplacedBy:     {{Key: "x-replaced-by"}},
-			},
-		}}})
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, memberOnlyPolicy())
 	require.NoError(t, err)
 	return doc, diags
+}
+
+// memberOnlyPolicy maps each of memberOnlyKeys to the deprecation member it
+// names, and `x-stability: deprecated` to the deprecation itself.
+func memberOnlyPolicy() compilers.Options {
+	return compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecation:               {{Key: "x-stability", Values: []string{"deprecated"}}},
+			openapi.TargetDeprecationMessage:        {{Key: "x-deprecated-reason"}},
+			openapi.TargetDeprecationSince:          {{Key: "x-deprecated-since"}},
+			openapi.TargetDeprecationRemovalVersion: {{Key: "x-removal-version"}},
+			openapi.TargetDeprecationRemovalDate:    {{Key: "x-sunset"}},
+			openapi.TargetDeprecationReplacedBy:     {{Key: "x-replaced-by"}},
+		},
+	}}}
 }
 
 // TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema pins a

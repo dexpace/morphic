@@ -100,7 +100,7 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(anonymous), ir.TypeRef{Target: anonymous}, at + "/nullable", "const is not null", ""},
 		{"3.0 beside an allOf excluding null", "3.0.3",
 			"{type: object, nullable: true, allOf: [{$ref: '#/components/schemas/Pet'}]}", "",
-			inferred(anonymous), ir.TypeRef{Target: anonymous}, at + "/nullable", "allOf entry", ""},
+			inferred(componentID("Pet")), ir.TypeRef{Target: anonymous}, at + "/nullable", "allOf entry", ""},
 		{"3.0 beside a $ref", "3.0.3", "{$ref: '#/components/schemas/Plain', nullable: true}", "",
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable", "writes none", ""},
 		{"3.1 beside a $ref", "3.1.0", "{$ref: '#/components/schemas/Plain', nullable: true}", "",

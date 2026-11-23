@@ -1655,11 +1655,12 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
 // stating no instance type that holds docs or a deprecation, beside a string,
 // in both entry orders. Reached through a $ref, the reference carries them
-// down to the property, and written at the declaration alone they are the
-// property's (docs/ir/annotations.md#one-structural-home-per-declaration), so
-// the string takes the field and the property keeps them. Composing what it
-// reaches, they are the structure's own, which a string would lose, so the two
-// overlap: the field keeps the first and reports the other.
+// down to the property, and written at the declaration alone, or beside the
+// $ref, they are the property's
+// (docs/ir/annotations.md#one-structural-home-per-declaration), so the string
+// takes the field and the property keeps them. Composing what it reaches with
+// a constraint, they are the structure's own, which a string would lose, so
+// the two overlap: the field keeps the first and reports the other.
 func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 	t.Parallel()
 	const spec = `    Described: {description: D, properties: {a: {type: string}}}
@@ -1681,6 +1682,7 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 		{described, func(property ir.Property) bool { return property.Docs.Description == "D" }},
 		{"{description: D, properties: {a: {type: string}}}", func(property ir.Property) bool { return property.Docs.Description == "D" }},
 		{"{deprecated: true, properties: {a: {type: string}}}", func(property ir.Property) bool { return property.Deprecation != nil }},
+		{"{description: E, allOf: [" + described + "]}", func(property ir.Property) bool { return property.Docs.Description == "E" }},
 	} {
 		for _, order := range [][2]string{{text, carried.decl}, {carried.decl, text}} {
 			property, diags := compile(order[0], order[1])
@@ -1692,7 +1694,7 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 	}
 
 	for _, inline := range []string{
-		"{description: D, allOf: [" + described + "]}",
+		"{description: D, required: [a], allOf: [" + described + "]}",
 	} {
 		for i, order := range [][2]string{{text, inline}, {inline, text}} {
 			property, diags := compile(order[0], order[1])
