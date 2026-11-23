@@ -155,8 +155,8 @@ func (g *anonGraph) report(decls declarations) []Violation {
 		if !g.reached[i] {
 			vs = append(vs, Violation{
 				Code:    "ir/unreferenced-anonymous-type",
-				Message: "anonymous type " + strconv.Quote(string(id)) + " is reached by no named type and no reference outside types",
-				Path:    "types[" + string(id) + "]",
+				Message: "anonymous type " + strconv.Quote(string(id)) + " is reached by no non-anonymous type and no reference outside types",
+				Path:    typePath(id),
 			})
 		}
 	}
