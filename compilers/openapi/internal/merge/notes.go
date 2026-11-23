@@ -150,7 +150,7 @@ func leaveOnNode[T any](g *Merger, decls []declaration, left []leftNotes, detail
 	kept, _ := of(&decls[at].property)
 	for i := range decls {
 		v, gives := of(&decls[i].property)
-		if !gives || i == at || same(kept, v) {
+		if !gives || same(kept, v) {
 			continue
 		}
 		node, owned := g.ownNode(decls[i])

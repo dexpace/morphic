@@ -717,7 +717,7 @@ func lastWritten[T any](foldingValue *folding, detail string, rank func(declarat
 	kept, _ = of(at, &foldingValue.decls[at].property)
 	for i := len(foldingValue.decls) - 1; i >= 0; i-- {
 		v, gives := of(i, &foldingValue.decls[i].property)
-		if !gives || i == at || same(kept, v) {
+		if !gives || same(kept, v) {
 			continue
 		}
 		keptAs := keptOnNode
