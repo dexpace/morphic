@@ -194,13 +194,14 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	}
 	left := g.leaveNotesOnNodes(judged)
 	folding := newFolding(g, judged, field)
-	if takeBack(left, folding.cone, holdsAny) {
+	inCone := func(i int) bool { return folding.cone[i] }
+	if takeBack(left, inCone, holdsNone) {
 		folding = newFolding(g, judged, field)
 	}
 	folding.assembled = assembled
 	folding.left = left
 	folding.foldType()
-	takeBack(left, folding.cone, heldBy(folding.merged.Type.Target, folding.conjuncts))
+	takeBack(left, folding.stays, folding.typeHolds)
 	folding.foldConstraints()
 	folding.foldValues()
 	folding.foldUse()
@@ -274,8 +275,8 @@ type folding struct {
 	// lost marks each declaration something of which the field does not carry.
 	notes [][]note
 	lost  []bool
-	// left holds, by declaration, the details of it the node its schema
-	// builds holds in the field's stead (leaveNotesOnNodes).
+	// left holds, by declaration, the notes of it the field's type holds in
+	// the field's stead (leaveNotesOnNodes, takeBack).
 	left []leftNotes
 }
 
@@ -726,7 +727,7 @@ func lastWritten[T any](foldingValue *folding, detail string, rank func(declarat
 			continue
 		}
 		keptAs := keptOnNode
-		if !foldingValue.left[i].details[detail] {
+		if foldingValue.left[i].holds[detail] == nil {
 			foldingValue.lost[i] = true
 			keptAs = foldingValue.decls[i].keptAs()
 		}

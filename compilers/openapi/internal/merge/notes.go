@@ -76,12 +76,12 @@ func anyIndex[T any](of func(*ir.Property) (T, bool)) func(int, *ir.Property) (T
 }
 
 // leftNotes is what leaveNotesOnNodes left on one declaration's node: the
-// node, the details, and what the node held of its notes before, which
-// takeBack writes back.
+// node, what the node held of its notes before, which takeBack writes back,
+// and by detail whether a node holds the note the declaration gives of it.
 type leftNotes struct {
-	node    *ir.TypeCommon
-	details map[string]bool
-	before  nodeNotes
+	node   *ir.TypeCommon
+	before nodeNotes
+	holds  map[string]func(node *ir.TypeCommon) bool
 }
 
 // nodeNotes is what a node holds of the notes leaveNotesOnNodes writes.
@@ -93,8 +93,9 @@ type nodeNotes struct {
 
 // leaveNotesOnNodes keeps on its node each note a declaration of decls the
 // model writes itself gives otherwise than the one the field keeps (keptAt,
-// ownFirst), where the lowering hoisted that node at the declaration and the
-// node holds none (ownNode): the field has one slot, and that node is where
+// ownFirst), where the lowering hoisted that node at the declaration, no other
+// member carries the note, and the node holds none (ownNode): the field has
+// one slot, and that node is where
 // the note sat before the lowering moved it to the property. It runs before
 // the fold judges the types, so the node is judged holding it, as one its
 // schema's notes stayed on is. It returns, by declaration, what it left.
@@ -161,46 +162,60 @@ func leaveOnNode[T any](g *Merger, decls []declaration, left []leftNotes, detail
 		if !put(node, &decls[i].property) {
 			continue
 		}
-		if left[i].details == nil {
-			left[i] = leftNotes{node: node, details: map[string]bool{}, before: before}
+		if left[i].holds == nil {
+			left[i] = leftNotes{node: node, before: before, holds: map[string]func(*ir.TypeCommon) bool{}}
 		}
-		left[i].details[detail] = true
+		left[i].holds[detail] = func(other *ir.TypeCommon) bool {
+			held, gives := of(&ir.Property{Docs: other.Docs, Deprecation: other.Deprecation})
+			return gives && same(held, v)
+		}
 	}
 }
 
 // takeBack writes back what leaveNotesOnNodes left on the node of each
-// declaration outside cone, whose type the field does not hold, or that the
-// field's type does not name (holds), and reports whether it wrote any back.
-// Two nodes judged apart for a note alone, two lists say, need not meet, so
-// the fold judges the types again as though no note were left, and that
-// declaration is kept verbatim. A node the field's type is built from adopts
-// the note (builder.adoptInto), so the node it came from keeps no copy.
-func takeBack(left []leftNotes, cone []bool, holds func(ir.TypeID) bool) bool {
+// declaration whose node does not stay (stays), and reports whether it wrote
+// any back. Of what it writes back, a note counts as held only where held
+// says another node holds it: the node the field's type is built from adopts
+// it (builder.adoptInto), so the node it came from keeps no copy. Any other is
+// forgotten, so that declaration is kept verbatim, as two nodes judged apart
+// for a note alone, two lists say, need not meet, and the fold judges the
+// types again as though no note were left.
+func takeBack(left []leftNotes, stays func(i int) bool, held func(i int, holds func(*ir.TypeCommon) bool) bool) bool {
 	took := false
 	for i := range left {
-		if left[i].details == nil || left[i].node == nil || cone[i] && holds(left[i].node.ID) {
+		if left[i].node == nil || stays(i) {
 			continue
 		}
 		node, before := left[i].node, left[i].before
 		node.Docs, node.Deprecation, node.Provenance.Inferred = before.docs, before.deprecation, before.inferred
 		left[i].node, took = nil, true
-		if !cone[i] {
-			left[i] = leftNotes{}
+		for detail, holds := range left[i].holds {
+			if !held(i, holds) {
+				delete(left[i].holds, detail)
+			}
 		}
 	}
 	return took
 }
 
-// holdsAny reports that the field's type names every node, which is what the
-// fold knows before it builds that type.
-func holdsAny(ir.TypeID) bool { return true }
+// holdsNone says no node holds a note taken back, which is what the fold
+// knows before it builds the field's type.
+func holdsNone(int, func(*ir.TypeCommon) bool) bool { return false }
 
-// heldBy returns whether the field's type names a node: is it, or composes it
-// as one of conjuncts.
-func heldBy(target ir.TypeID, conjuncts []conjunct) func(ir.TypeID) bool {
-	return func(id ir.TypeID) bool {
-		return id == target || slices.ContainsFunc(conjuncts, func(c conjunct) bool { return c.ref.Target == id })
-	}
+// stays reports whether the node leaveNotesOnNodes left decls[i]'s notes on
+// keeps them: the field's type holds decls[i]'s, and is that node or composes
+// it as a conjunct.
+func (f *folding) stays(i int) bool {
+	id := f.decls[i].property.Type.Target
+	return f.cone[i] && (id == f.merged.Type.Target || slices.ContainsFunc(f.conjuncts, func(c conjunct) bool { return c.ref.Target == id }))
+}
+
+// typeHolds reports whether the field's type, a node the fold built of
+// decls[i]'s and others, holds the note holds reads, which it adopted from
+// decls[i]'s node and not another's, as two notes that differ are kept apart.
+func (f *folding) typeHolds(i int, holds func(*ir.TypeCommon) bool) bool {
+	td, ok := f.g.resolve(f.merged.Type.Target)
+	return ok && f.cone[i] && holds(td.Common())
 }
 
 // ownNode returns the node the type of declarationValue, which the model

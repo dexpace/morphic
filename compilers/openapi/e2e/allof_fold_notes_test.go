@@ -322,6 +322,47 @@ func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
 	}
 }
 
+// TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept pins that every report of
+// a note three or four allOf entries of the composing model give differently
+// says truly where the note it did not keep is: on the field's type, which
+// then holds it, or verbatim under Unmodeled, which then holds that
+// declaration. Enums sharing some members meet in a node the fold builds,
+// which adopts one note alone; lists, maps and bare objects are judged as
+// their kinds are (docs/compilers/openapi.md#allof-redeclared-property).
+func TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept(t *testing.T) {
+	t.Parallel()
+	shapes := []struct{ name, schema string }{
+		{"enums", "type: string, enum: [b, c, %s]"},
+		{"lists of enums", "type: array, items: {type: string, enum: [b, c, %s]}"},
+		{"maps", "type: object, additionalProperties: {type: string}"},
+		{"bare objects", "type: object"},
+	}
+	values := []string{"a", "b", "c", "d"}
+	for _, shape := range shapes {
+		for _, note := range foldedNotes {
+			if note.objectExample {
+				continue
+			}
+			for _, count := range []int{3, 4} {
+				entries := make([]string, count)
+				for k := range count {
+					schema := shape.schema
+					if strings.Contains(schema, "%s") {
+						schema = strings.ReplaceAll(schema, "%s", "x"+values[k])
+					}
+					entries[k] = "{type: object, properties: {f: {" + schema + ", " + note.write(values[k]) + "}}}"
+				}
+				label := fmt.Sprintf("%s, %s, %d entries", shape.name, note.name, count)
+				doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
+
+				requireErrorsAndWarnings(t, diags, nil)
+				reports := requireTieReportsTrue(t, doc, field, diags, func(k int) string { return note.typed(values[k]) })
+				assert.Equal(t, count-1, reports, "%s: each note the field does not keep is reported", label)
+			}
+		}
+	}
+}
+
 // tieReport reads a report of a note two declarations give differently.
 var tieReport = regexp.MustCompile(`give its ([a-z ]+) differently; kept the one the declaration at (\S+) gives over the one at (\S+), which (.+)$`)
 
