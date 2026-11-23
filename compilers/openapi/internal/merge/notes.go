@@ -180,7 +180,7 @@ func leaveOnNode[T any](g *Merger, decls []declaration, left []leftNotes, detail
 // forgotten, so that declaration is kept verbatim, as two nodes judged apart
 // for a note alone, two lists say, need not meet, and the fold judges the
 // types again as though no note were left.
-func takeBack(left []leftNotes, stays func(i int) bool, held func(i int, holds func(*ir.TypeCommon) bool) bool) bool {
+func takeBack(left []leftNotes, stays func(i int) bool, held func(holds func(*ir.TypeCommon) bool) bool) bool {
 	took := false
 	for i := range left {
 		if left[i].node == nil || stays(i) {
@@ -188,9 +188,9 @@ func takeBack(left []leftNotes, stays func(i int) bool, held func(i int, holds f
 		}
 		node, before := left[i].node, left[i].before
 		node.Docs, node.Deprecation, node.Provenance.Inferred = before.docs, before.deprecation, before.inferred
-		left[i].node, took = nil, true
+		took = true
 		for detail, holds := range left[i].holds {
-			if !held(i, holds) {
+			if !held(holds) {
 				delete(left[i].holds, detail)
 			}
 		}
@@ -200,22 +200,23 @@ func takeBack(left []leftNotes, stays func(i int) bool, held func(i int, holds f
 
 // holdsNone says no node holds a note taken back, which is what the fold
 // knows before it builds the field's type.
-func holdsNone(int, func(*ir.TypeCommon) bool) bool { return false }
+func holdsNone(func(*ir.TypeCommon) bool) bool { return false }
 
 // stays reports whether the node leaveNotesOnNodes left decls[i]'s notes on
-// keeps them: the field's type holds decls[i]'s, and is that node or composes
-// it as a conjunct.
+// keeps them: the field's type is that node or composes it as a conjunct. The
+// fold builds that type of the cone alone, and no other declaration names
+// decls[i]'s node (ownNode), so it cannot be one outside the cone.
 func (f *folding) stays(i int) bool {
 	id := f.decls[i].property.Type.Target
-	return f.cone[i] && (id == f.merged.Type.Target || slices.ContainsFunc(f.conjuncts, func(c conjunct) bool { return c.ref.Target == id }))
+	return id == f.merged.Type.Target || slices.ContainsFunc(f.conjuncts, func(c conjunct) bool { return c.ref.Target == id })
 }
 
-// typeHolds reports whether the field's type, a node the fold built of
-// decls[i]'s and others, holds the note holds reads, which it adopted from
-// decls[i]'s node and not another's, as two notes that differ are kept apart.
-func (f *folding) typeHolds(i int, holds func(*ir.TypeCommon) bool) bool {
+// typeHolds reports whether the field's type, a node the fold built, holds
+// the note holds reads, which it adopted from the node that note was left on
+// or from another left the same note, as two notes that differ are kept apart.
+func (f *folding) typeHolds(holds func(*ir.TypeCommon) bool) bool {
 	td, ok := f.g.resolve(f.merged.Type.Target)
-	return ok && f.cone[i] && holds(td.Common())
+	return ok && holds(td.Common())
 }
 
 // ownNode returns the node the type of declarationValue, which the model
