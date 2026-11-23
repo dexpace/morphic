@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -215,6 +216,14 @@ func TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder(t *
 					assert.Equal(t, want, typedNotes(t, doc), "%s: the notes typed", label)
 					assert.Len(t, field.Unmodeled, verbatim, "%s: the declarations kept verbatim", label)
 					requireErrorsAndWarnings(t, diags, nil)
+					// Lists keeping deprecation keys that differ are two types apart whatever
+					// their notes, so that overlap is reported beside the tie.
+					reports := map[string]int{"example": 0, "deprecation": 1 + boolIndex(!shape.composes)}[note.name]
+					if note.name == "description" || note.name == "title" {
+						reports = 1
+					}
+					assert.Equal(t, reports, codeCounts(diags)[diag.DegradedConstruct],
+						"%s: the tie is reported, the types judged as with no note left", label)
 				}
 			}
 			for _, swap := range []int{0, 1} {

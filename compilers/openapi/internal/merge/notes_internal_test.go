@@ -66,8 +66,9 @@ func inBothOrders(decls []declaration, check func(label string, decls []declarat
 // ranking: of a declaration the model writes itself and one another model
 // holds giving a note differently, the field keeps the model's own in either
 // order, and the other, which stays declared on its model, is reported at the
-// entry bringing it and kept nowhere verbatim. A default and XML hints keep the
-// later declaration's, as the flattening's override does.
+// entry bringing it and kept nowhere verbatim; a deprecation brings the mark of
+// what promoted it. A default and XML hints keep the later declaration's, as
+// the flattening's override does.
 func TestFold_ANoteTheModelWritesIsKeptOverOneItBrings(t *testing.T) {
 	t.Parallel()
 	for _, note := range noteCases {
@@ -77,12 +78,16 @@ func TestFold_ANoteTheModelWritesIsKeptOverOneItBrings(t *testing.T) {
 			via: &composedEntry{target: "type/part", at: "/M/allOf/1"}, typeAt: sitesAt("/part/p")}
 		note.write(&own.property, "own")
 		note.write(&brought.property, "brought")
+		own.property.Provenance.Inferred = promoted
 		inBothOrders([]declaration{own, brought}, func(label string, decls []declaration) {
 			stubbed, recorded := stubMerger(narrowingRegistry())
 
 			got := stubbed.fold(decls)
 
 			assert.Equal(t, "own", note.read(got.Docs, got.Deprecation), "%s, %s: the model's own is the field's", note.detail, label)
+			if note.detail == "deprecation" {
+				assert.Equal(t, promoted, got.Provenance.Inferred, "%s, %s: with the mark of what promoted it", note.detail, label)
+			}
 			assert.Empty(t, got.Unmodeled, "%s, %s: nothing is kept verbatim", note.detail, label)
 			require.Len(t, *recorded, 1, "%s, %s", note.detail, label)
 			assert.Equal(t, jsontext.Pointer("/M/allOf/1"), (*recorded)[0].Provenance.Pointer, "%s, %s", note.detail, label)
@@ -206,9 +211,9 @@ func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 			assert.Equal(t, "later", got.Docs.Description)
 			assert.Empty(t, cmp.Diff(before, *reg[earlier.property.Type.Target].Common()), "the earlier's node is as it was")
 			assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/allOf/0/p", "the earlier is kept verbatim")
-			require.NotEmpty(t, *recorded)
-			assert.Contains(t, (*recorded)[len(*recorded)-1].Message, "give its description differently")
-			assert.Contains(t, (*recorded)[len(*recorded)-1].Message, tc.keptAs)
+			require.Len(t, *recorded, 1, "the tie alone is reported, the types judged as with no note left: %v", *recorded)
+			assert.Contains(t, (*recorded)[0].Message, "give its description differently")
+			assert.Contains(t, (*recorded)[0].Message, tc.keptAs)
 		})
 	}
 }
