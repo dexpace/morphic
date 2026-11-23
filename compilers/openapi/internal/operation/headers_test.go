@@ -549,10 +549,11 @@ func TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists(t *testing.T) {
 		{"X-Summed", "", "DOC", []string{"a"}, nil, why, nil},
 		{"X-Part", "DOC", "", []string{"a"}, nil, why, nil},
 		// A deprecation the header, or the content entry it elects, states
-		// leaves the schema's on the node, members and all.
+		// leaves the schema's on the node, members and all, the header holding
+		// its own members alone, deprecated as its schema is.
 		{"X-Self", "DOC", "", []string{"a"}, nil, own, why},
-		{"X-Key", "DOC", "", []string{"a"}, nil, nil, why},
-		{"X-EntryKey", "DOC", "", []string{"a"}, nil, nil, why},
+		{"X-Key", "DOC", "", []string{"a"}, nil, own, why},
+		{"X-EntryKey", "DOC", "", []string{"a"}, nil, own, why},
 		{"X-Flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 	} {
 		header, ok := headers[tc.wire]

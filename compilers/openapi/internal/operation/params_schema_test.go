@@ -969,6 +969,8 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - {name: capitalised, in: query, deprecated: True, schema: "+list+"}\n"+
 			"        - {name: unflagged, in: query, deprecated: false, schema: "+list+"}\n"+
 			"        - {name: tiered, in: query, x-stability: beta, schema: "+list+"}\n"+
+			"        - {name: stated, in: query, x-stability: deprecated, schema: "+list+"}\n"+
+			"        - {name: written, in: query, description: OWN, example: [b], x-deprecated-reason: own, schema: "+list+"}\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
 			"        - $ref: '#/components/parameters/Used'\n"+
@@ -996,16 +998,23 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		{"used", "USE", "DOC", []string{"a"}, nil, why, nil},
 		{"hopped", "HOP", "DOC", []string{"a"}, nil, why, nil},
 		// A deprecation the parameter, or the content entry it elects, states
-		// leaves the schema's on the node, members and all.
+		// leaves the schema's on the node, members and all, the parameter
+		// holding its own members alone, deprecated as its schema is.
 		{"self", "DOC", "", []string{"a"}, nil, own, why},
-		{"keyed", "DOC", "", []string{"a"}, nil, nil, why},
-		{"entrykey", "DOC", "", []string{"a"}, nil, nil, why},
+		{"keyed", "DOC", "", []string{"a"}, nil, own, why},
+		{"entrykey", "DOC", "", []string{"a"}, nil, own, why},
 		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 		{"capitalised", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 		// A `deprecated: false` states nothing, so the schema's stands. A key
-		// read into a deprecation speaks to it whatever its value says.
+		// read into a deprecation speaks to it whatever its value says, the
+		// parameter writing no member of its own then.
 		{"unflagged", "DOC", "", []string{"a"}, nil, why, nil},
-		{"tiered", "DOC", "", []string{"a"}, nil, nil, why},
+		{"tiered", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// A key stating what the schema's keyword states fills nothing, so it
+		// marks nothing, as beside a string.
+		{"stated", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// One writing every note over is deprecated as its schema is still.
+		{"written", "OWN", "DOC", []string{"b"}, []string{"a"}, own, why},
 	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)
@@ -1065,27 +1074,39 @@ func listedExamples(examples []ir.Example) []string {
 
 // TestParams_AQuotedDeprecatedStatesNoDeprecation pins the deprecation verdict
 // to the parser's reading of the keyword: a `deprecated` written as the string
-// "true" is refused and read as left out, so the Parameter Object states no
-// deprecation of its own, and the parameter holds its schema's, the node
-// holding none.
+// "true", quoted or as an alias of a string another field accepts, is refused
+// and read as no deprecation, so the Parameter Object states none of its own,
+// and the parameter holds its schema's, the node holding none.
 func TestParams_AQuotedDeprecatedStatesNoDeprecation(t *testing.T) {
 	t.Parallel()
-	doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
-		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
-		"        - {name: quoted, in: query, deprecated: \"true\", "+
-		"schema: {type: array, items: {type: string}, deprecated: true, x-deprecated-reason: why}}\n"+
-		"      responses: {\"204\": {description: none}}\n")
-	var refused []string
-	for _, diagnostic := range diags {
-		if diagnostic.Severity == ir.SeverityError {
-			refused = append(refused, string(diagnostic.Provenance.Pointer))
-		}
+	for _, tc := range []struct{ name, title, deprecated, refusedAt string }{
+		{"quoted", "T", `"true"`, "/paths/~1x/get/parameters/0/deprecated"},
+		// The alias is one node, which the title accepts as a string, so the
+		// load phase leaves it a string scalar whose text is true, and refuses
+		// it where the node is written.
+		{"aliased", `&t "true"`, "*t", "/info/title"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: "+tc.title+", version: \"1\"}\npaths:\n"+
+				"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+				"        - {name: quoted, in: query, deprecated: "+tc.deprecated+", "+
+				"schema: {type: array, items: {type: string}, deprecated: true, x-deprecated-reason: why}}\n"+
+				"      responses: {\"204\": {description: none}}\n")
+			var refused []string
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					refused = append(refused, string(diagnostic.Provenance.Pointer))
+					assert.Contains(t, diagnostic.Message, `field "deprecated" must be a boolean`)
+				}
+			}
+			assert.Equal(t, []string{tc.refusedAt}, refused, "the keyword is refused")
+			param, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, svc), "quoted")
+			require.True(t, ok)
+			assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, "the parameter holds its schema's")
+			node, ok := doc.Types[param.Type.Target]
+			require.True(t, ok, "the schema hoists a node")
+			assert.Nil(t, node.Common().Deprecation)
+		})
 	}
-	assert.Equal(t, []string{"/paths/~1x/get/parameters/0/deprecated"}, refused, "the quoted keyword is refused")
-	param, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, svc), "quoted")
-	require.True(t, ok)
-	assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, "the parameter holds its schema's")
-	node, ok := doc.Types[param.Type.Target]
-	require.True(t, ok, "the schema hoists a node")
-	assert.Nil(t, node.Common().Deprecation)
 }

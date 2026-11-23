@@ -604,8 +604,9 @@ func TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode(t *te
 // pins the answer note by note: a parameter or a header whose own object, or a
 // Reference Object naming it, writes a description, or whose object writes an
 // example or states a deprecation, by its keyword or a key read into one,
-// holds its own while the node its schema hoists keeps the schema's. A
-// property, whose holder is its schema, holds them all.
+// holds its own while the node its schema hoists keeps the schema's, and a
+// carrier writing only a key stays deprecated as its schema is. A property,
+// whose holder is its schema, holds them all.
 func TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode(t *testing.T) {
 	t.Parallel()
 	const list = "{type: array, items: {type: string}, description: DOC, deprecated: true, x-deprecated-reason: why, example: [a]}"
@@ -661,7 +662,7 @@ components:
 		{"a parameter deprecating itself", ir.Property{Docs: flagged.Docs, Deprecation: flagged.Deprecation, Examples: flagged.Examples, Type: flagged.Type},
 			"DOC", "", []ir.Value{listOf("a")}, nil, &ir.Deprecation{}, why},
 		{"a header writing its own example", header.Property, "DOC", "", []ir.Value{listOf("b")}, []ir.Value{listOf("a")}, why, nil},
-		{"a header writing a deprecation key", keyed.Property, "DOC", "", []ir.Value{listOf("a")}, nil, nil, why},
+		{"a header writing a deprecation key", keyed.Property, "DOC", "", []ir.Value{listOf("a")}, nil, &ir.Deprecation{Message: "own"}, why},
 		{"a property", property, "DOC", "", []ir.Value{listOf("a")}, nil, why, nil},
 	} {
 		assert.Equal(t, tc.docs, tc.carrier.Docs.Description, tc.name)

@@ -10,6 +10,7 @@ package e2e_test // external test package — exercises only the public API
 import (
 	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -984,9 +985,10 @@ components:
 // TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode
 // pins where every member of two deprecations lands, in both orders of the
 // components: a parameter or a header stating a deprecation of its own, by
-// `deprecated: true` or a key read into one, holds its own, and the node its
-// schema hoists keeps the schema's, resolving its replacement itself, as a
-// carrier stating none holds the schema's
+// `deprecated: true` or a key read into one, holds its own members, deprecated
+// as its schema is, and the node its schema hoists keeps the schema's,
+// resolving its replacement itself, as a carrier stating none holds the
+// schema's
 // (docs/compilers/openapi.md#docs-and-deprecation).
 func TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode(t *testing.T) {
 	t.Parallel()
@@ -1019,7 +1021,7 @@ func TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode(t *
 			want, wantNode *ir.Deprecation
 		}{
 			{"p", operation.Params[1].Deprecation, operation.Params[1].Type, &ir.Deprecation{Message: "own reason", ReplacedBy: replacedBy(q)}, schemas},
-			{"k", operation.Params[2].Deprecation, operation.Params[2].Type, nil, schemas},
+			{"k", operation.Params[2].Deprecation, operation.Params[2].Type, &ir.Deprecation{ReplacedBy: replacedBy(q)}, schemas},
 			{"inherits", operation.Params[3].Deprecation, operation.Params[3].Type, schemas, nil},
 			{"cp", operation.Params[4].Deprecation, operation.Params[4].Type, &ir.Deprecation{ReplacedBy: replacedBy(q)}, schemas},
 			{"X-L", header("X-L").Deprecation, header("X-L").Type, &ir.Deprecation{Message: "own reason", ReplacedBy: replacedBy(xM)}, schemas},
@@ -1034,4 +1036,171 @@ func TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode(t *
 	require.Len(t, compiled, 2)
 	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
 	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+}
+
+// memberOnlySchemas are two list schemas that deprecate what holds them, one by
+// its keyword and one by a key alone, each with a message, a since and a
+// replacement, all read by compileMemberOnlyCarriers' policy.
+var memberOnlySchemas = map[string]string{
+	"keyword": "{type: array, items: {type: string}, deprecated: true, " +
+		"x-deprecated-reason: schema reason, x-deprecated-since: '1.0', x-replaced-by: New}",
+	"key": "{type: array, items: {type: string}, x-stability: deprecated, " +
+		"x-deprecated-reason: schema reason, x-deprecated-since: '1.0', x-replaced-by: New}",
+}
+
+// memberOnlyKeys are the keys a carrier writes beside one of memberOnlySchemas,
+// each a deprecation's member or a tier, none stating a deprecation; replaced
+// is what its replacement key names.
+func memberOnlyKeys(replaced string) map[string]string {
+	return map[string]string{
+		"message":  "x-deprecated-reason: own reason",
+		"since":    "x-deprecated-since: '2.0'",
+		"version":  "x-removal-version: '3.0'",
+		"date":     "x-sunset: '2027-01-01'",
+		"replaced": "x-replaced-by: " + replaced,
+		"beta":     "x-stability: beta",
+	}
+}
+
+// compileMemberOnlyCarriers compiles a document holding, for each of
+// memberOnlyKeys beside each of memberOnlySchemas, a parameter and a header
+// writing the key inline, on the content entry it elects and in a component,
+// the components declared in the order their names sort, or the reverse.
+func compileMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	carriers := len(memberOnlySchemas) * len(memberOnlyKeys(""))
+	params, headers := make([]string, 0, 3*carriers), make([]string, 0, 3*carriers)
+	componentParams, componentHeaders := make([]string, 0, carriers), make([]string, 0, carriers)
+	for _, schemaName := range slices.Sorted(maps.Keys(memberOnlySchemas)) {
+		schema := memberOnlySchemas[schemaName]
+		for _, member := range slices.Sorted(maps.Keys(memberOnlyKeys(""))) {
+			suffix := member + "-" + schemaName
+			paramKey, headerKey := memberOnlyKeys("q")[member], memberOnlyKeys("X-M")[member]
+			params = append(params,
+				"- {name: inline-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}",
+				"- {name: entry-"+suffix+", in: query, content: {application/json: {"+paramKey+", schema: "+schema+"}}}",
+				"- $ref: '#/components/parameters/P-"+suffix+"'")
+			headers = append(headers,
+				"X-Inline-"+suffix+": {"+headerKey+", schema: "+schema+"}",
+				"X-Entry-"+suffix+": {content: {text/plain: {"+headerKey+", schema: "+schema+"}}}",
+				"X-Component-"+suffix+": {$ref: '#/components/headers/H-"+suffix+"'}")
+			componentParams = append(componentParams, "P-"+suffix+": {name: component-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}")
+			componentHeaders = append(componentHeaders, "H-"+suffix+": {"+headerKey+", schema: "+schema+"}")
+		}
+	}
+	if reversed {
+		slices.Reverse(componentParams)
+		slices.Reverse(componentHeaders)
+	}
+	spec := "openapi: 3.0.3\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: getA\n" +
+		"      parameters:\n        - {name: q, in: query, schema: {type: string}}\n        " + strings.Join(params, "\n        ") + "\n" +
+		"      responses:\n        '200':\n          description: ok\n          headers:\n" +
+		"            X-M: {schema: {type: string}}\n            " + strings.Join(headers, "\n            ") + "\n" +
+		"components:\n  parameters:\n    " + strings.Join(componentParams, "\n    ") + "\n" +
+		"  headers:\n    " + strings.Join(componentHeaders, "\n    ") + "\n" +
+		"  schemas:\n    New: {type: string}\n"
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetDeprecation:               {{Key: "x-stability", Values: []string{"deprecated"}}},
+				openapi.TargetDeprecationMessage:        {{Key: "x-deprecated-reason"}},
+				openapi.TargetDeprecationSince:          {{Key: "x-deprecated-since"}},
+				openapi.TargetDeprecationRemovalVersion: {{Key: "x-removal-version"}},
+				openapi.TargetDeprecationRemovalDate:    {{Key: "x-sunset"}},
+				openapi.TargetDeprecationReplacedBy:     {{Key: "x-replaced-by"}},
+			},
+		}}})
+	require.NoError(t, err)
+	return doc, diags
+}
+
+// TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema pins a
+// parameter or a header that writes a deprecation's member or a tier, and no
+// `deprecated: true`, beside a schema that hoists a node and deprecates it, by
+// its keyword or by a key: the carrier is deprecated, holding its own member
+// alone, and the node keeps the schema's whole, resolving its replacement
+// itself. Inline, on the elected content entry and in a component, in both
+// orders of the components (docs/compilers/openapi.md#docs-and-deprecation).
+func TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileMemberOnlyCarriers(t, false)
+	assertOnlyTiersUnread(t, diags)
+	operation, ok := operationByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, operation.Responses, 1)
+	q, ok := openapitest.ParamBySource(operation, "q")
+	require.True(t, ok)
+	xM, ok := headerByWire(operation.Responses[0].Headers, "X-M")
+	require.True(t, ok)
+	schemas := &ir.Deprecation{Message: "schema reason", Since: "1.0", ReplacedBy: []ir.EntityRef{{Type: componentID("New")}}}
+	own := func(replaced ir.EntityRef) map[string]*ir.Deprecation {
+		return map[string]*ir.Deprecation{
+			"message": {Message: "own reason"}, "since": {Since: "2.0"}, "version": {RemovalVersion: "3.0"},
+			"date": {RemovalDate: "2027-01-01"}, "replaced": {ReplacedBy: []ir.EntityRef{replaced}}, "beta": {},
+		}
+	}
+	carriers := 0
+	for _, schemaName := range slices.Sorted(maps.Keys(memberOnlySchemas)) {
+		for member := range memberOnlyKeys("") {
+			suffix := member + "-" + schemaName
+			for _, position := range []string{"inline", "entry", "component"} {
+				param, ok := openapitest.ParamBySource(operation, position+"-"+suffix)
+				require.True(t, ok, position+"-"+suffix)
+				wire := "X-" + strings.ToUpper(position[:1]) + position[1:] + "-" + suffix
+				header, ok := headerByWire(operation.Responses[0].Headers, wire)
+				require.True(t, ok, wire)
+				paramWant, headerWant := own(ir.EntityRef{Param: q.ID})[member], own(ir.EntityRef{Property: xM.ID})[member]
+				if position == "entry" && member == "replaced" {
+					// Replacements resolve from the carrier's own keys alone, never
+					// from one its content entry writes, whatever deprecates it: the
+					// key stays in Unmodeled, as with `deprecated: true` beside it.
+					paramWant, headerWant = &ir.Deprecation{}, &ir.Deprecation{}
+				}
+				key := "openapi:" + strings.SplitN(memberOnlyKeys("")[member], ":", 2)[0]
+				paramKey, headerKey := key, key
+				if position == "entry" {
+					paramKey = "openapi:content/application~1json/" + strings.TrimPrefix(key, "openapi:")
+					headerKey = "openapi:content/text~1plain/" + strings.TrimPrefix(key, "openapi:")
+				}
+				for _, carrier := range []struct {
+					name, own string
+					dep       *ir.Deprecation
+					unmodeled ir.Unmodeled
+					key       string
+					typeRef   ir.TypeRef
+					want      *ir.Deprecation
+				}{
+					{param.Name.Source, memberOnlyKeys("q")[member], param.Deprecation, param.Unmodeled, paramKey, param.Type, paramWant},
+					{wire, memberOnlyKeys("X-M")[member], header.Deprecation, header.Unmodeled, headerKey, header.Type, headerWant},
+				} {
+					carriers++
+					assert.Equal(t, carrier.want, carrier.dep, "%s, writing %s, holds its own member alone", carrier.name, carrier.own)
+					assert.Contains(t, carrier.unmodeled, carrier.key, "%s keeps the key it writes", carrier.name)
+					node, ok := doc.Types[carrier.typeRef.Target]
+					require.True(t, ok, "%s's schema hoists a node", carrier.name)
+					require.True(t, node.Common().Anonymous, carrier.name)
+					assert.Equal(t, schemas, node.Common().Deprecation, "%s's node keeps the schema's whole", carrier.name)
+				}
+			}
+		}
+	}
+	assert.Equal(t, 2*3*2*len(memberOnlyKeys("")), carriers, "every carrier was asked")
+
+	reversedDoc, reversedDiags := compileMemberOnlyCarriers(t, true)
+	assertOnlyTiersUnread(t, reversedDiags)
+	assert.Empty(t, cmp.Diff(doc.Types, reversedDoc.Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(doc.Services, reversedDoc.Services), "nor do the operations")
+}
+
+// assertOnlyTiersUnread holds diags, compileMemberOnlyCarriers' findings, to one
+// per `x-stability: beta` its carriers write, each saying the value fills no
+// deprecation, so every other key is read.
+func assertOnlyTiersUnread(t *testing.T, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, diagnostic := range diags {
+		assert.Equal(t, "openapi/degraded-construct", diagnostic.Code, diagnostic.Message)
+		assert.Equal(t, "x-stability", diagnostic.Provenance.Pointer.LastToken(), diagnostic.Message)
+		assert.Contains(t, diagnostic.Message, "does not fill deprecation")
+	}
+	assert.Len(t, diags, 2*3*2, "one per carrier writing the tier")
 }
