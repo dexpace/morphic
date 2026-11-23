@@ -240,6 +240,7 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	}
 	typeCommon := built.Common()
 	*typeCommon = adopt(*typeCommon, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
+	typeCommon.Deprecation = copyOf(typeCommon.Deprecation)
 	if list, ok := built.(*ir.List); ok && list.Encoding == nil {
 		b.adoptEncoding(list, all, nodes)
 	}

@@ -3354,7 +3354,8 @@ or a multiple past what a `BigVal` holds. The title, description, external links
 hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
 declaration giving one differently is reported and kept. The title, description, external links and
 deprecation describe the field, so of those a declaration the model writes itself is kept over one
-another model holds, in either order: that one stays declared on its model.
+another model holds, in either order: that one stays declared on its model. A deprecation the field
+holds is a copy, so a replacement read into it is read into no other member's.
 
 A member a model declares more than once itself, in its own `properties`, an inline `allOf` entry or
 one nested in another, has one slot for the notes several declarations write, so each declaration
@@ -3543,6 +3544,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain`,
   `e2e.TestAllOfFold_ADistributedModelsMemberDeclaredAgainKeepsItsNotes`,
   `e2e.TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote`,
+  `e2e.TestAllOfFold_ADeprecationIsEachMembersOwn`,
+  `e2e.TestAllOfFold_ABuiltNodesDeprecationIsItsOwn`,
   `e2e.TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType`,
   `e2e.TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames`,
   `merge.TestFold_ANarrowingIntersectsNullability`,

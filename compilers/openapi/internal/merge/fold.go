@@ -761,11 +761,13 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 // declaration's to give them whoever writes it (byOrder): neither is bound to
 // a shape. A promotion marks the declaration it read
 // (promotion.Promoter.Deprecation), so the field takes the marker of the
-// declaration whose deprecation it keeps, whichever declaration that is.
+// declaration whose deprecation it keeps, whichever declaration that is. The
+// field holds a copy: a replacement is read into each member's own
+// (replacement.Infer), by what that member's model declares.
 func (f *folding) foldAnnotations() {
-	f.merged.Deprecation = lastWritten(f, "deprecation", ownFirst, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
+	f.merged.Deprecation = copyOf(lastWritten(f, "deprecation", ownFirst, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
 		return property.Deprecation, property.Deprecation != nil
-	}, sameDeprecation)
+	}, sameDeprecation))
 	if at := keptAt(f.decls, ownFirst, func(i int) bool { return f.decls[i].property.Deprecation != nil }); at >= 0 {
 		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[at].property.Provenance.Inferred)
 	}
