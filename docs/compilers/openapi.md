@@ -1820,8 +1820,13 @@ notes stay on the `Model`, which every reference reads; where the parameter or h
 own documentation, deprecation or examples, or a Reference Object naming it writes documentation
 beside its `$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own,
 while each note of a kind nothing at the carrier writes over, its documentation, deprecation or
-examples, is still the carrier's, each placed on its own as an inline schema's is. A note an entry
-of the `allOf` writes, as in
+examples, is still the carrier's, each placed on its own as an inline schema's is. So a parameter
+or a header writing its own deprecation, even a member or a tier alone, is deprecated where the
+schema writes `deprecated: true`, holding its own members alone, while the `Model` keeps the
+schema's deprecation whole ([`docs-and-deprecation`](#docs-and-deprecation)). One case is open
+there: beside a written-over note, the target's own `deprecated: true` deprecates the carrier and a
+key on the target stating a deprecation does not, though either deprecates a use
+([`extension-promotion`](#extension-promotion)). A note an entry of the `allOf` writes, as in
 `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
 conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
 extension, `xml` or a constraint among them. The node holding the note at a carrier as well was

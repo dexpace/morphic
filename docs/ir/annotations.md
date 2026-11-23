@@ -284,7 +284,9 @@ union's branch or a component, one at a carried position a reference names, and 
 or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a keyword beside
 it that only a node keeps and a note written on a conjunct of the `allOf`. Where a written-over note
 makes it, each note of a kind nothing at the carrier writes over, its documentation, deprecation or
-examples, is still the carrier's. A decorator holding a carrier's note as well was weighed and
+examples, is still the carrier's, and one writing its own deprecation, even a member alone, is
+deprecated where the schema writes `deprecated: true`, holding its own members alone
+([one home](#one-structural-home-per-declaration)). A decorator holding a carrier's note as well was weighed and
 withdrawn (#2071): the two spellings agreed either way, but a reader of the carrier alone found the
 note there over a string target and not over an object one, and a target that became an object
 moved every user's note onto a node.

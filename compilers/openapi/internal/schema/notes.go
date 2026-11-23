@@ -220,7 +220,9 @@ type carriedNotesOf struct {
 // carrier carries are (promotion.Promoter.WithOwnCarriedState). The node keeps
 // its redaction, so a key asking for one lends nothing here. A replacement is
 // read once the document is whole, the carrier reading the key its node keeps
-// (docs/compilers/openapi.md#extension-promotion).
+// (docs/compilers/openapi.md#extension-promotion). A $ref target's key is
+// not among them, so it deprecates no carrier where the target's keyword would,
+// a case left open (docs/compilers/openapi.md#ref-use-site).
 func carriedNoteKeys(loweringContext lowering.Ctx, schema *statement.Schema, typeRef ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	lent := loweringContext.Promoter().Referent(carriedNotesOf{schema}, true, func() ir.Unmodeled {
 		a, _ := annotation.Read(nodeUse(loweringContext, schema, pointer, typeRef).SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())
