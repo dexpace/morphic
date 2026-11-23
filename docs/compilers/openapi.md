@@ -3294,10 +3294,11 @@ and reported.
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where every declaration folded into it does, and a null any of them writes is
 judged against that: a `default: null` or a null example is refused where the merged field does not
-admit null, a declaration of the field's own type included. The top type admits null whatever its
-bit says, and one folded under another type says nothing of null. A `default` or `examples` a
-broader declaration gives is taken only where the winning type admits it, judged per keyword and all
-or nothing. The winning type admits a value by its kind, by the `full-time` grammar where it is a
+admit null, a declaration of the field's own type included, the example then taken only where the
+field takes no other (below). The top type admits null whatever its bit says, and one folded under
+another type says nothing of null. A `default` or `examples` a broader declaration gives is taken
+where the winning type admits it, judged per keyword and all or nothing, and examples otherwise only
+where the field takes no other (below). The winning type admits a value by its kind, by the `full-time` grammar where it is a
 `Scalar` hoisted for `time`, and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
@@ -3310,7 +3311,14 @@ against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
-each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
+each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
+again where the field takes none of any declaration that way: those each declaration the model
+writes itself gives are taken unjudged, so an example of an inline schema beside a model, or of
+another kind than the field, lands typed on the field, and `pass/example-outside-type` holds it to
+the field's type as it holds any example ([values](../ir/values.md#values-held-to-their-type)),
+reading kinds, members and bounds and no format. Those a declaration another model holds gives stay
+declared there. An example illustrates and a default sets what a client sends, so a default is
+judged alone. Of the values it takes, the
 last written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
@@ -3390,9 +3398,8 @@ that keeps them from composing), since which of them the field keeps then follow
 order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
-would leave one field asserting two contradictory things, with nothing downstream comparing a
-value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where no one value says
+would leave one field asserting two contradictory things; this is keyed on the type being dropped,
+not on the drop being called a conflict. A declaration folded into the field is reported as well where no one value says
 what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
 naming the declaration the value was kept from, or where it gives a detail differently from the one
 kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
@@ -3656,6 +3663,11 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
+  `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
+  `e2e.TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut`,
+  `e2e.TestAllOfFold_AnExampleAnotherModelDeclaresStaysThere`,
+  `e2e.TestAllOfFold_AnExampleAtAReferencedPositionStaysOnItsNode`,
   `merge.TestFold_AnInadmissibleValueIsKeptNotAdopted`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`,
   `merge.TestFold_IdenticalNodesAreOneType`,

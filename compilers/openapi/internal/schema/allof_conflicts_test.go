@@ -1247,9 +1247,8 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 // TestAllOf_ANotedBareObjectIsNarrowedToAModel is the other half of
 // TestAllOf_AnObjectSayingMoreThanItsTypeComposes: a bare object writing a
 // note alone, in either entry order, gives the field the model and the note.
-// An example is a value the fold adopts only where it shows the field's type
-// admits it, which it does not show of an object, so the declaration giving
-// one is kept and reported, as at any field.
+// An example the fold cannot judge against the model is the field's too, as no
+// declaration gives one it can, so nothing is kept verbatim or reported.
 func TestAllOf_ANotedBareObjectIsNarrowedToAModel(t *testing.T) {
 	t.Parallel()
 	const spec = `    A:
@@ -1282,15 +1281,14 @@ func TestAllOf_ANotedBareObjectIsNarrowedToAModel(t *testing.T) {
 	}
 
 	const example = "{type: object, example: {a: held}}"
-	for entry, order := range [][2]string{{example, model}, {model, example}} {
+	held := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueString, String: "held"}}}}
+	for _, order := range [][2]string{{example, model}, {model, example}} {
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
-		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, diags)
 		property := propertyOf(t, doc, "T", "v")
 		assert.Equal(t, componentID("A"), property.Type.Target)
-		assert.Empty(t, property.Examples, "the fold does not adopt what it cannot show the model admits")
-		assert.Contains(t, property.Unmodeled, fmt.Sprintf("openapi:conflicting-redeclaration/components/schemas/T/allOf/%d/properties/v", entry))
-		require.Len(t, diags, 1)
-		assert.Contains(t, diags[0].Message, "admits the examples")
+		assert.Equal(t, []ir.Example{{Value: &held}}, property.Examples, "the field holds the example")
+		assert.Empty(t, property.Unmodeled)
 	}
 }
 

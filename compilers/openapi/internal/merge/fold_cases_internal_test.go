@@ -202,19 +202,21 @@ func primitiveRef(primitiveKind ir.PrimitiveKind) ir.TypeRef {
 	return ir.TypeRef{Target: ir.TypeID("type/primitive/" + string(primitiveKind))}
 }
 
-// TestFold_AnInadmissibleValueIsKeptNotAdopted pins that no
-// declaration of a fold lands a default or example the merged field does not
-// admit: the field carries no such value, and one info and one Unmodeled entry
-// sit at each declaration that wrote it, identical whichever comes first. The
+// TestFold_AnInadmissibleValueIsKeptNotAdopted pins that no declaration of a
+// fold lands a default the merged field does not admit, nor an example where
+// it takes another (examplesTaken): the field carries no such value, and one
+// info and one Unmodeled entry sit at each writer, whichever comes first. The
 // table holds the broad side's kind refusals (a fractional default, an
-// out-of-range default, a non-UUID example) and a null the merged field no
-// longer admits; the helpers add every writer, late writers, and a null on
-// either side of a fold.
+// out-of-range default, a non-UUID example) and a null the field no longer
+// admits, the narrow side giving an example it admits beside each refused one;
+// the helpers add every writer, late writers, and a null on either side.
 func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
 	half, big, hello := number("1.5"), number("5000000000"), stringValue("hello")
 	badURL, commaTime, offsetDate := stringValue("mailto:a b"), stringValue("23:59:59,5"), stringValue("2024-01-01T00:00:00+24:00")
+	one, uuid := number("1"), stringValue("123e4567-e89b-12d3-a456-426614174000")
+	dotTime, offsetDateTime := stringValue("23:59:59.5"), stringValue("2024-01-01T00:00:00+23:00")
 	null := ir.Value{Kind: ir.ValueNull}
 	for _, tc := range []struct {
 		name          string
@@ -222,27 +224,29 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 		decorate      func(*ir.Property)
 		keyword       string
 		raw           string
+		admitted      []ir.Example // the narrow side's examples, which the field takes
 	}{
 		{"fractional default", ir.PrimitiveNumber, ir.PrimitiveInteger,
 			func(property *ir.Property) {
 				property.Default = &half
 				property.Examples = []ir.Example{{Value: &half}}
 			}, "default",
-			`{"type":"number","default":1.5,"examples":[1.5]}`},
+			`{"type":"number","default":1.5,"examples":[1.5]}`, []ir.Example{{Value: &one}}},
 		{"out of range default", ir.PrimitiveInt64, ir.PrimitiveInt32,
-			func(property *ir.Property) { property.Default = &big }, "default", `{"type":"integer","format":"int64","default":5000000000}`},
+			func(property *ir.Property) { property.Default = &big }, "default", `{"type":"integer","format":"int64","default":5000000000}`, nil},
 		{"non uuid example", ir.PrimitiveString, ir.PrimitiveUUID,
-			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &hello}} }, "examples", `{"type":"string","examples":["hello"]}`},
+			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &hello}} }, "examples", `{"type":"string","examples":["hello"]}`,
+			[]ir.Example{{Value: &uuid}}},
 		{"non url default", ir.PrimitiveString, ir.PrimitiveURL,
-			func(property *ir.Property) { property.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
+			func(property *ir.Property) { property.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`, nil},
 		{"comma fraction time example", ir.PrimitiveString, ir.PrimitiveTime,
 			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
-			`{"type":"string","examples":["23:59:59,5"]}`},
+			`{"type":"string","examples":["23:59:59,5"]}`, []ir.Example{{Value: &dotTime}}},
 		{"offset hour 24 date time example", ir.PrimitiveString, ir.PrimitiveDatetimeOffset,
 			func(property *ir.Property) { property.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
-			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},
+			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`, []ir.Example{{Value: &offsetDateTime}}},
 		{"null default", ir.PrimitiveNumber, ir.PrimitiveInteger,
-			func(property *ir.Property) { property.Default = &null; property.Type.Nullable = true }, "default", `{"type":["number","null"],"default":null}`},
+			func(property *ir.Property) { property.Default = &null; property.Type.Nullable = true }, "default", `{"type":["number","null"],"default":null}`, nil},
 	} {
 		var merged [2]ir.Property
 		var diags [2][]ir.Diagnostic
@@ -251,7 +255,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			stubbed, recorded := stubMerger(reg)
 			broad := ir.Property{WireName: "p", Type: primitiveRef(tc.broad), Provenance: ptrAt(broadPtr)}
 			tc.decorate(&broad)
-			narrow := ir.Property{WireName: "p", Type: primitiveRef(tc.narrow), Provenance: ptrAt(narrowPtr)}
+			narrow := ir.Property{WireName: "p", Type: primitiveRef(tc.narrow), Examples: tc.admitted, Provenance: ptrAt(narrowPtr)}
 			model := &ir.Model{}
 			idx, settle := indexOver(model, stubbed)
 			first, second := broad, narrow
@@ -272,7 +276,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			got := merged[i]
 			assert.Equal(t, primitiveRef(tc.narrow).Target, got.Type.Target, "%s (order %d): the narrow type wins", tc.name, i)
 			assert.Nil(t, got.Default, "%s (order %d): no inadmissible default lands", tc.name, i)
-			assert.Empty(t, got.Examples, "%s (order %d): and no inadmissible example", tc.name, i)
+			assert.Equal(t, tc.admitted, got.Examples, "%s (order %d): and no inadmissible example", tc.name, i)
 			require.Len(t, diags[i], 1, "%s (order %d): one info", tc.name, i)
 			assert.Equal(t, ir.SeverityInfo, diags[i][0].Severity)
 			assert.Equal(t, diag.DegradedConstruct, diags[i][0].Code)
@@ -297,21 +301,24 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 // is judged on the declaration that wrote it, whichever side of the fold that
 // is and whether the fold narrowed or kept one target: the field ends
 // non-nullable with no default, and one info and one entry sit at the writer
-// alone, in every order of the declarations.
+// alone, in every order of the declarations. A null example is refused beside
+// an example the field takes, which the other declaration gives.
 func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 	t.Helper()
-	null := ir.Value{Kind: ir.ValueNull}
+	null, two := ir.Value{Kind: ir.ValueNull}, number("2")
 	nullInt := decl{kind: ir.PrimitiveInteger, nullable: true, def: &null, raw: `{"type":["integer","null"],"default":null}`}
 	nullNumber := decl{kind: ir.PrimitiveNumber, nullable: true, def: &null, raw: `{"type":["number","null"],"default":null}`}
 	plainInt := decl{kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
 	plainNumber := decl{kind: ir.PrimitiveNumber, raw: `{"type":"number"}`}
 	nullIntEx := decl{kind: ir.PrimitiveInteger, nullable: true, examples: []ir.Value{null}, raw: `{"type":["integer","null"],"examples":[null]}`}
+	numberEx, intEx := plainNumber, plainInt
+	numberEx.examples, intEx.examples = []ir.Value{two}, []ir.Value{two}
 	for _, tc := range []struct {
 		name  string
 		decls []decl // the null writer is first
 	}{
-		{"a null example, narrow against a number", []decl{nullIntEx, plainNumber}},
-		{"a null example, the same target", []decl{nullIntEx, plainInt}},
+		{"a null example, narrow against a number", []decl{nullIntEx, numberEx}},
+		{"a null example, the same target", []decl{nullIntEx, intEx}},
 		{"a narrow nullable integer against a number", []decl{nullInt, plainNumber}},
 		{"a broad nullable number against an integer", []decl{nullNumber, plainInt}},
 		{"the same target, nullable then not", []decl{nullInt, plainInt}},
@@ -332,7 +339,7 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 			assert.Equal(t, primitiveRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.False(t, got.Type.Nullable, label)
 			assert.Nil(t, got.Default, label)
-			assert.Empty(t, got.Examples, label)
+			assert.Len(t, got.Examples, len(tc.decls[1].examples), "%s: the other declaration's alone", label)
 			assert.Equal(t, entry(writer), got.Unmodeled, "%s: kept at the null writer alone", label)
 			require.Len(t, diags, 1, "%s: one info", label)
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity, label)
@@ -420,23 +427,28 @@ func entry(declValue decl) ir.Unmodeled {
 
 // assertThreeDeclarationsKeepTheWritingOne holds that a value one of three
 // declarations wrote is kept at that declaration whichever position the
-// narrowing one takes: the value never lands, and no entry sits at a
-// declaration that does not hold it.
+// narrowing one takes, which gives an example the field takes beside a refused
+// one: the value never lands, and no entry sits at a declaration that does not
+// hold it.
 func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 	t.Helper()
-	half, two := number("1.5"), number("2.5")
+	half, two, one := number("1.5"), number("2.5"), number("1")
 	wide := decl{ptr: "/allOf/0", kind: ir.PrimitiveNumber, raw: `{"type":"number"}`}
 	narrow := decl{ptr: "/allOf/2", kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
+	exampled := narrow
+	exampled.examples = []ir.Value{one}
 	for _, tc := range []struct {
 		name    string
 		writer  decl
+		narrow  decl
 		keyword string
 	}{
 		{"default", decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, def: &half,
-			raw: `{"type":"number","default":1.5}`}, "default"},
+			raw: `{"type":"number","default":1.5}`}, narrow, "default"},
 		{"examples", decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, examples: []ir.Value{two},
-			raw: `{"type":"number","examples":[2.5]}`}, "examples"},
+			raw: `{"type":"number","examples":[2.5]}`}, exampled, "examples"},
 	} {
+		narrow := tc.narrow
 		for name, order := range map[string][]decl{
 			"abc": {wide, tc.writer, narrow}, "cab": {narrow, wide, tc.writer}, "bca": {tc.writer, narrow, wide},
 		} {
@@ -444,7 +456,7 @@ func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 			label := tc.name + " " + name
 			assert.Equal(t, primitiveRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.Nil(t, got.Default, label)
-			assert.Empty(t, got.Examples, label)
+			assert.Len(t, got.Examples, len(narrow.examples), "%s: the narrowing one's alone", label)
 			assert.Equal(t, entry(tc.writer), got.Unmodeled, "%s: kept at the declaration that wrote it", label)
 			require.Len(t, diags, 1, label)
 			assert.Equal(t, tc.writer.ptr, diags[0].Provenance.Pointer, "%s: the info names it", label)
@@ -455,10 +467,11 @@ func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 
 // assertEveryWriterOfARefusedValueIsKept holds that two declarations giving a
 // refused value equal are both reported and kept in all six orders, the
-// narrowing one never, and that each pointer is the one its position gives.
+// narrowing one, which gives an example the field takes beside refused ones,
+// never, and that each pointer is the one its position gives.
 func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 	t.Helper()
-	half, two := number("1.5"), number("2.5")
+	half, two, one := number("1.5"), number("2.5"), number("1")
 	for _, kw := range []string{"default", "examples"} {
 		writer := func(name string) decl {
 			declValue := decl{kind: ir.PrimitiveNumber, raw: `{"writer":"` + name + `"}`}
@@ -469,7 +482,11 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			}
 			return declValue
 		}
-		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": {kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}}
+		narrow := decl{kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
+		if kw == "examples" {
+			narrow.examples = []ir.Value{one}
+		}
+		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": narrow}
 		for _, order := range []string{"abc", "acb", "bac", "bca", "cab", "cba"} {
 			placed := make([]decl, 0, len(order))
 			want := ir.Unmodeled{}
@@ -487,7 +504,7 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 			got, diags := mergeDecls(t, placed...)
 			assert.Equal(t, primitiveRef(ir.PrimitiveInteger).Target, got.Type.Target, label)
 			assert.Nil(t, got.Default, label)
-			assert.Empty(t, got.Examples, label)
+			assert.Len(t, got.Examples, len(narrow.examples), "%s: the narrowing one's alone", label)
 			assert.Equal(t, want, got.Unmodeled, "%s: both writers are kept, and only they", label)
 			gotPtrs := make([]jsontext.Pointer, 0, len(diags))
 			for _, diagnostic := range diags {
@@ -500,16 +517,16 @@ func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
 }
 
 // assertRefusedValuesAreKeptAtTheirOwnDeclarations holds the grouping: one
-// info and one entry per declaration that wrote a refused value, a value
-// adopted from the narrow side's own declaration after a refusal moves the
-// origin to that declaration.
+// info and one entry per declaration that wrote a refused value, the narrow
+// side giving an example the field takes, a value adopted from the narrow
+// side's own declaration after a refusal moves the origin to that declaration.
 func assertRefusedValuesAreKeptAtTheirOwnDeclarations(t *testing.T) {
 	t.Helper()
-	half, two, big := number("1.5"), number("2.5"), number("5000000000")
+	half, two, big, one := number("1.5"), number("2.5"), number("5000000000"), number("1")
 	defaulted := decl{ptr: "/allOf/0", kind: ir.PrimitiveNumber, def: &half, raw: `{"default":1.5}`}
 	exampled := decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, examples: []ir.Value{two}, raw: `{"examples":[2.5]}`}
 	both := decl{ptr: "/allOf/1", kind: ir.PrimitiveNumber, def: &half, examples: []ir.Value{two}, raw: `{"both":1}`}
-	narrow := decl{ptr: "/allOf/2", kind: ir.PrimitiveInteger, raw: `{"type":"integer"}`}
+	narrow := decl{ptr: "/allOf/2", kind: ir.PrimitiveInteger, examples: []ir.Value{one}, raw: `{"type":"integer"}`}
 
 	got, diags := mergeDecls(t, defaulted, exampled, narrow)
 	assert.Equal(t, ir.Unmodeled{

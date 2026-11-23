@@ -473,18 +473,19 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 
 // TestFold_AnExampleIsHeldToTheBoundsOthersBringAsAWhole pins that the examples of
 // a declaration are judged together, as a default is judged alone, so one a bound
-// refuses keeps the list off the field.
+// refuses keeps the list off the field, which takes the bounding declaration's.
 func TestFold_AnExampleIsHeldToTheBoundsOthersBringAsAWhole(t *testing.T) {
 	t.Parallel()
 	fits, past := stringValue("abc"), stringValue("hello")
 	withExamples, bound := nthDecl(0, primitiveRef(ir.PrimitiveString).Target), nthDecl(1, primitiveRef(ir.PrimitiveString).Target)
 	withExamples.property.Examples = []ir.Example{{Value: &fits}, {Value: &past}}
 	bound.property.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
+	bound.property.Examples = []ir.Example{{Value: &fits}}
 	stubbed, recorded := stubMerger(narrowingRegistry())
 
 	got := stubbed.fold([]declaration{withExamples, bound})
 
-	assert.Empty(t, got.Examples)
+	assert.Equal(t, bound.property.Examples, got.Examples)
 	require.Len(t, *recorded, 1)
 	assert.Contains(t, (*recorded)[0].Message, "admits the examples")
 }

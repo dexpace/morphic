@@ -493,14 +493,14 @@ func metOrNil(a, b *ir.Constraints) *ir.Constraints {
 }
 
 // foldValues settles the default and the examples from the cone. A value the
-// field does not take (takes) is refused, reported and kept at the declaration
-// that wrote it; of the rest, the last written is kept, and a declaration
-// writing another is reported and kept. Refusing first means a value the field
-// takes is kept whichever order the declarations come in.
+// field does not take (takes, examplesTaken) is refused, reported and kept at
+// the declaration that wrote it; of the rest, the last written is kept, and a
+// declaration writing another is reported and kept. Refusing first means a
+// value the field takes is kept whichever order the declarations come in.
 func (f *folding) foldValues() {
 	nullable := f.merged.Type.Nullable || registry{f.g.resolve}.isAnyType(f.merged.Type)
 	takesDefault := make([]bool, len(f.decls))
-	takesExamples := make([]bool, len(f.decls))
+	takesExamples := f.examplesTaken(nullable)
 	for i, declaration := range f.decls {
 		if !f.cone[i] {
 			continue
@@ -510,15 +510,15 @@ func (f *folding) foldValues() {
 		if !takesDefault[i] {
 			refused = append(refused, "default")
 		}
-		takesExamples[i] = !slices.ContainsFunc(declaration.property.Examples, func(example ir.Example) bool {
-			return example.Value != nil && !f.takes(i, *example.Value, nullable)
-		})
 		if !takesExamples[i] {
 			refused = append(refused, "examples")
 		}
 		if len(refused) > 0 {
 			f.lost[i] = true
-			f.refuse(i, refused)
+			f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+				"the merge cannot show that the type the declarations of field %q merge to admits the %s the "+
+					"declaration at %s gives; not adopted, and that declaration %s",
+				f.merged.WireName, strings.Join(refused, " and "), f.at(i), declaration.keptAs())
 		}
 	}
 	f.merged.Default = lastWritten(f, "default", func(i int, property *ir.Property) (*ir.Value, bool) {
@@ -529,14 +529,32 @@ func (f *folding) foldValues() {
 	}, sameExamples)
 }
 
-// refuse notes at decls[i] that the field does not adopt the values it gives,
-// what, its default, its examples or both, which the merged type is not shown
-// to admit.
-func (f *folding) refuse(i int, what []string) {
-	f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-		"the merge cannot show that the type the declarations of field %q merge to admits the %s the "+
-			"declaration at %s gives; not adopted, and that declaration %s",
-		f.merged.WireName, strings.Join(what, " and "), f.at(i), f.decls[i].keptAs())
+// examplesTaken reports, declaration by declaration, whether the field takes
+// the examples it gives: where takes admits each, and, where the field takes no
+// declaration's that way, where the model declares it itself (via nil). An
+// example illustrates rather than constrains, so one the merge cannot judge,
+// against a model say, is typed on the field, which pass/example-outside-type
+// holds to its type, rather than kept verbatim alone; one another model
+// declares stays typed there.
+func (f *folding) examplesTaken(nullable bool) []bool {
+	taken := make([]bool, len(f.decls))
+	judged := false
+	for i, declaration := range f.decls {
+		if !f.cone[i] {
+			continue
+		}
+		taken[i] = !slices.ContainsFunc(declaration.property.Examples, func(example ir.Example) bool {
+			return example.Value != nil && !f.takes(i, *example.Value, nullable)
+		})
+		judged = judged || taken[i] && len(declaration.property.Examples) > 0
+	}
+	if judged {
+		return taken
+	}
+	for i, declaration := range f.decls {
+		taken[i] = taken[i] || f.cone[i] && declaration.via == nil
+	}
+	return taken
 }
 
 // sameExamples reports whether two example lists say the same, each example's
