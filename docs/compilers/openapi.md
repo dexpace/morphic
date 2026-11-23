@@ -3328,11 +3328,11 @@ takes, the last written is kept, and a declaration giving another is reported an
 examples it takes, the field holds every one the declarations the model writes itself give, each
 once, since JSON Schema collects an annotation from every subschema and `Examples` is a list, each
 where it first stands in their lists ordered by their encodings, which no order of the entries
-moves. It leaves out those of an `allOf` entry a reference names, which lowers as a model of its own
-whose member holds them; such a declaration giving an example the field does not hold is reported
-and kept verbatim. Only where no other gives one does the field take those of the last declaration
-to give one, as it takes a default; one another model holds giving an example the field does not
-hold is reported and keeps it there. Two values are one
+moves. Those of an `allOf` entry a reference names are among them, since JSON Schema collects the
+annotation whether or not a reference names the subschema, and the model of its own that entry then
+lowers as holds them on its member too. Only where none gives one does the field take those of the
+last declaration another model holds, as it takes a default; one such declaration giving an example
+the field does not hold is reported and keeps it there. Two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
 written after it.

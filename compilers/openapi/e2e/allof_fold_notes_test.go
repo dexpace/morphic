@@ -263,10 +263,11 @@ func boolIndex(b bool) int {
 // TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce pins that where a
 // reference names an allOf entry of the composing model, which then lowers as
 // a model of its own whose member carries that entry's note, the fold leaves
-// the note on no node and adds no example of it to the field: the field keeps
-// the other entry's, the named entry's declaration is kept verbatim, and each
-// note is typed once, in every order of the entries and of the components,
-// whether a property's $ref or another model's allOf names the entry
+// the note on no node: the field keeps the other entry's, the named entry's
+// declaration is kept verbatim, and each note is typed once, in every order of
+// the entries and of the components, whether a property's $ref or another
+// model's allOf names the entry. Examples are
+// TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields'
 // (docs/compilers/openapi.md#allof-redeclared-property).
 func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
 	t.Parallel()
@@ -277,8 +278,8 @@ func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
 	}
 	for _, shape := range shapes {
 		for _, note := range foldedNotes {
-			if note.objectExample && strings.HasPrefix(shape.schema, "type: array") {
-				note = listExample
+			if note.objectExample {
+				continue
 			}
 			entry := func(v string) string { return "{properties: {f: {" + shape.schema + ", " + note.write(v) + "}}}" }
 			namers := []struct{ name, schema, writes string }{
@@ -320,6 +321,90 @@ func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields pins that the
+// examples two or three allOf entries of the composing model give are the
+// field's alike whether or not a reference names one of the entries, as JSON
+// Schema collects an annotation from every subschema, named or not: each is
+// the field's, none is reported or kept verbatim, and the named entry, which
+// lowers as a model of its own, holds its own on its member, in either order
+// of the entries and of the components
+// (docs/compilers/openapi.md#allof-redeclared-property).
+func TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields(t *testing.T) {
+	t.Parallel()
+	shapes := []struct {
+		name, schema string
+		note         foldedNote
+	}{
+		{"integers", "type: integer", foldedNote{name: "example", write: func(v string) string { return "example: " + exampleCount(v) },
+			typed: func(v string) string { return `example {"kind":"number","number":"` + exampleCount(v) + `"}` }}},
+		{"objects with properties", "type: object, properties: {count: {type: integer}}", foldedNotes[2]},
+		{"lists", "type: array, items: {type: object}", listExample},
+	}
+	values := []string{"a", "b", "c"}
+	for _, shape := range shapes {
+		for _, count := range []int{2, 3} {
+			entries := make([]string, count)
+			want := make([]string, count)
+			for k := range count {
+				entries[k] = "{type: object, properties: {f: {" + shape.schema + ", " + shape.note.write(values[k]) + "}}}"
+				want[k] = shape.note.typed(values[k])
+			}
+			slices.Sort(want)
+			for _, reversed := range []bool{false, true} {
+				written := slices.Clone(entries)
+				if reversed {
+					slices.Reverse(written)
+				}
+				for _, collFirst := range []bool{false, true} {
+					var unnamed []ir.Example
+					for named := -1; named < count; named++ {
+						label := fmt.Sprintf("%s, %d entries, reversed %t, Coll first %t, entry %d named", shape.name, count, reversed, collFirst, named)
+						coll := "    Coll: {allOf: [" + strings.Join(written, ", ") + "]}\n"
+						other := fmt.Sprintf("    Other: {type: object, properties: {g: {$ref: '#/components/schemas/Coll/allOf/%d'}}}\n", named)
+						if named < 0 {
+							other = "    Other: {type: object, properties: {g: {type: integer}}}\n"
+						}
+						src := openapitest.ComponentSpec(other + coll)
+						if collFirst {
+							src = openapitest.ComponentSpec(coll + other)
+						}
+						doc, field, diags := notedField(t, src)
+
+						requireErrorsAndWarnings(t, diags, nil)
+						assert.Equal(t, want, fieldNotes(t, field), "%s: the field holds every entry's example", label)
+						assert.Empty(t, field.Unmodeled, "%s: and keeps no declaration verbatim", label)
+						for _, d := range diags {
+							assert.NotContains(t, d.Message, "give its examples differently", "%s: nor reports one", label)
+						}
+						if named < 0 {
+							unnamed = field.Examples
+							continue
+						}
+						assert.Empty(t, cmp.Diff(unnamed, field.Examples), "%s: the field's examples are those it holds where none is named", label)
+						entryModel, isModel := doc.Types[requireProperty(t, doc, "Other", "g").Type.Target].(*ir.Model)
+						require.True(t, isModel, "%s: the named entry is a model", label)
+						member, ok := propertyByWire(entryModel, "f")
+						require.True(t, ok, "%s: the named entry holds f", label)
+						assert.Equal(t, []string{shape.note.typed(values[map[bool]int{false: named, true: count - 1 - named}[reversed]])},
+							fieldNotes(t, member), "%s: the named entry's member holds its own", label)
+					}
+				}
+			}
+		}
+	}
+}
+
+// requireProperty returns the property of the model named name whose wire
+// name is wire, failing where doc holds neither.
+func requireProperty(t *testing.T, doc *ir.Document, name, wire string) ir.Property {
+	t.Helper()
+	model, isModel := typeByName(doc, name).(*ir.Model)
+	require.True(t, isModel, "%s is a model", name)
+	property, ok := propertyByWire(model, wire)
+	require.True(t, ok, "%s holds %s", name, wire)
+	return property
 }
 
 // TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept pins that every report of

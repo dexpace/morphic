@@ -245,20 +245,18 @@ func (g *Merger) ownNode(declarationValue declaration) (*ir.TypeCommon, bool) {
 
 // heldExamples returns the examples the field holds, of those each
 // declaration gives that it takes (taken): every one a declaration the model
-// writes itself gives, but one another model's member carries too (apart),
-// each once, as JSON Schema collects an annotation from each subschema, in an
-// order no order of the entries moves (ownExampleLists); and, only where none
-// gives one, those of the last declaration to give one (lastWritten). Any
-// other giving an example the field does not hold is reported: one another
-// model holds keeps it there, and one the model writes itself is kept
-// verbatim.
+// writes itself gives, each once, as JSON Schema collects an annotation from
+// each subschema, named or not, in an order no order of the entries moves
+// (ownExampleLists); and, only where none gives one, those of the last
+// declaration another model holds (lastWritten). One such declaration giving
+// an example the field does not hold is reported: it keeps it there.
 func heldExamples(f *folding, taken []bool) []ir.Example {
 	of := func(i int, property *ir.Property) ([]ir.Example, bool) {
 		return property.Examples, taken[i] && len(property.Examples) > 0
 	}
 	held := func(i int) bool {
 		_, gives := of(i, &f.decls[i].property)
-		return gives && f.decls[i].via == nil && !f.decls[i].apart
+		return gives && f.decls[i].via == nil
 	}
 	lists := ownExampleLists(f.decls, of, held)
 	if len(lists) == 0 {
@@ -281,7 +279,6 @@ func heldExamples(f *folding, taken []bool) []ir.Example {
 		if !gives || containsExamples(own, examples) {
 			continue
 		}
-		f.lost[i] = f.lost[i] || f.decls[i].via == nil
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give its examples differently; kept %s over the one at %s, which %s",
 			f.merged.WireName, kept, f.at(i), f.decls[i].keptAs())

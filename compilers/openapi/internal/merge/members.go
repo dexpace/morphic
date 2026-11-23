@@ -98,10 +98,10 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	if len(decls) < 2 {
 		return nil
 	}
-	// An own declaration another model holds too leaves its notes to that
-	// model's member. Every reader of apart reads via beside it, but heldAlone
-	// reads a pointer in the model's own document, where a brought declaration
-	// need not be written.
+	// An own declaration another model holds too leaves no note on its node,
+	// as that model's member holds them. The reader of apart reads via beside
+	// it, but heldAlone reads a pointer in the model's own document, where a
+	// brought declaration need not be written.
 	for i := range decls {
 		if !isBrought(decls[i]) {
 			decls[i].apart = !idx.heldAlone(merger, decls[i])

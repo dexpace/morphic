@@ -1288,7 +1288,7 @@ it sees. Changes made together in one bump are listed together under it.
   another's schema builds keeps that one's, or the node the fold builds of them adopts one of the
   others, wherever the member's type holds that node and no reference names that declaration's
   `allOf` entry, whose own member then holds it, and any other is kept verbatim; and the member
-  holds every example they give that it takes, but for such an entry's
+  holds every example they give that it takes
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
   off the node its type names, and finds none on the member.

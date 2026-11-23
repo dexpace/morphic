@@ -127,7 +127,8 @@ type declaration struct {
 	owner  ir.TypeID
 	// apart marks a declaration the model writes itself that a model of its
 	// own holds too, an allOf entry a reference names, whose member carries
-	// its notes (ModelPropertyDeclarations.heldAlone).
+	// its notes, so the fold leaves none on its node (ownNode;
+	// ModelPropertyDeclarations.heldAlone).
 	apart bool
 }
 

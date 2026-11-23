@@ -448,10 +448,10 @@ func cloneNode(node ir.TypeDef) ir.TypeDef {
 // TestFold_EveryExampleTheModelWritesIsHeld pins heldExamples: the field holds
 // every example the model's own declarations give that it takes, each once,
 // where it first stands in their lists ordered by their encodings, the same in
-// either order, and reports none of them. One another model's declaration
-// brings that the field holds too is not reported, and one it does not hold
-// is, kept on that model; so is one of an own declaration a model of its own
-// holds too (apart), kept verbatim.
+// either order, and reports none of them, an own declaration a model of its
+// own holds too (apart) among them. One another model's declaration brings
+// that the field holds too is not reported, and one it does not hold is,
+// kept on that model.
 func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 	t.Parallel()
 	one, two, three := number("1"), number("2"), number("3")
@@ -497,12 +497,14 @@ func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil, nil},
 		{"two the model writes, one sorting first sharing one", []declaration{writing("/a", &one, &three), writing("/b", &two, &one)},
 			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil, nil},
-		{"one another model holds too", []declaration{writing("/a", &one), heldApart("/b", &two)},
-			[2][]*ir.Value{{&one}, {&one}},
-			[]string{"give its examples differently; kept the one the declaration at /a gives over the one at /b, " +
-				"which is kept verbatim under Unmodeled"}, []jsontext.Pointer{"/b"}},
+		{"one another model holds too", []declaration{writing("/a", &two), heldApart("/b", &one)},
+			[2][]*ir.Value{{&one, &two}, {&one, &two}}, nil, nil},
 		{"one another model holds too, giving one held", []declaration{writing("/a", &one), heldApart("/b", &one)},
 			[2][]*ir.Value{{&one}, {&one}}, nil, nil},
+		{"two another model holds too, beside one brought", []declaration{heldApart("/a", &two), heldApart("/b", &one), bringing("/part/p", &three)},
+			[2][]*ir.Value{{&one, &two}, {&one, &two}},
+			[]string{"give its examples differently; kept those the declarations the model writes itself give over the one " +
+				"at /part/p, which stays declared on its model"}, nil},
 		{"one that does not encode, which sorts first", []declaration{writing("/a", &one), writing("/b", &invalid)},
 			[2][]*ir.Value{{&invalid, &one}, {&invalid, &one}}, nil, nil},
 		{"brought alone", []declaration{bringing("/part/p", &one), bringing("/part/q", &two)},
