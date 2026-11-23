@@ -1827,7 +1827,13 @@ writes `deprecated: true`, holding its own members alone, while the `Model` keep
 deprecation whole ([`docs-and-deprecation`](#docs-and-deprecation)). One case is open
 there: beside a written-over note, the target's own `deprecated: true` deprecates the carrier and a
 key on the target stating a deprecation does not, though either deprecates a use
-([`extension-promotion`](#extension-promotion)). A note an entry of the `allOf` writes, as in
+([`extension-promotion`](#extension-promotion)). At a property, the `Model` stays too where another
+declaration of the same member that the model writes itself, in its own `properties` or an inline
+entry of its `allOf`, gives one of the position's notes otherwise. It holds none of them, the
+carrier holding them all, and the [fold](#allof-redeclared-property) leaves on it the note the
+member does not keep. Two values compare as they encode, so one spelt two ways, as `1` and `1.0` or
+under `example` and under `examples`, reads as given otherwise and keeps the `Model`, which loses
+nothing. A note an entry of the `allOf` writes, as in
 `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
 conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
 extension, `xml` or a constraint among them. There, as where a reference names the position, the
@@ -1887,6 +1893,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `e2e.TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode`,
   `e2e.TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode`,
   `schema.TestCarriedAnnotations_ANoteBesideARefIsTheCarriers`,
+  `e2e.TestAllOfFold_TwoOwnDeclarationsBesideAReferenceKeepEachNote`,
+  `e2e.TestAllOfFold_OwnUsesAgreeingOnANoteNameTheReferent`,
+  `schema.TestRefUseRedeclared_ANoteGivenApartKeepsTheNode`,
+  `schema.TestRefUseRedeclared_AParameterReadsNoMember`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
@@ -2015,7 +2025,8 @@ its `allOf`, keeps its own on the node it builds, unless it writes beside one `$
 or beside an `allOf` of it, only these and the keywords that bind the use
 ([`use-bound-annotations`](#use-bound-annotations)), and a `type` naming exactly what the referent
 declares, and the carrier holds them: it then builds no node, and the carrier holds them over the
-referent's ([`ref-use-site`](#ref-use-site)). Where the node stays only because the carrier writes
+referent's ([`ref-use-site`](#ref-use-site)), but for a member another declaration the model writes
+itself gives one of them otherwise. Where the node stays only because the carrier writes
 over the schema's documentation, deprecation or examples, each note of a kind nothing at the
 carrier writes over, its documentation, deprecation or examples, is still the carrier's. At a
 position no carrier holds, they land on the node the position owns. A parameter's or header's
@@ -3409,8 +3420,10 @@ deprecation describe the field, so of those a declaration the model writes itsel
 another model holds, in either order: that one stays declared on its model. A declaration the model
 writes itself giving one of them otherwise than the declaration kept keeps it on the node its schema
 builds, where the schema hoisted one at the declaration holding none, as it did before its carrier
-took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). The note
-is left there before the types are judged, so that node is judged holding it, as a node saying what
+took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). A use of a
+`$ref` writing such a note builds that node, the `Model` over its referent, which a use writing no
+note another declaration gives otherwise does not ([`ref-use-site`](#ref-use-site)). The note is
+left there before the types are judged, so that node is judged holding it, as a node saying what
 the other lacks, and the field's type holds it: the node itself, a conjunct the field composes, or a
 node the field's declarations meet in, which adopts the note and leaves its own copy bare. Where the
 field's type would not hold it, as of two lists that differ only in that note, which are judged two
@@ -3573,6 +3586,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold`,
   `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
   `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
+  `e2e.TestAllOfFold_ANoteBesideAReferenceTheModelWritesIsTheFields`,
+  `e2e.TestAllOfFold_TwoOwnUsesAndABroughtOneKeepEachNote`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,

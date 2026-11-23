@@ -191,7 +191,8 @@ has no field for, a redaction, which lands on the type (#1220), the bounds below
 verbatim, which stays where the promotion reads a key. A schema at a carrier writing these notes
 beside one `$ref` to an object, or beside an `allOf` of it, and nothing the carrier has no field
 for but a `type` naming exactly what the target declares, builds no node: the carrier names the
-target and holds them ([decorators](#decorators)). One
+target and holds them ([decorators](#decorators)), but for a member another declaration the model
+writes itself gives one of them otherwise. One
 writing anything else beside them, or a note on a conjunct of its `allOf`, keeps them on the node
 it builds, a [decorator](#decorators) among them, which an emitter folds onto the carrier. A
 carried position that a reference names keeps them on its node too, its carrier holding none, so
@@ -295,12 +296,15 @@ or header's own note, or a Reference Object's beside its `$ref`, writes over, as
 it that only a node keeps and a note written on a conjunct of the `allOf`. Where a written-over note
 alone makes it, each note of a kind nothing at the carrier writes over, its documentation,
 deprecation or examples, is still the carrier's, and one writing its own deprecation, even a member
-alone, is deprecated where the schema writes `deprecated: true`, holding its own members alone
-([one home](#one-structural-home-per-declaration)); where anything else makes it, the carrier holds
-none of the schema's notes. A decorator holding a carrier's note as well was weighed and
-withdrawn (#2071): the two spellings agreed either way, but a reader of the carrier alone found the
-note there over a string target and not over an object one, and a target that became an object
-moved every user's note onto a node.
+alone, is deprecated where the schema writes `deprecated: true`, holding its own members alone ([one
+home](#one-structural-home-per-declaration)); where anything else makes it, the carrier holds none
+of the schema's notes, but for one case. At a property whose member another declaration the model
+writes itself gives one of the notes otherwise, the decorator stays holding none of them: the
+carrier holds them all, and the `allOf` fold leaves on the decorator the note the member does not
+keep ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A decorator
+holding a carrier's note as well was weighed and withdrawn (#2071): the two spellings agreed either
+way, but a reader of the carrier alone found the note there over a string target and not over an
+object one, and a target that became an object moved every user's note onto a node.
 Neither the `Model` nor the alias says anything about a value that its `Base` does not. Such a node
 is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type whose
 `Base` is set, and which is

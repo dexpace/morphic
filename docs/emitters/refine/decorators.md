@@ -19,10 +19,13 @@ carrier names `Status` and holds them ([annotations](../../ir/annotations.md#dec
 component, and for a carrier whose position writes beside its notes what only a node keeps, such
 as an extension, or whose own notes leave the schema's on the node
 ([`docs-and-deprecation`](../../compilers/openapi.md#docs-and-deprecation)), for a note written on
-a conjunct of the `allOf`, and for a carried position a reference names. None of these nodes says
-anything about a value that its `Base` does not. Lowered as written, each would be a type of
-its own — a struct repeating a wrapped model's fields, or a second name for a wrapped enum
-([scalars](scalars.md)), named from a hint — where every user expects the type it wraps.
+a conjunct of the `allOf`, for a carried position a reference names, and for a member an `allOf`
+redeclares whose other declaration gives one of the notes otherwise
+([`allof-redeclared-property`](../../compilers/openapi.md#allof-redeclared-property)).
+None of these nodes says anything about a value that its `Base` does not. Lowered as written, each
+would be a type of its own — a struct repeating a wrapped model's fields, or a second name for a
+wrapped enum ([scalars](scalars.md)), named from a hint — where every user expects the type it
+wraps.
 
 **What a decorator is** is the IR's rule, stated by `ir.Decorated`
 ([annotations](../../ir/annotations.md#decorators)): an anonymous `Model` or `Scalar` whose `Base`

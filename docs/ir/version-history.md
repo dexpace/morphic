@@ -1309,6 +1309,10 @@ it sees. Changes made together in one bump are listed together under it.
   alone, is deprecated where the schema writes `deprecated: true` and holds its own members alone,
   the node keeping the schema's whole, as 0.73.0 has it beside an inline schema. Where it stays for
   anything else, the carrier holds none of the schema's notes, and one writing only a member is not
-  deprecated, as 0.73.0 has it at a position a reference names. A consumer pinned to 0.73.0
-  refuses the document; one reading an older document finds such a use's notes on the decorator
-  its type names, and none on the carrier.
+  deprecated, as 0.73.0 has it at a position a reference names, but for one case: at a property
+  whose member another declaration the model writes itself gives one of the notes otherwise, the
+  `Model` stays holding none of them, the carrier holds them all, and the `allOf` fold leaves on the
+  `Model` the note the member does not keep
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.73.0 refuses the document; one reading an older document finds such a use's notes on
+  the decorator its type names, and none on the carrier.
