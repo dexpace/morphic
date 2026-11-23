@@ -317,8 +317,28 @@ func TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode(t *testing.T) {
 	}
 }
 
+// TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode holds that a `type`
+// naming one kind of a union referent, which narrows what its $ref admits, is
+// the position's own: each carrier names the position's Model, which holds the
+// note and keeps the $ref under Unmodeled, and holds none of the note.
+func TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "union", noteUseSpec("3.1.0", "{allOf: [{$ref: '#/components/schemas/U'}], type: object, description: d}",
+		"U: {oneOf: [{type: object, properties: {b: {type: string}}}, {type: string}]}"))
+	assertNoErrorDiags(t, diags)
+	for carrierName, carrier := range noteCarriersOf(t, doc) {
+		id := ir.TypeID("type/anonymous" + noteCarrierPositions[carrierName])
+		assert.Equal(t, id, carrier.target, carrierName)
+		assert.Empty(t, carrier.docs.Description, carrierName)
+		model, ok := kindNode(t, doc, id).(*ir.Model)
+		require.True(t, ok, "%s owns its Model", carrierName)
+		assert.Equal(t, "d", model.Docs.Description, carrierName)
+		assert.Equal(t, `"#/components/schemas/U"`, string(unmodeledEntry(t, model.Unmodeled, "openapi:$ref").Value), carrierName)
+	}
+}
+
 // TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse holds that a `type`
-// naming only the kinds the referent of the $ref beside it declares says
+// naming exactly the kinds the referent of the $ref beside it declares says
 // nothing of its own: beside the allOf, on another entry and beside a
 // `nullable: true` the policy reads as widening the reference, each carrier
 // names the referent and holds the note, and no node stands at its position.
@@ -385,9 +405,9 @@ func TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode(t *testing.T) {
 // a parameter or header writing its own, or a Reference Object naming it
 // writing docs beside its $ref, leaves the schema's on the node, and a
 // position a $ref names keeps them for every reference. Each note is placed
-// on its own: one nothing at the carrier writes over, a deprecation or an
-// example, is still the carrier's beside one that is. Both component orders
-// compile to one document.
+// on its own: one of a kind nothing at the carrier writes over, its
+// documentation, deprecation or examples, is still the carrier's beside one
+// that is. Both component orders compile to one document.
 func TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode(t *testing.T) {
 	t.Parallel()
 	const obj = "'#/components/schemas/Obj'"

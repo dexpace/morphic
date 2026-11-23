@@ -458,13 +458,15 @@ func TestCarriedAnnotations_ANoteBesideARefIsTheCarriers(t *testing.T) {
 }
 
 // TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt
-// holds that a `type` beside a $ref to an object binds the use only where it
-// names the object alone: then the property names Base and holds the note, and
-// a type naming another kind, naming null, or listing a word no dialect
-// defines, whose error the document draws, keeps the node holding the note.
+// holds that a `type` beside a $ref binds the use only where it names every
+// kind the referent declares and no other: then the property names Base and
+// holds the note, and a type naming another kind, one kind of a union U,
+// null, or a word no dialect defines, whose error the document draws, keeps
+// the node holding the note.
 func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt(t *testing.T) {
 	t.Parallel()
-	const base = "    Base: {type: object, properties: {b: {type: string}}}\n"
+	const base = "    Base: {type: object, properties: {b: {type: string}}}\n" +
+		"    U: {oneOf: [{type: object, properties: {b: {type: string}}}, {type: string}]}\n"
 	for name, tc := range map[string]struct {
 		schema string
 		use    bool
@@ -472,6 +474,7 @@ func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt
 	}{
 		"the referent's kind": {"{allOf: [{$ref: '#/components/schemas/Base'}], type: object, description: D}", true, nil},
 		"another kind":        {"{$ref: '#/components/schemas/Base', type: array, description: D}", false, nil},
+		"one kind of a union": {"{allOf: [{$ref: '#/components/schemas/U'}], type: object, description: D}", false, nil},
 		"null":                {"{$ref: '#/components/schemas/Base', type: [object, 'null'], description: D}", false, nil},
 		"an undefined word": {"{$ref: '#/components/schemas/Base', type: [object, objekt], description: D}", false,
 			[]string{"openapi/validation/validation-allowed-values"}},
@@ -496,6 +499,7 @@ func TestCarriedAnnotations_ATypeBesideARefBindsTheUseWhereTheReferentDeclaresIt
 			}
 			assert.Equal(t, node, property.Type.Target)
 			assert.Empty(t, property.Docs.Description)
+			require.Contains(t, doc.Types, node)
 			assert.Equal(t, "D", doc.Types[node].Common().Docs.Description)
 		})
 	}
