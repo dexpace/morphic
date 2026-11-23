@@ -418,8 +418,9 @@ func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, di
 			if want == "" {
 				continue
 			}
-			var held []string
-			for _, id := range append([]ir.TypeID{field.Type.Target}, mixinsOf(doc, field.Type.Target)...) {
+			holders := append([]ir.TypeID{field.Type.Target}, mixinsOf(doc, field.Type.Target)...)
+			held := make([]string, 0, len(holders))
+			for _, id := range holders {
 				td, ok := doc.Types[id]
 				require.True(t, ok, id)
 				common := td.Common()
