@@ -219,6 +219,8 @@ func namesNode(decls []declaration, target ir.TypeID, conjuncts []conjunct) func
 // kept apart.
 func heldIn(g *Merger, target ir.TypeID) func(holds func(*ir.TypeCommon) bool) bool {
 	td, ok := g.resolve(target)
+	// No fold yet reaches here with a type the registry lacks, but one would
+	// read a nil node (TestHeldIn_ATypeTheRegistryLacksHoldsNoNote).
 	return func(holds func(*ir.TypeCommon) bool) bool { return ok && holds(td.Common()) }
 }
 

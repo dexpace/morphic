@@ -363,6 +363,18 @@ func TestFold_ANoteLeftOnAConjunctStaysThere(t *testing.T) {
 	})
 }
 
+// TestHeldIn_ATypeTheRegistryLacksHoldsNoNote pins that a field's type the
+// registry does not hold holds no note, which no fold reaches yet, rather than
+// reading a nil node.
+func TestHeldIn_ATypeTheRegistryLacksHoldsNoNote(t *testing.T) {
+	t.Parallel()
+	stubbed, _ := stubMerger(narrowingRegistry())
+
+	held := heldIn(&stubbed.Merger, "type/missing")(func(*ir.TypeCommon) bool { return true })
+
+	assert.False(t, held)
+}
+
 // ownDeclaration is a declaration the model writes itself at /allOf/0/p, of
 // the type target names.
 func ownDeclaration(target ir.TypeID) declaration {
