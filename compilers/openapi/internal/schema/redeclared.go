@@ -4,9 +4,6 @@
 package schema
 
 import (
-	"maps"
-	"slices"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -32,10 +29,9 @@ func declaredAgain(loweringContext lowering.Ctx, at reftable.DocumentPointer) bo
 		return false
 	}
 	name := at.Pointer.LastToken()
-	lister := reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}
-	composing := lister
+	composing := reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}
 	for range maxComposingSchemas {
-		if slices.Contains(ownDeclarations(loweringContext, composing)[name], lister) {
+		if ownDeclarations(loweringContext, composing)[name] > 1 {
 			return true
 		}
 		if composing.Pointer.Parent().LastToken() != "allOf" {
@@ -51,15 +47,14 @@ type ownDeclarationsOf struct {
 	at reftable.DocumentPointer
 }
 
-// ownDeclarations returns, for each name the model written at at declares more
-// than once itself, where each schema listing it is: the model's own, and each
-// inline entry its statement flattens, the keywords beside an entry's $ref
-// among them. A $ref entry's target is another model's, and an allOf that
-// refines composes no model, so it lowers one schema's properties alone
-// (allOfComposes). Every property asks, so it is read once a run for each
-// model.
-func ownDeclarations(loweringContext lowering.Ctx, at reftable.DocumentPointer) map[string][]reftable.DocumentPointer {
-	return lowering.ReadOncePerRun(loweringContext, ownDeclarationsOf{at}, func() map[string][]reftable.DocumentPointer {
+// ownDeclarations returns how many times the model written at at declares each
+// name itself, in its own properties and those of each inline entry its
+// statement flattens, the keywords beside an entry's $ref among them. A $ref
+// entry's target is another model's, and an allOf that refines composes no
+// model, so it lowers one schema's properties alone (allOfComposes). Every
+// property asks, so it is read once a run for each model.
+func ownDeclarations(loweringContext lowering.Ctx, at reftable.DocumentPointer) map[string]int {
+	return lowering.ReadOncePerRun(loweringContext, ownDeclarationsOf{at}, func() map[string]int {
 		model := loweringContext.Statements().At(at)
 		if !allOfComposes(loweringContext, model.Schema) {
 			return nil
@@ -70,13 +65,12 @@ func ownDeclarations(loweringContext lowering.Ctx, at reftable.DocumentPointer) 
 				listing = append(listing, entry.Schema)
 			}
 		}
-		listers := map[string][]reftable.DocumentPointer{}
+		declared := map[string]int{}
 		for _, schema := range listing {
 			for _, property := range schema.ObjectKeywords().Properties {
-				listers[property.Name] = append(listers[property.Name], schema.At)
+				declared[property.Name]++
 			}
 		}
-		maps.DeleteFunc(listers, func(_ string, at []reftable.DocumentPointer) bool { return len(at) < 2 })
-		return listers
+		return declared
 	})
 }

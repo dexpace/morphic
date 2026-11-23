@@ -26,6 +26,7 @@ var againNotes = []struct{ name, write, typed string }{
 	{"description", "description: %s", "description %s"},
 	{"external docs", "externalDocs: {url: 'https://e.test/%s'}", "link https://e.test/%s"},
 	{"deprecation", "deprecated: true, x-deprecated-reason: %s", "deprecated %s"},
+	{"deprecation a key states", "x-fern-availability: deprecated, x-deprecated-reason: %s", "deprecated %s"},
 }
 
 // notesText is what docs, deprecation and examples hold, as one line.
@@ -410,6 +411,24 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T)
 				assert.Equal(t, "[description B] Base/properties/f model", memberText(t, doc, componentID("Base")), label)
 			}
 		}
+	}
+}
+
+// TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames pins that a note written
+// beside a $ref, which the property writing it holds, is none of the node the
+// $ref names: a member a model declares again beside one brought, its type the
+// enum its declarations meet in, adopts none of it, in either component order.
+func TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames(t *testing.T) {
+	t.Parallel()
+	const enum = "    E: {type: string, enum: [a, b]}\n"
+	const use = "    Use: {properties: {f: {$ref: '#/components/schemas/E', description: OF A USE}}}\n"
+	const rest = "    Base: {properties: {f: {type: string, enum: [b, d]}}}\n" +
+		"    M: {allOf: [{properties: {f: {$ref: '#/components/schemas/E'}}}, {$ref: '#/components/schemas/Base'}, {properties: {f: {type: string, enum: [b, c]}}}]}\n"
+	for _, spec := range []string{enum + use + rest, rest + use + enum} {
+		doc, diags := parseVerified(t, openapitest.ComponentSpec(spec))
+		assert.Empty(t, diags)
+		assert.Equal(t, "composed/M/allOf/2/properties/f enum b", memberText(t, doc, componentID("M")))
+		assert.Equal(t, "[description OF A USE] openapi/E enum a b", memberText(t, doc, componentID("Use")))
 	}
 }
 

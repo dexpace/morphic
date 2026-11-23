@@ -163,6 +163,32 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 	}
 }
 
+// TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand pins the other
+// side: a member only the model declares, more than once, is judged as its
+// nodes stand, whatever Carried says of one, as no property carries a note off
+// a node of such a member. A bare object says nothing a map does not, so the
+// map is the field's type.
+func TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	reg["type/own0"] = &ir.Model{ID: "type/own0", Anonymous: true, Provenance: ptrAt("/M/allOf/0/properties/p")}
+	reg["type/own1"] = &ir.MapT{ID: "type/own1", Anonymous: true, Provenance: ptrAt("/M/allOf/1/properties/p"),
+		Value: ir.TypeRef{Target: "type/primitive/string"}}
+	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+	reg["type/M"] = model
+	idx := NewModelPropertyDeclarations(model)
+	own("p", "type/own0", "0")(idx)
+	own("p", "type/own1", "1")(idx)
+	stubbed, _ := stubMerger(reg)
+	stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/own0": {Docs: ir.Docs{Description: "carried"}}}
+
+	diags := settleFlat(stubbed, idx, reg)
+
+	assert.Empty(t, diags)
+	require.Len(t, model.Properties, 1)
+	assert.Equal(t, ir.TypeID("type/own1"), model.Properties[0].Type.Target)
+}
+
 // TestWithNotes_CopiesTheDeprecation pins that a node read holding its notes
 // shares no deprecation with the property carrying it, as a replacement is
 // written into each once the document is whole.
