@@ -1274,8 +1274,8 @@ it sees. Changes made together in one bump are listed together under it.
   A parameter or a header writes its own deprecation with `deprecated: true` or a key the promotion
   policy reads a deprecation or one of its members from, on it or the content entry it elects, and
   the node then keeps the schema's whole, its message and replacement with it, while the carrier
-  holds its own members alone, deprecated wherever its schema is except at a position a reference
-  names, where it holds no deprecation. They were the
+  holds its own members alone, deprecated wherever its schema is, except that at a position a
+  reference names one writing only a member holds no deprecation. They were the
   node's, so the carrier was documented, deprecated and exemplified only where its schema hoisted
   nothing. A deprecation the promotion policy reads from a key on that schema follows, with the
   carrier marked `extension-promotion`, and so does a replacement such a key names; the node keeps
