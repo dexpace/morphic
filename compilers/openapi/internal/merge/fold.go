@@ -40,6 +40,10 @@ type Merger struct {
 	// declaration stands within another's composition spends (ownership); nil
 	// reads without bound.
 	Reads *budget.Budget
+	// Referenced, when non-nil, holds anonymous TypeIDs targeted by a $ref or
+	// discriminator mapping, so fold diagnostics keep their ID even when the
+	// losing declaration is inline.
+	Referenced map[ir.TypeID]bool
 	// Discarded, when non-nil, records every TypeID carried by a declaration
 	// that a fold superseded or dropped so post-settlement pruning can remove
 	// it if nothing else reaches it.
@@ -367,36 +371,37 @@ func (f *folding) drop(i int) {
 	}
 }
 
-// loserMayBePruned reports whether decls[i]'s losing type is an anonymous node
-// hoisted at an inline declaration rather than held by a composed model or
-// reached through a $ref, so post-settlement pruning may remove it.
-func loserMayBePruned(f *folding, loser ir.TypeID, i int) bool {
-	if f.decls[i].via != nil {
+// loserMayBePruned reports whether decls[i]'s losing type is an unreferenced
+// anonymous node hoisted at an inline declaration rather than held by a
+// composed model or targeted by a $ref, so post-settlement pruning may remove
+// it.
+func loserMayBePruned(fold *folding, loser ir.TypeID, i int) bool {
+	if fold.decls[i].via != nil || fold.g.Referenced[loser] {
 		return false
 	}
-	td, ok := f.g.resolve(loser)
-	return ok && hoistedUnder(td.Common(), f.decls[i].property.Provenance)
+	td, ok := fold.g.resolve(loser)
+	return ok && hoistedUnder(td.Common(), fold.decls[i].property.Provenance)
 }
 
 // incompatibleDetail formats a type-disjointness detail, omitting a losing
 // type ID that post-settlement pruning may remove.
-func incompatibleDetail(f *folding, kept, loser ir.TypeID, i int, pruned bool) string {
+func incompatibleDetail(fold *folding, kept, loser ir.TypeID, i int, pruned bool) string {
 	if pruned {
-		return fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, f.at(i))
+		return fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, fold.at(i))
 	}
 	return fmt.Sprintf("incompatible types %s and %s", kept, loser)
 }
 
-// degradedTypeMessage formats a drop diagnostic, keeping both type IDs when
-// the losing type stays in the document and naming only the kept type and the
-// losing declaration's location when post-settlement pruning may remove it.
-func degradedTypeMessage(f *folding, kept, loser ir.TypeID, i int, pruned bool, relation string) string {
+// degradedTypeMessage formats a drop diagnostic, keeping both type IDs unless
+// the losing type is an unreferenced inline anonymous node that
+// post-settlement pruning may remove.
+func degradedTypeMessage(fold *folding, kept, loser ir.TypeID, i int, pruned bool, relation string) string {
 	if pruned {
 		return fmt.Sprintf("declarations of field %q give types %s; kept %s (from %s) over the declaration at %s, which %s",
-			f.merged.WireName, relation, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+			fold.merged.WireName, relation, kept, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
 	}
 	return fmt.Sprintf("declarations of field %q give types %s and %s %s; kept the type the declaration at %s gives over the one at %s, which %s",
-		f.merged.WireName, kept, loser, relation, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+		fold.merged.WireName, kept, loser, relation, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
 }
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says

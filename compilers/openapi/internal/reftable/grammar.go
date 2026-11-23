@@ -5,7 +5,6 @@ package reftable
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -275,48 +274,44 @@ func modelled(stateValue state) bool {
 // table. Reaching any ancestor of at from at.Pointer up to and including the
 // returned ceiling activates at; reaching an ancestor strictly above the
 // ceiling crosses a definitions table or an unmodelled boundary and does not.
-func DefinitionsCeiling(t *ReferenceTargetTable, at DocumentPointer) jsontext.Pointer {
-	if t == nil {
+func DefinitionsCeiling(table *ReferenceTargetTable, at DocumentPointer) jsontext.Pointer {
+	if table == nil {
 		return at.Pointer
 	}
-	for _, rootPtr := range pointerPrefixes(at.Pointer) {
-		start, ok := t.roots[DocumentPointer{Doc: at.Doc, Pointer: rootPtr}]
+	for rootEnd := 0; rootEnd <= len(at.Pointer); rootEnd++ {
+		if rootEnd > 0 && rootEnd < len(at.Pointer) && at.Pointer[rootEnd] != '/' {
+			continue
+		}
+		rootPtr := at.Pointer[:rootEnd]
+		start, ok := table.roots[DocumentPointer{Doc: at.Doc, Pointer: rootPtr}]
 		if !ok {
 			continue
 		}
-		if ceil, ok := definitionsCeilingFrom(rootPtr, start, at.Pointer[len(rootPtr):]); ok {
-			return ceil
+		if ceiling, ok := definitionsCeilingFrom(at.Pointer, rootEnd, start); ok {
+			return ceiling
 		}
 	}
 	return at.Pointer
 }
 
-// pointerPrefixes returns every prefix of ptr from "" down to ptr in order.
-func pointerPrefixes(ptr jsontext.Pointer) []jsontext.Pointer {
-	var rev []jsontext.Pointer
-	for cur := ptr; ; cur = cur.Parent() {
-		rev = append(rev, cur)
-		if cur == "" {
-			break
-		}
-	}
-	slices.Reverse(rev)
-	return rev
-}
-
-// definitionsCeilingFrom walks suffix from root at state start and reports
+// definitionsCeilingFrom walks full[rootLen:] from state start and reports
 // whether it reaches a schema position through modelled states, returning the
 // deepest $defs/<name> or definitions/<name> pointer entered along the way (or
-// root when none is entered).
-func definitionsCeilingFrom(root jsontext.Pointer, start state, suffix jsontext.Pointer) (jsontext.Pointer, bool) {
+// full[:rootLen] when none is entered).
+func definitionsCeilingFrom(full jsontext.Pointer, rootLen int, start state) (jsontext.Pointer, bool) {
 	cur := start
-	ceil := root
-	pos := root
+	ceilingEnd := rootLen
 	var afterItems, enteringDef bool
-	for token := range suffix.Tokens() {
-		pos = pos.AppendToken(token)
+	for offset := rootLen; offset < len(full); {
+		next := strings.IndexByte(string(full[offset+1:]), '/')
+		end := len(full)
+		if next >= 0 {
+			end = offset + 1 + next
+		}
+		token := string(full[offset+1 : end])
+		offset = end
 		if enteringDef {
-			ceil, cur, enteringDef, afterItems = pos, sSchema, false, false
+			ceilingEnd, cur, enteringDef, afterItems = end, sSchema, false, false
 			continue
 		}
 		if cur == sSchema || cur == sLoose {
@@ -324,8 +319,8 @@ func definitionsCeilingFrom(root jsontext.Pointer, start state, suffix jsontext.
 				cur, enteringDef, afterItems = sSchemaMap, true, false
 				continue
 			}
-			if next, ok := dialectSchemaStep(token, afterItems); ok {
-				cur, afterItems = next, false
+			if nextState, ok := dialectSchemaStep(token, afterItems); ok {
+				cur, afterItems = nextState, false
 				continue
 			}
 		}
@@ -335,7 +330,7 @@ func definitionsCeilingFrom(root jsontext.Pointer, start state, suffix jsontext.
 			return "", false
 		}
 	}
-	return ceil, cur == sSchema
+	return full[:ceilingEnd], cur == sSchema
 }
 
 // dialectSchemaStep handles draft 4-7 schema keywords absent from 2020-12's

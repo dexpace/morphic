@@ -5944,9 +5944,9 @@ holding an inert keyword naming it and the keyword that leaves it inert. A posit
 `$ref` lands on is lowered all the same, recorded in `UnmodeledEntry.Targets`, and kept live across
 post-settlement pruning ([`unreferenced-anonymous-types`](#unreferenced-anonymous-types)), and so is
 each position a chain of them passes, an alias keeping what it writes beside its `$ref`: the
-compiler lowers every position a schema `$ref` of the document lands on, hop by hop, as it would
-one a lowered keyword names, and drops only unreachable anonymous nodes such as unreferenced `$defs`
-chains.
+compiler reserves every position a reachable schema `$ref` lands on, hop by hop, starting from
+positions visited or kept verbatim by lowering, without reserving targets reached only from
+unreferenced `$defs` tables or unreferenced reusable components.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
   `unevaluated-at-every-outcome`, `kept-ref-landings`

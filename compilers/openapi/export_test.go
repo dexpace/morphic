@@ -28,5 +28,9 @@ var PruneUnreferencedTypesWith = pruneUnreferencedTypesWith
 // AttachUnmodeledTargets is attachUnmodeledTargets, for the external tests.
 var AttachUnmodeledTargets = attachUnmodeledTargets
 
+// AttachUnmodeledTargetsWith is attachUnmodeledTargetsWith, for the external
+// tests.
+var AttachUnmodeledTargetsWith = attachUnmodeledTargetsWith
+
 // SeedDiscardedLandings is seedDiscardedLandings, for the external tests.
 var SeedDiscardedLandings = seedDiscardedLandings

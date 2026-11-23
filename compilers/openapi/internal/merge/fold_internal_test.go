@@ -454,26 +454,32 @@ func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
 	broughtEntry := &composedEntry{at: "/allOf/1"}
 
 	for _, tc := range []struct {
-		name     string
-		rel      relation
-		loser    ir.TypeID
-		via      *composedEntry
-		wantSub  string
-		wantGone string
+		name       string
+		rel        relation
+		loser      ir.TypeID
+		via        *composedEntry
+		referenced bool
+		wantSub    string
+		wantGone   string
 	}{
-		{"disjoint inline hoisted anonymous omits ID", relDisjoint, inlineAnon, nil, "/allOf/1/properties/p", string(inlineAnon)},
-		{"disjoint primitive keeps ID", relDisjoint, primLoser, nil, string(primLoser), ""},
-		{"disjoint brought anonymous keeps ID", relDisjoint, inlineAnon, broughtEntry, string(inlineAnon), ""},
-		{"disjoint referenced anonymous keeps ID", relDisjoint, otherAnon, nil, string(otherAnon), ""},
-		{"overlap inline hoisted anonymous omits ID", relOverlap, inlineAnon, nil, "whose values overlap", string(inlineAnon)},
-		{"overlap primitive keeps ID", relOverlap, primLoser, nil, "give types type/primitive/string and " + string(primLoser), ""},
-		{"overlap brought anonymous keeps ID", relOverlap, inlineAnon, broughtEntry, "give types type/primitive/string and " + string(inlineAnon), ""},
-		{"uncompared inline hoisted anonymous omits ID", relUnrelated, inlineAnon, nil, "that the merge does not compare", string(inlineAnon)},
-		{"uncompared primitive keeps ID", relUnrelated, primLoser, nil, "give types type/primitive/string and " + string(primLoser), ""},
+		{"disjoint inline hoisted anonymous omits ID", relDisjoint, inlineAnon, nil, false, "/allOf/1/properties/p", string(inlineAnon)},
+		{"disjoint inline hoisted referenced keeps ID", relDisjoint, inlineAnon, nil, true, string(inlineAnon), ""},
+		{"disjoint primitive keeps ID", relDisjoint, primLoser, nil, false, string(primLoser), ""},
+		{"disjoint brought anonymous keeps ID", relDisjoint, inlineAnon, broughtEntry, false, string(inlineAnon), ""},
+		{"disjoint referenced anonymous keeps ID", relDisjoint, otherAnon, nil, false, string(otherAnon), ""},
+		{"overlap inline hoisted anonymous omits ID", relOverlap, inlineAnon, nil, false, "whose values overlap", string(inlineAnon)},
+		{"overlap inline hoisted referenced keeps ID", relOverlap, inlineAnon, nil, true, "give types type/primitive/string and " + string(inlineAnon), ""},
+		{"overlap primitive keeps ID", relOverlap, primLoser, nil, false, "give types type/primitive/string and " + string(primLoser), ""},
+		{"overlap brought anonymous keeps ID", relOverlap, inlineAnon, broughtEntry, false, "give types type/primitive/string and " + string(inlineAnon), ""},
+		{"uncompared inline hoisted anonymous omits ID", relUnrelated, inlineAnon, nil, false, "that the merge does not compare", string(inlineAnon)},
+		{"uncompared primitive keeps ID", relUnrelated, primLoser, nil, false, "give types type/primitive/string and " + string(primLoser), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			stubbed, _ := stubMerger(reg)
+			if tc.referenced {
+				stubbed.Referenced = map[ir.TypeID]bool{tc.loser: true}
+			}
 			d0 := stringAt("/allOf/0/properties/p", `{}`)
 			d1 := declaration{
 				property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.loser}, Provenance: ptrAt("/allOf/1/properties/p")},

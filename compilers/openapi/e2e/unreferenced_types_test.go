@@ -703,6 +703,33 @@ components:
         propertyName: kind
         mapping:
           sub: '#/components/schemas/BesideKeptUnionDisc/$defs/Sub'
+    AgreeingNotWithNestedIDResource:
+      $id: https://example.com/outer
+      $defs:
+        X: {type: string}
+      allOf:
+        - type: object
+          not: {$ref: '#/$defs/X'}
+        - type: object
+          not: {$ref: '#/$defs/X'}
+      additionalProperties:
+        $id: https://example.com/inner
+        type: object
+        $defs:
+          X: {type: integer}
+        not: {$ref: '#/$defs/X'}
+    LiveInlineLoser:
+      allOf:
+        - type: object
+          properties:
+            result: {type: object, properties: {a: {type: string}}}
+        - type: object
+          properties:
+            result: {type: string}
+    UserOfLiveLoser:
+      type: object
+      properties:
+        s: {$ref: '#/components/schemas/LiveInlineLoser/allOf/0/properties/result'}
     TransitiveHoistedDisc:
       type: object
       not: {$ref: '#/components/schemas/TransitiveHoistedDisc/$defs/Mid'}
@@ -720,13 +747,25 @@ components:
           type: object
           properties: {z: {type: string}}
 `
-	doc, _ := parseVerified(t, spec)
+	doc, diags := parseVerified(t, spec)
 	assert.Empty(t, irverify.Verify(doc))
 
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/if/$ref": "type/anonymous/components/schemas/AgreeingIf/$defs/Sub"},
 		doc.Types["type/openapi/components/schemas/AgreeingIf"].Common().Unmodeled["openapi:if-then-else"].Targets)
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/contains/$ref": "type/anonymous/components/schemas/AgreeingContains/$defs/Sub"},
 		doc.Types["type/openapi/components/schemas/AgreeingContains"].Common().Unmodeled["openapi:contains"].Targets)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": "type/anonymous/components/schemas/AgreeingNotWithNestedIDResource/$defs/X"},
+		doc.Types["type/openapi/components/schemas/AgreeingNotWithNestedIDResource"].Common().Unmodeled["openapi:not"].Targets)
+	const liveLoserID ir.TypeID = "type/anonymous/components/schemas/LiveInlineLoser/allOf/0/properties/result"
+	assert.Contains(t, doc.Types, liveLoserID)
+	var sawLiveLoserDiag bool
+	for _, d := range diags {
+		if d.Code == "openapi/conflicting-redeclaration" && d.Provenance.Pointer == "/components/schemas/LiveInlineLoser/allOf/0/properties/result" {
+			assert.Contains(t, d.Message, string(liveLoserID), "live referenced losing inline node keeps its TypeID in the warning")
+			sawLiveLoserDiag = true
+		}
+	}
+	assert.True(t, sawLiveLoserDiag, "expected conflicting-redeclaration warning for LiveInlineLoser")
 	assert.Empty(t, doc.Types["type/openapi/components/schemas/LiteralMappingNoFalseTarget"].Common().Unmodeled["openapi:if-then-else"].Targets)
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/mapping/a": "type/openapi/components/schemas/Cat"},
 		doc.Types["type/openapi/components/schemas/CollapsedDiscBesideSibling"].Common().Unmodeled["openapi:discriminator"].Targets)

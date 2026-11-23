@@ -248,12 +248,13 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// anonymous types before compileddoc.New runs links, promotions and
 	// inferences.
 	landings := schema.ReferenceLandings(serviceContext.Ctx)
-	attachUnmodeledTargets(ctx, out, landings)
-	discarded := schema.DiscardedTypes(serviceContext.Ctx)
-	seedDiscardedLandings(discarded, landings, acc.List(), schema.DiscardedSites(serviceContext.Ctx))
-	var pruneDiags []ir.Diagnostic
-	out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
-	acc.AppendAll(pruneDiags)
+	if attachUnmodeledTargets(ctx, out, landings) {
+		discarded := schema.DiscardedTypes(serviceContext.Ctx)
+		seedDiscardedLandings(discarded, landings, acc.List(), schema.DiscardedSites(serviceContext.Ctx))
+		var pruneDiags []ir.Diagnostic
+		out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
+		acc.AppendAll(pruneDiags)
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}

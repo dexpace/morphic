@@ -148,21 +148,23 @@ func resolveAt(loweringContext lowering.Ctx, ts *compile.Types, at reftable.Docu
 // reserver, and TypeIDs or dropped provenances explicitly superseded during
 // lowering and settlement.
 type runTrackers struct {
-	keptDiscRoutes map[LandingSite][]Landing
-	reachedSchemas map[reftable.DocumentPointer]bool
-	pendingReached []reftable.DocumentPointer
-	reserver       *refReserver
-	discarded      map[ir.TypeID]bool
-	discardedSites []ir.Provenance
+	keptDiscriminatorRoutes map[LandingSite][]Landing
+	reachedSchemas          map[reftable.DocumentPointer]bool
+	pendingReached          []reftable.DocumentPointer
+	reserver                *refReserver
+	referenced              map[ir.TypeID]bool
+	discarded               map[ir.TypeID]bool
+	discardedSites          []ir.Provenance
 }
 
 // runTrackersOf returns the run's runTrackers store.
 func runTrackersOf(loweringContext lowering.Ctx) *runTrackers {
 	return lowering.Settled(loweringContext, func() *runTrackers {
 		return &runTrackers{
-			keptDiscRoutes: map[LandingSite][]Landing{},
-			reachedSchemas: map[reftable.DocumentPointer]bool{},
-			discarded:      map[ir.TypeID]bool{},
+			keptDiscriminatorRoutes: map[LandingSite][]Landing{},
+			reachedSchemas:          map[reftable.DocumentPointer]bool{},
+			referenced:              map[ir.TypeID]bool{},
+			discarded:               map[ir.TypeID]bool{},
 		}
 	})
 }
@@ -248,7 +250,7 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 	if len(sites) == 0 {
 		return
 	}
-	r := &refReserver{
+	reserver := &refReserver{
 		table:      table,
 		sites:      sites,
 		byAncestor: indexSitesByAncestor(table, sites),
@@ -256,8 +258,8 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 		reserved:   make([]bool, len(sites)),
 	}
 	trackers := runTrackersOf(loweringContext)
-	trackers.reserver = r
-	r.drain(loweringContext, ts, trackers)
+	trackers.reserver = reserver
+	reserver.drain(loweringContext, ts, trackers)
 }
 
 // drain propagates reachability from every position queued in
@@ -298,11 +300,11 @@ func (r *refReserver) drain(loweringContext lowering.Ctx, ts *compile.Types, tra
 func indexSitesByAncestor(table *reftable.ReferenceTargetTable, sites []reftable.ReferenceSite) map[reftable.DocumentPointer][]int {
 	byAncestor := make(map[reftable.DocumentPointer][]int, len(sites))
 	for i, site := range sites {
-		ceil := reftable.DefinitionsCeiling(table, site.Site)
+		ceiling := reftable.DefinitionsCeiling(table, site.Site)
 		for ptr := site.Site.Pointer; ; ptr = ptr.Parent() {
 			pos := reftable.DocumentPointer{Doc: site.Site.Doc, Pointer: ptr}
 			byAncestor[pos] = append(byAncestor[pos], i)
-			if ptr == ceil {
+			if ptr == ceiling {
 				break
 			}
 		}
@@ -341,7 +343,7 @@ func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontex
 		written[entry.Value] = entry.Target
 	}
 	site := LandingSite{Source: loweringContext.Place().Source, Pointer: pointer}
-	routes := runTrackersOf(loweringContext).keptDiscRoutes
+	routes := runTrackersOf(loweringContext).keptDiscriminatorRoutes
 	for _, tag := range slices.Sorted(maps.Keys(mapping)) {
 		routes[site] = append(routes[site], Landing{
 			ID:            mapping[tag],
@@ -384,7 +386,7 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 			}
 		}
 	}
-	for site, routes := range runTrackersOf(loweringContext).keptDiscRoutes {
+	for site, routes := range runTrackersOf(loweringContext).keptDiscriminatorRoutes {
 		out[site] = append(out[site], routes...)
 	}
 	return out
@@ -403,6 +405,7 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
+		runTrackersOf(loweringContext).referenced[id] = true
 		recordReachedSchema(loweringContext, loweringContext.Position(pointer))
 		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}

@@ -94,7 +94,7 @@ var walkCallers = map[string]walkCaller{
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},
 	"compilers/openapi.attachUnmodeledTargets": {
-		answer: "a stopped walk leaves any remaining entries without Targets; the caller checks ctx.Err() before returning the document",
+		answer: "returns false on a stopped or cancelled walk so pruning is skipped and no live type is dropped; the caller checks ctx.Err() before returning the document",
 	},
 	"compilers/openapi.pruneUnreferencedTypes": {
 		answer: "a stopped walk removes no type, so no live anonymous type is dropped",
