@@ -354,7 +354,7 @@ func resolveDiscriminatorRoutes(loweringContext lowering.Ctx, ts *compile.Types,
 	}
 	mapping, diags := discriminatorMapping(loweringContext, ts, discriminator, nil, pointer)
 	def, defaultDiags := discriminatorDefault(loweringContext, ts, discriminator, nil, pointer)
-	recordKeptDiscriminatorRoutes(loweringContext, pointer+ids.Ptr("discriminator"), mapping, def)
+	recordKeptDiscriminatorRoutes(loweringContext, pointer+ids.Ptr("discriminator"), discriminator, mapping, def)
 	return append(diags, defaultDiags...)
 }
 

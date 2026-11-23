@@ -498,9 +498,11 @@ func keepItemParams(serviceContext service.Ctx, into carrier, pi *soa.PathItem, 
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
 		occurrence := ledger.count(p.GetName(), string(p.GetIn()))
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
-		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
+		kept, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
 			ir.ReasonNoIRHome, serviceContext.Place().At(entry))
-		schema.RecordReached(serviceContext.Ctx, entry)
+		if kept {
+			schema.RecordReached(serviceContext.Ctx, entry)
+		}
 		diags = append(diags, keepDiags...)
 	}
 	return diags

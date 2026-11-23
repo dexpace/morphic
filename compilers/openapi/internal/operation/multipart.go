@@ -383,12 +383,25 @@ func (k partKeys) keepWhole(keyedPartValue keyedPart) []ir.Diagnostic {
 	if keyedPartValue.entry == nil {
 		return nil
 	}
+	discardPartHeaders(k.c.Ctx, keyedPartValue.encoding.Headers)
 	kept := k.kept // the map partEncodings made, which the content holds
 	written, diags := keepEntry(k.c, &kept, keyedPartValue.part.name, keyedPartValue.entry, keyedPartValue.at, unkeyedPartEntry, ir.ReasonNoIRHome)
 	if !written {
 		maps.Copy(k.kept, keyedPartValue.unmodeled)
 	}
 	return diags
+}
+
+// discardPartHeaders marks every lowered header type and Unmodeled provenance
+// dropped when a form part's encoding is kept whole rather than keyed on
+// Content.Encoding.
+func discardPartHeaders(ctx lowering.Ctx, headers []ir.Header) {
+	for _, h := range headers {
+		schema.RecordDiscarded(ctx, h.Type.Target)
+		for _, entry := range h.Unmodeled {
+			schema.RecordDiscardedSite(ctx, entry.Provenance)
+		}
+	}
 }
 
 // bodyPart is one form part: the name keying its encoding entry, and every

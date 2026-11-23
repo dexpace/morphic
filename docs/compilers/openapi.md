@@ -1783,14 +1783,18 @@ Pruning is seeded rather than unconditional so `irverify`'s `ir/unreferenced-ano
 still catches accidental compiler leaks on OpenAPI output instead of silently deleting them. The
 recorded discard sites are: losing property declarations in
 [`allof-redeclared-property`](#allof-redeclared-property) folds and distributed unions, catch-all
-`additionalProperties` values dropped when closing a model (such as a `false` `allOf` branch), and
-the tail of a broken `discriminator` mapping chain lowered solely to report its failing `$ref`.
+`additionalProperties` values dropped when closing a model (such as a `false` `allOf` branch),
+type-array union wrappers unpacked to their object variant when composed into a model, lowered
+headers dropped when a form part's `encoding` entry is kept whole, the tail of a broken
+`discriminator` mapping chain lowered solely to report its failing `$ref`, and landings beneath an
+unpreservable construct that failed verbatim serialization.
 Targets of `$ref` chains inside unreferenced `$defs` or `definitions` entries (for example,
 `$defs.A` referencing `$defs.B` when nothing in the API reaches `A`) and inside unreferenced
 reusable component sections (`components/{parameters,headers,requestBodies,responses,pathItems,callbacks,mediaTypes}`,
 which are never lowered) are never reserved during reference-target reservation rather than minted
 and pruned, consistent with [`vocabulary-coverage`](#vocabulary-coverage): reservation seeds its
-worklist only from positions actually visited or kept verbatim by lowering.
+worklist only from positions actually visited or kept verbatim by lowering, and drains newly
+reached positions as promised sub-schemas hoist.
 
 Every entry of `components/schemas` (including one keyed `""`, at
 `type/openapi/components/schemas/`) has `Anonymous: false` and is never pruned, and every resolved
@@ -1802,10 +1806,14 @@ Every entry of `components/schemas` (including one keyed `""`, at
   `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
   `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
   `schema.TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs`,
+  `schema.TestReserveNodesAtReferenceTargets_DrainsTransitiveRefsFromHoistedDiscriminator`,
   `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
   `e2e.TestCompile_UnusedReusableComponentsDoNotReserveDefs`,
   `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
-  `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`
+  `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`,
+  `e2e.TestCompile_CollapsedAllOfAndDiscriminatorTargets`,
+  `e2e.TestCompile_UnpackedObjectVariantAndDroppedFormHeadersPrune`,
+  `e2e.TestCompile_UnpreservableConstructsStayVerified`
 
 ### `recursion`
 

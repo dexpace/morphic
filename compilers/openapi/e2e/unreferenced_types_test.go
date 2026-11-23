@@ -619,3 +619,299 @@ components:
 		assert.Contains(t, doc.Types, want, "referenced/kept target %s must stay live", want)
 	}
 }
+
+// TestCompile_CollapsedAllOfAndDiscriminatorTargets pins UnmodeledEntry.Targets
+// attachment and reachability across collapsed agreeing allOf validation-only
+// wrappers (if-then-else, contains), collapsed discriminators beside sibling
+// properties, literal "mapping" payloads, discriminators moved off a model
+// beside a kept union, and transitive $refs reached from a hoisted
+// discriminator.
+func TestCompile_CollapsedAllOfAndDiscriminatorTargets(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Cat: {type: object, properties: {meow: {type: boolean}}}
+    Dog: {type: object, properties: {bark: {type: boolean}}}
+    AgreeingIf:
+      $defs:
+        Sub: {type: object, properties: {a: {type: string}}}
+      allOf:
+        - type: object
+          if: {$ref: '#/components/schemas/AgreeingIf/$defs/Sub'}
+          then: {type: object, properties: {x: {type: string}}}
+        - type: object
+          if: {$ref: '#/components/schemas/AgreeingIf/$defs/Sub'}
+          then: {type: object, properties: {x: {type: string}}}
+    AgreeingContains:
+      $defs:
+        Sub: {type: object, properties: {a: {type: string}}}
+      allOf:
+        - type: array
+          items: {type: object}
+          contains: {$ref: '#/components/schemas/AgreeingContains/$defs/Sub'}
+        - type: array
+          items: {type: object}
+          contains: {$ref: '#/components/schemas/AgreeingContains/$defs/Sub'}
+    LiteralMappingNoFalseTarget:
+      type: object
+      $defs:
+        Sub: {type: object, properties: {a: {type: string}}}
+      if:
+        const:
+          mapping:
+            a: just-a-literal
+      then: {type: object}
+      properties:
+        p:
+          type: string
+          discriminator:
+            propertyName: k
+            mapping:
+              a: '#/components/schemas/LiteralMappingNoFalseTarget/$defs/Sub'
+    CollapsedDiscBesideSibling:
+      allOf:
+        - type: string
+          discriminator:
+            propertyName: k
+            mapping:
+              a: '#/components/schemas/Cat'
+        - type: string
+          discriminator:
+            propertyName: k
+            mapping:
+              a: '#/components/schemas/Cat'
+      properties:
+        z:
+          type: string
+          discriminator:
+            propertyName: k
+            mapping:
+              a: '#/components/schemas/Dog'
+    BesideKeptUnionDisc:
+      type: object
+      properties:
+        id: {type: string}
+      $defs:
+        Sub: {type: object, properties: {x: {type: string}}}
+      oneOf:
+        - required: [id]
+        - required: [other]
+      discriminator:
+        propertyName: kind
+        mapping:
+          sub: '#/components/schemas/BesideKeptUnionDisc/$defs/Sub'
+    TransitiveHoistedDisc:
+      type: object
+      not: {$ref: '#/components/schemas/TransitiveHoistedDisc/$defs/Mid'}
+      $defs:
+        Mid:
+          type: string
+          discriminator:
+            propertyName: k
+            mapping:
+              m: '#/components/schemas/TransitiveHoistedDisc/$defs/Mapped'
+        Mapped:
+          type: object
+          not: {$ref: '#/components/schemas/TransitiveHoistedDisc/$defs/Deep'}
+        Deep:
+          type: object
+          properties: {z: {type: string}}
+`
+	doc, _ := parseVerified(t, spec)
+	assert.Empty(t, irverify.Verify(doc))
+
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/if/$ref": "type/anonymous/components/schemas/AgreeingIf/$defs/Sub"},
+		doc.Types["type/openapi/components/schemas/AgreeingIf"].Common().Unmodeled["openapi:if-then-else"].Targets)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/contains/$ref": "type/anonymous/components/schemas/AgreeingContains/$defs/Sub"},
+		doc.Types["type/openapi/components/schemas/AgreeingContains"].Common().Unmodeled["openapi:contains"].Targets)
+	assert.Empty(t, doc.Types["type/openapi/components/schemas/LiteralMappingNoFalseTarget"].Common().Unmodeled["openapi:if-then-else"].Targets)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/mapping/a": "type/openapi/components/schemas/Cat"},
+		doc.Types["type/openapi/components/schemas/CollapsedDiscBesideSibling"].Common().Unmodeled["openapi:discriminator"].Targets)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/mapping/sub": "type/anonymous/components/schemas/BesideKeptUnionDisc/$defs/Sub"},
+		doc.Types["type/openapi/components/schemas/BesideKeptUnionDisc"].Common().Unmodeled["openapi:discriminator"].Targets)
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/TransitiveHoistedDisc/$defs/Deep"))
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": "type/anonymous/components/schemas/TransitiveHoistedDisc/$defs/Deep"},
+		doc.Types["type/anonymous/components/schemas/TransitiveHoistedDisc/$defs/Mapped"].Common().Unmodeled["openapi:not"].Targets)
+}
+
+// TestCompile_UnpackedObjectVariantAndDroppedFormHeadersPrune verifies that
+// type-array unions unpacked to their object variant in allOf or distributed
+// unions and lowered headers dropped when a form part's encoding is kept whole
+// are cleanly pruned and pass irverify.Verify.
+func TestCompile_UnpackedObjectVariantAndDroppedFormHeadersPrune(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /up:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: string
+              properties:
+                partA: {type: string}
+            encoding:
+              partA:
+                headers:
+                  X-Inline:
+                    schema: {type: object, properties: {x: {type: string}}}
+                  X-Ref:
+                    $ref: '#/components/headers/H1'
+      responses:
+        "200": {description: ok}
+components:
+  headers:
+    H1:
+      schema:
+        type: string
+        not: {$ref: '#/components/schemas/Holder/$defs/Deep'}
+  schemas:
+    Holder:
+      type: object
+      $defs:
+        Deep: {type: object, properties: {z: {type: string}}}
+    AllOfUnpack:
+      $defs:
+        ObjOrStr:
+          type: [object, string]
+          properties: {a: {type: string}}
+      allOf:
+        - {$ref: '#/components/schemas/AllOfUnpack/$defs/ObjOrStr'}
+        - type: object
+          properties: {b: {type: string}}
+    UnionUnpack:
+      type: object
+      properties: {common: {type: string}}
+      $defs:
+        ObjOrStr:
+          type: [object, string]
+          properties: {a: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/UnionUnpack/$defs/ObjOrStr'}
+        - type: object
+          properties: {b: {type: string}}
+`
+	doc, _ := parseVerified(t, spec)
+	assert.Empty(t, irverify.Verify(doc))
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/AllOfUnpack/$defs/ObjOrStr/type/0"))
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/UnionUnpack/$defs/ObjOrStr/type/0"))
+	for _, gone := range []ir.TypeID{
+		"type/anonymous/components/schemas/AllOfUnpack/$defs/ObjOrStr",
+		"type/anonymous/components/schemas/UnionUnpack/$defs/ObjOrStr",
+		"type/anonymous/paths/~1up/post/requestBody/content/multipart~1form-data/encoding/partA/headers/X-Inline/schema",
+		"type/anonymous/components/schemas/Holder/$defs/Deep",
+	} {
+		assert.NotContains(t, doc.Types, gone, "dropped anonymous type %s must be pruned", gone)
+	}
+}
+
+// TestCompile_UnpreservableConstructsStayVerified pins that unpreservable YAML
+// payloads (.inf) beside $refs or kept discriminators report
+// openapi/unpreservable-construct without leaving unreferenced anonymous types
+// behind, and that a surviving sibling itemEncoding beside an unpreservable
+// prefixEncoding still reserves and attaches its $ref targets.
+func TestCompile_UnpreservableConstructsStayVerified(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /seq-prefix-bad:
+    post:
+      operationId: seqPrefixBad
+      requestBody:
+        content:
+          multipart/mixed:
+            itemSchema: {type: string}
+            prefixEncoding:
+              - contentType: text/plain
+                x-bad: .inf
+            itemEncoding:
+              contentType: application/json
+              headers:
+                X-Item: {schema: {$ref: '#/components/schemas/Holder/$defs/KeptItem'}}
+      responses:
+        "200": {description: ok}
+  /seq-item-bad:
+    post:
+      operationId: seqItemBad
+      requestBody:
+        content:
+          multipart/mixed:
+            itemSchema: {type: string}
+            prefixEncoding:
+              - contentType: text/plain
+            itemEncoding:
+              contentType: application/json
+              x-bad: .inf
+              headers:
+                X-Item: {schema: {$ref: '#/components/schemas/Holder/$defs/DroppedItem'}}
+      responses:
+        "200": {description: ok}
+  /empty-bad:
+    parameters:
+      - name: p
+        in: query
+        x-bad: .inf
+        schema: {$ref: '#/components/schemas/Holder/$defs/DroppedParam'}
+components:
+  schemas:
+    Holder:
+      type: object
+      $defs:
+        KeptItem: {type: object, properties: {k: {type: string}}}
+        DroppedItem: {type: object, properties: {d: {type: string}}}
+        DroppedParam: {type: object, properties: {p: {type: string}}}
+        DroppedNot: {type: object, properties: {n: {type: string}}}
+        KeptNot: {type: object, properties: {live: {type: string}}}
+        DroppedDisc: {type: object, properties: {m: {type: string}}}
+    UnpreservableNot:
+      type: object
+      not:
+        $ref: '#/components/schemas/Holder/$defs/DroppedNot'
+        x-bad: .inf
+    PreservableNot:
+      type: object
+      not:
+        $ref: '#/components/schemas/Holder/$defs/KeptNot'
+    UnpreservableDisc:
+      type: string
+      discriminator:
+        propertyName: kind
+        x-bad: .inf
+        mapping:
+          m: '#/components/schemas/Holder/$defs/DroppedDisc'
+`
+	doc, _, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, irverify.Verify(doc))
+
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/$defs/KeptItem"))
+	assert.Contains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/$defs/KeptNot"))
+	for _, gone := range []ir.TypeID{
+		"type/anonymous/components/schemas/Holder/$defs/DroppedItem",
+		"type/anonymous/components/schemas/Holder/$defs/DroppedParam",
+		"type/anonymous/components/schemas/Holder/$defs/DroppedNot",
+		"type/anonymous/components/schemas/Holder/$defs/DroppedDisc",
+	} {
+		assert.NotContains(t, doc.Types, gone, "unpreservable target %s must not leak", gone)
+	}
+	var seqPrefixBad *ir.Operation
+	for _, grp := range doc.Services[0].Groups {
+		for i := range grp.Operations {
+			if grp.Operations[i].Name.Source == "seqPrefixBad" {
+				seqPrefixBad = &grp.Operations[i]
+			}
+		}
+	}
+	require.NotNil(t, seqPrefixBad)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/headers/X-Item/schema/$ref": "type/anonymous/components/schemas/Holder/$defs/KeptItem"},
+		seqPrefixBad.Request.Contents[0].Unmodeled["openapi:itemEncoding"].Targets)
+}

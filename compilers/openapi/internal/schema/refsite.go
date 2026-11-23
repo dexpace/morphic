@@ -144,12 +144,16 @@ func resolveAt(loweringContext lowering.Ctx, ts *compile.Types, at reftable.Docu
 
 // runTrackers holds run-scoped tracking state for post-lowering attachment and
 // seeded pruning: kept verbatim discriminator routes, explicitly reached schema
-// positions (hoisted targets and external schemas), and TypeIDs explicitly
-// superseded or dropped during lowering and settlement.
+// positions (hoisted targets and external schemas), the active reference
+// reserver, and TypeIDs or dropped provenances explicitly superseded during
+// lowering and settlement.
 type runTrackers struct {
 	keptDiscRoutes map[LandingSite][]Landing
 	reachedSchemas map[reftable.DocumentPointer]bool
+	pendingReached []reftable.DocumentPointer
+	reserver       *refReserver
 	discarded      map[ir.TypeID]bool
+	discardedSites []ir.Provenance
 }
 
 // runTrackersOf returns the run's runTrackers store.
@@ -165,7 +169,11 @@ func runTrackersOf(loweringContext lowering.Ctx) *runTrackers {
 
 // recordReachedSchema marks pos as a reached position for this compile.
 func recordReachedSchema(loweringContext lowering.Ctx, pos reftable.DocumentPointer) {
-	runTrackersOf(loweringContext).reachedSchemas[pos] = true
+	trackers := runTrackersOf(loweringContext)
+	if !trackers.reachedSchemas[pos] {
+		trackers.reachedSchemas[pos] = true
+		trackers.pendingReached = append(trackers.pendingReached, pos)
+	}
 }
 
 // RecordReached marks pointer in loweringContext's document as a position
@@ -183,10 +191,43 @@ func recordDiscarded(loweringContext lowering.Ctx, id ir.TypeID) {
 	runTrackersOf(loweringContext).discarded[id] = true
 }
 
+// RecordDiscarded records id as explicitly superseded or dropped during this
+// compile so post-settlement pruning removes it when nothing else reaches it.
+func RecordDiscarded(loweringContext lowering.Ctx, id ir.TypeID) {
+	recordDiscarded(loweringContext, id)
+}
+
+// RecordDiscardedSite records a source provenance whose lowered Unmodeled
+// container was dropped (such as a header discarded when a form part's
+// encoding is kept whole) so landings written beneath it are seeded for
+// post-settlement pruning when nothing else reaches them.
+func RecordDiscardedSite(loweringContext lowering.Ctx, prov ir.Provenance) {
+	trackers := runTrackersOf(loweringContext)
+	trackers.discardedSites = append(trackers.discardedSites, prov)
+}
+
 // DiscardedTypes returns the set of TypeIDs explicitly superseded or dropped
 // during lowering and settlement. Call after compile.Types.Finish.
 func DiscardedTypes(loweringContext lowering.Ctx) map[ir.TypeID]bool {
 	return maps.Clone(runTrackersOf(loweringContext).discarded)
+}
+
+// DiscardedSites returns the source provenances explicitly dropped during
+// lowering and settlement. Call after compile.Types.Finish.
+func DiscardedSites(loweringContext lowering.Ctx) []ir.Provenance {
+	return slices.Clone(runTrackersOf(loweringContext).discardedSites)
+}
+
+// refReserver holds the linear reachability index built by
+// ReserveNodesAtReferenceTargets so schemas reached later while fulfilling
+// promised sub-schemas (such as kept discriminator routes or dynamic
+// expansions) also reserve their transitive $ref landings.
+type refReserver struct {
+	table      *reftable.ReferenceTargetTable
+	sites      []reftable.ReferenceSite
+	byAncestor map[reftable.DocumentPointer][]int
+	visited    map[reftable.DocumentPointer]bool
+	reserved   []bool
 }
 
 // ReserveNodesAtReferenceTargets promises a node at each position a reachable
@@ -207,24 +248,44 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 	if len(sites) == 0 {
 		return
 	}
-	byAncestor := indexSitesByAncestor(table, sites)
-	visited := maps.Clone(runTrackersOf(loweringContext).reachedSchemas)
-	worklist := make([]reftable.DocumentPointer, 0, len(visited))
-	for pos := range visited {
-		worklist = append(worklist, pos)
+	r := &refReserver{
+		table:      table,
+		sites:      sites,
+		byAncestor: indexSitesByAncestor(table, sites),
+		visited:    make(map[reftable.DocumentPointer]bool),
+		reserved:   make([]bool, len(sites)),
 	}
-	slices.SortFunc(worklist, reftable.PositionOrder(table))
-	reserved := make([]bool, len(sites))
+	trackers := runTrackersOf(loweringContext)
+	trackers.reserver = r
+	r.drain(loweringContext, ts, trackers)
+}
+
+// drain propagates reachability from every position queued in
+// trackers.pendingReached since the previous drain.
+func (r *refReserver) drain(loweringContext lowering.Ctx, ts *compile.Types, trackers *runTrackers) {
+	pending := trackers.pendingReached
+	trackers.pendingReached = nil
+	worklist := make([]reftable.DocumentPointer, 0, len(pending))
+	for _, pos := range pending {
+		if !r.visited[pos] {
+			r.visited[pos] = true
+			worklist = append(worklist, pos)
+		}
+	}
+	if len(worklist) == 0 {
+		return
+	}
+	slices.SortFunc(worklist, reftable.PositionOrder(r.table))
 	for head := 0; head < len(worklist); head++ {
-		for _, i := range byAncestor[worklist[head]] {
-			if reserved[i] {
+		for _, i := range r.byAncestor[worklist[head]] {
+			if r.reserved[i] {
 				continue
 			}
-			reserved[i] = true
-			target := sites[i].Hop.Target
+			r.reserved[i] = true
+			target := r.sites[i].Hop.Target
 			resolveAt(loweringContext, ts, target, loweringContext.Statements().At(target))
-			if !visited[target] {
-				visited[target] = true
+			if !r.visited[target] {
+				r.visited[target] = true
 				worklist = append(worklist, target)
 			}
 		}
@@ -259,28 +320,43 @@ type LandingSite struct {
 // Landing is one resolved type target written at a LandingSite: ID is the
 // lowered ir.TypeID, Path is the RFC 6901 JSON Pointer from LandingSite.Pointer
 // to the reference string (such as "/$ref", "/mapping/cat", "/defaultMapping"),
-// and Ref is the reference text for a schema $ref/$dynamicRef/$recursiveRef
-// (empty for a kept discriminator route).
+// Ref is the reference string written in the source, and Discriminator marks
+// routes originating from a kept discriminator.
 type Landing struct {
-	ID   ir.TypeID
-	Path jsontext.Pointer
-	Ref  string
+	ID            ir.TypeID
+	Path          jsontext.Pointer
+	Ref           string
+	Discriminator bool
 }
 
 // recordKeptDiscriminatorRoutes saves every type ID resolved for a verbatim
 // discriminator at pointer so post-settlement attachment records them on its
 // UnmodeledEntry.
-func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontext.Pointer, mapping map[string]ir.TypeID, def ir.TypeID) {
+func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontext.Pointer, discriminator *statement.Discriminator, mapping map[string]ir.TypeID, def ir.TypeID) {
 	if len(mapping) == 0 && def == "" {
 		return
+	}
+	written := make(map[string]string, len(discriminator.Mapping))
+	for _, entry := range discriminator.Mapping {
+		written[entry.Value] = entry.Target
 	}
 	site := LandingSite{Source: loweringContext.Place().Source, Pointer: pointer}
 	routes := runTrackersOf(loweringContext).keptDiscRoutes
 	for _, tag := range slices.Sorted(maps.Keys(mapping)) {
-		routes[site] = append(routes[site], Landing{ID: mapping[tag], Path: ids.Ptr("mapping", tag)})
+		routes[site] = append(routes[site], Landing{
+			ID:            mapping[tag],
+			Path:          ids.Ptr("mapping", tag),
+			Ref:           written[tag],
+			Discriminator: true,
+		})
 	}
 	if def != "" {
-		routes[site] = append(routes[site], Landing{ID: def, Path: ids.Ptr("defaultMapping")})
+		routes[site] = append(routes[site], Landing{
+			ID:            def,
+			Path:          ids.Ptr("defaultMapping"),
+			Ref:           discriminator.DefaultMapping,
+			Discriminator: true,
+		})
 	}
 }
 
@@ -382,6 +458,11 @@ func namesReferent(loweringContext lowering.Ctx, st *statement.Statement) bool {
 // from TopLevelDepth, as a walk of its own, in decl's document. A $ref with
 // siblings is aliased, keeping them.
 func hoistSubSchema(loweringContext lowering.Ctx, ts *compile.Types, decl *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
+	defer func() {
+		if trackers := runTrackersOf(loweringContext); trackers.reserver != nil {
+			trackers.reserver.drain(loweringContext, ts, trackers)
+		}
+	}()
 	schemaPositionAnnotationSources := annotation.At(decl)
 	// loweringContext reads the document that declares pointer already
 	// (resolveAt), which is where the bindings place decl.

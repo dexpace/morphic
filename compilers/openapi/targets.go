@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -60,7 +61,7 @@ func indexLandings(landings map[schema.LandingSite][]schema.Landing, types ir.Ty
 				bySource[site.Source] = src
 			}
 			src.exact[site.Pointer] = append(src.exact[site.Pointer], landing)
-			if landing.Ref == "" {
+			if landing.Discriminator {
 				src.hasDisc = true
 			}
 		}
@@ -141,7 +142,7 @@ func (s *sourceLandings) matchString(raw []byte, base jsontext.Pointer) map[json
 		}
 	}
 	for _, ptr := range s.pointers {
-		if !pointerBeneath(ptr, base) {
+		if !collapsedBeneath(ptr, base, "") {
 			continue
 		}
 		if id, ok := matchingRefID(s.exact[ptr], text); ok {
@@ -198,24 +199,25 @@ func (s *sourceLandings) matchObject(obj map[string]any, key string, base, rel j
 // matchCollapsedObject handles the fallback when two agreeing allOf entries
 // collapsed an entry's provenance to the enclosing schema pointer base.
 func (s *sourceLandings) matchCollapsedObject(obj map[string]any, key string, base, rel jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
-	suffix := ids.Ptr(entryKeyword(key)) + rel
+	suffix := collapsedSuffix(key, rel)
 	for _, kw := range refKeywords {
 		if refText, ok := obj[kw].(string); ok {
 			out = s.matchCollapsedRef(base, suffix, rel, kw, refText, out)
 		}
 	}
-	if s.hasDisc && (obj["mapping"] != nil || obj["defaultMapping"] != nil) {
-		out = s.matchCollapsedDisc(obj, base, rel, out)
+	if s.hasDisc && entryKeyword(key) == "discriminator" && rel == "" {
+		out = s.matchCollapsedDisc(obj, base, out)
 	}
 	return out
 }
 
-// matchCollapsedRef records a landing strictly beneath base whose pointer ends
-// with suffix and whose keyword and reference text match kw and refText.
+// matchCollapsedRef records a landing beneath an allOf entry of base whose
+// pointer ends with suffix and whose keyword and reference text match kw and
+// refText.
 func (s *sourceLandings) matchCollapsedRef(base, suffix, rel jsontext.Pointer, kw, refText string, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
 	wantPath := ids.Ptr(kw)
 	for _, ptr := range s.pointers {
-		if !pointerBeneath(ptr, base) || !strings.HasSuffix(string(ptr), string(suffix)) {
+		if !collapsedBeneath(ptr, base, suffix) {
 			continue
 		}
 		for _, landing := range s.exact[ptr] {
@@ -227,40 +229,40 @@ func (s *sourceLandings) matchCollapsedRef(base, suffix, rel jsontext.Pointer, k
 	return out
 }
 
-// matchCollapsedDisc records kept discriminator routes strictly beneath base
-// whose paths exist in obj.
-func (s *sourceLandings) matchCollapsedDisc(obj map[string]any, base, rel jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+// matchCollapsedDisc records kept discriminator routes beneath an allOf entry
+// of base whose paths and reference strings match obj.
+func (s *sourceLandings) matchCollapsedDisc(obj map[string]any, base jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
 	for _, ptr := range s.pointers {
-		if !pointerBeneath(ptr, base) || ptr.LastToken() != "discriminator" {
+		if !collapsedBeneath(ptr, base, "/discriminator") {
 			continue
 		}
 		for _, landing := range s.exact[ptr] {
-			if landing.Ref == "" && landingMatchesObject(obj, landing) {
-				out = setTarget(out, rel+landing.Path, landing.ID)
+			if landing.Discriminator && landingMatchesObject(obj, landing) {
+				out = setTarget(out, landing.Path, landing.ID)
 			}
 		}
 	}
 	return out
 }
 
-// landingMatchesObject reports whether obj actually contains the JSON string
-// member addressed by landing.Path (and matching landing.Ref for schema refs).
+// landingMatchesObject reports whether obj contains the JSON string member
+// addressed by landing.Path with the exact reference text landing.Ref.
 func landingMatchesObject(obj map[string]any, landing schema.Landing) bool {
-	if landing.Ref != "" {
+	if !landing.Discriminator {
 		text, ok := obj[landing.Path.LastToken()].(string)
 		return ok && text == landing.Ref
 	}
 	if landing.Path == "/defaultMapping" {
-		_, ok := obj["defaultMapping"].(string)
-		return ok
+		text, ok := obj["defaultMapping"].(string)
+		return ok && text == landing.Ref
 	}
 	if landing.Path.Parent() == "/mapping" {
 		mapping, ok := obj["mapping"].(map[string]any)
 		if !ok {
 			return false
 		}
-		_, exists := mapping[landing.Path.LastToken()].(string)
-		return exists
+		text, ok := mapping[landing.Path.LastToken()].(string)
+		return ok && text == landing.Ref
 	}
 	return false
 }
@@ -288,10 +290,11 @@ func mightCarryLanding(raw []byte, hasDisc bool) bool {
 	return hasDisc && (bytes.Contains(raw, []byte(`"mapping"`)) || bytes.Contains(raw, []byte(`"defaultMapping"`)))
 }
 
-// matchingRefID returns the first landing ID in list whose Ref equals text.
+// matchingRefID returns the first non-discriminator landing ID in list whose
+// Ref equals text.
 func matchingRefID(list []schema.Landing, text string) (ir.TypeID, bool) {
 	for _, landing := range list {
-		if landing.Ref == text {
+		if !landing.Discriminator && landing.Ref == text {
 			return landing.ID, true
 		}
 	}
@@ -313,10 +316,85 @@ func entryKeyword(key string) string {
 	return rest
 }
 
+// collapsedSuffix returns the pointer suffix beneath an allOf entry that
+// corresponds to rel within an Unmodeled entry keyed by key. Combined
+// validation-only entries already carry their OpenAPI keyword as the leading
+// segment of rel.
+func collapsedSuffix(key string, rel jsontext.Pointer) jsontext.Pointer {
+	switch kw := entryKeyword(key); kw {
+	case "if-then-else", "contains", "unevaluated":
+		return rel
+	default:
+		return ids.Ptr(kw) + rel
+	}
+}
+
+// collapsedBeneath reports whether ptr is base followed by one or more
+// "/allOf/<index>" segments and then suffix.
+func collapsedBeneath(ptr, base, suffix jsontext.Pointer) bool {
+	if !pointerBeneath(ptr, base) {
+		return false
+	}
+	mid := strings.TrimPrefix(string(ptr), string(base))
+	mid, ok := strings.CutSuffix(mid, string(suffix))
+	return ok && isAllOfPath(mid)
+}
+
+// isAllOfPath reports whether rel is one or more "/allOf/<index>" segments.
+func isAllOfPath(rel string) bool {
+	for {
+		rest, ok := strings.CutPrefix(rel, "/allOf/")
+		if !ok {
+			return false
+		}
+		seg, tail, hasTail := strings.Cut(rest, "/")
+		if seg == "" || strings.TrimLeft(seg, "0123456789") != "" {
+			return false
+		}
+		if !hasTail {
+			return true
+		}
+		rel = "/" + tail
+	}
+}
+
 // pointerBeneath reports whether ptr sits strictly beneath base.
 func pointerBeneath(ptr, base jsontext.Pointer) bool {
 	if base == "" {
 		return ptr != ""
 	}
 	return len(ptr) > len(base) && strings.HasPrefix(string(ptr), string(base)+"/")
+}
+
+// seedDiscardedLandings adds to discarded the TypeID of every landing at or
+// beneath a dropped provenance (an unpreservable construct diagnostic or a
+// discarded Unmodeled container). Landings still reached elsewhere remain live
+// during pruning.
+func seedDiscardedLandings(discarded map[ir.TypeID]bool, landings map[schema.LandingSite][]schema.Landing, diags []ir.Diagnostic, dropped []ir.Provenance) {
+	for _, d := range diags {
+		if d.Code == diag.UnpreservableConstruct {
+			dropped = append(dropped, d.Provenance)
+		}
+	}
+	if len(dropped) == 0 {
+		return
+	}
+	for site, list := range landings {
+		if !siteDropped(site, dropped) {
+			continue
+		}
+		for _, landing := range list {
+			discarded[landing.ID] = true
+		}
+	}
+}
+
+// siteDropped reports whether site lies at or beneath any provenance in dropped.
+func siteDropped(site schema.LandingSite, dropped []ir.Provenance) bool {
+	for _, prov := range dropped {
+		if site.Source == prov.Source && (site.Pointer == prov.Pointer || pointerBeneath(site.Pointer, prov.Pointer)) {
+			return true
+		}
+	}
+	return false
 }

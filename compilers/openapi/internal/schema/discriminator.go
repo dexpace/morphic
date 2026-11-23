@@ -485,6 +485,7 @@ func (d besideUnionDiscriminator) Settle(_ context.Context, reg ir.TypeRegistry)
 		return diags
 	}
 	promotion.DropContained(d.c.Promoter(), &model.Unmodeled, "openapi:discriminator")
+	recordKeptDiscriminatorRoutes(d.c, at, d.s.Discriminator(), model.Discriminator.Mapping, model.Discriminator.Default)
 	model.Discriminator = nil
 	if mt, isMap := ir.AsMap(model); isMap {
 		reg[d.model] = mt

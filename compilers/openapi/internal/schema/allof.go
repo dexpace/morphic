@@ -384,6 +384,7 @@ func fillRefEntry(loweringContext lowering.Ctx, ts *compile.Types, fields modelF
 		return diags, false
 	}
 	if variant, unpacked := objectVariant(loweringContext, allOfEntryValue.schema); unpacked {
+		recordDiscarded(loweringContext, id)
 		id = variant
 	}
 	unhomed := unreadByReference(loweringContext, b.Schema, compositionReads)

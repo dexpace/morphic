@@ -238,15 +238,21 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// otherwise leave every reference to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
+	if err := ctx.Err(); err != nil {
+		return nil, acc.List(), err
+	}
 	out.Types = reg
 	// Attach typed Targets to kept Unmodeled entries before pruning so every
 	// kept $ref and discriminator-mapping landing is explicit in the IR for
 	// pruning, irverify, and emitters. Pruning then removes unreachable
 	// anonymous types before compileddoc.New runs links, promotions and
 	// inferences.
-	attachUnmodeledTargets(ctx, out, schema.ReferenceLandings(serviceContext.Ctx))
+	landings := schema.ReferenceLandings(serviceContext.Ctx)
+	attachUnmodeledTargets(ctx, out, landings)
+	discarded := schema.DiscardedTypes(serviceContext.Ctx)
+	seedDiscardedLandings(discarded, landings, acc.List(), schema.DiscardedSites(serviceContext.Ctx))
 	var pruneDiags []ir.Diagnostic
-	out, pruneDiags = pruneUnreferencedTypes(ctx, out, schema.DiscardedTypes(serviceContext.Ctx))
+	out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
 	acc.AppendAll(pruneDiags)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err

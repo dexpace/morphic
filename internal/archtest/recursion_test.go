@@ -82,14 +82,11 @@ var loweringRecursions = [][]string{
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
-// directly and because #176's package split is sized by it. Its exported names
-// are how the operation lowering reaches it; the rest is unexported because
-// nothing outside the schema package has any business entering mid-walk. The
-// scalar hoisters and the encoding reader are members because contentSchema's
-// value is a schema, so lowering it re-enters the walk from a scalar position.
-// Discriminator lowering is one because resolving a mapping target can hoist
-// the position it names, and so is every keeping of one (keepUnreadKeys,
-// keepAround).
+// directly and #176's package split is sized by it. Its exported names are how
+// operation lowering enters; the rest stays unexported. Scalar hoisters and
+// encoding readers join via contentSchema, and discriminator lowering, keeping
+// (keepUnreadKeys, keepAround), and refReserver.drain join because targets can
+// hoist sub-schemas.
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
 	"buildListedTuple", "buildTuple", "buildUnion",
@@ -106,7 +103,7 @@ var schemaRecursion = []string{
 	"lowerTypeVariant", "lowerTyped", "lowerTyping", "lowerUnion",
 	"mintUnion", "outcomeKeeps.record", "patternProperties",
 	"preserveUnmergedEntry", "recordEntryUnhomed",
-	"recordKeptEntry", "recordOwnKeywords", "recordUnread", "refSiteRef", "refTypeRef",
+	"recordKeptEntry", "recordOwnKeywords", "recordUnread", "refReserver.drain", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry", "routesKept",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed", "wholePrincipal",

@@ -212,6 +212,7 @@ func composedVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int,
 	branch, diags := Ref(loweringContext, ts, depth, b, vptr)
 	referent := branch.Target
 	if unpacked {
+		recordDiscarded(loweringContext, referent)
 		referent = variant
 	}
 	def, variantDiags := buildComposedVariant(loweringContext, ts, depth, body, b, referent, true, common)
