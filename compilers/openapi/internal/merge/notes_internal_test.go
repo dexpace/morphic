@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -361,6 +362,59 @@ func TestFold_ANoteLeftOnAConjunctStaysThere(t *testing.T) {
 		assert.Equal(t, "later", got.Docs.Description, label)
 		assert.Empty(t, got.Unmodeled, label)
 	})
+}
+
+// TestFold_ANoteTheBuiltNodeDoesNotAdoptIsKeptVerbatim pins takeBack after
+// the type is built: of three declarations the model writes itself, enums
+// sharing some members, two giving a note the field does not keep, the node
+// they meet in adopts one of the two, which is reported held there, and the
+// other is reported and kept verbatim, every declaration's own node left
+// bare, in either order.
+func TestFold_ANoteTheBuiltNodeDoesNotAdoptIsKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	for _, note := range noteCases {
+		inBothOrders(make([]declaration, 3), func(label string, _ []declaration) {
+			reg := narrowingRegistry()
+			decls := make([]declaration, 3)
+			for k, extra := range []string{"a", "d", "e"} {
+				at := jsontext.Pointer(fmt.Sprintf("/allOf/%d/p", k))
+				members := make([]ir.EnumMember, 0, 3)
+				for _, value := range []string{"b", "c", extra} {
+					members = append(members, ir.EnumMember{ID: ir.EnumMemberID("enum-member/anonymous" + string(at) + "/s:" + value), Value: stringValue(value)})
+				}
+				decls[k] = ownDeclaration(ownNodeAt(reg, &ir.Enum{ValueType: ir.PrimitiveString, Members: members}, at))
+				decls[k].property.Provenance = ptrAt(at)
+				note.write(&decls[k].property, []string{"first", "second", "kept"}[k])
+			}
+			if label == "order 1" {
+				decls[0], decls[1] = decls[1], decls[0]
+			}
+			stubbed, recorded := stubMerger(reg)
+
+			got := stubbed.fold(decls)
+
+			built := reg[got.Type.Target].Common()
+			require.False(t, slices.ContainsFunc(decls, func(d declaration) bool { return d.property.Type.Target == got.Type.Target }),
+				"%s, %s: the field's type is a node the fold built", note.detail, label)
+			assert.Equal(t, "kept", note.read(got.Docs, got.Deprecation), "%s, %s", note.detail, label)
+			adopted := note.read(built.Docs, built.Deprecation)
+			require.Contains(t, []string{"first", "second"}, adopted, "%s, %s: the built node adopts one", note.detail, label)
+			for k := range 2 {
+				at := string(decls[k].property.Provenance.Pointer)
+				node := reg[decls[k].property.Type.Target].Common()
+				assert.Empty(t, note.read(node.Docs, node.Deprecation), "%s, %s: %s's node is bare", note.detail, label, at)
+				which := "which is kept verbatim under Unmodeled"
+				if note.read(decls[k].property.Docs, decls[k].property.Deprecation) == adopted {
+					which = "which the field's type holds"
+				} else {
+					assert.Contains(t, got.Unmodeled, losingDeclarationKey+at, "%s, %s", note.detail, label)
+				}
+				assert.True(t, slices.ContainsFunc(*recorded, func(d ir.Diagnostic) bool {
+					return strings.Contains(d.Message, "give its "+note.detail+" differently") && strings.Contains(d.Message, "over the one at "+at+", "+which)
+				}), "%s, %s: %s is reported %q: %v", note.detail, label, at, which, *recorded)
+			}
+		})
+	}
 }
 
 // TestHeldIn_ATypeTheRegistryLacksHoldsNoNote pins that a field's type the
