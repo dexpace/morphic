@@ -1979,7 +1979,10 @@ schema hoists none, the carrier's own replace it, and nothing keeps the schema's
 parameter or a header states itself stands on it the same way: where its object writes
 `deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
 deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
-whole, members and replacement with it, and the carrier holds its own alone. A Reference Object
+whole, members and replacement with it, and the carrier holds its own members alone. It is
+deprecated wherever its schema is, by its keyword or a key, so one writing only a message, a date, a
+replacement or a tier beside a deprecated schema is deprecated as one writing `deprecated: true` is,
+it and the node then both deprecated. A Reference Object
 states none, as the keys beside its `$ref` are promoted nowhere
 ([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
 hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,
@@ -2003,7 +2006,8 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `schema.TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget`,
   `reftable.TestReferenced_NamesWhereEachReferenceLands`,
   `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
-  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`
 
 ### `replacement-inference`
 
@@ -7932,8 +7936,9 @@ A carrier also reads the objects whose keys it keeps beneath a scope: an operati
 the schema of its spelling (`schema/` or `content/<mt>/schema/`). A property, a parameter or a header
 whose schema hoists a node reads that node's keys the same way for its deprecation alone, beneath
 every scope, where the deprecation the keyword states is the carrier's, a parameter or a header
-stating none of its own ([`docs-and-deprecation`](#docs-and-deprecation)); the node keeps the keys,
-and its redaction. It reads them two ways, as
+stating none of its own ([`docs-and-deprecation`](#docs-and-deprecation)); where one states its
+own, it reads from them only whether they deprecate it, none of their members. The node keeps the
+keys, and its redaction. It reads them two ways, as
 [annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
 single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
 states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws
@@ -8170,7 +8175,8 @@ saying why.
   `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`,
   `promotion.TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`,
-  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`
 - Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
   object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,
   where beside a `$ref` to a string it lands on the carrier (#2061); a schema a use names

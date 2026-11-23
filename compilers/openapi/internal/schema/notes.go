@@ -24,6 +24,11 @@ import (
 // the position builds keeping the rest (notesOnCarrier).
 type carriedNotes struct {
 	docs, deprecation, examples bool
+	// deprecatedAsSchema is that the carrier is deprecated wherever the schema
+	// is, by its keyword or a key, even where the node keeps the schema's
+	// deprecation: a carrier writing only a member of its own is deprecated
+	// still, holding that member alone.
+	deprecatedAsSchema bool
 }
 
 // notesOnCarrier returns which notes schema writes the carrier holding its
@@ -31,8 +36,9 @@ type carriedNotes struct {
 // It holds none unless it holds the position (carriedAt), no reference names
 // it (reftable.ReferenceTargetTable.Referenced) and schema names no $ref among
 // its conjuncts (allOfRefEntries). Then it holds each note nothing at its
-// position writes over (writtenOver). Node and carrier both ask it, so each
-// note has one home (docs/ir/annotations.md#one-structural-home-per-declaration).
+// position writes over (writtenOver), deprecated where the schema is either
+// way. Node and carrier both ask it, so each note has one home
+// (docs/ir/annotations.md#one-structural-home-per-declaration).
 //
 // Elsewhere the node keeps them, which each reference to the position reads,
 // and a $ref is read off what the position writes alone
@@ -49,7 +55,7 @@ func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, poin
 		return carriedNotes{}
 	}
 	docs, deprecation, examples := writtenOver(loweringContext, at)
-	return carriedNotes{docs: !docs, deprecation: !deprecation, examples: !examples}
+	return carriedNotes{docs: !docs, deprecation: !deprecation, examples: !examples, deprecatedAsSchema: true}
 }
 
 // writtenOver reports which notes of the schema at, a carried position, the
@@ -58,8 +64,8 @@ func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, poin
 // description or a Reference Object naming it writes docs beside its $ref
 // (documentedAtUse); its deprecation, where that object or the content entry
 // at lies in states one (writesDeprecation); and its examples, where either
-// writes an example. The schema's stay on its node, so neither is lost. A
-// property's holder is its schema, which writes over nothing.
+// writes an example. The schema's stay on its node, the carrier holding its
+// own. A property's holder is its schema, which writes over nothing.
 func writtenOver(loweringContext lowering.Ctx, at reftable.DocumentPointer) (docs, deprecation, examples bool) {
 	holder := reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent()}
 	entry := ""
@@ -145,7 +151,8 @@ func documentedAtUse(loweringContext lowering.Ctx) map[reftable.DocumentPointer]
 // written at pointer and lowered to typeRef, declares, read through use, and
 // whether the position owns the node typeRef names. Where it owns none, the
 // carrier holds them all. Where it owns one, the node keeps everything but the
-// notes notesOnCarrier gives the carrier.
+// notes notesOnCarrier gives the carrier, which is deprecated wherever the
+// schema is, holding the schema's members only where the node holds none.
 //
 // It is the one reading a property, a header and a parameter share, so the
 // three cannot differ in what they hold.
@@ -163,10 +170,7 @@ func CarriedAnnotations(loweringContext lowering.Ctx, schema *statement.Schema, 
 	// reading draws none. Naming no $ref, the position falls back to nothing, so
 	// use speaks as the node's use does (nodeUse).
 	a, _ := annotation.Read(use.SiteAt(loweringContext, schema, pointer), pointer, loweringContext.Place())
-	var carried annotation.Set
-	if notes.deprecation {
-		carried.Deprecated = a.Deprecated
-	}
+	carried := annotation.Set{Deprecated: a.Deprecated}
 	if notes.docs {
 		carried.Docs = a.Docs
 	}

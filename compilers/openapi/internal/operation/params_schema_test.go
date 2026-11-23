@@ -969,6 +969,8 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 			"        - {name: capitalised, in: query, deprecated: True, schema: "+list+"}\n"+
 			"        - {name: unflagged, in: query, deprecated: false, schema: "+list+"}\n"+
 			"        - {name: tiered, in: query, x-stability: beta, schema: "+list+"}\n"+
+			"        - {name: stated, in: query, x-stability: deprecated, schema: "+list+"}\n"+
+			"        - {name: written, in: query, description: OWN, example: [b], x-deprecated-reason: own, schema: "+list+"}\n"+
 			"      responses: {\"204\": {description: none}}\n"+
 			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
 			"        - $ref: '#/components/parameters/Used'\n"+
@@ -996,16 +998,23 @@ func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
 		{"used", "USE", "DOC", []string{"a"}, nil, why, nil},
 		{"hopped", "HOP", "DOC", []string{"a"}, nil, why, nil},
 		// A deprecation the parameter, or the content entry it elects, states
-		// leaves the schema's on the node, members and all.
+		// leaves the schema's on the node, members and all, the parameter
+		// holding its own members alone, deprecated as its schema is.
 		{"self", "DOC", "", []string{"a"}, nil, own, why},
-		{"keyed", "DOC", "", []string{"a"}, nil, nil, why},
-		{"entrykey", "DOC", "", []string{"a"}, nil, nil, why},
+		{"keyed", "DOC", "", []string{"a"}, nil, own, why},
+		{"entrykey", "DOC", "", []string{"a"}, nil, own, why},
 		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 		{"capitalised", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
 		// A `deprecated: false` states nothing, so the schema's stands. A key
-		// read into a deprecation speaks to it whatever its value says.
+		// read into a deprecation speaks to it whatever its value says, the
+		// parameter writing no member of its own then.
 		{"unflagged", "DOC", "", []string{"a"}, nil, why, nil},
-		{"tiered", "DOC", "", []string{"a"}, nil, nil, why},
+		{"tiered", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// A key stating what the schema's keyword states fills nothing, so it
+		// marks nothing, as beside a string.
+		{"stated", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// One writing every note over is deprecated as its schema is still.
+		{"written", "OWN", "DOC", []string{"b"}, []string{"a"}, own, why},
 	} {
 		param, ok := openapitest.ParamBySource(operation, tc.name)
 		require.True(t, ok, tc.name)

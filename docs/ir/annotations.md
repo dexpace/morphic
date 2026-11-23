@@ -194,9 +194,11 @@ carrier's own describe that input, and the schema's describe its type, so they s
 that type is. A deprecation is the carrier's own where its object writes `deprecated: true` or a key
 the compiler's promotion policy reads a deprecation or one of its members from, as does the content
 entry it elects; a Reference Object states none. The node then keeps the schema's deprecation whole,
-its message, dates and replacements with it, so a member of either is lost to neither. Where the
-schema hoists no node, the carrier's own documentation and examples still replace the schema's, which
-no node holds.
+its message, dates and replacements with it, and the carrier holds its own members alone, deprecated
+wherever its schema is: one writing only a message, a date, a replacement or a tier beside a
+deprecated schema is deprecated as one writing `deprecated: true` is, so it and the node are both
+deprecated and each member has one home. Where the schema hoists no node, the carrier's own
+documentation and examples still replace the schema's, which no node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a

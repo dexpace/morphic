@@ -138,15 +138,19 @@ func PromoteUse(loweringContext lowering.Ctx, from promotion.Referent, unmodeled
 // falls back to lend it, js written at pointer and lowered to typeRef
 // (Use.fallbackKeys). A position owning a node lends its carrier the keys that
 // node keeps where the carrier holds its deprecation (carriedNoteKeys), so a
-// promoted deprecation follows the keyword's, and none otherwise: the node
-// takes them (attachDeclaredAnnotations). The keys lend a deprecation alone, so
-// whether the carrier writes its own docs or examples asks nothing here.
+// promoted deprecation follows the keyword's; where the node keeps the
+// schema's deprecation, only whether those keys deprecate the carrier, the
+// node keeping their members; and none otherwise: the node takes them
+// (attachDeclaredAnnotations). The keys lend a deprecation alone, so the
+// carrier's own docs or examples ask nothing here.
 func FallbackKeysForCarrier(loweringContext lowering.Ctx, js *statement.Statement, typeRef ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	switch {
 	case js.Truth != statement.Stated:
 		return promotion.Referent{}
 	case notesOnCarrier(loweringContext, js.Schema, pointer, typeRef).deprecation:
 		return carriedNoteKeys(loweringContext, js.Schema, typeRef, pointer)
+	case notesOnCarrier(loweringContext, js.Schema, pointer, typeRef).deprecatedAsSchema:
+		return promotion.Referent{Deprecated: carriedNoteKeys(loweringContext, js.Schema, typeRef, pointer).Deprecated}
 	case LoweredToOwnNode(loweringContext, pointer, typeRef):
 		return promotion.Referent{}
 	default:
