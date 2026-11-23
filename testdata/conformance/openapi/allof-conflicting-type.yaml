@@ -28,7 +28,8 @@ components:
     # Agreeing types and a disagreeing default: not a conflict, and the merged
     # field is whole, but the first declaration's default has nowhere to go
     # and is kept the same way, beside a diagnostic naming what differed. The
-    # title and the external link differ too, so five details are named.
+    # title, the description and the external link differ too, so four details
+    # are named, and the field holds both examples.
     Described:
       allOf:
         - type: object
