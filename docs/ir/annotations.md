@@ -183,8 +183,8 @@ Reference Object naming a component one writes documentation beside its `$ref`, 
 schema's for every use of that position, and each carrier holds only its own. A member a model
 declares more than once itself, in its own properties, an inline `allOf` entry or one nested in
 another, has one slot for the notes of several declarations, so the node each declaration's schema
-builds keeps that declaration's, as before 0.73.0, and no note another model's declaration brings
-stands on the member over them
+builds keeps that declaration's, as before 0.73.0, and a title, description, link or deprecation
+another model's declaration brings stands on the member only where none of them writes that one
 ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
 what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept

@@ -3378,7 +3378,9 @@ Where that type is a node of the model's own, or one built or composed of those,
 the model's own note, and the field holds neither; where it is read holding none, as where it is the
 brought declaration's, the field holds the last its own declarations write, each other reported, but
 for an example, which nothing shows that type to admit, and for a replacement only a key names,
-which stays on the node keeping the key.
+which stays on the node keeping the key. A deprecation accumulates over a member's declarations
+([models](../ir/models.md#the-flattening)), so the flattening reads a brought one there all the
+same.
 
 Beside a declaration another model brings, the fold judges the types as their nodes stand, a node
 whose notes a property carries holding none of them. Where they compose, they reach each
