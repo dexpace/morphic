@@ -201,7 +201,8 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	folding.assembled = assembled
 	folding.left = left
 	folding.foldType()
-	takeBack(left, folding.stays, folding.typeHolds)
+	target := folding.merged.Type.Target
+	takeBack(left, namesNode(judged, target, folding.conjuncts), heldIn(g, target))
 	folding.foldConstraints()
 	folding.foldValues()
 	folding.foldUse()
