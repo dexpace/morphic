@@ -368,37 +368,47 @@ func TestAllOfFold_AMemberDeclaredAgainReadsNoReplacementOffItsNode(t *testing.T
 
 // TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote pins a member a
 // model declares twice itself beside one a composed model declares: the model's
-// own keep their notes on their nodes, the brought one's stays on its model's
-// property, and the fold reads its node as holding it, so the three compose as
-// where each node holds its note. The field, holding none of its own
-// declarations', holds the brought one's too, in every order of the entries and
-// of the components (docs/compilers/openapi.md#allof-redeclared-property).
+// own keep their notes on their nodes and the brought one's stays on its
+// model's property. Two maps no type holds both of compose with the brought
+// object, read as holding its note; two objects compose without it, as it says
+// nothing more. The field, its own declarations lending it none, holds the
+// brought note too, in every order of the entries and of the components
+// (docs/compilers/openapi.md#allof-redeclared-property).
 func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T) {
 	t.Parallel()
-	declarations := []string{
-		"{properties: {f: {type: object, additionalProperties: {type: string}, description: D0}}}",
-		"{$ref: '#/components/schemas/Base'}",
-		"{properties: {f: {type: object, additionalProperties: {type: object}, description: D2}}}",
-	}
-	base := "    Base: {type: object, properties: {f: {type: object, description: B}}}\n"
-	for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-		entries, parts, lastOwn := make([]string, 3), make([]string, 3), 0
-		for at, k := range order {
-			entries[at] = declarations[k]
-			if k == 1 {
-				parts[at] = "Base/properties/f model"
-				continue
-			}
-			parts[at] = fmt.Sprintf("M/allOf/%d/properties/f map [description D%d]", at, k)
-			lastOwn = at
+	const base = "    Base: {type: object, properties: {f: {type: object, description: B}}}\n"
+	for _, tc := range []struct {
+		name, first, second, kind string
+		baseComposes              bool
+	}{
+		{"maps apart", "additionalProperties: {type: string}", "additionalProperties: {type: object}", "map", true},
+		{"objects with properties", "properties: {p: {type: string}}", "properties: {q: {type: string}}", "model", false},
+	} {
+		declarations := []string{
+			"{properties: {f: {type: object, " + tc.first + ", description: D0}}}",
+			"{$ref: '#/components/schemas/Base'}",
+			"{properties: {f: {type: object, " + tc.second + ", description: D2}}}",
 		}
-		model := "    M: {allOf: [" + strings.Join(entries, ", ") + "]}\n"
-		for _, spec := range []string{base + model, model + base} {
-			doc, diags := parseVerified(t, openapitest.ComponentSpec(spec))
-			assert.Empty(t, diags, "%v", order)
-			want := fmt.Sprintf("[description B] composed/M/allOf/%d/properties/f model of (%s)", lastOwn, strings.Join(parts, "; "))
-			assert.Equal(t, want, memberText(t, doc, componentID("M")), "%v", order)
-			assert.Equal(t, "[description B] Base/properties/f model", memberText(t, doc, componentID("Base")), "%v", order)
+		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+			entries, parts, lastOwn := make([]string, 3), make([]string, 0, 3), 0
+			for at, k := range order {
+				entries[at] = declarations[k]
+				if k != 1 {
+					parts = append(parts, fmt.Sprintf("M/allOf/%d/properties/f %s [description D%d]", at, tc.kind, k))
+					lastOwn = at
+				} else if tc.baseComposes {
+					parts = append(parts, "Base/properties/f model")
+				}
+			}
+			model := "    M: {allOf: [" + strings.Join(entries, ", ") + "]}\n"
+			for _, spec := range []string{base + model, model + base} {
+				label := fmt.Sprintf("%s, %v", tc.name, order)
+				doc, diags := parseVerified(t, openapitest.ComponentSpec(spec))
+				assert.Empty(t, diags, label)
+				want := fmt.Sprintf("[description B] composed/M/allOf/%d/properties/f model of (%s)", lastOwn, strings.Join(parts, "; "))
+				assert.Equal(t, want, memberText(t, doc, componentID("M")), label)
+				assert.Equal(t, "[description B] Base/properties/f model", memberText(t, doc, componentID("Base")), label)
+			}
 		}
 	}
 }

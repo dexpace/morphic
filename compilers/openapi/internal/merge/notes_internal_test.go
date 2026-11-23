@@ -100,26 +100,39 @@ func TestFold_ANoteTheModelWritesIsKeptOverOneItBrings(t *testing.T) {
 // TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain pins
 // Merger.noted: a member the model declares twice itself, whose nodes hold
 // their notes, beside one another model brings, whose property carries its
-// node's, is judged with each note on its node, so three bare objects compose
-// rather than the brought one holding nothing the others do not. With one
-// declaration of its own, the model's is judged as its node stands. Either
-// way the brought node itself holds no note afterwards, and each kind of note
-// tells the two apart alike.
+// node's, is judged with each note on its node where the types do not compose
+// as they stand: two maps apart, which the bare object's note composes with,
+// and not two bare objects, which compose without it, nor a member the model
+// declares once. Either way the brought node itself holds no note afterwards,
+// and each kind of note tells it apart alike.
 func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *testing.T) {
 	t.Parallel()
+	mapOf := func(value ir.TypeID) func(common ir.TypeCommon) ir.TypeDef {
+		return func(common ir.TypeCommon) ir.TypeDef {
+			return &ir.MapT{TypeCommon: common, Value: ir.TypeRef{Target: value}}
+		}
+	}
+	bare := func(common ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: common} }
 	for detail, notes := range map[string]CarriedNotes{
 		"docs":        {Docs: ir.Docs{Description: "brought"}},
 		"deprecation": {Deprecation: &ir.Deprecation{Message: "brought"}},
 		"examples":    {Examples: []ir.Example{{Summary: "brought"}}},
 	} {
-		for _, again := range []bool{false, true} {
-			node := func(id ir.TypeID, at string, docs ir.Docs) *ir.Model {
-				return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer(at)), Docs: docs}
-			}
+		for _, tc := range []struct {
+			name       string
+			own0, own2 func(common ir.TypeCommon) ir.TypeDef // own2 nil where the model declares the member once
+			conjuncts  []ir.TypeID
+		}{
+			{"two maps apart", mapOf("type/primitive/string"), mapOf("type/A"), []ir.TypeID{"type/own0", "type/brought", "type/own2"}},
+			{"two bare objects", bare, bare, []ir.TypeID{"type/own0", "type/own2"}},
+			{"one bare object", bare, nil, []ir.TypeID{}},
+		} {
 			reg := membersRegistry()
-			reg["type/brought"] = node("type/brought", "/A/p", ir.Docs{})
-			reg["type/own0"] = node("type/own0", "/M/allOf/0/properties/p", ir.Docs{Description: "own 0"})
-			reg["type/own2"] = node("type/own2", "/M/allOf/2/properties/p", ir.Docs{Description: "own 2"})
+			node := func(id ir.TypeID, at jsontext.Pointer, docs ir.Docs) ir.TypeCommon {
+				return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at), Docs: docs}
+			}
+			reg["type/brought"] = bare(node("type/brought", "/A/p", ir.Docs{}))
+			reg["type/own0"] = tc.own0(node("type/own0", "/M/allOf/0/properties/p", ir.Docs{Description: "own 0"}))
 			brought := declared("p", "type/brought", "/A/p")
 			brought.Docs, brought.Deprecation, brought.Examples = notes.Docs, notes.Deprecation, notes.Examples
 			reg["type/A"] = &ir.Model{ID: "type/A", Properties: []ir.Property{brought}}
@@ -128,7 +141,8 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 			idx := NewModelPropertyDeclarations(model)
 			own("p", "type/own0", "0")(idx)
 			composes("type/A", "1")(idx)
-			if again {
+			if tc.own2 != nil {
+				reg["type/own2"] = tc.own2(node("type/own2", "/M/allOf/2/properties/p", ir.Docs{Description: "own 2"}))
 				own("p", "type/own2", "2")(idx)
 			}
 			stubbed, _ := stubMerger(reg)
@@ -136,22 +150,15 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 
 			diags := settleFlat(stubbed, idx, reg)
 
-			assert.Empty(t, diags, "%s, declared again %t", detail, again)
-			require.Len(t, model.Properties, 1, "%s, declared again %t", detail, again)
+			label := detail + ", " + tc.name
+			assert.Empty(t, diags, label)
+			require.Len(t, model.Properties, 1, label)
 			composed, isModel := reg[model.Properties[0].Type.Target].(*ir.Model)
-			require.True(t, isModel, "%s, declared again %t", detail, again)
-			parts := make([]ir.TypeID, 0, len(composed.Mixins))
-			for _, mixin := range composed.Mixins {
-				parts = append(parts, mixin.Target)
-			}
-			if again {
-				assert.Equal(t, []ir.TypeID{"type/own0", "type/brought", "type/own2"}, parts, "%s: each is a conjunct, its note telling it apart", detail)
-			} else {
-				assert.Empty(t, parts, "%s: the brought object holds nothing the other does not", detail)
-			}
+			require.True(t, isModel, label)
+			assert.Equal(t, tc.conjuncts, targetsOf(composed.Mixins), label)
 			left := reg["type/brought"].Common()
 			assert.Equal(t, CarriedNotes{}, CarriedNotes{Docs: left.Docs, Deprecation: left.Deprecation, Examples: left.Examples},
-				"%s, declared again %t: the node is not written to", detail, again)
+				"%s: the node is not written to", label)
 		}
 	}
 }

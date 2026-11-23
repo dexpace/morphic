@@ -219,6 +219,14 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
 	}
 	folding := newFolding(g, judged, field)
+	if len(folding.conjuncts) == 0 && declaredAgainBesideAnothers(judged) {
+		// A composition reaches each node of the model's own, so it loses none
+		// of their notes. Any other type can hold fewer of them than where every
+		// note told its node apart, so each node is read holding its notes.
+		noted := *g
+		noted.noted = true
+		folding = newFolding(&noted, judged, field)
+	}
 	folding.assembled = assembled
 	folding.foldType()
 	folding.foldConstraints()
@@ -229,6 +237,13 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	folding.foldUnmodeled()
 	merged, diags := folding.finish()
 	return merged, append(diags, g.keepUnjudged(&merged, past)...)
+}
+
+// declaredAgainBesideAnothers reports whether the model declares the member of
+// decls more than once itself, and another model declares it too.
+func declaredAgainBesideAnothers(decls []declaration) bool {
+	own := len(slices.DeleteFunc(slices.Clone(decls), isBrought))
+	return own > 1 && own < len(decls)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
