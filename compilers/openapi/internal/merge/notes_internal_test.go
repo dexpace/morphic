@@ -6,6 +6,7 @@ package merge
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,11 +101,12 @@ func TestFold_ANoteTheModelWritesIsKeptOverOneItBrings(t *testing.T) {
 // TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain pins
 // Merger.noted: a member the model declares twice itself, whose nodes hold
 // their notes, beside one another model brings, whose property carries its
-// node's, is judged with each note on its node where the types do not compose
-// as they stand: two maps apart, which the bare object's note composes with,
-// and not two bare objects, which compose without it, nor a member the model
-// declares once. Either way the brought node itself holds no note afterwards,
-// and each kind of note tells it apart alike.
+// node's, is judged with each note on its node where the types as they stand
+// drop one: two maps apart, which the bare object's note composes with, and not
+// two bare objects, which compose without it, nor a member the model declares
+// once. Either way the brought node itself holds no note afterwards, each kind
+// of note tells it apart alike, and docs the model's own nodes hold are kept
+// over those brought, which is reported.
 func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *testing.T) {
 	t.Parallel()
 	mapOf := func(value ir.TypeID) func(common ir.TypeCommon) ir.TypeDef {
@@ -114,7 +116,7 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 	}
 	bare := func(common ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: common} }
 	for detail, notes := range map[string]CarriedNotes{
-		"docs":        {Docs: ir.Docs{Description: "brought"}},
+		"description": {Docs: ir.Docs{Description: "brought"}},
 		"deprecation": {Deprecation: &ir.Deprecation{Message: "brought"}},
 		"examples":    {Examples: []ir.Example{{Summary: "brought"}}},
 	} {
@@ -151,8 +153,19 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 			diags := settleFlat(stubbed, idx, reg)
 
 			label := detail + ", " + tc.name
-			assert.Empty(t, diags, label)
+			reports := make([]string, len(diags))
+			for i, diagnostic := range diags {
+				reports[i] = diagnostic.Message
+			}
+			if detail == "description" {
+				require.Len(t, reports, 1, label)
+				assert.Contains(t, reports[0], "give its description differently; kept the one the declaration at /M/allOf/", label)
+				assert.Contains(t, reports[0], "over the one at /A/p, which stays declared on its model", label)
+			} else {
+				assert.Empty(t, reports, label)
+			}
 			require.Len(t, model.Properties, 1, label)
+			assert.Empty(t, model.Properties[0].Docs, "%s: the field holds no docs, its types holding the model's own", label)
 			composed, isModel := reg[model.Properties[0].Type.Target].(*ir.Model)
 			require.True(t, isModel, label)
 			assert.Equal(t, tc.conjuncts, targetsOf(composed.Mixins), label)
@@ -163,14 +176,14 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 	}
 }
 
-// TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped pins a member the
-// model declares once beside two other models': where their types as they
-// stand drop the model's own, the fold judges the nodes holding the notes their
-// properties carry, where that keeps it, so a map composes with a noted bare
-// object and another map rather than losing to the two. Where it drops it
-// either way, or they drop a brought type alone, the types stay judged as they
-// stand, two lists alike but for a note being one type.
-func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
+// TestSettle_ReadsNotesWhereTheTypesAsTheyStandDropOne pins which judgment a
+// member takes that the model declares once beside two other models': where
+// the types as they stand drop one, whoever declares it, the one reading each
+// node holding the notes its property carries, which keeps a map that composes
+// with a noted bare object, drops the model's own between two lists a note
+// tells apart, or keeps it, the later of two. Where they drop none, two lists
+// alike but for a note are one type, and nothing is reported.
+func TestSettle_ReadsNotesWhereTheTypesAsTheyStandDropOne(t *testing.T) {
 	t.Parallel()
 	common := func(id ir.TypeID, at jsontext.Pointer) ir.TypeCommon {
 		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at)}
@@ -193,10 +206,12 @@ func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 		reports            int
 		verbatim           bool
 	}{
-		{name: "its type kept", own: mapOf("type/B"), first: bare, second: mapOf("type/primitive/string"),
+		{name: "the model's own, which composes with the rest", own: mapOf("type/B"), first: bare, second: mapOf("type/primitive/string"),
 			conjuncts: []ir.TypeID{"type/own", "type/first", "type/second"}},
-		{name: "its type dropped either way", own: mapOf("type/B"), first: list, second: list, keeps: "type/first", reports: 1, verbatim: true},
-		{name: "a brought type dropped alone", own: list, first: list, second: mapOf("type/B"), ownLast: true, keeps: "type/first", reports: 1},
+		{name: "the model's own, of no type with either", own: mapOf("type/B"), first: list, second: list,
+			keeps: "type/second", reports: 2, verbatim: true},
+		{name: "a brought one alone", own: list, first: list, second: mapOf("type/B"), ownLast: true, keeps: "type/own", reports: 2},
+		{name: "none", own: list, first: list, second: list, ownLast: true, keeps: "type/first"},
 	} {
 		reg := membersRegistry()
 		reg["type/own"] = tc.own(common("type/own", "/M/allOf/0/properties/p"))
@@ -234,6 +249,166 @@ func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 	}
 }
 
+// stringEnum is an enum of values, strings, with common.
+func stringEnum(common ir.TypeCommon, values ...string) *ir.Enum {
+	members := make([]ir.EnumMember, len(values))
+	for i, value := range values {
+		members[i] = ir.EnumMember{ID: ir.EnumMemberID(string(common.ID) + "/" + value), Value: ir.Value{Kind: ir.ValueString, String: value}}
+	}
+	return &ir.Enum{TypeCommon: common, ValueType: ir.PrimitiveString, Closed: true, Members: members}
+}
+
+// TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn pins meetNode where two
+// types a carried note tells apart meet, a third being dropped: the field names
+// the narrower one's own node, in every order of the three, and mints none, for
+// the node they would meet in says only what that one does. Where each says
+// what the other lacks, the node built of them holds no carried note.
+func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		own         []string
+		wantEnum    []string
+		wantOwnNode bool
+	}{
+		{"the own one within the brought", []string{"a", "b"}, []string{"a", "b"}, true},
+		{"the two meeting", []string{"a", "b", "d"}, []string{"a", "b"}, false},
+	} {
+		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+			reg := membersRegistry()
+			reg["type/own"] = stringEnum(ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ptrAt("/M/allOf/0/properties/p")}, tc.own...)
+			reg["type/first"] = stringEnum(ir.TypeCommon{ID: "type/first", Anonymous: true, Provenance: ptrAt("/A/p")}, "a", "b", "c")
+			brought := declared("p", "type/first", "/A/p")
+			brought.Docs.Description, brought.Deprecation = "carried", &ir.Deprecation{Message: "carried"}
+			reg["type/A"] = &ir.Model{ID: "type/A", Properties: []ir.Property{brought}}
+			model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+			reg["type/M"] = model
+			idx := NewModelPropertyDeclarations(model)
+			steps := []func(idx *ModelPropertyDeclarations){own("p", "type/own", "0"), composes("type/A", "1"), composes("type/B", "2")}
+			for _, k := range order {
+				steps[k](idx)
+			}
+			stubbed, _ := stubMerger(reg)
+			stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/first": {Docs: brought.Docs, Deprecation: brought.Deprecation}}
+
+			settleFlat(stubbed, idx, reg)
+
+			require.Len(t, model.Properties, 1, "%s, %v", tc.name, order)
+			property := model.Properties[0]
+			enum, isEnum := reg[property.Type.Target].(*ir.Enum)
+			require.True(t, isEnum, "%s, %v", tc.name, order)
+			values := make([]string, len(enum.Members))
+			for i, member := range enum.Members {
+				values[i] = member.Value.String
+			}
+			assert.Equal(t, tc.wantEnum, values, "%s, %v", tc.name, order)
+			assert.Equal(t, tc.wantOwnNode, property.Type.Target == "type/own", "%s, %v: the own node", tc.name, order)
+			assert.Equal(t, !tc.wantOwnNode, stubbed.walk.minted == 1, "%s, %v: one minted", tc.name, order)
+			assert.Empty(t, enum.Docs, "%s, %v", tc.name, order)
+			assert.Nil(t, enum.Deprecation, "%s, %v", tc.name, order)
+			assert.Equal(t, "carried", property.Docs.Description, "%s, %v: the field holds the note", tc.name, order)
+		}
+	}
+}
+
+// TestSayingAll_NamesTheFirstSortingNodeThatSaysAll pins which node stands for
+// the one several meet in: of those saying what it does, sites and member IDs
+// apart, the one sorting first in either order, and none where none does.
+func TestSayingAll_NamesTheFirstSortingNodeThatSaysAll(t *testing.T) {
+	t.Parallel()
+	built := stringEnum(ir.TypeCommon{ID: "type/built", Provenance: ptrAt("/built")}, "a")
+	same := func(id ir.TypeID) ir.TypeDef {
+		return stringEnum(ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer("/" + id))}, "a")
+	}
+	wider := stringEnum(ir.TypeCommon{ID: "type/0"}, "a", "b")
+	noted := stringEnum(ir.TypeCommon{ID: "type/1", Docs: ir.Docs{Description: "noted"}}, "a")
+	for _, reversed := range []bool{false, true} {
+		nodes := []ir.TypeDef{wider, noted, same("type/3"), same("type/2")}
+		if reversed {
+			slices.Reverse(nodes)
+		}
+		all := make([]member, len(nodes))
+		for k, td := range nodes {
+			all[k] = member{ref: ir.TypeRef{Target: td.Common().ID}}
+		}
+
+		target, said := sayingAll(built, all, nodes)
+
+		assert.True(t, said, "reversed %t", reversed)
+		assert.Equal(t, ir.TypeID("type/2"), target, "reversed %t", reversed)
+	}
+	_, said := sayingAll(built, []member{{}, {}}, []ir.TypeDef{wider, noted})
+	assert.False(t, said, "neither says what it does")
+}
+
+// TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought pins givenOnNodes: a note the
+// node the model's own declaration built holds is kept over one another model's
+// property brings, reported. Where the field's type is the own node or one
+// built holding its note, read there, the field holds neither; where it is one
+// the registry does not hold, the field holds the own one, but an example,
+// which no node built adopts, and which the field takes as it would were there
+// no own one.
+func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
+	t.Parallel()
+	for _, note := range noteCases {
+		for _, tc := range []struct {
+			name    string
+			own     []string // the own enum's values, none a list's
+			brought ir.TypeID
+			want    string // what the field holds, but of an example
+			example string
+		}{
+			{"the type the own node", []string{"own", "brought"}, "type/wide", "", ""},
+			{"the type a node built of both", []string{"own", "other"}, "type/wide", "", "brought"},
+			{"a type the registry does not hold", nil, "type/absent", "own", "brought"},
+		} {
+			reg := narrowingRegistry()
+			reg["type/wide"] = stringEnum(ir.TypeCommon{ID: "type/wide", Anonymous: true, Provenance: ptrAt("/part/p")}, "own", "brought", "third")
+			held := ir.Property{}
+			note.write(&held, "own")
+			common := ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ptrAt("/a"), Docs: held.Docs, Deprecation: held.Deprecation, Examples: held.Examples}
+			reg["type/own"] = stringEnum(common, tc.own...)
+			if tc.own == nil {
+				reg["type/own"] = &ir.List{TypeCommon: common, ElementType: primitiveRef(ir.PrimitiveString)}
+			}
+			own := declaration{property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: "type/own"}, Provenance: ptrAt("/a")}, source: written(`{"own":true}`)}
+			brought := declaration{property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.brought}, Provenance: ptrAt("/part/p")},
+				via: &composedEntry{target: "type/part", at: "/M/allOf/1"}, typeAt: sitesAt("/part/p")}
+			note.write(&brought.property, "brought")
+			stubbed, recorded := stubMerger(reg)
+
+			got := stubbed.fold([]declaration{own, brought})
+
+			label := note.detail + ", " + tc.name
+			want := tc.want
+			if note.detail == "examples" {
+				want = tc.example
+			}
+			expected := ir.Property{}
+			if want != "" {
+				note.write(&expected, want)
+			}
+			assert.Equal(t, expected.Docs, got.Docs, label)
+			assert.Equal(t, expected.Deprecation, got.Deprecation, label)
+			assert.Equal(t, expected.Examples, got.Examples, label)
+			if want == "own" && got.Deprecation != nil {
+				assert.NotSame(t, reg["type/own"].Common().Deprecation, got.Deprecation, "%s: a copy", label)
+			}
+			ties := 0
+			for _, diagnostic := range *recorded {
+				if strings.Contains(diagnostic.Message, "give its "+note.detail+" differently; kept the one the declaration at /a gives over the one at /part/p") {
+					ties++
+				}
+			}
+			wantTies := 1
+			if note.detail == "examples" && tc.name != "the type the own node" {
+				wantTies = 0
+			}
+			assert.Equal(t, wantTies, ties, label)
+		}
+	}
+}
+
 // TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand pins the other
 // side: a member only the model declares, more than once, is judged as its
 // nodes stand, whatever Carried says of one, as no property carries a note off
@@ -260,19 +435,18 @@ func TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand(t *testing.T) 
 	assert.Equal(t, ir.TypeID("type/own1"), model.Properties[0].Type.Target)
 }
 
-// TestWithNotes_CopiesTheDeprecation pins that a node read holding its notes
-// shares no deprecation with the property carrying it, as a replacement is
-// written into each once the document is whole.
-func TestWithNotes_CopiesTheDeprecation(t *testing.T) {
+// TestWithNotes_HoldsTheNotesOnACopy pins that a node read holding its notes
+// is a copy holding them and all the node does, which is not written to.
+func TestWithNotes_HoldsTheNotesOnACopy(t *testing.T) {
 	t.Parallel()
-	carried := &ir.Deprecation{Message: "gone"}
+	carried := CarriedNotes{Docs: ir.Docs{Summary: "title"}, Deprecation: &ir.Deprecation{Message: "gone"}, Examples: []ir.Example{{Summary: "one"}}}
 	node := &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/item"}}
 
-	got := withNotes(node, CarriedNotes{Deprecation: carried})
+	got := withNotes(node, carried)
 
-	assert.Equal(t, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/item"}, Deprecation: carried}, got)
-	assert.NotSame(t, carried, got.Common().Deprecation)
-	assert.Nil(t, node.Deprecation, "the node is not written to")
+	assert.Equal(t, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/item"},
+		Docs: carried.Docs, Deprecation: carried.Deprecation, Examples: carried.Examples}, got)
+	assert.Equal(t, &ir.List{ID: "type/list", ElementType: ir.TypeRef{Target: "type/item"}}, node, "the node is not written to")
 }
 
 // TestDeclaredAgain_ListsTheMembersTheModelDeclaresMoreThanOnce pins that the

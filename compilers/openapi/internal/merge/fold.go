@@ -119,18 +119,20 @@ func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
 	return td, ok
 }
 
+// asTheyStand is g's registry, each node holding the notes it holds itself.
+func asTheyStand(g *Merger) registry {
+	standing := *g
+	standing.noted = false
+	return registry{standing.resolve}
+}
+
 // withNotes returns a copy of td, a node holding none of its notes, holding
-// notes. It shares all else of td, which a fold copies before writing.
+// notes. It shares all else of td and what notes point at, and a fold judges it
+// and writes none of it (builder.meetNode).
 func withNotes(td ir.TypeDef, notes CarriedNotes) ir.TypeDef {
-	held := reflect.New(reflect.TypeOf(td).Elem())
-	held.Elem().Set(reflect.ValueOf(td).Elem())
-	node, _ := reflect.TypeAssert[ir.TypeDef](held) // held is of td's concrete type
+	node := copyOfNode(td)
 	common := node.Common()
-	common.Docs, common.Examples = notes.Docs, notes.Examples
-	if notes.Deprecation != nil {
-		deprecation := *notes.Deprecation
-		common.Deprecation = &deprecation
-	}
+	common.Docs, common.Deprecation, common.Examples = notes.Docs, notes.Deprecation, notes.Examples
 	return node
 }
 
@@ -238,34 +240,19 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 
 // readingNotes returns stands, a fold judged as its declarations' nodes stand,
 // judged again with each node read holding the notes a property carries off it
-// (Merger.noted), where that loses less beside another model's declaration, and
-// nil elsewhere. A composition reaches each declaration's node, so it loses
-// none. Any other type may lose notes the model's own nodes hold, where it
-// declares the member more than once, or drop a type that a note held apart
-// from what drops it: the model's own, or one the types so read compose with.
+// (Merger.noted), where stands drops a type beside one an entry brings, and nil
+// elsewhere. A fold dropping none holds every declaration's type. One dropping
+// some may drop one that a note held apart from what drops it, leaving a wider
+// type, or one of two that a note alone tells apart, by their order. Read with
+// their notes, the declarations settle the type their nodes settled while those
+// held them.
 func (g *Merger) readingNotes(stands *folding) *folding {
-	own := len(slices.DeleteFunc(slices.Clone(stands.decls), isBrought))
-	if len(stands.conjuncts) > 0 || own == len(stands.decls) || own < 2 && !slices.Contains(stands.cone, false) {
+	if !slices.ContainsFunc(stands.decls, isBrought) || !slices.Contains(stands.cone, false) {
 		return nil
 	}
 	reading := *g
 	reading.noted = true
-	noted := newFolding(&reading, stands.decls, stands.field)
-	if own > 1 || len(noted.conjuncts) > 0 || dropsOwn(stands) && !dropsOwn(noted) {
-		return noted
-	}
-	return nil
-}
-
-// dropsOwn reports whether the field's type holds none of a declaration the
-// model writes itself.
-func dropsOwn(foldingValue *folding) bool {
-	for i, declarationValue := range foldingValue.decls {
-		if !isBrought(declarationValue) && !foldingValue.cone[i] {
-			return true
-		}
-	}
-	return false
+	return newFolding(&reading, stands.decls, stands.field)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -604,9 +591,13 @@ func (f *folding) foldValues() {
 	f.merged.Default = lastWritten(f, "default", byOrder, func(i int, property *ir.Property) (*ir.Value, bool) {
 		return property.Default, takesDefault[i] && property.Default != nil
 	}, func(a, b *ir.Value) bool { return sameValue(*a, *b) })
-	f.merged.Examples = lastWritten(f, "examples", ownFirst, func(i int, property *ir.Property) ([]ir.Example, bool) {
-		return property.Examples, takesExamples[i] && len(property.Examples) > 0
-	}, sameExamples)
+	f.merged.Examples = settleExamples(f, noteReading[[]ir.Example]{detail: "examples", same: sameExamples,
+		given: func(i int) ([]ir.Example, bool) {
+			examples := f.decls[i].property.Examples
+			return examples, takesExamples[i] && len(examples) > 0
+		},
+		held: func(notes heldNotes) ([]ir.Example, bool) { return notes.Examples, len(notes.Examples) > 0 },
+	})
 }
 
 // refuse notes at decls[i] that the field does not adopt the values it gives,
@@ -732,20 +723,20 @@ func (f *folding) foldUse() {
 }
 
 // foldDocs settles the field's title, description and external links, each the
-// last declaration's to give one, the model's own first (lastWritten,
-// ownFirst), from every declaration: docs describe the field, not a shape, so
-// a dropped declaration's count too.
+// last declaration's to give one, the model's own first (settleNote), from every
+// declaration: docs describe the field, not a shape, so a dropped
+// declaration's count too.
 func (f *folding) foldDocs() {
 	same := func(a, b string) bool { return a == b }
-	f.merged.Docs.Summary = lastWritten(f, "title", ownFirst, func(_ int, property *ir.Property) (string, bool) {
-		return property.Docs.Summary, property.Docs.Summary != ""
-	}, same)
-	f.merged.Docs.Description = lastWritten(f, "description", ownFirst, func(_ int, property *ir.Property) (string, bool) {
-		return property.Docs.Description, property.Docs.Description != ""
-	}, same)
-	f.merged.Docs.ExternalDocs = lastWritten(f, "external docs", ownFirst, func(_ int, property *ir.Property) ([]ir.Link, bool) {
-		return property.Docs.ExternalDocs, len(property.Docs.ExternalDocs) > 0
-	}, slices.Equal[[]ir.Link])
+	f.merged.Docs.Summary = settleNote(f, readingOf(f, "title", func(notes heldNotes) (string, bool) {
+		return notes.Docs.Summary, notes.Docs.Summary != ""
+	}, same))
+	f.merged.Docs.Description = settleNote(f, readingOf(f, "description", func(notes heldNotes) (string, bool) {
+		return notes.Docs.Description, notes.Docs.Description != ""
+	}, same))
+	f.merged.Docs.ExternalDocs = settleNote(f, readingOf(f, "external docs", func(notes heldNotes) ([]ir.Link, bool) {
+		return notes.Docs.ExternalDocs, len(notes.Docs.ExternalDocs) > 0
+	}, slices.Equal[[]ir.Link]))
 }
 
 // sameDeprecation reports whether a and b state one deprecation, field by
@@ -761,16 +752,15 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 // declaration's to give them whoever writes it (byOrder): neither is bound to
 // a shape. A promotion marks the declaration it read
 // (promotion.Promoter.Deprecation), so the field takes the marker of the
-// declaration whose deprecation it keeps, whichever declaration that is. The
+// declaration, or of the node, whose deprecation it keeps, whichever that is. The
 // field holds a copy: a replacement is read into each member's own
 // (replacement.Infer), by what that member's model declares.
 func (f *folding) foldAnnotations() {
-	f.merged.Deprecation = copyOf(lastWritten(f, "deprecation", ownFirst, func(_ int, property *ir.Property) (*ir.Deprecation, bool) {
-		return property.Deprecation, property.Deprecation != nil
-	}, sameDeprecation))
-	if at := keptAt(f.decls, ownFirst, func(i int) bool { return f.decls[i].property.Deprecation != nil }); at >= 0 {
-		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[at].property.Provenance.Inferred)
-	}
+	kept := settleNote(f, readingOf(f, "deprecation", func(notes heldNotes) (heldNotes, bool) {
+		return notes, notes.Deprecation != nil
+	}, func(a, b heldNotes) bool { return sameDeprecation(a.Deprecation, b.Deprecation) }))
+	f.merged.Deprecation = copyOf(kept.Deprecation)
+	f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, kept.inferred)
 	// XMLHints.Wrapped is a pointer, which == would compare by address.
 	f.merged.XML = lastWritten(f, "xml", byOrder, func(_ int, property *ir.Property) (*ir.XMLHints, bool) {
 		return property.XML, property.XML != nil

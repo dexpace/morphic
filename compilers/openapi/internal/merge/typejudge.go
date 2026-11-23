@@ -670,36 +670,38 @@ func sameNodes(a, b ir.TypeRef, aHoisted, bHoisted bool) relation {
 // and the provenance of the node and of what it keeps under Unmodeled) and
 // their members' IDs: one declaration written twice, hoisted to two nodes.
 func sameNode(a, b ir.TypeDef) bool {
-	switch x := a.(type) {
-	case *ir.Literal:
-		literal, ok := b.(*ir.Literal)
-		if !ok {
-			return false
-		}
-		x2, y2 := *x, *literal
-		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(literal.TypeCommon)
-		return reflect.DeepEqual(x2, y2)
-	case *ir.Scalar:
-		scalar, ok := b.(*ir.Scalar)
-		if !ok {
-			return false
-		}
-		x2, y2 := *x, *scalar
-		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(scalar.TypeCommon)
-		return reflect.DeepEqual(x2, y2)
-	case *ir.Enum:
-		enum, ok := b.(*ir.Enum)
-		return ok && sameEnum(*x, *enum)
+	switch a.(type) {
+	case *ir.Literal, *ir.Scalar, *ir.Enum:
+		return sameButSite(a, b)
 	default:
 		return false
 	}
 }
 
-// sameEnum compares two enums as sameNode does, members by position.
-func sameEnum(enum, irEnum ir.Enum) bool {
-	enum.TypeCommon, irEnum.TypeCommon = siteless(enum.TypeCommon), siteless(irEnum.TypeCommon)
-	enum.Members, irEnum.Members = idless(enum.Members), idless(irEnum.Members)
-	return reflect.DeepEqual(enum, irEnum)
+// sameButSite reports whether a and b are nodes of one kind equal but for what
+// names their site and their members' IDs (sameNode), members by position.
+func sameButSite(a, b ir.TypeDef) bool {
+	return reflect.DeepEqual(sitelessNode(a), sitelessNode(b))
+}
+
+// sitelessNode returns a copy of td with what names its site (siteless) and its
+// members' IDs zeroed. It shares all else of td.
+func sitelessNode(td ir.TypeDef) ir.TypeDef {
+	bare := copyOfNode(td)
+	common := bare.Common()
+	*common = siteless(*common)
+	if enum, ok := bare.(*ir.Enum); ok {
+		enum.Members = idless(enum.Members)
+	}
+	return bare
+}
+
+// copyOfNode returns a copy of td, which is no nil node, sharing all it holds.
+func copyOfNode(td ir.TypeDef) ir.TypeDef {
+	held := reflect.New(reflect.TypeOf(td).Elem())
+	held.Elem().Set(reflect.ValueOf(td).Elem())
+	node, _ := reflect.TypeAssert[ir.TypeDef](held) // held is of td's concrete type
+	return node
 }
 
 // siteless returns typeCommon with what names where its node was declared

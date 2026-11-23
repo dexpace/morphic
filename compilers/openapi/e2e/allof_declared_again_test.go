@@ -314,6 +314,44 @@ func TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain(t *testi
 	}
 }
 
+// TestAllOfFold_AMemberIsDeclaredAgainInItsOwnDocument pins two documents each
+// writing a model at one pointer, one declaring f twice and the other once, in
+// either of them: the member keeps its notes on its nodes in the first and on
+// itself in the second, whichever is read first.
+func TestAllOfFold_AMemberIsDeclaredAgainInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	const twice = "{allOf: [{properties: {f: {type: array, items: {type: string}, description: D}}}, {properties: {f: {type: array, items: {type: string}, description: D}}}]}"
+	const once = "{allOf: [{properties: {f: {type: array, items: {type: string}, description: D}}}, {properties: {g: {type: string}}}]}"
+	for _, tc := range []struct {
+		name, main, other string
+		mainAgain         bool
+	}{{"the root declaring it twice", twice, once, true}, {"the other declaring it twice", once, twice, false}} {
+		for _, spec := range []string{"    M: %s\n    U: {$ref: 'other.yaml#/components/schemas/M'}\n", "    A: {$ref: 'other.yaml#/components/schemas/M'}\n    M: %s\n"} {
+			dir := t.TempDir()
+			layout(t, dir, map[string]string{"main.yaml": openapitest.ComponentSpec(fmt.Sprintf(spec, tc.main)),
+				"other.yaml": openapitest.ComponentSpec("    M: " + tc.other + "\n")})
+			doc, _ := compileDir(t, dir, openapi.Options{})
+
+			read := map[int]string{}
+			for _, td := range doc.Types {
+				model, isModel := td.(*ir.Model)
+				if !isModel || model.Provenance.Pointer != "/components/schemas/M" {
+					continue
+				}
+				field, ok := propertyByWire(model, "f")
+				require.True(t, ok, tc.name)
+				read[model.Provenance.Source] = "field " + field.Docs.Description + ", node " + doc.Types[field.Type.Target].Common().Docs.Description
+			}
+			again, alone := "field , node D", "field D, node "
+			want := map[int]string{0: again, 1: alone}
+			if !tc.mainAgain {
+				want = map[int]string{0: alone, 1: again}
+			}
+			assert.Equal(t, want, read, tc.name)
+		}
+	}
+}
+
 // TestAllOfFold_ADistributedModelsMemberDeclaredAgainKeepsItsNotes pins a model
 // a union distributes, the union beside its allOf or on an entry of it: each
 // variant's member, which the variants fold of the same two declarations,
@@ -372,15 +410,15 @@ func TestAllOfFold_AMemberDeclaredAgainReadsNoReplacementOffItsNode(t *testing.T
 	}
 }
 
-// TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote pins a member a
-// model declares twice itself beside one a composed model declares: the model's
-// own keep their notes on their nodes and the brought one's stays on its
-// model's property. Two maps no type holds both of compose with the brought
-// object, read as holding its note; two objects compose without it, as it says
-// nothing more. The field, its own declarations lending it none, holds the
-// brought note too, in every order of the entries and of the components
-// (docs/compilers/openapi.md#allof-redeclared-property).
-func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T) {
+// TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes pins a
+// member a model declares twice itself beside one a composed model declares:
+// the model's own keep their notes on their nodes and the brought one's stays
+// on its model's property. Two maps no type holds both of compose with the
+// brought object, read as holding its note; two objects compose without it, as
+// it says nothing more. The field's types holding the model's own descriptions,
+// it holds none, the brought one's reported, in every order of the entries and
+// of the components (docs/compilers/openapi.md#allof-redeclared-property).
+func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testing.T) {
 	t.Parallel()
 	const base = "    Base: {type: object, properties: {f: {type: object, description: B}}}\n"
 	for _, tc := range []struct {
@@ -410,8 +448,10 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T)
 			for _, spec := range []string{base + model, model + base} {
 				label := fmt.Sprintf("%s, %v", tc.name, order)
 				doc, diags := parseVerified(t, openapitest.ComponentSpec(spec))
-				assert.Empty(t, diags, label)
-				want := fmt.Sprintf("[description B] composed/M/allOf/%d/properties/f model of (%s)", lastOwn, strings.Join(parts, "; "))
+				require.Len(t, diags, 1, label)
+				assert.Contains(t, diags[0].Message, fmt.Sprintf("give its description differently; kept the one the declaration at "+
+					"/components/schemas/M/allOf/%d/properties/f gives over the one at /components/schemas/Base/properties/f", lastOwn), label)
+				want := fmt.Sprintf("composed/M/allOf/%d/properties/f model of (%s)", lastOwn, strings.Join(parts, "; "))
 				assert.Equal(t, want, memberText(t, doc, componentID("M")), label)
 				assert.Equal(t, "[description B] Base/properties/f model", memberText(t, doc, componentID("Base")), label)
 			}
@@ -419,11 +459,16 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T)
 	}
 
 	// Two enums sharing no value: the one within the brought enum would win with
-	// it, and the later wins where each is told apart by its note.
+	// it, and the later wins where each is told apart by its note. Two that share
+	// theirs are one type with it as they stand, so its note tells none apart.
 	doc, _ := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [b, a], description: B}}}\n"+
 		"    M: {properties: {f: {type: string, enum: [d], description: D0}}, allOf: [{properties: {f: {type: string, enum: [b], description: D1}}}, "+
 		"{$ref: '#/components/schemas/Base'}]}\n"))
-	assert.Equal(t, "[description B] M/properties/f enum d [description D0] | verbatim M/allOf/0/properties/f", memberText(t, doc, componentID("M")))
+	assert.Equal(t, "M/properties/f enum d [description D0] | verbatim M/allOf/0/properties/f", memberText(t, doc, componentID("M")))
+	doc, diags := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [a, b], description: B}}}\n"+
+		"    M: {allOf: [{properties: {f: {type: string, enum: [a, b]}}}, {properties: {f: {type: string, enum: [a, b, c]}}}, {$ref: '#/components/schemas/Base'}]}\n"))
+	assert.Empty(t, diags)
+	assert.Equal(t, "[description B] Base/properties/f enum a b", memberText(t, doc, componentID("M")))
 }
 
 // TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType pins a member a
