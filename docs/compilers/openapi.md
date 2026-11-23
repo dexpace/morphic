@@ -3371,7 +3371,11 @@ stay on that model's property. Types that compose as they stand reach every node
 so none of its notes is lost; any other the fold judges with each node read as holding the notes a
 property carries off it, as the model's own nodes hold theirs. It judges so any other member another
 model declares too, where the types as they stand drop one and so read they compose, or keep the
-model's own. The field holds the brought notes too where its own declarations lend it none.
+model's own. The field holds the brought notes too where its own declarations lend it none. A brought
+member its own model settled is judged by the type it settled to, narrower where no note of its
+declarations held their types apart, so a declaration beside it can lose to it what it would not to
+those noted types. And an example of the model's own is judged by the type the field then has, so one
+outside a narrower type is refused and kept verbatim.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write

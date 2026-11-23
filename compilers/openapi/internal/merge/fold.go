@@ -50,7 +50,9 @@ type Merger struct {
 }
 
 // CarriedNotes is what a property holds of the notes of the node its schema
-// builds, which that node holds none of.
+// builds, which that node holds none of. They are of the node, not of a member
+// a part settled: that part's fold may have left it a type narrower than its
+// declarations' noted nodes would, and it is judged by that type.
 type CarriedNotes struct {
 	Docs        ir.Docs
 	Deprecation *ir.Deprecation
