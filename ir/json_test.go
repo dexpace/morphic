@@ -452,7 +452,7 @@ func unsortedTypesDoc() ir.Document {
 }
 
 // TestDocument_MarshalIgnoresCallerOptions pins that every caller option which
-// could change Document's encoded bytes is overridden by canonicalOptions once
+// could change Document's encoded bytes is overridden by CanonicalOptions once
 // MarshalJSONTo runs (json.go), a marshaler for anything the Document holds
 // among them. Each option changes the bytes of unsortedTypesDoc when it is not
 // pinned; each case must still produce bytes identical to a plain
@@ -505,7 +505,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 }
 
 // TestDocument_MarshalRefusesInvalidUTF8RegardlessOfCaller pins that
-// canonicalOptions' AllowInvalidUTF8(false) cannot be overridden: a Document
+// CanonicalOptions' AllowInvalidUTF8(false) cannot be overridden: a Document
 // with invalid UTF-8 in a string field fails to encode even when the caller
 // explicitly passes jsontext.AllowInvalidUTF8(true).
 func TestDocument_MarshalRefusesInvalidUTF8RegardlessOfCaller(t *testing.T) {
@@ -529,7 +529,7 @@ func TestDocument_MarshalRefusesInvalidUTF8RegardlessOfCaller(t *testing.T) {
 }
 
 // TestDocument_MarshalRefusesDuplicateNamesRegardlessOfCaller pins that
-// canonicalOptions' AllowDuplicateNames(false) cannot be overridden: a raw
+// CanonicalOptions' AllowDuplicateNames(false) cannot be overridden: a raw
 // payload naming one member twice is ambiguous, so the document refuses to
 // encode it even when the caller would allow it.
 func TestDocument_MarshalRefusesDuplicateNamesRegardlessOfCaller(t *testing.T) {
@@ -555,7 +555,7 @@ func TestDocument_MarshalRefusesDuplicateNamesRegardlessOfCaller(t *testing.T) {
 
 // TestDocument_MarshalSortsMapKeysWithoutBeingAsked pins that a plain
 // json.Marshal(doc), with no Deterministic option from the caller, still
-// emits Types in sorted-key order: canonicalOptions forces it (invariant 7).
+// emits Types in sorted-key order: CanonicalOptions forces it (invariant 7).
 func TestDocument_MarshalSortsMapKeysWithoutBeingAsked(t *testing.T) {
 	t.Parallel()
 	doc := unsortedTypesDoc()

@@ -1,0 +1,63 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Color/oneOf/0": {},
+    "type/anonymous/components/schemas/Color/oneOf/1": {},
+    "type/anonymous/components/schemas/Compass/oneOf/0": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/0": {},
+    "type/anonymous/components/schemas/Compass/oneOf/0/oneOf/1": {},
+    "type/anonymous/components/schemas/Compass/oneOf/1": {},
+    "type/anonymous/components/schemas/Direction/oneOf/0": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Direction/oneOf/0/oneOf/0": {},
+    "type/anonymous/components/schemas/Direction/oneOf/1": {},
+    "type/anonymous/components/schemas/Fit/anyOf/1": {},
+    "type/anonymous/components/schemas/Level/anyOf/0": {},
+    "type/anonymous/components/schemas/Level/anyOf/1": {},
+    "type/anonymous/components/schemas/Pinned/oneOf/0": {},
+    "type/anonymous/components/schemas/Pinned/oneOf/1": {},
+    "type/anonymous/components/schemas/Plan/oneOf/0": {},
+    "type/anonymous/components/schemas/Plan/oneOf/1": {},
+    "type/anonymous/components/schemas/Shade/oneOf/0": {},
+    "type/anonymous/components/schemas/Size/anyOf/0": {},
+    "type/anonymous/components/schemas/Size/anyOf/1": {},
+    "type/anonymous/components/schemas/Tier/oneOf/0": {},
+    "type/anonymous/components/schemas/Tier/oneOf/1": {},
+    "type/openapi/components/schemas/Color": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Compass": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Direction": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Fit": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Level": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Light": {},
+    "type/openapi/components/schemas/Pinned": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Plan": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Shade": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Size": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Tier": {
+      "union": "one_of"
+    }
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

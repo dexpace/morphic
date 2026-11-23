@@ -1,0 +1,29 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Pet/type/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/type/0/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/type/0/properties/kind",
+        "property/openapi/components/schemas/Cat/properties/meow"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/type/0/properties/kind",
+        "property/openapi/components/schemas/Dog/properties/bark"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "union": "one_of"
+    },
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

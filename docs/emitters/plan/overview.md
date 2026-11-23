@@ -5,7 +5,9 @@
 Every map in the plan is keyed by a string type, since JSON names an object's members by strings
 alone. `encoding/json/v2` refuses a key that does not encode as a string, as a plain struct does, so
 a composite key is a map nested in a map: a struct given a text form would need an escaping of its
-own, since a `TypeID` may hold any separator the text form could choose.
+own, since a `TypeID` may hold any separator the text form could choose. A `Plan` encodes itself
+under the options the document's codec pins, whatever options its caller passes, so one plan has
+one encoding.
 
 ```go
 package plan
@@ -104,4 +106,9 @@ plan's policy alone: `naming.Policy` and the runtime policy shape no plan
   `Build` that no plan golden reaches, and either would then serve a stale plan. The plan holds no
   build, as the document holds none, so a plan golden is the same from build to build, and is what
   shows a new toolchain left those bytes alone, as an IR golden is for a document's: json/v2
-  promises them only within one build.
+  promises them only within one build. The golden holding a version is of one document stamped
+  with an `irVersion` of its own, and the corpus's plan goldens leave the version out, as an IR
+  golden leaves out the `irVersion` it hashes, so a bump of that rewrites none.
+- **A document that does not encode has no version.** One holding a string that is not UTF-8 has
+  no canonical JSON, so no digest. `Build` reports it as an error `emitters/plan/unencodable` and
+  leaves `Version` empty.

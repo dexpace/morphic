@@ -1,0 +1,22 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/S/properties/list": {},
+    "type/openapi/components/schemas/DeclaredDefault": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/n",
+        "property/openapi/components/schemas/S/properties/viaRef",
+        "property/openapi/components/schemas/S/properties/flag",
+        "property/openapi/components/schemas/S/properties/cleared",
+        "property/openapi/components/schemas/S/properties/blob",
+        "property/openapi/components/schemas/S/properties/list"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "types": {
+    "type/anonymous/paths/~1purge/post/responses/default/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1purge/post/responses/default/content/application~1json/schema/properties/purged"
+      ]
+    },
+    "type/openapi/components/schemas/Item": {
+      "flattened": [
+        "property/openapi/components/schemas/Item/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Problem": {
+      "flattened": [
+        "property/openapi/components/schemas/Problem/properties/message"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

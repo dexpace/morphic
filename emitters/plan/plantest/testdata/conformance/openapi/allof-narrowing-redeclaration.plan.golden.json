@@ -1,0 +1,316 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/AliasedListMeetsLast/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p": {
+      "flattened": [
+        "property/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p": {
+      "flattened": [
+        "property/openapi/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/EnumNarrowFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumNarrowFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypesMeet/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumValueTypesMeet/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/EnumWideFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumWideFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/EnumsMeet/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/EnumsMeet/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/HexBroadFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/HexNarrowFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/ListNarrowFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/ListNarrowFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/ListWideFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/ListWideFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/NarrowedPastARef/allOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/NarrowedPastARef/allOf/0/properties/p"
+      ]
+    },
+    "type/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p": {},
+    "type/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items": {},
+    "type/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p": {},
+    "type/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items": {},
+    "type/composed/components/schemas/EnumValueTypesMeet/allOf/1/properties/p": {},
+    "type/composed/components/schemas/EnumsMeet/allOf/1/properties/p": {},
+    "type/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/ListWideFirst/allOf/1/properties/p": {},
+    "type/openapi/components/schemas/AliasMeetsFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/AliasMeetsFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/AliasMeetsLast": {
+      "flattened": [
+        "property/openapi/components/schemas/AliasMeetsLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/AliasedListMeetsFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/AliasedListMeetsFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/AliasedListMeetsLast": {
+      "flattened": [
+        "property/openapi/components/schemas/AliasedListMeetsLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ArrayBesideUntypedFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ArrayBesideUntypedLast": {
+      "flattened": [
+        "property/openapi/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ChainNarrowestFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/ChainNarrowestFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ChainNarrowestLast": {
+      "flattened": [
+        "property/openapi/components/schemas/ChainNarrowestLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ChainNarrowestMiddle": {
+      "flattened": [
+        "property/openapi/components/schemas/ChainNarrowestMiddle/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/DoubleNumberBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/DoubleNumberBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/DoubleNumberNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/DoubleNumberNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumValueTypeNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumValueTypeWideFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumValueTypesMeet": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumValueTypesMeet/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumWideFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumWideFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/EnumsMeet": {
+      "flattened": [
+        "property/openapi/components/schemas/EnumsMeet/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/HexBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/HexBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/HexNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/HexNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/InadmissibleDefaultBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/InadmissibleDefaultNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/InadmissibleDefaultNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Int32Int64BroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/Int32Int64BroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Int32Int64NarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/Int32Int64NarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/IntegerInt32BroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/IntegerInt32BroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/IntegerInt32NarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/IntegerInt32NarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/LaterLetters": {},
+    "type/openapi/components/schemas/LetterList": {},
+    "type/openapi/components/schemas/Letters": {},
+    "type/openapi/components/schemas/ListNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/ListNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/ListWideFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/ListWideFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NarrowedBranchUser": {
+      "flattened": [
+        "property/openapi/components/schemas/NarrowedBranchUser/properties/branch"
+      ]
+    },
+    "type/openapi/components/schemas/NarrowedPastARef": {
+      "flattened": [
+        "property/composed/components/schemas/NarrowedPastARef/allOf/1/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NullableBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NullableBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NullableNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NullableNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NumberIntegerBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NumberIntegerBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NumberIntegerNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NumberIntegerNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/RefusedLateDefaultFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/RefusedLateDefaultFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/RefusedLateDefaultLast": {
+      "flattened": [
+        "property/openapi/components/schemas/RefusedLateDefaultLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/RefusedLateDefaultMiddle": {
+      "flattened": [
+        "property/openapi/components/schemas/RefusedLateDefaultMiddle/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringBesideUntypedFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StringBesideUntypedFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringBesideUntypedLast": {
+      "flattened": [
+        "property/openapi/components/schemas/StringBesideUntypedLast/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringDatetimeBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StringDatetimeBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringDatetimeNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StringDatetimeNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/TopBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/TopBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/TopNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/TopNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Uint8Int16BroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/Uint8Int16BroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Uint8Int16NarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/Uint8Int16NarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/UntypedObject": {
+      "flattened": [
+        "property/openapi/components/schemas/UntypedObject/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/UriStringBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/UriStringBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/UriStringNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/UriStringNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/UuidStringBroadFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/UuidStringBroadFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/UuidStringNarrowFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/UuidStringNarrowFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/WrappedLetterList": {},
+    "type/openapi/components/schemas/WrappedLetters": {},
+    "type/primitive/any": {},
+    "type/primitive/datetime_offset": {},
+    "type/primitive/float64": {},
+    "type/primitive/int16": {},
+    "type/primitive/int32": {},
+    "type/primitive/int64": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {},
+    "type/primitive/uint8": {},
+    "type/primitive/url": {},
+    "type/primitive/uuid": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

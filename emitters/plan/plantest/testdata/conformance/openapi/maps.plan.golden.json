@@ -1,0 +1,42 @@
+{
+  "types": {
+    "type/openapi/components/schemas/AnyMap": {},
+    "type/openapi/components/schemas/BoundedMap": {},
+    "type/openapi/components/schemas/ClosedAfter": {
+      "flattened": [
+        "property/openapi/components/schemas/ClosedAfter/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/ClosedAfterPatterns": {},
+    "type/openapi/components/schemas/ClosedPatternMap": {},
+    "type/openapi/components/schemas/ClosedRecord": {
+      "flattened": [
+        "property/openapi/components/schemas/ClosedRecord/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/ClosedTwice": {
+      "flattened": [
+        "property/openapi/components/schemas/ClosedTwice/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/InertBesideAMap": {},
+    "type/openapi/components/schemas/InertBesideARecord": {
+      "flattened": [
+        "property/openapi/components/schemas/InertBesideARecord/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/OpenMap": {},
+    "type/openapi/components/schemas/OpenRecord": {
+      "flattened": [
+        "property/openapi/components/schemas/OpenRecord/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/PatternMap": {},
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

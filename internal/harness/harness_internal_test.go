@@ -110,7 +110,7 @@ func TestRoundTrips_UnmarshalError(t *testing.T) {
 // TestRoundTrips_DupKeyDocRefusedAtMarshal pins the boundary the stricter codec
 // moved: dupKeyDoc's two invalid-UTF-8 IDs used to collide into one
 // U+FFFD-replaced JSON key on marshal, which is what used to reach the
-// byte-comparison branch below. canonicalOptions now refuses invalid UTF-8
+// byte-comparison branch below. CanonicalOptions now refuses invalid UTF-8
 // outright (AllowInvalidUTF8(false)), so the fixture is rejected before a
 // collision can even form.
 func TestRoundTrips_DupKeyDocRefusedAtMarshal(t *testing.T) {

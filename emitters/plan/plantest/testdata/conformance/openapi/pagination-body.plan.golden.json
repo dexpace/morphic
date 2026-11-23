@@ -1,0 +1,22 @@
+{
+  "types": {
+    "type/anonymous/paths/~1search/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties/query",
+        "property/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties/page",
+        "property/openapi/paths/~1search/post/requestBody/content/application~1json/schema/properties/per_page"
+      ]
+    },
+    "type/anonymous/paths/~1search/post/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1search/post/responses/200/content/application~1json/schema/properties/result"
+      ]
+    },
+    "type/anonymous/paths/~1search/post/responses/200/content/application~1json/schema/properties/result": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

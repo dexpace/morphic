@@ -1,0 +1,75 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Vehicle/type/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Vehicle/type/0/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/Bird/oneOf": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Animal": {},
+    "type/openapi/components/schemas/Bird": {
+      "unflattened": [
+        "type/composed/components/schemas/Bird/oneOf"
+      ]
+    },
+    "type/openapi/components/schemas/Car": {
+      "flattened": [
+        "property/openapi/components/schemas/Car/properties/wheels"
+      ]
+    },
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind",
+        "property/openapi/components/schemas/Cat/properties/meow"
+      ]
+    },
+    "type/openapi/components/schemas/Circle": {
+      "flattened": [
+        "property/openapi/components/schemas/Circle/allOf/1/properties/radius"
+      ]
+    },
+    "type/openapi/components/schemas/Crow": {
+      "flattened": [
+        "property/openapi/components/schemas/Crow/properties/caw"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Dog/properties/kind",
+        "property/openapi/components/schemas/Dog/properties/bark"
+      ]
+    },
+    "type/openapi/components/schemas/Finch": {
+      "flattened": [
+        "property/openapi/components/schemas/Finch/properties/song"
+      ]
+    },
+    "type/openapi/components/schemas/Kitten": {
+      "flattened": [
+        "property/openapi/components/schemas/Kitten/allOf/1/properties/age"
+      ]
+    },
+    "type/openapi/components/schemas/Mixed": {},
+    "type/openapi/components/schemas/Pet": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Shape": {},
+    "type/openapi/components/schemas/Square": {
+      "flattened": [
+        "property/openapi/components/schemas/Square/allOf/1/properties/side"
+      ]
+    },
+    "type/openapi/components/schemas/Vehicle": {
+      "union": "one_of"
+    },
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

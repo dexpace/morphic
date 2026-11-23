@@ -1,0 +1,28 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Named/definitions/Leaf": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/components/schemas/Open/additionalItems": {},
+    "type/anonymous/components/schemas/Pairs/items": {},
+    "type/openapi/components/schemas/Applied": {},
+    "type/openapi/components/schemas/Count": {},
+    "type/openapi/components/schemas/Labelled": {},
+    "type/openapi/components/schemas/Named": {
+      "flattened": [
+        "property/openapi/components/schemas/Named/properties/leaf",
+        "property/openapi/components/schemas/Named/properties/beside"
+      ]
+    },
+    "type/openapi/components/schemas/Open": {},
+    "type/openapi/components/schemas/Pair": {},
+    "type/openapi/components/schemas/Paired": {},
+    "type/openapi/components/schemas/Pairs": {},
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

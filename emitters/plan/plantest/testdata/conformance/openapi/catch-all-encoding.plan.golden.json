@@ -1,0 +1,27 @@
+{
+  "types": {
+    "type/anonymous/paths/~1assets/post/requestBody/content/multipart~1form-data/schema": {},
+    "type/anonymous/paths/~1mixed/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata"
+      ]
+    },
+    "type/anonymous/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/additionalProperties": {},
+    "type/anonymous/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata": {
+      "flattened": [
+        "property/openapi/paths/~1snippet/put/requestBody/content/multipart~1form-data/schema/properties/metadata/properties/main_module"
+      ]
+    },
+    "type/openapi/components/schemas/Files": {},
+    "type/openapi/components/schemas/Notes": {},
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

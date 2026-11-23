@@ -1,0 +1,55 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/FileList/properties/file": {},
+    "type/anonymous/components/schemas/UploadForm/properties/tags": {},
+    "type/anonymous/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids"
+      ]
+    },
+    "type/anonymous/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {},
+    "type/anonymous/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/UploadForm/properties/file",
+        "property/openapi/components/schemas/UploadForm/properties/tags",
+        "property/openapi/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note"
+      ]
+    },
+    "type/anonymous/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/composed/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema/allOf/properties/file",
+        "property/openapi/components/schemas/UploadForm/properties/tags"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {},
+    "type/openapi/components/schemas/Digest": {},
+    "type/openapi/components/schemas/FileList": {
+      "flattened": [
+        "property/openapi/components/schemas/FileList/properties/file"
+      ]
+    },
+    "type/openapi/components/schemas/UploadForm": {
+      "flattened": [
+        "property/openapi/components/schemas/UploadForm/properties/file",
+        "property/openapi/components/schemas/UploadForm/properties/tags"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/string": {},
+    "type/primitive/uuid": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

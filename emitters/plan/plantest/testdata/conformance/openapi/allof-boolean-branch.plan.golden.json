@@ -1,0 +1,20 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Always": {
+      "flattened": [
+        "property/openapi/components/schemas/Always/allOf/1/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/BareFalse": {},
+    "type/openapi/components/schemas/ClosedEmpty": {},
+    "type/openapi/components/schemas/Never": {
+      "flattened": [
+        "property/openapi/components/schemas/Never/allOf/1/properties/id"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

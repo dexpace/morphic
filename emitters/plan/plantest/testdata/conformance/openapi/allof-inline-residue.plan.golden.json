@@ -1,0 +1,56 @@
+{
+  "types": {
+    "type/composed/components/schemas/Distributed/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Feline/properties/purrs",
+        "property/openapi/components/schemas/Distributed/allOf/1/properties/name"
+      ]
+    },
+    "type/composed/components/schemas/Distributed/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Canine/properties/barks",
+        "property/openapi/components/schemas/Distributed/allOf/1/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Canine": {
+      "flattened": [
+        "property/openapi/components/schemas/Canine/properties/barks"
+      ]
+    },
+    "type/openapi/components/schemas/Contradicted": {
+      "flattened": [
+        "property/openapi/components/schemas/Contradicted/allOf/0/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Distributed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Feline": {
+      "flattened": [
+        "property/openapi/components/schemas/Feline/properties/purrs"
+      ]
+    },
+    "type/openapi/components/schemas/ItemA": {},
+    "type/openapi/components/schemas/ItemB": {},
+    "type/openapi/components/schemas/Narrowed": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Narrowed/allOf/1/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Rebased": {},
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

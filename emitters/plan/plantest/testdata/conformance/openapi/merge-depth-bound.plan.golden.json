@@ -1,0 +1,52 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Disc/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Disc/oneOf/0/properties/pet"
+      ]
+    },
+    "type/anonymous/components/schemas/Disc/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Disc/oneOf/1/properties/pet"
+      ]
+    },
+    "type/openapi/components/schemas/Arr": {},
+    "type/openapi/components/schemas/Disc": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Doc": {},
+    "type/openapi/components/schemas/Enum": {},
+    "type/openapi/components/schemas/Int": {},
+    "type/openapi/components/schemas/Log": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Obj": {
+      "flattened": [
+        "property/openapi/components/schemas/Obj/properties/a",
+        "property/openapi/components/schemas/Obj/properties/b"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Obj/properties/a",
+        "property/openapi/components/schemas/Obj/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Plain": {
+      "flattened": [
+        "property/openapi/components/schemas/Plain/properties/a",
+        "property/openapi/components/schemas/Plain/properties/b"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Plain/properties/a",
+        "property/openapi/components/schemas/Plain/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Str": {},
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

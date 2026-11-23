@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/openapi/components/schemas/A": {},
+    "type/openapi/components/schemas/Alike": {},
+    "type/openapi/components/schemas/B": {},
+    "type/openapi/components/schemas/Distinct": {},
+    "type/openapi/components/schemas/Same": {},
+    "type/openapi/components/schemas/Twice": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

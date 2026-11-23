@@ -1,0 +1,183 @@
+{
+  "types": {
+    "type/anonymous/components/mediaTypes//itemSchema": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//itemSchema/properties/l"
+      ]
+    },
+    "type/anonymous/components/mediaTypes//schema/items": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//schema/items/properties/k"
+      ]
+    },
+    "type/anonymous/components/parameters/Unnamed/content/application~1jsonl/itemSchema": {
+      "flattened": [
+        "property/openapi/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g"
+      ]
+    },
+    "type/anonymous/components/parameters/UnnamedContent/content/application~1json/schema/items": {
+      "flattened": [
+        "property/openapi/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j"
+      ]
+    },
+    "type/anonymous/components/parameters/UnnamedList/schema/items": {
+      "flattened": [
+        "property/openapi/components/parameters/UnnamedList/schema/items/properties/p"
+      ]
+    },
+    "type/anonymous/components/schemas/": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/components/schemas/Blob/properties/": {},
+    "type/anonymous/components/schemas/Blob/properties//contentSchema": {
+      "flattened": [
+        "property/openapi/components/schemas/Blob/properties//contentSchema/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/Host/properties/": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/List/properties/": {},
+    "type/anonymous/components/schemas/List/properties//items": {
+      "flattened": [
+        "property/openapi/components/schemas/List/properties//items/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/Maps/properties/": {},
+    "type/anonymous/components/schemas/Maps/properties//additionalProperties": {
+      "flattened": [
+        "property/openapi/components/schemas/Maps/properties//additionalProperties/properties/b"
+      ]
+    },
+    "type/anonymous/components/schemas/Mixed/properties/": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Mixed/properties//enum/0": {},
+    "type/anonymous/components/schemas/Mixed/properties//enum/1": {},
+    "type/anonymous/components/schemas/Old/properties/": {},
+    "type/anonymous/components/schemas/Old/properties//additionalItems": {
+      "flattened": [
+        "property/openapi/components/schemas/Old/properties//additionalItems/properties/e"
+      ]
+    },
+    "type/anonymous/components/schemas/Old/properties//items/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Old/properties//items/0/properties/d"
+      ]
+    },
+    "type/anonymous/components/schemas/Patterns/properties/": {},
+    "type/anonymous/components/schemas/Patterns/properties//patternProperties/^x": {
+      "flattened": [
+        "property/openapi/components/schemas/Patterns/properties//patternProperties/^x/properties/c"
+      ]
+    },
+    "type/anonymous/components/schemas/Tuple/properties/": {},
+    "type/anonymous/components/schemas/Tuple/properties//items": {
+      "flattened": [
+        "property/openapi/components/schemas/Tuple/properties//items/properties/e"
+      ]
+    },
+    "type/anonymous/components/schemas/Tuple/properties//prefixItems/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Tuple/properties//prefixItems/0/properties/d"
+      ]
+    },
+    "type/anonymous/components/schemas/Widget/properties/": {
+      "flattened": [
+        "property/openapi/components/schemas/Widget/properties//properties/leaf"
+      ]
+    },
+    "type/composed/components/schemas/Host/properties//oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Alt/properties/alt"
+      ]
+    },
+    "type/openapi/components/schemas/Alt": {
+      "flattened": [
+        "property/openapi/components/schemas/Alt/properties/alt"
+      ]
+    },
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Blob": {
+      "flattened": [
+        "property/openapi/components/schemas/Blob/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Host": {
+      "flattened": [
+        "property/openapi/components/schemas/Host/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Line": {
+      "flattened": [
+        "property/openapi/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g"
+      ]
+    },
+    "type/openapi/components/schemas/List": {
+      "flattened": [
+        "property/openapi/components/schemas/List/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Maps": {
+      "flattened": [
+        "property/openapi/components/schemas/Maps/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/MediaItem": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//schema/items/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/MediaItemSchema": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//itemSchema/properties/l"
+      ]
+    },
+    "type/openapi/components/schemas/Mixed": {
+      "flattened": [
+        "property/openapi/components/schemas/Mixed/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Old": {
+      "flattened": [
+        "property/openapi/components/schemas/Old/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/ParamContentItem": {
+      "flattened": [
+        "property/openapi/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j"
+      ]
+    },
+    "type/openapi/components/schemas/ParamItem": {
+      "flattened": [
+        "property/openapi/components/parameters/UnnamedList/schema/items/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Patterns": {
+      "flattened": [
+        "property/openapi/components/schemas/Patterns/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Rollout": {},
+    "type/openapi/components/schemas/Tuple": {
+      "flattened": [
+        "property/openapi/components/schemas/Tuple/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/Widget": {
+      "flattened": [
+        "property/openapi/components/schemas/Widget/properties/"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

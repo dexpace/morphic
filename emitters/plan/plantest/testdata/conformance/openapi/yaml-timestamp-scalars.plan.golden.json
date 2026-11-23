@@ -1,0 +1,16 @@
+{
+  "types": {
+    "type/openapi/components/schemas/D": {},
+    "type/openapi/components/schemas/K": {},
+    "type/openapi/components/schemas/R": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/d"
+      ]
+    },
+    "type/primitive/date": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

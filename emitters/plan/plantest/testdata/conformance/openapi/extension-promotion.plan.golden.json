@@ -1,0 +1,46 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Mixed/enum/0": {},
+    "type/anonymous/components/schemas/Mixed/enum/1": {},
+    "type/anonymous/components/schemas/MixedFixed/enum/0": {},
+    "type/anonymous/components/schemas/MixedFixed/enum/1": {},
+    "type/openapi/components/schemas/ByKey": {
+      "flattened": [
+        "property/openapi/components/schemas/ByKey/properties/p"
+      ],
+      "deprecated": {
+        "property/openapi/components/schemas/ByKey/properties/p": {}
+      }
+    },
+    "type/openapi/components/schemas/Fixed": {},
+    "type/openapi/components/schemas/Mixed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/MixedFixed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/NotAnEnum": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Old": {
+      "flattened": [
+        "property/openapi/components/schemas/Old/properties/p",
+        "property/openapi/components/schemas/Old/properties/n"
+      ],
+      "deprecated": {
+        "property/openapi/components/schemas/Old/properties/n": {},
+        "property/openapi/components/schemas/Old/properties/p": {
+          "message": "field goes away"
+        }
+      }
+    },
+    "type/openapi/components/schemas/Shade": {},
+    "type/openapi/components/schemas/Size": {},
+    "type/openapi/components/schemas/Tier": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

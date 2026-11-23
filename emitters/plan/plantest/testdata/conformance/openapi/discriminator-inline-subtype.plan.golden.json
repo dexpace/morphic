@@ -1,0 +1,62 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Either/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Either/oneOf/0/properties/chirp"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/anonymous/components/schemas/Kennel/properties/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Kennel/properties/Dog/properties/woof"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/anonymous/components/schemas/Kennel/properties/pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Kennel/properties/pet/properties/meow"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Dog/properties/bark"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Either": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Kennel": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/Dog",
+        "property/openapi/components/schemas/Kennel/properties/pet"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

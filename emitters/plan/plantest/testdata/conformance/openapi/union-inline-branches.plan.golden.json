@@ -1,0 +1,102 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Check/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Check/oneOf/0/properties/transferable"
+      ]
+    },
+    "type/anonymous/components/schemas/Check/oneOf/0/properties/transferable": {},
+    "type/anonymous/components/schemas/Check/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Check/oneOf/1/properties/transferable",
+        "property/openapi/components/schemas/Check/oneOf/1/properties/reasons"
+      ]
+    },
+    "type/anonymous/components/schemas/Check/oneOf/1/properties/reasons": {},
+    "type/anonymous/components/schemas/Check/oneOf/1/properties/transferable": {},
+    "type/anonymous/components/schemas/MaybePlacement/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/MaybePlacement/oneOf/0/properties/region"
+      ]
+    },
+    "type/anonymous/components/schemas/Placement/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region"
+      ]
+    },
+    "type/anonymous/components/schemas/Placement/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Placement/oneOf/1/properties/hostname"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Placement/oneOf/1/properties/hostname"
+      ]
+    },
+    "type/composed/components/schemas/Check/oneOf/0": {
+      "flattened": [
+        "property/composed/components/schemas/Check/oneOf/0/allOf/allOf/properties/transferable"
+      ],
+      "required": [
+        "property/composed/components/schemas/Check/oneOf/0/allOf/allOf/properties/transferable"
+      ]
+    },
+    "type/composed/components/schemas/Check/oneOf/1": {
+      "flattened": [
+        "property/composed/components/schemas/Check/oneOf/1/allOf/allOf/properties/transferable",
+        "property/openapi/components/schemas/Check/oneOf/1/properties/reasons"
+      ],
+      "required": [
+        "property/composed/components/schemas/Check/oneOf/1/allOf/allOf/properties/transferable"
+      ]
+    },
+    "type/composed/components/schemas/MaybePlacement/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/MaybePlacement/oneOf/0/properties/region",
+        "property/openapi/components/schemas/MaybePlacement/properties/status"
+      ]
+    },
+    "type/composed/components/schemas/Placement/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region",
+        "property/openapi/components/schemas/Placement/properties/status"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region"
+      ]
+    },
+    "type/composed/components/schemas/Placement/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Placement/oneOf/1/properties/hostname",
+        "property/openapi/components/schemas/Placement/properties/status"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Placement/oneOf/1/properties/hostname"
+      ]
+    },
+    "type/openapi/components/schemas/Check": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/MaybePlacement": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Placement": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Region": {
+      "flattened": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Placement/oneOf/0/properties/region"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

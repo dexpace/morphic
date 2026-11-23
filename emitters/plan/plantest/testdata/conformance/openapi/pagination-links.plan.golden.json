@@ -1,0 +1,24 @@
+{
+  "types": {
+    "type/anonymous/paths/~1events/get/responses/200/content/application~1json/schema": {},
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/result",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/result_info"
+      ]
+    },
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema/properties/result": {},
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema/properties/result_info": {
+      "flattened": [
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/result_info/properties/next",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/result_info/properties/previous"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {},
+    "type/primitive/url": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Report": {
+      "flattened": [
+        "property/openapi/components/schemas/Report/properties/id",
+        "property/openapi/components/schemas/Report/properties/body"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

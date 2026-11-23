@@ -36,8 +36,8 @@ covers.
   only; every other layer needs `docs/ir/` and not this.
 - **`docs/emitters/` is normative for the emitter half**, the way `docs/ir/` is for the IR.
   Its root, `docs/emitters/README.md`, maps the set: a shared document says what every target does,
-  and one under `targets/` how that target does it. Nothing under `emitters/` exists yet, so read
-  the ones a change needs before writing the first one.
+  and one under `targets/` how that target does it. Only the plan layer, `emitters/plan`, is
+  built, so read the ones a change needs before writing the next package.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
 - `docs/ir-spec-matrix.md` — the union of source-format capabilities the IR is designed against.
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
@@ -187,7 +187,10 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
-emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
+emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. Only the plan
+             layer is built.
+  plan/      Layer 2 — the decisions every emitter reads, derived once for all of them. Imports
+             ir and ir/irfacts only.
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
   cache/     what a run compiled, kept on disk between processes, and what names a build.
@@ -227,8 +230,9 @@ allowlist, so nesting is not a way to widen one; and give it its own entry rathe
 inherit a wider one, since an inherited allowlist says nothing about where the package sits, and
 under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_LayeringHolds` also
 fails on an entry that no production file the rule audits imports, so a change that drops a
-package's last import of something drops the entry with it, and on an entry naming no directory,
-unless `unbuilt` says why it is ruled before its package exists, as `emitters` is.
+package's last import of something drops the entry with it, and on an entry with no file to audit,
+unless `unbuilt` says why it is ruled before its package exists, as `emitters` is while it holds
+only `emitters/plan`.
 
 A package under `compilers/openapi/internal` takes a row in `layers`, the layer its imports and its
 role say, because `TestLayers_EveryCompilerPackageHasOne` fails without one;
@@ -252,6 +256,11 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Golden IR snapshots**: `spec → IR → JSON`, compared via `ir/irtest` (`-update` rewrites).
   Corpus under `testdata/golden/`. A golden stores no `irVersion`: the helper asserts the stamp and
   leaves it out, so a version bump rewrites no golden.
+- **Plan goldens**: `emitters/plan/plantest` builds the plan of every IR golden under `testdata/`,
+  with no compiler in the loop, and holds each to a golden of its own; `-update` rewrites them and
+  removes one whose document is gone. A plan golden leaves the plan's `Version` out, as an IR
+  golden leaves out the `irVersion` it hashes; `TestBuild_VersionIsPinned` holds the version of one
+  document. A change that moves or adds an IR golden runs the update.
 - **IR shape pin**: `TestIRVersion_PinsTheEncodedShape` describes every type `ir.Document` reaches,
   through `internal/jsonshape`, and holds `ir.IRVersion` to the description's hash in the
   `generations` table beside it. A shape change without a bump fails, and so does a bump without

@@ -1,0 +1,9 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Color": {},
+    "type/openapi/components/schemas/Pinned": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

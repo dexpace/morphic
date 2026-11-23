@@ -31,6 +31,8 @@ const (
 		"const-unions, replaces and removes types and edits nothing else"
 	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
 	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
+	planAPI     = "the plan docs/emitters/plan/overview.md derives for every emitter, which the engine " +
+		"builds and encodes once a run hands a document to one (GitHub #2138)"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -69,6 +71,8 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Component":   factAPI,
 	"ir/irfacts.DocumentFacts.Correlation": factAPI,
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
+	"emitters/plan.Build":                  planAPI,
+	"emitters/plan.Plan.MarshalJSONTo":     planAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

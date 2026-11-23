@@ -1,0 +1,60 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Implied/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ],
+      "alias": "type/openapi/components/schemas/Cat"
+    },
+    "type/anonymous/components/schemas/Pet/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ],
+      "alias": "type/openapi/components/schemas/Cat"
+    },
+    "type/anonymous/components/schemas/Twins/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ],
+      "alias": "type/openapi/components/schemas/Cat"
+    },
+    "type/anonymous/components/schemas/Twins/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ],
+      "alias": "type/openapi/components/schemas/Cat"
+    },
+    "type/anonymous/components/schemas/Unknown/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ],
+      "alias": "type/openapi/components/schemas/Cat"
+    },
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Dog/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Implied": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Pet": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Twins": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Unknown": {
+      "union": "discriminated"
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

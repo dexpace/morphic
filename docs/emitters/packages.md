@@ -47,15 +47,16 @@ table's shape and rules, and each target its rows. This document lays out Morphi
 how a generated SDK divides into packages of its own, by source document or by group, is in [output
 units](refine/output-units.md).
 
-**Architecture test.** The import-graph rule is in place before the first emitter package:
-`internal/archtest` rules `emitters`, and names it in `unbuilt` until the package exists, so the
-first package is audited from its first import. Each package under `emitters/` carries an entry of
-its own, as a compiler's packages do, and none may be exempt, which only tooling under `internal/`
-is. The entries the first packages add assert: `emitters/golang` and `emitters/kotlin` may each
-import `emitters`, `emitters/plan`, `emitters/policy`, `emitters/naming`, `emitters/typemap`,
-`emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir` and `ir/irfacts`; neither may import
-`compilers/*`, `engine`, or the other. `emitters/golang` may also import `github.com/dave/dst`, for
-its merge adapter, and no other package may
+**Architecture test.** The import-graph rule is in place before the contract package:
+`internal/archtest` rules `emitters`, and names it in `unbuilt` until that package exists, so it is
+audited from its first import. Until then the directory holds only the packages beneath it,
+`emitters/plan` the first. Each package under `emitters/` carries an entry of its own, as a
+compiler's packages do, and none may be exempt, which only tooling under `internal/` is. The entries
+the first packages add assert: `emitters/golang` and `emitters/kotlin` may each import `emitters`,
+`emitters/plan`, `emitters/policy`, `emitters/naming`, `emitters/typemap`, `emitters/refine`,
+`emitters/manifest`, `emitters/verify`, `ir` and `ir/irfacts`; neither may import `compilers/*`,
+`engine`, or the other. `emitters/golang` may also import `github.com/dave/dst`, for its merge
+adapter, and no other package may
 ([merging](targets/go/overview.md#merging-and-surface-extraction)).
 **Switch-completeness tests** live beside `goast` and `ktast` (over each one's `NodeKind`) and
 beside every refiner (over every `ir.TypeKind`): adding an IR kind fails the test of every dispatch

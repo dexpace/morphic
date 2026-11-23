@@ -1,0 +1,9 @@
+{
+  "types": {
+    "type/anonymous/paths/~1data/get/responses/200/content/application~1json/schema": {},
+    "type/anonymous/paths/~1data/get/responses/200/content/application~1xml/schema": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

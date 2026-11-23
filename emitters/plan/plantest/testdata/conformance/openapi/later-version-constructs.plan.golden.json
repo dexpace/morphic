@@ -1,0 +1,48 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Edition/properties/number": {},
+    "type/anonymous/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/author"
+      ]
+    },
+    "type/anonymous/paths/~1books/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover"
+      ]
+    },
+    "type/openapi/components/schemas/Book": {
+      "flattened": [
+        "property/openapi/components/schemas/Book/properties/title"
+      ]
+    },
+    "type/openapi/components/schemas/Edition": {
+      "flattened": [
+        "property/openapi/components/schemas/Edition/properties/number",
+        "property/openapi/components/schemas/Edition/properties/isbn",
+        "property/openapi/components/schemas/Edition/properties/publisher"
+      ]
+    },
+    "type/openapi/components/schemas/Item": {
+      "flattened": [
+        "property/openapi/components/schemas/Item/properties/kind"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Item/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Novel": {
+      "flattened": [
+        "property/openapi/components/schemas/Item/properties/kind"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Item/properties/kind"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

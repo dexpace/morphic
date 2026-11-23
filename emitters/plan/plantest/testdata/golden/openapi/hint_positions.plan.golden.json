@@ -1,0 +1,572 @@
+{
+  "types": {
+    "type/anonymous/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema/properties/bd"
+      ]
+    },
+    "type/anonymous/components/headers/Trace/schema": {
+      "flattened": [
+        "property/openapi/components/headers/Trace/schema/properties/t"
+      ]
+    },
+    "type/anonymous/components/mediaTypes//itemSchema": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//itemSchema/properties/v"
+      ]
+    },
+    "type/anonymous/components/mediaTypes//schema/items": {
+      "flattened": [
+        "property/openapi/components/mediaTypes//schema/items/properties/u"
+      ]
+    },
+    "type/anonymous/components/parameters/Limit/schema": {
+      "flattened": [
+        "property/openapi/components/parameters/Limit/schema/properties/s"
+      ]
+    },
+    "type/anonymous/components/pathItems/Shared/parameters/0/schema": {
+      "flattened": [
+        "property/openapi/components/pathItems/Shared/parameters/0/schema/properties/ba"
+      ]
+    },
+    "type/anonymous/components/pathItems/Shared/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/pathItems/Shared/post/requestBody/content/application~1json/schema/properties/bb"
+      ]
+    },
+    "type/anonymous/components/pathItems/Shared/post/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/pathItems/Shared/post/responses/200/content/application~1json/schema/properties/bc"
+      ]
+    },
+    "type/anonymous/components/requestBodies/Upload/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/requestBodies/Upload/content/application~1json/schema/properties/q"
+      ]
+    },
+    "type/anonymous/components/responses/Created/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/responses/Created/content/application~1json/schema/properties/r"
+      ]
+    },
+    "type/anonymous/components/schemas/": {
+      "flattened": [
+        "property/openapi/components/schemas//properties/p"
+      ]
+    },
+    "type/anonymous/components/schemas/***/properties/": {
+      "flattened": [
+        "property/openapi/components/schemas/***/properties//properties/o"
+      ]
+    },
+    "type/anonymous/components/schemas/HintUses/oneOf/0": {},
+    "type/anonymous/components/schemas/HintUses/oneOf/1": {},
+    "type/anonymous/components/schemas/HintUses/oneOf/2": {},
+    "type/anonymous/components/schemas/HintUses/oneOf/3": {
+      "flattened": [
+        "property/openapi/components/schemas/HintObj/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/HintUses/oneOf/4": {
+      "flattened": [
+        "property/openapi/components/schemas/HintObj/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/HintUses/oneOf/5": {
+      "flattened": [
+        "property/openapi/components/schemas/HintObj/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/HintUses/oneOf/6": {
+      "alias": "type/openapi/components/schemas/HintStr"
+    },
+    "type/anonymous/components/schemas/HintUses/oneOf/7": {
+      "flattened": [
+        "property/openapi/components/schemas/HintObj/properties/a"
+      ],
+      "alias": "type/openapi/components/schemas/HintObj"
+    },
+    "type/anonymous/components/schemas/Keyed/$defs/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/$defs/items/properties/aa"
+      ]
+    },
+    "type/anonymous/components/schemas/Keyed/definitions/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/definitions/items/properties/ab"
+      ]
+    },
+    "type/anonymous/components/schemas/Keyed/dependencies/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/dependencies/items/properties/ad"
+      ]
+    },
+    "type/anonymous/components/schemas/Keyed/dependentSchemas/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/dependentSchemas/items/properties/ac"
+      ]
+    },
+    "type/anonymous/components/schemas/Keyed/properties/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/properties/items/properties/ae"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/composed": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Positions/properties/composed/allOf/1/properties/h"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/composed/allOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/composed/allOf/1/properties/h"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/decorated": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/decorated/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Pet"
+    },
+    "type/anonymous/components/schemas/Positions/properties/dictionary": {},
+    "type/anonymous/components/schemas/Positions/properties/dictionary/additionalProperties": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/dictionary/additionalProperties/properties/c"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/distributed": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/embedded": {},
+    "type/anonymous/components/schemas/Positions/properties/embedded/contentSchema": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/embedded/contentSchema/properties/m"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/emptyEnum": {},
+    "type/anonymous/components/schemas/Positions/properties/exclusive": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/exclusive/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/exclusive/oneOf/1/properties/f"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/inclusive": {
+      "union": "any_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/inclusive/anyOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/inclusive/anyOf/1/properties/g"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/list": {},
+    "type/anonymous/components/schemas/Positions/properties/list/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/list/items/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/listOfLists": {},
+    "type/anonymous/components/schemas/Positions/properties/listOfLists/items": {},
+    "type/anonymous/components/schemas/Positions/properties/listOfLists/items/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/listOfLists/items/items/properties/b"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/mixedEnum": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/mixedEnum/enum/0": {},
+    "type/anonymous/components/schemas/Positions/properties/mixedEnum/enum/1": {},
+    "type/anonymous/components/schemas/Positions/properties/mixedEnum/enum/2": {},
+    "type/anonymous/components/schemas/Positions/properties/multiTyped": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/multiTypedObject": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/multiTypedObject/type/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/multiTypedObject/type/0/properties/w"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/negated/not": {},
+    "type/anonymous/components/schemas/Positions/properties/negated/not/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/negated/not/items/properties/u"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/nested": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/nested/properties/deep"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/nested/properties/deep": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/nested/properties/deep/properties/leaf"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/patterned": {},
+    "type/anonymous/components/schemas/Positions/properties/patterned/patternProperties/^x": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/patterned/patternProperties/^x/properties/d"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/refBesideAllOf": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/refBesideAllOf/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Owner/properties/since"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/routed": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/kind"
+      ],
+      "unflattened": [
+        "type/composed/components/schemas/Positions/properties/routed/oneOf"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/routedBranch": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/kind"
+      ],
+      "unflattened": [
+        "type/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledList": {},
+    "type/anonymous/components/schemas/Positions/properties/titledList/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledList/items/properties/ta"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/0/properties/tb"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/1/properties/tc"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/2": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/2/properties/td"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/3": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/3/properties/te"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/4": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/4/properties/tf"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/5": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Pet"
+    },
+    "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/6": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Positions/properties/titledVariants/oneOf/6/allOf/1/properties/tg"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/tuple": {},
+    "type/anonymous/components/schemas/Positions/properties/tuple/prefixItems/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/tuple/prefixItems/0/properties/e"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/unionOfUnions": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/unionOfUnions/oneOf/0": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/unionOfUnions/oneOf/0/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/unionOfUnions/oneOf/0/oneOf/0/properties/i"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/withDefs/$defs/Local": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/withDefs/$defs/Local/properties/n"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/properties/wrapped": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Positions/properties/wrapped/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Positions/properties/wrapped/oneOf/0/properties/own"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/x-body/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/x-body/content/application~1json/schema/properties/cl"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/x-parameter/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/x-parameter/schema/properties/ck"
+      ]
+    },
+    "type/anonymous/components/schemas/Positions/x-response/content/application~1json/schema": {},
+    "type/anonymous/components/schemas/Positions/x-response/content/application~1json/schema/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/x-response/content/application~1json/schema/items/properties/cm"
+      ]
+    },
+    "type/anonymous/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema": {
+      "flattened": [
+        "property/openapi/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema/properties/at"
+      ]
+    },
+    "type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items/properties/za"
+      ]
+    },
+    "type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema/properties/z"
+      ]
+    },
+    "type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema": {
+      "flattened": [
+        "property/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema/properties/y"
+      ]
+    },
+    "type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part"
+      ]
+    },
+    "type/anonymous/paths/~1pets/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets/post/requestBody/content/application~1json/schema/properties/name"
+      ]
+    },
+    "type/anonymous/paths/~1pets~1{petId}/get/parameters/0/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets~1{petId}/get/parameters/0/schema/properties/id"
+      ]
+    },
+    "type/anonymous/paths/~1pets~1{petId}/get/parameters/1/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets~1{petId}/get/parameters/1/content/application~1json/schema/properties/span"
+      ]
+    },
+    "type/anonymous/paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema/properties/name"
+      ]
+    },
+    "type/anonymous/paths/~1pets~1{petId}/get/responses/200/headers/X-Page/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets~1{petId}/get/responses/200/headers/X-Page/content/application~1json/schema/properties/next"
+      ]
+    },
+    "type/anonymous/paths/~1pets~1{petId}/get/responses/200/headers/X-Rate/schema": {
+      "flattened": [
+        "property/openapi/paths/~1pets~1{petId}/get/responses/200/headers/X-Rate/schema/properties/left"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/parameters/0/schema": {},
+    "type/anonymous/paths/~1structures/get/parameters/0/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/parameters/0/schema/items/properties/ca"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1json/schema": {},
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1json/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/content/application~1json/schema/items/properties/cc"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1xml/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0/properties/cg"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1yaml/schema": {},
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties/properties/cd"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y/properties/ce"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/content/text~1csv/schema": {},
+    "type/anonymous/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0/properties/cf"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/headers/X-List/schema": {},
+    "type/anonymous/paths/~1structures/get/responses/200/headers/X-List/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/headers/X-List/schema/items/properties/cb"
+      ]
+    },
+    "type/anonymous/paths/~1structures/get/responses/200/headers/X-Titled/schema": {
+      "flattened": [
+        "property/openapi/paths/~1structures/get/responses/200/headers/X-Titled/schema/properties/cn"
+      ]
+    },
+    "type/anonymous/paths/~1structures/post/requestBody/content/application~1json/schema": {},
+    "type/anonymous/paths/~1structures/post/requestBody/content/application~1json/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1structures/post/requestBody/content/application~1json/schema/items/properties/ch"
+      ]
+    },
+    "type/anonymous/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema/properties/x"
+      ]
+    },
+    "type/anonymous/paths/~1uploads/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1uploads/post/requestBody/content/application~1json/schema/properties/size"
+      ]
+    },
+    "type/anonymous/webhooks/ping/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/webhooks/ping/post/requestBody/content/application~1json/schema/properties/sent"
+      ]
+    },
+    "type/anonymous/x-library/Shared": {
+      "flattened": [
+        "property/openapi/x-library/Shared/properties/v"
+      ]
+    },
+    "type/anonymous/x-library/items": {
+      "flattened": [
+        "property/openapi/x-library/items/properties/cj"
+      ]
+    },
+    "type/composed/components/schemas/Positions/properties/distributed/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Positions/properties/distributed/allOf/0/properties/j"
+      ]
+    },
+    "type/composed/components/schemas/Positions/properties/distributed/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/since",
+        "property/openapi/components/schemas/Positions/properties/distributed/allOf/0/properties/j"
+      ]
+    },
+    "type/composed/components/schemas/Positions/properties/routed/oneOf": {
+      "union": "one_of"
+    },
+    "type/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/***": {
+      "flattened": [
+        "property/openapi/components/schemas/***/properties/"
+      ]
+    },
+    "type/openapi/components/schemas/HintObj": {
+      "flattened": [
+        "property/openapi/components/schemas/HintObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/HintStr": {},
+    "type/openapi/components/schemas/HintUses": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Kennel": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Keyed": {
+      "flattened": [
+        "property/openapi/components/schemas/Keyed/properties/items",
+        "property/openapi/components/schemas/Keyed/properties/throughDefs",
+        "property/openapi/components/schemas/Keyed/properties/throughDefinitions",
+        "property/openapi/components/schemas/Keyed/properties/throughDependentSchemas",
+        "property/openapi/components/schemas/Keyed/properties/throughDependencies"
+      ]
+    },
+    "type/openapi/components/schemas/Owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/since"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Positions": {
+      "flattened": [
+        "property/openapi/components/schemas/Positions/properties/nested",
+        "property/openapi/components/schemas/Positions/properties/list",
+        "property/openapi/components/schemas/Positions/properties/listOfLists",
+        "property/openapi/components/schemas/Positions/properties/dictionary",
+        "property/openapi/components/schemas/Positions/properties/patterned",
+        "property/openapi/components/schemas/Positions/properties/tuple",
+        "property/openapi/components/schemas/Positions/properties/exclusive",
+        "property/openapi/components/schemas/Positions/properties/inclusive",
+        "property/openapi/components/schemas/Positions/properties/decorated",
+        "property/openapi/components/schemas/Positions/properties/wrapped",
+        "property/openapi/components/schemas/Positions/properties/refBesideAllOf",
+        "property/openapi/components/schemas/Positions/properties/composed",
+        "property/openapi/components/schemas/Positions/properties/unionOfUnions",
+        "property/openapi/components/schemas/Positions/properties/distributed",
+        "property/openapi/components/schemas/Positions/properties/routed",
+        "property/openapi/components/schemas/Positions/properties/routedBranch",
+        "property/openapi/components/schemas/Positions/properties/multiTyped",
+        "property/openapi/components/schemas/Positions/properties/multiTypedObject",
+        "property/openapi/components/schemas/Positions/properties/mixedEnum",
+        "property/openapi/components/schemas/Positions/properties/emptyEnum",
+        "property/openapi/components/schemas/Positions/properties/embedded",
+        "property/openapi/components/schemas/Positions/properties/withDefs",
+        "property/openapi/components/schemas/Positions/properties/negated",
+        "property/openapi/components/schemas/Positions/properties/throughNot",
+        "property/openapi/components/schemas/Positions/properties/throughNotItems",
+        "property/openapi/components/schemas/Positions/properties/throughExtension",
+        "property/openapi/components/schemas/Positions/properties/throughExtensionRole",
+        "property/openapi/components/schemas/Positions/properties/throughAllOf",
+        "property/openapi/components/schemas/Positions/properties/titledList",
+        "property/openapi/components/schemas/Positions/properties/titledVariants",
+        "property/openapi/components/schemas/Positions/properties/throughNestedEncoding",
+        "property/openapi/components/schemas/Positions/properties/throughEmptyMediaType",
+        "property/openapi/components/schemas/Positions/properties/throughEmptyItemSchema"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

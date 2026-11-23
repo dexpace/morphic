@@ -1,0 +1,57 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Bag/additionalProperties": {
+      "sensitive": true
+    },
+    "type/anonymous/components/schemas/Either/oneOf/0": {
+      "sensitive": true
+    },
+    "type/anonymous/components/schemas/Login/properties/ownsNode": {
+      "sensitive": true
+    },
+    "type/anonymous/components/schemas/Tokens/items": {
+      "sensitive": true
+    },
+    "type/anonymous/paths/~1keys/post/parameters/3/schema": {
+      "sensitive": true
+    },
+    "type/anonymous/paths/~1keys/post/requestBody/content/application~1json/schema": {
+      "sensitive": true
+    },
+    "type/openapi/components/schemas/Bag": {},
+    "type/openapi/components/schemas/Credential": {
+      "flattened": [
+        "property/openapi/components/schemas/Credential/properties/user"
+      ],
+      "sensitive": true
+    },
+    "type/openapi/components/schemas/Either": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Login": {
+      "flattened": [
+        "property/openapi/components/schemas/Login/properties/inline",
+        "property/openapi/components/schemas/Login/properties/beside",
+        "property/openapi/components/schemas/Login/properties/ownsNode",
+        "property/openapi/components/schemas/Login/properties/stated",
+        "property/openapi/components/schemas/Login/properties/misread",
+        "property/openapi/components/schemas/Login/properties/plain"
+      ],
+      "redacted": [
+        "property/openapi/components/schemas/Login/properties/inline",
+        "property/openapi/components/schemas/Login/properties/beside",
+        "property/openapi/components/schemas/Login/properties/ownsNode"
+      ]
+    },
+    "type/openapi/components/schemas/Plain": {},
+    "type/openapi/components/schemas/Tok": {
+      "sensitive": true
+    },
+    "type/openapi/components/schemas/Tokens": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

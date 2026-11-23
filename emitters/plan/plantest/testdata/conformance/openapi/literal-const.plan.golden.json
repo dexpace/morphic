@@ -1,0 +1,9 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Opaque": {},
+    "type/openapi/components/schemas/Version": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

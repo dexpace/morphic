@@ -1,0 +1,13 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Resource": {
+      "flattened": [
+        "property/openapi/components/schemas/Resource/properties/a"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

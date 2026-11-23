@@ -1,0 +1,53 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Either/type/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Either/type/0/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Either/type/0/properties/id"
+      ],
+      "undeclared": [
+        "extra"
+      ]
+    },
+    "type/openapi/components/schemas/CreatedUser": {
+      "flattened": [
+        "property/openapi/components/schemas/User/properties/id",
+        "property/openapi/components/schemas/User/properties/name"
+      ],
+      "required": [
+        "property/openapi/components/schemas/User/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Either": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Plain": {
+      "flattened": [
+        "property/openapi/components/schemas/Plain/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Plain/properties/id"
+      ],
+      "undeclared": [
+        "ghost"
+      ]
+    },
+    "type/openapi/components/schemas/Tagged": {
+      "undeclared": [
+        "a"
+      ]
+    },
+    "type/openapi/components/schemas/User": {
+      "flattened": [
+        "property/openapi/components/schemas/User/properties/id",
+        "property/openapi/components/schemas/User/properties/name"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -571,6 +571,10 @@ var rules = map[string][]string{
 	// emitter (docs/emitters/packages.md). Each package beneath it carries its
 	// own entry (ownEntryRequired), and none goes in exempt (mayBeExempt).
 	"emitters": {module + "/ir"},
+	// The plan every emitter reads, derived once for all of them. It reaches ir
+	// and the facts derived from it and nothing else, so it can read no naming
+	// policy, runtime policy or target (docs/emitters/plan/plan-or-refine.md).
+	"emitters/plan": {module + "/ir", module + "/ir/irfacts"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
@@ -689,11 +693,13 @@ var exempt = map[string]string{
 		"which it reaches through the engine alone",
 }
 
-// unbuilt names the rules entries whose directory does not exist yet, each
-// with the reason it is ruled already. A rule for a missing directory audits
-// nothing, and so does a misspelt one, so TestImportGraph_LayeringHolds skips
-// only these, and TestUnbuilt_NamesOnlyMissingRuledDirectories fails on one
-// whose package has landed until it is dropped here.
+// unbuilt names the rules entries whose package does not exist yet, each with
+// the reason it is ruled already: its directory is missing, or holds only the
+// packages that carry their own rules, as emitters holds emitters/plan. Such a
+// rule audits nothing, and so does a misspelt one, so
+// TestImportGraph_LayeringHolds skips only these, and
+// TestUnbuilt_NamesOnlyMissingRuledDirectories fails on one whose package has
+// landed until it is dropped here.
 var unbuilt = map[string]string{
 	"emitters": "the emitter contract, ruled before its first package so that package is audited from " +
 		"its first import (GitHub #973)",
@@ -716,11 +722,10 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			_, statErr := os.Stat(base)
-			skip, err := unbuiltSkip(dir, statErr)
+			skip, err := unbuiltSkip(dir, audits(dir, base))
 			require.NoError(t, err)
 			if skip {
-				t.Skipf("directory %s does not exist yet: %s", dir, unbuilt[dir])
+				t.Skipf("package %s does not exist yet: %s", dir, unbuilt[dir])
 			}
 			violations, unused, err := walkImports(dir, base, allowed)
 			require.NoError(t, err)
@@ -734,9 +739,55 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 	}
 }
 
-// unbuiltSkip decides a ruled directory whose stat returned statErr: skipped
-// when it is missing and unbuilt names it, audited when it exists, and
-// refused otherwise, since a misspelt entry would audit nothing.
+// audits reports whether the rule dir keys has a file to audit under base, as
+// walkImports reads it: nil where a Go file that is no test sits in base, or
+// beneath it outside every directory carrying a rule of its own; an error
+// wrapping fs.ErrNotExist where none does or base does not exist; and any
+// other error as the walk gave it.
+func audits(dir, base string) error {
+	found := false
+	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return skipIfRuled(dir, base, p)
+		}
+		if isProductionGoFile(d.Name()) {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if err == nil && !found {
+		return fmt.Errorf("%s audits no Go file: %w", dir, fs.ErrNotExist)
+	}
+	return err
+}
+
+// TestAudits_TellsARulesPackageFromThePackagesBeneathIt pins what counts as
+// built: a rule with a Go file to audit. A directory that is missing, or holds
+// only tests and the packages that carry their own rules, as emitters holds
+// emitters/plan, has none.
+func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
+	t.Parallel()
+	require.Contains(t, rules, "emitters/plan", "the planted tree needs a ruled package beneath emitters")
+	base := filepath.Join(t.TempDir(), "emitters")
+
+	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "a missing directory")
+
+	writeImporter(t, filepath.Join(base, "plan", "plan.go"), "fmt")
+	writeImporter(t, filepath.Join(base, "contract_test.go"), "fmt")
+	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "tests, and a package with its own rule")
+	require.NoError(t, audits("emitters/plan", filepath.Join(base, "plan")))
+
+	writeImporter(t, filepath.Join(base, "contract.go"), "fmt")
+	require.NoError(t, audits("emitters", base), "a Go file of its own")
+}
+
+// unbuiltSkip decides a ruled directory that audits answered statErr for:
+// skipped when its rule audits no file and unbuilt names it, audited when it
+// has one, and refused otherwise, since a misspelt entry would audit nothing.
 func unbuiltSkip(dir string, statErr error) (bool, error) {
 	if statErr == nil {
 		return false, nil
@@ -934,7 +985,7 @@ func mayBeExempt(dir string) bool {
 }
 
 // TestUnbuilt_NamesOnlyMissingRuledDirectories holds unbuilt to what it is
-// for: each entry names a rules entry whose directory does not exist yet. One
+// for: each entry names a rules entry whose package does not exist yet. One
 // whose package has landed is audited, so its entry would only hide a later
 // removal.
 func TestUnbuilt_NamesOnlyMissingRuledDirectories(t *testing.T) {
@@ -942,8 +993,8 @@ func TestUnbuilt_NamesOnlyMissingRuledDirectories(t *testing.T) {
 	root := irtest.RepoRoot(t)
 	for dir := range unbuilt {
 		assert.Contains(t, rules, dir, "unbuilt names %s, which has no rules entry", dir)
-		_, err := os.Stat(filepath.Join(root, dir))
-		assert.ErrorIs(t, err, fs.ErrNotExist, "%s exists now; drop it from unbuilt", dir)
+		err := audits(dir, filepath.Join(root, dir))
+		assert.ErrorIs(t, err, fs.ErrNotExist, "%s has a file to audit now; drop it from unbuilt", dir)
 	}
 }
 

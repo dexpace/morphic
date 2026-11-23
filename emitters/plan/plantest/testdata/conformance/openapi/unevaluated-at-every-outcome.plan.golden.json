@@ -1,0 +1,73 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Distributed/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Distributed/oneOf/1/properties/b"
+      ]
+    },
+    "type/anonymous/components/schemas/Holder/properties/list": {},
+    "type/anonymous/components/schemas/Holder/properties/list/items": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/components/schemas/ObjectVariant/type/0": {
+      "flattened": [
+        "property/openapi/components/schemas/ObjectVariant/type/0/properties/a"
+      ]
+    },
+    "type/composed/components/schemas/Distributed/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Closed/properties/a",
+        "property/openapi/components/schemas/Distributed/properties/k"
+      ]
+    },
+    "type/composed/components/schemas/Distributed/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Distributed/oneOf/1/properties/b",
+        "property/openapi/components/schemas/Distributed/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/Alias": {},
+    "type/openapi/components/schemas/Anything": {},
+    "type/openapi/components/schemas/Closed": {
+      "flattened": [
+        "property/openapi/components/schemas/Closed/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/ClosedByABranch": {
+      "flattened": [
+        "property/openapi/components/schemas/ClosedByABranch/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/Constant": {},
+    "type/openapi/components/schemas/Distributed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Enumerated": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/scalar",
+        "property/openapi/components/schemas/Holder/properties/ref",
+        "property/openapi/components/schemas/Holder/properties/list"
+      ]
+    },
+    "type/openapi/components/schemas/Listed": {},
+    "type/openapi/components/schemas/Name": {},
+    "type/openapi/components/schemas/NoObjectVariant": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/ObjectVariant": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Paired": {},
+    "type/openapi/components/schemas/PlainUnion": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Scalar": {},
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "types": {
+    "type/openapi/components/schemas/AnyOfNull": {},
+    "type/openapi/components/schemas/AnyOfTwoNull": {},
+    "type/openapi/components/schemas/BothNull": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/anyOfNull",
+        "property/openapi/components/schemas/Holder/properties/oneOfNull",
+        "property/openapi/components/schemas/Holder/properties/anyOfTwoNull",
+        "property/openapi/components/schemas/Holder/properties/bothNull",
+        "property/openapi/components/schemas/Holder/properties/otherSpellings"
+      ]
+    },
+    "type/openapi/components/schemas/OneOfNull": {},
+    "type/openapi/components/schemas/OtherSpellings": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

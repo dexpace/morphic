@@ -1,0 +1,28 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Envelope/contentSchema": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/contentSchema/properties/id"
+      ]
+    },
+    "type/anonymous/components/schemas/Feed/contentSchema": {},
+    "type/anonymous/components/schemas/Feed/contentSchema/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Feed/contentSchema/items/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Bag": {
+      "flattened": [
+        "property/openapi/components/schemas/Bag/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/Decoded": {},
+    "type/openapi/components/schemas/Envelope": {},
+    "type/openapi/components/schemas/Feed": {},
+    "type/openapi/components/schemas/Thumbnail": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

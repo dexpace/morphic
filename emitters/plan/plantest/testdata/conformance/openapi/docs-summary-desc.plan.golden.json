@@ -1,0 +1,9 @@
+{
+  "types": {
+    "type/openapi/components/schemas/UserId": {},
+    "type/primitive/uuid": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

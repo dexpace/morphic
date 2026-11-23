@@ -1,0 +1,58 @@
+{
+  "types": {
+    "type/anonymous/paths/~1apps/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/properties/success",
+        "property/openapi/paths/~1apps/get/responses/200/content/application~1json/schema/allOf/1/properties/result",
+        "property/openapi/paths/~1apps/get/responses/200/content/application~1json/schema/allOf/1/properties/result_info"
+      ]
+    },
+    "type/anonymous/paths/~1apps/get/responses/200/content/application~1json/schema/allOf/1/properties/result": {},
+    "type/anonymous/paths/~1keys/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/properties/success",
+        "property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/allOf/1/properties/result",
+        "property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/allOf/1/properties/result_info"
+      ]
+    },
+    "type/anonymous/paths/~1keys/get/responses/200/content/application~1json/schema/allOf/1/properties/result": {},
+    "type/anonymous/paths/~1links/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1links/get/responses/200/content/application~1json/schema/properties/data",
+        "property/openapi/paths/~1links/get/responses/200/content/application~1json/schema/properties/next"
+      ]
+    },
+    "type/anonymous/paths/~1links/get/responses/200/content/application~1json/schema/properties/data": {},
+    "type/anonymous/paths/~1offsets/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1offsets/get/responses/200/content/application~1json/schema/properties/data"
+      ]
+    },
+    "type/anonymous/paths/~1offsets/get/responses/200/content/application~1json/schema/properties/data": {},
+    "type/openapi/components/schemas/Cursor": {},
+    "type/openapi/components/schemas/CursorInfo": {
+      "flattened": [
+        "property/openapi/components/schemas/CursorInfo/properties/count",
+        "property/openapi/components/schemas/CursorInfo/properties/cursor"
+      ]
+    },
+    "type/openapi/components/schemas/Envelope": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/properties/success"
+      ]
+    },
+    "type/openapi/components/schemas/PageInfo": {
+      "flattened": [
+        "property/openapi/components/schemas/PageInfo/properties/next_page_token",
+        "property/openapi/components/schemas/PageInfo/properties/per_page"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Order/properties/shipping": {
+      "flattened": [
+        "property/openapi/components/schemas/Order/properties/shipping/properties/street"
+      ]
+    },
+    "type/openapi/components/schemas/Order": {
+      "flattened": [
+        "property/openapi/components/schemas/Order/properties/shipping"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

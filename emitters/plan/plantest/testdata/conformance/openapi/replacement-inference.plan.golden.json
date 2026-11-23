@@ -1,0 +1,54 @@
+{
+  "types": {
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/a",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/b",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/c",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/d"
+      ],
+      "deprecated": {
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/a": {
+          "message": "Formerly `b`."
+        },
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/c": {
+          "message": "Use `d`, not `b`.",
+          "replacedBy": [
+            {
+              "property": "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/d"
+            }
+          ]
+        }
+      }
+    },
+    "type/openapi/components/schemas/Zone": {
+      "flattened": [
+        "property/openapi/components/schemas/Zone/properties/modified",
+        "property/openapi/components/schemas/Zone/properties/modified_at",
+        "property/openapi/components/schemas/Zone/properties/legacy",
+        "property/openapi/components/schemas/Zone/properties/created",
+        "property/openapi/components/schemas/Zone/properties/created_at"
+      ],
+      "deprecated": {
+        "property/openapi/components/schemas/Zone/properties/created": {
+          "message": "Use `created_at` or `createdAt` instead."
+        },
+        "property/openapi/components/schemas/Zone/properties/legacy": {
+          "message": "Use `gone` instead."
+        },
+        "property/openapi/components/schemas/Zone/properties/modified": {
+          "message": "Use `modified_at` instead.",
+          "replacedBy": [
+            {
+              "property": "property/openapi/components/schemas/Zone/properties/modified_at"
+            }
+          ]
+        }
+      }
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

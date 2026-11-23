@@ -1,0 +1,114 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/RenderJoint/allOf/0/properties/kind": {},
+    "type/anonymous/components/schemas/RenderJoint/properties/url": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderJoint/properties/url/properties/href"
+      ]
+    },
+    "type/anonymous/components/schemas/RenderSizes/oneOf/0": {},
+    "type/anonymous/components/schemas/RenderSizes/oneOf/1": {},
+    "type/anonymous/components/schemas/RenderTagged/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderTagged/oneOf/0/properties/kind"
+      ]
+    },
+    "type/anonymous/components/schemas/RenderTagged/oneOf/0/properties/kind": {},
+    "type/anonymous/components/schemas/RenderTagged/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderTagged/oneOf/1/properties/kind"
+      ]
+    },
+    "type/anonymous/components/schemas/RenderTagged/oneOf/1/properties/kind": {},
+    "type/composed/components/schemas/RenderTagged/oneOf/0": {
+      "flattened": [
+        "property/composed/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/RenderTagged/oneOf/1": {
+      "flattened": [
+        "property/composed/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Render": {
+      "flattened": [
+        "property/openapi/components/schemas/Render/properties/html",
+        "property/openapi/components/schemas/Render/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderBare": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderBare/properties/html",
+        "property/openapi/components/schemas/RenderBare/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderBase": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderBase/properties/html",
+        "property/openapi/components/schemas/RenderBase/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderBounded": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderBounded/properties/html",
+        "property/openapi/components/schemas/RenderBounded/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderComposed": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderBase/properties/html",
+        "property/openapi/components/schemas/RenderBase/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderConjoined": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderConjoined/properties/html",
+        "property/openapi/components/schemas/RenderConjoined/properties/links"
+      ]
+    },
+    "type/openapi/components/schemas/RenderDescribed": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderDescribed/properties/html",
+        "property/openapi/components/schemas/RenderDescribed/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderDocumented": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderDocumented/properties/html",
+        "property/openapi/components/schemas/RenderDocumented/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderExclusive": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderExclusive/properties/html",
+        "property/openapi/components/schemas/RenderExclusive/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderFormats": {},
+    "type/openapi/components/schemas/RenderJoint": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderJoint/allOf/0/properties/kind",
+        "property/openapi/components/schemas/RenderJoint/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderLinks": {},
+    "type/openapi/components/schemas/RenderSelf": {
+      "flattened": [
+        "property/openapi/components/schemas/RenderSelf/properties/html",
+        "property/openapi/components/schemas/RenderSelf/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RenderSizes": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/RenderTagged": {
+      "union": "one_of"
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {},
+    "type/primitive/url": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

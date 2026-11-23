@@ -1,0 +1,71 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/color": {},
+    "type/anonymous/components/schemas/Holder/properties/id": {},
+    "type/anonymous/components/schemas/Holder/properties/issuedAt": {},
+    "type/anonymous/components/schemas/Holder/properties/modified": {},
+    "type/anonymous/components/schemas/Holder/properties/opens": {},
+    "type/anonymous/components/schemas/Holder/properties/price": {},
+    "type/anonymous/components/schemas/Holder/properties/resetAt": {},
+    "type/anonymous/components/schemas/Holder/properties/seenAt": {},
+    "type/anonymous/components/schemas/Holder/properties/thumbprint": {},
+    "type/anonymous/components/schemas/Holder/properties/whole": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/color",
+        "property/openapi/components/schemas/Holder/properties/token",
+        "property/openapi/components/schemas/Holder/properties/small",
+        "property/openapi/components/schemas/Holder/properties/count",
+        "property/openapi/components/schemas/Holder/properties/i16",
+        "property/openapi/components/schemas/Holder/properties/i32",
+        "property/openapi/components/schemas/Holder/properties/i64",
+        "property/openapi/components/schemas/Holder/properties/u8",
+        "property/openapi/components/schemas/Holder/properties/u16",
+        "property/openapi/components/schemas/Holder/properties/u64",
+        "property/openapi/components/schemas/Holder/properties/f32",
+        "property/openapi/components/schemas/Holder/properties/f64",
+        "property/openapi/components/schemas/Holder/properties/amount",
+        "property/openapi/components/schemas/Holder/properties/big",
+        "property/openapi/components/schemas/Holder/properties/at",
+        "property/openapi/components/schemas/Holder/properties/starts",
+        "property/openapi/components/schemas/Holder/properties/closes",
+        "property/openapi/components/schemas/Holder/properties/ttl",
+        "property/openapi/components/schemas/Holder/properties/opens",
+        "property/openapi/components/schemas/Holder/properties/whole",
+        "property/openapi/components/schemas/Holder/properties/id",
+        "property/openapi/components/schemas/Holder/properties/price",
+        "property/openapi/components/schemas/Holder/properties/thumbprint",
+        "property/openapi/components/schemas/Holder/properties/modified",
+        "property/openapi/components/schemas/Holder/properties/resetAt",
+        "property/openapi/components/schemas/Holder/properties/seenAt",
+        "property/openapi/components/schemas/Holder/properties/issuedAt"
+      ],
+      "redacted": [
+        "property/openapi/components/schemas/Holder/properties/token"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/datetime": {},
+    "type/primitive/datetime_offset": {},
+    "type/primitive/decimal": {},
+    "type/primitive/decimal128": {},
+    "type/primitive/duration": {},
+    "type/primitive/float32": {},
+    "type/primitive/float64": {},
+    "type/primitive/int16": {},
+    "type/primitive/int32": {},
+    "type/primitive/int64": {},
+    "type/primitive/int8": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {},
+    "type/primitive/time": {},
+    "type/primitive/uint16": {},
+    "type/primitive/uint32": {},
+    "type/primitive/uint64": {},
+    "type/primitive/uint8": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

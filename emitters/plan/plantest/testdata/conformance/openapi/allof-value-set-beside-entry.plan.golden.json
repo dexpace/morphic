@@ -1,0 +1,28 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Beside/enum/0": {},
+    "type/anonymous/components/schemas/Beside/enum/1": {},
+    "type/anonymous/components/schemas/BesideRef/enum/0": {},
+    "type/anonymous/components/schemas/BesideRef/enum/1": {},
+    "type/anonymous/components/schemas/BesideTwo/enum/0": {},
+    "type/anonymous/components/schemas/BesideTwo/enum/1": {},
+    "type/anonymous/components/schemas/BesideTyped/enum/0": {},
+    "type/anonymous/components/schemas/BesideTyped/enum/1": {},
+    "type/openapi/components/schemas/Beside": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/BesideRef": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/BesideTwo": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/BesideTyped": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Target": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

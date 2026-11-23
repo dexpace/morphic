@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/CodeIndex/additionalProperties": {},
+    "type/anonymous/components/schemas/Codes/items": {},
+    "type/anonymous/paths/~1codes/get/responses/200/content/application~1json/schema": {},
+    "type/openapi/components/schemas/Bare": {},
+    "type/openapi/components/schemas/CodeIndex": {},
+    "type/openapi/components/schemas/Codes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

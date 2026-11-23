@@ -1,0 +1,22 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Element/items": {},
+    "type/anonymous/components/schemas/Holder/properties/plain": {},
+    "type/anonymous/paths/~1tags~1{tags}/get/responses/200/content/application~1json/schema": {},
+    "type/openapi/components/schemas/Element": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/plain",
+        "property/openapi/components/schemas/Holder/properties/beside",
+        "property/openapi/components/schemas/Holder/properties/nullable",
+        "property/openapi/components/schemas/Holder/properties/unstated"
+      ]
+    },
+    "type/openapi/components/schemas/Named": {},
+    "type/openapi/components/schemas/Tags": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

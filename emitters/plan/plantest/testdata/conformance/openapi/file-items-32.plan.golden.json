@@ -1,0 +1,13 @@
+{
+  "types": {
+    "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "alias": "type/primitive/any"
+    },
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

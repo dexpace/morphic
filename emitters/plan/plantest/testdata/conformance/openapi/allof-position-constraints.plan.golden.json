@@ -1,0 +1,23 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/ViaAllOf": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/ViaModel": {
+      "flattened": [
+        "property/openapi/components/schemas/ViaModel/properties/a"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

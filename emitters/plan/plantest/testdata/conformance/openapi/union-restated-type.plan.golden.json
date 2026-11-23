@@ -1,0 +1,45 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Entry/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Entry/oneOf/1/properties/id"
+      ]
+    },
+    "type/anonymous/components/schemas/Ttl/anyOf/0": {},
+    "type/anonymous/components/schemas/Ttl/anyOf/1": {},
+    "type/composed/components/schemas/Target/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Item/properties/name"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Item/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Address": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Entry": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Item": {
+      "flattened": [
+        "property/openapi/components/schemas/Item/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/MaybeAddress": {},
+    "type/openapi/components/schemas/Mixed": {},
+    "type/openapi/components/schemas/Target": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Ttl": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/V4": {},
+    "type/openapi/components/schemas/V6": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "types": {
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/reqPlain",
+        "property/openapi/components/schemas/S/properties/reqNull",
+        "property/openapi/components/schemas/S/properties/optPlain",
+        "property/openapi/components/schemas/S/properties/optNull"
+      ],
+      "required": [
+        "property/openapi/components/schemas/S/properties/reqPlain",
+        "property/openapi/components/schemas/S/properties/reqNull"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

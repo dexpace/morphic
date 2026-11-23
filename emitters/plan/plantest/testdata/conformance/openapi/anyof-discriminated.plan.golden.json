@@ -1,0 +1,32 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Labelled/properties/labels": {},
+    "type/openapi/components/schemas/Labelled": {
+      "flattened": [
+        "property/openapi/components/schemas/Labelled/properties/kind",
+        "property/openapi/components/schemas/Labelled/properties/labels"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Labelled/properties/kind",
+        "property/openapi/components/schemas/Labelled/properties/labels"
+      ]
+    },
+    "type/openapi/components/schemas/Named": {
+      "flattened": [
+        "property/openapi/components/schemas/Named/properties/kind",
+        "property/openapi/components/schemas/Named/properties/name"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Named/properties/kind",
+        "property/openapi/components/schemas/Named/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Resource": {
+      "union": "discriminated"
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

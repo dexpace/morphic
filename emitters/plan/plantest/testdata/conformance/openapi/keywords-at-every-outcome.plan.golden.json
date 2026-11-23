@@ -1,0 +1,80 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/BesideAUnion/type/1": {},
+    "type/anonymous/components/schemas/Homed/type/0": {},
+    "type/anonymous/components/schemas/Homed/type/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Homed/type/1/properties/a"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Homed/type/1/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/NoObjectVariant/type/1": {},
+    "type/anonymous/components/schemas/NoRouting/type/1": {},
+    "type/composed/components/schemas/Dist/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/Dist/properties/k"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Dist/properties/k"
+      ]
+    },
+    "type/composed/components/schemas/Dist/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/B/properties/b",
+        "property/openapi/components/schemas/Dist/properties/k"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Dist/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/A": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/B": {
+      "flattened": [
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Bare": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/BesideAUnion": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Carrier": {
+      "flattened": [
+        "property/openapi/components/schemas/Carrier/properties/dyn"
+      ]
+    },
+    "type/openapi/components/schemas/Dist": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Dyn": {},
+    "type/openapi/components/schemas/Homed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/NoArrayVariant": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/NoBound": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/NoObjectVariant": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/NoRouting": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Node": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

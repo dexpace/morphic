@@ -1,0 +1,51 @@
+{
+  "types": {
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema": {},
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items/properties/i"
+      ]
+    },
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding/0/headers/X-Only/schema/items": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding/0/headers/X-Only/schema/items/properties/o"
+      ]
+    },
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc",
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts"
+      ],
+      "required": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc",
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts"
+      ]
+    },
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc/properties/inner"
+      ]
+    },
+    "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts": {},
+    "type/anonymous/x-defs/Kept": {
+      "flattened": [
+        "property/openapi/x-defs/Kept/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/Into": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items/properties/i"
+      ]
+    },
+    "type/openapi/components/schemas/Only": {
+      "flattened": [
+        "property/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding/0/headers/X-Only/schema/items/properties/o"
+      ]
+    },
+    "type/openapi/components/schemas/Part": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

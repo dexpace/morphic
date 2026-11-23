@@ -1,0 +1,140 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/BareListFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BareMapFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BareScalarFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BareScalarFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BareTupleFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BothMapBounds/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BothMapBounds/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BothScalarBounds/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BothScalarBounds/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BothTupleBounds/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BothTupleBounds/allOf/1/properties/p": {},
+    "type/anonymous/components/schemas/BoundedListFirst/allOf/0/properties/p": {},
+    "type/anonymous/components/schemas/BoundedListFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {},
+    "type/composed/components/schemas/BothMapBounds/allOf/1/properties/p": {},
+    "type/composed/components/schemas/BothScalarBounds/allOf/1/properties/p": {},
+    "type/composed/components/schemas/BothTupleBounds/allOf/1/properties/p": {},
+    "type/openapi/components/schemas/BareListFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BareListFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BareMapFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BareMapFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BareScalarFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BareScalarFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BareTupleFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BareTupleFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BothListBoundsLowerFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BothListBoundsUpperFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BothMapBounds": {
+      "flattened": [
+        "property/openapi/components/schemas/BothMapBounds/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BothScalarBounds": {
+      "flattened": [
+        "property/openapi/components/schemas/BothScalarBounds/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BothTupleBounds": {
+      "flattened": [
+        "property/openapi/components/schemas/BothTupleBounds/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/BoundedListFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/BoundedListFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/DefaultPastItsOwnBound": {
+      "flattened": [
+        "property/openapi/components/schemas/DefaultPastItsOwnBound/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NumberBoundsLooserFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NumberBoundsLooserFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/NumberBoundsTighterFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/NumberBoundsTighterFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/PatternsAThenB": {
+      "flattened": [
+        "property/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/PatternsBThenA": {
+      "flattened": [
+        "property/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StepsLooserFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StepsLooserFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StepsTighterFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StepsTighterFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringBoundsLooserFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StringBoundsLooserFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/StringBoundsTighterFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/StringBoundsTighterFirst/allOf/0/properties/p"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

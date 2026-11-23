@@ -1,0 +1,33 @@
+{
+  "types": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token",
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags"
+      ]
+    },
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags": {},
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/styled"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {},
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

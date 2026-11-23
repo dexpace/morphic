@@ -1,0 +1,41 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Dated/type/1": {},
+    "type/anonymous/components/schemas/Holder/properties/either": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Holder/properties/either/type/1": {},
+    "type/anonymous/components/schemas/Measure/type/0": {},
+    "type/anonymous/components/schemas/Measure/type/1": {},
+    "type/anonymous/components/schemas/Mixed/type/0": {},
+    "type/anonymous/components/schemas/Mixed/type/1": {},
+    "type/anonymous/components/schemas/OnBranch/type/1": {},
+    "type/openapi/components/schemas/Dated": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/either"
+      ]
+    },
+    "type/openapi/components/schemas/Measure": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Mixed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/OnBranch": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Untaken": {
+      "union": "one_of"
+    },
+    "type/primitive/date": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

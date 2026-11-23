@@ -1,0 +1,29 @@
+{
+  "types": {
+    "type/anonymous/components/parameters/Page/schema": {
+      "flattened": [
+        "property/openapi/components/parameters/Page/schema/properties/size"
+      ]
+    },
+    "type/anonymous/paths/~1archive/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1archive/post/requestBody/content/application~1json/schema/properties/id"
+      ]
+    },
+    "type/anonymous/paths/~1drafts/put/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1drafts/put/requestBody/content/application~1json/schema/properties/draft"
+      ]
+    },
+    "type/openapi/components/schemas/PageSize": {
+      "flattened": [
+        "property/openapi/components/parameters/Page/schema/properties/size"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

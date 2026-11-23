@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Card": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/number",
+        "property/openapi/components/schemas/Card/properties/cvv"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

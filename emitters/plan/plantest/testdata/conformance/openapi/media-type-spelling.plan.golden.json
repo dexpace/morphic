@@ -1,0 +1,21 @@
+{
+  "types": {
+    "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema": {
+      "flattened": [
+        "property/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids"
+      ]
+    },
+    "type/anonymous/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/Multipart~1Form-Data/schema/properties/file"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

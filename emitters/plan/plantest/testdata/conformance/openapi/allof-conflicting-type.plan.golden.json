@@ -1,0 +1,32 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Described": {
+      "flattened": [
+        "property/openapi/components/schemas/Described/allOf/0/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Identified": {
+      "flattened": [
+        "property/openapi/components/schemas/Identified/allOf/0/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Overlapping": {
+      "flattened": [
+        "property/openapi/components/schemas/Overlapping/allOf/0/properties/n"
+      ]
+    },
+    "type/openapi/components/schemas/Repository": {
+      "flattened": [
+        "property/openapi/components/schemas/Repository/allOf/0/properties/clone_url"
+      ]
+    },
+    "type/primitive/int32": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {},
+    "type/primitive/uint32": {},
+    "type/primitive/url": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

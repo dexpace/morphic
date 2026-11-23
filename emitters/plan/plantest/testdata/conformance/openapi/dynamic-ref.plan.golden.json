@@ -1,0 +1,51 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/components/schemas/Holder/$defs/Deep": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/$defs/Deep/properties/d"
+      ]
+    },
+    "type/anonymous/components/schemas/Recursive/properties/children": {},
+    "type/anonymous/components/schemas/Recursive/properties/children/items": {
+      "alias": "type/openapi/components/schemas/Recursive"
+    },
+    "type/openapi/components/schemas/Holder": {},
+    "type/openapi/components/schemas/Leaf": {},
+    "type/openapi/components/schemas/Linked": {
+      "flattened": [
+        "property/openapi/components/schemas/Linked/properties/next"
+      ]
+    },
+    "type/openapi/components/schemas/Node": {
+      "flattened": [
+        "property/openapi/components/schemas/Node/properties/label"
+      ]
+    },
+    "type/openapi/components/schemas/Recursive": {
+      "flattened": [
+        "property/openapi/components/schemas/Recursive/properties/children"
+      ]
+    },
+    "type/openapi/components/schemas/Tree": {
+      "flattened": [
+        "property/openapi/components/schemas/Tree/properties/child",
+        "property/openapi/components/schemas/Tree/properties/escaped",
+        "property/openapi/components/schemas/Tree/properties/ghost",
+        "property/openapi/components/schemas/Tree/properties/static",
+        "property/openapi/components/schemas/Tree/properties/boundary",
+        "property/openapi/components/schemas/Tree/properties/deep"
+      ]
+    },
+    "type/openapi/components/schemas/Twice": {},
+    "type/openapi/components/schemas/TwiceAgain": {},
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

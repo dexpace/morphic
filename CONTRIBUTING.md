@@ -139,6 +139,12 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
   ```
 
+  The plan is held to the same documents: `emitters/plan/plantest` builds the plan of each IR
+  golden, with no compiler in the loop, and compares it with a golden of its own under that
+  package's `testdata/`. So a change that moves an IR golden, or adds one, runs
+  `go test ./emitters/plan/plantest -update` after the command above, which also removes the plan
+  golden of an IR golden that is gone.
+
 - **Conformance corpus.** Each case in `testdata/conformance/openapi/` is a minimal spec that
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
@@ -285,6 +291,18 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
    git status --short testdata/
    ```
+
+   The plan of each IR golden has a golden too, so a case added, or an IR golden the change moved,
+   moves `emitters/plan/plantest/testdata/`. Rewrite it once the IR goldens are settled, and read
+   what the change did to the plan:
+
+   ```bash
+   go test ./emitters/plan/plantest -update
+   git status --short emitters/plan/plantest/testdata/
+   ```
+
+   *Fails if missed:* `TestGolden_PlanOfEveryCorpusDocument`, for an IR golden with no plan golden
+   and for a plan golden that does not match.
 
    A fix that makes two spellings lower alike, or carries a keyword that was dropped, leaves lines of
    `internal/harness/openapicases/testdata/` naming no finding, and the case oracles' tests fail on

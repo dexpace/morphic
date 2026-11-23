@@ -1,0 +1,12 @@
+{
+  "types": {
+    "type/openapi/components/schemas/StringOrNumber": {
+      "union": "any_of"
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

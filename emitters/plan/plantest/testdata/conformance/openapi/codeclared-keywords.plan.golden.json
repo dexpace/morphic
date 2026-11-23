@@ -1,0 +1,23 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/BothCombinators": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/ConstWithinEnum": {},
+    "type/openapi/components/schemas/NarrowedConst": {},
+    "type/openapi/components/schemas/NarrowedEnum": {},
+    "type/openapi/components/schemas/NullableWithCombinators": {
+      "union": "one_of"
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

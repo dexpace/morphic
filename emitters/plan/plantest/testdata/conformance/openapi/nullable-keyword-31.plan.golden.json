@@ -1,0 +1,34 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/counts": {},
+    "type/anonymous/components/schemas/Holder/properties/described": {},
+    "type/anonymous/components/schemas/Holder/properties/described/items": {
+      "alias": "type/primitive/integer"
+    },
+    "type/anonymous/components/schemas/Holder/properties/shaped": {},
+    "type/anonymous/components/schemas/Holder/properties/shaped/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/shaped/items/properties/x"
+      ]
+    },
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/inline",
+        "property/openapi/components/schemas/Holder/properties/viaRef",
+        "property/openapi/components/schemas/Holder/properties/besideRef",
+        "property/openapi/components/schemas/Holder/properties/declared",
+        "property/openapi/components/schemas/Holder/properties/notNullable",
+        "property/openapi/components/schemas/Holder/properties/counts",
+        "property/openapi/components/schemas/Holder/properties/described",
+        "property/openapi/components/schemas/Holder/properties/shaped"
+      ]
+    },
+    "type/openapi/components/schemas/Name": {},
+    "type/openapi/components/schemas/Plain": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

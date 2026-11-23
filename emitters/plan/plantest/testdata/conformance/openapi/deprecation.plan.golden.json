@@ -1,0 +1,16 @@
+{
+  "types": {
+    "type/openapi/components/schemas/OldModel": {
+      "flattened": [
+        "property/openapi/components/schemas/OldModel/properties/oldField"
+      ],
+      "deprecated": {
+        "property/openapi/components/schemas/OldModel/properties/oldField": {}
+      }
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -83,7 +83,7 @@ func TestPropertyID_UsableAsMapKey(t *testing.T) {
 	}
 	// Deterministic(true) is explicit: v2 sorts map keys only on request. The
 	// point of the test is that the keys can sort lexically (invariant #7), which
-	// a Document asks for itself through canonicalOptions and a plain map cannot.
+	// a Document asks for itself through CanonicalOptions and a plain map cannot.
 	raw, err := json.Marshal(m, json.Deterministic(true))
 	require.NoError(t, err)
 	assert.Equal(t, `{"property/a":2,"property/z":1}`, string(raw), "map keys sort lexically, matching invariant #7")

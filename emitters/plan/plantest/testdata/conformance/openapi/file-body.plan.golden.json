@@ -1,0 +1,17 @@
+{
+  "types": {
+    "type/anonymous/paths/~1dialect/put/requestBody/content/application~1octet-stream/schema": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/paths/~1documented/put/responses/200/content/application~1octet-stream/schema": {
+      "alias": "type/primitive/bytes"
+    },
+    "type/openapi/components/schemas/Blob": {},
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

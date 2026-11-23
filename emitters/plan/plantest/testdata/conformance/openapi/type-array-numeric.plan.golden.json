@@ -1,0 +1,20 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Label": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Measure": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Sized": {
+      "union": "any_of"
+    },
+    "type/primitive/int32": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

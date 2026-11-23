@@ -1,0 +1,86 @@
+{
+  "types": {
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address",
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/id",
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/image",
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter"
+      ]
+    },
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address": {
+      "flattened": [
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/address/properties/city"
+      ]
+    },
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter": {
+      "flattened": [
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/filter/properties/q"
+      ]
+    },
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/when",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/count",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/ratio",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/enabled",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/nullable",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/addresses/items/properties/city"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/arranged": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/declared": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/either/oneOf/1": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fixed": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/kind": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/metadata/properties/name"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/settings": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {},
+    "type/primitive/any": {},
+    "type/primitive/bool": {},
+    "type/primitive/bytes": {},
+    "type/primitive/datetime_offset": {},
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {},
+    "type/primitive/uuid": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

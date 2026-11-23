@@ -1,0 +1,11 @@
+{
+  "types": {
+    "type/anonymous/paths/~1search/get/parameters/1/schema": {},
+    "type/anonymous/paths/~1search/get/parameters/4/content/application~1json/schema": {},
+    "type/anonymous/paths/~1search/parameters/0/schema": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

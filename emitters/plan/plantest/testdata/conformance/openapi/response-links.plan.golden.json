@@ -1,0 +1,32 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Order/properties/tags": {},
+    "type/openapi/components/schemas/Conflict": {
+      "flattened": [
+        "property/openapi/components/schemas/Conflict/properties/existingId"
+      ]
+    },
+    "type/openapi/components/schemas/Customer": {
+      "flattened": [
+        "property/openapi/components/schemas/Customer/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Order": {
+      "flattened": [
+        "property/openapi/components/schemas/Order/properties/id",
+        "property/openapi/components/schemas/Order/properties/tags"
+      ]
+    },
+    "type/openapi/components/schemas/OrderInput": {
+      "flattened": [
+        "property/openapi/components/schemas/OrderInput/properties/customer"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

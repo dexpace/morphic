@@ -610,7 +610,7 @@ morphic/
 │   │                       #             five layers (below): `git ls-files` lists them.
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
-├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
+├── emitters/               # Layer 2 — the plan layer (plan/); emitter contract, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
@@ -668,8 +668,8 @@ Dependency rules, enforced by an architecture test as in oagen:
   `barrier`, and no lowering package may reach the compiler that calls it.
 - The OpenAPI compiler's own packages also sit in five layers, described below.
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
-  The rule is in place before the first emitter package: `emitters` is ruled now, and each package
-  beneath it carries an entry of its own, as a compiler's packages do.
+  The rule is in place before the contract package: `emitters` is ruled now, and each package
+  beneath it, `emitters/plan` the first, carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The import rules bound what a package names, not where control goes: a package can still call into
