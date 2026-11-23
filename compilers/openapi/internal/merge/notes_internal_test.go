@@ -320,6 +320,27 @@ func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 	}
 }
 
+// TestStanding_IsTheFirstSortingOfOneType pins which member stands for another's
+// type: of those of that type the one whose target sorts first, whatever one of
+// another type sorts before it, and itself where none is.
+func TestStanding_IsTheFirstSortingOfOneType(t *testing.T) {
+	t.Parallel()
+	same, apart := relSame, relOverlap
+	held := position{
+		members: []member{{ref: ref("type/c")}, {ref: ref("type/a")}, {ref: ref("type/d")}, {ref: ref("type/b")}},
+		rel: [][]relation{
+			{same, apart, same, same},
+			{apart, same, apart, apart},
+			{same, apart, same, same},
+			{same, apart, same, same},
+		},
+	}
+
+	for i, want := range []int{3, 1, 3, 3} {
+		assert.Equal(t, want, held.standing(i), "member %d", i)
+	}
+}
+
 // TestSayingAll_NamesTheFirstSortingNodeThatSaysAll pins which node stands for
 // the one several meet in: of those saying what it does, sites and member IDs
 // apart, the one sorting first in either order, and none where none does.
