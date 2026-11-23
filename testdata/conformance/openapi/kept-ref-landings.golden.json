@@ -205,9 +205,9 @@
           "value": {
             "$ref": "#/components/schemas/Kept/$defs/Sub"
           },
-          "targets": [
-            "type/anonymous/components/schemas/Kept/$defs/Sub"
-          ],
+          "targets": {
+            "/$ref": "type/anonymous/components/schemas/Kept/$defs/Sub"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Kept/not"
@@ -240,9 +240,9 @@
               "$ref": "#/components/schemas/Through/$defs/Mid"
             }
           },
-          "targets": [
-            "type/anonymous/components/schemas/Through/$defs/Mid"
-          ],
+          "targets": {
+            "/if/$ref": "type/anonymous/components/schemas/Through/$defs/Mid"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Through"

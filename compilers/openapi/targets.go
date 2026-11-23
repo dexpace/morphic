@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -20,11 +21,11 @@ import (
 
 var unmodeledType = reflect.TypeFor[ir.Unmodeled]()
 
-// attachUnmodeledTargets records on every UnmodeledEntry in doc the sorted,
-// deduplicated TypeIDs lowered for schema $refs and kept discriminator routes
-// written inside that entry's Value. It runs after compile.Types.Finish and
-// before pruneUnreferencedTypes so every kept landing is visible in the IR to
-// pruning, irverify, and emitters.
+// attachUnmodeledTargets records on every UnmodeledEntry in doc the TypeIDs
+// lowered for schema $refs and kept discriminator routes written inside that
+// entry's Value, keyed by their RFC 6901 JSON Pointer inside Value. It runs
+// after compile.Types.Finish and before pruneUnreferencedTypes so every kept
+// landing is visible in the IR to pruning, irverify, and emitters.
 func attachUnmodeledTargets(ctx context.Context, doc *ir.Document, landings map[schema.LandingSite][]schema.Landing) {
 	if len(landings) == 0 {
 		return
@@ -39,8 +40,9 @@ func attachUnmodeledTargets(ctx context.Context, doc *ir.Document, landings map[
 // sourceLandings holds the live landings of one input document, keyed by the
 // pointer where each reference or discriminator was written.
 type sourceLandings struct {
-	exact   map[jsontext.Pointer][]schema.Landing
-	hasDisc bool
+	exact    map[jsontext.Pointer][]schema.Landing
+	pointers []jsontext.Pointer
+	hasDisc  bool
 }
 
 // indexLandings filters landings to type IDs present in types and groups them
@@ -62,6 +64,9 @@ func indexLandings(landings map[schema.LandingSite][]schema.Landing, types ir.Ty
 				src.hasDisc = true
 			}
 		}
+	}
+	for _, src := range bySource {
+		src.pointers = slices.Sorted(maps.Keys(src.exact))
 	}
 	return bySource
 }
@@ -94,17 +99,17 @@ func (a *unmodeledTargetAttacher) Visit(v reflect.Value, _ ir.WalkPath) bool {
 	return false
 }
 
-// targetsFor returns the sorted, deduplicated TypeIDs referenced inside
-// entry.Value, located at entry.Provenance.Pointer.
-func (s *sourceLandings) targetsFor(key string, entry ir.UnmodeledEntry) []ir.TypeID {
+// targetsFor returns the map of relative RFC 6901 JSON Pointers inside
+// entry.Value to the TypeIDs they lowered to, located at
+// entry.Provenance.Pointer.
+func (s *sourceLandings) targetsFor(key string, entry ir.UnmodeledEntry) map[jsontext.Pointer]ir.TypeID {
 	raw := bytes.TrimSpace(entry.Value)
 	if len(raw) == 0 {
 		return nil
 	}
-	var collected []ir.TypeID
 	switch raw[0] {
 	case '"':
-		collected = s.matchString(raw, entry.Provenance.Pointer)
+		return s.matchString(raw, entry.Provenance.Pointer)
 	case '{', '[':
 		if !mightCarryLanding(raw, s.hasDisc) {
 			return nil
@@ -113,62 +118,56 @@ func (s *sourceLandings) targetsFor(key string, entry ir.UnmodeledEntry) []ir.Ty
 		if json.Unmarshal(raw, &parsed) != nil {
 			return nil
 		}
-		collected = s.matchTree(parsed, key, entry.Provenance.Pointer)
+		return s.matchTree(parsed, key, entry.Provenance.Pointer)
 	default:
 		return nil
 	}
-	if len(collected) == 0 {
-		return nil
-	}
-	slices.Sort(collected)
-	return slices.Compact(collected)
 }
 
 // matchString resolves a scalar-string Unmodeled entry (such as openapi:$ref
-// or openapi:$dynamicRef) against the landings at or beneath base.
-func (s *sourceLandings) matchString(raw []byte, base jsontext.Pointer) []ir.TypeID {
+// or openapi:$dynamicRef) against the landings at or beneath base, mapping the
+// root pointer "" to the resolved TypeID.
+func (s *sourceLandings) matchString(raw []byte, base jsontext.Pointer) map[jsontext.Pointer]ir.TypeID {
 	var text string
 	if json.Unmarshal(raw, &text) != nil {
 		return nil
 	}
-	var out []ir.TypeID
-	out = appendMatchingRef(out, s.exact[base], text)
-	if isRefKeyword(base.LastToken()) {
-		out = appendMatchingRef(out, s.exact[base.Parent()], text)
+	if id, ok := matchingRefID(s.exact[base], text); ok {
+		return map[jsontext.Pointer]ir.TypeID{"": id}
 	}
-	if len(out) == 0 {
-		for ptr, list := range s.exact {
-			if pointerBeneath(ptr, base) {
-				out = appendMatchingRef(out, list, text)
-			}
+	if isRefKeyword(base.LastToken()) {
+		if id, ok := matchingRefID(s.exact[base.Parent()], text); ok {
+			return map[jsontext.Pointer]ir.TypeID{"": id}
 		}
 	}
-	return out
+	for _, ptr := range s.pointers {
+		if !pointerBeneath(ptr, base) {
+			continue
+		}
+		if id, ok := matchingRefID(s.exact[ptr], text); ok {
+			return map[jsontext.Pointer]ir.TypeID{"": id}
+		}
+	}
+	return nil
 }
 
 // matchTree walks a decoded JSON object or array iteratively tracking its JSON
-// Pointer relative to base, collecting exact landings and falling back when two
-// agreeing allOf entries collapsed their provenance to base.
-func (s *sourceLandings) matchTree(root any, key string, base jsontext.Pointer) []ir.TypeID {
+// Pointer relative to base, collecting exact landings whose key is present in
+// the object and falling back when two agreeing allOf entries collapsed their
+// provenance to base.
+func (s *sourceLandings) matchTree(root any, key string, base jsontext.Pointer) map[jsontext.Pointer]ir.TypeID {
 	type frame struct {
 		node any
 		rel  jsontext.Pointer
 	}
 	stack := []frame{{node: root}}
-	var out []ir.TypeID
+	var out map[jsontext.Pointer]ir.TypeID
 	for len(stack) > 0 {
 		cur := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		switch val := cur.node.(type) {
 		case map[string]any:
-			at := base + cur.rel
-			before := len(out)
-			for _, landing := range s.exact[at] {
-				out = append(out, landing.ID)
-			}
-			if len(out) == before {
-				out = s.matchCollapsedObject(val, key, base, cur.rel, out)
-			}
+			out = s.matchObject(val, key, base, cur.rel, out)
 			for k, child := range val {
 				stack = append(stack, frame{node: child, rel: cur.rel + ids.Ptr(k)})
 			}
@@ -181,43 +180,102 @@ func (s *sourceLandings) matchTree(root any, key string, base jsontext.Pointer) 
 	return out
 }
 
+// matchObject records the landings written directly on obj, situated at rel
+// within an Unmodeled entry whose provenance is base.
+func (s *sourceLandings) matchObject(obj map[string]any, key string, base, rel jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+	before := len(out)
+	for _, landing := range s.exact[base+rel] {
+		if landingMatchesObject(obj, landing) {
+			out = setTarget(out, rel+landing.Path, landing.ID)
+		}
+	}
+	if len(out) == before {
+		out = s.matchCollapsedObject(obj, key, base, rel, out)
+	}
+	return out
+}
+
 // matchCollapsedObject handles the fallback when two agreeing allOf entries
 // collapsed an entry's provenance to the enclosing schema pointer base.
-func (s *sourceLandings) matchCollapsedObject(obj map[string]any, key string, base, rel jsontext.Pointer, out []ir.TypeID) []ir.TypeID {
-	if refText, ok := refStringOf(obj); ok {
-		out = s.matchCollapsedRef(base, ids.Ptr(entryKeyword(key))+rel, refText, out)
+func (s *sourceLandings) matchCollapsedObject(obj map[string]any, key string, base, rel jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+	suffix := ids.Ptr(entryKeyword(key)) + rel
+	for _, kw := range refKeywords {
+		if refText, ok := obj[kw].(string); ok {
+			out = s.matchCollapsedRef(base, suffix, rel, kw, refText, out)
+		}
 	}
 	if s.hasDisc && (obj["mapping"] != nil || obj["defaultMapping"] != nil) {
-		out = s.matchCollapsedDisc(base, out)
+		out = s.matchCollapsedDisc(obj, base, rel, out)
 	}
 	return out
 }
 
-// matchCollapsedRef collects landings strictly beneath base whose pointer ends
-// with suffix and whose reference text equals refText.
-func (s *sourceLandings) matchCollapsedRef(base, suffix jsontext.Pointer, refText string, out []ir.TypeID) []ir.TypeID {
-	for ptr, list := range s.exact {
-		if pointerBeneath(ptr, base) && strings.HasSuffix(string(ptr), string(suffix)) {
-			out = appendMatchingRef(out, list, refText)
-		}
-	}
-	return out
-}
-
-// matchCollapsedDisc collects kept discriminator routes strictly beneath base.
-func (s *sourceLandings) matchCollapsedDisc(base jsontext.Pointer, out []ir.TypeID) []ir.TypeID {
-	for ptr, list := range s.exact {
-		if !pointerBeneath(ptr, base) || ptr.LastToken() != "discriminator" {
+// matchCollapsedRef records a landing strictly beneath base whose pointer ends
+// with suffix and whose keyword and reference text match kw and refText.
+func (s *sourceLandings) matchCollapsedRef(base, suffix, rel jsontext.Pointer, kw, refText string, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+	wantPath := ids.Ptr(kw)
+	for _, ptr := range s.pointers {
+		if !pointerBeneath(ptr, base) || !strings.HasSuffix(string(ptr), string(suffix)) {
 			continue
 		}
-		for _, landing := range list {
-			if landing.Ref == "" {
-				out = append(out, landing.ID)
+		for _, landing := range s.exact[ptr] {
+			if landing.Ref == refText && landing.Path == wantPath {
+				return setTarget(out, rel+landing.Path, landing.ID)
 			}
 		}
 	}
 	return out
 }
+
+// matchCollapsedDisc records kept discriminator routes strictly beneath base
+// whose paths exist in obj.
+func (s *sourceLandings) matchCollapsedDisc(obj map[string]any, base, rel jsontext.Pointer, out map[jsontext.Pointer]ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+	for _, ptr := range s.pointers {
+		if !pointerBeneath(ptr, base) || ptr.LastToken() != "discriminator" {
+			continue
+		}
+		for _, landing := range s.exact[ptr] {
+			if landing.Ref == "" && landingMatchesObject(obj, landing) {
+				out = setTarget(out, rel+landing.Path, landing.ID)
+			}
+		}
+	}
+	return out
+}
+
+// landingMatchesObject reports whether obj actually contains the JSON string
+// member addressed by landing.Path (and matching landing.Ref for schema refs).
+func landingMatchesObject(obj map[string]any, landing schema.Landing) bool {
+	if landing.Ref != "" {
+		text, ok := obj[landing.Path.LastToken()].(string)
+		return ok && text == landing.Ref
+	}
+	if landing.Path == "/defaultMapping" {
+		_, ok := obj["defaultMapping"].(string)
+		return ok
+	}
+	if landing.Path.Parent() == "/mapping" {
+		mapping, ok := obj["mapping"].(map[string]any)
+		if !ok {
+			return false
+		}
+		_, exists := mapping[landing.Path.LastToken()].(string)
+		return exists
+	}
+	return false
+}
+
+// setTarget writes id at ptr into dst, allocating dst on first write.
+func setTarget(dst map[jsontext.Pointer]ir.TypeID, ptr jsontext.Pointer, id ir.TypeID) map[jsontext.Pointer]ir.TypeID {
+	if dst == nil {
+		dst = map[jsontext.Pointer]ir.TypeID{}
+	}
+	dst[ptr] = id
+	return dst
+}
+
+// refKeywords are the JSON Schema reference keywords whose values land on types.
+var refKeywords = [...]string{"$ref", "$dynamicRef", "$recursiveRef"}
 
 // mightCarryLanding cheaply rejects raw JSON payloads that contain no schema
 // reference keyword or (when the source has kept discriminators) mapping key.
@@ -230,22 +288,11 @@ func mightCarryLanding(raw []byte, hasDisc bool) bool {
 	return hasDisc && (bytes.Contains(raw, []byte(`"mapping"`)) || bytes.Contains(raw, []byte(`"defaultMapping"`)))
 }
 
-// appendMatchingRef appends the IDs in list whose Ref equals text.
-func appendMatchingRef(out []ir.TypeID, list []schema.Landing, text string) []ir.TypeID {
+// matchingRefID returns the first landing ID in list whose Ref equals text.
+func matchingRefID(list []schema.Landing, text string) (ir.TypeID, bool) {
 	for _, landing := range list {
 		if landing.Ref == text {
-			out = append(out, landing.ID)
-		}
-	}
-	return out
-}
-
-// refStringOf returns the reference string if obj holds a $ref, $dynamicRef,
-// or $recursiveRef string member.
-func refStringOf(obj map[string]any) (string, bool) {
-	for _, kw := range []string{"$ref", "$dynamicRef", "$recursiveRef"} {
-		if text, ok := obj[kw].(string); ok {
-			return text, true
+			return landing.ID, true
 		}
 	}
 	return "", false

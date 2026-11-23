@@ -10,6 +10,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -57,26 +58,27 @@ func checkRawPayloads(*ir.Document) walkCheck {
 // through payloadReaderValue. Both callers key on a plain string, so the key
 // spells the entry's path.
 func appendEntries(vs []Violation, entryReaderValue *entryReader, payloadReaderValue *payloadReader, m reflect.Value, at ir.WalkPath,
-	check func(otherPayloadReader *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
+	check func(reader *entryReader, otherPayloadReader *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {
 	held := entryReaderValue.heldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, entry := held.read(iter)
-		vs = append(vs, check(payloadReaderValue, key.String(), entry, at)...)
+		vs = append(vs, check(entryReaderValue, payloadReaderValue, key.String(), entry, at)...)
 	}
 	return vs
 }
 
 // unmodeledEntry checks one entry of an Unmodeled map: a non-empty
-// origin-namespaced key, a marshalable payload, and a declared UnmodeledReason.
+// origin-namespaced key, a marshalable payload, a declared UnmodeledReason,
+// and RFC 6901 JSON Pointer keys on Targets.
 // Consumers select entries by reason (see ir.UnmodeledEntry.Reason), so an entry
 // left at the zero reason is bytes nothing can route, and one keyed "" cannot be
 // looked up and is overwritten by the next empty-keyed entry. Both are compiler
 // bugs of the same class checkRegistryKeys reports as ir/empty-*-id.
 //
-// The three are checked independently so a doubly-broken entry names each of its
-// defects rather than stopping at the first.
-func unmodeledEntry(payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
+// The defects are checked independently so a doubly-broken entry names each of
+// its defects rather than stopping at the first.
+func unmodeledEntry(reader *entryReader, payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
 	var vs []Violation
 	if key == "" {
 		vs = append(vs, Violation{
@@ -98,22 +100,33 @@ func unmodeledEntry(payloadReaderValue *payloadReader, key string, entry reflect
 			Message: "unmodeled entry carries undeclared reason " + strconv.Quote(string(reason)),
 		})
 	}
-	vs = appendTargetOrderViolation(vs, entry.FieldByName("Targets"))
-	return placeEntry(vs, at, key, `[""]`)
+	vs = placeEntry(vs, at, key, `[""]`)
+	return appendTargetPointerViolations(vs, reader, entry.FieldByName("Targets"), at, key)
 }
 
-// appendTargetOrderViolation reports an UnmodeledEntry.Targets slice whose
-// non-empty IDs are not in strictly ascending order; empty entries are
-// checkEmptyRefs' own report.
-func appendTargetOrderViolation(vs []Violation, targets reflect.Value) []Violation {
-	for i := 1; i < targets.Len(); i++ {
-		prev, cur := targets.Index(i-1).String(), targets.Index(i).String()
-		if prev != "" && cur != "" && cur <= prev {
-			return append(vs, Violation{
-				Code:    "ir/unmodeled-targets-not-canonical",
-				Message: "unmodeled target " + strconv.Quote(cur) + " does not follow " + strconv.Quote(prev) + " in sorted order without repeats",
-			})
+// appendTargetPointerViolations reports any key of UnmodeledEntry.Targets that
+// is not an RFC 6901 JSON Pointer; empty or dangling values are checkEmptyRefs'
+// and checkReferentialIntegrity's own reports, and invalid UTF-8 is checkUTF8's.
+func appendTargetPointerViolations(vs []Violation, reader *entryReader, targets reflect.Value, at ir.WalkPath, key string) []Violation {
+	if targets.Len() == 0 {
+		return vs
+	}
+	held := reader.heldFor(targets)
+	var base string
+	for iter := targets.MapRange(); iter.Next(); {
+		ptrVal, _ := held.read(iter)
+		ptr := ptrVal.String()
+		if jsontext.Pointer(strings.ToValidUTF8(ptr, "\uFFFD")).IsValid() {
+			continue
 		}
+		if base == "" {
+			base = rawEntryPath(at, key, `[""]`) + ".Targets["
+		}
+		vs = append(vs, Violation{
+			Code:    "ir/unmodeled-target-pointer-malformed",
+			Message: "unmodeled target pointer " + strconv.Quote(ptr) + " is not an RFC 6901 JSON Pointer",
+			Path:    base + ptr + "]",
+		})
 	}
 	return vs
 }
@@ -121,8 +134,17 @@ func appendTargetOrderViolation(vs []Violation, targets reflect.Value) []Violati
 // rawConfigEntry checks one entry of a RawConfig map. Unlike an Unmodeled entry
 // it carries no reason to check — the source declared it where the IR expects it
 // — so the payload is all there is to hold it to.
-func rawConfigEntry(payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
+func rawConfigEntry(_ *entryReader, payloadReaderValue *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
 	return placeEntry(appendRawValue(nil, payloadReaderValue, entry, "protocol config"), at, key, "[]")
+}
+
+// rawEntryPath spells the path of one raw-payload map entry at at, keyed by
+// key, using empty when key is empty.
+func rawEntryPath(at ir.WalkPath, key, empty string) string {
+	if key == "" {
+		return at.String() + empty
+	}
+	return at.String() + "[" + key + "]"
 }
 
 // placeEntry gives each of one entry's violations vs the entry's path: the map
@@ -132,10 +154,7 @@ func placeEntry(vs []Violation, at ir.WalkPath, key, empty string) []Violation {
 	if len(vs) == 0 {
 		return nil
 	}
-	path := at.String() + "[" + key + "]"
-	if key == "" {
-		path = at.String() + empty
-	}
+	path := rawEntryPath(at, key, empty)
 	for i := range vs {
 		vs[i].Path = path
 	}

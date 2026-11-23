@@ -102,3 +102,27 @@ nullable-inference policy ([`nullable`](../compilers/openapi.md#nullable)).
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` ([properties](./properties.md)), keeping `Nullable` strictly about
 wire-null.
+
+## Reachability of anonymous types
+
+Every type in `Document.Types` with `Anonymous: true` must be reachable through typed `TypeID`
+references from a reachability root. `irverify` holds every stage's document to this rule
+(`ir/unreferenced-anonymous-type`).
+
+A **reachability root** is either:
+
+- a non-anonymous type (`Anonymous: false`) in `Document.Types` — declared top-level types and
+  shared primitives; or
+- any typed `TypeID` reference held outside `Document.Types` — services, operations, parameters,
+  payloads, responses, error cases, channels, messages, auth credentials, and `Document.Unmodeled`
+  entry targets.
+
+Reachability walks every typed `TypeID` reference on each node, including `UnmodeledEntry.Targets`
+([unmodeled](./unmodeled.md#what-an-entry-carries)), so a construct kept verbatim whose raw payload
+names a hoisted anonymous type keeps that type reachable without requiring `irverify` or emitters
+to parse format-specific JSON.
+
+Because `irverify` runs on every stage's output, this rule binds every compiler and every IR pass
+alike. A compiler that hoists inline nodes during lowering whose references are later superseded
+(such as `allOf` property folds or distributed unions), and any pass that rewrites references off
+an anonymous node (such as `constunions`), must prune any anonymous type left unreachable.

@@ -209,6 +209,7 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 		want    ir.TypeID
 	}{
 		{name: "a component schema is named", pointer: "/components/schemas/User", want: "type/openapi/components/schemas/User"},
+		{name: "an empty-named component schema stays in the component space", pointer: "/components/schemas/", want: "type/openapi/components/schemas/"},
 		{name: "an inline position is anonymous", pointer: "/components/schemas/User/properties/id", want: "type/anonymous/components/schemas/User/properties/id"},
 		{name: "a component of another kind is anonymous", pointer: "/components/headers/X-Rate", want: "type/anonymous/components/headers/X-Rate"},
 		{name: "a media-type schema is anonymous", pointer: "/paths/~1x/get/responses/200/content/application~1json/schema", want: "type/anonymous/paths/~1x/get/responses/200/content/application~1json/schema"},

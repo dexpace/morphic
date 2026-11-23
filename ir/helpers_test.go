@@ -9,6 +9,7 @@
 package ir_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"math/rand/v2"
@@ -242,7 +243,7 @@ func populatedProvenance() ir.Provenance {
 // insertion order differs from sorted order, for Class C determinism checks.
 func populatedUnmodeled() ir.Unmodeled {
 	return ir.Unmodeled{
-		"openapi:z-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`), Targets: []ir.TypeID{"type/test/target"}, Provenance: populatedProvenance()},
+		"openapi:z-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`), Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": "type/test/target"}, Provenance: populatedProvenance()},
 		"openapi:m-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`2`), Provenance: populatedProvenance()},
 		"openapi:a-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`3`), Provenance: populatedProvenance()},
 	}

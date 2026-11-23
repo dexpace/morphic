@@ -92,9 +92,9 @@
         "openapi:$ref/0": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Alike/allOf/1"
@@ -103,9 +103,9 @@
         "openapi:$ref/1": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Alike/allOf/0"
@@ -167,9 +167,9 @@
         "openapi:$ref/0": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Distinct/allOf/1"
@@ -178,9 +178,9 @@
         "openapi:$ref/1": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/B",
-          "targets": [
-            "type/openapi/components/schemas/B"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/B"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Distinct/allOf/0"
@@ -223,9 +223,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Same"
@@ -268,9 +268,9 @@
         "openapi:$ref/0": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Twice/allOf/0"
@@ -279,9 +279,9 @@
         "openapi:$ref/1": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/A",
-          "targets": [
-            "type/openapi/components/schemas/A"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/A"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Twice/allOf/1"

@@ -8,10 +8,10 @@ type UnmodeledReason string     // vendor_extension | validation_only | degraded
                                // no_ir_home | out_of_scope
 
 type UnmodeledEntry struct {
-    Reason     UnmodeledReason    // why this is here rather than modeled
-    Value      RawValue          // the source construct, verbatim
-    Targets    []TypeID          // sorted, deduplicated type IDs lowered for references inside Value
-    Provenance Provenance        // where the construct itself was written
+    Reason     UnmodeledReason           // why this is here rather than modeled
+    Value      RawValue                  // the source construct, verbatim
+    Targets    map[jsontext.Pointer]TypeID // RFC 6901 pointer inside Value -> lowered TypeID
+    Provenance Provenance                // where the construct itself was written
 }
 
 type Unmodeled map[string]UnmodeledEntry
@@ -44,10 +44,15 @@ unmodeled, so a consumer can take the subset it cares about: the validation emit
 vendor noise, while a spec linter wants `degraded_lowering` and `no_ir_home` and nothing else. It is
 a property of the construct, never of the diagnostic emitted beside it — one diagnostic code
 routinely spans preservation, weakening, and outright dropping, so it says nothing about why.
-**`Targets`** lists, sorted and deduplicated, the `TypeID`s lowered for references inside `Value`
-(such as `$ref`s in kept validation-only or degraded constructs and kept `discriminator` mapping
-values), so emitters and `irverify` see kept type dependencies without parsing format-specific raw
-JSON; omitted when empty.
+**`Targets`** maps each RFC 6901 JSON Pointer inside `Value` that writes a resolved type reference
+(such as `"/$ref"`, `"/if/$ref"`, `"/mapping/cat"`, `"/defaultMapping"`, or `""` when `Value`
+itself is the reference string) to the `TypeID` that reference lowered to; omitted when empty.
+Stating landings as a pointer-keyed map makes kept references lossless — a consumer resolving a
+specific reference inside `Value` looks up its relative pointer directly — and makes kept type
+dependencies visible to `irverify` ([reachability](./type-graph.md#reachability-of-anonymous-types))
+and emitters without parsing format-specific raw JSON. `irverify` holds every key to being a valid
+RFC 6901 JSON Pointer (`ir/unmodeled-target-pointer-malformed`) and every value to being a
+non-empty, resolvable `TypeID` (`ir/empty-type-ref`, `ir/dangling-type-ref`).
 **`Provenance`** locates the construct itself rather than the node carrying it, so an emitter can
 report on an entry at its own source position instead of the enclosing schema's — falling back to
 the declaring position only where the entry combines several keywords into one synthesized object

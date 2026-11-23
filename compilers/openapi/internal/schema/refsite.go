@@ -5,6 +5,8 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"maps"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -166,11 +168,14 @@ type LandingSite struct {
 }
 
 // Landing is one resolved type target written at a LandingSite: ID is the
-// lowered ir.TypeID and Ref is the reference text for a schema $ref (empty for
-// a kept discriminator route).
+// lowered ir.TypeID, Path is the RFC 6901 JSON Pointer from LandingSite.Pointer
+// to the reference string (such as "/$ref", "/mapping/cat", "/defaultMapping"),
+// and Ref is the reference text for a schema $ref/$dynamicRef/$recursiveRef
+// (empty for a kept discriminator route).
 type Landing struct {
-	ID  ir.TypeID
-	Ref string
+	ID   ir.TypeID
+	Path jsontext.Pointer
+	Ref  string
 }
 
 // keptDiscRoutes holds the type IDs resolved by resolveDiscriminatorRoutes for
@@ -195,11 +200,11 @@ func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontex
 	}
 	site := LandingSite{Source: loweringContext.Place().Source, Pointer: pointer}
 	routes := keptDiscRoutesOf(loweringContext)
-	for _, id := range mapping {
-		routes.bySite[site] = append(routes.bySite[site], Landing{ID: id})
+	for _, tag := range slices.Sorted(maps.Keys(mapping)) {
+		routes.bySite[site] = append(routes.bySite[site], Landing{ID: mapping[tag], Path: ids.Ptr("mapping", tag)})
 	}
 	if def != "" {
-		routes.bySite[site] = append(routes.bySite[site], Landing{ID: def})
+		routes.bySite[site] = append(routes.bySite[site], Landing{ID: def, Path: ids.Ptr("defaultMapping")})
 	}
 }
 
@@ -219,7 +224,11 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 			decl := loweringContext.Statements().At(referenceSite.Hop.Target)
 			if id, _, ok := declaredIn(targetCtx, referenceSite.Hop.Target.Pointer, decl); ok {
 				site := LandingSite{Source: fromCtx.Place().Source, Pointer: referenceSite.Site.Pointer}
-				out[site] = append(out[site], Landing{ID: id, Ref: referenceSite.Hop.Ref})
+				out[site] = append(out[site], Landing{
+					ID:   id,
+					Path: ids.Ptr(referenceSite.Keyword),
+					Ref:  referenceSite.Hop.Ref,
+				})
 			}
 		}
 	}

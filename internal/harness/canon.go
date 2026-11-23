@@ -309,7 +309,7 @@ func childPlace(name string, placeValue place, own string) place {
 		return place{how: child.how | verbatim, at: own}
 	case name == "mixins", name == "requires":
 		child.how |= sortElements
-	case name == "unmodeled":
+	case name == "unmodeled", name == "targets" && own != "":
 		child.how |= relativeNames
 	}
 	return child

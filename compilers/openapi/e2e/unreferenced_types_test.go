@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
 	"testing"
@@ -333,12 +334,12 @@ x-defs:
 	doc, _ := parseVerified(t, spec)
 	assert.Empty(t, irverify.Verify(doc))
 
-	emptyComp := doc.Types["type/anonymous/components/schemas/"]
+	emptyComp := doc.Types["type/openapi/components/schemas/"]
 	require.NotNil(t, emptyComp)
 	assert.False(t, emptyComp.Common().Anonymous, "source empty-named component schema is a declared root")
 
 	wantKept := []ir.TypeID{
-		"type/anonymous/components/schemas/",
+		"type/openapi/components/schemas/",
 		"type/anonymous/components/schemas//properties/inner",
 		"type/anonymous/components/schemas/Composed/allOf/0/properties/r",
 		"type/anonymous/components/schemas/Composed/allOf/1/properties/r",
@@ -357,15 +358,15 @@ x-defs:
 		assert.Contains(t, doc.Types, id, "promised landing or root %s must resolve after pruning", id)
 	}
 
-	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/WithKeptRefToLoser/allOf/1/properties/result"},
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": "type/anonymous/components/schemas/WithKeptRefToLoser/allOf/1/properties/result"},
 		doc.Types["type/openapi/components/schemas/KeptRef"].Common().Unmodeled["openapi:not"].Targets)
-	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/ChainThroughIf/$defs/Mid"},
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/if/$ref": "type/anonymous/components/schemas/ChainThroughIf/$defs/Mid"},
 		doc.Types["type/openapi/components/schemas/ChainThroughIf"].Common().Unmodeled["openapi:if-then-else"].Targets)
-	assert.Equal(t, []ir.TypeID{"type/anonymous/components/schemas/AgreeingAllOfNot/$defs/Sub"},
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": "type/anonymous/components/schemas/AgreeingAllOfNot/$defs/Sub"},
 		doc.Types["type/openapi/components/schemas/AgreeingAllOfNot"].Common().Unmodeled["openapi:not"].Targets)
-	assert.Equal(t, []ir.TypeID{
-		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Fallback",
-		"type/anonymous/components/schemas/KeptDiscriminator/$defs/Mapped",
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{
+		"/mapping/m":      "type/anonymous/components/schemas/KeptDiscriminator/$defs/Mapped",
+		"/defaultMapping": "type/anonymous/components/schemas/KeptDiscriminator/$defs/Fallback",
 	}, doc.Types["type/openapi/components/schemas/KeptDiscriminator"].Common().Unmodeled["openapi:discriminator"].Targets)
 }
 
@@ -400,6 +401,6 @@ components:
 	require.NotNil(t, doc)
 	const want ir.TypeID = "type/anonymous@other.yaml/$defs/ExtSub"
 	assert.Contains(t, doc.Types, want)
-	assert.Equal(t, []ir.TypeID{want}, doc.Types["type/openapi/components/schemas/Holder"].Common().Unmodeled["openapi:not"].Targets)
+	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": want}, doc.Types["type/openapi/components/schemas/Holder"].Common().Unmodeled["openapi:not"].Targets)
 	assert.Empty(t, irverify.Verify(doc))
 }

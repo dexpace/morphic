@@ -76,12 +76,13 @@ type UnmodeledEntry struct {
 	// stays `2021-1-1`, a `!!binary` keeps its base64 (#242). Reading one means
 	// resolving it as its source format would.
 	Value RawValue `json:"value"`
-	// Targets lists the type IDs lowered for references inside Value (such as
-	// schema $refs in a validation-only keyword or kept discriminator mapping
-	// values), sorted and deduplicated. Stating them as typed IDs makes kept
-	// landings visible to emitters and irverify without parsing format-specific
-	// raw JSON.
-	Targets []TypeID `json:"targets,omitempty"`
+	// Targets maps each RFC 6901 JSON Pointer inside Value that writes a
+	// resolved type reference (such as "/$ref", "/if/$ref", "/mapping/cat",
+	// "/defaultMapping", or "" when Value itself is the reference string) to
+	// the TypeID it lowered to. Stating them as typed IDs makes kept landings
+	// lossless and visible to emitters and irverify without parsing
+	// format-specific raw JSON.
+	Targets map[jsontext.Pointer]TypeID `json:"targets,omitempty"`
 	// Provenance locates the construct itself, which the owning node's own
 	// provenance cannot: a validation emitter reporting on a `not` must point at
 	// the keyword, not at the schema that carried it. It falls back to the

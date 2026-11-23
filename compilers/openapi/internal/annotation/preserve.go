@@ -163,7 +163,7 @@ func CopyEntriesInto(unmodeled *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic 
 			continue
 		}
 		entry.Value = entry.Value.Clone()
-		entry.Targets = slices.Clone(entry.Targets)
+		entry.Targets = maps.Clone(entry.Targets)
 		(*unmodeled)[key] = entry
 	}
 	slices.Sort(taken)

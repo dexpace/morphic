@@ -211,9 +211,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Base",
-          "targets": [
-            "type/openapi/components/schemas/Base"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/Base"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedConst/allOf/0"
@@ -244,9 +244,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Base",
-          "targets": [
-            "type/openapi/components/schemas/Base"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/Base"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedEnum/allOf/0"

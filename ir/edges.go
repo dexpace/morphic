@@ -116,8 +116,9 @@ func (w *edgeWalk) unmodeled(unmodeled Unmodeled) {
 		return
 	}
 	for _, key := range slices.Sorted(maps.Keys(unmodeled)) {
-		for _, id := range unmodeled[key].Targets {
-			w.id(id)
+		targets := unmodeled[key].Targets
+		for _, ptr := range slices.Sorted(maps.Keys(targets)) {
+			w.id(targets[ptr])
 		}
 	}
 }

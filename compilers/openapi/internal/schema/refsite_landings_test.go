@@ -117,10 +117,10 @@ func TestReferenceLandings_ListsSchemaRefsAndKeptDiscriminators(t *testing.T) {
 	_ = lowerer.Document(t)
 
 	landings := schema.ReferenceLandings(lowerer.Ctx)
-	assert.Equal(t, []schema.Landing{{ID: "type/anonymous/components/schemas/Kept/$defs/Sub", Ref: "#/components/schemas/Kept/$defs/Sub"}},
+	assert.Equal(t, []schema.Landing{{ID: "type/anonymous/components/schemas/Kept/$defs/Sub", Path: "/$ref", Ref: "#/components/schemas/Kept/$defs/Sub"}},
 		landings[schema.LandingSite{Source: 0, Pointer: "/components/schemas/Kept/not"}])
-	assert.ElementsMatch(t, []schema.Landing{
-		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Mapped"},
-		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Fallback"},
+	assert.Equal(t, []schema.Landing{
+		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Mapped", Path: "/mapping/sub"},
+		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Fallback", Path: "/defaultMapping"},
 	}, landings[schema.LandingSite{Source: 0, Pointer: "/components/schemas/KeptDisc/discriminator"}])
 }

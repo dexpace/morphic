@@ -4,9 +4,11 @@
 package irverify_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
@@ -43,7 +45,11 @@ func TestVerify_UnreferencedAnonymousTypes(t *testing.T) {
 		Name:       ir.NamingFor("Root"),
 		Properties: []ir.Property{prop("p", liveProp)},
 		Unmodeled: ir.Unmodeled{
-			"openapi:not": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"$ref":"#/a"}`), Targets: []ir.TypeID{liveUnm}},
+			"openapi:not": {
+				Reason:  ir.ReasonValidationOnly,
+				Value:   ir.RawValue(`{"$ref":"#/a"}`),
+				Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": liveUnm},
+			},
 		},
 	}
 
@@ -54,7 +60,11 @@ func TestVerify_UnreferencedAnonymousTypes(t *testing.T) {
 			ir.IDKindProperty: {"test"},
 		},
 		Unmodeled: ir.Unmodeled{
-			"openapi:kept": {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`{}`), Targets: []ir.TypeID{liveDoc}},
+			"openapi:kept": {
+				Reason:  ir.ReasonDegradedLowering,
+				Value:   ir.RawValue(`"#/d"`),
+				Targets: map[jsontext.Pointer]ir.TypeID{"": liveDoc},
+			},
 		},
 		Services: []ir.Service{{
 			ID:   "service/test/s",
@@ -164,9 +174,10 @@ func TestVerify_UnreferencedAnonymousTypes_AllDirectlyReachedAndOnlyDead(t *test
 	})
 }
 
-// TestVerify_UnmodeledTargets_CanonicalAndResolved pins that UnmodeledEntry
-// Targets must be sorted without duplicates and resolve in Document.Types.
-func TestVerify_UnmodeledTargets_CanonicalAndResolved(t *testing.T) {
+// TestVerify_UnmodeledTargets_PointersAndResolution pins that UnmodeledEntry
+// Targets keys must be valid RFC 6901 JSON Pointers (including "" for a scalar
+// payload) and every value must be non-empty and resolve in Document.Types.
+func TestVerify_UnmodeledTargets_PointersAndResolution(t *testing.T) {
 	t.Parallel()
 	const (
 		rootID ir.TypeID = "type/test/Root"
@@ -174,7 +185,7 @@ func TestVerify_UnmodeledTargets_CanonicalAndResolved(t *testing.T) {
 		bID    ir.TypeID = "type/anonymous/b"
 	)
 
-	makeDoc := func(targets []ir.TypeID) *ir.Document {
+	makeDoc := func(targets map[jsontext.Pointer]ir.TypeID) *ir.Document {
 		return minimalValidDoc(ir.TypeRegistry{
 			rootID: &ir.Model{
 				ID:   rootID,
@@ -188,16 +199,15 @@ func TestVerify_UnmodeledTargets_CanonicalAndResolved(t *testing.T) {
 		})
 	}
 
-	codesOf := func(vs []irverify.Violation) []string {
-		codes := make([]string, 0, len(vs))
-		for _, v := range vs {
-			codes = append(codes, v.Code)
-		}
-		return codes
-	}
+	assert.Empty(t, irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"": aID, "/mapping/a~1b": bID})))
 
-	assert.Empty(t, irverify.Verify(makeDoc([]ir.TypeID{aID, bID})))
-	assert.Contains(t, codesOf(irverify.Verify(makeDoc([]ir.TypeID{bID, aID}))), "ir/unmodeled-targets-not-canonical")
-	assert.Contains(t, codesOf(irverify.Verify(makeDoc([]ir.TypeID{aID, aID}))), "ir/unmodeled-targets-not-canonical")
-	assert.Contains(t, codesOf(irverify.Verify(makeDoc([]ir.TypeID{aID, bID, "type/anonymous/missing"}))), "ir/dangling-type-ref")
+	badPtr := irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"no-leading-slash": aID, "/bad~2escape": bID}))
+	require.Len(t, badPtr, 2)
+	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[0].Code)
+	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/bad~2escape]", badPtr[0].Path)
+	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[1].Code)
+	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[no-leading-slash]", badPtr[1].Path)
+
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/bad/$ref": "type/anonymous/missing"}))), "ir/dangling-type-ref")
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/empty/$ref": ""}))), "ir/empty-type-ref")
 }

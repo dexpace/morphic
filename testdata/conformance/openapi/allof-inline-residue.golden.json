@@ -611,9 +611,9 @@
               }
             ]
           },
-          "targets": [
-            "type/openapi/components/schemas/ItemA"
-          ],
+          "targets": {
+            "/allOf/0/not/$ref": "type/openapi/components/schemas/ItemA"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Rebased/allOf/0"
@@ -627,9 +627,9 @@
             },
             "type": "object"
           },
-          "targets": [
-            "type/openapi/components/schemas/ItemA"
-          ],
+          "targets": {
+            "/not/$ref": "type/openapi/components/schemas/ItemA"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"
@@ -640,9 +640,9 @@
           "value": {
             "$ref": "item.json"
           },
-          "targets": [
-            "type/openapi/components/schemas/ItemB"
-          ],
+          "targets": {
+            "/$ref": "type/openapi/components/schemas/ItemB"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Rebased/allOf/1/not"

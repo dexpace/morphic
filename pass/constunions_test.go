@@ -4,6 +4,7 @@
 package pass_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"math"
@@ -656,7 +657,7 @@ func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	assert.Greater(t, pass.TypeRefVisits(withTypes(carrying), "type/x/U/0"), bare, "the walk passed over a doc ref")
 
 	unmodeled := model()
-	unmodeled.Unmodeled = ir.Unmodeled{"openapi:not": {Reason: ir.ReasonValidationOnly, Targets: []ir.TypeID{"type/x/U/0"}}}
+	unmodeled.Unmodeled = ir.Unmodeled{"openapi:not": {Reason: ir.ReasonValidationOnly, Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": "type/x/U/0"}}}
 	assert.Greater(t, pass.TypeRefVisits(withTypes(unmodeled), "type/x/U/0"), bare, "the walk passed over unmodeled targets")
 }
 

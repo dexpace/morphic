@@ -11,8 +11,8 @@ components:
   securitySchemes:
     "": {type: http, scheme: bearer}
   schemas:
-    # A component keyed "" earns no named TypeID, so it keeps an anonymous-space
-    # ID with Anonymous: false and only a hint.
+    # A component keyed "" stays in the declared component namespace
+    # (type/openapi/components/schemas/, Anonymous: false) with a minted hint.
     "": {type: string}
     # "" and "empty" are two distinct values whose members land on the same word.
     # Both must survive: uniquifying identifiers is an emitter's job.

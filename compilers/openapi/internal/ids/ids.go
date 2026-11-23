@@ -393,10 +393,11 @@ func (d DocumentIDNamespace) ForPointer(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // schemaSpace returns the namespace of the type a schema at pointer lowers to:
-// OpenAPISpace for a top-level component schema, the one kind that declares a
-// named type, and AnonymousSpace for every other position.
+// OpenAPISpace for a top-level component schema (including one keyed "", which
+// stays in the declared component namespace as securitySchemes[""] does), and
+// AnonymousSpace for every other position.
 func schemaSpace(pointer jsontext.Pointer) compile.Space {
-	if _, state := ComponentSchema(pointer); state == NamedComponent {
+	if _, state := ComponentSchema(pointer); state == NamedComponent || state == UnnamedComponent {
 		return OpenAPISpace
 	}
 	return AnonymousSpace
@@ -418,8 +419,8 @@ const (
 	// can tell.
 	UndeclaredComponent
 	// UnnamedComponent is the component schema keyed "", the position
-	// /components/schemas/ addresses. It is a component schema, and an empty name
-	// earns no named TypeID, so it hoists anonymously
+	// /components/schemas/ addresses. It is a declared component schema in
+	// OpenAPISpace with Anonymous: false and a minted "empty" name hint
 	// (testdata/conformance/openapi/empty-names.yaml records that policy).
 	UnnamedComponent
 )

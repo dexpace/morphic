@@ -344,24 +344,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/": {
-      "kind": "scalar",
-      "id": "type/anonymous/components/schemas/",
-      "name": {
-        "hint": "empty"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/"
-      },
-      "base": {
-        "target": "type/primitive/string",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/Blob/properties/": {
       "kind": "scalar",
       "id": "type/anonymous/components/schemas/Blob/properties/",
@@ -1051,6 +1033,24 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "type/openapi/components/schemas/": {
+      "kind": "scalar",
+      "id": "type/openapi/components/schemas/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/"
+      },
+      "base": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
     },
     "type/openapi/components/schemas/Alt": {
       "kind": "model",
@@ -1950,7 +1950,7 @@
     {
       "format": "openapi@3.2",
       "path": "empty-names.yaml",
-      "hash": "908f703809ef975cb72aea7e7af1ab9e9d13c0dbcf55393b2491c0cb830ed902"
+      "hash": "d9b987cfb3f6682cdf212bfdf4bb1f8dd52ecef02c8fc63100e6d0681e8c53bd"
     }
   ]
 }

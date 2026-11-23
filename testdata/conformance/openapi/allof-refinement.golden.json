@@ -283,9 +283,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Mode",
-          "targets": [
-            "type/openapi/components/schemas/Mode"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/Mode"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/level/allOf/0"
@@ -329,9 +329,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Mode",
-          "targets": [
-            "type/openapi/components/schemas/Mode"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/Mode"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/mode/allOf/0"

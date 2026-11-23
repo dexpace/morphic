@@ -2022,52 +2022,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/",
-      "name": {
-        "hint": "empty"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas//properties/p",
-          "name": {
-            "source": "p",
-            "canonical": "p"
-          },
-          "wireName": "p",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas//properties/p"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "type/anonymous/components/schemas/***/properties/": {
       "kind": "model",
       "id": "type/anonymous/components/schemas/***/properties/",
@@ -6254,6 +6208,52 @@
       "exclusive": true,
       "wireTagged": false,
       "closed": true,
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas//properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "type/primitive/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas//properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
       "inputOnly": false
     },
     "type/openapi/components/schemas/***": {

@@ -1623,9 +1623,10 @@ word character (`***`, `>=`, or only variation selectors) keeps its `Source` and
 an emitter names it by its characters ([naming](../emitters/refine/naming.md)). A name spelled as
 the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
 `operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
-property's wire name stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists
-anonymously at its own pointer (`type/anonymous/components/schemas/`) with that hint. An entity the
-document gives no name — an inline schema, a union variant, a response
+property's wire name stays `""`. A component schema keyed `""` stays in the declared component
+namespace at its own pointer (`type/openapi/components/schemas/`, `Anonymous: false`) with that
+hint, as a security scheme keyed `""` stays at `auth/openapi/components/securitySchemes/`. An entity
+the document gives no name — an inline schema, a union variant, a response
 ([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
 `server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
 word grammar and composed from its position, each half neutralized first so an empty parent gives
@@ -1765,6 +1766,39 @@ nothing: the position names the shared primitive, and what it declares beside th
 property or parameter that carries it ([`constraints`](#constraints)).
 
 - Cases: `inline-types`, `inline-hoist-positions`, `inline-annotations`
+
+### `unreferenced-anonymous-types`
+
+Once every lowering and post-lowering settlement has finished (`allOf` property folds, distributed
+unions, `false` branches, and reference-target reservations), the compiler attaches
+`UnmodeledEntry.Targets` for every resolved schema `$ref` and kept `discriminator` route written
+inside a kept verbatim payload, keyed by its RFC 6901 JSON Pointer inside `Value`, and then prunes
+every `Anonymous: true` type in `Document.Types` that is not reachable through typed `TypeID`
+references from a non-anonymous type or a reference outside `Document.Types`
+([type-graph](../ir/type-graph.md#reachability-of-anonymous-types)).
+
+This removes anonymous nodes hoisted during lowering whose references were later superseded or
+dropped — including losing declarations in [`allof-redeclared-property`](#allof-redeclared-property)
+folds, outer properties superseded by distributed unions, and `additionalProperties` dropped by a
+`false` `allOf` branch — together with any anonymous nodes reachable only through them. It also
+prunes targets promised for `$ref` chains inside unreferenced `$defs` entries (for example,
+`$defs.A` referencing `$defs.B` when nothing in the API reaches `A`); those targets are dropped
+without a diagnostic, consistent with [`vocabulary-coverage`](#vocabulary-coverage), which treats
+`$defs` as a definition table whose members lower only where a `$ref` from a live schema reaches
+them and have no effect on the API otherwise.
+
+Every entry of `components/schemas` (including one keyed `""`, at
+`type/openapi/components/schemas/`) has `Anonymous: false` and is never pruned, and every resolved
+`$ref` or `discriminator` route inside a kept `Unmodeled` payload is recorded on
+`UnmodeledEntry.Targets` before pruning so its landing and transitive dependencies stay live.
+
+- Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes`,
+  `openapi.TestPruneUnreferencedTypes_FastPathsAndStoppedWalks`,
+  `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
+  `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
+  `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
+  `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
+  `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`
 
 ### `recursion`
 
@@ -3422,24 +3456,14 @@ a name, or composes a model redeclaring one it holds, which telling whether that
 within the hierarchy reads to its base. A run reads at most 16,777,216 of their declarations, a read
 of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
 as does telling whether one part's declaration stands within another's; past that each model left
-folds its own declarations alone, with an `openapi/budget-exceeded` error at the first. Once every
-lowering and settlement has returned, every kept `Unmodeled` entry records the sorted, deduplicated
-`TypeID`s lowered for `$ref`s and kept `discriminator` routes inside its value (`UnmodeledEntry.Targets`),
-and any anonymous type node that no named type or typed reference outside the type registry reaches —
-including nodes lowered for declarations a fold superseded or replaced — is removed from the registry
-and held by `irverify` (`ir/unreferenced-anonymous-type`).
+folds its own declarations alone, with an `openapi/budget-exceeded` error at the first. Any
+anonymous type node lowered for a declaration a fold superseded or replaced and left unreachable is
+removed by post-settlement pruning ([`unreferenced-anonymous-types`](#unreferenced-anonymous-types)).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
-- Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes`,
-  `openapi.TestPruneUnreferencedTypes_FastPathsAndStoppedWalks`,
-  `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
-  `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
-  `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
-  `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
-  `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`,
-  `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
+- Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestReportOnce_SaysEachConflictOnce`,
   `e2e.TestConflictOnce_IsReportedOncePerPairOfDeclarations`,
   `e2e.TestConflictOnce_AModelsOwnDeclarationsListTheMember`,
@@ -5902,9 +5926,12 @@ Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Sche
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
 info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
 holding an inert keyword naming it and the keyword that leaves it inert. A position a kept keyword's
-`$ref` lands on is lowered all the same, and so is each position a chain of them passes, an alias
-keeping what it writes beside its `$ref`: the compiler lowers every position a schema `$ref` of the
-document lands on, hop by hop, as it would one a lowered keyword names.
+`$ref` lands on is lowered all the same, recorded in `UnmodeledEntry.Targets`, and kept live across
+post-settlement pruning ([`unreferenced-anonymous-types`](#unreferenced-anonymous-types)), and so is
+each position a chain of them passes, an alias keeping what it writes beside its `$ref`: the
+compiler lowers every position a schema `$ref` of the document lands on, hop by hop, as it would
+one a lowered keyword names, and drops only unreachable anonymous nodes such as unreferenced `$defs`
+chains.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
   `unevaluated-at-every-outcome`, `kept-ref-landings`

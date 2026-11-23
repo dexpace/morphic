@@ -237,9 +237,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/List",
-          "targets": [
-            "type/openapi/components/schemas/List"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/List"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/OwnType/allOf/0"
@@ -268,9 +268,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/NullableStr",
-          "targets": [
-            "type/openapi/components/schemas/NullableStr"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/NullableStr"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/SharedNull/allOf/0"
@@ -322,9 +322,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/Str",
-          "targets": [
-            "type/openapi/components/schemas/Str"
-          ],
+          "targets": {
+            "": "type/openapi/components/schemas/Str"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/TwoRefs/allOf/0"

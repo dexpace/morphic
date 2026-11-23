@@ -5,6 +5,7 @@ package openapi_test
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,7 +62,11 @@ func TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes(t *testing.
 	root := rootModel(prop("a", liveFrom), prop("s", primStr))
 	root.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"d": liveDisc}}
 	root.Unmodeled = ir.Unmodeled{
-		"openapi:not": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"$ref":"#/a"}`), Targets: []ir.TypeID{liveUnm}},
+		"openapi:not": {
+			Reason:  ir.ReasonValidationOnly,
+			Value:   ir.RawValue(`{"$ref":"#/a"}`),
+			Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": liveUnm},
+		},
 	}
 
 	doc := &ir.Document{
