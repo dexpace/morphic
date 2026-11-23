@@ -2007,7 +2007,8 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `reftable.TestReferenced_NamesWhereEachReferenceLands`,
   `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
   `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
-  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`
+  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `operation.TestParams_AQuotedDeprecatedStatesNoDeprecation`
 
 ### `replacement-inference`
 
