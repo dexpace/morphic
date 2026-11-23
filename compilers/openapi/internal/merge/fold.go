@@ -700,9 +700,10 @@ func (f *folding) foldAnnotations() {
 // another value is reported, and kept where a node holds it (folding.left) or
 // its model does, or else verbatim.
 //
-// Each caller says what is the same. A Value compares deeply, which tells a nil
-// slice from an empty one, but every declaration was lowered by the same code,
-// so two spellings written alike cannot land on opposite sides.
+// Each caller says what is the same. A Value or an example list compares
+// deeply, which tells a nil slice from an empty one, but every declaration was
+// lowered by the same code, so two spellings written alike cannot land on
+// opposite sides.
 func lastWritten[T any](foldingValue *folding, detail string, rank func(declaration) int, of func(i int, property *ir.Property) (T, bool),
 	same func(a, b T) bool,
 ) T {

@@ -22,8 +22,8 @@ const keptOnNode = "the field's type holds"
 func byOrder(declaration) int { return 0 }
 
 // ownFirst ranks a declaration the model writes itself over one another model
-// holds, which keeps its note there, so a note the model writes is never typed
-// nowhere for one another model's declaration brings (keptAt).
+// holds (keptAt), which keeps its note there, so no note the model writes is
+// lost to one another model's declaration brings.
 func ownFirst(declarationValue declaration) int {
 	if declarationValue.via == nil {
 		return 1
