@@ -3326,11 +3326,13 @@ field takes no other. Those a declaration another model holds gives stay declare
 illustrates and a default sets what a client sends, so a default is judged alone. Of the defaults it
 takes, the last written is kept, and a declaration giving another is reported and kept. Of the
 examples it takes, the field holds every one the declarations the model writes itself give, each
-once, since JSON Schema collects an annotation from every subschema and `Examples` is a list: each
-declaration's in the order it writes them, and the declarations' in the order of their encodings,
-which no order of the entries moves. Only where none gives one does the field take those of the last
-declaration another model holds, as it takes a default; one such declaration giving an example the
-field does not hold is reported and keeps it there. Two values are one
+once, since JSON Schema collects an annotation from every subschema and `Examples` is a list, each
+where it first stands in their lists ordered by their encodings, which no order of the entries
+moves. It leaves out those of an `allOf` entry a reference names, which lowers as a model of its own
+whose member holds them; such a declaration giving an example the field does not hold is reported
+and kept verbatim. Only where no other gives one does the field take those of the last declaration
+to give one, as it takes a default; one another model holds giving an example the field does not
+hold is reported and keeps it there. Two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
 written after it.
@@ -3356,10 +3358,15 @@ deprecation describe the field, so of those a declaration the model writes itsel
 another model holds, in either order: that one stays declared on its model. A declaration the model
 writes itself giving one of them otherwise than the declaration kept keeps it on the node its schema
 builds, where the schema hoisted one at the declaration holding none, as it did before its carrier
-took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). The note
+took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)), unless a
+reference names the `allOf` entry holding that declaration: the entry then lowers as a model of its
+own whose member holds the note, which would sit twice on that member and its type, so the
+declaration is kept verbatim. The note
 is left there before the types are judged, so that node is judged holding it, as a node saying what
 the other lacks, and the field's type holds it: the node itself, a conjunct the field composes, or a
-node the field's declarations meet in, which adopts the note and leaves its own copy bare. Where the
+node the field's declarations meet in, which adopts the note and leaves its own copy bare. Such a
+node adopts one title, description, external link and deprecation; a note it does not hold is taken
+back, and its declaration kept verbatim. Where the
 field's type would not hold it, as of two lists that differ only in that note, which are judged two
 types the source declared apart and are not composed, the note is taken back, the types are judged
 as though none were left, and the declaration is kept verbatim. Either way the tie is reported,
@@ -3518,8 +3525,12 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ANoteTheModelWritesIsKeptOverOneItBrings`,
   `merge.TestFold_ANoteTwoOwnDeclarationsGiveDifferentlyStaysOnItsNode`,
   `merge.TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold`,
+  `merge.TestFold_ANoteTakenBackLeavesTheNodeAsItWas`,
+  `merge.TestFold_ANoteTheFieldKeepsIsLeftOnNoNode`,
   `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
   `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
+  `e2e.TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce`,
+  `e2e.TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
