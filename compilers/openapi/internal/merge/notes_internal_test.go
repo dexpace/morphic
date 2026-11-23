@@ -322,8 +322,12 @@ func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 			[2][]*ir.Value{{&one}, {&one}}, nil},
 		{"one brought that it does not", []declaration{writing("/a", &one), writing("/b", &two), bringing("/part/p", &three)},
 			[2][]*ir.Value{{&one, &two}, {&one, &two}},
-			[]string{"give its examples differently; kept those the declarations the model writes itself give over the ones " +
-				"the declaration at /part/p gives, which stays declared on its model"}},
+			[]string{"give its examples differently; kept those the declarations the model writes itself give over the one " +
+				"at /part/p, which stays declared on its model"}},
+		{"one brought beside one the model writes", []declaration{writing("/a", &one), bringing("/part/p", &three)},
+			[2][]*ir.Value{{&one}, {&one}},
+			[]string{"give its examples differently; kept the one the declaration at /a gives over the one at /part/p, " +
+				"which stays declared on its model"}},
 		{"two the model writes, held in one order", []declaration{writing("/a", &two), writing("/b", &one, &three)},
 			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil},
 		{"one that does not encode, which sorts first", []declaration{writing("/a", &one), writing("/b", &invalid)},

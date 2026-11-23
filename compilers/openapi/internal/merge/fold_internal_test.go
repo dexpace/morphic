@@ -532,8 +532,8 @@ func TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted(t *testing.T) {
 			[]string{"admits the examples the declaration at /part/p gives; not adopted, and that declaration stays declared on its model"}},
 		{"one the model writes beside one another model holds that the field takes", []declaration{takenThere, writing("/a", ir.PrimitiveAny, &half)},
 			[2]result{{examples: []ir.Example{{Value: &half}}}, {examples: []ir.Example{{Value: &half}}}},
-			[]string{"give its examples differently; kept those the declarations the model writes itself give over the ones " +
-				"the declaration at /part/p gives, which stays declared on its model"}},
+			[]string{"give its examples differently; kept the one the declaration at /a gives over the one at /part/p, " +
+				"which stays declared on its model"}},
 		{"one the field drops", []declaration{writing("/a", ir.PrimitiveString, &half), model("/b")},
 			[2]result{{kept: []string{"/a"}}, {[]ir.Example{{Value: &half}}, []string{"/b"}}}, []string{"declarations of field"}},
 		{"a null the field refuses", []declaration{writing("/a", ir.PrimitiveAny, &null), model("/b")},

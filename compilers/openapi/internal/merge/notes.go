@@ -244,15 +244,21 @@ func heldExamples(f *folding, taken []bool) []ir.Example {
 			}
 		}
 	}
+	kept := "those the declarations the model writes itself give"
+	if len(lists) == 1 {
+		kept = "the one the declaration at " + f.at(keptAt(f.decls, ownFirst, func(i int) bool {
+			_, gives := of(i, &f.decls[i].property)
+			return gives
+		})) + " gives"
+	}
 	for i := len(f.decls) - 1; i >= 0; i-- {
 		examples, gives := of(i, &f.decls[i].property)
 		if !gives || f.decls[i].via == nil || containsExamples(own, examples) {
 			continue
 		}
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give its examples differently; kept those the declarations the model writes "+
-				"itself give over the ones the declaration at %s gives, which %s",
-			f.merged.WireName, f.at(i), f.decls[i].keptAs())
+			"declarations of field %q give its examples differently; kept %s over the one at %s, which %s",
+			f.merged.WireName, kept, f.at(i), f.decls[i].keptAs())
 	}
 	return own
 }
