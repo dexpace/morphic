@@ -1038,10 +1038,12 @@ func TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode(t *
 	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
 }
 
-// memberOnlySchemas are two list schemas that deprecate what holds them, one by
-// its keyword and one by a key alone, each with a message, a since and a
-// replacement, all read by compileMemberOnlyCarriers' policy.
+// memberOnlySchemas are three list schemas: two that deprecate what holds
+// them, one by its keyword and one by a key alone, each with a message, a since
+// and a replacement, and one writing a message and a since and no deprecation,
+// all read by compileMemberOnlyCarriers' policy.
 var memberOnlySchemas = map[string]string{
+	"current": "{type: array, items: {type: string}, x-deprecated-reason: schema reason, x-deprecated-since: '1.0'}",
 	"keyword": "{type: array, items: {type: string}, deprecated: true, " +
 		"x-deprecated-reason: schema reason, x-deprecated-since: '1.0', x-replaced-by: New}",
 	"key": "{type: array, items: {type: string}, x-stability: deprecated, " +
@@ -1119,8 +1121,9 @@ func compileMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.
 // `deprecated: true`, beside a schema that hoists a node and deprecates it, by
 // its keyword or by a key: the carrier is deprecated, holding its own member
 // alone, and the node keeps the schema's whole, resolving its replacement
-// itself. Inline, on the elected content entry and in a component, in both
-// orders of the components (docs/compilers/openapi.md#docs-and-deprecation).
+// itself. Beside a schema writing members and no deprecation, neither is.
+// Inline, on the elected content entry and in a component, in both orders of
+// the components (docs/compilers/openapi.md#docs-and-deprecation).
 func TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileMemberOnlyCarriers(t, false)
@@ -1150,7 +1153,12 @@ func TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.
 				header, ok := headerByWire(operation.Responses[0].Headers, wire)
 				require.True(t, ok, wire)
 				paramWant, headerWant := own(ir.EntityRef{Param: q.ID})[member], own(ir.EntityRef{Property: xM.ID})[member]
-				if position == "entry" && member == "replaced" {
+				nodeWant := schemas
+				switch {
+				case schemaName == "current":
+					// A member beside a schema nothing deprecates annotates nothing.
+					paramWant, headerWant, nodeWant = nil, nil, nil
+				case position == "entry" && member == "replaced":
 					// Replacements resolve from the carrier's own keys alone, never
 					// from one its content entry writes, whatever deprecates it: the
 					// key stays in Unmodeled, as with `deprecated: true` beside it.
@@ -1179,12 +1187,12 @@ func TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.
 					node, ok := doc.Types[carrier.typeRef.Target]
 					require.True(t, ok, "%s's schema hoists a node", carrier.name)
 					require.True(t, node.Common().Anonymous, carrier.name)
-					assert.Equal(t, schemas, node.Common().Deprecation, "%s's node keeps the schema's whole", carrier.name)
+					assert.Equal(t, nodeWant, node.Common().Deprecation, "%s's node keeps the schema's whole", carrier.name)
 				}
 			}
 		}
 	}
-	assert.Equal(t, 2*3*2*len(memberOnlyKeys("")), carriers, "every carrier was asked")
+	assert.Equal(t, 2*3*len(memberOnlySchemas)*len(memberOnlyKeys("")), carriers, "every carrier was asked")
 
 	reversedDoc, reversedDiags := compileMemberOnlyCarriers(t, true)
 	assertOnlyTiersUnread(t, reversedDiags)
@@ -1202,5 +1210,5 @@ func assertOnlyTiersUnread(t *testing.T, diags []ir.Diagnostic) {
 		assert.Equal(t, "x-stability", diagnostic.Provenance.Pointer.LastToken(), diagnostic.Message)
 		assert.Contains(t, diagnostic.Message, "does not fill deprecation")
 	}
-	assert.Len(t, diags, 2*3*2, "one per carrier writing the tier")
+	assert.Len(t, diags, 2*3*len(memberOnlySchemas), "one per carrier writing the tier")
 }
