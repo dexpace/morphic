@@ -1286,7 +1286,7 @@ it sees. Changes made together in one bump are listed together under it.
   one `$ref` to an object or beside an `allOf` of it, only notes the carrier holds, a `title`, a
   `description`, `externalDocs`, `deprecated`, `example` or `examples`, and the keywords that bind
   the use ([`use-bound-annotations`](../compilers/openapi.md#use-bound-annotations)), and a `type`
-  naming only what the referent declares, names that object and holds them over the object's own,
+  naming exactly what the referent declares, names that object and holds them over the object's own,
   and no anonymous `Model` stands at its position
   ([decorators](./annotations.md#decorators),
   [`ref-use-site`](../compilers/openapi.md#ref-use-site)). They were a decorator's, a `Model` whose
@@ -1295,7 +1295,8 @@ it sees. Changes made together in one bump are listed together under it.
   stays, as before, where the position writes beside its notes what a carrier has no field for, or
   writes a note on a conjunct of its `allOf`, where a reference names the position, and where the
   parameter or header, or a Reference Object naming it, writes its own documentation, deprecation
-  or examples over the schema's. There a deprecation or an example nothing at the carrier writes
-  over is the carrier's even though the node stays for the written-over notes, and the node holds
-  neither. A consumer pinned to 0.73.0 refuses the document; one reading an older document finds
-  such a use's notes on the decorator its type names, and none on the carrier.
+  or examples over the schema's. Where it stays for such a written-over note, each note of a kind
+  nothing at the carrier writes over, its documentation, deprecation or examples, is the carrier's,
+  and the node holds none of them. A consumer pinned to 0.73.0 refuses the document; one reading
+  an older document finds such a use's notes on the decorator its type names, and none on the
+  carrier.

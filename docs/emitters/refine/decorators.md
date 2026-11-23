@@ -12,7 +12,7 @@ stands it hoists an anonymous `Scalar` alias over `Status` wherever no property,
 holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
 annotation alone on a non-carrier position, `items: {type: string, example: x}`. At a property, a
-parameter or a header holding the annotations, where they and a `type` naming only what `Status`
+parameter or a header holding the annotations, where they and a `type` naming exactly what `Status`
 declares are all the position writes beyond its `$ref`, either spelling builds no node: the
 carrier names `Status` and holds them ([annotations](../../ir/annotations.md#decorators)). So
 `CollapseAliases` keeps its work for the positions no carrier holds, an `items`, a union variant, a
