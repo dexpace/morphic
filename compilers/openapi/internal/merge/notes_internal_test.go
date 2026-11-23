@@ -261,8 +261,8 @@ func stringEnum(common ir.TypeCommon, values ...string) *ir.Enum {
 
 // TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn pins meetNode where two
 // types a carried note tells apart meet, a third being dropped: the field names
-// the narrower one's own node, in every order of the three, and mints none, for
-// the node they would meet in says only what that one does. Where each says
+// the narrower one's own node, in every order of the three, which the report of
+// the third names as kept, and mints none. Where each says
 // what the other lacks, the node built of them holds no carried note, and the
 // example the own node holds, whichever of them it is built from.
 func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
@@ -294,8 +294,12 @@ func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 			stubbed, _ := stubMerger(reg)
 			stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/first": {Docs: brought.Docs, Deprecation: brought.Deprecation, Examples: examples}}
 
-			settleFlat(stubbed, idx, reg)
+			diags := settleFlat(stubbed, idx, reg)
 
+			require.Len(t, diags, 1, "%s, %v", tc.name, order)
+			if tc.wantOwnNode {
+				assert.Contains(t, diags[0].Message, "kept what the declaration at /M/allOf/0/properties/p says over the one at /B/p", "%s, %v", tc.name, order)
+			}
 			require.Len(t, model.Properties, 1, "%s, %v", tc.name, order)
 			property := model.Properties[0]
 			enum, isEnum := reg[property.Type.Target].(*ir.Enum)

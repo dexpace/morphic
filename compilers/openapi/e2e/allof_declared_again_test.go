@@ -259,7 +259,8 @@ func TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes(t *testing.T) {
 
 // TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother pins
 // which of two declarations saying the same a node is built of where each meets
-// a third and nothing is brought: the later, whose extension the node keeps.
+// a third and nothing is brought: the later, whose extension the node keeps. Of
+// two naming one node, a report of a third dropped names the later as kept.
 func TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother(t *testing.T) {
 	t.Parallel()
 	const same = "{properties: {f: {type: string, enum: [a, b], x-foo: 1}}}"
@@ -268,6 +269,11 @@ func TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother(t *test
 	assert.Equal(t, "composed/M/allOf/1/properties/f enum b", memberText(t, doc, componentID("M")))
 	built := doc.Types["type/composed/components/schemas/M/allOf/1/properties/f"].Common()
 	assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/2/properties/f/x-foo"), built.Unmodeled["openapi:x-foo"].Provenance.Pointer)
+
+	const named = "{properties: {f: {$ref: '#/components/schemas/E'}}}"
+	_, diags = parseVerified(t, openapitest.ComponentSpec("    E: {type: string, enum: [a]}\n    M: {allOf: ["+named+", "+named+", {properties: {f: {type: integer}}}]}\n"))
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "kept what the declaration at /components/schemas/M/allOf/1/properties/f says over the one at /components/schemas/M/allOf/2/properties/f")
 }
 
 // TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain pins that

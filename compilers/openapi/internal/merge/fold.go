@@ -384,6 +384,7 @@ func leaveUnmet(foldingValue *folding) {
 // its type (drop).
 func (f *folding) foldType() {
 	target := f.meetField()
+	f.winner = declarationNaming(f, target)
 	for i := range f.decls {
 		if !f.cone[i] {
 			f.drop(i)
@@ -392,6 +393,19 @@ func (f *folding) foldType() {
 	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
 	f.merged.Type.Target = target
 	f.typeAt = f.g.typeSites(f.merged, f.decls)
+}
+
+// declarationNaming returns the declaration whose type foldingValue's field
+// names, target: the last naming it, which of those meeting in one of their own
+// nodes (sayingAll) need not have won, so a report of a dropped type says it
+// was kept whichever did. It is the winner where the fold built the node.
+func declarationNaming(foldingValue *folding, target ir.TypeID) int {
+	for i, declarationValue := range slices.Backward(foldingValue.decls) {
+		if declarationValue.property.Type.Target == target {
+			return i
+		}
+	}
+	return foldingValue.winner
 }
 
 // meetField returns the field's target: the model the conjuncts compose, or the
