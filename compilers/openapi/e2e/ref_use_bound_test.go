@@ -678,6 +678,77 @@ func TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testin
 	assert.Empty(t, cmp.Diff(doc.Services, reversedDoc.Services), "nor do the operations")
 }
 
+// TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated holds
+// that a parameter writing only a deprecation's member beside a deprecated
+// $ref whose Model stays for something a carrier cannot hold, an extension, a
+// constraint or a note on an allOf entry, holds none of the schema's notes:
+// it is not deprecated, its member kept under Unmodeled alone, and the Model
+// keeps the deprecation, as at a position a reference names
+// (docs/compilers/openapi.md#docs-and-deprecation).
+func TestRefUseBound_AModelKeptForAnotherKeywordLeavesAMemberUndeprecated(t *testing.T) {
+	t.Parallel()
+	const obj = "'#/components/schemas/Obj'"
+	for name, schema := range map[string]string{
+		"an extension beside the $ref":    "{$ref: " + obj + ", description: d, deprecated: true, x-foo: 1}",
+		"an extension beside the allOf":   "{allOf: [{$ref: " + obj + "}], description: d, deprecated: true, x-foo: 1}",
+		"a constraint beside the allOf":   "{allOf: [{$ref: " + obj + "}], maxProperties: 3, deprecated: true}",
+		"a note on an entry of the allOf": "{allOf: [{$ref: " + obj + "}, {description: d}], deprecated: true}",
+	} {
+		spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: getA\n" +
+			"      parameters:\n        - {name: p, in: query, x-deprecated-reason: own, schema: " + schema + "}\n" +
+			"      responses: {'200': {description: ok}}\n" +
+			"components:\n  schemas:\n    Obj: {type: object, properties: {a: {type: string}}}\n"
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, memberOnlyPolicy())
+		require.NoError(t, err, name)
+		assert.Empty(t, diags, name)
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok, name)
+		require.Len(t, operation.Params, 1, name)
+		parameter := operation.Params[0]
+
+		assert.Nil(t, parameter.Deprecation, "%s: the parameter is not deprecated", name)
+		entry := unmodeledEntry(t, parameter.Unmodeled, "openapi:x-deprecated-reason")
+		assert.JSONEq(t, `"own"`, string(entry.Value), "%s: its member is kept verbatim", name)
+		model, ok := doc.Types[parameter.Type.Target].(*ir.Model)
+		require.True(t, ok, "%s: the parameter names the Model", name)
+		require.NotNil(t, model.Base, name)
+		assert.Equal(t, componentID("Obj"), model.Base.Target, name)
+		assert.Equal(t, &ir.Deprecation{}, model.Deprecation, "%s: which keeps the deprecation", name)
+	}
+}
+
+// TestRefUseBound_AnExampleBesideAModelThatStaysIsTypedOnIt holds that an
+// example beside a $ref keeping its Model for an extension, at a field an
+// allOf entry redeclares over a model's $ref, lands typed on that Model, which
+// the field names over the referent: beside the $ref and beside an allOf of
+// it, in every order of the entries and of the components, kept nowhere
+// verbatim and reported nowhere (docs/compilers/openapi.md#ref-use-site).
+func TestRefUseBound_AnExampleBesideAModelThatStaysIsTypedOnIt(t *testing.T) {
+	t.Parallel()
+	const (
+		info  = "'#/components/schemas/Info'"
+		count = `[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`
+	)
+	for name, inline := range map[string]string{
+		"beside the $ref":       "{$ref: " + info + ", example: {count: 1}, x-foo: 1}",
+		"beside an allOf of it": "{allOf: [{$ref: " + info + "}], description: own, example: {count: 1}, x-foo: 1}",
+	} {
+		for _, layout := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
+			field, diags, doc := collField(t, foldedExampleSpec("{$ref: "+info+"}", inline, layout[0], layout[1]))
+			label := fmt.Sprintf("%s, entry first %v, Coll first %v", name, layout[0], layout[1])
+
+			assert.Empty(t, field.Examples, "%s: the field holds none of its own", label)
+			assert.Empty(t, field.Unmodeled, label)
+			model, ok := doc.Types[field.Type.Target].(*ir.Model)
+			require.True(t, ok, "%s: the field names a model", label)
+			require.NotNil(t, model.Base, label)
+			assert.Equal(t, componentID("Info"), model.Base.Target, "%s: over the referent", label)
+			assert.Equal(t, count, examplesJSON(t, model.Examples), "%s: holding the example typed", label)
+			assert.Empty(t, codeCounts(diags), "%s: and nothing is reported", label)
+		}
+	}
+}
+
 // exampleOf renders the one example of examples as flow-style YAML of one
 // object of strings.
 func exampleOf(t *testing.T, examples []ir.Example) string {

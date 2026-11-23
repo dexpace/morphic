@@ -74,12 +74,12 @@ func codeCounts(diags []ir.Diagnostic) map[string]int {
 
 // TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped pins that an example
 // a model's own allOf entry writes beside a redeclared field lands typed on the
-// field where the field is a model, whose values the merge has no judge for,
-// and takes no other example: written beside a bare object, an object with
-// properties of its own, or a second inline object, and in every order of the
-// entries and of the components. The field keeps no verbatim copy and the fold
-// reports nothing, while pass/example-outside-type holds the example to the
-// field's type, so one of another kind is typed and reported there, once
+// field where the field is a model, which the merge has no judge for, and
+// takes no other: beside a bare object, an object with properties, a second
+// inline object, or a $ref or an allOf of one its carrier holds, in every
+// order of the entries and the components. The field keeps no verbatim copy
+// and the fold reports nothing, while pass/example-outside-type holds the
+// example to the field's type, so one of another kind is reported there, once
 // (docs/compilers/openapi.md#allof-redeclared-property).
 func TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped(t *testing.T) {
 	t.Parallel()
@@ -99,6 +99,11 @@ func TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped(t *testing.T) {
 			`[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`, 0},
 		{"an example of another kind", ref, "{type: object, example: abc}",
 			`[{"value":{"kind":"string","string":"abc"}}]`, 1},
+		{"a $ref beside it", ref, "{$ref: '#/components/schemas/Info', example: {count: 1}}",
+			`[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`, 0},
+		{"an allOf of a $ref beside it and a description", ref,
+			"{allOf: [{$ref: '#/components/schemas/Info'}], description: own, example: {count: 1}}",
+			`[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`, 0},
 	} {
 		for _, layout := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 			field, diags, _ := collField(t, foldedExampleSpec(tc.base, tc.inline, layout[0], layout[1]))
