@@ -1262,6 +1262,30 @@ func (r registry) admitsAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	}
 }
 
+// judgesAt reports whether admitsAt judges the values of the type ref names, at
+// depth, rather than refusing them for want of a judge: a primitive, Any, an
+// Enum and a Literal, a Scalar by its base, a list by its element and a map by
+// its value. A model, a union or any other kind admitsAt refuses whole, as is a
+// type the registry does not hold and nesting past maxJudgeDepth.
+func (r registry) judgesAt(ref ir.TypeRef, depth int) bool {
+	td, ok := r.resolve(ref.Target)
+	if !ok || depth > maxJudgeDepth {
+		return false
+	}
+	switch t := td.(type) {
+	case *ir.Primitive, *ir.Any, *ir.Enum, *ir.Literal:
+		return true
+	case *ir.Scalar:
+		return t.Base != nil && r.judgesAt(*t.Base, depth+1)
+	case *ir.List:
+		return r.judgesAt(t.ElementType, depth+1)
+	case *ir.MapT:
+		return r.judgesAt(t.Value, depth+1)
+	default:
+		return false
+	}
+}
+
 // encodingAdmits reports whether a Scalar with the Encoding enc lets value
 // through: any value where it has none, and otherwise only one its held format
 // admits (heldFormat), since any other encoding's wire form need not be the

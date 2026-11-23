@@ -506,7 +506,10 @@ func (f *folding) foldValues() {
 			continue
 		}
 		var refused []string
-		takesDefault[i] = declaration.property.Default == nil || f.takes(i, *declaration.property.Default, nullable)
+		takesDefault[i] = true
+		if declaration.property.Default != nil {
+			takesDefault[i], _ = f.takes(i, *declaration.property.Default, nullable)
+		}
 		if !takesDefault[i] {
 			refused = append(refused, "default")
 		}
@@ -531,28 +534,36 @@ func (f *folding) foldValues() {
 
 // examplesTaken reports, declaration by declaration, whether the field takes
 // the examples it gives: where takes admits each, and, where the field takes no
-// declaration's that way, where the model declares it itself (via nil). An
-// example illustrates rather than constrains, so one the merge cannot judge,
-// against a model say, is typed on the field, which pass/example-outside-type
-// holds to its type, rather than kept verbatim alone; one another model
-// declares stays typed there.
+// declaration's that way, where the model declares it itself (via nil) and
+// takes refused none it judged. An example illustrates rather than constrains,
+// so one the merge has no judge for, against a model say, is typed on the
+// field, which pass/example-outside-type holds to its type, rather than kept
+// verbatim alone. One the merge judges and refuses, by a bound, an enum or a
+// format, stays refused, and one another model declares stays typed there.
 func (f *folding) examplesTaken(nullable bool) []bool {
 	taken := make([]bool, len(f.decls))
-	judged := false
+	unjudged := make([]bool, len(f.decls))
+	adopted := false
 	for i, declaration := range f.decls {
 		if !f.cone[i] {
 			continue
 		}
-		taken[i] = !slices.ContainsFunc(declaration.property.Examples, func(example ir.Example) bool {
-			return example.Value != nil && !f.takes(i, *example.Value, nullable)
-		})
-		judged = judged || taken[i] && len(declaration.property.Examples) > 0
+		taken[i], unjudged[i] = true, declaration.via == nil
+		for _, example := range declaration.property.Examples {
+			if example.Value == nil {
+				continue
+			}
+			takes, judged := f.takes(i, *example.Value, nullable)
+			taken[i] = taken[i] && takes
+			unjudged[i] = unjudged[i] && (takes || !judged)
+		}
+		adopted = adopted || taken[i] && len(declaration.property.Examples) > 0
 	}
-	if judged {
+	if adopted {
 		return taken
 	}
-	for i, declaration := range f.decls {
-		taken[i] = taken[i] || f.cone[i] && declaration.via == nil
+	for i := range taken {
+		taken[i] = taken[i] || unjudged[i]
 	}
 	return taken
 }
@@ -571,28 +582,28 @@ func sameExamples(a, b []ir.Example) bool {
 }
 
 // takes reports whether the field takes value, which decls[i] wrote: a null
-// where the field admits null, which the top type always does (nullable), and
-// any other value every bound another declaration brought admits, where
-// decls[i]'s own type is the field's, but for those bounds (ownType), or the
-// field's type admits it. A value a declaration writes against its own type and
-// bounds is that declaration's to answer for, and a composed field has no
-// declaration whose type it is. The field's type is read where its nodes are
-// written (typeAt), not at the winner alone.
-func (f *folding) takes(i int, value ir.Value, nullable bool) bool {
+// where the field admits null (nullable), and any other value the bounds other
+// declarations brought admit, where decls[i]'s own type is the field's but for
+// those bounds (ownType), or the field's type admits it. A value written
+// against a declaration's own type is that declaration's to answer for, and a
+// composed field has no such declaration. The field's type is read where its
+// nodes are written (typeAt). judged is false where the answer came from a type
+// admitsAt has no judge for (judgesAt), whose refusal says nothing.
+func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, judged bool) {
 	if value.Kind == ir.ValueNull {
-		return nullable
+		return nullable, true
 	}
 	own := &f.decls[i].property
 	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), value, 0) {
-		return false
+		return false, true
 	}
 	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
-		return true
+		return true, true
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
-	return judge.admits(ref, value)
+	return judge.admits(ref, value), judge.judgesAt(ref, 0)
 }
 
 // ownType reports whether decls[i]'s type is the field's but for bounds: the

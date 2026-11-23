@@ -3296,12 +3296,12 @@ and reported.
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where every declaration folded into it does, and a null any of them writes is
 judged against that: a `default: null` or a null example is refused where the merged field does not
-admit null, a declaration of the field's own type included, the example then taken only where the
-field takes no other (below). The top type admits null whatever its bit says, and one folded under
-another type says nothing of null. A `default` or `examples` a broader declaration gives is taken
-where the winning type admits it, judged per keyword and all or nothing, and examples otherwise only
-where the field takes no other (below). The winning type admits a value by its kind, by the `full-time` grammar where it is a
-`Scalar` hoisted for `time`, and by the constraints its node carries:
+admit null, a declaration of the field's own type included. The top type admits null whatever its
+bit says, and one folded under another type says nothing of null. A `default` or `examples` a
+broader declaration gives is taken only where the winning type admits it, judged per keyword and all
+or nothing, but for examples a type with no judge refuses (below). The winning type admits a value
+by its kind, by the `full-time` grammar where it is a `Scalar` hoisted for `time`, and by the
+constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
 declaration's value is held by the same checks to each bound the field keeps that another
@@ -3314,13 +3314,16 @@ judges a value against a model, and no declaration's type is a composed field's 
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
-again where the field takes none of any declaration that way: those each declaration the model
-writes itself gives are taken unjudged, so an example of an inline schema beside a model, or of
-another kind than the field, lands typed on the field, and `pass/example-outside-type` holds it to
-the field's type as it holds any example ([values](../ir/values.md#values-held-to-their-type)),
-reading kinds, members and bounds and no format. Those a declaration another model holds gives stay
-declared there. An example illustrates and a default sets what a client sends, so a default is
-judged alone. Of the values it takes, the
+again where the field takes none of any declaration that way and its type is one nothing here
+judges a value of: a model, a union, an opaque `Scalar`, or a `Scalar`, list or map over one. There
+the examples each declaration the model writes itself gives are taken where only that type refused
+them, so an example of an inline schema beside a model, of its kind or another, lands typed on the
+field, and `pass/example-outside-type` holds it to the field's type as it holds any example
+([values](../ir/values.md#values-held-to-their-type)). An example a judge refuses, a null, a bound,
+an enum's members, a literal, a kind or a format's grammar, stays refused and kept, wherever the
+field takes no other. Those a declaration another model holds gives stay declared there. An example
+illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
+takes, the
 last written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
@@ -3666,7 +3669,10 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
   `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
   `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
+  `e2e.TestAllOfFold_AnExampleAVariantsEnumRefusesStaysRefused`,
+  `e2e.TestAllOfFold_AnExampleAFormatRefusesStaysRefused`,
   `e2e.TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut`,
   `e2e.TestAllOfFold_AnExampleAnotherModelDeclaresStaysThere`,
   `e2e.TestAllOfFold_AnExampleAtAReferencedPositionStaysOnItsNode`,
