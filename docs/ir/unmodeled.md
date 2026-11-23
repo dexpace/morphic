@@ -51,8 +51,9 @@ Stating landings as a pointer-keyed map makes kept references lossless — a con
 specific reference inside `Value` looks up its relative pointer directly — and makes kept type
 dependencies visible to `irverify` ([reachability](./type-graph.md#reachability-of-anonymous-types))
 and emitters without parsing format-specific raw JSON. `irverify` holds every key to being a valid
-RFC 6901 JSON Pointer (`ir/unmodeled-target-pointer-malformed`) and every value to being a
-non-empty, resolvable `TypeID` (`ir/empty-type-ref`, `ir/dangling-type-ref`).
+RFC 6901 JSON Pointer (`ir/unmodeled-target-pointer-malformed`) that resolves to a JSON value
+inside `Value` (`ir/unmodeled-target-pointer-unresolved`), and every value to being a non-empty,
+resolvable `TypeID` (`ir/empty-type-ref`, `ir/dangling-type-ref`).
 **`Provenance`** locates the construct itself rather than the node carrying it, so an emitter can
 report on an entry at its own source position instead of the enclosing schema's — falling back to
 the declaring position only where the entry combines several keywords into one synthesized object

@@ -1488,3 +1488,52 @@ func TestSequenceOrderInvariant_AFormPastTheBoundIsDeclined(t *testing.T) {
 
 	assert.Equal(t, declined(OracleSequenceOrder, DeclineTooDeep), got)
 }
+
+// TestSequenceOrderInvariant_UnmodeledTargetsKeyNormalization pins how narrow
+// targetNames is in canon.go: reversing an allOf inside a kept keyword shifts
+// its /allOf/N/$ref target keys and passes, while swapping non-reversed oneOf
+// target keys or altering a target ID still fails the oracle.
+func TestSequenceOrderInvariant_UnmodeledTargetsKeyNormalization(t *testing.T) {
+	src := schemas(
+		"A: {type: string}",
+		"B: {type: integer}",
+		"Holder: {type: object, not: {allOf: [{description: alpha, $ref: '#/components/schemas/A'}, {description: beta, $ref: '#/components/schemas/B'}]}}",
+	)
+	assert.Equal(t, passed(OracleSequenceOrder), sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true))
+
+	t.Run("changed target ID is still caught", func(t *testing.T) {
+		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+			if !reversed {
+				return doc, diags, nil
+			}
+			holder := doc.Types["type/openapi/components/schemas/Holder"].Common()
+			entry := holder.Unmodeled["openapi:not"]
+			entry.Targets["/allOf/0/$ref"] = "type/openapi/components/schemas/A"
+			holder.Unmodeled["openapi:not"] = entry
+			return doc, diags, nil
+		})
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true)
+		assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
+	})
+
+	t.Run("non-reversed oneOf target keys are not erased", func(t *testing.T) {
+		oneOfSrc := schemas(
+			"Alpha: {type: string}",
+			"Beta: {type: integer}",
+			"Holder: {allOf: [{properties: {alpha: {type: string}}}, {properties: {beta: {type: string}}}], "+
+				"not: {oneOf: [{$ref: '#/components/schemas/Alpha'}, {$ref: '#/components/schemas/Beta'}]}}",
+		)
+		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+			if !reversed {
+				return doc, diags, nil
+			}
+			holder := doc.Types["type/openapi/components/schemas/Holder"].Common()
+			entry := holder.Unmodeled["openapi:not"]
+			entry.Targets["/oneOf/0/$ref"], entry.Targets["/oneOf/1/$ref"] = entry.Targets["/oneOf/1/$ref"], entry.Targets["/oneOf/0/$ref"]
+			holder.Unmodeled["openapi:not"] = entry
+			return doc, diags, nil
+		})
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(oneOfSrc), true)
+		assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
+	})
+}

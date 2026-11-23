@@ -129,6 +129,10 @@ const (
 	// verbatim: a node of a value the IR keeps as the source wrote it, at the
 	// pointer its place holds.
 	verbatim
+	// targetNames: an UnmodeledEntry's Targets map at the entry's provenance
+	// pointer; each key is a relative JSON Pointer inside Value whose indices
+	// are erased only where r.seqs actually reversed the sequence at own+key.
+	targetNames
 )
 
 // place is where a node sits: what its place tells the rewrite, and, within
@@ -234,9 +238,14 @@ func (r *rewriter) object(o map[string]any, placeValue place, depth int) []byte 
 		if r.leftOut(name, v, placeValue) {
 			continue
 		}
-		key := r.text(name, depth)
-		if placeValue.how&relativeNames != 0 {
-			key = eraseRelative(key)
+		var key string
+		if placeValue.how&targetNames != 0 {
+			key = eraseTargetKey(placeValue.at, name, r.seqs)
+		} else {
+			key = r.text(name, depth)
+			if placeValue.how&relativeNames != 0 {
+				key = eraseRelative(key)
+			}
 		}
 		var value []byte
 		switch text, isText := v.(string); {
@@ -307,9 +316,11 @@ func childPlace(name string, placeValue place, own string) place {
 		return place{how: child.how | verbatim, at: string(appendToken([]byte(placeValue.at), name))}
 	case name == "value" && own != "":
 		return place{how: child.how | verbatim, at: own}
+	case name == "targets" && own != "":
+		return place{how: child.how | targetNames, at: own}
 	case name == "mixins", name == "requires":
 		child.how |= sortElements
-	case name == "unmodeled", name == "targets" && own != "":
+	case name == "unmodeled":
 		child.how |= relativeNames
 	}
 	return child
@@ -528,6 +539,13 @@ func provenancePointer(o map[string]any) string {
 	prov, _ := o["provenance"].(map[string]any)
 	pointer, _ := prov["pointer"].(string)
 	return pointer
+}
+
+// eraseTargetKey erases only indices inside key (a relative JSON Pointer in an
+// UnmodeledEntry's Value rooted at own) that belong to a sequence in seqs that
+// the permutation actually reversed, leaving every other pointer token intact.
+func eraseTargetKey(own, key string, seqs sequences) string {
+	return strings.TrimPrefix(erase(own+key, seqs), erase(own, seqs))
 }
 
 // eraseRelative writes as "-" each decimal token of a relative pointer that

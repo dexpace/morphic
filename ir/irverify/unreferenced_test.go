@@ -176,7 +176,8 @@ func TestVerify_UnreferencedAnonymousTypes_AllDirectlyReachedAndOnlyDead(t *test
 
 // TestVerify_UnmodeledTargets_PointersAndResolution pins that UnmodeledEntry
 // Targets keys must be valid RFC 6901 JSON Pointers (including "" for a scalar
-// payload) and every value must be non-empty and resolve in Document.Types.
+// payload), must resolve to a JSON value inside Value, and every target value
+// must be non-empty and resolve in Document.Types.
 func TestVerify_UnmodeledTargets_PointersAndResolution(t *testing.T) {
 	t.Parallel()
 	const (
@@ -185,13 +186,13 @@ func TestVerify_UnmodeledTargets_PointersAndResolution(t *testing.T) {
 		bID    ir.TypeID = "type/anonymous/b"
 	)
 
-	makeDoc := func(targets map[jsontext.Pointer]ir.TypeID) *ir.Document {
+	makeDoc := func(raw ir.RawValue, targets map[jsontext.Pointer]ir.TypeID) *ir.Document {
 		return minimalValidDoc(ir.TypeRegistry{
 			rootID: &ir.Model{
 				ID:   rootID,
 				Name: ir.NamingFor("Root"),
 				Unmodeled: ir.Unmodeled{
-					"openapi:not": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{}`), Targets: targets},
+					"openapi:not": {Reason: ir.ReasonValidationOnly, Value: raw, Targets: targets},
 				},
 			},
 			aID: &ir.Model{ID: aID, Name: ir.Naming{Hint: "a"}, Anonymous: true},
@@ -199,15 +200,71 @@ func TestVerify_UnmodeledTargets_PointersAndResolution(t *testing.T) {
 		})
 	}
 
-	assert.Empty(t, irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"": aID, "/mapping/a~1b": bID})))
+	// Scalar root, nested object with JSON-escaped and RFC 6901-escaped keys, and array indexing.
+	assert.Empty(t, irverify.Verify(makeDoc(
+		ir.RawValue(`{"skip":1,"mapping":{"a/b~c":"#/b"},"list":["x",{"\u0024ref":"#/a"}]}`),
+		map[jsontext.Pointer]ir.TypeID{"": aID, "/mapping/a~1b~0c": bID, "/list/1/$ref": aID, "/list/0": bID},
+	)))
+	scalarDoc := minimalValidDoc(ir.TypeRegistry{
+		rootID: &ir.Model{
+			ID:   rootID,
+			Name: ir.NamingFor("Root"),
+			Unmodeled: ir.Unmodeled{
+				"openapi:$ref": {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`"#/a"`), Targets: map[jsontext.Pointer]ir.TypeID{"": aID}},
+			},
+		},
+		aID: &ir.Model{ID: aID, Name: ir.Naming{Hint: "a"}, Anonymous: true},
+	})
+	assert.Empty(t, irverify.Verify(scalarDoc))
 
-	badPtr := irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"no-leading-slash": aID, "/bad~2escape": bID}))
+	// Syntax errors on target pointers.
+	badPtr := irverify.Verify(makeDoc(ir.RawValue(`{}`), map[jsontext.Pointer]ir.TypeID{"no-leading-slash": aID, "/bad~2escape": bID}))
 	require.Len(t, badPtr, 2)
 	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[0].Code)
 	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/bad~2escape]", badPtr[0].Path)
 	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[1].Code)
 	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[no-leading-slash]", badPtr[1].Path)
 
-	assert.Contains(t, codesOf(irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/bad/$ref": "type/anonymous/missing"}))), "ir/dangling-type-ref")
-	assert.Contains(t, codesOf(irverify.Verify(makeDoc(map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/empty/$ref": ""}))), "ir/empty-type-ref")
+	// Valid RFC 6901 pointers that do not resolve inside Value.
+	unresolved := irverify.Verify(makeDoc(
+		ir.RawValue(`{"obj":{"a":1},"arr":["x"]}`),
+		map[jsontext.Pointer]ir.TypeID{
+			"/missing":                  aID,
+			"/obj/a/into-scalar":        bID,
+			"/arr/01":                   aID,
+			"/arr/-":                    bID,
+			"/arr/2":                    aID,
+			"/arr/99999999999999999999": bID,
+		},
+	))
+	var unresolvedPaths []string
+	for _, v := range unresolved {
+		if v.Code == "ir/unmodeled-target-pointer-unresolved" {
+			unresolvedPaths = append(unresolvedPaths, v.Path)
+		}
+	}
+	assert.Equal(t, []string{
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/-]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/01]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/2]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/99999999999999999999]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/missing]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/obj/a/into-scalar]",
+	}, unresolvedPaths)
+
+	// Invalid UTF-8 in a target pointer is reported by checkUTF8 alone, not as unresolved.
+	badUTF8 := codesOf(irverify.Verify(makeDoc(ir.RawValue(`{}`), map[jsontext.Pointer]ir.TypeID{"/\xff": aID, "": bID})))
+	assert.Contains(t, badUTF8, "ir/invalid-utf8")
+	assert.NotContains(t, badUTF8, "ir/unmodeled-target-pointer-unresolved")
+
+	// Invalid JSON Value reports ir/invalid-raw-value without adding a spurious unresolved pointer violation.
+	badRaw := codesOf(irverify.Verify(makeDoc(ir.RawValue(`{not json`), map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "": bID})))
+	assert.Contains(t, badRaw, "ir/invalid-raw-value")
+	assert.NotContains(t, badRaw, "ir/unmodeled-target-pointer-unresolved")
+
+	// Dangling and empty target IDs.
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(ir.RawValue(`{"$ref":"a","other":{"$ref":"b"},"bad":{"$ref":"c"}}`),
+		map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/bad/$ref": "type/anonymous/missing"}))), "ir/dangling-type-ref")
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(ir.RawValue(`{"$ref":"a","other":{"$ref":"b"},"empty":{"$ref":"c"}}`),
+		map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/empty/$ref": ""}))), "ir/empty-type-ref")
 }
