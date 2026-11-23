@@ -242,7 +242,9 @@ func (b *builder) settle(ms []member, pointer jsontext.Pointer, depth int) ir.Ty
 // adds: all a reference to each would read. A keyword or a field two give
 // differently is the first's, and the later one is reported where its
 // declaration is written and kept verbatim, as foldDocs keeps a property's. A
-// literal takes no bounds, since every node meeting it admits its value.
+// literal takes no bounds, since every node meeting it admits its value. Nodes
+// meet only giving the same examples (detailOf), so any that holds them as it
+// stands gives them.
 func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) ir.TypeDef {
 	sets := make([]*ir.Constraints, len(b.f.decls))
 	for k, td := range nodes {
@@ -260,6 +262,9 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	typeCommon := built.Common()
 	*typeCommon = adopt(*typeCommon, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
 	typeCommon.Deprecation = copyOf(typeCommon.Deprecation)
+	if at := slices.IndexFunc(others, func(other ir.TypeCommon) bool { return len(other.Examples) > 0 }); at >= 0 {
+		typeCommon.Examples = others[at].Examples
+	}
 	if list, ok := built.(*ir.List); ok && list.Encoding == nil {
 		b.adoptEncoding(list, all, nodes)
 	}

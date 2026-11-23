@@ -263,7 +263,8 @@ func stringEnum(common ir.TypeCommon, values ...string) *ir.Enum {
 // types a carried note tells apart meet, a third being dropped: the field names
 // the narrower one's own node, in every order of the three, and mints none, for
 // the node they would meet in says only what that one does. Where each says
-// what the other lacks, the node built of them holds no carried note.
+// what the other lacks, the node built of them holds no carried note, and the
+// example the own node holds, whichever of them it is built from.
 func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -277,10 +278,11 @@ func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 	} {
 		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
 			reg := membersRegistry()
-			reg["type/own"] = stringEnum(ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ptrAt("/M/allOf/0/properties/p")}, tc.own...)
+			examples := []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, String: "a"}}}
+			reg["type/own"] = stringEnum(ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ptrAt("/M/allOf/0/properties/p"), Examples: examples}, tc.own...)
 			reg["type/first"] = stringEnum(ir.TypeCommon{ID: "type/first", Anonymous: true, Provenance: ptrAt("/A/p")}, "a", "b", "c")
 			brought := declared("p", "type/first", "/A/p")
-			brought.Docs.Description, brought.Deprecation = "carried", &ir.Deprecation{Message: "carried"}
+			brought.Docs.Description, brought.Deprecation, brought.Examples = "carried", &ir.Deprecation{Message: "carried"}, examples
 			reg["type/A"] = &ir.Model{ID: "type/A", Properties: []ir.Property{brought}}
 			model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
 			reg["type/M"] = model
@@ -290,7 +292,7 @@ func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 				steps[k](idx)
 			}
 			stubbed, _ := stubMerger(reg)
-			stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/first": {Docs: brought.Docs, Deprecation: brought.Deprecation}}
+			stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/first": {Docs: brought.Docs, Deprecation: brought.Deprecation, Examples: examples}}
 
 			settleFlat(stubbed, idx, reg)
 
@@ -308,6 +310,8 @@ func TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn(t *testing.T) {
 			assert.Empty(t, enum.Docs, "%s, %v", tc.name, order)
 			assert.Nil(t, enum.Deprecation, "%s, %v", tc.name, order)
 			assert.Equal(t, "carried", property.Docs.Description, "%s, %v: the field holds the note", tc.name, order)
+			assert.Equal(t, examples, enum.Examples, "%s, %v: the own node's example stays on the type", tc.name, order)
+			assert.Empty(t, property.Examples, "%s, %v: so the field holds none", tc.name, order)
 		}
 	}
 }

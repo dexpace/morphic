@@ -137,7 +137,7 @@ func unmodeledHolding(a, b ir.Unmodeled, walk FieldDeclarationContext) (holding,
 // base leaves empty, as a reference to each would read it: the first of others
 // to set it gives it, and differ hears of each later one setting it otherwise,
 // by its index and the name a document spells the field with. Base keeps its
-// site and its examples, which nothing adopts (detailOf).
+// site and its examples (builder.adoptInto).
 func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.TypeCommon {

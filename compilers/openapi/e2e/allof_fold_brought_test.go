@@ -363,6 +363,14 @@ func TestAllOfFold_AFieldHoldsNoBroughtExampleOverItsTypesOwn(t *testing.T) {
 	own := func(schema, example string) string {
 		return "{properties: {f: {" + schema + ", examples: [" + example + "]}}}"
 	}
+	for order, entries := range []string{
+		"{$ref: '#/components/schemas/A'}, " + own("type: string, enum: [b, c]", "b"), own("type: string, enum: [b, c]", "b") + ", {$ref: '#/components/schemas/A'}",
+	} {
+		doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+narrow+", examples: [b]}}}\n"+
+			"    M: {allOf: ["+entries+"], properties: {f: {"+wide+", examples: [b]}}}\n"))
+		assert.Equal(t, "composed/M/properties/f enum b "+fmt.Sprintf(held, "b"), memberText(t, doc, componentID("M")),
+			"a node built of both, whichever it is built from: order %d", order)
+	}
 	for _, tc := range []struct{ name, entries, brought, rest, want, report string }{
 		{"the own node is the type, a reference naming it", own(narrow, "a"), "b", "    U: {properties: {h: {$ref: '#/components/schemas/M/allOf/0/properties/f'}}}\n",
 			"M/allOf/0/properties/f enum a b " + fmt.Sprintf(held, "a"),
