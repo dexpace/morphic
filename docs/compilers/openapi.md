@@ -3532,6 +3532,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ANoteTheFieldKeepsIsLeftOnNoNode`,
   `merge.TestFold_ANoteTheBuiltNodeDoesNotAdoptIsKeptVerbatim`,
   `merge.TestFold_ABuiltNodeHoldsALeftDeprecationOnlyBesideItsKeys`,
+  `schema.TestAllOf_ABuiltNodeHoldsNoDeprecationBesideAnothersKey`,
   `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
   `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
   `e2e.TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce`,

@@ -230,6 +230,35 @@ func TestAllOf_ADeprecationIsTheFieldsInEitherOrder(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "which the field's type holds")
 }
 
+// TestAllOf_ABuiltNodeHoldsNoDeprecationBesideAnothersKey pins the keys the
+// walk says a deprecation is read from (modelFields.DeprecationKey): of three
+// enums meeting, two deprecated by x-deprecated-reason, the field holds the
+// later's and the node they meet in, which holds that one's key, holds none,
+// the earlier kept verbatim, in either order of the two.
+func TestAllOf_ABuiltNodeHoldsNoDeprecationBesideAnothersKey(t *testing.T) {
+	t.Parallel()
+	entry := func(value, extra string) string {
+		return "{type: object, properties: {v: {type: string, enum: [b, c, " + value + "]" + extra + "}}}"
+	}
+	for _, order := range [][2]string{{"a", "k"}, {"k", "a"}} {
+		deprecated := func(k int) string {
+			return entry(order[k], ", deprecated: true, x-deprecated-reason: "+order[k])
+		}
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T: {allOf: ["+deprecated(0)+", "+deprecated(1)+", "+entry("n", "")+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		model, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		property := model.Properties[0]
+
+		assert.Equal(t, &ir.Deprecation{Message: order[1]}, property.Deprecation, "%v: the field holds the later's", order)
+		built := doc.Types[property.Type.Target].Common()
+		assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), built.ID, "%v: a node the fold built", order)
+		assert.Nil(t, built.Deprecation, "%v: which holds none beside the later's key", order)
+		assert.Equal(t, ir.RawValue(`"`+order[1]+`"`), built.Unmodeled["openapi:x-deprecated-reason"].Value, "%v", order)
+		assert.Contains(t, property.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v", "%v", order)
+	}
+}
+
 // TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder pins a default
 // against a bound another declaration wrote on the property, which lowers as the
 // same bound on a node does: not adopted, reported, and the declaration kept. A
