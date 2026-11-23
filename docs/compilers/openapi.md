@@ -2023,10 +2023,12 @@ schema hoists none, the carrier's own replace it, and nothing keeps the schema's
 parameter or a header states itself stands on it the same way: where its object writes
 `deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
 deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
-whole, members and replacement with it, and the carrier holds its own members alone. It is
-deprecated wherever its schema is, by its keyword or a key, so one writing only a message, a date, a
-replacement or a tier beside a deprecated schema is deprecated as one writing `deprecated: true` is,
-it and the node then both deprecated. A Reference Object
+whole, members and replacement with it, and the carrier holds its own members alone. Where its
+carrier holds the schema's notes, it is deprecated wherever its schema is, by its keyword or a key,
+so one writing only a message, a date, a replacement or a tier beside a deprecated schema is
+deprecated as one writing `deprecated: true` is, it and the node then both deprecated. At a position
+a reference names, the node keeps the deprecation and the carrier holds none, its own member kept
+under `Unmodeled` alone. A Reference Object
 states none, as the keys beside its `$ref` are promoted nowhere
 ([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
 hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,
@@ -3342,8 +3344,9 @@ judged against that: a `default: null` or a null example is refused where the me
 admit null, a declaration of the field's own type included. The top type admits null whatever its
 bit says, and one folded under another type says nothing of null. A `default` or `examples` a
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
-or nothing. The winning type admits a value by its kind, by the `full-time` grammar where it is a
-`Scalar` hoisted for `time`, and by the constraints its node carries:
+or nothing, but for examples a type with no judge refuses (below). The winning type admits a value
+by its kind, by the `full-time` grammar where it is a `Scalar` hoisted for `time`, and by the
+constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
 declaration's value is held by the same checks to each bound the field keeps that another
@@ -3355,7 +3358,17 @@ against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
-each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
+each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
+again where the field takes none of any declaration that way and its type is one nothing here
+judges a value of: a model, a union, an opaque `Scalar`, or a `Scalar`, list or map over one. There
+the examples each declaration the model writes itself gives are taken where only that type refused
+them, so an example of an inline schema beside a model, of its kind or another, lands typed on the
+field, and `pass/example-outside-type` holds it to the field's type as it holds any example
+([values](../ir/values.md#values-held-to-their-type)). An example a judge refuses, a null, a bound,
+an enum's members, a literal, a kind or a format's grammar, stays refused and kept, wherever the
+field takes no other. Those a declaration another model holds gives stay declared there. An example
+illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
+takes, the
 last written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
@@ -3435,9 +3448,8 @@ that keeps them from composing), since which of them the field keeps then follow
 order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
-would leave one field asserting two contradictory things, with nothing downstream comparing a
-value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where no one value says
+would leave one field asserting two contradictory things; this is keyed on the type being dropped,
+not on the drop being called a conflict. A declaration folded into the field is reported as well where no one value says
 what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
 naming the declaration the value was kept from, or where it gives a detail differently from the one
 kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
@@ -3701,6 +3713,14 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
+  `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
+  `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
+  `e2e.TestAllOfFold_AnExampleAVariantsEnumRefusesStaysRefused`,
+  `e2e.TestAllOfFold_AnExampleAFormatRefusesStaysRefused`,
+  `e2e.TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut`,
+  `e2e.TestAllOfFold_AnExampleAnotherModelDeclaresStaysThere`,
+  `e2e.TestAllOfFold_AnExampleAtAReferencedPositionStaysOnItsNode`,
   `merge.TestFold_AnInadmissibleValueIsKeptNotAdopted`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`,
   `merge.TestFold_IdenticalNodesAreOneType`,

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -481,6 +482,81 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		require.Len(t, *recorded, 1, tc.name)
 		assert.Contains(t, (*recorded)[0].Message, "admits the examples the declaration at /b gives", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
+	}
+}
+
+// TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted pins examplesTaken's second
+// tier: where the field's type is a model, which admitsAt has no judge for, and
+// the field takes no declaration's examples as admitted, it adopts those a
+// declaration the model writes itself gives, the last written kept and another
+// given differently reported and kept, in either order. A declaration another
+// model holds keeps its own there, reported; one the field drops, written first
+// as the tie goes to the later, takes its examples with its type; and a null or
+// a bound the merge judges still refuses.
+func TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted(t *testing.T) {
+	t.Parallel()
+	const modelID ir.TypeID = "type/model/M"
+	half, quarter, null := number("1.5"), number("1.25"), ir.Value{Kind: ir.ValueNull}
+	pair := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: half}, {Name: "b", Value: half}}}
+	model := func(at jsontext.Pointer) declaration {
+		return declaration{property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: modelID}, Provenance: ptrAt(at)},
+			source: written(`{"$ref":"M"}`)}
+	}
+	writing := func(at jsontext.Pointer, kind ir.PrimitiveKind, value *ir.Value) declaration {
+		return declaration{property: ir.Property{WireName: "p", Type: primitiveRef(kind), Examples: []ir.Example{{Value: value}},
+			Provenance: ptrAt(at)}, source: written(`{"writes":"` + string(at) + `"}`)}
+	}
+	brought := writing("/part/p", ir.PrimitiveAny, &half)
+	brought.via = &composedEntry{target: "type/part", at: "/M/allOf/0"}
+	bounded := model("/b")
+	bounded.property.Constraints = &ir.Constraints{MaxProperties: new(int64(1))}
+	type result struct {
+		examples []ir.Example
+		kept     []string // the declarations kept verbatim
+	}
+	for _, tc := range []struct {
+		name   string
+		decls  []declaration
+		orders [2]result // as written, and reversed
+		notes  []string  // what each report says, in either order
+	}{
+		{"one the model writes", []declaration{writing("/a", ir.PrimitiveAny, &half), model("/b")},
+			[2]result{{examples: []ir.Example{{Value: &half}}}, {examples: []ir.Example{{Value: &half}}}}, nil},
+		{"two the model writes", []declaration{writing("/a", ir.PrimitiveAny, &half), writing("/b", ir.PrimitiveAny, &quarter), model("/c")},
+			[2]result{{[]ir.Example{{Value: &quarter}}, []string{"/a"}}, {[]ir.Example{{Value: &half}}, []string{"/b"}}},
+			[]string{"give its examples differently"}},
+		{"one another model holds", []declaration{brought, model("/b")}, [2]result{},
+			[]string{"admits the examples the declaration at /part/p gives; not adopted, and that declaration stays declared on its model"}},
+		{"one the field drops", []declaration{writing("/a", ir.PrimitiveString, &half), model("/b")},
+			[2]result{{kept: []string{"/a"}}, {[]ir.Example{{Value: &half}}, []string{"/b"}}}, []string{"declarations of field"}},
+		{"a null the field refuses", []declaration{writing("/a", ir.PrimitiveAny, &null), model("/b")},
+			[2]result{{kept: []string{"/a"}}, {kept: []string{"/a"}}}, []string{"admits the examples the declaration at /a gives"}},
+		{"an object a bound refuses", []declaration{writing("/a", ir.PrimitiveAny, &pair), bounded},
+			[2]result{{kept: []string{"/a"}}, {kept: []string{"/a"}}}, []string{"admits the examples the declaration at /a gives"}},
+	} {
+		for order, want := range tc.orders {
+			decls := slices.Clone(tc.decls)
+			if order == 1 {
+				slices.Reverse(decls)
+			}
+			label := fmt.Sprintf("%s (order %d)", tc.name, order)
+			reg := narrowingRegistry()
+			reg[modelID] = declaring(modelID)
+			stubbed, recorded := stubMerger(reg)
+
+			got := stubbed.fold(decls)
+
+			assert.Equal(t, want.examples, got.Examples, label)
+			var kept []string
+			for key := range got.Unmodeled {
+				kept = append(kept, strings.TrimPrefix(key, losingDeclarationKey))
+			}
+			assert.ElementsMatch(t, want.kept, kept, label)
+			require.Len(t, *recorded, len(tc.notes), label)
+			for i, note := range tc.notes {
+				assert.Contains(t, (*recorded)[i].Message, note, label)
+			}
+		}
 	}
 }
 

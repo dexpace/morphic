@@ -24,10 +24,10 @@ import (
 // the position builds keeping the rest (notesOnCarrier).
 type carriedNotes struct {
 	docs, deprecation, examples bool
-	// deprecatedAsSchema is that the carrier is deprecated wherever the schema
-	// is, by its keyword or a key, even where the node keeps the schema's
-	// deprecation: a carrier writing only a member of its own is deprecated
-	// still, holding that member alone.
+	// deprecatedAsSchema is that the carrier, given notes here, is deprecated
+	// wherever the schema is, by its keyword or a key, even where the node keeps
+	// the schema's deprecation: a carrier writing only a member of its own is
+	// deprecated still, holding that member alone.
 	deprecatedAsSchema bool
 }
 
@@ -180,8 +180,9 @@ func documentedAtUse(loweringContext lowering.Ctx) map[reftable.DocumentPointer]
 // written at pointer and lowered to typeRef, declares, read through use, and
 // whether the position owns the node typeRef names. Where it owns none, the
 // carrier holds them all. Where it owns one, the node keeps everything but the
-// notes notesOnCarrier gives the carrier, which is deprecated wherever the
-// schema is, holding the schema's members only where the node holds none.
+// notes notesOnCarrier gives the carrier, which, where it gives any, is
+// deprecated wherever the schema is, holding the schema's members only where
+// the node holds none.
 //
 // It is the one reading a property, a header and a parameter share, so the
 // three cannot differ in what they hold.
