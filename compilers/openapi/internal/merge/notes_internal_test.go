@@ -163,6 +163,70 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 	}
 }
 
+// TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped pins a member the
+// model declares once beside two other models': where their types as they
+// stand drop the model's own, the fold judges the nodes holding the notes their
+// properties carry, where that keeps it, so a map composes with a noted bare
+// object and another map rather than losing to the two. Where it drops it
+// either way, the types stay judged as they stand, two lists alike but for a
+// note being one type.
+func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
+	t.Parallel()
+	common := func(id ir.TypeID, at jsontext.Pointer) ir.TypeCommon {
+		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at)}
+	}
+	mapOf := func(value ir.TypeID) func(common ir.TypeCommon) ir.TypeDef {
+		return func(common ir.TypeCommon) ir.TypeDef {
+			return &ir.MapT{TypeCommon: common, Value: ir.TypeRef{Target: value}}
+		}
+	}
+	bare := func(common ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: common} }
+	list := func(common ir.TypeCommon) ir.TypeDef {
+		return &ir.List{TypeCommon: common, ElementType: ir.TypeRef{Target: "type/primitive/string"}}
+	}
+	for _, tc := range []struct {
+		name        string
+		own, first  func(common ir.TypeCommon) ir.TypeDef
+		second      func(common ir.TypeCommon) ir.TypeDef
+		conjuncts   []ir.TypeID // what the field composes, nil where it keeps first's type
+		reports     int
+		keptOffType bool
+	}{
+		{"its type kept", mapOf("type/B"), bare, mapOf("type/primitive/string"), []ir.TypeID{"type/own", "type/first", "type/second"}, 0, false},
+		{"its type dropped either way", mapOf("type/B"), list, list, nil, 1, true},
+	} {
+		reg := membersRegistry()
+		reg["type/own"] = tc.own(common("type/own", "/M/allOf/0/properties/p"))
+		reg["type/first"] = tc.first(common("type/first", "/A/p"))
+		reg["type/second"] = tc.second(common("type/second", "/C/p"))
+		reg["type/A"] = &ir.Model{ID: "type/A", Properties: []ir.Property{declared("p", "type/first", "/A/p")}}
+		reg["type/C"] = &ir.Model{ID: "type/C", Properties: []ir.Property{declared("p", "type/second", "/C/p")}}
+		model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+		reg["type/M"] = model
+		idx := NewModelPropertyDeclarations(model)
+		own("p", "type/own", "0")(idx)
+		composes("type/A", "1")(idx)
+		composes("type/C", "2")(idx)
+		stubbed, _ := stubMerger(reg)
+		stubbed.Carried = map[ir.TypeID]CarriedNotes{
+			"type/first": {Docs: ir.Docs{Description: "first"}}, "type/own": {Docs: ir.Docs{Description: "own"}},
+		}
+
+		diags := settleFlat(stubbed, idx, reg)
+
+		assert.Len(t, diags, tc.reports, tc.name)
+		require.Len(t, model.Properties, 1, tc.name)
+		property := model.Properties[0]
+		assert.Equal(t, tc.keptOffType, property.Unmodeled != nil, "%s: the model's own kept verbatim", tc.name)
+		if composed, isModel := reg[property.Type.Target].(*ir.Model); isModel {
+			assert.Equal(t, tc.conjuncts, targetsOf(composed.Mixins), tc.name)
+			continue
+		}
+		assert.Nil(t, tc.conjuncts, tc.name)
+		assert.Equal(t, ir.TypeID("type/first"), property.Type.Target, tc.name)
+	}
+}
+
 // TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand pins the other
 // side: a member only the model declares, more than once, is judged as its
 // nodes stand, whatever Carried says of one, as no property carries a note off

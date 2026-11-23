@@ -3368,9 +3368,10 @@ declaration verbatim. A reference naming one of the entries changes nothing of i
 identity. An `allOf` that refines composes no model, lowering one conjunct's properties, so it
 declares none of them again. Where another model brings a declaration of such a member, its notes
 stay on that model's property. Types that compose as they stand reach every node of the model's own,
-so none of its notes is lost; any other the fold judges with the brought node read as holding the
-notes its property carries, as the model's own nodes hold theirs. The field holds the brought notes
-too where its own declarations lend it none.
+so none of its notes is lost; any other the fold judges with each node read as holding the notes a
+property carries off it, as the model's own nodes hold theirs. It judges so any other member another
+model declares too, where the types as they stand drop one and so read they compose, or keep the
+model's own. The field holds the brought notes too where its own declarations lend it none.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write
@@ -3526,6 +3527,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
   `merge.TestFold_ANoteTheModelWritesIsKeptOverOneItBrings`,
   `merge.TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain`,
+  `merge.TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped`,
+  `merge.TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand`,
   `merge.TestWithNotes_CopiesTheDeprecation`,
   `schema.TestDeclaredAgain_IsReadOfTheModelComposingTheMember`,
   `schema.TestDeclaredAgain_ReadsEachSchemaComposingTheEntry`,
@@ -3536,6 +3539,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain`,
   `e2e.TestAllOfFold_ADistributedModelsMemberDeclaredAgainKeepsItsNotes`,
   `e2e.TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote`,
+  `e2e.TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType`,
+  `e2e.TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,

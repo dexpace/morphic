@@ -219,13 +219,8 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
 	}
 	folding := newFolding(g, judged, field)
-	if len(folding.conjuncts) == 0 && declaredAgainBesideAnothers(judged) {
-		// A composition reaches each node of the model's own, so it loses none
-		// of their notes. Any other type can hold fewer of them than where every
-		// note told its node apart, so each node is read holding its notes.
-		noted := *g
-		noted.noted = true
-		folding = newFolding(&noted, judged, field)
+	if noted := g.readingNotes(folding); noted != nil {
+		folding = noted
 	}
 	folding.assembled = assembled
 	folding.foldType()
@@ -239,11 +234,36 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	return merged, append(diags, g.keepUnjudged(&merged, past)...)
 }
 
-// declaredAgainBesideAnothers reports whether the model declares the member of
-// decls more than once itself, and another model declares it too.
-func declaredAgainBesideAnothers(decls []declaration) bool {
-	own := len(slices.DeleteFunc(slices.Clone(decls), isBrought))
-	return own > 1 && own < len(decls)
+// readingNotes returns stands, a fold judged as its declarations' nodes stand,
+// judged again with each node read holding the notes a property carries off it
+// (Merger.noted), where that loses less beside another model's declaration, and
+// nil elsewhere. A composition reaches each declaration's node, so it loses
+// none. Any other type may lose notes the model's own nodes hold, where it
+// declares the member more than once, or drop a type that a note held apart
+// from what drops it: the model's own, or one the types so read compose with.
+func (g *Merger) readingNotes(stands *folding) *folding {
+	own := len(slices.DeleteFunc(slices.Clone(stands.decls), isBrought))
+	if len(stands.conjuncts) > 0 || own == len(stands.decls) || own < 2 && !slices.Contains(stands.cone, false) {
+		return nil
+	}
+	reading := *g
+	reading.noted = true
+	noted := newFolding(&reading, stands.decls, stands.field)
+	if own > 1 || len(noted.conjuncts) > 0 || dropsOwn(stands) && !dropsOwn(noted) {
+		return noted
+	}
+	return nil
+}
+
+// dropsOwn reports whether the field's type holds none of a declaration the
+// model writes itself.
+func dropsOwn(foldingValue *folding) bool {
+	for i, declarationValue := range foldingValue.decls {
+		if !isBrought(declarationValue) && !foldingValue.cone[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -293,7 +313,7 @@ type folding struct {
 	// each declaration whose type is the same as the winner's, broader, or
 	// meets it: the field's type holds every one of them, so it adopts their
 	// shape detail. A meeting no node holds takes its declarations out of the
-	// cone (meetField).
+	// cone (leaveUnmet).
 	winner int
 	cone   []bool
 	// conjuncts lists the types the field composes, which puts every
@@ -345,7 +365,27 @@ func newFolding(merger *Merger, decls []declaration, field jsontext.Pointer) *fo
 	for i := range n {
 		foldingValue.cone[i] = len(foldingValue.conjuncts) > 0 || position.holds(foldingValue.winner, i)
 	}
+	leaveUnmet(foldingValue)
 	return foldingValue
+}
+
+// leaveUnmet takes out of foldingValue's cone each declaration meeting the
+// winner in no node, to be dropped and reported as an overlap, the field
+// keeping the winner's type: a dry run, so a field whose meeting no node holds
+// registers nothing. A composition has no winner to meet.
+func leaveUnmet(foldingValue *folding) {
+	if len(foldingValue.conjuncts) > 0 {
+		return
+	}
+	base, partners := foldingValue.pos.meeting(func(i int) bool { return foldingValue.cone[i] })
+	dry := builder{f: foldingValue, dry: true}
+	dry.meetNode(base, partners, foldingValue.field, 0)
+	if !dry.failed {
+		return
+	}
+	for _, member := range partners {
+		foldingValue.cone[member.decl] = false
+	}
 }
 
 // foldType settles the field's type: the model composing the conjuncts, or the
@@ -365,25 +405,14 @@ func (f *folding) foldType() {
 }
 
 // meetField returns the field's target: the model the conjuncts compose, or the
-// node the winner and the declarations meeting it stand on (builder). A dry run
-// first, so a field whose meeting no node holds registers nothing: it keeps the
-// winner's type, and each declaration meeting it leaves the cone, to be dropped
-// and reported as an overlap.
+// node the winner and the declarations meeting it stand on (builder), each of
+// which leaveUnmet found to meet it.
 func (f *folding) meetField() ir.TypeID {
 	b := builder{f: f}
 	if len(f.conjuncts) > 0 {
 		return b.compose(f.conjuncts, f.field)
 	}
-	cone := func(i int) bool { return f.cone[i] }
-	base, partners := f.pos.meeting(cone)
-	dry := builder{f: f, dry: true}
-	dry.meetNode(base, partners, f.field, 0)
-	if dry.failed {
-		for _, member := range partners {
-			f.cone[member.decl] = false
-		}
-		return base.ref.Target
-	}
+	base, partners := f.pos.meeting(func(i int) bool { return f.cone[i] })
 	return b.meetNode(base, partners, f.field, 0)
 }
 
