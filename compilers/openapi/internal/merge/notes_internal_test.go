@@ -168,8 +168,8 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 // stand drop the model's own, the fold judges the nodes holding the notes their
 // properties carry, where that keeps it, so a map composes with a noted bare
 // object and another map rather than losing to the two. Where it drops it
-// either way, the types stay judged as they stand, two lists alike but for a
-// note being one type.
+// either way, or they drop a brought type alone, the types stay judged as they
+// stand, two lists alike but for a note being one type.
 func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 	t.Parallel()
 	common := func(id ir.TypeID, at jsontext.Pointer) ir.TypeCommon {
@@ -185,15 +185,18 @@ func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 		return &ir.List{TypeCommon: common, ElementType: ir.TypeRef{Target: "type/primitive/string"}}
 	}
 	for _, tc := range []struct {
-		name        string
-		own, first  func(common ir.TypeCommon) ir.TypeDef
-		second      func(common ir.TypeCommon) ir.TypeDef
-		conjuncts   []ir.TypeID // what the field composes, nil where it keeps first's type
-		reports     int
-		keptOffType bool
+		name               string
+		own, first, second func(common ir.TypeCommon) ir.TypeDef
+		ownLast            bool        // a tie goes to the later, the own one where read apart
+		conjuncts          []ir.TypeID // what the field composes
+		keeps              ir.TypeID   // or the type it keeps, composing none
+		reports            int
+		verbatim           bool
 	}{
-		{"its type kept", mapOf("type/B"), bare, mapOf("type/primitive/string"), []ir.TypeID{"type/own", "type/first", "type/second"}, 0, false},
-		{"its type dropped either way", mapOf("type/B"), list, list, nil, 1, true},
+		{name: "its type kept", own: mapOf("type/B"), first: bare, second: mapOf("type/primitive/string"),
+			conjuncts: []ir.TypeID{"type/own", "type/first", "type/second"}},
+		{name: "its type dropped either way", own: mapOf("type/B"), first: list, second: list, keeps: "type/first", reports: 1, verbatim: true},
+		{name: "a brought type dropped alone", own: list, first: list, second: mapOf("type/B"), ownLast: true, keeps: "type/first", reports: 1},
 	} {
 		reg := membersRegistry()
 		reg["type/own"] = tc.own(common("type/own", "/M/allOf/0/properties/p"))
@@ -204,9 +207,13 @@ func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 		model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
 		reg["type/M"] = model
 		idx := NewModelPropertyDeclarations(model)
-		own("p", "type/own", "0")(idx)
-		composes("type/A", "1")(idx)
-		composes("type/C", "2")(idx)
+		steps := []func(idx *ModelPropertyDeclarations){own("p", "type/own", "0"), composes("type/A", "1"), composes("type/C", "2")}
+		if tc.ownLast {
+			slices.Reverse(steps)
+		}
+		for _, step := range steps {
+			step(idx)
+		}
 		stubbed, _ := stubMerger(reg)
 		stubbed.Carried = map[ir.TypeID]CarriedNotes{
 			"type/first": {Docs: ir.Docs{Description: "first"}}, "type/own": {Docs: ir.Docs{Description: "own"}},
@@ -217,13 +224,13 @@ func TestSettle_ReadsNotesWhereTheModelsOwnTypeWouldBeDropped(t *testing.T) {
 		assert.Len(t, diags, tc.reports, tc.name)
 		require.Len(t, model.Properties, 1, tc.name)
 		property := model.Properties[0]
-		assert.Equal(t, tc.keptOffType, property.Unmodeled != nil, "%s: the model's own kept verbatim", tc.name)
+		assert.Equal(t, tc.verbatim, property.Unmodeled != nil, "%s: the model's own kept verbatim", tc.name)
 		if composed, isModel := reg[property.Type.Target].(*ir.Model); isModel {
 			assert.Equal(t, tc.conjuncts, targetsOf(composed.Mixins), tc.name)
 			continue
 		}
 		assert.Nil(t, tc.conjuncts, tc.name)
-		assert.Equal(t, ir.TypeID("type/first"), property.Type.Target, tc.name)
+		assert.Equal(t, tc.keeps, property.Type.Target, tc.name)
 	}
 }
 

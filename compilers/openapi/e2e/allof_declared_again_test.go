@@ -233,6 +233,11 @@ func TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes(t *testing.T) {
 			entries("type: object, title: T0", mapsAB+", description: D1, x-foo: 1", maps0+", x-foo: 2"),
 			"composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [title T0]; " +
 				"M/allOf/1/properties/f map [description D1]; M/allOf/2/properties/f map)"},
+		{"maps no node holds together, beside a described bare object",
+			entries("type: object, additionalProperties: {type: string, enum: [a, b]}, x-foo: 1", "type: object, additionalProperties: {type: string, enum: [b, c]}, x-foo: 1",
+				"type: object, additionalProperties: {type: string, enum: [a, c]}, x-foo: 1", "type: object, description: D3"),
+			"composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f map; M/allOf/1/properties/f map; " +
+				"M/allOf/2/properties/f map; M/allOf/3/properties/f model [description D3])"},
 		{"lists meeting, two deprecated by keys",
 			entries("type: array, items: {type: string}, minItems: 1, deprecated: true, x-deprecated-reason: R0",
 				"type: array, items: {type: string}, maxItems: 9, deprecated: true, x-deprecated-since: '1.0'",
@@ -412,6 +417,13 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtLosesNoNote(t *testing.T)
 			}
 		}
 	}
+
+	// Two enums sharing no value: the one within the brought enum would win with
+	// it, and the later wins where each is told apart by its note.
+	doc, _ := parseVerified(t, openapitest.ComponentSpec("    Base: {properties: {f: {type: string, enum: [b, a], description: B}}}\n"+
+		"    M: {properties: {f: {type: string, enum: [d], description: D0}}, allOf: [{properties: {f: {type: string, enum: [b], description: D1}}}, "+
+		"{$ref: '#/components/schemas/Base'}]}\n"))
+	assert.Equal(t, "[description B] M/properties/f enum d [description D0] | verbatim M/allOf/0/properties/f", memberText(t, doc, componentID("M")))
 }
 
 // TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType pins a member a
@@ -442,7 +454,7 @@ func TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType(t *testing.T) {
 		assert.Equal(t, want, memberText(t, doc, componentID("M")), "%v", order)
 	}
 
-	doc, diags := parseVerified(t, openapitest.ComponentSpec(base("type: object, additionalProperties: true", objects+", x-foo: 1")+
+	doc, diags := parseVerified(t, openapitest.ComponentSpec(base("type: object, additionalProperties: true, x-bar: 1", objects+", x-foo: 1")+
 		"    M: {properties: {f: {"+strs+", title: T0}}, allOf: [{$ref: '#/components/schemas/Second'}, {$ref: '#/components/schemas/First'}]}\n"))
 	requireErrorsAndWarnings(t, diags, nil)
 	assert.Equal(t, "[title T0, description B1] M/properties/f map", memberText(t, doc, componentID("M")))
