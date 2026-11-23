@@ -6,6 +6,8 @@ package e2e_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -524,6 +528,154 @@ components:
 	require.Len(t, compiled, 2)
 	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
 	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+}
+
+// refMemberOnlySchemas are one use of Obj in two spellings, beside its $ref
+// and beside an allOf of it, each writing a description, an example and
+// `deprecated: true`, all notes a carrier holds.
+var refMemberOnlySchemas = map[string]string{
+	"beside": "{$ref: '#/components/schemas/Obj', description: d, example: {a: s}, deprecated: true}",
+	"allOf":  "{allOf: [{$ref: '#/components/schemas/Obj'}], description: d, example: {a: s}, deprecated: true}",
+}
+
+// compileRefMemberOnlyCarriers compiles a document holding, for each of
+// memberOnlyKeys beside each of refMemberOnlySchemas, a parameter and a header
+// writing the key inline, on the content entry it elects and in a component,
+// and, beside each spelling, a parameter and a header writing their own
+// description, example and message. The components are declared in the order
+// their names sort, or the reverse.
+func compileRefMemberOnlyCarriers(t *testing.T, reversed bool) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	carriers := len(refMemberOnlySchemas) * len(memberOnlyKeys(""))
+	params, headers := make([]string, 0, 3*carriers+2), make([]string, 0, 3*carriers+2)
+	componentParams, componentHeaders := make([]string, 0, carriers), make([]string, 0, carriers)
+	for _, spelling := range slices.Sorted(maps.Keys(refMemberOnlySchemas)) {
+		schema := refMemberOnlySchemas[spelling]
+		for _, member := range slices.Sorted(maps.Keys(memberOnlyKeys(""))) {
+			suffix := member + "-" + spelling
+			paramKey, headerKey := memberOnlyKeys("q")[member], memberOnlyKeys("X-M")[member]
+			params = append(params,
+				"- {name: inline-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}",
+				"- {name: entry-"+suffix+", in: query, content: {application/json: {"+paramKey+", schema: "+schema+"}}}",
+				"- $ref: '#/components/parameters/P-"+suffix+"'")
+			headers = append(headers,
+				"X-Inline-"+suffix+": {"+headerKey+", schema: "+schema+"}",
+				"X-Entry-"+suffix+": {content: {text/plain: {"+headerKey+", schema: "+schema+"}}}",
+				"X-Component-"+suffix+": {$ref: '#/components/headers/H-"+suffix+"'}")
+			componentParams = append(componentParams, "P-"+suffix+": {name: component-"+suffix+", in: query, "+paramKey+", schema: "+schema+"}")
+			componentHeaders = append(componentHeaders, "H-"+suffix+": {"+headerKey+", schema: "+schema+"}")
+		}
+		const own = "description: OWN, example: {a: p}, x-deprecated-reason: own reason"
+		params = append(params, "- {name: written-"+spelling+", in: query, "+own+", schema: "+schema+"}")
+		headers = append(headers, "X-Written-"+spelling+": {"+own+", schema: "+schema+"}")
+	}
+	if reversed {
+		slices.Reverse(componentParams)
+		slices.Reverse(componentHeaders)
+	}
+	spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: getA\n" +
+		"      parameters:\n        - {name: q, in: query, schema: {type: string}}\n        " + strings.Join(params, "\n        ") + "\n" +
+		"      responses:\n        '200':\n          description: ok\n          headers:\n" +
+		"            X-M: {schema: {type: string}}\n            " + strings.Join(headers, "\n            ") + "\n" +
+		"components:\n  parameters:\n    " + strings.Join(componentParams, "\n    ") + "\n" +
+		"  headers:\n    " + strings.Join(componentHeaders, "\n    ") + "\n" +
+		"  schemas:\n    Obj: {type: object, properties: {a: {type: string}}}\n"
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, memberOnlyPolicy())
+	require.NoError(t, err)
+	requireVerifies(t, doc, diags)
+	return doc, diags
+}
+
+// TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema holds a
+// parameter or a header writing a deprecation's member or a tier, and no
+// `deprecated: true`, beside a deprecated use of one $ref to an object, in
+// either spelling, to the rule an inline schema's carrier follows
+// (docs/compilers/openapi.md#docs-and-deprecation): the Model stays and keeps
+// the schema's deprecation whole, and the carrier is deprecated, holding its
+// own member alone and the notes nothing at it writes over. So is one writing
+// every note over. Inline, on the elected content entry and in a component,
+// in both orders of the components.
+func TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileRefMemberOnlyCarriers(t, false)
+	operation, ok := operationByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, operation.Responses, 1)
+	q, ok := openapitest.ParamBySource(operation, "q")
+	require.True(t, ok)
+	xM, ok := headerByWire(operation.Responses[0].Headers, "X-M")
+	require.True(t, ok)
+	own := func(replaced ir.EntityRef) map[string]*ir.Deprecation {
+		return map[string]*ir.Deprecation{
+			"message": {Message: "own reason"}, "since": {Since: "2.0"}, "version": {RemovalVersion: "3.0"},
+			"date": {RemovalDate: "2027-01-01"}, "replaced": {ReplacedBy: []ir.EntityRef{replaced}}, "beta": {},
+		}
+	}
+	type carrier struct {
+		name     string
+		property ir.Property
+		want     *ir.Deprecation
+		docs     string
+		example  string
+	}
+	carriers := make([]carrier, 0, len(refMemberOnlySchemas)*(3*2*len(memberOnlyKeys(""))+2))
+	for _, spelling := range slices.Sorted(maps.Keys(refMemberOnlySchemas)) {
+		for member := range memberOnlyKeys("") {
+			suffix := member + "-" + spelling
+			for _, position := range []string{"inline", "entry", "component"} {
+				param, ok := openapitest.ParamBySource(operation, position+"-"+suffix)
+				require.True(t, ok, position+"-"+suffix)
+				wire := "X-" + strings.ToUpper(position[:1]) + position[1:] + "-" + suffix
+				header, ok := headerByWire(operation.Responses[0].Headers, wire)
+				require.True(t, ok, wire)
+				paramWant, headerWant := own(ir.EntityRef{Param: q.ID})[member], own(ir.EntityRef{Property: xM.ID})[member]
+				if position == "entry" && member == "replaced" {
+					// A content entry's replacement key resolves nowhere, as beside
+					// an inline schema.
+					paramWant, headerWant = &ir.Deprecation{}, &ir.Deprecation{}
+				}
+				carriers = append(carriers,
+					carrier{param.Name.Source, ir.Property{Docs: param.Docs, Deprecation: param.Deprecation, Examples: param.Examples, Type: param.Type}, paramWant, "d", "{a: s}"},
+					carrier{wire, header.Property, headerWant, "d", "{a: s}"})
+			}
+		}
+		param, ok := openapitest.ParamBySource(operation, "written-"+spelling)
+		require.True(t, ok)
+		header, ok := headerByWire(operation.Responses[0].Headers, "X-Written-"+spelling)
+		require.True(t, ok)
+		carriers = append(carriers,
+			carrier{param.Name.Source, ir.Property{Docs: param.Docs, Deprecation: param.Deprecation, Examples: param.Examples, Type: param.Type},
+				&ir.Deprecation{Message: "own reason"}, "OWN", "{a: p}"},
+			carrier{header.WireName, header.Property, &ir.Deprecation{Message: "own reason"}, "OWN", "{a: p}"})
+	}
+	require.Len(t, carriers, cap(carriers), "every carrier is asked")
+	for _, tc := range carriers {
+		assert.Equal(t, tc.want, tc.property.Deprecation, "%s is deprecated, holding its own member alone", tc.name)
+		assert.Equal(t, tc.docs, tc.property.Docs.Description, tc.name)
+		assert.Equal(t, tc.example, exampleOf(t, tc.property.Examples), tc.name)
+		model, ok := kindNode(t, doc, tc.property.Type.Target).(*ir.Model)
+		require.True(t, ok, "%s names the Model its position owns", tc.name)
+		require.True(t, model.Anonymous, tc.name)
+		require.NotNil(t, model.Base, tc.name)
+		assert.Equal(t, componentID("Obj"), model.Base.Target, tc.name)
+		assert.Equal(t, &ir.Deprecation{}, model.Deprecation, "%s's node keeps the schema's deprecation whole", tc.name)
+		if tc.docs == "d" {
+			assert.Empty(t, model.Docs.Description, "%s holds the docs nothing at it writes over", tc.name)
+			assert.Empty(t, model.Examples, "%s holds the example nothing at it writes over", tc.name)
+		} else {
+			assert.Equal(t, "d", model.Docs.Description, "%s's node keeps the written-over docs", tc.name)
+			assert.Equal(t, "{a: s}", exampleOf(t, model.Examples), "%s's node keeps the written-over example", tc.name)
+		}
+	}
+	for _, diagnostic := range diags {
+		assert.Equal(t, "openapi/degraded-construct", diagnostic.Code, diagnostic.Message)
+		assert.Equal(t, "x-stability", diagnostic.Provenance.Pointer.LastToken(), diagnostic.Message)
+	}
+	assert.Len(t, diags, len(refMemberOnlySchemas)*3*2, "one finding per carrier writing the tier, every other key read")
+
+	reversedDoc, _ := compileRefMemberOnlyCarriers(t, true)
+	assert.Empty(t, cmp.Diff(doc.Types, reversedDoc.Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(doc.Services, reversedDoc.Services), "nor do the operations")
 }
 
 // exampleOf renders the one example of examples as flow-style YAML of one

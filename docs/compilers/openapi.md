@@ -1872,6 +1872,7 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `e2e.TestRefUseBound_ANoteIsTheCarriers`,
   `e2e.TestRefUseBound_WhatACarrierCannotHoldKeepsTheNode`,
   `e2e.TestRefUseBound_ANoteSomethingElseHoldsKeepsTheNode`,
+  `e2e.TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
   `e2e.TestRefUseBound_ATypeItsReferentDeclaresBindsTheUse`,
   `e2e.TestRefUseBound_ATypeWordNoDialectDefinesKeepsTheNode`,
   `e2e.TestRefUseBound_ATypeNamingOneKindOfAUnionKeepsTheNode`,
@@ -2046,6 +2047,7 @@ no span of it is marked ([references in prose](../ir/annotations.md#references-i
   `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
   `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
   `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `e2e.TestRefUseBound_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
   `operation.TestParams_AQuotedDeprecatedStatesNoDeprecation`
 
 ### `replacement-inference`
