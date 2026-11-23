@@ -193,9 +193,16 @@ func unionAside(loweringContext lowering.Ctx, schema *statement.Schema) bool {
 // usesOneRef reports whether schema, whose flattened conjuncts are comp, is a
 // use of one target saying nothing of it (usesOneRefHolding), the carrier
 // holding the notes carriedNotesAt gives it. It is the reference, as the $ref
-// alone is (docs/compilers/openapi.md#allof-classification).
+// alone is (docs/compilers/openapi.md#allof-classification). Where another
+// declaration of its member gives one of those notes otherwise
+// (notesGivenApart), a note is not quiet here, so the position keeps the node
+// the fold leaves on it the note the field does not keep.
 func usesOneRef(loweringContext lowering.Ctx, schema *statement.Schema, comp allOfComposition) bool {
-	return usesOneRefHolding(loweringContext, schema, comp, carriedNotesAt(loweringContext, schema))
+	notes := carriedNotesAt(loweringContext, schema)
+	if notes != (carriedNotes{}) && notesGivenApart(loweringContext, schema) {
+		notes = carriedNotes{}
+	}
+	return usesOneRefHolding(loweringContext, schema, comp, notes)
 }
 
 // usesOneRefHolding reports whether schema, whose flattened conjuncts are comp,
