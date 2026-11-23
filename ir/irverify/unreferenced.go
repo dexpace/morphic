@@ -46,13 +46,13 @@ func checkUnreferencedAnonymousTypes(doc *ir.Document) walkCheck {
 // anonGraph tracks reachability of anonymous types during the shared walk with
 // flat, pre-allocated slices so clean visits allocate nothing.
 type anonGraph struct {
-	anonIDs  []ir.TypeID
-	anonIdx  map[ir.TypeID]int
-	reached  []bool
-	stack    []int
-	edges    []anonEdge
-	inTypes  bool
-	ownerIdx int
+	anonIDs    []ir.TypeID
+	anonIndex  map[ir.TypeID]int
+	reached    []bool
+	stack      []int
+	edges      []anonEdge
+	inTypes    bool
+	ownerIndex int
 }
 
 // newAnonGraph indexes the anonymous types of types, or returns nil when none
@@ -74,17 +74,17 @@ func newAnonGraph(types ir.TypeRegistry) *anonGraph {
 		}
 	}
 	slices.Sort(ids)
-	idx := make(map[ir.TypeID]int, n)
+	index := make(map[ir.TypeID]int, n)
 	for i, id := range ids {
-		idx[id] = i
+		index[id] = i
 	}
 	return &anonGraph{
-		anonIDs:  ids,
-		anonIdx:  idx,
-		reached:  make([]bool, n),
-		stack:    make([]int, 0, n),
-		edges:    make([]anonEdge, 0, max(16, 4*n)),
-		ownerIdx: -1,
+		anonIDs:    ids,
+		anonIndex:  index,
+		reached:    make([]bool, n),
+		stack:      make([]int, 0, n),
+		edges:      make([]anonEdge, 0, max(16, 4*n)),
+		ownerIndex: -1,
 	}
 }
 
@@ -94,19 +94,19 @@ func (g *anonGraph) visit(v reflect.Value, at ir.WalkPath) bool {
 	t := v.Type()
 	if t == typeRegistryType {
 		g.inTypes = true
-		g.ownerIdx = -1
+		g.ownerIndex = -1
 		return true
 	}
 	if owner, _, ok := at.Field(); ok && owner == documentType {
 		g.inTypes = false
-		g.ownerIdx = -1
+		g.ownerIndex = -1
 	}
 	if g.inTypes && at.IsMapKey() && t == typeIDType {
 		key, _ := reflect.TypeAssert[ir.TypeID](v)
-		if idx, ok := g.anonIdx[key]; ok {
-			g.ownerIdx = idx
+		if index, ok := g.anonIndex[key]; ok {
+			g.ownerIndex = index
 		} else {
-			g.ownerIdx = -1
+			g.ownerIndex = -1
 		}
 		return false
 	}
@@ -124,19 +124,19 @@ func (g *anonGraph) visit(v reflect.Value, at ir.WalkPath) bool {
 // record marks id as a root when reached from outside Document.Types or from a
 // non-anonymous type, or appends an edge between anonymous types.
 func (g *anonGraph) record(id ir.TypeID) {
-	to, ok := g.anonIdx[id]
+	to, ok := g.anonIndex[id]
 	if !ok {
 		return
 	}
-	if !g.inTypes || g.ownerIdx < 0 {
+	if !g.inTypes || g.ownerIndex < 0 {
 		if !g.reached[to] {
 			g.reached[to] = true
 			g.stack = append(g.stack, to)
 		}
 		return
 	}
-	if to != g.ownerIdx {
-		g.edges = append(g.edges, anonEdge{from: g.ownerIdx, to: to})
+	if to != g.ownerIndex {
+		g.edges = append(g.edges, anonEdge{from: g.ownerIndex, to: to})
 	}
 }
 
