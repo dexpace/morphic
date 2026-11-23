@@ -10,10 +10,10 @@ github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLf
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.3/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
-github.com/speakeasy-api/jsonpath v0.7.0 h1:Pz7dS2AfuB745mnEcmg4qyS7wTJFiHH9zjW5kFX9b4E=
-github.com/speakeasy-api/jsonpath v0.7.0/go.mod h1:b9upx/gIKYwyKVcgRxvmdyKwAykzk88FCnNH3cwbw8w=
-github.com/speakeasy-api/openapi v1.26.3 h1:oBJMJiIMimijANZqBzA7qwhLwUzXMGwWi3iZgTSmGZI=
-github.com/speakeasy-api/openapi v1.26.3/go.mod h1:mBpPJFcBwcARRpedUYhZY3tzWFZ19eJKtZGUJsc+KW0=
+github.com/speakeasy-api/jsonpath v0.7.1 h1:vpBDKeT6av0v/g6oTwCfGh27iRDfMPaTQ2GvKK51TkQ=
+github.com/speakeasy-api/jsonpath v0.7.1/go.mod h1:b9upx/gIKYwyKVcgRxvmdyKwAykzk88FCnNH3cwbw8w=
+github.com/speakeasy-api/openapi v1.26.4 h1:hqq+y1aq2TJCMekHk+ggewr9ZucYOPJ9X6I+tbEt/rA=
+github.com/speakeasy-api/openapi v1.26.4/go.mod h1:zmxaZBdQ067EprBgARh1aVgK8ZSsKRYq43xshkmK1mU=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/pflag v1.0.9/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
