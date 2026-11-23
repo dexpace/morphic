@@ -198,12 +198,14 @@ that type is. A deprecation is the carrier's own where its object writes `deprec
 the compiler's promotion policy reads a deprecation or one of its members from, as does the content
 entry it elects; a Reference Object states none. The node then keeps the schema's deprecation whole,
 its message, dates and replacements with it, and the carrier holds its own members alone. Where the
-carrier holds the schema's notes, it is deprecated wherever its schema is: one writing only a
-message, a date, a replacement or a tier beside a deprecated schema is deprecated as one writing
+carrier holds the schema's notes, an inline schema's or those beside one `$ref` to an object
+([decorators](#decorators)), it is deprecated wherever its schema is: one writing only a message, a
+date, a replacement or a tier beside a deprecated schema is deprecated as one writing
 `deprecated: true` is, so it and the node are both deprecated and each member has one home. At a
-position a reference names, the node keeps the deprecation and the carrier holds none, its own
-member kept under `Unmodeled` alone. Where the schema hoists no node, the carrier's own
-documentation and examples still replace the schema's, which no node holds.
+position a reference names, and beside a `$ref` whose decorator stays for a keyword only a node
+keeps or for a note on a conjunct of its `allOf`, the node keeps the deprecation and the carrier
+holds none, its own member kept under `Unmodeled` alone. Where the schema hoists no node, the
+carrier's own documentation and examples still replace the schema's, which no node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a
@@ -285,10 +287,11 @@ description, in either spelling. A note no carrier holds makes the decorator: on
 union's branch or a component, one at a carried position a reference names, and one a parameter's
 or header's own note, or a Reference Object's beside its `$ref`, writes over, as do a keyword beside
 it that only a node keeps and a note written on a conjunct of the `allOf`. Where a written-over note
-makes it, each note of a kind nothing at the carrier writes over, its documentation, deprecation or
-examples, is still the carrier's, and one writing its own deprecation, even a member alone, is
-deprecated where the schema writes `deprecated: true`, holding its own members alone
-([one home](#one-structural-home-per-declaration)). A decorator holding a carrier's note as well was weighed and
+alone makes it, each note of a kind nothing at the carrier writes over, its documentation,
+deprecation or examples, is still the carrier's, and one writing its own deprecation, even a member
+alone, is deprecated where the schema writes `deprecated: true`, holding its own members alone
+([one home](#one-structural-home-per-declaration)); where anything else makes it, the carrier holds
+none of the schema's notes. A decorator holding a carrier's note as well was weighed and
 withdrawn (#2071): the two spellings agreed either way, but a reader of the carrier alone found the
 note there over a string target and not over an object one, and a target that became an object
 moved every user's note onto a node.

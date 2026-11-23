@@ -1820,17 +1820,20 @@ notes stay on the `Model`, which every reference reads; where the parameter or h
 own documentation, deprecation or examples, or a Reference Object naming it writes documentation
 beside its `$ref`, the schema's note of that kind stays on the `Model`, beside the carrier's own,
 while each note of a kind nothing at the carrier writes over, its documentation, deprecation or
-examples, is still the carrier's, each placed on its own as an inline schema's is. So a parameter
-or a header writing its own deprecation, even a member or a tier alone, is deprecated where the
-schema writes `deprecated: true`, holding its own members alone, while the `Model` keeps the
-schema's deprecation whole ([`docs-and-deprecation`](#docs-and-deprecation)). One case is open
+examples, is still the carrier's, each placed on its own as an inline schema's is. So where a
+written-over note alone keeps the `Model`, the carrier holds the schema's notes, and a parameter or
+a header writing its own deprecation, even a member or a tier alone, is deprecated where the schema
+writes `deprecated: true`, holding its own members alone, while the `Model` keeps the schema's
+deprecation whole ([`docs-and-deprecation`](#docs-and-deprecation)). One case is open
 there: beside a written-over note, the target's own `deprecated: true` deprecates the carrier and a
 key on the target stating a deprecation does not, though either deprecates a use
 ([`extension-promotion`](#extension-promotion)). A note an entry of the `allOf` writes, as in
 `{allOf: [{$ref: Obj}, {description: d}]}` or `{allOf: [{$ref: Obj, description: d}]}`, is a
 conjunct of its own and keeps the `Model`, and so does any keyword a carrier has no field for, an
-extension, `xml` or a constraint among them. The node holding the note at a carrier as well was
-weighed and withdrawn. It kept the two spellings alike, as this does, but left a carrier's
+extension, `xml` or a constraint among them. There, as where a reference names the position, the
+carrier holds none of the schema's notes, so one writing only a deprecation's member or a tier is
+not deprecated, its member kept under `Unmodeled` alone. The node holding the note at a carrier as
+well was weighed and withdrawn. It kept the two spellings alike, as this does, but left a carrier's
 own `Docs` set over a string target and empty over an object one, so a reader of the carrier alone,
 a differ, `pass` or a docs emitter not behind the fold, found the note on one and not the other, and
 a target changed from a string to an object moved its users' notes. Whether a carrier holds the
@@ -2026,11 +2029,13 @@ parameter or a header states itself stands on it the same way: where its object 
 `deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
 deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
 whole, members and replacement with it, and the carrier holds its own members alone. Where its
-carrier holds the schema's notes, it is deprecated wherever its schema is, by its keyword or a key,
+carrier holds the schema's notes, an inline schema's or those beside one `$ref` to an object
+([`ref-use-site`](#ref-use-site)), it is deprecated wherever its schema is, by its keyword or a key,
 so one writing only a message, a date, a replacement or a tier beside a deprecated schema is
 deprecated as one writing `deprecated: true` is, it and the node then both deprecated. At a position
-a reference names, the node keeps the deprecation and the carrier holds none, its own member kept
-under `Unmodeled` alone. A Reference Object
+a reference names, and beside a `$ref` whose `Model` stays for a keyword a carrier has no field for
+or for a note on an entry of its `allOf`, the node keeps the deprecation and the carrier holds none,
+its own member kept under `Unmodeled` alone. A Reference Object
 states none, as the keys beside its `$ref` are promoted nowhere
 ([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
 hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,

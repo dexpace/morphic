@@ -1297,10 +1297,12 @@ it sees. Changes made together in one bump are listed together under it.
   stays, as before, where the position writes beside its notes what a carrier has no field for, or
   writes a note on a conjunct of its `allOf`, where a reference names the position, and where the
   parameter or header, or a Reference Object naming it, writes its own documentation, deprecation
-  or examples over the schema's. Where it stays for such a written-over note, each note of a kind
-  nothing at the carrier writes over, its documentation, deprecation or examples, is the carrier's,
-  and the node holds none of them; a carrier writing its own deprecation, even a member alone, is
-  deprecated where the schema writes `deprecated: true` and holds its own members alone, the node
-  keeping the schema's whole, as 0.73.0 has it beside an inline schema. A consumer pinned to 0.73.0
+  or examples over the schema's. Where it stays for such a written-over note alone, each note of a
+  kind nothing at the carrier writes over, its documentation, deprecation or examples, is the
+  carrier's, and the node holds none of them; a carrier writing its own deprecation, even a member
+  alone, is deprecated where the schema writes `deprecated: true` and holds its own members alone,
+  the node keeping the schema's whole, as 0.73.0 has it beside an inline schema. Where it stays for
+  anything else, the carrier holds none of the schema's notes, and one writing only a member is not
+  deprecated, as 0.73.0 has it at a position a reference names. A consumer pinned to 0.73.0
   refuses the document; one reading an older document finds such a use's notes on the decorator
   its type names, and none on the carrier.
