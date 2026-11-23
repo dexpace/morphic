@@ -81,6 +81,7 @@ func keepItemEncoding(serviceContext service.Ctx, content *ir.Content, media *so
 	if !kept {
 		return diags
 	}
+	schema.RecordReached(serviceContext.Ctx, at)
 	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"itemEncoding belongs to a media type that is not multipart, where it has no effect, so Content.ItemEncoding "+
 			"has none; kept verbatim under Unmodeled"))
@@ -136,6 +137,8 @@ func positionalEncoding(serviceContext service.Ctx, content *ir.Content, media *
 			"prefixEncoding is declared but its source node could not be read; it is "+
 				"represented in the IR in no form at all"))
 	}
+	schema.RecordReached(serviceContext.Ctx, at)
+	schema.RecordReached(serviceContext.Ctx, mediaPtr+ids.Ptr("itemEncoding"))
 	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
 }

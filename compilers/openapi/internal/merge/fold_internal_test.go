@@ -436,6 +436,52 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	assert.True(t, folding.lost[1])
 }
 
+// TestFold_DropOmitsAnonymousLoserTypeID pins that (*folding).drop never embeds
+// an anonymous losing type ID (which post-settlement pruning may remove) in
+// relDisjoint, relOverlap, or default diagnostic messages, while keeping
+// non-anonymous losing type IDs in relDisjoint messages.
+func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
+	t.Parallel()
+	const anonLoser ir.TypeID = "type/anonymous/allOf/1/properties/p"
+	reg := narrowingRegistry()
+	reg[anonLoser] = &ir.Model{ID: anonLoser, Anonymous: true, Provenance: ptrAt("/allOf/1/properties/p")}
+
+	for _, tc := range []struct {
+		name     string
+		rel      relation
+		loser    ir.TypeID
+		wantSub  string
+		wantGone string
+	}{
+		{"disjoint anonymous loser omits ID", relDisjoint, anonLoser, "/allOf/1/properties/p", string(anonLoser)},
+		{"disjoint primitive loser keeps ID", relDisjoint, "type/primitive/integer", "type/primitive/integer", ""},
+		{"overlap anonymous loser omits ID", relOverlap, anonLoser, "whose values overlap", string(anonLoser)},
+		{"uncompared anonymous loser omits ID", relUnrelated, anonLoser, "that the merge does not compare", string(anonLoser)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			stubbed, _ := stubMerger(reg)
+			d0 := stringAt("/allOf/0/properties/p", `{}`)
+			d1 := declaration{
+				property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.loser}, Provenance: ptrAt("/allOf/1/properties/p")},
+				source:   written(`{}`),
+			}
+			decls := []declaration{d0, d1}
+			_, field := fieldSpan(decls)
+			folding := newFolding(&stubbed.Merger, decls, field)
+			folding.rel[folding.winner][1] = tc.rel
+
+			folding.drop(1)
+
+			require.Len(t, folding.notes[1], 1)
+			assert.Contains(t, folding.notes[1][0].message, tc.wantSub)
+			if tc.wantGone != "" {
+				assert.NotContains(t, folding.notes[1][0].message, tc.wantGone)
+			}
+		})
+	}
+}
+
 // TestSameExamples_ComparesEachExampleWhole pins that two example lists agree
 // only where each example agrees whole: its value as one JSON value, and its
 // name, summary and description as written, a missing value included.

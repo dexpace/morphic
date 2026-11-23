@@ -16,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
@@ -114,11 +113,6 @@ func CarriedRef(loweringContext lowering.Ctx, ts *compile.Types, depth int, js *
 // reaches the two places that can hoist an annotation-holding alias.
 func schemaRefHomed(loweringContext lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	if depth == TopLevelDepth {
-		if pos := loweringContext.Position(pointer); pos.Doc != reftable.Source {
-			recordReachedSchema(loweringContext, pos)
-		}
-	}
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
@@ -131,6 +125,9 @@ func schemaRefHomed(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 		// It nests nothing, so the depth bound reports none at its pointer, as
 		// a tuple's absent rest would otherwise draw.
 		return ts.PrimitiveRef(ir.PrimitiveAny), nil
+	}
+	if depth == TopLevelDepth {
+		recordReachedSchema(loweringContext, loweringContext.Position(pointer))
 	}
 	depth++
 	if depth > maxSchemaDepth {

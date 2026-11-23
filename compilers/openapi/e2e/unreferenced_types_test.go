@@ -522,3 +522,100 @@ $defs:
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": want}, doc.Types["type/openapi/components/schemas/Holder"].Common().Unmodeled["openapi:not"].Targets)
 	assert.Empty(t, irverify.Verify(doc))
 }
+
+// TestCompile_UnusedReusableComponentsDoNotReserveDefs verifies that
+// unreferenced reusable components (parameters, headers, requestBodies,
+// responses, pathItems, callbacks, mediaTypes) referencing a $defs entry do
+// not reserve that $defs entry and compile cleanly under irverify.Verify,
+// while referenced components and kept verbatim operation constructs still
+// reserve and attach their targets.
+func TestCompile_UnusedReusableComponentsDoNotReserveDefs(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /used:
+    get:
+      operationId: getUsed
+      parameters:
+        - {$ref: '#/components/parameters/UsedParam'}
+        - name: multi
+          in: query
+          content:
+            application/json:
+              schema: {type: string}
+            text/plain:
+              schema: {$ref: '#/components/schemas/Holder/$defs/FromPassedContent'}
+      responses:
+        "200": {description: ok}
+  /empty:
+    parameters:
+      - name: inlineOnEmpty
+        in: query
+        schema: {$ref: '#/components/schemas/Holder/$defs/FromEmptyPath'}
+components:
+  schemas:
+    Holder:
+      type: object
+      $defs:
+        Unused: {type: object, properties: {u: {type: string}}}
+        FromUsed: {type: object, properties: {l: {type: string}}}
+        FromPassedContent: {type: object, properties: {c: {type: string}}}
+        FromEmptyPath: {type: object, properties: {e: {type: string}}}
+  parameters:
+    UsedParam:
+      name: used
+      in: query
+      schema: {$ref: '#/components/schemas/Holder/$defs/FromUsed'}
+    UnusedParam:
+      name: p
+      in: query
+      schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+  headers:
+    UnusedHeader:
+      schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+  requestBodies:
+    UnusedBody:
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+  responses:
+    UnusedResp:
+      description: unused
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+  pathItems:
+    UnusedPath:
+      get:
+        responses:
+          "200":
+            description: ok
+            content:
+              application/json:
+                schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+  callbacks:
+    UnusedCb:
+      '{$request.body#/url}':
+        post:
+          requestBody:
+            content:
+              application/json:
+                schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+          responses:
+            "200": {description: ok}
+  mediaTypes:
+    UnusedMedia:
+      schema: {$ref: '#/components/schemas/Holder/$defs/Unused'}
+`
+	doc, _ := parseVerified(t, spec)
+	assert.Empty(t, irverify.Verify(doc))
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/$defs/Unused"))
+	for _, want := range []ir.TypeID{
+		"type/anonymous/components/schemas/Holder/$defs/FromUsed",
+		"type/anonymous/components/schemas/Holder/$defs/FromPassedContent",
+		"type/anonymous/components/schemas/Holder/$defs/FromEmptyPath",
+	} {
+		assert.Contains(t, doc.Types, want, "referenced/kept target %s must stay live", want)
+	}
+}

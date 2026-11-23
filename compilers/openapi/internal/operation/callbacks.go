@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,6 +42,7 @@ func operationCallbacks(serviceContext service.Ctx, loweringState operationLower
 	written, diags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("", "callbacks"),
 		nodeview.Child(src.GetRootNode(), "callbacks"), ir.ReasonDegradedLowering, serviceContext.Place().At(at))
 	if written {
+		schema.RecordReached(serviceContext.Ctx, at)
 		diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"callbacks nested deeper than %d levels are not lowered; they are kept verbatim on the HTTP binding "+
 				"of the operation declaring them", maxCallbackNesting))

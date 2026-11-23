@@ -1786,9 +1786,11 @@ recorded discard sites are: losing property declarations in
 `additionalProperties` values dropped when closing a model (such as a `false` `allOf` branch), and
 the tail of a broken `discriminator` mapping chain lowered solely to report its failing `$ref`.
 Targets of `$ref` chains inside unreferenced `$defs` or `definitions` entries (for example,
-`$defs.A` referencing `$defs.B` when nothing in the API reaches `A`) are never reserved during
-reference-target reservation rather than minted and pruned, consistent with
-[`vocabulary-coverage`](#vocabulary-coverage).
+`$defs.A` referencing `$defs.B` when nothing in the API reaches `A`) and inside unreferenced
+reusable component sections (`components/{parameters,headers,requestBodies,responses,pathItems,callbacks,mediaTypes}`,
+which are never lowered) are never reserved during reference-target reservation rather than minted
+and pruned, consistent with [`vocabulary-coverage`](#vocabulary-coverage): reservation seeds its
+worklist only from positions actually visited or kept verbatim by lowering.
 
 Every entry of `components/schemas` (including one keyed `""`, at
 `type/openapi/components/schemas/`) has `Anonymous: false` and is never pruned, and every resolved
@@ -1801,6 +1803,7 @@ Every entry of `components/schemas` (including one keyed `""`, at
   `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
   `schema.TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs`,
   `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
+  `e2e.TestCompile_UnusedReusableComponentsDoNotReserveDefs`,
   `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
   `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`
 

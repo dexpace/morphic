@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
@@ -91,6 +92,7 @@ func keepIgnoredFields(serviceContext service.Ctx, enc *soa.Encoding, encPtr jso
 			nodeview.Child(enc.GetRootNode(), field), ir.ReasonNoIRHome, serviceContext.Place().At(at))
 		diags = append(diags, keepDiags...)
 		if written {
+			schema.RecordReached(serviceContext.Ctx, at)
 			diags = append(diags, serviceContext.DiagAt(ir.SeverityWarning, specrules.NoEffect, at,
 				"Encoding Object field %q has no effect under %q, where the specification ignores it; kept verbatim under Unmodeled",
 				field, mt))
@@ -142,6 +144,7 @@ func nestedEncodings(serviceContext service.Ctx, out *ir.Unmodeled, enc *soa.Enc
 		if !kept {
 			continue
 		}
+		schema.RecordReached(serviceContext.Ctx, at)
 		diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding %s has no ir.PartEncoding home; kept verbatim under Unmodeled", keyword))
 	}

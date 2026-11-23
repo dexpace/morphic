@@ -193,6 +193,7 @@ func keepEntry(serviceContext service.Ctx, unmodeled *ir.Unmodeled, name string,
 	if !written {
 		return false, diags
 	}
+	schema.RecordReached(serviceContext.Ctx, at)
 	return true, append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"encoding entry %q %s, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name, why))
 }

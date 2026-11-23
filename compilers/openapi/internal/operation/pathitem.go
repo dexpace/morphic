@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -499,6 +500,7 @@ func keepItemParams(serviceContext service.Ctx, into carrier, pi *soa.PathItem, 
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
 		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
 			ir.ReasonNoIRHome, serviceContext.Place().At(entry))
+		schema.RecordReached(serviceContext.Ctx, entry)
 		diags = append(diags, keepDiags...)
 	}
 	return diags

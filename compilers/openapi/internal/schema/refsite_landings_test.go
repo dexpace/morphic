@@ -4,6 +4,8 @@
 package schema_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -182,4 +184,34 @@ func TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs(t *testing.T) {
 	plain, emptyPromised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Leaf: {type: string}
 `))
 	assert.Empty(t, cmp.Diff(plain.Types, emptyPromised.Types))
+
+	// Reverse-ordered $defs chain exercises linear worklist propagation
+	// (every hop lands on an earlier pointer in sorted table order).
+	const chainLen = 200
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "    Chain:\n      type: object\n      not: {$ref: '#/components/schemas/Chain/$defs/D%04d'}\n      $defs:\n", chainLen-1)
+	sb.WriteString("        D0000: {type: object, properties: {leaf: {type: string}}}\n")
+	for i := 1; i < chainLen; i++ {
+		fmt.Fprintf(&sb, "        D%04d: {type: object, not: {$ref: '#/components/schemas/Chain/$defs/D%04d'}}\n", i, i-1)
+	}
+	_, chainPromised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", sb.String()))
+	assert.Contains(t, chainPromised.Types, ir.TypeID("type/anonymous/components/schemas/Chain/$defs/D0000"))
+	assert.Contains(t, chainPromised.Types, ir.TypeID(fmt.Sprintf("type/anonymous/components/schemas/Chain/$defs/D%04d", chainLen-1)))
+
+	// RecordReached activates sites beneath an explicitly recorded container.
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
+      type: object
+      $defs:
+        X: {type: object, properties: {a: {type: string}}}
+`)+`  parameters:
+    Extra:
+      name: p
+      in: query
+      schema: {$ref: '#/components/schemas/Holder/$defs/X'}
+`)
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	schema.RecordReached(lowerer.Ctx, "/components/parameters/Extra")
+	schema.ReserveNodesAtReferenceTargets(lowerer.Ctx, lowerer.Types)
+	recordedDoc := lowerer.Document(t)
+	assert.Contains(t, recordedDoc.Types, ir.TypeID("type/anonymous/components/schemas/Holder/$defs/X"))
 }

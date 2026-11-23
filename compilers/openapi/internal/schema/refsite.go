@@ -163,9 +163,17 @@ func runTrackersOf(loweringContext lowering.Ctx) *runTrackers {
 	})
 }
 
-// recordReachedSchema marks pos as a reached schema root for this compile.
+// recordReachedSchema marks pos as a reached position for this compile.
 func recordReachedSchema(loweringContext lowering.Ctx, pos reftable.DocumentPointer) {
 	runTrackersOf(loweringContext).reachedSchemas[pos] = true
+}
+
+// RecordReached marks pointer in loweringContext's document as a position
+// preserved verbatim by lowering (such as a kept encoding, callback, parameter,
+// or content entry) so ReserveNodesAtReferenceTargets reserves schema $ref
+// targets reachable beneath it without consulting unvisited components.
+func RecordReached(loweringContext lowering.Ctx, pointer jsontext.Pointer) {
+	recordReachedSchema(loweringContext, loweringContext.Position(pointer))
 }
 
 // recordDiscarded records id as explicitly superseded or dropped during this
@@ -182,17 +190,16 @@ func DiscardedTypes(loweringContext lowering.Ctx) map[ir.TypeID]bool {
 }
 
 // ReserveNodesAtReferenceTargets promises a node at each position a reachable
-// schema $ref of the bindings' table lands on, hop by hop, so a position only
-// a keyword kept verbatim names, a `not` or an `if`, or only an alias a chain
-// passes, is lowered as one a lowered keyword names is, where its hop lands
-// (reftable.ReferenceSite.Lands): a member of a loop of $refs lands nowhere.
-// Sites inside unreferenced $defs or definitions tables, or inside unreached
-// external documents and raw extensions, are skipped so unreferenced
-// definitions never mint orphan nodes. A position a lowering already reached
-// keeps the node built there (compile.Types.ReserveNodeAtCoordinate).
+// schema $ref of the bindings' table lands on, hop by hop, so positions named
+// only by verbatim keywords (`not`, `if`) or alias chains lower where their
+// hops land (reftable.ReferenceSite.Lands). Reachability starts from positions
+// visited or kept verbatim by lowering and propagates along a linear worklist
+// without entering unreferenced $defs or definitions tables, so unvisited
+// reusable components and unreferenced definitions never mint orphan nodes.
 func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Types) {
+	table := loweringContext.Bindings().Table()
 	var sites []reftable.ReferenceSite
-	for _, entry := range loweringContext.Bindings().Table().Entries() {
+	for _, entry := range table.Entries() {
 		if entry.Lands() {
 			sites = append(sites, entry)
 		}
@@ -200,39 +207,46 @@ func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Ty
 	if len(sites) == 0 {
 		return
 	}
-	reached := maps.Clone(runTrackersOf(loweringContext).reachedSchemas)
+	byAncestor := indexSitesByAncestor(table, sites)
+	visited := maps.Clone(runTrackersOf(loweringContext).reachedSchemas)
+	worklist := make([]reftable.DocumentPointer, 0, len(visited))
+	for pos := range visited {
+		worklist = append(worklist, pos)
+	}
+	slices.SortFunc(worklist, reftable.PositionOrder(table))
 	reserved := make([]bool, len(sites))
-	for progress := true; progress; {
-		progress = false
-		for i, site := range sites {
-			if reserved[i] || !siteReachable(site.Site, reached) {
+	for head := 0; head < len(worklist); head++ {
+		for _, i := range byAncestor[worklist[head]] {
+			if reserved[i] {
 				continue
 			}
 			reserved[i] = true
-			resolveAt(loweringContext, ts, site.Hop.Target, loweringContext.Statements().At(site.Hop.Target))
-			if !reached[site.Hop.Target] {
-				reached[site.Hop.Target] = true
-				progress = true
+			target := sites[i].Hop.Target
+			resolveAt(loweringContext, ts, target, loweringContext.Statements().At(target))
+			if !visited[target] {
+				visited[target] = true
+				worklist = append(worklist, target)
 			}
 		}
 	}
 }
 
-// siteReachable reports whether site lies under an OpenAPI source root or a
-// reached schema root without stepping through a $defs or definitions table.
-func siteReachable(site reftable.DocumentPointer, reached map[reftable.DocumentPointer]bool) bool {
-	if site.Doc == reftable.Source && reftable.ReachesSchemaWithoutDefs(site.Pointer, false) {
-		return true
-	}
-	for ptr := site.Pointer; ; ptr = ptr.Parent() {
-		if reached[reftable.DocumentPointer{Doc: site.Doc, Pointer: ptr}] &&
-			reftable.ReachesSchemaWithoutDefs(site.Pointer[len(ptr):], true) {
-			return true
+// indexSitesByAncestor maps each ancestor DocumentPointer at or beneath a
+// site's definitions ceiling (reftable.DefinitionsCeiling) to the indices in
+// sites that reaching that ancestor activates.
+func indexSitesByAncestor(table *reftable.ReferenceTargetTable, sites []reftable.ReferenceSite) map[reftable.DocumentPointer][]int {
+	byAncestor := make(map[reftable.DocumentPointer][]int, len(sites))
+	for i, site := range sites {
+		ceil := reftable.DefinitionsCeiling(table, site.Site)
+		for ptr := site.Site.Pointer; ; ptr = ptr.Parent() {
+			pos := reftable.DocumentPointer{Doc: site.Site.Doc, Pointer: ptr}
+			byAncestor[pos] = append(byAncestor[pos], i)
+			if ptr == ceil {
+				break
+			}
 		}
-		if ptr == "" {
-			return false
-		}
 	}
+	return byAncestor
 }
 
 // LandingSite locates a source construct carrying type references: the input

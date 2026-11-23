@@ -125,4 +125,5 @@ to parse format-specific JSON.
 Because `irverify` runs on every stage's output, this rule binds every compiler and every IR pass
 alike. A compiler that hoists inline nodes during lowering whose references are later superseded
 (such as `allOf` property folds or distributed unions), and any pass that rewrites references off
-an anonymous node (such as `constunions`), must prune any anonymous type left unreachable.
+an anonymous node (`constunions`, for example, removes every branch type referenced solely by the
+unions it rewrites), must prune any anonymous type left unreachable.

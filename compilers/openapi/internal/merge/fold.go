@@ -310,13 +310,13 @@ func newFolding(merger *Merger, decls []declaration, field jsontext.Pointer) *fo
 // its type (drop).
 func (f *folding) foldType() {
 	target := f.meetField()
+	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
+	f.merged.Type.Target = target
 	for i := range f.decls {
 		if !f.cone[i] {
 			f.drop(i)
 		}
 	}
-	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
-	f.merged.Type.Target = target
 	f.typeAt = f.g.typeSites(f.merged, f.decls)
 }
 
@@ -353,21 +353,30 @@ func (f *folding) meetField() ir.TypeID {
 // things.
 func (f *folding) drop(i int) {
 	f.lost[i] = true
-	typeRef, irTypeRef := f.decls[f.winner].property.Type, f.decls[i].property.Type
+	kept, loser := f.merged.Type.Target, f.decls[i].property.Type.Target
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
-		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", typeRef.Target, irTypeRef.Target))
+		f.disagree(i, f.winner, incompatibleDetail(f, kept, loser, i))
 	case relOverlap, secondTypeIsNarrower, relMeet:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
-				"narrow to one; kept the type the declaration at %s gives over the one at %s, which %s",
-			f.merged.WireName, typeRef.Target, irTypeRef.Target, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+			"declarations of field %q give types whose values overlap but that the merge does not "+
+				"narrow to one; kept %s (from %s) over the declaration at %s, which %s",
+			f.merged.WireName, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
 	default:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types %s and %s that the merge does not compare; kept the type the "+
-				"declaration at %s gives over the one at %s, which %s",
-			f.merged.WireName, typeRef.Target, irTypeRef.Target, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+			"declarations of field %q give types that the merge does not compare; kept %s (from %s) "+
+				"over the declaration at %s, which %s",
+			f.merged.WireName, kept, f.at(f.winner), f.at(i), f.decls[i].keptAs())
 	}
+}
+
+// incompatibleDetail formats a type-disjointness detail without citing an
+// anonymous losing type ID that post-settlement pruning may remove.
+func incompatibleDetail(f *folding, kept, loser ir.TypeID, i int) string {
+	if td, ok := f.g.resolve(loser); ok && td.Common().Anonymous {
+		return fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, f.at(i))
+	}
+	return fmt.Sprintf("incompatible types %s and %s", kept, loser)
 }
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says
