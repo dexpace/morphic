@@ -1772,30 +1772,34 @@ property or parameter that carries it ([`constraints`](#constraints)).
 Once every lowering and post-lowering settlement has finished (`allOf` property folds, distributed
 unions, `false` branches, and reference-target reservations), the compiler attaches
 `UnmodeledEntry.Targets` for every resolved schema `$ref` and kept `discriminator` route written
-inside a kept verbatim payload, keyed by its RFC 6901 JSON Pointer inside `Value`, and then prunes
-every `Anonymous: true` type in `Document.Types` that is not reachable through typed `TypeID`
-references from a non-anonymous type or a reference outside `Document.Types`
+inside a kept verbatim payload, keyed by its RFC 6901 JSON Pointer inside `Value`, and then runs
+seeded pruning over `Document.Types`: starting from the `TypeID`s explicitly recorded as superseded
+or dropped during lowering and settlement, it removes every `Anonymous: true` type reachable from
+those seeds that is not reachable through typed `TypeID` references from a non-anonymous type or a
+reference outside `Document.Types`
 ([type-graph](../ir/type-graph.md#reachability-of-anonymous-types)).
 
-This removes anonymous nodes hoisted during lowering whose references were later superseded or
-dropped — including losing declarations in [`allof-redeclared-property`](#allof-redeclared-property)
-folds, outer properties superseded by distributed unions, and `additionalProperties` dropped by a
-`false` `allOf` branch — together with any anonymous nodes reachable only through them. It also
-prunes targets promised for `$ref` chains inside unreferenced `$defs` entries (for example,
-`$defs.A` referencing `$defs.B` when nothing in the API reaches `A`); those targets are dropped
-without a diagnostic, consistent with [`vocabulary-coverage`](#vocabulary-coverage), which treats
-`$defs` as a definition table whose members lower only where a `$ref` from a live schema reaches
-them and have no effect on the API otherwise.
+Pruning is seeded rather than unconditional so `irverify`'s `ir/unreferenced-anonymous-type` check
+still catches accidental compiler leaks on OpenAPI output instead of silently deleting them. The
+recorded discard sites are: losing property declarations in
+[`allof-redeclared-property`](#allof-redeclared-property) folds and distributed unions, catch-all
+`additionalProperties` values dropped when closing a model (such as a `false` `allOf` branch), and
+the tail of a broken `discriminator` mapping chain lowered solely to report its failing `$ref`.
+Targets of `$ref` chains inside unreferenced `$defs` or `definitions` entries (for example,
+`$defs.A` referencing `$defs.B` when nothing in the API reaches `A`) are never reserved during
+reference-target reservation rather than minted and pruned, consistent with
+[`vocabulary-coverage`](#vocabulary-coverage).
 
 Every entry of `components/schemas` (including one keyed `""`, at
 `type/openapi/components/schemas/`) has `Anonymous: false` and is never pruned, and every resolved
 `$ref` or `discriminator` route inside a kept `Unmodeled` payload is recorded on
 `UnmodeledEntry.Targets` before pruning so its landing and transitive dependencies stay live.
 
-- Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlyUnreachableAnonymousNodes`,
+- Tests: `openapi.TestPruneUnreferencedTypes_RemovesOnlySeededUnreachableAnonymousNodes`,
   `openapi.TestPruneUnreferencedTypes_FastPathsAndStoppedWalks`,
   `openapi.TestPruneUnreferencedTypes_ValueCarriers`,
   `openapi.TestAttachUnmodeledTargets_MatchesEveryEntryForm`,
+  `schema.TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs`,
   `e2e.TestCompile_RedeclaredPropertyPrunesLosingAnonymousNode`,
   `e2e.TestCompile_PromisedLandingsResolveAfterPruning`,
   `e2e.TestCompile_ExternalKeptRefLandingResolvesAfterPruning`

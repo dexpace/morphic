@@ -21,26 +21,33 @@ var (
 // truncation and cancellation.
 type walkContextFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
-// pruneUnreferencedTypes returns doc with every anonymous type in doc.Types
-// that nothing reaches removed through an ir.Editor. A node is live when any
-// non-anonymous type or any typed ir.TypeID outside doc.Types reaches it
-// through typed TypeID references (including UnmodeledEntry.Targets). A
+// pruneUnreferencedTypes returns doc with every unreachable anonymous type
+// seeded from discarded (a discarded node or an anonymous descendant reachable
+// only through discarded nodes) removed through an ir.Editor. A node is live
+// when any non-anonymous type or any typed ir.TypeID outside doc.Types reaches
+// it through typed TypeID references (including UnmodeledEntry.Targets). Any
+// unreachable anonymous node not seeded from discarded is deliberately left in
+// doc.Types so irverify reports accidental orphans instead of hiding them. A
 // cancelled or truncated walk removes nothing so no live type is dropped.
-func pruneUnreferencedTypes(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	return pruneUnreferencedTypesWith(ctx, doc, ir.WalkValuesContext)
+func pruneUnreferencedTypes(ctx context.Context, doc *ir.Document, discarded map[ir.TypeID]bool) (*ir.Document, []ir.Diagnostic) {
+	return pruneUnreferencedTypesWith(ctx, doc, discarded, ir.WalkValuesContext)
 }
 
 // pruneUnreferencedTypesWith is pruneUnreferencedTypes walking with walk.
-func pruneUnreferencedTypesWith(ctx context.Context, doc *ir.Document, walk walkContextFunc) (*ir.Document, []ir.Diagnostic) {
+func pruneUnreferencedTypesWith(ctx context.Context, doc *ir.Document, discarded map[ir.TypeID]bool, walk walkContextFunc) (*ir.Document, []ir.Diagnostic) {
+	if len(discarded) == 0 {
+		return doc, nil
+	}
 	anon := anonymousTypes(doc.Types)
-	if len(anon) == 0 {
+	seeds := anonymousSeeds(anon, discarded)
+	if len(seeds) == 0 {
 		return doc, nil
 	}
 	collector := newTypeEdgeCollector(anon)
 	if !collector.walk(ctx, doc, walk) {
 		return doc, nil
 	}
-	dead := unreachableAnonymous(anon, collector.roots, collector.edges)
+	dead := unreachableSeeded(seeds, collector.roots, collector.edges)
 	if len(dead) == 0 {
 		return doc, nil
 	}
@@ -49,6 +56,18 @@ func pruneUnreferencedTypesWith(ctx context.Context, doc *ir.Document, walk walk
 		editor.RemoveType(id)
 	}
 	return editor.Finish()
+}
+
+// anonymousSeeds returns the IDs in discarded that exist as anonymous types in
+// anon.
+func anonymousSeeds(anon, discarded map[ir.TypeID]bool) []ir.TypeID {
+	var seeds []ir.TypeID
+	for id := range discarded {
+		if anon[id] {
+			seeds = append(seeds, id)
+		}
+	}
+	return seeds
 }
 
 // anonymousTypes returns the set of anonymous type IDs in types, skipping any
@@ -203,31 +222,39 @@ func holdsTypeID(t reflect.Type) (bool, []reflect.Type) {
 	}
 }
 
-// unreachableAnonymous returns, in sorted order, every ID in anon that no path
-// in edges from roots reaches.
-func unreachableAnonymous(anon map[ir.TypeID]bool, roots []ir.TypeID, edges map[ir.TypeID][]ir.TypeID) []ir.TypeID {
-	reached := make(map[ir.TypeID]bool, len(anon))
+// unreachableSeeded returns, in sorted order, every anonymous ID reachable via
+// edges from seeds that no path in edges from roots reaches.
+func unreachableSeeded(seeds, roots []ir.TypeID, edges map[ir.TypeID][]ir.TypeID) []ir.TypeID {
+	live := make(map[ir.TypeID]bool, len(roots))
 	stack := slices.Clone(roots)
 	for len(stack) > 0 {
 		id := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if reached[id] {
+		if live[id] {
 			continue
 		}
-		reached[id] = true
+		live[id] = true
 		for _, next := range edges[id] {
-			if !reached[next] {
+			if !live[next] {
 				stack = append(stack, next)
 			}
 		}
 	}
-	if len(reached) == len(anon) {
-		return nil
-	}
-	dead := make([]ir.TypeID, 0, len(anon)-len(reached))
-	for id := range anon {
-		if !reached[id] {
-			dead = append(dead, id)
+	pruned := make(map[ir.TypeID]bool)
+	var dead []ir.TypeID
+	stack = slices.Clone(seeds)
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if live[id] || pruned[id] {
+			continue
+		}
+		pruned[id] = true
+		dead = append(dead, id)
+		for _, next := range edges[id] {
+			if !live[next] && !pruned[next] {
+				stack = append(stack, next)
+			}
 		}
 	}
 	slices.Sort(dead)

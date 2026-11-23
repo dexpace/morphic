@@ -64,7 +64,7 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 	tied, moved := tiedBy(stated, restated), ties
 	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, tied))))
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
-	ties = prunedByTie(ties, first, second, perm, stated, tied)
+	ties = prunedByTie(ties, first, second, perm)
 	ties.stated = statedAlone(statedAlone(tied, moved, ties.nodes, first, perm.written), moved, ties.nodes, second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
 	refused := oneRefusal(first, second)
@@ -405,25 +405,20 @@ func inferenceTied(doc *ir.Document, union *ir.Union, isTied func(ir.PropertyDec
 }
 
 // prunedByTie returns ties with each anonymous type node present in only one
-// of first and second at or beneath a tied member or its tied declarations:
-// when a tie trades which declaration wins, the compiler prunes the losing
-// declaration's unreferenced anonymous node and its descendants, so the node
-// exists only in the order where that declaration won. A node present at the
-// same rebased ID in both documents stays compared.
-func prunedByTie(ties tieSites, first, second *ir.Document, perm permutation, stated []fact, tied []string) tieSites {
-	if first == nil || second == nil || len(ties.members)+len(tied) == 0 {
+// of first and second that is reachable from a tied property in the document
+// holding it: when a tie trades which declaration wins, seeded pruning removes
+// the losing declaration's unreferenced anonymous node and its unreachable
+// descendants, so those nodes exist only in the order where that declaration
+// won. Nodes present at the same rebased ID in both documents, and any node
+// not reachable from a tied property, stay compared.
+func prunedByTie(ties tieSites, first, second *ir.Document, perm permutation) tieSites {
+	if first == nil || second == nil || len(ties.nodes) == 0 {
 		return ties
-	}
-	sites := slices.Clone(ties.members)
-	for _, f := range stated {
-		if _, isTied := slices.BinarySearch(tied, f.member); isTied {
-			sites = append(sites, pointerOf(f.lost), pointerOf(f.kept))
-		}
 	}
 	firstIDs := rebasedTypeIDs(first, nil)
 	secondIDs := rebasedTypeIDs(second, perm.moved)
-	extra := appendPruned(nil, first, nil, perm.written, secondIDs, sites)
-	extra = appendPruned(extra, second, perm.moved, perm.moved, firstIDs, sites)
+	extra := appendPruned(nil, first, nil, perm.written, secondIDs, ties.nodes)
+	extra = appendPruned(extra, second, perm.moved, perm.moved, firstIDs, ties.nodes)
 	if len(extra) == 0 {
 		return ties
 	}
@@ -442,14 +437,41 @@ func rebasedTypeIDs(doc *ir.Document, from sequences) map[string]bool {
 }
 
 // appendPruned appends the erased ID of each anonymous type in doc absent from
-// other (by rebased ID) whose erased pointer sits at or beneath sites.
-func appendPruned(dst []string, doc *ir.Document, rebaseFrom, eraseSeqs sequences, other map[string]bool, sites []string) []string {
-	for id, td := range doc.Types {
-		if ir.IsNilTypeDef(td) || !td.Common().Anonymous || other[rebase(string(id), rebaseFrom)] {
+// other (by rebased ID) that is reachable through anonymous nodes from a tied
+// property (one whose erased ID is in tiedNodes).
+func appendPruned(dst []string, doc *ir.Document, rebaseFrom, eraseSeqs sequences, other map[string]bool, tiedNodes []string) []string {
+	seen := map[ir.TypeID]bool{}
+	var stack []ir.TypeID
+	push := func(id ir.TypeID) {
+		if !seen[id] {
+			seen[id] = true
+			stack = append(stack, id)
+		}
+	}
+	for _, td := range doc.Types {
+		model, ok := td.(*ir.Model)
+		if !ok {
 			continue
 		}
-		if atSite(sites, erase(string(td.Common().Provenance.Pointer), eraseSeqs)) {
+		for i := range model.Properties {
+			prop := &model.Properties[i]
+			if _, isTied := slices.BinarySearch(tiedNodes, erase(string(prop.ID), eraseSeqs)); isTied {
+				push(prop.Type.Target)
+			}
+		}
+	}
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		td, ok := doc.Types[id]
+		if !ok || !td.Common().Anonymous {
+			continue
+		}
+		if !other[rebase(string(id), rebaseFrom)] {
 			dst = append(dst, erase(string(id), eraseSeqs))
+		}
+		for next := range ir.TypeEdges(td) {
+			push(next)
 		}
 	}
 	return dst

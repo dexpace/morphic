@@ -124,3 +124,62 @@ func TestReferenceLandings_ListsSchemaRefsAndKeptDiscriminators(t *testing.T) {
 		{ID: "type/anonymous/components/schemas/KeptDisc/$defs/Fallback", Path: "/defaultMapping"},
 	}, landings[schema.LandingSite{Source: 0, Pointer: "/components/schemas/KeptDisc/discriminator"}])
 }
+
+// TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs pins that
+// ReserveNodesAtReferenceTargets does not reserve targets of $refs inside
+// unreferenced $defs tables (including chains into raw extensions or nested
+// $defs inside a reached definition), while still reserving chains reached from
+// live keywords and properties literally named "$defs".
+func TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs(t *testing.T) {
+	t.Parallel()
+	_, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Unused:
+      type: object
+      $defs:
+        A: {$ref: '#/components/schemas/Unused/$defs/B'}
+        B: {type: object, properties: {x: {type: string}}}
+        ToRaw: {$ref: '#/x-defs/Dead1'}
+    Reached:
+      type: object
+      properties:
+        $defs:
+          type: object
+          not: {$ref: '#/components/schemas/Reached/$defs/FromProp'}
+      not: {$ref: '#/components/schemas/Reached/$defs/Mid'}
+      $defs:
+        FromProp: {type: object, properties: {p: {type: string}}}
+        Mid:
+          type: object
+          not: {$ref: '#/components/schemas/Reached/$defs/End'}
+          $defs:
+            InnerDead1: {$ref: '#/components/schemas/Reached/$defs/Mid/$defs/InnerDead2'}
+            InnerDead2: {type: object, properties: {z: {type: string}}}
+        End: {type: object, properties: {e: {type: string}}}
+`)+`x-defs:
+  Dead1: {$ref: '#/x-defs/Dead2'}
+  Dead2: {type: object, properties: {d: {type: string}}}
+`)
+
+	for _, want := range []ir.TypeID{
+		"type/anonymous/components/schemas/Reached/$defs/FromProp",
+		"type/anonymous/components/schemas/Reached/$defs/Mid",
+		"type/anonymous/components/schemas/Reached/$defs/End",
+	} {
+		assert.Contains(t, promised.Types, want, "live target %s must be reserved", want)
+	}
+	for _, gone := range []ir.TypeID{
+		"type/anonymous/components/schemas/Unused/$defs/A",
+		"type/anonymous/components/schemas/Unused/$defs/B",
+		"type/anonymous/components/schemas/Unused/$defs/ToRaw",
+		"type/anonymous/x-defs/Dead1",
+		"type/anonymous/x-defs/Dead2",
+		"type/anonymous/components/schemas/Reached/$defs/Mid/$defs/InnerDead1",
+		"type/anonymous/components/schemas/Reached/$defs/Mid/$defs/InnerDead2",
+	} {
+		assert.NotContains(t, promised.Types, gone, "unreferenced $defs target %s must not be reserved", gone)
+	}
+
+	// Empty reference table fast-path.
+	plain, emptyPromised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", `    Leaf: {type: string}
+`))
+	assert.Empty(t, cmp.Diff(plain.Types, emptyPromised.Types))
+}

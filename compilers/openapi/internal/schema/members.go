@@ -186,7 +186,15 @@ func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.T
 func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.SourceInfo) []ir.Diagnostic {
 	rec.settled[id] = true
 	modelFields := rec.byID[id]
-	merger := merge.Merger{Reg: reg, IDs: modelFields.c.IDs(), Doc: modelFields.c.Place(), Sources: sources, Reads: &rec.reads, Walk: modelFields}
+	merger := merge.Merger{
+		Reg:       reg,
+		IDs:       modelFields.c.IDs(),
+		Doc:       modelFields.c.Place(),
+		Sources:   sources,
+		Reads:     &rec.reads,
+		Discarded: runTrackersOf(modelFields.c).discarded,
+		Walk:      modelFields,
+	}
 	diags, table := modelFields.idx.Settle(merger, rec.partTables(reg, modelFields.m), rec.shared)
 	rec.tables[id] = table
 	rec.cutAt(id)

@@ -142,21 +142,96 @@ func resolveAt(loweringContext lowering.Ctx, ts *compile.Types, at reftable.Docu
 	return resolvePointer(loweringContext, ts, at.Pointer, decl)
 }
 
-// ReserveNodesAtReferenceTargets promises a node at each position a schema $ref
-// of the bindings' table lands on, hop by hop, so a position only a keyword
-// kept verbatim names, a `not` or an `if`, or only an alias a chain passes, is
-// lowered as one a lowered keyword names is, where its hop lands
-// (reftable.ReferenceSite.Lands): a member of a loop of $refs lands nowhere. A
-// position a lowering already reached keeps the node built there
-// (compile.Types.ReserveNodeAtCoordinate). It reports nothing itself: a promise
-// reports when it is kept.
-func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Types) {
-	b := loweringContext.Bindings()
-	for _, referenceSite := range b.Table().Entries() {
-		if !referenceSite.Lands() {
-			continue
+// runTrackers holds run-scoped tracking state for post-lowering attachment and
+// seeded pruning: kept verbatim discriminator routes, explicitly reached schema
+// positions (hoisted targets and external schemas), and TypeIDs explicitly
+// superseded or dropped during lowering and settlement.
+type runTrackers struct {
+	keptDiscRoutes map[LandingSite][]Landing
+	reachedSchemas map[reftable.DocumentPointer]bool
+	discarded      map[ir.TypeID]bool
+}
+
+// runTrackersOf returns the run's runTrackers store.
+func runTrackersOf(loweringContext lowering.Ctx) *runTrackers {
+	return lowering.Settled(loweringContext, func() *runTrackers {
+		return &runTrackers{
+			keptDiscRoutes: map[LandingSite][]Landing{},
+			reachedSchemas: map[reftable.DocumentPointer]bool{},
+			discarded:      map[ir.TypeID]bool{},
 		}
-		resolveAt(loweringContext, ts, referenceSite.Hop.Target, loweringContext.Statements().At(referenceSite.Hop.Target))
+	})
+}
+
+// recordReachedSchema marks pos as a reached schema root for this compile.
+func recordReachedSchema(loweringContext lowering.Ctx, pos reftable.DocumentPointer) {
+	runTrackersOf(loweringContext).reachedSchemas[pos] = true
+}
+
+// recordDiscarded records id as explicitly superseded or dropped during this
+// compile so post-settlement pruning removes only seeded unreachable anonymous
+// nodes and leaves any accidental orphan for irverify to catch.
+func recordDiscarded(loweringContext lowering.Ctx, id ir.TypeID) {
+	runTrackersOf(loweringContext).discarded[id] = true
+}
+
+// DiscardedTypes returns the set of TypeIDs explicitly superseded or dropped
+// during lowering and settlement. Call after compile.Types.Finish.
+func DiscardedTypes(loweringContext lowering.Ctx) map[ir.TypeID]bool {
+	return maps.Clone(runTrackersOf(loweringContext).discarded)
+}
+
+// ReserveNodesAtReferenceTargets promises a node at each position a reachable
+// schema $ref of the bindings' table lands on, hop by hop, so a position only
+// a keyword kept verbatim names, a `not` or an `if`, or only an alias a chain
+// passes, is lowered as one a lowered keyword names is, where its hop lands
+// (reftable.ReferenceSite.Lands): a member of a loop of $refs lands nowhere.
+// Sites inside unreferenced $defs or definitions tables, or inside unreached
+// external documents and raw extensions, are skipped so unreferenced
+// definitions never mint orphan nodes. A position a lowering already reached
+// keeps the node built there (compile.Types.ReserveNodeAtCoordinate).
+func ReserveNodesAtReferenceTargets(loweringContext lowering.Ctx, ts *compile.Types) {
+	var sites []reftable.ReferenceSite
+	for _, entry := range loweringContext.Bindings().Table().Entries() {
+		if entry.Lands() {
+			sites = append(sites, entry)
+		}
+	}
+	if len(sites) == 0 {
+		return
+	}
+	reached := maps.Clone(runTrackersOf(loweringContext).reachedSchemas)
+	reserved := make([]bool, len(sites))
+	for progress := true; progress; {
+		progress = false
+		for i, site := range sites {
+			if reserved[i] || !siteReachable(site.Site, reached) {
+				continue
+			}
+			reserved[i] = true
+			resolveAt(loweringContext, ts, site.Hop.Target, loweringContext.Statements().At(site.Hop.Target))
+			if !reached[site.Hop.Target] {
+				reached[site.Hop.Target] = true
+				progress = true
+			}
+		}
+	}
+}
+
+// siteReachable reports whether site lies under an OpenAPI source root or a
+// reached schema root without stepping through a $defs or definitions table.
+func siteReachable(site reftable.DocumentPointer, reached map[reftable.DocumentPointer]bool) bool {
+	if site.Doc == reftable.Source && reftable.ReachesSchemaWithoutDefs(site.Pointer, false) {
+		return true
+	}
+	for ptr := site.Pointer; ; ptr = ptr.Parent() {
+		if reached[reftable.DocumentPointer{Doc: site.Doc, Pointer: ptr}] &&
+			reftable.ReachesSchemaWithoutDefs(site.Pointer[len(ptr):], true) {
+			return true
+		}
+		if ptr == "" {
+			return false
+		}
 	}
 }
 
@@ -178,19 +253,6 @@ type Landing struct {
 	Ref  string
 }
 
-// keptDiscRoutes holds the type IDs resolved by resolveDiscriminatorRoutes for
-// discriminators kept verbatim, keyed by the discriminator's LandingSite.
-type keptDiscRoutes struct {
-	bySite map[LandingSite][]Landing
-}
-
-// keptDiscRoutesOf returns the run's keptDiscRoutes store.
-func keptDiscRoutesOf(loweringContext lowering.Ctx) *keptDiscRoutes {
-	return lowering.Settled(loweringContext, func() *keptDiscRoutes {
-		return &keptDiscRoutes{bySite: map[LandingSite][]Landing{}}
-	})
-}
-
 // recordKeptDiscriminatorRoutes saves every type ID resolved for a verbatim
 // discriminator at pointer so post-settlement attachment records them on its
 // UnmodeledEntry.
@@ -199,12 +261,12 @@ func recordKeptDiscriminatorRoutes(loweringContext lowering.Ctx, pointer jsontex
 		return
 	}
 	site := LandingSite{Source: loweringContext.Place().Source, Pointer: pointer}
-	routes := keptDiscRoutesOf(loweringContext)
+	routes := runTrackersOf(loweringContext).keptDiscRoutes
 	for _, tag := range slices.Sorted(maps.Keys(mapping)) {
-		routes.bySite[site] = append(routes.bySite[site], Landing{ID: mapping[tag], Path: ids.Ptr("mapping", tag)})
+		routes[site] = append(routes[site], Landing{ID: mapping[tag], Path: ids.Ptr("mapping", tag)})
 	}
 	if def != "" {
-		routes.bySite[site] = append(routes.bySite[site], Landing{ID: def, Path: ids.Ptr("defaultMapping")})
+		routes[site] = append(routes[site], Landing{ID: def, Path: ids.Ptr("defaultMapping")})
 	}
 }
 
@@ -232,7 +294,7 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 			}
 		}
 	}
-	for site, routes := range keptDiscRoutesOf(loweringContext).bySite {
+	for site, routes := range runTrackersOf(loweringContext).keptDiscRoutes {
 		out[site] = append(out[site], routes...)
 	}
 	return out
@@ -251,6 +313,7 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
+		recordReachedSchema(loweringContext, loweringContext.Position(pointer))
 		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}
 	return id, ok

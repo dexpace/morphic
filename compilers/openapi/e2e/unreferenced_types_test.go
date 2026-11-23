@@ -204,7 +204,7 @@ components:
 			},
 		},
 		{
-			name: "unreferenced_defs_ref_chain_is_pruned",
+			name: "unreferenced_defs_ref_chain_is_not_reserved",
 			spec: `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -219,6 +219,98 @@ components:
 			wantGone: []ir.TypeID{
 				"type/anonymous/components/schemas/Unused/$defs/A",
 				"type/anonymous/components/schemas/Unused/$defs/B",
+			},
+		},
+		{
+			name: "false_allof_entry_prunes_dropped_additional_properties_while_keeping_preserved_not_target",
+			spec: `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Closed:
+      $defs:
+        OnlyInDropped: {type: object, properties: {z: {type: string}}}
+      allOf:
+        - type: object
+          additionalProperties:
+            type: object
+            properties: {a: {type: string}}
+            not: {$ref: '#/components/schemas/Closed/$defs/OnlyInDropped'}
+        - false
+`,
+			wantLive: []ir.TypeID{
+				"type/anonymous/components/schemas/Closed/$defs/OnlyInDropped",
+			},
+			wantGone: []ir.TypeID{
+				"type/anonymous/components/schemas/Closed/allOf/0/additionalProperties",
+			},
+		},
+		{
+			name: "distributed_union_prunes_superseded_outer_property_and_its_defs_ref",
+			spec: `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Check:
+      $defs:
+        OuterItem: {type: object}
+      type: object
+      properties:
+        transferable: {type: boolean}
+        reasons:
+          type: array
+          items: {$ref: '#/components/schemas/Check/$defs/OuterItem'}
+      oneOf:
+        - type: object
+          required: [transferable]
+          properties:
+            transferable: {type: boolean, enum: [true]}
+            reasons:
+              type: array
+              maxItems: 0
+              items: {type: object, properties: {code: {type: string}}}
+        - type: object
+          required: [transferable]
+          properties:
+            transferable: {type: boolean, enum: [false]}
+            reasons:
+              type: array
+              minItems: 1
+              items: {type: object, properties: {code: {type: string}}}
+`,
+			wantGone: []ir.TypeID{
+				"type/anonymous/components/schemas/Check/properties/reasons",
+				"type/anonymous/components/schemas/Check/$defs/OuterItem",
+			},
+		},
+		{
+			name: "losing_conflict_prunes_model_while_keeping_losing_declaration_ref_target",
+			spec: `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Both:
+      $defs:
+        KeptInLoser: {type: object, properties: {z: {type: string}}}
+      allOf:
+        - type: object
+          properties:
+            result:
+              type: object
+              properties: {a: {type: string}}
+              not: {$ref: '#/components/schemas/Both/$defs/KeptInLoser'}
+        - type: object
+          properties:
+            result: {type: string}
+`,
+			wantLive: []ir.TypeID{
+				"type/anonymous/components/schemas/Both/$defs/KeptInLoser",
+			},
+			wantGone: []ir.TypeID{
+				"type/anonymous/components/schemas/Both/allOf/0/properties/result",
 			},
 		},
 	}
@@ -371,23 +463,45 @@ x-defs:
 }
 
 // TestCompile_ExternalKeptRefLandingResolvesAfterPruning verifies that a $ref
-// inside a kept keyword pointing into an external document stays recorded on
-// UnmodeledEntry.Targets, survives pruning, and passes irverify.Verify.
+// inside a kept keyword pointing into an external document (and a kept keyword
+// inside a response loaded from an external document) stays recorded on
+// UnmodeledEntry.Targets, survives pruning, leaves unreferenced external $defs
+// chains unreserved, and passes irverify.Verify.
 func TestCompile_ExternalKeptRefLandingResolvesAfterPruning(t *testing.T) {
 	t.Parallel()
 	mainSpec := `openapi: 3.1.0
 info: {title: t, version: "1"}
-paths: {}
+paths:
+  /ext:
+    get:
+      operationId: getExt
+      responses:
+        "200": {$ref: 'other.yaml#/Resp'}
 components:
   schemas:
     Holder:
       type: object
       not: {$ref: 'other.yaml#/$defs/ExtSub'}
 `
-	otherSpec := `$defs:
+	otherSpec := `Resp:
+  description: ok
+  content:
+    application/json:
+      schema:
+        type: object
+        not: {$ref: '#/$defs/FromResp'}
+$defs:
   ExtSub:
     type: object
     properties: {x: {type: string}}
+  FromResp:
+    type: object
+    properties: {r: {type: string}}
+  DeadA:
+    $ref: '#/$defs/DeadB'
+  DeadB:
+    type: object
+    properties: {d: {type: string}}
 `
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(otherSpec), 0o600))
@@ -400,7 +514,11 @@ components:
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	const want ir.TypeID = "type/anonymous@other.yaml/$defs/ExtSub"
+	const wantResp ir.TypeID = "type/anonymous@other.yaml/$defs/FromResp"
 	assert.Contains(t, doc.Types, want)
+	assert.Contains(t, doc.Types, wantResp)
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous@other.yaml/$defs/DeadA"))
+	assert.NotContains(t, doc.Types, ir.TypeID("type/anonymous@other.yaml/$defs/DeadB"))
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/$ref": want}, doc.Types["type/openapi/components/schemas/Holder"].Common().Unmodeled["openapi:not"].Targets)
 	assert.Empty(t, irverify.Verify(doc))
 }

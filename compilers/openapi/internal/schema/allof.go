@@ -433,7 +433,7 @@ func applyFalseEntries(loweringContext lowering.Ctx, model *ir.Model, comp allOf
 			ir.ReasonDegradedLowering, closer.at, loweringContext.Place())
 		diags = append(diags, keptDiags...)
 	}
-	forbidRest(model)
+	forbidRest(loweringContext, model)
 	return diags
 }
 

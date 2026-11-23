@@ -1537,3 +1537,35 @@ func TestSequenceOrderInvariant_UnmodeledTargetsKeyNormalization(t *testing.T) {
 		assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
 	})
 }
+
+// TestSequenceOrderInvariant_PrunedByTieIsNarrow pins that prunedByTie forgives
+// anonymous types reachable from a tied property (even when declared via $ref
+// into $defs outside the property's pointer), while still catching an unrelated
+// order-dependent anonymous node placed under a tied member's pointer.
+func TestSequenceOrderInvariant_PrunedByTieIsNarrow(t *testing.T) {
+	refTie := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    M:\n" +
+		"      $defs:\n" +
+		"        ObjA: {type: object, properties: {x: {type: string}}}\n" +
+		"      allOf:\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/M/$defs/ObjA'}}}\n" +
+		"        - {type: object, properties: {p: {type: string}}}\n"
+	assert.Equal(t, passed(OracleSequenceOrder), sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(refTie), true))
+
+	inlineTie := schemas("M: {allOf: [{description: alpha, type: object, properties: {p: {type: object, properties: {a: {type: string}}}}}, " +
+		"{description: beta, type: object, properties: {p: {type: string}}}]}")
+	plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+		if !reversed {
+			return doc, diags, nil
+		}
+		const leak ir.TypeID = "type/anonymous/components/schemas/M/allOf/0/properties/p/unrelated"
+		doc.Types[leak] = &ir.Model{
+			ID:         leak,
+			Anonymous:  true,
+			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/M/allOf/0/properties/p/unrelated"},
+		}
+		return doc, diags, nil
+	})
+	got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(inlineTie), true)
+	assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
+}

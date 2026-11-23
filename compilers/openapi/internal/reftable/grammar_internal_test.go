@@ -4,6 +4,7 @@
 package reftable
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"reflect"
 	"slices"
@@ -229,4 +230,44 @@ func TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw(t *testing.T) {
 	past := place{state: sDocument}.along(strings.Split(encoding+"encoding/g/headers/H", "/"))
 	fresh := place{state: past.state}.along([]string{"schema"})
 	assert.Equal(t, Schema, fresh.role(), "a read past a reference to the header reads its schema afresh")
+}
+
+// TestReachesSchemaWithoutDefs pins ReachesSchemaWithoutDefs from both an
+// OpenAPI document root and a reached schema root, including properties or
+// components literally named "$defs", draft 4-7 keywords (dependencies,
+// additionalItems, tuple items), nested 3.2 encodings, and raw extensions.
+func TestReachesSchemaWithoutDefs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		ptr        jsontext.Pointer
+		fromSchema bool
+		want       bool
+	}{
+		{"/components/schemas/Host/not", false, true},
+		{"/components/schemas/Host/$defs/A", false, false},
+		{"/components/schemas/Host/definitions/A", false, false},
+		{"/components/schemas/$defs/not", false, true},
+		{"/components/schemas/Host/properties/$defs/not", false, true},
+		{"/components/schemas/Host/properties/properties/$defs/A", false, false},
+		{"/components/headers/schema/schema/not", false, true},
+		{"/components/headers/schema/schema/$defs/A", false, false},
+		{"/components/schemas/Draft7/dependencies/k/not", false, true},
+		{"/components/schemas/Draft7/additionalItems/not", false, true},
+		{"/components/schemas/Draft7/items/0/not", false, true},
+		{"/components/schemas/Draft7/items/0/$defs/A", false, false},
+		{"/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/H/schema", false, true},
+		{"/x-defs/Dead", false, false},
+		{"/components/schemas", false, false},
+		{"", true, true},
+		{"/not", true, true},
+		{"/$defs/Dead", true, false},
+		{"/definitions/Dead", true, false},
+		{"/properties/$defs/not", true, true},
+		{"/items/0/not", true, true},
+		{"/items/0/$defs/Dead", true, false},
+		{"/x-raw/sub", true, false},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, ReachesSchemaWithoutDefs(tc.ptr, tc.fromSchema), "%s (fromSchema=%t)", tc.ptr, tc.fromSchema)
+	}
 }

@@ -40,6 +40,10 @@ type Merger struct {
 	// declaration stands within another's composition spends (ownership); nil
 	// reads without bound.
 	Reads *budget.Budget
+	// Discarded, when non-nil, records every TypeID carried by a declaration
+	// that a fold superseded or dropped so post-settlement pruning can remove
+	// it if nothing else reaches it.
+	Discarded map[ir.TypeID]bool
 	// Walk is the walk that declared the field.
 	Walk FieldDeclarationContext
 }

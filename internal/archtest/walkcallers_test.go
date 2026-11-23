@@ -82,6 +82,9 @@ var walkCallers = map[string]walkCaller{
 	"ir/irtest.SpacesUsed":       {answer: "returns the stop beside the spaces", readers: []string{"ir/irtest.SpacesUsed"}},
 	"ir/irtest.AllocatingVisits": {answer: "lists a stopped walk as a path"},
 	"internal/census.add":        {answer: "reads the stop"},
+	"internal/harness.appendPruned": {
+		answer: "a stopped walk only leaves fewer nodes exempted from comparison, never hiding a sequence-order difference",
+	},
 	"internal/harness.carriers": {
 		answer: "a carrier a stopped walk did not reach declines its case as not judged, so no instance is admitted unread",
 	},

@@ -246,7 +246,7 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// inferences.
 	attachUnmodeledTargets(ctx, out, schema.ReferenceLandings(serviceContext.Ctx))
 	var pruneDiags []ir.Diagnostic
-	out, pruneDiags = pruneUnreferencedTypes(ctx, out)
+	out, pruneDiags = pruneUnreferencedTypes(ctx, out, schema.DiscardedTypes(serviceContext.Ctx))
 	acc.AppendAll(pruneDiags)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err

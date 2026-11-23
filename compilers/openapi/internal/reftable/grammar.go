@@ -4,6 +4,8 @@
 package reftable
 
 import (
+	"encoding/json/jsontext"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
@@ -265,4 +267,54 @@ func roleOf(stateValue state) Role {
 // object or a list of its own, rather than as raw YAML or a scalar value.
 func modelled(stateValue state) bool {
 	return stateValue != sRaw && stateValue != sValue
+}
+
+// ReachesSchemaWithoutDefs reports whether ptr walks from a document root (when
+// fromSchema is false) or from a schema (when fromSchema is true) to a schema
+// position without stepping through a $defs or definitions table.
+func ReachesSchemaWithoutDefs(ptr jsontext.Pointer, fromSchema bool) bool {
+	cur := sDocument
+	if fromSchema {
+		cur = sSchema
+	}
+	var afterItems bool
+	for token := range ptr.Tokens() {
+		if cur == sSchema {
+			if token == "$defs" || token == "definitions" {
+				return false
+			}
+			if next, ok := dialectSchemaStep(token, afterItems); ok {
+				cur, afterItems = next, false
+				continue
+			}
+		}
+		afterItems = cur == sSchema && token == "items"
+		cur = step(cur, token)
+		if !modelled(cur) {
+			return false
+		}
+	}
+	return cur == sSchema
+}
+
+// dialectSchemaStep handles draft 4-7 schema keywords absent from 2020-12's
+// schemaFields (dependencies, additionalItems, and tuple items indices) so
+// ReachesSchemaWithoutDefs keeps sites inside them reachable.
+func dialectSchemaStep(token string, afterItems bool) (state, bool) {
+	switch {
+	case token == "dependencies":
+		return sSchemaMap, true
+	case token == "additionalItems":
+		return sSchema, true
+	case afterItems && isArrayIndex(token):
+		return sSchema, true
+	default:
+		return 0, false
+	}
+}
+
+// isArrayIndex reports whether token spells a non-negative base-10 integer.
+func isArrayIndex(token string) bool {
+	n, err := strconv.Atoi(token)
+	return err == nil && n >= 0
 }
