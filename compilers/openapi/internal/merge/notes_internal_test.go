@@ -5,6 +5,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -347,7 +348,8 @@ func TestSayingAll_NamesTheFirstSortingNodeThatSaysAll(t *testing.T) {
 // built holding its note, read there, the field holds neither; where it is one
 // the registry does not hold, the field holds the own one, but an example,
 // which no node built adopts, and which the field takes as it would were there
-// no own one.
+// no own one. A named node's note is not its declaration's own, and a node the
+// registry does not hold holds none.
 func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 	t.Parallel()
 	for _, note := range noteCases {
@@ -357,16 +359,22 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 			brought ir.TypeID
 			want    string // what the field holds, but of an example
 			example string
+			change  func(reg ir.TypeRegistry) // what else is so of the own node, or nil
 		}{
-			{"the type the own node", []string{"own", "brought"}, "type/wide", "", ""},
-			{"the type a node built of both", []string{"own", "other"}, "type/wide", "", "brought"},
-			{"a type the registry does not hold", nil, "type/absent", "own", "brought"},
+			{"the type the own node", []string{"own", "brought"}, "type/wide", "", "", nil},
+			{"the type a node built of both", []string{"own", "other"}, "type/wide", "", "brought", nil},
+			{"a type the registry does not hold", nil, "type/absent", "own", "brought", nil},
+			{"a named own node", []string{"own", "brought"}, "type/wide", "brought", "brought",
+				func(reg ir.TypeRegistry) { reg["type/own"].Common().Anonymous = false }},
+			{"an own node the registry does not hold", []string{"own", "brought"}, "type/wide", "brought", "brought",
+				func(reg ir.TypeRegistry) { delete(reg, "type/own") }},
 		} {
 			reg := narrowingRegistry()
 			reg["type/wide"] = stringEnum(ir.TypeCommon{ID: "type/wide", Anonymous: true, Provenance: ptrAt("/part/p")}, "own", "brought", "third")
 			held := ir.Property{}
 			note.write(&held, "own")
-			common := ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ptrAt("/a"), Docs: held.Docs, Deprecation: held.Deprecation, Examples: held.Examples}
+			common := ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ir.Provenance{Pointer: "/a", Inferred: promoted},
+				Docs: held.Docs, Deprecation: held.Deprecation, Examples: held.Examples}
 			reg["type/own"] = stringEnum(common, tc.own...)
 			if tc.own == nil {
 				reg["type/own"] = &ir.List{TypeCommon: common, ElementType: primitiveRef(ir.PrimitiveString)}
@@ -375,6 +383,9 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 			brought := declaration{property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.brought}, Provenance: ptrAt("/part/p")},
 				via: &composedEntry{target: "type/part", at: "/M/allOf/1"}, typeAt: sitesAt("/part/p")}
 			note.write(&brought.property, "brought")
+			if tc.change != nil {
+				tc.change(reg)
+			}
 			stubbed, recorded := stubMerger(reg)
 
 			got := stubbed.fold([]declaration{own, brought})
@@ -391,9 +402,12 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 			assert.Equal(t, expected.Docs, got.Docs, label)
 			assert.Equal(t, expected.Deprecation, got.Deprecation, label)
 			assert.Equal(t, expected.Examples, got.Examples, label)
-			if want == "own" && got.Deprecation != nil {
+			marker := ir.Inferred("")
+			if got.Deprecation != nil && want == "own" {
 				assert.NotSame(t, reg["type/own"].Common().Deprecation, got.Deprecation, "%s: a copy", label)
+				marker = promoted
 			}
+			assert.Equal(t, marker, got.Provenance.Inferred, "%s: the marker of the node whose deprecation the field holds", label)
 			ties := 0
 			for _, diagnostic := range *recorded {
 				if strings.Contains(diagnostic.Message, "give its "+note.detail+" differently; kept the one the declaration at /a gives over the one at /part/p") {
@@ -401,7 +415,7 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 				}
 			}
 			wantTies := 1
-			if note.detail == "examples" && tc.name != "the type the own node" {
+			if tc.change != nil || note.detail == "examples" && tc.name != "the type the own node" {
 				wantTies = 0
 			}
 			assert.Equal(t, wantTies, ties, label)
@@ -411,28 +425,32 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 
 // TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand pins the other
 // side: a member only the model declares, more than once, is judged as its
-// nodes stand, whatever Carried says of one, as no property carries a note off
-// a node of such a member. A bare object says nothing a map does not, so the
-// map is the field's type.
+// nodes stand, whatever Carried says of one and though a type drops, as no
+// property carries a note off a node of such a member. A bare object says
+// nothing a map does not, so the later of two maps is the field's type.
 func TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
 	reg["type/own0"] = &ir.Model{ID: "type/own0", Anonymous: true, Provenance: ptrAt("/M/allOf/0/properties/p")}
-	reg["type/own1"] = &ir.MapT{ID: "type/own1", Anonymous: true, Provenance: ptrAt("/M/allOf/1/properties/p"),
-		Value: ir.TypeRef{Target: "type/primitive/string"}}
+	for n, value := range []ir.TypeID{"type/B", "type/primitive/string"} {
+		id := ir.TypeID(fmt.Sprintf("type/own%d", n+1))
+		reg[id] = &ir.MapT{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer(fmt.Sprintf("/M/allOf/%d/properties/p", n+1))),
+			Value: ir.TypeRef{Target: value}}
+	}
 	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
 	reg["type/M"] = model
 	idx := NewModelPropertyDeclarations(model)
 	own("p", "type/own0", "0")(idx)
 	own("p", "type/own1", "1")(idx)
+	own("p", "type/own2", "2")(idx)
 	stubbed, _ := stubMerger(reg)
 	stubbed.Carried = map[ir.TypeID]CarriedNotes{"type/own0": {Docs: ir.Docs{Description: "carried"}}}
 
 	diags := settleFlat(stubbed, idx, reg)
 
-	assert.Empty(t, diags)
+	assert.Len(t, diags, 1, "the earlier map is dropped")
 	require.Len(t, model.Properties, 1)
-	assert.Equal(t, ir.TypeID("type/own1"), model.Properties[0].Type.Target)
+	assert.Equal(t, ir.TypeID("type/own2"), model.Properties[0].Type.Target)
 }
 
 // TestWithNotes_HoldsTheNotesOnACopy pins that a node read holding its notes

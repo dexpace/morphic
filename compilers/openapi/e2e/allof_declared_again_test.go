@@ -219,6 +219,8 @@ func TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes(t *testing.T) {
 			"[description D0] M/allOf/1/properties/f enum a b [description D1]"},
 		{"a declaration building no node after an enum", entries("type: string, enum: [a, b], description: D1", "type: string, description: D0"),
 			"[description D0] M/allOf/0/properties/f enum a b [description D1]"},
+		{"a described list before one that is not", entries("type: array, items: {type: string}, description: D0", "type: array, items: {type: string}"),
+			"M/allOf/1/properties/f list | verbatim M/allOf/0/properties/f"},
 		{"an untyped declaration before a list", entries("description: D0", "type: array, items: {type: string}, description: D1"),
 			"[description D0] M/allOf/1/properties/f list [description D1]"},
 		{"maps and a bare object, each described",

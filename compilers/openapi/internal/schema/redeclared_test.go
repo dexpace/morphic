@@ -61,6 +61,8 @@ func TestDeclaredAgain_IsReadOfTheModelComposingTheMember(t *testing.T) {
 		{"the model's own and an entry", "{allOf: [{" + plain + "}], " + f + "}", "/properties/f", "", true},
 		{"a nested entry and an entry", "{allOf: [{allOf: [{" + f + "}]}, {" + plain + "}]}", "/allOf/0/allOf/0/properties/f", "", true},
 		{"a wrapper's own and its entry", "{allOf: [{allOf: [{" + plain + "}], " + f + "}]}", "/allOf/0/properties/f", "", true},
+		{"a wrapper's own and another entry", "{allOf: [{allOf: [{properties: {g: {type: string}}}], " + f + "}, {" + plain + "}]}",
+			"/allOf/0/properties/f", "", true},
 		{"two entries nested in one", "{allOf: [{allOf: [{" + plain + "}, {" + f + "}]}]}", "/allOf/0/allOf/1/properties/f", "", true},
 		{"the keywords beside a $ref and an entry", "{allOf: [{$ref: '#/components/schemas/Plain', " + f + "}, {" + plain + "}]}",
 			"/allOf/0/properties/f", "", true},
@@ -70,6 +72,8 @@ func TestDeclaredAgain_IsReadOfTheModelComposingTheMember(t *testing.T) {
 		{"the model's own and what its $ref names", "{$ref: '#/components/schemas/Base', " + f + "}", "/properties/f", "", false},
 		{"a member of a member of its name", "{properties: {f: {type: object, " + f + "}}}", "/properties/f/properties/f",
 			"type/anonymous/components/schemas/M/properties/f", false},
+		{"a member of its name of a member declared again", "{allOf: [{properties: {f: {type: object, " + f + "}}}, {properties: {f: {type: object}}}]}",
+			"/allOf/0/properties/f/properties/f", "type/anonymous/components/schemas/M/allOf/0/properties/f", false},
 		{"a type list lowering its own properties alone", "{type: [object, string], " + f + ", allOf: [{" + plain + "}]}", "/type/0/properties/f",
 			"type/anonymous/components/schemas/M/type/0", false},
 	} {

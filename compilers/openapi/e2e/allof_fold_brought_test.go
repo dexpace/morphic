@@ -215,8 +215,9 @@ func TestAllOfFold_ADeprecationIsEachMembersOwn(t *testing.T) {
 		"{properties: {f: {type: object, properties: {f: {type: array, items: {type: string}"+reason+"}, g: {type: array, items: {type: string}}}}}}, "+
 		"{properties: {f: {type: object, properties: {f: {type: array, items: {type: string}}, g: {type: array, items: {type: string}, maxItems: 5}}}}}]}\n"))
 	const first = "components/schemas/M/allOf/0/properties/f"
-	assert.Equal(t, []ir.EntityRef{{Property: "property/openapi/" + first + "/properties/g"}},
-		memberF(t, doc, "type/anonymous/"+first).Deprecation.ReplacedBy)
+	deprecation := memberF(t, doc, "type/anonymous/"+first).Deprecation
+	require.NotNil(t, deprecation)
+	assert.Equal(t, []ir.EntityRef{{Property: "property/openapi/" + first + "/properties/g"}}, deprecation.ReplacedBy)
 }
 
 // TestAllOfFold_ABuiltNodesDeprecationIsItsOwn pins the node a fold builds of a
@@ -272,6 +273,8 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 			{"the own ones agree", list, own("o0") + ", " + own("o0") + ", " + entry, "", "M/allOf/0/properties/f list " + typed("o0"), 1},
 			{"a node built of the brought one adopts it", narrow, plain + ", " + own("o0") + ", " + entry, "", adopted, 1},
 			{"it says the same", narrow, plain + ", " + own("b") + ", " + entry, "", "composed/M/allOf/1/properties/f list " + typed("b"), 0},
+			{"the brought node is the type, beside a dropped one, and it says the same", narrow,
+				own("b") + ", {properties: {f: {type: integer}}}, " + entry, "", typed("b") + " A/properties/f list", 0},
 			{"a reference names the own one", list, entry + ", " + own("o0"),
 				"    U: {properties: {h: {$ref: '#/components/schemas/M/allOf/1/properties/f'}}}\n", "M/allOf/1/properties/f list " + typed("o0"), 1},
 			{"a reference names the own one, dropped", list, own("o0") + ", " + entry,
@@ -287,6 +290,31 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 			assert.Len(t, ties, tc.reports, "%s: %v", noted+tc.name, ties)
 		}
 	}
+}
+
+// TestAllOfFold_ANoteOnABroughtNodeIsNotItsModelsOwn pins that a brought
+// declaration's node keeping its note, as a reference names it, is none of the
+// model's own: the field holds the note another brought one carries, in either
+// order, or, where the model's own node keeps one its type is not read holding,
+// that one.
+func TestAllOfFold_ANoteOnABroughtNodeIsNotItsModelsOwn(t *testing.T) {
+	t.Parallel()
+	const list = "type: array, items: {type: string}"
+	for _, entries := range []string{"{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}", "{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}"} {
+		doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+list+", description: of A}}}\n    B: {properties: {f: {"+list+", description: of B}}}\n"+
+			"    M: {allOf: ["+entries+"], properties: {f: {"+list+"}}}\n    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'}}}\n"))
+		field := memberF(t, doc, componentID("M"))
+		assert.Equal(t, "of B", field.Docs.Description, entries)
+		assert.Equal(t, "of A", doc.Types["type/anonymous/components/schemas/A/properties/f"].Common().Docs.Description, entries)
+	}
+
+	doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {type: array, items: {type: string, enum: [a, b]}, description: of A}}}\n"+
+		"    B: {properties: {f: {"+list+", description: of B}}}\n"+
+		"    M: {allOf: [{properties: {f: {"+list+", description: own}}}, {$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]}\n"+
+		"    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'}, i: {$ref: '#/components/schemas/M/allOf/0/properties/f'}}}\n"))
+	field := memberF(t, doc, componentID("M"))
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/f"), field.Type.Target)
+	assert.Equal(t, "own", field.Docs.Description)
 }
 
 // TestAllOfFold_ACompositionHoldingItsModelsOwnNoteLeavesTheBroughtOne pins the

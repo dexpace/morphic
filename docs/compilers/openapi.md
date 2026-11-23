@@ -3570,6 +3570,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestAllOfFold_ADeprecationIsEachMembersOwn`,
   `e2e.TestAllOfFold_ABuiltNodesDeprecationIsItsOwn`,
   `e2e.TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn`,
+  `e2e.TestAllOfFold_ANoteOnABroughtNodeIsNotItsModelsOwn`,
   `e2e.TestAllOfFold_ACompositionHoldingItsModelsOwnNoteLeavesTheBroughtOne`,
   `e2e.TestAllOfFold_AFieldHoldsNoBroughtExampleOverItsTypesOwn`,
   `e2e.TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType`,

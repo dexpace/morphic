@@ -491,8 +491,8 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 // own declarations as admitted, it adopts the last they give, in either order.
 // A declaration another model holds keeps its example there, reported, whether
 // or not the field takes it. At a field the model alone declares, none is
-// adopted. One the field drops takes its examples with its type, and a null or
-// a bound the merge judges still refuses.
+// adopted. One the field drops takes its examples with its type, one giving none
+// decides nothing, and a null or a bound the merge judges refuses the list.
 func TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted(t *testing.T) {
 	t.Parallel()
 	const modelID ir.TypeID = "type/model/M"
@@ -506,6 +506,16 @@ func TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted(t *testing.T) {
 		return declaration{property: ir.Property{WireName: "p", Type: primitiveRef(kind), Examples: []ir.Example{{Value: value}},
 			Provenance: ptrAt(at)}, source: written(`{"writes":"` + string(at) + `"}`)}
 	}
+	nullFirst := func(kind ir.PrimitiveKind, value *ir.Value) declaration {
+		out := writing("/a", kind, &null)
+		out.property.Examples = append(out.property.Examples, ir.Example{Value: value})
+		return out
+	}
+	silent := writing("/b", ir.PrimitiveAny, nil)
+	silent.property.Examples = nil
+	broughtNumber := writing("/part/p", ir.PrimitiveNumber, nil)
+	broughtNumber.property.Examples = nil
+	broughtNumber.via, broughtNumber.typeAt = &composedEntry{target: "type/part", at: "/M/allOf/0"}, sitesAt("/part/p")
 	brought := writing("/part/p", ir.PrimitiveAny, &half)
 	brought.via = &composedEntry{target: "type/part", at: "/M/allOf/0"}
 	broughtModel := model("/part/p")
@@ -540,6 +550,14 @@ func TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted(t *testing.T) {
 				"which stays declared on its model"}},
 		{"one the field drops", []declaration{writing("/a", ir.PrimitiveString, &half), model("/b")},
 			[2]result{{kept: []string{"/a"}}, {[]ir.Example{{Value: &half}}, []string{"/b"}}}, []string{"declarations of field"}},
+		{"one the field drops beside one another model holds", []declaration{writing("/a", ir.PrimitiveString, &half), broughtModel},
+			[2]result{{kept: []string{"/a"}}, {examples: []ir.Example{{Value: &half}}}}, []string{"declarations of field"}},
+		{"one the model writes beside its own giving none", []declaration{writing("/a", ir.PrimitiveAny, &half), silent, broughtModel},
+			[2]result{{examples: []ir.Example{{Value: &half}}}, {examples: []ir.Example{{Value: &half}}}}, nil},
+		{"a null before one the field takes", []declaration{nullFirst(ir.PrimitiveNumber, &half), broughtNumber},
+			[2]result{{kept: []string{"/a"}}, {kept: []string{"/a"}}}, []string{"admits the examples the declaration at /a gives"}},
+		{"a null before one no judge reads", []declaration{nullFirst(ir.PrimitiveAny, &half), broughtModel},
+			[2]result{{kept: []string{"/a"}}, {kept: []string{"/a"}}}, []string{"admits the examples the declaration at /a gives"}},
 		{"a null the field refuses", []declaration{writing("/a", ir.PrimitiveAny, &null), broughtModel},
 			[2]result{{kept: []string{"/a"}}, {kept: []string{"/a"}}}, []string{"admits the examples the declaration at /a gives"}},
 		{"an object a bound refuses", []declaration{writing("/a", ir.PrimitiveAny, &pair), bounded},
