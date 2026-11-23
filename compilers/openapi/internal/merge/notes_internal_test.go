@@ -417,6 +417,84 @@ func TestFold_ANoteTheBuiltNodeDoesNotAdoptIsKeptVerbatim(t *testing.T) {
 	}
 }
 
+// TestFold_ABuiltNodeHoldsALeftDeprecationOnlyBesideItsKeys pins
+// builder.keepDeprecationWhole: of three enums meeting in a node the fold
+// builds, the last giving the deprecation the field keeps and one or two
+// others another, the node adopts one of the others only where the keys it
+// holds that a deprecation is read from are that declaration's, and otherwise
+// holds none, each other reported where it is, in each of three orders
+// writing the kept one last.
+func TestFold_ABuiltNodeHoldsALeftDeprecationOnlyBesideItsKeys(t *testing.T) {
+	t.Parallel()
+	type writes struct {
+		deprecation *ir.Deprecation
+		key, value  string
+	}
+	read := func(message string) writes { return writes{&ir.Deprecation{Message: message}, deprecationKey, message} }
+	byKeyword := writes{deprecation: &ir.Deprecation{}}
+	for _, tc := range []struct {
+		name    string
+		given   [3]writes
+		adopted bool
+	}{
+		{"each beside its own key", [3]writes{read("left"), {}, read("kept")}, false},
+		{"the kept one by its keyword", [3]writes{read("left"), {}, byKeyword}, true},
+		{"the left one by its keyword", [3]writes{byKeyword, {}, read("kept")}, false},
+		{"the kept one beside a key read for none", [3]writes{read("left"), {}, {&ir.Deprecation{}, "openapi:x-other", "other"}}, true},
+		{"two left beside their own keys, the kept one by its keyword", [3]writes{read("left"), read("other"), byKeyword}, true},
+	} {
+		for _, order := range [][3]int{{0, 1, 2}, {1, 0, 2}, {0, 2, 1}} {
+			if order[2] != 2 && tc.given[order[2]].deprecation != nil {
+				continue // the field would keep another than the one given last
+			}
+			label := fmt.Sprintf("%s, order %v", tc.name, order)
+			reg := narrowingRegistry()
+			decls := make([]declaration, 3)
+			for k, role := range order {
+				at := jsontext.Pointer(fmt.Sprintf("/allOf/%d/p", k))
+				members := make([]ir.EnumMember, 0, 3)
+				for _, value := range []string{"b", "c", fmt.Sprint(k)} {
+					members = append(members, ir.EnumMember{ID: ir.EnumMemberID("enum-member/anonymous" + string(at) + "/s:" + value), Value: stringValue(value)})
+				}
+				node := &ir.Enum{ValueType: ir.PrimitiveString, Members: members}
+				decls[k] = ownDeclaration(ownNodeAt(reg, node, at))
+				decls[k].property.Provenance = ptrAt(at)
+				decls[k].property.Deprecation = tc.given[role].deprecation
+				if tc.given[role].key != "" {
+					node.Unmodeled = ir.Unmodeled{tc.given[role].key: {Reason: ir.ReasonVendorExtension,
+						Value: ir.RawValue(`"` + tc.given[role].value + `"`), Provenance: ptrAt(at + "/x")}}
+				}
+			}
+			stubbed, recorded := stubMerger(reg)
+
+			got := stubbed.fold(decls)
+
+			require.Equal(t, tc.given[2].deprecation, got.Deprecation, "%s: the field keeps the last", label)
+			require.Equal(t, composedAt("/allOf/0/p"), got.Type.Target, "%s: the field's type is a node the fold built", label)
+			built := reg[got.Type.Target].Common()
+			require.Equal(t, tc.adopted, built.Deprecation != nil, "%s: the built node adopts one", label)
+			if built.Deprecation != nil && built.Deprecation.Message != "" {
+				assert.Equal(t, ir.RawValue(`"`+built.Deprecation.Message+`"`), built.Unmodeled[deprecationKey].Value, "%s: beside its own key", label)
+			}
+			for k, role := range order {
+				if role == 2 || tc.given[role].deprecation == nil {
+					continue
+				}
+				at := string(decls[k].property.Provenance.Pointer)
+				which := "which is kept verbatim under Unmodeled"
+				if built.Deprecation != nil && built.Deprecation.Message == tc.given[role].deprecation.Message {
+					which = "which the field's type holds"
+				} else {
+					assert.Contains(t, got.Unmodeled, losingDeclarationKey+at, "%s: %s is kept verbatim", label, at)
+				}
+				assert.True(t, slices.ContainsFunc(*recorded, func(d ir.Diagnostic) bool {
+					return strings.Contains(d.Message, "give its deprecation differently") && strings.Contains(d.Message, "over the one at "+at+", "+which)
+				}), "%s: %s is reported %q: %v", label, at, which, *recorded)
+			}
+		}
+	}
+}
+
 // TestHeldIn_ATypeTheRegistryLacksHoldsNoNote pins that a field's type the
 // registry does not hold holds no note, which no fold reaches yet, rather than
 // reading a nil node.

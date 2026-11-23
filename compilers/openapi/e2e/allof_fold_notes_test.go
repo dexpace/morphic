@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"encoding/json/v2"
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -472,6 +473,90 @@ func TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept(t *testing.T) {
 			assert.Equal(t, 3, reports, "%s: two titles and a deprecation are reported", label)
 		}
 	}
+}
+
+// TestAllOfFold_ABuiltNodeHoldsADeprecationBesideItsOwnKeys pins that where
+// three allOf entries of the composing model, two giving a deprecation
+// differently, are enums or lists of enums meeting in a node the fold builds,
+// that node holds a deprecation the field does not keep only beside the keys
+// it was read from, and otherwise none, in every order: the field holds the
+// last entry's, the node another's where the last states its own by the
+// keyword alone, and each report says truly where the other is
+// (docs/compilers/openapi.md#allof-redeclared-property).
+func TestAllOfFold_ABuiltNodeHoldsADeprecationBesideItsOwnKeys(t *testing.T) {
+	t.Parallel()
+	shapes := []string{"type: string, enum: [b, c, x%d]", "type: array, items: {type: string, enum: [b, c, x%d]}"}
+	writes := map[byte]func(k int) (string, string){
+		'P': func(k int) (string, string) {
+			return fmt.Sprintf("deprecated: true, x-deprecated-reason: r%d", k), fmt.Sprintf("deprecation r%d", k)
+		},
+		'W': func(int) (string, string) { return "deprecated: true", "deprecation " },
+		'S': func(k int) (string, string) {
+			return fmt.Sprintf("deprecated: true, x-deprecated-since: s%d", k), "deprecation "
+		},
+		'F': func(k int) (string, string) { return fmt.Sprintf("x-foo: f%d", k), "" },
+		'N': func(int) (string, string) { return "", "" },
+	}
+	for _, shape := range shapes {
+		for _, given := range []string{"PPN", "PWN", "WPN", "PSN", "PPF", "PPW"} {
+			for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+				entries := make([]string, 3)
+				typed := make([]string, 3)
+				kept, keptByKeyword := "", false
+				for k, writer := range order {
+					written, note := writes[given[writer]](k)
+					entries[k] = "{type: object, properties: {f: {" + fmt.Sprintf(shape, k) + map[bool]string{true: ", " + written}[written != ""] + "}}}"
+					typed[k] = note
+					if strings.HasPrefix(written, "deprecated") {
+						kept, keptByKeyword = note, given[writer] == 'W'
+					}
+				}
+				label := fmt.Sprintf("%s, %s in the order %v", shape, given, order)
+				doc, field, diags := notedField(t, openapitest.ComponentSpec("    Coll: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
+
+				requireErrorsAndWarnings(t, diags, nil)
+				assert.Equal(t, []string{kept}, fieldNotes(t, ir.Property{Deprecation: field.Deprecation}), "%s: the field holds the last", label)
+				requireTieReportsTrue(t, doc, field, diags, func(k int, detail string) string {
+					return map[bool]string{true: typed[k]}[detail == "deprecation"]
+				})
+				td, ok := doc.Types[field.Type.Target]
+				require.True(t, ok, label)
+				assert.Equal(t, keptByKeyword, td.Common().Deprecation != nil,
+					"%s: the built node holds another's deprecation where the field's holds no key", label)
+				requireDeprecationBesideItsKeys(t, td.Common(), label)
+			}
+		}
+	}
+}
+
+// requireDeprecationBesideItsKeys holds node, where it is deprecated, to the
+// keys it keeps that the default promotion reads a deprecation from: each
+// written in one declaration, and stating what the deprecation holds.
+func requireDeprecationBesideItsKeys(t *testing.T, node *ir.TypeCommon, label string) {
+	t.Helper()
+	if node.Deprecation == nil {
+		return
+	}
+	stated := map[string]string{}
+	written := map[string]bool{}
+	for key, field := range map[string]string{"openapi:x-deprecated-reason": "message", "openapi:x-deprecated-since": "since"} {
+		entry, ok := node.Unmodeled[key]
+		if !ok {
+			continue
+		}
+		var value string
+		require.NoError(t, json.Unmarshal(entry.Value, &value), label)
+		stated[field] = value
+		written[path.Dir(string(entry.Provenance.Pointer))] = true
+	}
+	holds := map[string]string{}
+	for field, value := range map[string]string{"message": node.Deprecation.Message, "since": node.Deprecation.Since} {
+		if value != "" {
+			holds[field] = value
+		}
+	}
+	assert.Equal(t, stated, holds, "%s: the built node's deprecation is what its keys state", label)
+	assert.LessOrEqual(t, len(written), 1, "%s: and its keys are one declaration's", label)
 }
 
 // tieReport reads a report of a note two declarations give differently.

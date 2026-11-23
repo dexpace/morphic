@@ -75,6 +75,11 @@ type FieldDeclarationContext interface {
 	// not follow but which could refuse a value of some kind, is not, and
 	// decides nothing.
 	Admits(at ir.Provenance, kind JSONInstanceKind) (admits, exact bool)
+	// DeprecationKey reports whether key, one kept under Unmodeled, names an
+	// extension the run reads a deprecation, one of its members or its
+	// replacements from, so a node the fold builds holds a deprecation only
+	// beside the keys it was read from (builder.keepDeprecationWhole).
+	DeprecationKey(key string) bool
 }
 
 // JSONInstanceKind is a kind of JSON instance, which every value of a type a

@@ -142,6 +142,13 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 	return okA && okB && ua == ub
 }
 
+// DeprecationKey is merge.FieldDeclarationContext.DeprecationKey: key keeps,
+// under the prefix every extension is kept with, one the run's promotion
+// policy reads a deprecation from (promotion.DeprecationKey).
+func (f modelFields) DeprecationKey(key string) bool {
+	return promotion.DeprecationKey(f.c.Promoter(), strings.TrimPrefix(key, "openapi:"))
+}
+
 // Admits is merge.FieldDeclarationContext.Admits: the schema written at
 // provenance admits every instance of kind, as the run reads what its statement
 // admits (admissionOf), its value sets, unions and the keywords beside a $ref

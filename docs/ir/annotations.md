@@ -183,9 +183,10 @@ Reference Object naming a component one writes documentation beside its `$ref`, 
 schema's for every use of that position, and each carrier holds only its own. A member an `allOf`
 redeclares has one slot for each note: where declarations the model writes itself give one
 differently, the member holds one, and the node another's schema builds keeps that one's, as
-before its carrier took it, or the node the fold builds of them adopts one of the others, wherever
-the member's type holds that node and no reference names that declaration's `allOf` entry, whose
-own member then holds it; any other is kept verbatim
+before its carrier took it, or the node the fold builds of them adopts one of the others, a
+deprecation only beside the keys it was read from, wherever the member's type holds that node and
+no reference names that declaration's `allOf` entry, whose own member then holds it; any other is
+kept verbatim
 ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
 what speaks of the values it admits: its XML hints, which `ir.Parameter`
 has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept

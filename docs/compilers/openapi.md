@@ -3365,8 +3365,11 @@ declaration is kept verbatim. The note
 is left there before the types are judged, so that node is judged holding it, as a node saying what
 the other lacks, and the field's type holds it: the node itself, a conjunct the field composes, or a
 node the field's declarations meet in, which adopts the note and leaves its own copy bare. Such a
-node adopts one title, description, external link and deprecation; a note it does not hold is taken
-back, and its declaration kept verbatim. Where the
+node adopts one title, description, external link and deprecation, and a deprecation only beside
+the keys the promotion read it from: where a key it holds that one is read from is another
+declaration's, as the key of the one the field holds is, it holds none, so no node pairs one
+declaration's deprecation with another's key. A note it does not hold is taken back, and its
+declaration kept verbatim. Where the
 field's type would not hold it, as of two lists that differ only in that note, which are judged two
 types the source declared apart and are not composed, the note is taken back, the types are judged
 as though none were left, and the declaration is kept verbatim. Either way the tie is reported,
@@ -3528,10 +3531,13 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ANoteTakenBackLeavesTheNodeAsItWas`,
   `merge.TestFold_ANoteTheFieldKeepsIsLeftOnNoNode`,
   `merge.TestFold_ANoteTheBuiltNodeDoesNotAdoptIsKeptVerbatim`,
+  `merge.TestFold_ABuiltNodeHoldsALeftDeprecationOnlyBesideItsKeys`,
   `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
   `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
   `e2e.TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce`,
+  `e2e.TestAllOfFold_AnExampleOfAnEntryAReferenceNamesIsTheFields`,
   `e2e.TestAllOfFold_EachTieReportNamesWhereTheNoteIsKept`,
+  `e2e.TestAllOfFold_ABuiltNodeHoldsADeprecationBesideItsOwnKeys`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
