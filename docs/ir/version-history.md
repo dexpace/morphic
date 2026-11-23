@@ -1284,9 +1284,9 @@ it sees. Changes made together in one bump are listed together under it.
   `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
   before. A member an `allOf` redeclares holds one of each note its declarations give, the one a
   declaration the model writes itself gives over one another model's declaration brings, which
-  stays on that model; where two the model writes itself give one note differently, the node the other's schema
-  builds keeps that one's, or the node the fold builds of the two adopts it, wherever the
-  member's type holds that node, and the member holds every example they give that it takes
-  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
-  pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
-  off the node its type names, and finds none on the member.
+  stays on that model; where two the model writes itself give one note differently, the node the
+  other's schema builds keeps that one's, or the node the fold builds of the two adopts it,
+  wherever the member's type holds that node, and the member holds every example they give that
+  it takes ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A
+  consumer pinned to 0.72.0 refuses the document; one reading an older document reads such a
+  member's notes off the node its type names, and finds none on the member.

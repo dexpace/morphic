@@ -3445,8 +3445,9 @@ entry's schema is written inline. And for a note two declarations give different
 is kept over the one a `$ref` entry brings, which stays on its model, while written inline the two
 are both the model's own and the later is kept. The flattening
 ([models](../ir/models.md#the-flattening)) would otherwise take the model's own declaration over an
-entry's, and of two entries the later, and judge none. Once every lowering has returned, one settlement folds, on each model, every member its own
-declarations or its `allOf` entries decide more than once, asking the run's context before each
+entry's, and of two entries the later, and judge none. Once every lowering has returned, one
+settlement folds, on each model, every member its own declarations or its `allOf` entries decide
+more than once, asking the run's context before each
 model. Each entry brings the declaration the flattening of what it names takes, which a model
 settled first holds folded from every other its composition gives the member, and one another
 entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
