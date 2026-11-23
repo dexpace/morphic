@@ -179,8 +179,9 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 // it says nothing of the nodes: the field takes the node its bounds alone give,
 // a node built of both where each adds a bound and the narrower where one says
 // all, and holds the deprecation whichever declaration writes it. Two that
-// describe the field differently are a fold's to settle: it keeps the later and
-// keeps and reports the earlier.
+// describe the field differently are a fold's to settle: it keeps the later on
+// the field and the earlier on the node both lists meet in, and reports the
+// tie.
 func TestAllOf_ADeprecationIsTheFieldsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
@@ -218,11 +219,15 @@ func TestAllOf_ADeprecationIsTheFieldsInEitherOrder(t *testing.T) {
 
 	irProperty, doc, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
 	assert.Equal(t, ir.TypeID("type/composed/components/schemas/T/allOf/1/properties/v"), irProperty.Type.Target)
-	assert.Empty(t, doc.Types[irProperty.Type.Target].Common().Docs.Description)
+	assert.Equal(t, "one", doc.Types[irProperty.Type.Target].Common().Docs.Description)
 	assert.Equal(t, "other", irProperty.Docs.Description)
-	assert.Contains(t, irProperty.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v")
+	assert.Empty(t, irProperty.Unmodeled)
+	for _, own := range []ir.TypeID{"type/anonymous/components/schemas/T/allOf/0/properties/v", "type/anonymous/components/schemas/T/allOf/1/properties/v"} {
+		assert.Empty(t, doc.Types[own].Common().Docs.Description, "%s holds no second copy", own)
+	}
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "which the field's type holds")
 }
 
 // TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder pins a default

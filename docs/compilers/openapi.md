@@ -3367,17 +3367,23 @@ judges a value against a model, and no declaration's type is a composed field's 
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
-again where the field takes none of any declaration that way and its type is one nothing here
-judges a value of: a model, a union, an opaque `Scalar`, or a `Scalar`, list or map over one. There
+again where the field takes none of any declaration the model writes itself that way, whatever it
+takes of one another model holds, and its type is one nothing here judges a value of: a model, a
+union, an opaque `Scalar`, or a `Scalar`, list or map over one. There
 the examples each declaration the model writes itself gives are taken where only that type refused
 them, so an example of an inline schema beside a model, of its kind or another, lands typed on the
 field, and `pass/example-outside-type` holds it to the field's type as it holds any example
 ([values](../ir/values.md#values-held-to-their-type)). An example a judge refuses, a null, a bound,
 an enum's members, a literal, a kind or a format's grammar, stays refused and kept, wherever the
 field takes no other. Those a declaration another model holds gives stay declared there. An example
-illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
-takes, the
-last written is kept, and a declaration giving another is reported and kept; two values are one
+illustrates and a default sets what a client sends, so a default is judged alone. Of the defaults it
+takes, the last written is kept, and a declaration giving another is reported and kept. Of the
+examples it takes, the field holds every one the declarations the model writes itself give, each
+once, since JSON Schema collects an annotation from every subschema and `Examples` is a list: each
+declaration's in the order it writes them, and the declarations' in the order of their encodings,
+which no order of the entries moves. Only where none gives one does the field take those of the last
+declaration another model holds, as it takes a default; one such declaration giving an example the
+field does not hold is reported and keeps it there. Two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
 written after it.
@@ -3398,7 +3404,19 @@ declaration wrote, whose multiples are exactly those both admit. `pattern`, `pat
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
-declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
+declaration giving one differently is reported and kept. The title, description, external links and
+deprecation describe the field, so of those a declaration the model writes itself is kept over one
+another model holds, in either order: that one stays declared on its model. A declaration the model
+writes itself giving one of them otherwise than the declaration kept keeps it on the node its schema
+builds, where the schema hoisted one at the declaration holding none, as it did before its carrier
+took its notes ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). The note
+is left there before the types are judged, so that node is judged holding it, as a node saying what
+the other lacks, and the field's type holds it: the node itself, a conjunct the field composes, or a
+node the field's declarations meet in, which adopts the note and leaves its own copy bare. Where the
+field's type would not hold it, as of two lists that differ only in that note, which are judged two
+types the source declared apart and are not composed, the note is taken back, the types are judged
+as though none were left, and the declaration is kept verbatim. Either way the tie is reported,
+saying where the note is kept. Of two keeping one `Unmodeled` entry alike,
 the one written first is the field's, in the document listed first and then at the pointer sorting
 first, since two files each holding one schema write the same pointers. An entry two declarations
 write alike is one where it writes no relative `$ref`, or both read it against one base: under an
@@ -3414,8 +3432,8 @@ no consumer reads either, and a consumer needing it can take it as an ordinary v
 version](../ir/ir-version.md)).
 
 The IR has no combinator for "string here, integer there", nor a second slot for a `pattern`,
-default, title, description, external link, examples, deprecation or XML hint another declaration
-already fills, so
+default, title, description, external link, deprecation or XML hint another declaration already
+fills that no node the field reaches can hold, so
 whatever of a declaration the fold cannot carry has nowhere to sit on the merged property, and with
 nowhere to sit it would go nowhere at all: a release in which a losing entry's type or default
 changed would produce no change in the document, which a consumer diffing two versions reads as
@@ -3476,10 +3494,13 @@ A member a model's composition declares more than once folds the same way, where
 are written, so a `$ref` entry and the schema it names written inline in its place fold alike, but
 for a tie inside the entry: an entry brings its member already folded, so a declaration that lost a
 tie there no longer counts toward the type holding the most declarations, as it does where the
-entry's schema is written inline. The flattening ([models](../ir/models.md#the-flattening)) would
-otherwise take the model's own declaration over an entry's, and of two entries the later, and judge
-none. Once every lowering has returned, one settlement folds, on each model, every member its own
-declarations or its `allOf` entries decide more than once, asking the run's context before each
+entry's schema is written inline. And for a note two declarations give differently: the model's own
+is kept over the one a `$ref` entry brings, which stays on its model, while written inline the two
+are both the model's own and the later is kept. The flattening
+([models](../ir/models.md#the-flattening)) would otherwise take the model's own declaration over an
+entry's, and of two entries the later, and judge none. Once every lowering has returned, one
+settlement folds, on each model, every member its own declarations or its `allOf` entries decide
+more than once, asking the run's context before each
 model. Each entry brings the declaration the flattening of what it names takes, which a model
 settled first holds folded from every other its composition gives the member, and one another
 entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
@@ -3547,6 +3568,11 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
+  `merge.TestFold_ANoteTheModelWritesIsKeptOverOneItBrings`,
+  `merge.TestFold_ANoteTwoOwnDeclarationsGiveDifferentlyStaysOnItsNode`,
+  `merge.TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold`,
+  `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
+  `e2e.TestAllOfFold_ANoteTwoOwnDeclarationsGiveDifferentlyIsTypedInEveryOrder`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
@@ -3722,6 +3748,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
   `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `merge.TestFold_EveryExampleTheModelWritesIsHeld`,
   `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
   `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
   `e2e.TestAllOfFold_AnExampleAVariantsEnumRefusesStaysRefused`,

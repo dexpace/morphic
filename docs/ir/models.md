@@ -232,7 +232,8 @@ lists that no member declares and the composition entries that name no model. It
   reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
   about their types, which the flattening does not ask. A compiler may ask it: the OpenAPI compiler
   folds every declaration of a member a model's composition decides more than once, its own and
-  its entries' alike, a tie going to the later as here, and declares the result on the model
+  its entries' alike, a tie going to the later as here but for a note, which goes to the model's
+  own declaration over an entry's, and declares the result on the model
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)), so in a
   document it compiles the member is the model's own and this clause decides only what it reported.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
@@ -303,9 +304,9 @@ body redeclares the `id` it must send, which a conjunction of the two would forb
 Deprecation accumulates where visibility does not because no declaration can lift it: the IR has no
 "not deprecated" to state, a declaration without `Deprecation` saying nothing of it, and JSON Schema
 2020-12 (Validation §9.3) holds an instance location deprecated where any applicable `deprecated` is
-true. The OpenAPI compiler's fold of a field redeclared across inline `allOf` branches keeps the
-first deprecation any of them states, so taking the declaration's alone would make a field current
-or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
+true. The OpenAPI compiler's fold of a field redeclared across inline `allOf` branches keeps a
+deprecation wherever any of them states one, so taking the declaration's alone would make a field
+current or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
 (`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at `0cd087ff6`) no member's taken
 declaration lacks a deprecation an overridden one states, of 63,587 members across 18,017 models,
 nor any of the 2,184 members of the shapes the models narrowing a union take, so the rule moves no

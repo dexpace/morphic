@@ -103,6 +103,12 @@
             {
               "value": {
                 "kind": "number",
+                "number": "1"
+              }
+            },
+            {
+              "value": {
+                "kind": "number",
                 "number": "2"
               }
             }
@@ -403,15 +409,6 @@
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "declarations of field \"id\" give its default differently; kept the one the declaration at /components/schemas/Described/allOf/1/properties/id gives over the one at /components/schemas/Described/allOf/0/properties/id, which is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Described/allOf/0/properties/id"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its examples differently; kept the one the declaration at /components/schemas/Described/allOf/1/properties/id gives over the one at /components/schemas/Described/allOf/0/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/0/properties/id"

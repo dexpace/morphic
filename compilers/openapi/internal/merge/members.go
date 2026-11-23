@@ -41,12 +41,12 @@ func DeclaredAt(propertyDecl ir.PropertyDecl) Declared {
 // Settle folds each member of the model more than one declaration decides,
 // its own and those its entries bring
 // (docs/compilers/openapi.md#allof-redeclared-property), which the flattening
-// would take one of by where it reads it, judging none. Each fold reads them in
-// the order the walk met them, an entry's where it met the entry, so a $ref
-// and the schema it names written inline fold alike, but for a tie the entry
-// settled. tables holds the RedeclaredWireNameTable of each type the model
-// composes (ComposedOf), settled first, and shared the names more than one
-// model declares. It returns the model's RedeclaredWireNameTable.
+// would take one of, judging none. Each fold reads them in the order the walk
+// met them, an entry's where it met the entry, so a $ref and the schema it
+// names written inline fold alike, but for a tie the entry settled and one of
+// notes (ownFirst). tables holds the RedeclaredWireNameTable of each type the
+// model composes (ComposedOf), settled first, and shared the names more than
+// one model declares. It returns the model's RedeclaredWireNameTable.
 func (idx *ModelPropertyDeclarations) Settle(merger Merger, tables map[ir.TypeID]RedeclaredWireNameTable, shared map[string]bool) ([]ir.Diagnostic, RedeclaredWireNameTable) {
 	brought, inherited := idx.brought(merger, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))

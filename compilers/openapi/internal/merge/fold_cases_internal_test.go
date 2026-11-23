@@ -80,7 +80,9 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 // entry's default saw no change. Now the merge keeps the later declaration's
 // value, says which detail disagreed, and keeps the losing declaration
 // verbatim, under the same key a losing type is kept under, since it is the
-// same event: a declaration the merge could not fold whole.
+// same event: a declaration the merge could not fold whole. Examples are no
+// such field: the field holds those of both
+// (TestFold_EveryExampleTheModelWritesIsHeld).
 func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	one, two := &ir.Value{Kind: ir.ValueNumber, Number: "1"}, &ir.Value{Kind: ir.ValueNumber, Number: "2"}
@@ -90,7 +92,6 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 		detail   string
 	}{
 		{"default", ir.Property{Default: one}, ir.Property{Default: two}, "default"},
-		{"examples", ir.Property{Examples: []ir.Example{{Value: one}}}, ir.Property{Examples: []ir.Example{{Value: two}}}, "examples"},
 		{"deprecation", ir.Property{Deprecation: &ir.Deprecation{Since: "1"}}, ir.Property{Deprecation: &ir.Deprecation{Since: "2"}}, "deprecation"},
 		{"xml", ir.Property{XML: &ir.XMLHints{Name: "a"}}, ir.Property{XML: &ir.XMLHints{Name: "b"}}, "xml"},
 		{"xml wrapping", ir.Property{XML: &ir.XMLHints{Wrapped: new(true)}}, ir.Property{XML: &ir.XMLHints{Wrapped: new(false)}}, "xml"},
@@ -111,7 +112,6 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 			dst = foldTwo(stubbed, dst, src, unread(t))
 
 			assert.Equal(t, want.Default, dst.Default, "the later declaration keeps its default")
-			assert.Equal(t, want.Examples, dst.Examples, "and its examples")
 			assert.Equal(t, want.Deprecation, dst.Deprecation, "and its deprecation")
 			assert.Equal(t, want.XML, dst.XML, "and its xml hints")
 			require.Len(t, *recorded, 1, "one detail disagreed, one diagnostic; got %v", *recorded)
