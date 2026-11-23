@@ -4,6 +4,8 @@
 package plan_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -41,8 +43,10 @@ func property(owner ir.TypeID, name string, mutate func(*ir.Property)) ir.Proper
 }
 
 // TestBuild_FlattensAModelAcrossItsComposition holds each field read off the
-// flattening to one model that composes a base, a mixin and a list, redeclares
-// a member of its base, and requires a mixed-in member and an undeclared name.
+// flattening to one model that composes a base, a mixin and a list, requires a
+// mixed-in member and an undeclared name, and redeclares two members of its
+// base, stating none of what the base says of them: one required and
+// deprecated there, one secret.
 func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 	t.Parallel()
 	useUID := &ir.Deprecation{Message: "use uid"}
@@ -61,6 +65,7 @@ func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 		m.Properties = []ir.Property{
 			property(m.ID, "name", func(p *ir.Property) { p.Required = true }),
 			property(m.ID, "id", nil),
+			property(m.ID, "token", nil),
 		}
 		m.Requires = []string{"note", "extra"}
 	})
@@ -72,10 +77,10 @@ func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 	built := build(t, doc, plan.Policy{})
 
 	want := plan.TypePlan{
-		Flattened:   []ir.PropertyID{"type/widget/id", "type/base/token", "type/mixin/note", "type/widget/name"},
+		Flattened:   []ir.PropertyID{"type/widget/id", "type/widget/token", "type/mixin/note", "type/widget/name"},
 		Required:    []ir.PropertyID{"type/widget/id", "type/mixin/note", "type/widget/name"},
 		Undeclared:  []string{"extra"},
-		Redacted:    []ir.PropertyID{"type/base/token"},
+		Redacted:    []ir.PropertyID{"type/widget/token"},
 		Deprecated:  map[ir.PropertyID]*ir.Deprecation{"type/widget/id": useUID},
 		Unflattened: []ir.TypeID{"type/tags"},
 	}
@@ -185,7 +190,10 @@ func TestBuild_ANilEntryPlansAsTheZeroTypePlan(t *testing.T) {
 }
 
 // TestBuild_ReadsSensitiveAlongTheBaseChain plans, in one registry, a type of
-// every relation to a Sensitive one that a Base chain gives.
+// every relation to a Sensitive one that a Base chain gives, and of the two a
+// composition gives that are no Base. It then holds the plan to the IR's own
+// reading: a member of each type is redacted in ir.FlattenedProperties exactly
+// where the plan calls its type sensitive, so the two walks cannot part.
 func TestBuild_ReadsSensitiveAlongTheBaseChain(t *testing.T) {
 	t.Parallel()
 	secret := irtest.ScalarOf("type/secret", "type/string")
@@ -203,32 +211,52 @@ func TestBuild_ReadsSensitiveAlongTheBaseChain(t *testing.T) {
 		irtest.ScalarOf("type/dangling", "type/missing"),
 		irtest.ScalarOf("type/loop-a", "type/loop-b"),
 		irtest.ScalarOf("type/loop-b", "type/loop-a"),
+		irtest.ModelOf("type/mixes-sensitive-list", func(m *ir.Model) { m.Mixins = irtest.RefsTo(list.ID) }),
+		irtest.ModelOf("type/implements-secret", func(m *ir.Model) { m.Implements = irtest.RefsTo(secret.ID) }),
 		irtest.ModelOf("type/holds-secret", func(m *ir.Model) {
 			m.Properties = []ir.Property{property(m.ID, "key", func(p *ir.Property) { p.Type.Target = secret.ID })}
 		}),
 	)
+	// One member of each type above, the missing one among them, named by its
+	// type.
+	holder := irtest.ModelOf("type/holder", nil)
+	for _, id := range append(slices.Sorted(maps.Keys(doc.Types)), "type/missing") {
+		holder.Properties = append(holder.Properties,
+			property(holder.ID, string(id), func(p *ir.Property) { p.Type.Target = id }))
+	}
+	doc.Types[holder.ID] = holder
 
 	built := build(t, doc, plan.Policy{})
 
 	want := map[ir.TypeID]bool{
-		"type/string":              false,
-		"type/secret":              true,
-		"type/list":                true,
-		"type/over-secret":         true,
-		"type/twice-over-secret":   true,
-		"type/over-sensitive-list": true,
-		"type/plain":               false,
-		"type/opaque":              false,
-		"type/dangling":            false,
-		"type/loop-a":              false,
-		"type/loop-b":              false,
-		"type/holds-secret":        false,
+		"type/string":               false,
+		"type/secret":               true,
+		"type/list":                 true,
+		"type/over-secret":          true,
+		"type/twice-over-secret":    true,
+		"type/over-sensitive-list":  true,
+		"type/plain":                false,
+		"type/opaque":               false,
+		"type/dangling":             false,
+		"type/loop-a":               false,
+		"type/loop-b":               false,
+		"type/mixes-sensitive-list": false,
+		"type/implements-secret":    false,
+		"type/holds-secret":         false,
+		"type/holder":               false,
 	}
 	got := map[ir.TypeID]bool{}
 	for id, typePlan := range built.Types {
 		got[id] = typePlan.Sensitive
 	}
 	assert.Empty(t, cmp.Diff(want, got))
+	members := ir.FlattenedProperties(doc.Types, holder.ID).Properties
+	require.Len(t, members, len(holder.Properties))
+	for _, member := range members {
+		of := member.Property.Type.Target
+		assert.Equal(t, member.Secret, built.Types[of].Sensitive,
+			"the plan and the flattening disagree on whether %s is sensitive", of)
+	}
 	assert.Equal(t, []ir.PropertyID{"type/holds-secret/key"}, built.Types["type/holds-secret"].Redacted,
 		"a member of a sensitive type is redacted, and the model holding it is not sensitive for that")
 }

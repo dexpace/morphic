@@ -19,7 +19,8 @@ const codeUnencodable = "emitters/plan/unencodable"
 // Plan is what [Build] derives from one document under one policy
 // (docs/emitters/plan/overview.md). Every key is one of the document's stable
 // IDs. A plan points into the document it was built from and copies none of
-// it, so it describes that document as it stood.
+// it, so it describes that document as it stood. It is safe for concurrent
+// reads: nothing writes one once Build returns.
 type Plan struct {
 	// Types holds one entry for each type of the document's registry.
 	Types map[ir.TypeID]TypePlan `json:"types,omitempty"`

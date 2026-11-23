@@ -44,13 +44,13 @@ func (d *Document) MarshalJSONTo(enc *jsontext.Encoder) error {
 }
 
 // CanonicalOptions fixes every choice but whitespace that decides a document's
-// bytes (invariant 7), and a plan's: map entries sorted by key, the minimal
-// string escaping of RFC 8785, and a refusal to write a string that is not
-// UTF-8 or an object that repeats a name, where the alternatives are a silent
-// U+FFFD and an ambiguous document. The rest pin v2's defaults, so no caller
-// option can stringify a number, drop a zero struct, respell or reorder a raw
-// value, substitute a marshaler, or write null for a nil list or map held as a
-// map's value.
+// bytes (invariant 7), and a plan's: map entries sorted by key, RFC 8785's
+// minimal string escaping, and a refusal to write a string that is not UTF-8
+// or an object that repeats a name, not a silent U+FFFD or an ambiguous
+// document. The rest pin v2's defaults, so joined last, as MarshalJSONTo joins
+// them, no caller option can stringify a number, drop a zero struct, respell
+// or reorder a raw value, substitute a marshaler, or write null for a nil list
+// or map held as a map's value.
 func CanonicalOptions() json.Options {
 	return json.JoinOptions(
 		json.Deterministic(true),

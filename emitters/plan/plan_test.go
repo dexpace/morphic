@@ -152,7 +152,8 @@ const versionGolden = "testdata/version.golden.txt"
 // and from build to build, so a toolchain or a codec that moves a byte of a
 // document's or a policy's encoding fails here, and -update records the move.
 // The document is stamped with a version of its own, so a bump of the IR's
-// moves nothing; a change to the shape of what the document holds does.
+// moves nothing. A change to the bytes this document encodes to does, and a
+// field it leaves unset and the encoding omits moves nothing.
 func TestBuild_VersionIsPinned(t *testing.T) {
 	t.Parallel()
 	doc := widgetDoc()
