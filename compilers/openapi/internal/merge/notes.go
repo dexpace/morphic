@@ -207,10 +207,11 @@ func heldBy(target ir.TypeID, conjuncts []conjunct) func(ir.TypeID) bool {
 // writes itself, names where the lowering hoisted it at the declaration: the
 // node its schema builds, which no reference names, as a node one names keeps
 // its notes (docs/ir/annotations.md#one-structural-home-per-declaration). A
-// declaration another model holds, or one whose type is shared or written
-// elsewhere, has none.
+// declaration another model holds, as its own or as one an entry a reference
+// names carries (apart), whose member holds its notes, or one whose type is
+// shared or written elsewhere, has none.
 func (g *Merger) ownNode(declarationValue declaration) (*ir.TypeCommon, bool) {
-	if declarationValue.via != nil {
+	if declarationValue.via != nil || declarationValue.apart {
 		return nil, false
 	}
 	td, ok := g.resolve(declarationValue.property.Type.Target)
@@ -223,16 +224,22 @@ func (g *Merger) ownNode(declarationValue declaration) (*ir.TypeCommon, bool) {
 
 // heldExamples returns the examples the field holds, of those each
 // declaration gives that it takes (taken): every one a declaration the model
-// writes itself gives, each once, as JSON Schema collects an annotation from
-// each subschema, in an order no order of the entries moves
-// (ownExampleLists); and, only where none gives one, those of the last
-// declaration another model holds (lastWritten). One such declaration giving
-// an example the field does not hold is reported: it keeps it there.
+// writes itself gives, but one another model's member carries too (apart),
+// each once, as JSON Schema collects an annotation from each subschema, in an
+// order no order of the entries moves (ownExampleLists); and, only where none
+// gives one, those of the last declaration to give one (lastWritten). Any
+// other giving an example the field does not hold is reported: one another
+// model holds keeps it there, and one the model writes itself is kept
+// verbatim.
 func heldExamples(f *folding, taken []bool) []ir.Example {
 	of := func(i int, property *ir.Property) ([]ir.Example, bool) {
 		return property.Examples, taken[i] && len(property.Examples) > 0
 	}
-	lists := ownExampleLists(f.decls, of)
+	held := func(i int) bool {
+		_, gives := of(i, &f.decls[i].property)
+		return gives && f.decls[i].via == nil && !f.decls[i].apart
+	}
+	lists := ownExampleLists(f.decls, of, held)
 	if len(lists) == 0 {
 		return lastWritten(f, "examples", byOrder, of, sameExamples)
 	}
@@ -246,16 +253,14 @@ func heldExamples(f *folding, taken []bool) []ir.Example {
 	}
 	kept := "those the declarations the model writes itself give"
 	if len(lists) == 1 {
-		kept = "the one the declaration at " + f.at(keptAt(f.decls, ownFirst, func(i int) bool {
-			_, gives := of(i, &f.decls[i].property)
-			return gives
-		})) + " gives"
+		kept = "the one the declaration at " + f.at(keptAt(f.decls, byOrder, held)) + " gives"
 	}
 	for i := len(f.decls) - 1; i >= 0; i-- {
 		examples, gives := of(i, &f.decls[i].property)
-		if !gives || f.decls[i].via == nil || containsExamples(own, examples) {
+		if !gives || containsExamples(own, examples) {
 			continue
 		}
+		f.lost[i] = f.lost[i] || f.decls[i].via == nil
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give its examples differently; kept %s over the one at %s, which %s",
 			f.merged.WireName, kept, f.at(i), f.decls[i].keptAs())
@@ -263,23 +268,23 @@ func heldExamples(f *folding, taken []bool) []ir.Example {
 	return own
 }
 
-// ownExampleLists returns the example lists the declarations of decls the
-// model writes itself give (of), ordered by their encodings, so the field
-// holds them in one order whatever order its allOf entries come in, as JSON
-// Schema gives them none. A list that does not encode, such as one holding
-// invalid UTF-8, which no document holding it encodes either, sorts first,
-// in declaration order.
-func ownExampleLists(decls []declaration, of func(i int, property *ir.Property) ([]ir.Example, bool)) [][]ir.Example {
+// ownExampleLists returns the example lists the declarations of decls that
+// held picks give (of), ordered by their encodings, so the field holds them in
+// one order whatever order its allOf entries come in, as JSON Schema gives
+// them none. A list that does not encode, such as one holding invalid UTF-8,
+// which no document holding it encodes either, sorts first, in declaration
+// order.
+func ownExampleLists(decls []declaration, of func(i int, property *ir.Property) ([]ir.Example, bool), held func(i int) bool) [][]ir.Example {
 	type encodedList struct {
 		key      string
 		examples []ir.Example
 	}
 	var lists []encodedList
 	for i := range decls {
-		examples, gives := of(i, &decls[i].property)
-		if !gives || decls[i].via != nil {
+		if !held(i) {
 			continue
 		}
+		examples, _ := of(i, &decls[i].property)
 		key, err := json.Marshal(examples, json.Deterministic(true))
 		if err != nil {
 			key = []byte{}

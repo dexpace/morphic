@@ -5,7 +5,10 @@ package e2e_test
 
 import (
 	"encoding/json/v2"
+	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,7 +48,7 @@ var foldedNotes = []foldedNote{
 
 // exampleCount is the count the example named v writes.
 func exampleCount(v string) string {
-	return map[string]string{"own": "1", "base": "2", "a": "1", "b": "2"}[v]
+	return map[string]string{"own": "1", "base": "2", "a": "1", "b": "2", "c": "3", "d": "4"}[v]
 }
 
 // notedFoldSpec is a document whose Coll writes entries as its allOf, beside
@@ -255,4 +258,127 @@ func boolIndex(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce pins that where a
+// reference names an allOf entry of the composing model, which then lowers as
+// a model of its own whose member carries that entry's note, the fold leaves
+// the note on no node and adds no example of it to the field: the field keeps
+// the other entry's, the named entry's declaration is kept verbatim, and each
+// note is typed once, in every order of the entries and of the components,
+// whether a property's $ref or another model's allOf names the entry
+// (docs/compilers/openapi.md#allof-redeclared-property).
+func TestAllOfFold_ANoteOfAnEntryAReferenceNamesIsTypedOnce(t *testing.T) {
+	t.Parallel()
+	shapes := []struct{ name, schema string }{
+		{"bare objects", "type: object"},
+		{"objects with properties", "type: object, properties: {count: {type: integer}}"},
+		{"lists", "type: array, items: {type: object}"},
+	}
+	for _, shape := range shapes {
+		for _, note := range foldedNotes {
+			if note.objectExample && strings.HasPrefix(shape.schema, "type: array") {
+				note = listExample
+			}
+			entry := func(v string) string { return "{properties: {f: {" + shape.schema + ", " + note.write(v) + "}}}" }
+			namers := []struct{ name, schema, writes string }{
+				{"a property's $ref", "    Other: {type: object, properties: {g: {$ref: '#/components/schemas/Coll/allOf/0'}}}\n", ""},
+				{"another model's allOf", "    Other: {allOf: [{$ref: '#/components/schemas/Coll/allOf/0'}, " + entry("c") + "]}\n", "c"},
+			}
+			for _, namer := range namers {
+				want := []string{note.typed("a"), note.typed("b")}
+				if namer.writes != "" {
+					want = append(want, note.typed(namer.writes))
+				}
+				slices.Sort(want)
+				var compiled [2][2]*ir.Document
+				for _, swap := range []bool{false, true} {
+					for _, collFirst := range []bool{false, true} {
+						label := shape.name + ", " + note.name + ", " + namer.name + ", " + layoutName(swap, collFirst)
+						entries := [2]string{entry("a"), entry("b")}
+						if swap {
+							entries[0], entries[1] = entries[1], entries[0]
+						}
+						coll := "    Coll: {allOf: [" + entries[0] + ", " + entries[1] + "]}\n"
+						src := openapitest.ComponentSpec(namer.schema + coll)
+						if collFirst {
+							src = openapitest.ComponentSpec(coll + namer.schema)
+						}
+						doc, field, diags := notedField(t, src)
+						compiled[boolIndex(swap)][boolIndex(collFirst)] = doc
+
+						assert.Equal(t, want, typedNotes(t, doc), "%s: each note is typed once", label)
+						assert.Len(t, field.Unmodeled, 1, "%s: the named entry's declaration is kept verbatim", label)
+						requireErrorsAndWarnings(t, diags, nil)
+						requireTieReportsTrue(t, doc, field, diags, func(int) string { return "" })
+					}
+				}
+				for _, swap := range []int{0, 1} {
+					assert.Empty(t, cmp.Diff(compiled[swap][0].Types, compiled[swap][1].Types),
+						"%s, %s, %s: the types do not depend on component order", shape.name, note.name, namer.name)
+				}
+			}
+		}
+	}
+}
+
+// tieReport reads a report of a note two declarations give differently.
+var tieReport = regexp.MustCompile(`give its ([a-z ]+) differently; kept the one the declaration at (\S+) gives over the one at (\S+), which (.+)$`)
+
+// requireTieReportsTrue holds each report diags make of a note Coll's
+// declarations give differently to the document: a declaration whose note
+// "the field's type holds" gives one the field's type or a model it composes
+// holds, as typed(k) names the note of Coll's k-th allOf entry, empty where
+// that is not to be checked; and one "kept verbatim" is under field's
+// Unmodeled. One staying on its model, as another model's fold reports, is
+// read and not checked. It returns how many reports it read.
+func requireTieReportsTrue(t *testing.T, doc *ir.Document, field ir.Property, diags []ir.Diagnostic, typed func(k int) string) int {
+	t.Helper()
+	read := 0
+	for _, d := range diags {
+		match := tieReport.FindStringSubmatch(d.Message)
+		if match == nil {
+			continue
+		}
+		read++
+		lost := match[3]
+		switch match[4] {
+		case "the field's type holds":
+			var k int
+			_, err := fmt.Sscanf(lost, "/components/schemas/Coll/allOf/%d/properties/f", &k)
+			require.NoError(t, err, d.Message)
+			want := typed(k)
+			if want == "" {
+				continue
+			}
+			var held []string
+			for _, id := range append([]ir.TypeID{field.Type.Target}, mixinsOf(doc, field.Type.Target)...) {
+				td, ok := doc.Types[id]
+				require.True(t, ok, id)
+				common := td.Common()
+				held = append(held, fieldNotes(t, ir.Property{Docs: common.Docs, Examples: common.Examples, Deprecation: common.Deprecation})...)
+			}
+			assert.Contains(t, held, want, "%s: the field's type holds it", d.Message)
+		case "is kept verbatim under Unmodeled":
+			assert.Contains(t, field.Unmodeled, "openapi:conflicting-redeclaration"+lost, "%s: it is kept verbatim", d.Message)
+		case "stays declared on its model":
+		default:
+			assert.Fail(t, "a report saying neither", d.Message)
+		}
+	}
+	return read
+}
+
+// mixinsOf lists the types the model id names composes, none where it is no
+// model.
+func mixinsOf(doc *ir.Document, id ir.TypeID) []ir.TypeID {
+	model, isModel := doc.Types[id].(*ir.Model)
+	if !isModel {
+		return nil
+	}
+	out := make([]ir.TypeID, 0, len(model.Mixins))
+	for _, mixin := range model.Mixins {
+		out = append(out, mixin.Target)
+	}
+	return out
 }

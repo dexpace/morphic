@@ -125,6 +125,10 @@ type declaration struct {
 	// may be written (Declared.TypeAt), and owner the model declaring it.
 	typeAt []ir.Provenance
 	owner  ir.TypeID
+	// apart marks a declaration the model writes itself that a model of its
+	// own holds too, an allOf entry a reference names, whose member carries
+	// its notes (ModelPropertyDeclarations.heldAlone).
+	apart bool
 }
 
 // sites is where the nodes of d's type may be written, which tells one

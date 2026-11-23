@@ -6,6 +6,7 @@ package merge
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -174,9 +175,10 @@ func TestFold_ANoteTwoOwnDeclarationsGiveDifferentlyStaysOnItsNode(t *testing.T)
 // leaveNotesOnNodes leaves nothing, so the earlier declaration is kept
 // verbatim, as for any note the field does not keep: a node the field's type
 // does not hold once it holds the note, as of two lists judged apart for a
-// note alone, which takeBack writes back as it was; a node holding
-// that note already; a node written elsewhere; and a declaration another model
-// holds, which stays declared there.
+// note alone, which takeBack writes back as it was; a node holding that note
+// already; a node written elsewhere; and the node of a declaration the model
+// writes itself that a model of its own holds too (apart), whose member
+// carries the note.
 func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -193,6 +195,11 @@ func TestFold_ANoteIsLeftOnNoNodeTheFieldDoesNotHold(t *testing.T) {
 		}, "is kept verbatim under Unmodeled"},
 		{"a node written elsewhere", func(reg map[ir.TypeID]ir.TypeDef) declaration {
 			return ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/elsewhere"))
+		}, "is kept verbatim under Unmodeled"},
+		{"a declaration another model holds too", func(reg map[ir.TypeID]ir.TypeDef) declaration {
+			declarationValue := ownDeclaration(ownNodeAt(reg, &ir.Model{}, "/allOf/0/p"))
+			declarationValue.apart = true
+			return declarationValue
 		}, "is kept verbatim under Unmodeled"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -289,10 +296,11 @@ func cloneNode(node ir.TypeDef) ir.TypeDef {
 
 // TestFold_EveryExampleTheModelWritesIsHeld pins heldExamples: the field holds
 // every example the model's own declarations give that it takes, each once,
-// each declaration's in its order and the declarations' in the order of their
-// encodings, the same in either order, and reports none of them. One another
-// model's declaration brings that the field holds too is not reported, and
-// one it does not hold is, kept on that model.
+// where it first stands in their lists ordered by their encodings, the same in
+// either order, and reports none of them. One another model's declaration
+// brings that the field holds too is not reported, and one it does not hold
+// is, kept on that model; so is one of an own declaration a model of its own
+// holds too (apart), kept verbatim.
 func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 	t.Parallel()
 	one, two, three := number("1"), number("2"), number("3")
@@ -310,30 +318,44 @@ func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 		declarationValue.via, declarationValue.typeAt = &composedEntry{target: "type/part", at: "/M/allOf/9"}, sitesAt(at)
 		return declarationValue
 	}
+	heldApart := func(at jsontext.Pointer, values ...*ir.Value) declaration {
+		declarationValue := writing(at, values...)
+		declarationValue.apart = true
+		return declarationValue
+	}
 	for _, tc := range []struct {
-		name   string
-		decls  []declaration
-		orders [2][]*ir.Value
-		notes  []string
+		name     string
+		decls    []declaration
+		orders   [2][]*ir.Value
+		notes    []string
+		verbatim []jsontext.Pointer
 	}{
 		{"two the model writes, one repeated", []declaration{writing("/a", &one), writing("/b", &two, &one)},
-			[2][]*ir.Value{{&one, &two}, {&one, &two}}, nil},
+			[2][]*ir.Value{{&one, &two}, {&one, &two}}, nil, nil},
 		{"one brought that the field holds too", []declaration{writing("/a", &one), bringing("/part/p", &one)},
-			[2][]*ir.Value{{&one}, {&one}}, nil},
+			[2][]*ir.Value{{&one}, {&one}}, nil, nil},
 		{"one brought that it does not", []declaration{writing("/a", &one), writing("/b", &two), bringing("/part/p", &three)},
 			[2][]*ir.Value{{&one, &two}, {&one, &two}},
 			[]string{"give its examples differently; kept those the declarations the model writes itself give over the one " +
-				"at /part/p, which stays declared on its model"}},
+				"at /part/p, which stays declared on its model"}, nil},
 		{"one brought beside one the model writes", []declaration{writing("/a", &one), bringing("/part/p", &three)},
 			[2][]*ir.Value{{&one}, {&one}},
 			[]string{"give its examples differently; kept the one the declaration at /a gives over the one at /part/p, " +
-				"which stays declared on its model"}},
+				"which stays declared on its model"}, nil},
 		{"two the model writes, held in one order", []declaration{writing("/a", &two), writing("/b", &one, &three)},
-			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil},
+			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil, nil},
+		{"two the model writes, one sorting first sharing one", []declaration{writing("/a", &one, &three), writing("/b", &two, &one)},
+			[2][]*ir.Value{{&one, &three, &two}, {&one, &three, &two}}, nil, nil},
+		{"one another model holds too", []declaration{writing("/a", &one), heldApart("/b", &two)},
+			[2][]*ir.Value{{&one}, {&one}},
+			[]string{"give its examples differently; kept the one the declaration at /a gives over the one at /b, " +
+				"which is kept verbatim under Unmodeled"}, []jsontext.Pointer{"/b"}},
+		{"one another model holds too, giving one held", []declaration{writing("/a", &one), heldApart("/b", &one)},
+			[2][]*ir.Value{{&one}, {&one}}, nil, nil},
 		{"one that does not encode, which sorts first", []declaration{writing("/a", &one), writing("/b", &invalid)},
-			[2][]*ir.Value{{&invalid, &one}, {&invalid, &one}}, nil},
+			[2][]*ir.Value{{&invalid, &one}, {&invalid, &one}}, nil, nil},
 		{"brought alone", []declaration{bringing("/part/p", &one), bringing("/part/q", &two)},
-			[2][]*ir.Value{{&two}, {&one}}, []string{"give its examples differently; kept the one the declaration at "}},
+			[2][]*ir.Value{{&two}, {&one}}, []string{"give its examples differently; kept the one the declaration at "}, nil},
 	} {
 		inBothOrders(tc.decls, func(label string, decls []declaration) {
 			stubbed, recorded := stubMerger(narrowingRegistry())
@@ -346,7 +368,11 @@ func TestFold_EveryExampleTheModelWritesIsHeld(t *testing.T) {
 				values = append(values, example.Value)
 			}
 			assert.Equal(t, want, values, "%s, %s", tc.name, label)
-			assert.Empty(t, got.Unmodeled, "%s, %s: nothing is kept verbatim", tc.name, label)
+			var verbatim []string
+			for _, at := range tc.verbatim {
+				verbatim = append(verbatim, losingDeclarationKey+string(at))
+			}
+			assert.Equal(t, verbatim, slices.Sorted(maps.Keys(got.Unmodeled)), "%s, %s: the declarations kept verbatim", tc.name, label)
 			require.Len(t, *recorded, len(tc.notes), "%s, %s", tc.name, label)
 			for i, note := range tc.notes {
 				assert.Contains(t, (*recorded)[i].Message, note, "%s, %s", tc.name, label)

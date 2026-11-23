@@ -98,6 +98,13 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	if len(decls) < 2 {
 		return nil
 	}
+	// An own declaration another model holds too leaves its notes to that
+	// model's member.
+	for i := range decls {
+		if !isBrought(decls[i]) {
+			decls[i].apart = !idx.heldAlone(merger, decls[i])
+		}
+	}
 	if !slices.ContainsFunc(decls, isBrought) {
 		merged, diags := merger.fold(decls)
 		idx.place(pos, merged)
