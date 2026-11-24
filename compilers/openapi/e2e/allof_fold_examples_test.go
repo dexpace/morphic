@@ -439,3 +439,49 @@ func TestAllOfFold_ANullExampleAUnionsVariantAdmitsIsTyped(t *testing.T) {
 		}
 	}
 }
+
+// TestAllOfFold_ASchemaRestatedIsOneType pins a schema a model restates beside
+// the $ref to the model declaring it, the same note or example with it, so one
+// declaration's node holds it and another's carries it: the field's type is one
+// of the nodes, as where every node held it, and the note is read there or on
+// the field, in either order and whichever positions a reference names.
+func TestAllOfFold_ASchemaRestatedIsOneType(t *testing.T) {
+	t.Parallel()
+	const a, object = "{$ref: '#/components/schemas/A'}", "type: object, properties: {p: {type: string}}"
+	for _, schema := range []string{object, object + ", additionalProperties: false", "type: object, required: [p]"} {
+		for _, note := range []string{"example: {p: x}", "description: d", "title: t, example: {p: x}"} {
+			whole := "{properties: {f: {" + schema + ", " + note + "}}}"
+			for _, own := range []struct {
+				name, entries, reversed string
+				refs                    [2]string // named in each order
+			}{
+				{"twice", whole + ", " + whole + ", " + a, a + ", " + whole + ", " + whole, [2]string{"", ""}},
+				{"once, named", whole + ", " + a, a + ", " + whole, [2]string{"M/allOf/0", "M/allOf/1"}},
+				{"once, the other named", whole + ", " + a, a + ", " + whole, [2]string{"A", "A"}},
+			} {
+				for order, entries := range []string{own.entries, own.reversed} {
+					rest := ""
+					if own.refs[order] != "" {
+						rest = "    U: {properties: {h: {$ref: '#/components/schemas/" + own.refs[order] + "/properties/f'}}}\n"
+					}
+					doc, diags := parseVerified(t, openapitest.ComponentSpec("    A: "+whole+"\n    M: {allOf: ["+entries+"]}\n"+rest))
+					field, label := memberF(t, doc, componentID("M")), schema+", "+note+", "+own.name+fmt.Sprintf(", order %d", order)
+					assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/f"), field.Type.Target, label)
+					node := doc.Types[field.Type.Target].Common()
+					onField, onNode := notesText(t, field.Docs, field.Deprecation, field.Examples), notesText(t, node.Docs, node.Deprecation, node.Examples)
+					require.NotEqual(t, onField == "", onNode == "", "%s: on one of the two", label)
+					assert.Equal(t, notesWritten(t, note), onField+onNode, label)
+					assert.Empty(t, foldReports(diags), label)
+				}
+			}
+		}
+	}
+}
+
+// notesWritten is notesText of a node holding note, keywords of one schema.
+func notesWritten(t *testing.T, note string) string {
+	t.Helper()
+	doc, _ := parseVerified(t, openapitest.ComponentSpec("    Noted: {type: object, "+note+"}\n"))
+	common := doc.Types[componentID("Noted")].Common()
+	return notesText(t, common.Docs, common.Deprecation, common.Examples)
+}

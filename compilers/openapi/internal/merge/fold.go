@@ -267,20 +267,40 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	return merged, settledNotes(folding), append(diags, g.keepUnjudged(&merged, past)...)
 }
 
-// readingNotes returns stands, a fold judged as its declarations' nodes stand,
-// judged again with each node read holding the notes a property carries off it
-// (Merger.noted), and nil where stands is the field's: where no entry brings a
-// declaration, its types compose, or it drops none and the model declares the
-// member at most once. Dropping a type, it may drop one that a note held apart,
-// leaving a wider type, or one of two that a note alone tells apart, by their
-// order. Dropping none, it may leave a note that a node of a member declared
-// again holds.
+// readingNotes returns stands, judged as its declarations' nodes stand, judged
+// again with each read holding the notes a property carries off it
+// (notedJudgment), and nil where stands is the field's: where no entry brings a
+// declaration, it drops none of a member declared at most once, or the second
+// loses more. Dropping a type, stands may drop one a note held apart, or one of
+// two a note tells apart, by order. Dropping none, it may leave a note a node
+// holds. Composing, it may compose a type with itself, one node holding what a
+// property carries off another.
 func (g *Merger) readingNotes(stands *folding) *folding {
 	own := len(slices.DeleteFunc(slices.Clone(stands.decls), isBrought))
-	if len(stands.conjuncts) > 0 || own == len(stands.decls) || own < 2 && !slices.Contains(stands.cone, false) {
+	composes, drops := len(stands.conjuncts) > 0, slices.Contains(stands.cone, false)
+	if own == len(stands.decls) || own < 2 && !drops && !composes {
 		return nil
 	}
-	return notedJudgment(stands)
+	noted := notedJudgment(stands)
+	if losesMore(stands, noted) {
+		return nil
+	}
+	return noted
+}
+
+// losesMore reports whether noted, the declarations of stands judged with their
+// notes, gives up what stands keeps: where stands composes, unless noted drops
+// and composes nothing, and where stands drops nothing of a member a part
+// settled a declaration of, if noted drops any. A settled member says what its
+// declarations say together, so each type is kept beside it.
+func losesMore(stands, noted *folding) bool {
+	drops := slices.Contains(noted.cone, false)
+	if len(stands.conjuncts) > 0 {
+		return drops || len(noted.conjuncts) > 0
+	}
+	return drops && !slices.Contains(stands.cone, false) && slices.ContainsFunc(stands.decls, func(declarationValue declaration) bool {
+		return declarationValue.settled != nil
+	})
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -346,10 +366,11 @@ type folding struct {
 	// lost marks each declaration something of which the field does not carry.
 	notes [][]note
 	lost  []bool
-	// offNodes is SettledNotes.OffNodes of the field, and reading the
-	// declarations judged by notedJudgment, nil until something asks.
-	offNodes CarriedNotes
-	reading  *folding
+	// offNodes and onNode are SettledNotes.OffNodes and OnNode of the field,
+	// and reading the declarations judged by notedJudgment, nil until something
+	// asks.
+	offNodes, onNode heldNotes
+	reading          *folding
 }
 
 // note is one diagnostic the fold reports at a declaration.
@@ -643,7 +664,7 @@ func (f *folding) foldValues() {
 			return examples, takesExamples[i] && len(examples) > 0
 		},
 		held:  func(notes heldNotes) ([]ir.Example, bool) { return notes.Examples, len(notes.Examples) > 0 },
-		carry: func(notes *CarriedNotes, examples []ir.Example) { notes.Examples = examples },
+		carry: func(notes *heldNotes, examples []ir.Example) { notes.Examples = examples },
 	})
 }
 
@@ -785,13 +806,13 @@ func (f *folding) foldDocs() {
 	same := func(a, b string) bool { return a == b }
 	f.merged.Docs.Summary = settleNote(f, readingOf(f, "title", func(notes heldNotes) (string, bool) {
 		return notes.Docs.Summary, notes.Docs.Summary != ""
-	}, same, func(notes *CarriedNotes, title string) { notes.Docs.Summary = title }))
+	}, same, func(notes *heldNotes, title string) { notes.Docs.Summary = title }))
 	f.merged.Docs.Description = settleNote(f, readingOf(f, "description", func(notes heldNotes) (string, bool) {
 		return notes.Docs.Description, notes.Docs.Description != ""
-	}, same, func(notes *CarriedNotes, description string) { notes.Docs.Description = description }))
+	}, same, func(notes *heldNotes, description string) { notes.Docs.Description = description }))
 	f.merged.Docs.ExternalDocs = settleNote(f, readingOf(f, "external docs", func(notes heldNotes) ([]ir.Link, bool) {
 		return notes.Docs.ExternalDocs, len(notes.Docs.ExternalDocs) > 0
-	}, slices.Equal[[]ir.Link], func(notes *CarriedNotes, links []ir.Link) { notes.Docs.ExternalDocs = links }))
+	}, slices.Equal[[]ir.Link], func(notes *heldNotes, links []ir.Link) { notes.Docs.ExternalDocs = links }))
 }
 
 // sameDeprecation reports whether a and b state one deprecation, field by
@@ -814,7 +835,9 @@ func (f *folding) foldAnnotations() {
 	kept := settleNote(f, readingOf(f, "deprecation", func(notes heldNotes) (heldNotes, bool) {
 		return notes, notes.Deprecation != nil
 	}, func(a, b heldNotes) bool { return sameDeprecation(a.Deprecation, b.Deprecation) },
-		func(notes *CarriedNotes, kept heldNotes) { notes.Deprecation = kept.Deprecation }))
+		func(notes *heldNotes, kept heldNotes) {
+			notes.Deprecation, notes.inferred = kept.Deprecation, kept.inferred
+		}))
 	f.merged.Deprecation = copyOf(kept.Deprecation)
 	f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, kept.inferred)
 	// XMLHints.Wrapped is a pointer, which == would compare by address.

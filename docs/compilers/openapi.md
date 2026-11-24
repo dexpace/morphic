@@ -3369,23 +3369,28 @@ is read into no other member's.
 Where a note stands follows where its reader looks, on the field and then on the node its type
 names. A declaration's note is its property's, or its node's where the node keeps it: a reference
 names its position, its schema names a `$ref`, or its model declares the member more than once
-itself (the next paragraph). Where an entry brings a declaration, the field holds the last note a
-property of the model's own gives. Where only nodes of its own hold one, the field holds none where
-the node its type names holds one of them, and otherwise the last, each other reported: as where
-that node is a brought declaration's, whatever it writes, or the model the types compose, which
-holds none of its parts' notes. One reported so stays on the part whose node holds it, and is kept
-verbatim with its declaration where none does. An example is not moved off a node so, as nothing
-shows the field's type to admit it, nor a replacement only a key names, which stays on the node
-keeping the key.
+itself (below). Where an entry brings a declaration, the field holds the last note a property of the
+model's own gives, unless the node the field's type names holds the same and the last declaration to
+give one off no node, if any does, gives another. Where only nodes of its own hold one, the field
+holds none where the node its type names holds one of them, and otherwise the last, each other
+reported: as where that node is a brought declaration's, whatever it writes, or the model the types
+compose, which holds none of its parts' notes. One reported so stays on the part whose node holds
+it, and is kept verbatim with its declaration where none does. An example is not moved off a node
+so, as nothing shows the field's type to admit it, nor a replacement only a key names, which stays
+on the node keeping the key.
 
 A note none of the model's own declarations writes is a brought declaration's, one on its node read
-there alone, the field taking none off it. Of several giving it differently, the field's reader
-finds the one found before IR 0.73.0: in either order one whose schema builds no node to hold it, a
-member a part settled being one where some declaration of it gives the note and builds none, and the
-last of two such; and otherwise the one of the node the field's type is built on, the types judged
-with each node holding its notes as below, the winner's or one it meets. Where those types tie, the
-later declaration decides it, and where they compose, or the type is of none of them, the field
-holds none. Each is reported, where the field holds none at every declaration giving one.
+there alone, the field taking none off it, but for a member a part settled, some declaration of
+which gives one off no node: the member's note is its own, though a reference holds it on the node
+of its type. Of several giving it differently, the field's reader finds that of the declaration
+whose note it found before IR 0.73.0, as its own model now reads it: in either order one whose
+schema builds no node to hold it, a member a part settled being one where some declaration of it
+gives the note and builds none, and the last of two such; and otherwise the one of the node the
+field's type is built on, the types judged with each node holding its notes as below, the winner's
+or one it meets, where that node is read holding one. A note a member settled off a type it dropped
+is of no such node. Where those types tie, the later declaration decides it, and where they compose,
+or the type is of none of them, the field holds none. Each is reported, where the field holds none
+at every declaration giving one.
 
 A member a model declares more than once itself, in its own `properties`, an inline `allOf` entry or
 one nested in another, has one slot for the notes several declarations write, so each declaration
@@ -3404,21 +3409,29 @@ declarations ([models](../ir/models.md#the-flattening)), so the flattening reads
 all the same.
 
 Beside a declaration another model brings, the fold judges the types as their nodes stand, a node
-whose notes a property carries holding none of them. Where they compose, they reach each
-declaration's node, and where they drop none of a member the model declares at most once, they keep
-each declaration's type, so that judgment is the field's. Elsewhere, where they drop any or the
-model's own nodes hold the notes of several, the fold judges them again with each node read as
-holding the notes a property carries off it, as it held them before IR 0.73.0: so a type that a note
-holds apart from what would drop it, the model's own or another's, is not lost to the note's move,
-and of two that a note alone tells apart the later is kept, as it was. Either way the field's type
-is built of the nodes as they stand, so a node the merge builds holds no note a property carries off
-one, and types only a note tells apart meet in the narrower one's own node. The node of a brought
-member its own model settled is read as holding the notes of those its type was built on, judged so
-there too, as it held them, whichever node the member then names. The field's type is wider than it
-was only beside such a member that settled to a narrower type, no note of its declarations holding
-their types apart, so a declaration beside it can lose to it what it would not to those noted types.
-And an example of the model's own is judged by the type the field then has, so one a judge refuses
-of a narrower type is refused and kept verbatim.
+whose notes a property carries holding none of them. Where they drop none of a member the model
+declares at most once, and compose nothing, they keep each declaration's type, so that judgment is
+the field's. Elsewhere the fold judges them again with each node read as holding the notes a
+property carries off it, as it held them before IR 0.73.0. Where the first judgment drops any, the
+second is the field's: so a type that a note holds apart from what would drop it, the model's own or
+another's, is not lost to the note's move, and of two that a note alone tells apart the later is
+kept, as it was. Where the first drops none of a member the model's own nodes hold the notes of
+several of, the second is the field's too, unless it drops one beside a member a part settled. Where
+the first composes, the second is the field's only where it neither composes nor drops: one schema
+restated with one note, carried off one node and held by another, is then one type and not a model
+composing the two. Either way the field's type is built of the nodes as they stand, so a node the
+merge builds holds no note a property carries off one, and types only a note tells apart meet in the
+narrower one's own node. And an example of the model's own is judged by the type the field then has,
+so one a judge refuses of a narrower type is refused and kept verbatim.
+
+The second judgment reads a brought member its own model settled as that judgment of its
+declarations settles it: by the type it gives, the node of which is read as holding the notes of
+those it is built on, as it held them, whichever node the member then names. So a declaration beside
+it loses to it no type it kept before IR 0.73.0, nor does the field take a wider one. Where the
+member's declarations settle so to a node the fold would build and none of them says, or compose, no
+node is there to name, and it is judged by the type it settled to. That may be narrower, no note of
+its declarations holding their types apart, or be one model where two composed, so a declaration
+beside it can still lose to it what it would not to those noted types.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write

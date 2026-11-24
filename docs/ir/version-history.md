@@ -1287,9 +1287,10 @@ it sees. Changes made together in one bump are listed together under it.
   an `allOf` entry brings a declaration another model holds, the title, description, external link or
   deprecation its model's own declarations write is kept over that one's, which stays on that model:
   the member holds it, unless the node its type names does, the last of several standing on other
-  nodes. Of several such declarations', none its model's own, it holds the one a reader found before,
-  on the member and then on the node its type names, and none where one found none. It takes an example its own model's gives that
-  no judge of the fold refuses, where neither it nor its type holds another of them
+  nodes. Of several such declarations', none its model's own, it holds that of the one whose note a
+  reader found before, on the member and then on the node its type names, as that one's model reads
+  it, and none where one found none. It takes an example its own model's gives that no judge of the
+  fold refuses, where neither it nor its type holds another of them
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
   off the node its type names, and finds none on the member.
