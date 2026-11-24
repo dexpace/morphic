@@ -212,6 +212,7 @@ func composedVariant(loweringContext lowering.Ctx, ts *compile.Types, depth int,
 	branch, diags := Ref(loweringContext, ts, depth, b, vptr)
 	referent := branch.Target
 	if unpacked {
+		recordDiscarded(loweringContext, referent)
 		referent = variant
 	}
 	def, variantDiags := buildComposedVariant(loweringContext, ts, depth, body, b, referent, true, common)
@@ -310,8 +311,8 @@ func branchReferent(loweringContext lowering.Ctx, b *statement.Statement) (varia
 // (ReserveNodesAtReferenceTargets).
 func keepUncomposedBranch(loweringContext lowering.Ctx, model *ir.Model, b *statement.Statement) []ir.Diagnostic {
 	at := model.Provenance.Pointer
-	kept, diags := annotation.PreserveNodeInto(&model.Unmodeled, unionBranchKey(at), b.Node,
-		ir.ReasonDegradedLowering, loweringContext.Place().At(at))
+	kept, diags := preserveNode(loweringContext, &model.Unmodeled, unionBranchKey(at), b.Node,
+		ir.ReasonDegradedLowering, at)
 	if !kept {
 		return diags
 	}

@@ -484,6 +484,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/RefTargetStr",
+          "targets": {
+            "": "type/openapi/components/schemas/RefTargetStr"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/RefConst"
@@ -565,6 +568,9 @@
         "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": "#/components/schemas/RefTargetStr",
+          "targets": {
+            "": "type/openapi/components/schemas/RefTargetStr"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/RefEnum"

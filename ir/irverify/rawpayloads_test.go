@@ -300,8 +300,9 @@ func TestUnmodeledEntryFields_MatchTheIRShape(t *testing.T) {
 	t.Parallel()
 	entry := reflect.TypeFor[ir.UnmodeledEntry]()
 	for field, kind := range map[string]reflect.Kind{
-		"Reason": reflect.String,
-		"Value":  reflect.Slice,
+		"Reason":  reflect.String,
+		"Value":   reflect.Slice,
+		"Targets": reflect.Map,
 	} {
 		f, ok := entry.FieldByName(field)
 		require.True(t, ok, "UnmodeledEntry has no field %s, which checkRawPayloads reads by name", field)

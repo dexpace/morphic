@@ -94,6 +94,19 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	assert.Empty(t, irtest.AllocatingVisits(doc, irverify.WalkVisitors(doc)...))
 }
 
+// TestWalkChecks_UnmodeledTargetsResolutionCostsNothing holds the pointer
+// resolution check on populated UnmodeledEntry.Targets to zero allocations per
+// clean visit once the decoder and scratch buffers are warmed up.
+func TestWalkChecks_UnmodeledTargetsResolutionCostsNothing(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/conformance/openapi/kept-ref-landings.yaml")
+	require.NoError(t, err)
+	doc := compile(t, "kept-ref-landings.yaml", data)
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the document is clean")
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, irverify.WalkVisitors(doc)...))
+}
+
 // TestVerify_ACleanComponentCostsNothing holds all Verify does to costing
 // nothing for a value it finds clean, including what irtest.AllocatingVisits
 // never measures: a check's first meeting with a value, and its report once

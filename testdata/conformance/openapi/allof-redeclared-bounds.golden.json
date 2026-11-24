@@ -59,24 +59,6 @@
     }
   ],
   "types": {
-    "type/anonymous/components/schemas/BareListFirst/allOf/0/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BareListFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BareListFirst/allOf/0/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p": {
       "kind": "list",
       "id": "type/anonymous/components/schemas/BareListFirst/allOf/1/properties/p",
@@ -99,24 +81,6 @@
         "uniqueItems": false
       }
     },
-    "type/anonymous/components/schemas/BareMapFirst/allOf/0/properties/p": {
-      "kind": "map",
-      "id": "type/anonymous/components/schemas/BareMapFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BareMapFirst/allOf/0/properties/p"
-      },
-      "value": {
-        "target": "type/primitive/string",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p": {
       "kind": "map",
       "id": "type/anonymous/components/schemas/BareMapFirst/allOf/1/properties/p",
@@ -137,27 +101,6 @@
       "constraints": {
         "uniqueItems": false,
         "maxProperties": 5
-      }
-    },
-    "type/anonymous/components/schemas/BareScalarFirst/allOf/0/properties/p": {
-      "kind": "scalar",
-      "id": "type/anonymous/components/schemas/BareScalarFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BareScalarFirst/allOf/0/properties/p"
-      },
-      "base": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "encoding": {
-        "name": "x-custom"
       }
     },
     "type/anonymous/components/schemas/BareScalarFirst/allOf/1/properties/p": {
@@ -185,30 +128,6 @@
         "name": "x-custom"
       }
     },
-    "type/anonymous/components/schemas/BareTupleFirst/allOf/0/properties/p": {
-      "kind": "tuple",
-      "id": "type/anonymous/components/schemas/BareTupleFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BareTupleFirst/allOf/0/properties/p"
-      },
-      "elementTypes": [
-        {
-          "target": "type/primitive/string",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "type/primitive/any",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p": {
       "kind": "tuple",
       "id": "type/anonymous/components/schemas/BareTupleFirst/allOf/1/properties/p",
@@ -221,244 +140,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BareTupleFirst/allOf/1/properties/p"
-      },
-      "elementTypes": [
-        {
-          "target": "type/primitive/string",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "type/primitive/any",
-        "nullable": false
-      },
-      "constraints": {
-        "maxItems": 5,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "minItems": 1,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "maxItems": 5,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "maxItems": 5,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "minItems": 1,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothMapBounds/allOf/0/properties/p": {
-      "kind": "map",
-      "id": "type/anonymous/components/schemas/BothMapBounds/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothMapBounds/allOf/0/properties/p"
-      },
-      "value": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "uniqueItems": false,
-        "minProperties": 1
-      }
-    },
-    "type/anonymous/components/schemas/BothMapBounds/allOf/1/properties/p": {
-      "kind": "map",
-      "id": "type/anonymous/components/schemas/BothMapBounds/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothMapBounds/allOf/1/properties/p"
-      },
-      "value": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "uniqueItems": false,
-        "maxProperties": 5
-      }
-    },
-    "type/anonymous/components/schemas/BothScalarBounds/allOf/0/properties/p": {
-      "kind": "scalar",
-      "id": "type/anonymous/components/schemas/BothScalarBounds/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothScalarBounds/allOf/0/properties/p"
-      },
-      "base": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "minLength": 1,
-        "uniqueItems": false
-      },
-      "encoding": {
-        "name": "x-custom"
-      }
-    },
-    "type/anonymous/components/schemas/BothScalarBounds/allOf/1/properties/p": {
-      "kind": "scalar",
-      "id": "type/anonymous/components/schemas/BothScalarBounds/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothScalarBounds/allOf/1/properties/p"
-      },
-      "base": {
-        "target": "type/primitive/string",
-        "nullable": false
-      },
-      "constraints": {
-        "maxLength": 5,
-        "uniqueItems": false
-      },
-      "encoding": {
-        "name": "x-custom"
-      }
-    },
-    "type/anonymous/components/schemas/BothTupleBounds/allOf/0/properties/p": {
-      "kind": "tuple",
-      "id": "type/anonymous/components/schemas/BothTupleBounds/allOf/0/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothTupleBounds/allOf/0/properties/p"
-      },
-      "elementTypes": [
-        {
-          "target": "type/primitive/string",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "type/primitive/any",
-        "nullable": false
-      },
-      "constraints": {
-        "minItems": 1,
-        "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BothTupleBounds/allOf/1/properties/p": {
-      "kind": "tuple",
-      "id": "type/anonymous/components/schemas/BothTupleBounds/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BothTupleBounds/allOf/1/properties/p"
       },
       "elementTypes": [
         {
@@ -495,24 +176,6 @@
       "constraints": {
         "maxItems": 5,
         "uniqueItems": false
-      }
-    },
-    "type/anonymous/components/schemas/BoundedListFirst/allOf/1/properties/p": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/BoundedListFirst/allOf/1/properties/p",
-      "name": {
-        "hint": "p"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BoundedListFirst/allOf/1/properties/p"
-      },
-      "elementType": {
-        "target": "type/primitive/string",
-        "nullable": false
       }
     },
     "type/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {

@@ -1745,7 +1745,6 @@ document.Types[type/anonymous/components/schemas/Positions/x-body/content/applic
 document.Types[type/anonymous/components/schemas/Positions/x-parameter/schema].Name foo
 document.Types[type/anonymous/components/schemas/Positions/x-response/content/application~1json/schema/items].Name response_item
 document.Types[type/anonymous/components/schemas/Positions/x-response/content/application~1json/schema].Name response
-document.Types[type/anonymous/components/schemas/].Name empty
 document.Types[type/anonymous/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema].Name response_item
 document.Types[type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items].Name x_nested_item
 document.Types[type/anonymous/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema].Name x_meta
@@ -1797,3 +1796,4 @@ document.Types[type/openapi/components/schemas/HintUses].Variants[4].Name hint_o
 document.Types[type/openapi/components/schemas/HintUses].Variants[5].Name hint_obj
 document.Types[type/openapi/components/schemas/HintUses].Variants[6].Name nested_mark
 document.Types[type/openapi/components/schemas/HintUses].Variants[7].Name beside_mark
+document.Types[type/openapi/components/schemas/].Name empty

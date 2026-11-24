@@ -88,7 +88,7 @@ func carriesText(schema *statement.Schema, st statement.JSONSchemaTypeName, form
 func keepTextBounds(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, bounds []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range bounds {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer, loweringContext.Place())
+		kept, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer)
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
@@ -146,7 +146,7 @@ func keepCounts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, writers [
 			if binding[k] != w {
 				continue
 			}
-			ok, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, writer.Node, keyword, ir.ReasonDegradedLowering, writer.At, loweringContext.Place())
+			ok, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, writer.Node, keyword, ir.ReasonDegradedLowering, writer.At)
 			diags = append(diags, stampConstraintDiags(loweringContext, keptDiags, writer.At)...)
 			if ok {
 				kept = append(kept, keyword)
