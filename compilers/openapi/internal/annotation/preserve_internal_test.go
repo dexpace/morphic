@@ -130,8 +130,9 @@ func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *test
 	s := schemaFromYAML(t, "type: string\nnot: {const: x}\n")
 	var unmodeled ir.Unmodeled
 
-	diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
+	kept, diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
 
+	assert.True(t, kept)
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "not"): {
 		Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"const":"x"}`),
 		Provenance: ir.Provenance{Pointer: "/S/not", WrittenBy: 1},
@@ -149,9 +150,12 @@ func TestPreserveValidationOnlyKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testin
 	s := schemaFromYAML(t, "type: object\ndependentRequired: {a: [.nan]}\n")
 	var unmodeled ir.Unmodeled
 
-	assert.Empty(t, PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", sourced(0)), "an absent keyword is no construct")
+	kept, absentDiags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "not", "/S", sourced(0))
+	assert.False(t, kept)
+	assert.Empty(t, absentDiags, "an absent keyword is no construct")
 
-	diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
+	kept, diags := PreserveValidationOnlyKeyword(&unmodeled, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
+	assert.False(t, kept)
 	assert.Nil(t, unmodeled, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)

@@ -425,7 +425,7 @@ func fillCatchAll(loweringContext lowering.Ctx, ts *compile.Types, depth int, mo
 		}
 		model.AdditionalProperties.Patterns = patterns
 	}
-	forbidRest(model)
+	forbidRest(loweringContext, model)
 	if closes {
 		model.Additional = ir.AdditionalClosedAfterComposition
 	}
@@ -436,11 +436,13 @@ func fillCatchAll(loweringContext lowering.Ctx, ts *compile.Types, depth int, mo
 // pattern matches, which the closure allows none of, and the catch-all itself
 // when no pattern is left (docs/ir/models.md#catch-alls). Each writer of a
 // closure beside a catch-all calls it once the closure is decided.
-func forbidRest(model *ir.Model) {
+func forbidRest(loweringContext lowering.Ctx, model *ir.Model) {
 	if model.Additional != ir.AdditionalClosed || model.AdditionalProperties == nil {
 		return
 	}
-
+	if model.AdditionalProperties.Value != nil {
+		recordDiscarded(loweringContext, model.AdditionalProperties.Value.Target)
+	}
 	model.AdditionalProperties.Value = nil
 	if len(model.AdditionalProperties.Patterns) == 0 {
 		model.AdditionalProperties = nil

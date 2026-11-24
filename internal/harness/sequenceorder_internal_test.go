@@ -585,11 +585,17 @@ var (
 	// fixtureZ: both entries declare p, as an object of their own.
 	fixtureZ = schemas("AB: {allOf: [{type: object, properties: {p: {type: object, properties: {x: {type: string}}}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
-	// fixtureBeneath: AB's p ties alpha's string and an object AB writes, a
-	// node of its own where p stands in either order, holding beta.
+	// fixtureBeneath: AB's p ties alpha's string and an object AB writes, so
+	// the object survives only in the order where AB's declaration wins.
 	fixtureBeneath = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, "+
 		"{type: object, properties: {p: {type: object, properties: {beta: {type: string}}}}}]}",
 		"alpha: {type: object, properties: {p: {type: string}}}")
+	// fixtureBeneathKept: AB's p composes alpha's object and an inline object
+	// AB writes while their descriptions tie, so AB's inline object stays
+	// referenced in either order and what it says is compared.
+	fixtureBeneathKept = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, "+
+		"{type: object, properties: {p: {type: object, description: b, properties: {beta: {type: string}}}}}]}",
+		"alpha: {type: object, properties: {p: {type: object, description: a, properties: {gamma: {type: string}}}}}")
 	// fixtureSwap: two models composing alpha and beta, whose p disagree, so
 	// the one report of the tie moves from one declaration to the other.
 	// Their q agree.
@@ -1121,10 +1127,11 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			found: false,
 		},
 		{
-			// The object AB writes for p is a node in either order, whichever
-			// declaration p takes, so what it says is compared.
+			// The object AB writes for p is referenced in either order (by the
+			// composed p model), while p's description ties, so what it says
+			// is compared.
 			name: "a node written where a tied member stands, differing",
-			src:  fixtureBeneath,
+			src:  fixtureBeneathKept,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				const written = "type/anonymous/components/schemas/AB/allOf/0/properties/p"
 				if !reversed {
@@ -1407,7 +1414,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // detection rows: each fixture, compiled by the real compiler in both orders,
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
-	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "Agreeing": fixtureAgreeing, "Meeting": fixtureMeeting,
+	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "BeneathKept": fixtureBeneathKept, "Agreeing": fixtureAgreeing, "Meeting": fixtureMeeting,
 		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap, "beside": fixtureBeside,
 		"three": fixtureThree, "trade": fixtureTrade, "far": fixtureFar, "loser": fixtureLoser,
 		"outvoted": fixtureOutvoted, "group": fixtureGroup, "brought": fixtureBrought} {
@@ -1480,4 +1487,85 @@ func TestSequenceOrderInvariant_AFormPastTheBoundIsDeclined(t *testing.T) {
 	got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureX), true)
 
 	assert.Equal(t, declined(OracleSequenceOrder, DeclineTooDeep), got)
+}
+
+// TestSequenceOrderInvariant_UnmodeledTargetsKeyNormalization pins how narrow
+// targetNames is in canon.go: reversing an allOf inside a kept keyword shifts
+// its /allOf/N/$ref target keys and passes, while swapping non-reversed oneOf
+// target keys or altering a target ID still fails the oracle.
+func TestSequenceOrderInvariant_UnmodeledTargetsKeyNormalization(t *testing.T) {
+	src := schemas(
+		"A: {type: string}",
+		"B: {type: integer}",
+		"Holder: {type: object, not: {allOf: [{description: alpha, $ref: '#/components/schemas/A'}, {description: beta, $ref: '#/components/schemas/B'}]}}",
+	)
+	assert.Equal(t, passed(OracleSequenceOrder), sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true))
+
+	t.Run("changed target ID is still caught", func(t *testing.T) {
+		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+			if !reversed {
+				return doc, diags, nil
+			}
+			holder := doc.Types["type/openapi/components/schemas/Holder"].Common()
+			entry := holder.Unmodeled["openapi:not"]
+			entry.Targets["/allOf/0/$ref"] = "type/openapi/components/schemas/A"
+			holder.Unmodeled["openapi:not"] = entry
+			return doc, diags, nil
+		})
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true)
+		assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
+	})
+
+	t.Run("non-reversed oneOf target keys are not erased", func(t *testing.T) {
+		oneOfSrc := schemas(
+			"Alpha: {type: string}",
+			"Beta: {type: integer}",
+			"Holder: {allOf: [{properties: {alpha: {type: string}}}, {properties: {beta: {type: string}}}], "+
+				"not: {oneOf: [{$ref: '#/components/schemas/Alpha'}, {$ref: '#/components/schemas/Beta'}]}}",
+		)
+		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+			if !reversed {
+				return doc, diags, nil
+			}
+			holder := doc.Types["type/openapi/components/schemas/Holder"].Common()
+			entry := holder.Unmodeled["openapi:not"]
+			entry.Targets["/oneOf/0/$ref"], entry.Targets["/oneOf/1/$ref"] = entry.Targets["/oneOf/1/$ref"], entry.Targets["/oneOf/0/$ref"]
+			holder.Unmodeled["openapi:not"] = entry
+			return doc, diags, nil
+		})
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(oneOfSrc), true)
+		assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
+	})
+}
+
+// TestSequenceOrderInvariant_PrunedByTieIsNarrow pins that prunedByTie forgives
+// anonymous types reachable from a tied property (even when declared via $ref
+// into $defs outside the property's pointer), while still catching an unrelated
+// order-dependent anonymous node placed under a tied member's pointer.
+func TestSequenceOrderInvariant_PrunedByTieIsNarrow(t *testing.T) {
+	refTie := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    M:\n" +
+		"      $defs:\n" +
+		"        ObjA: {type: object, properties: {x: {type: string}}}\n" +
+		"      allOf:\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/M/$defs/ObjA'}}}\n" +
+		"        - {type: object, properties: {p: {type: string}}}\n"
+	assert.Equal(t, passed(OracleSequenceOrder), sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(refTie), true))
+
+	inlineTie := schemas("M: {allOf: [{description: alpha, type: object, properties: {p: {type: object, properties: {a: {type: string}}}}}, " +
+		"{description: beta, type: object, properties: {p: {type: string}}}]}")
+	plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+		if !reversed {
+			return doc, diags, nil
+		}
+		const leak ir.TypeID = "type/anonymous/components/schemas/M/allOf/0/properties/p/unrelated"
+		doc.Types[leak] = &ir.Model{
+			ID:         leak,
+			Anonymous:  true,
+			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/M/allOf/0/properties/p/unrelated"},
+		}
+		return doc, diags, nil
+	})
+	got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(inlineTie), true)
+	assert.Equal(t, OutcomeSequenceOrderDependent, got.Outcome)
 }

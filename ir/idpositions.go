@@ -101,6 +101,7 @@ var idPositions = map[string]idRule{
 	"Service.Extends":                   idRequired,
 	"Service.Renames":                   idRequired,
 	"Service.Servers":                   idRequired,
+	"UnmodeledEntry.Targets":            idRequired,
 	"ValueRef.Type":                     idRequired,
 
 	// FlattenedProperties' result and its walk's own state, which no Document

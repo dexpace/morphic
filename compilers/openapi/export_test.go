@@ -20,3 +20,21 @@ var WithoutRereported = withoutRereported
 
 // InferencesOf is inferencesOf, for the external tests.
 var InferencesOf = inferencesOf
+
+// PruneUnreferencedTypesWith is pruneUnreferencedTypesWith, for the external
+// tests.
+var PruneUnreferencedTypesWith = pruneUnreferencedTypesWith
+
+// AttachUnmodeledTargets is attachUnmodeledTargets, for the external tests.
+var AttachUnmodeledTargets = attachUnmodeledTargets
+
+// AttachUnmodeledTargetsWith is attachUnmodeledTargetsWith, for the external
+// tests.
+var AttachUnmodeledTargetsWith = attachUnmodeledTargetsWith
+
+// SeedDiscardedLandings is seedDiscardedLandings, for the external tests.
+var SeedDiscardedLandings = seedDiscardedLandings
+
+// RewritePrunedFoldDiagnostics is rewritePrunedFoldDiagnostics, for the
+// external tests.
+var RewritePrunedFoldDiagnostics = rewritePrunedFoldDiagnostics

@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -134,6 +135,7 @@ func passedOverSpelling(serviceContext service.Ctx, unmodeled *ir.Unmodeled, roo
 	if !kept {
 		return diags
 	}
+	schema.RecordReached(serviceContext.Ctx, pointer)
 	return append(diags, serviceContext.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 		"a parameter or header declares either schema or content, not both; this one declares "+
 			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
@@ -181,6 +183,7 @@ func passedOverEntries(serviceContext service.Ctx, written []nodeview.Pair, elec
 			entry.Val, ir.ReasonDegradedLowering, serviceContext.Place().At(pointer))
 		diags = append(diags, keptDiags...)
 		if ok {
+			schema.RecordReached(serviceContext.Ctx, pointer)
 			kept = append(kept, entry.Key)
 		}
 	}
@@ -235,6 +238,7 @@ func contentEntryFields(mediaDeclValue mediaDecl, scope, carrier, home string) (
 		if !kept {
 			continue
 		}
+		schema.RecordReached(serviceContext.Ctx, at)
 		diags = append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
 			carrier, field.keyword, home))
