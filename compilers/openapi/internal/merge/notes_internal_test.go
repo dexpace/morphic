@@ -28,7 +28,7 @@ type noteCase struct {
 	read   func(property ir.Property) string
 }
 
-// noteCases are the notes lastWritten ranks a declaration the model writes
+// noteCases are the notes keptNote ranks a declaration the model writes
 // itself first for.
 var noteCases = []noteCase{
 	{"title", func(p *ir.Property, v string) { p.Docs.Summary = v }, func(p ir.Property) string { return p.Docs.Summary }},
@@ -43,7 +43,7 @@ var noteCases = []noteCase{
 	}, func(p ir.Property) string { return p.Examples[0].Value.String }},
 }
 
-// TestFold_ANoteTheModelWritesIsKeptOverOneItBrings pins lastWritten's
+// TestFold_ANoteTheModelWritesIsKeptOverOneItBrings pins keptNote's
 // ranking: of a declaration the model writes itself and one another model
 // holds giving a note differently, the field keeps the model's own in either
 // order, and the other, which stays declared on its model, is reported at the
@@ -100,14 +100,14 @@ func TestFold_ANoteTheModelWritesIsKeptOverOneItBrings(t *testing.T) {
 }
 
 // TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain pins
-// Merger.noted: a member the model declares twice itself, whose nodes hold
-// their notes, beside one another model brings, whose property carries its
-// node's, is judged with each note on its node where the types as they stand
-// drop one: two maps apart, which the bare object's note composes with, and not
-// two bare objects, which compose without it, nor a member the model declares
-// once. Either way the brought node itself holds no note afterwards, each kind
-// of note tells it apart alike, and docs the model's own nodes hold are kept
-// over those brought, which is reported.
+// Merger.noted: a member the model declares twice itself, its nodes keeping
+// their notes, beside one brought, whose property carries its node's, is judged
+// with each note on its node where the types as they stand drop one: two maps
+// apart, which compose with the noted object, and not two bare objects, nor a
+// member the model declares once. The brought node is not written to, each kind
+// of note tells it apart alike, and the last of the model's own docs is the
+// field's, the others reported, where its type composes theirs and so holds
+// none.
 func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *testing.T) {
 	t.Parallel()
 	mapOf := func(value ir.TypeID) func(common ir.TypeCommon) ir.TypeDef {
@@ -125,10 +125,13 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 			name       string
 			own0, own2 func(common ir.TypeCommon) ir.TypeDef // own2 nil where the model declares the member once
 			conjuncts  []ir.TypeID
+			docs       string   // what the field holds
+			over       []string // where the notes it is kept over stand, beside that of brought docs
 		}{
-			{"two maps apart", mapOf("type/primitive/string"), mapOf("type/A"), []ir.TypeID{"type/own0", "type/brought", "type/own2"}},
-			{"two bare objects", bare, bare, []ir.TypeID{"type/own0", "type/own2"}},
-			{"one bare object", bare, nil, []ir.TypeID{}},
+			{"two maps apart", mapOf("type/primitive/string"), mapOf("type/A"), []ir.TypeID{"type/own0", "type/brought", "type/own2"},
+				"own 2", []string{"/M/allOf/0/properties/p"}},
+			{"two bare objects", bare, bare, []ir.TypeID{"type/own0", "type/own2"}, "own 2", []string{"/M/allOf/0/properties/p"}},
+			{"one bare object", bare, nil, []ir.TypeID{}, "", nil},
 		} {
 			reg := membersRegistry()
 			node := func(id ir.TypeID, at jsontext.Pointer, docs ir.Docs) ir.TypeCommon {
@@ -158,15 +161,17 @@ func TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain(t *
 			for i, diagnostic := range diags {
 				reports[i] = diagnostic.Message
 			}
+			over := tc.over
 			if detail == "description" {
-				require.Len(t, reports, 1, label)
-				assert.Contains(t, reports[0], "give its description differently; kept the one the declaration at /M/allOf/", label)
-				assert.Contains(t, reports[0], "over the one at /A/p, which stays declared on its model", label)
-			} else {
-				assert.Empty(t, reports, label)
+				over = append(slices.Clone(over), "/A/p")
+			}
+			require.Len(t, reports, len(over), "%s: %v", label, reports)
+			for i, at := range over {
+				assert.Contains(t, reports[i], "give its description differently; kept the one the declaration at /M/allOf/", label)
+				assert.Contains(t, reports[i], "over the one at "+at+", which ", label)
 			}
 			require.Len(t, model.Properties, 1, label)
-			assert.Empty(t, model.Properties[0].Docs, "%s: the field holds no docs, its types holding the model's own", label)
+			assert.Equal(t, ir.Docs{Description: tc.docs}, model.Properties[0].Docs, label)
 			composed, isModel := reg[model.Properties[0].Type.Target].(*ir.Model)
 			require.True(t, isModel, label)
 			assert.Equal(t, tc.conjuncts, targetsOf(composed.Mixins), label)
@@ -371,13 +376,13 @@ func TestSayingAll_NamesTheFirstSortingNodeThatSaysAll(t *testing.T) {
 	assert.False(t, said, "neither says what it does")
 }
 
-// TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought pins givenOnNodes: a note the
-// node the model's own declaration built holds is kept over one another model's
-// property brings, reported. Where the field's type is the own node or one
-// built holding its note, read there, the field holds neither; where it is one
-// the registry does not hold, the field holds the own one, but an example,
-// which no node built adopts, and which the field takes as it would were there
-// no own one. A named node's note is not its declaration's own, and a node the
+// TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought pins settleNote: a note the
+// node of the model's own declaration holds is kept over one another model's
+// property brings, reported. Where the field's type is that node or one built
+// holding its note, the field holds neither; where the registry does not hold
+// its type, it holds the own one, marked by what promoted it and not by what
+// chose its node's kind, but an example, which it takes as were there no own
+// one. A named node's note is not its declaration's own, and a node the
 // registry does not hold holds none.
 func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 	t.Parallel()
@@ -402,7 +407,7 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 			reg["type/wide"] = stringEnum(ir.TypeCommon{ID: "type/wide", Anonymous: true, Provenance: ptrAt("/part/p")}, "own", "brought", "third")
 			held := ir.Property{}
 			note.write(&held, "own")
-			common := ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ir.Provenance{Pointer: "/a", Inferred: promoted},
+			common := ir.TypeCommon{ID: "type/own", Anonymous: true, Provenance: ir.Provenance{Pointer: "/a", Inferred: "kind-inference," + promoted},
 				Docs: held.Docs, Deprecation: held.Deprecation, Examples: held.Examples}
 			reg["type/own"] = stringEnum(common, tc.own...)
 			if tc.own == nil {
@@ -416,6 +421,7 @@ func TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought(t *testing.T) {
 				tc.change(reg)
 			}
 			stubbed, recorded := stubMerger(reg)
+			stubbed.Promotion = promoted
 
 			got := stubbed.fold([]declaration{own, brought})
 

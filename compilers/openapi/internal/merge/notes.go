@@ -4,13 +4,16 @@
 package merge
 
 import (
+	"cmp"
+	"reflect"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
 // heldNotes is what a property or a node holds of the notes a fold ranks, and
-// the marker over them.
+// the mark of what promoted its deprecation.
 type heldNotes struct {
 	CarriedNotes
 	inferred ir.Inferred
@@ -18,115 +21,319 @@ type heldNotes struct {
 
 // noteReading is how a fold reads one note, which detail names: what the
 // declaration at i gives the field off its property (given), what a node holds
-// (held), and whether two say the same.
+// (held), and whether two say the same. carry writes a note on those a property
+// carries off nodes, and takenOffNode reports whether the field may take one
+// off a node, as it may not an example, which nothing shows its type to admit.
 type noteReading[T any] struct {
-	detail string
-	given  func(i int) (T, bool)
-	held   func(notes heldNotes) (T, bool)
-	same   func(a, b T) bool
+	detail       string
+	given        func(i int) (T, bool)
+	held         func(notes heldNotes) (T, bool)
+	same         func(a, b T) bool
+	carry        func(notes *CarriedNotes, note T)
+	takenOffNode bool
 }
 
 // readingOf is the noteReading of a note a property of foldingValue's
 // declarations holds as a node does (held).
-func readingOf[T any](foldingValue *folding, detail string, held func(notes heldNotes) (T, bool), same func(a, b T) bool) noteReading[T] {
+func readingOf[T any](foldingValue *folding, detail string, held func(notes heldNotes) (T, bool), same func(a, b T) bool,
+	carry func(notes *CarriedNotes, note T),
+) noteReading[T] {
 	given := func(i int) (T, bool) {
 		property := &foldingValue.decls[i].property
 		return held(heldNotes{CarriedNotes{property.Docs, property.Deprecation, property.Examples}, property.Provenance.Inferred})
 	}
-	return noteReading[T]{detail: detail, given: given, held: held, same: same}
+	return noteReading[T]{detail: detail, given: given, held: held, same: same, carry: carry, takenOffNode: true}
 }
 
 // nodeNotes returns the notes the node id names holds as it stands, none where
-// id names none.
+// id names none. A node lists what chose its kind beside what promoted its
+// deprecation, and a field names the promotion alone.
 func nodeNotes(g *Merger, id ir.TypeID) heldNotes {
 	td, ok := g.Reg[id]
 	if !ok {
 		return heldNotes{}
 	}
 	common := td.Common()
-	return heldNotes{CarriedNotes{common.Docs, common.Deprecation, common.Examples}, common.Provenance.Inferred}
+	held := heldNotes{CarriedNotes: CarriedNotes{common.Docs, common.Deprecation, common.Examples}}
+	if ir.JoinInferred(common.Provenance.Inferred, g.Promotion) == common.Provenance.Inferred {
+		held.inferred = g.Promotion
+	}
+	return held
 }
 
-// builtNodeNotes returns the notes the node declarationValue built holds, where
-// the model writes declarationValue itself: the node of a member the model
-// declares again keeps them, as does one a reference names and one naming a
+// builtNodeNotes returns the notes the node declarationValue built holds, none
+// where its type names another: the node of a member its model declares more
+// than once itself keeps them, as does one a reference names and one naming a
 // $ref.
 func builtNodeNotes(g *Merger, declarationValue declaration) heldNotes {
 	target := declarationValue.property.Type.Target
 	td, ok := g.Reg[target]
-	if !ok || isBrought(declarationValue) || !hoistedAt(td, declarationValue.sites()) {
+	if !ok || !hoistedAt(td, declarationValue.sites()) {
 		return heldNotes{}
 	}
 	return nodeNotes(g, target)
 }
 
-// settleNote returns what the field holds of the note reading reads: the last
-// declaration's to give it, the model's own first (lastWritten, ownFirst). A
-// model's own note standing on the node its declaration built (givenOnNodes) is
-// kept over one an entry brings too, and the field holds it only where no
-// reader of the field's type reads it there. A replacement only a key names
-// stays on the node keeping the key, which resolves it (replacement.Resolve).
+// SettledNotes is what a later fold reads of the notes of a member a fold
+// settled, whose property holds one of each kind whichever declaration gave it.
+type SettledNotes struct {
+	// Node is what the node of the member's type is read holding where a fold
+	// reads notes there (Merger.Carried): those of the nodes its type is built
+	// on, judged so (settledNode).
+	Node CarriedNotes
+	// OffNodes holds each note the member took of a node that no declaration
+	// of it gives off none. Any other is the member's own.
+	OffNodes CarriedNotes
+}
+
+// noteRank ranks what declarations give of one note: the model's own over one
+// another model holds, which keeps it there, and one no node would hold, which
+// a reader finds on the field, over one a node holds or its property carries
+// off it, which a reader finds by the field's type.
+type noteRank uint8
+
+const (
+	givesNone noteRank = iota
+	broughtOfNode
+	broughtOfUse
+	ownOnNode
+	ownOnProperty
+)
+
+// givenNote is what one declaration gives of a note, off its property, or off
+// the node it built where its property gives none. ofNode is that a node is the
+// note's home: one holds it, or a property carries it off one.
+type givenNote[T any] struct {
+	note   T
+	rank   noteRank
+	ofNode bool
+}
+
+// givenNotes returns what each declaration of foldingValue, a member an entry
+// brings a declaration of, gives of the note reading reads.
+func givenNotes[T any](foldingValue *folding, reading noteReading[T]) []givenNote[T] {
+	given := make([]givenNote[T], len(foldingValue.decls))
+	for i := range foldingValue.decls {
+		given[i] = givenBy(foldingValue, reading, i)
+	}
+	return given
+}
+
+// givenBy returns what the declaration of foldingValue at i gives of the note
+// reading reads. A note another model's node holds, or one the field may take
+// off no node (noteReading.takenOffNode), is given only where the field's type
+// names a node holding it.
+func givenBy[T any](foldingValue *folding, reading noteReading[T], i int) givenNote[T] {
+	declarationValue := foldingValue.decls[i]
+	brought := isBrought(declarationValue)
+	if note, gives := reading.given(i); gives {
+		ofNode := carriedOff(foldingValue.g, declarationValue, reading, note)
+		switch {
+		case !brought:
+			return givenNote[T]{note: note, rank: ownOnProperty, ofNode: ofNode}
+		case ofNode:
+			return givenNote[T]{note: note, rank: broughtOfNode, ofNode: true}
+		default:
+			return givenNote[T]{note: note, rank: broughtOfUse}
+		}
+	}
+	note, gives := reading.held(builtNodeNotes(foldingValue.g, declarationValue))
+	switch {
+	case !gives || (brought || !reading.takenOffNode) && !onFieldsType(foldingValue, reading, note):
+		return givenNote[T]{}
+	case brought:
+		return givenNote[T]{note: note, rank: broughtOfNode, ofNode: true}
+	default:
+		return givenNote[T]{note: note, rank: ownOnNode, ofNode: true}
+	}
+}
+
+// carriedOff reports whether note, which reading reads and declarationValue's
+// property holds, is of a node: the property carries it off the one its type
+// names, or the member a part settled took it off one (SettledNotes.OffNodes).
+func carriedOff[T any](g *Merger, declarationValue declaration, reading noteReading[T], note T) bool {
+	off := g.Carried[declarationValue.property.Type.Target]
+	if declarationValue.settled != nil {
+		off = declarationValue.settled.OffNodes
+	}
+	carried, carries := reading.held(heldNotes{CarriedNotes: off})
+	return carries && reading.same(carried, note)
+}
+
+// onFieldsType reports whether the node foldingValue's type names holds note,
+// which reading reads, so a reader of the field finds it there. A part of a
+// composition holding it is not the node.
+func onFieldsType[T any](foldingValue *folding, reading noteReading[T], note T) bool {
+	held, holds := reading.held(nodeNotes(foldingValue.g, foldingValue.merged.Type.Target))
+	return holds && reading.same(held, note)
+}
+
+// settleNote returns what the field holds of the note reading reads, the one
+// keptNote keeps, unless the field's type holds it and its home is a node
+// (homeIsNode): a reader takes the field's note, then its type's. Each
+// declaration giving another is reported, but the node of one of the model's
+// own where a property of its own gives the note. Where the model alone
+// declares the member, the field holds the last its properties give. A
+// replacement only a key names stays on the node keeping the key, which
+// resolves it (replacement.Resolve).
 func settleNote[T any](foldingValue *folding, reading noteReading[T]) T {
-	onNodes, read := givenOnNodes(foldingValue, reading)
-	kept := settleBeside(foldingValue, reading, onNodes)
-	if read {
+	if !slices.ContainsFunc(foldingValue.decls, isBrought) {
+		return lastWritten(foldingValue, reading.detail, func(i int, _ *ir.Property) (T, bool) { return reading.given(i) }, reading.same)
+	}
+	given := givenNotes(foldingValue, reading)
+	at := keptNote(foldingValue, reading, given)
+	if at < 0 {
+		reportNoneKept(foldingValue, reading, given)
 		return *new(T)
 	}
-	return kept
-}
-
-// settleExamples is settleNote for the examples reading reads, which the field
-// takes of no node: one whose type is read holding none of the model's own has
-// not been shown to admit any of them.
-func settleExamples(foldingValue *folding, reading noteReading[[]ir.Example]) []ir.Example {
-	onNodes, read := givenOnNodes(foldingValue, reading)
-	if !read {
-		return settleBeside(foldingValue, reading, nil)
+	kept := given[at]
+	reportOthers(foldingValue, reading.detail, at, func(i int) (T, bool) {
+		return given[i].note, given[i].rank != givesNone && (given[i].rank != ownOnNode || kept.rank != ownOnProperty)
+	}, reading.same, func(i int) bool { return given[i].rank == ownOnNode && foldingValue.cone[i] })
+	if !slices.ContainsFunc(given, func(givenValue givenNote[T]) bool { return givenValue.rank != givesNone && !givenValue.ofNode }) {
+		reading.carry(&foldingValue.offNodes, kept.note)
 	}
-	settleBeside(foldingValue, reading, onNodes)
-	return nil
+	if homeIsNode(reading, given, kept.note) && onFieldsType(foldingValue, reading, kept.note) {
+		return *new(T)
+	}
+	return kept.note
 }
 
-// settleBeside is lastWritten of the note reading reads, ranked ownFirst, each
-// declaration of onNodes giving what the node it built holds.
-func settleBeside[T any](foldingValue *folding, reading noteReading[T], onNodes []int) T {
-	return lastWritten(foldingValue, reading.detail, ownFirst, func(i int, _ *ir.Property) (T, bool) {
-		if slices.Contains(onNodes, i) {
-			return reading.held(builtNodeNotes(foldingValue.g, foldingValue.decls[i]))
+// homeIsNode reports whether a node is the home of kept, of the notes given: a
+// node of one declaration holds it, or a property carries it off one, and the
+// last that gives any off no node, which the field is the home of, if one does,
+// gives another.
+func homeIsNode[T any](reading noteReading[T], given []givenNote[T], kept T) bool {
+	for _, givenValue := range slices.Backward(given) {
+		if givenValue.rank != givesNone && !givenValue.ofNode {
+			if reading.same(givenValue.note, kept) {
+				return false
+			}
+			break
 		}
-		return reading.given(i)
-	}, reading.same)
+	}
+	return slices.ContainsFunc(given, func(givenValue givenNote[T]) bool {
+		return givenValue.rank != givesNone && givenValue.ofNode && reading.same(givenValue.note, kept)
+	})
 }
 
-// givenOnNodes returns the model's own declarations whose note, which reading
-// reads, stands on the node each built and is kept over the one an entry
-// brings, and whether a reader of the field's type reads it: off the node that
-// type names, one declaration's note alone, or off those the type composes, the
-// last to give one standing for them. Otherwise they are all that give one. It
-// returns none where no note an entry brings would be the field's, the model's
-// own giving one on a property or none giving any.
-func givenOnNodes[T any](foldingValue *folding, reading noteReading[T]) (onNodes []int, read bool) {
-	onProperty := keptAt(foldingValue.decls, ownFirst, func(i int) bool {
-		_, gives := reading.given(i)
-		return gives
-	})
-	if onProperty < 0 || !isBrought(foldingValue.decls[onProperty]) {
-		return nil, false
+// keptNote returns the index in given of the note the field keeps: the last of
+// those ranked highest, of the model's own on its nodes the last the field's
+// type holds, if any, and of several of nodes other models' declarations built
+// the one ofTypesNode names, or the last the field's type holds. It is -1 where
+// none is given, or where neither names one of several.
+func keptNote[T any](foldingValue *folding, reading noteReading[T], given []givenNote[T]) int {
+	highest := givesNone
+	for _, givenValue := range given {
+		highest = max(highest, givenValue.rank)
 	}
-	held, holds := reading.held(nodeNotes(foldingValue.g, foldingValue.merged.Type.Target))
-	composes, last := len(foldingValue.conjuncts) > 0, -1
-	for i := range foldingValue.decls {
-		note, gives := reading.held(builtNodeNotes(foldingValue.g, foldingValue.decls[i]))
-		if !gives {
+	last, onType, apart := -1, -1, false
+	for i, givenValue := range given {
+		if highest == givesNone || givenValue.rank != highest {
 			continue
 		}
-		onNodes = append(onNodes, i)
-		if composes || holds && reading.same(held, note) {
-			last = i
+		apart = apart || last >= 0 && !reading.same(given[last].note, givenValue.note)
+		last = i
+		if onFieldsType(foldingValue, reading, givenValue.note) {
+			onType = i
 		}
 	}
-	if last >= 0 {
-		return []int{last}, true
+	switch {
+	case highest == ownOnNode && onType >= 0:
+		return onType
+	case highest == broughtOfNode && apart:
+		if at := ofTypesNode(foldingValue, func(i int) bool { return given[i].rank == highest }); at >= 0 {
+			return at
+		}
+		return onType
+	default:
+		return last
 	}
-	return onNodes, false
+}
+
+// ofTypesNode returns the declaration gives says gives a note whose node the
+// field's type is built on, its types judged with each node holding its notes
+// (notedJudgment): the winner's, then each it meets, the later first, as a
+// built node adopts one (builder.adoptInto). It is -1 where the types compose,
+// a model no declaration wrote standing for them, or where none gives any.
+func ofTypesNode(foldingValue *folding, gives func(i int) bool) int {
+	noted := notedJudgment(foldingValue)
+	if len(noted.conjuncts) > 0 {
+		return -1
+	}
+	base, partners := noted.pos.meeting(func(i int) bool { return noted.cone[i] })
+	for _, member := range append([]member{base}, partners...) {
+		if gives(member.decl) {
+			return member.decl
+		}
+	}
+	return -1
+}
+
+// notedJudgment returns foldingValue's declarations judged with each node read
+// holding the notes a property carries off it (Merger.noted), once for the fold.
+func notedJudgment(foldingValue *folding) *folding {
+	switch {
+	case foldingValue.g.noted:
+		return foldingValue
+	case foldingValue.reading == nil:
+		foldingValue.reading = newFolding(foldingValue.g.notedBeside(foldingValue.decls), foldingValue.decls, foldingValue.field)
+	}
+	return foldingValue.reading
+}
+
+// reportNoneKept reports, at each declaration giving one of several notes the
+// field keeps none of, that it keeps none, where given holds any.
+func reportNoneKept[T any](foldingValue *folding, reading noteReading[T], given []givenNote[T]) {
+	for i, givenValue := range given {
+		if givenValue.rank == givesNone {
+			continue
+		}
+		foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+			"declarations of field %q give its %s differently, and the type it takes is of none of them alone; kept none, "+
+				"and the one the declaration at %s gives %s",
+			foldingValue.merged.WireName, reading.detail, foldingValue.at(i), foldingValue.decls[i].keptAs())
+	}
+}
+
+// settledNotes returns what a later fold reads of the notes of foldingValue's
+// field, or nil where no entry brings a declaration, its nodes keeping theirs.
+func settledNotes(foldingValue *folding) *SettledNotes {
+	if !slices.ContainsFunc(foldingValue.decls, isBrought) {
+		return nil
+	}
+	return &SettledNotes{Node: settledNode(foldingValue), OffNodes: foldingValue.offNodes}
+}
+
+// settledNode returns what a node foldingValue's field's type is built on is
+// read holding of the notes of its declarations' nodes, their types judged with
+// each holding its own (notedJudgment): the winner's, then those of each it
+// meets it lacks, as a built node adopts them (builder.adoptInto). It is none
+// where the types compose, the model composing them holding none.
+func settledNode(foldingValue *folding) CarriedNotes {
+	noted := notedJudgment(foldingValue)
+	if len(noted.conjuncts) > 0 {
+		return CarriedNotes{}
+	}
+	base, partners := noted.pos.meeting(func(i int) bool { return noted.cone[i] })
+	node := notesOf(noted.g, base.ref.Target)
+	for _, member := range partners {
+		held := notesOf(noted.g, member.ref.Target)
+		if reflect.ValueOf(node.Docs).IsZero() {
+			node.Docs = held.Docs
+		}
+		node.Deprecation = cmp.Or(node.Deprecation, held.Deprecation)
+	}
+	return node
+}
+
+// notesOf returns the notes the node id names is read holding (Merger.resolve),
+// none where id names none. Nodes that meet hold the same examples (detailOf).
+func notesOf(g *Merger, id ir.TypeID) CarriedNotes {
+	td, ok := g.resolve(id)
+	if !ok {
+		return CarriedNotes{}
+	}
+	common := td.Common()
+	return CarriedNotes{Docs: common.Docs, Deprecation: common.Deprecation, Examples: common.Examples}
 }

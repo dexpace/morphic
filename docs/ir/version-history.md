@@ -1284,12 +1284,12 @@ it sees. Changes made together in one bump are listed together under it.
   `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
   before. A member a model declares more than once itself, in its own properties, an inline `allOf`
   entry or one nested in another, keeps them on the node each declaration builds, as before. Where
-  an `allOf` entry brings a declaration another model holds, a member its model declares once holds
-  the note its own model's declaration gives over that one's, which stays on that model. One its
-  model declares more than once holds a title, description, external link or deprecation of that
-  declaration only where none of its model's own writes that one, and the last its model's own write
-  where the type it names holds none of them. Either takes an example its own model's gives that the
-  fold has no judge for
+  an `allOf` entry brings a declaration another model holds, the title, description, external link or
+  deprecation its model's own declarations write is kept over that one's, which stays on that model:
+  the member holds it, unless the node its type names does, the last of several standing on other
+  nodes. Of several such declarations', none its model's own, it holds the one a reader found before,
+  on the member and then on the node its type names, and none where one found none. It takes an example its own model's gives that
+  no judge of the fold refuses, where neither it nor its type holds another of them
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
   off the node its type names, and finds none on the member.

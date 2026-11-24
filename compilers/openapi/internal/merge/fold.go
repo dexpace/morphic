@@ -44,15 +44,18 @@ type Merger struct {
 	Walk FieldDeclarationContext
 	// Carried holds the notes a property carries off the node its schema
 	// builds, by that node, and noted whether a fold reads each node holding
-	// them (resolve).
+	// them (resolve), settled holding those of the nodes members it folds
+	// settled on (notedBeside).
 	Carried map[ir.TypeID]CarriedNotes
+	settled map[ir.TypeID]CarriedNotes
 	noted   bool
+	// Promotion is the mark of a deprecation read off an extension, which a
+	// node may list beside what chose its kind (nodeNotes).
+	Promotion ir.Inferred
 }
 
 // CarriedNotes is what a property holds of the notes of the node its schema
-// builds, which that node holds none of. They are of the node, not of a member
-// a part settled: that part's fold may have left it a type narrower than its
-// declarations' noted nodes would, and it is judged by that type.
+// builds, which that node holds none of.
 type CarriedNotes struct {
 	Docs        ir.Docs
 	Deprecation *ir.Deprecation
@@ -113,10 +116,33 @@ const (
 // (Merger.noted).
 func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
 	td, ok := g.Reg[id]
-	if notes, carried := g.Carried[id]; ok && g.noted && carried {
+	if !ok || !g.noted {
+		return td, ok
+	}
+	if notes, settled := g.settled[id]; settled {
 		return withNotes(td, notes), true
 	}
-	return td, ok
+	if notes, carried := g.Carried[id]; carried {
+		return withNotes(td, notes), true
+	}
+	return td, true
+}
+
+// notedBeside is g reading notes (noted), the node of the type of each of decls
+// a part settled holding what the part says (SettledNotes.Node). Of two naming
+// one node, the one written first says.
+func (g *Merger) notedBeside(decls []declaration) *Merger {
+	reading := *g
+	reading.noted, reading.settled = true, map[ir.TypeID]CarriedNotes{}
+	from := map[ir.TypeID]ir.Provenance{}
+	for _, declarationValue := range decls {
+		target, at := declarationValue.property.Type.Target, declarationValue.property.Provenance
+		if first, seen := from[target]; declarationValue.settled == nil || seen && !writtenBefore(at, first) {
+			continue
+		}
+		reading.settled[target], from[target] = declarationValue.settled.Node, at
+	}
+	return &reading
 }
 
 // asTheyStand is g's registry, each node holding the notes it holds itself.
@@ -162,6 +188,9 @@ type declaration struct {
 	// may be written (Declared.TypeAt), and owner the model declaring it.
 	typeAt []ir.Provenance
 	owner  ir.TypeID
+	// settled is what a part that settled the member says of its notes
+	// (Declared.Settled), nil for any other declaration.
+	settled *SettledNotes
 }
 
 // sites is where the nodes of d's type may be written, which tells one
@@ -200,7 +229,7 @@ func (d declaration) keptAs() string {
 // decls is every declaration of one wire name, at least two, in declaration
 // order; the field keeps the first one's identity unless another model carries
 // that declaration (identify). Declaration order decides only a tie, reported,
-// which goes to the later, of a note the model's own first (ownFirst). What a
+// which goes to the later, of a note the model's own first (keptNote). What a
 // declaration says that the field does not carry is reported there, the
 // declaration kept verbatim beside the field.
 //
@@ -209,7 +238,7 @@ func (d declaration) keptAs() string {
 func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 	judged := decls[:min(len(decls), maxFoldDeclarations)]
 	schema, field := fieldSpan(judged)
-	merged, diags := g.foldAt(decls, field, nil)
+	merged, _, diags := g.foldAt(decls, field, nil)
 	g.identify(&merged, schema, field)
 	return merged, diags
 }
@@ -217,7 +246,7 @@ func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 // foldAt is fold with no identity of its own, minting what it must under
 // field, placed by assembled where no declaration names field
 // (folding.assembled).
-func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled []jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
+func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled []jsontext.Pointer) (ir.Property, *SettledNotes, []ir.Diagnostic) {
 	judged, past := decls, []declaration(nil)
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
@@ -235,7 +264,7 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	folding.foldAnnotations()
 	folding.foldUnmodeled()
 	merged, diags := folding.finish()
-	return merged, append(diags, g.keepUnjudged(&merged, past)...)
+	return merged, settledNotes(folding), append(diags, g.keepUnjudged(&merged, past)...)
 }
 
 // readingNotes returns stands, a fold judged as its declarations' nodes stand,
@@ -251,9 +280,7 @@ func (g *Merger) readingNotes(stands *folding) *folding {
 	if len(stands.conjuncts) > 0 || own == len(stands.decls) || own < 2 && !slices.Contains(stands.cone, false) {
 		return nil
 	}
-	reading := *g
-	reading.noted = true
-	return newFolding(&reading, stands.decls, stands.field)
+	return notedJudgment(stands)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -319,6 +346,10 @@ type folding struct {
 	// lost marks each declaration something of which the field does not carry.
 	notes [][]note
 	lost  []bool
+	// offNodes is SettledNotes.OffNodes of the field, and reading the
+	// declarations judged by notedJudgment, nil until something asks.
+	offNodes CarriedNotes
+	reading  *folding
 }
 
 // note is one diagnostic the fold reports at a declaration.
@@ -576,7 +607,7 @@ func metOrNil(a, b *ir.Constraints) *ir.Constraints {
 // foldValues settles the default and the examples from the cone. A value the
 // field does not take (takes, examplesTaken) is refused, reported and kept at
 // the declaration that wrote it; of the rest, the last written is kept, an
-// example the model's own first (ownFirst), and a declaration writing another
+// example the model's own first (keptNote), and a declaration writing another
 // is reported and kept. Refusing first means a value the field takes is kept
 // whichever order the declarations come in.
 func (f *folding) foldValues() {
@@ -603,15 +634,16 @@ func (f *folding) foldValues() {
 			f.refuse(i, refused)
 		}
 	}
-	f.merged.Default = lastWritten(f, "default", byOrder, func(i int, property *ir.Property) (*ir.Value, bool) {
+	f.merged.Default = lastWritten(f, "default", func(i int, property *ir.Property) (*ir.Value, bool) {
 		return property.Default, takesDefault[i] && property.Default != nil
 	}, func(a, b *ir.Value) bool { return sameValue(*a, *b) })
-	f.merged.Examples = settleExamples(f, noteReading[[]ir.Example]{detail: "examples", same: sameExamples,
+	f.merged.Examples = settleNote(f, noteReading[[]ir.Example]{detail: "examples", same: sameExamples,
 		given: func(i int) ([]ir.Example, bool) {
 			examples := f.decls[i].property.Examples
 			return examples, takesExamples[i] && len(examples) > 0
 		},
-		held: func(notes heldNotes) ([]ir.Example, bool) { return notes.Examples, len(notes.Examples) > 0 },
+		held:  func(notes heldNotes) ([]ir.Example, bool) { return notes.Examples, len(notes.Examples) > 0 },
+		carry: func(notes *CarriedNotes, examples []ir.Example) { notes.Examples = examples },
 	})
 }
 
@@ -737,21 +769,20 @@ func (f *folding) foldUse() {
 	}
 }
 
-// foldDocs settles the field's title, description and external links, each the
-// last declaration's to give one, the model's own first (settleNote), from every
-// declaration: docs describe the field, not a shape, so a dropped
-// declaration's count too.
+// foldDocs settles the field's title, description and external links, each from
+// every declaration (settleNote): docs describe the field, not a shape, so a
+// dropped declaration's count too.
 func (f *folding) foldDocs() {
 	same := func(a, b string) bool { return a == b }
 	f.merged.Docs.Summary = settleNote(f, readingOf(f, "title", func(notes heldNotes) (string, bool) {
 		return notes.Docs.Summary, notes.Docs.Summary != ""
-	}, same))
+	}, same, func(notes *CarriedNotes, title string) { notes.Docs.Summary = title }))
 	f.merged.Docs.Description = settleNote(f, readingOf(f, "description", func(notes heldNotes) (string, bool) {
 		return notes.Docs.Description, notes.Docs.Description != ""
-	}, same))
+	}, same, func(notes *CarriedNotes, description string) { notes.Docs.Description = description }))
 	f.merged.Docs.ExternalDocs = settleNote(f, readingOf(f, "external docs", func(notes heldNotes) ([]ir.Link, bool) {
 		return notes.Docs.ExternalDocs, len(notes.Docs.ExternalDocs) > 0
-	}, slices.Equal[[]ir.Link]))
+	}, slices.Equal[[]ir.Link], func(notes *CarriedNotes, links []ir.Link) { notes.Docs.ExternalDocs = links }))
 }
 
 // sameDeprecation reports whether a and b state one deprecation, field by
@@ -764,7 +795,7 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 
 // foldAnnotations settles the field's deprecation as foldDocs settles its
 // docs, and its XML hints, which say how the field is written, the last
-// declaration's to give them whoever writes it (byOrder): neither is bound to
+// declaration's to give them whoever writes it (lastWritten): neither is bound to
 // a shape. A promotion marks the declaration it read
 // (promotion.Promoter.Deprecation), so the field takes the marker of the
 // declaration, or of the node, whose deprecation it keeps, whichever that is. The
@@ -773,76 +804,59 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 func (f *folding) foldAnnotations() {
 	kept := settleNote(f, readingOf(f, "deprecation", func(notes heldNotes) (heldNotes, bool) {
 		return notes, notes.Deprecation != nil
-	}, func(a, b heldNotes) bool { return sameDeprecation(a.Deprecation, b.Deprecation) }))
+	}, func(a, b heldNotes) bool { return sameDeprecation(a.Deprecation, b.Deprecation) },
+		func(notes *CarriedNotes, kept heldNotes) { notes.Deprecation = kept.Deprecation }))
 	f.merged.Deprecation = copyOf(kept.Deprecation)
 	f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, kept.inferred)
 	// XMLHints.Wrapped is a pointer, which == would compare by address.
-	f.merged.XML = lastWritten(f, "xml", byOrder, func(_ int, property *ir.Property) (*ir.XMLHints, bool) {
+	f.merged.XML = lastWritten(f, "xml", func(_ int, property *ir.Property) (*ir.XMLHints, bool) {
 		return property.XML, property.XML != nil
 	}, func(a, b *ir.XMLHints) bool { return reflect.DeepEqual(a, b) })
 }
 
-// byOrder ranks every declaration alike, so the last to give a detail keeps
-// it (keptAt).
-func byOrder(declaration) int { return 0 }
-
-// ownFirst ranks a declaration the model writes itself over one another model
-// holds (keptAt), which keeps its note there, so no note the model writes is
-// lost to one another model's declaration brings.
-func ownFirst(declarationValue declaration) int {
-	if isBrought(declarationValue) {
-		return 0
-	}
-	return 1
-}
-
-// keptAt returns the index of the declaration of decls whose detail the field
-// keeps, of those gives says give one: the last of the highest rank, or -1
-// where none gives one.
-func keptAt(decls []declaration, rank func(declaration) int, gives func(i int) bool) int {
-	at := -1
-	for i, declarationValue := range slices.Backward(decls) {
-		if gives(i) && (at < 0 || rank(declarationValue) > rank(decls[at])) {
-			at = i
-		}
-	}
-	return at
-}
-
-// lastWritten returns the value of detail the last declaration of the highest
-// rank gives (of, keptAt), or the zero value when none gives one: a later
-// declaration is where a spec writes the specialization. Another giving a
-// value that is not the same is reported and kept: the field has one slot for
-// it.
+// lastWritten returns the value of detail the last declaration to give one
+// gives (of), or the zero value when none does: a later declaration is where a
+// spec writes the specialization. Another giving a value that is not the same
+// is reported (reportOthers).
 //
 // Each caller says what is the same. A Value or an example list compares
 // deeply, which tells a nil slice from an empty one, but every declaration was
 // lowered by the same code, so two spellings the source wrote alike cannot land
 // on opposite sides.
-func lastWritten[T any](foldingValue *folding, detail string, rank func(declaration) int, of func(i int, property *ir.Property) (T, bool),
-	same func(a, b T) bool,
-) T {
-	var kept T
-	at := keptAt(foldingValue.decls, rank, func(i int) bool {
-		_, gives := of(i, &foldingValue.decls[i].property)
-		return gives
-	})
-	if at < 0 {
-		return kept
-	}
-	kept, _ = of(at, &foldingValue.decls[at].property)
-	for i := len(foldingValue.decls) - 1; i >= 0; i-- {
-		v, gives := of(i, &foldingValue.decls[i].property)
-		if !gives || same(kept, v) {
+func lastWritten[T any](foldingValue *folding, detail string, of func(i int, property *ir.Property) (T, bool), same func(a, b T) bool) T {
+	gives := func(i int) (T, bool) { return of(i, &foldingValue.decls[i].property) }
+	for i := range slices.Backward(foldingValue.decls) {
+		kept, given := gives(i)
+		if !given {
 			continue
 		}
-		foldingValue.lost[i] = true
+		reportOthers(foldingValue, detail, i, gives, same, func(int) bool { return false })
+		return kept
+	}
+	return *new(T)
+}
+
+// reportOthers reports each declaration giving a value of detail (gives) that
+// is not the same as the one at keeps, which the field keeps: the field has one
+// slot for it. One a node the field's type composes holds (onPart) stays there,
+// and the declaration loses nothing.
+func reportOthers[T any](foldingValue *folding, detail string, at int, gives func(i int) (T, bool), same func(a, b T) bool, onPart func(i int) bool) {
+	kept, _ := gives(at)
+	for i, declarationValue := range slices.Backward(foldingValue.decls) {
+		v, given := gives(i)
+		if !given || same(kept, v) {
+			continue
+		}
+		stays := "stays on the part of its type written there"
+		if !onPart(i) {
+			foldingValue.lost[i] = true
+			stays = declarationValue.keptAs()
+		}
 		foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
 				"over the one at %s, which %s",
-			foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), foldingValue.decls[i].keptAs())
+			foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), stays)
 	}
-	return kept
 }
 
 // note records a diagnostic for decls[i], reported when the fold finishes.

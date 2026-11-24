@@ -45,6 +45,9 @@ type ModelPropertyDeclarations struct {
 	// typeAt is where the nodes of the type of each member Settle folded may
 	// be written, by wire name (Merger.typeSites).
 	typeAt map[string][]ir.Provenance
+	// settled is what Settle says of the notes of each such member an entry
+	// brings a declaration of, by wire name.
+	settled map[string]*SettledNotes
 }
 
 // field is one wire name the model declares: where its property sits, and
@@ -66,7 +69,7 @@ type composedEntry struct {
 // NewModelPropertyDeclarations returns an empty index of model's properties;
 // model holds none yet, so every property reaches it through MergeProperty.
 func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
-	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
+	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}, settled: map[string]*SettledNotes{}}
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration

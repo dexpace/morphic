@@ -262,14 +262,16 @@ func TestAllOfFold_ABuiltNodesDeprecationIsItsOwn(t *testing.T) {
 // TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn pins a member whose
 // model's own declaration keeps its note on the node it builds, as one the
 // model declares again does, one a reference names and one naming a $ref,
-// beside one another model brings: a reader of the member, its own note first
-// and then its type's, reads the model's own, which the type holds, or the
-// field where the type is the brought one or a node that holds neither. The
-// brought note stays on its model and each tie is reported.
+// beside one another model brings, whose note its property or its node holds,
+// if it writes one: a reader of the member, its own note first and then its
+// type's, reads the model's own, which the type holds, or the field where the
+// type is the brought one or a node that holds neither. The brought note stays
+// on its model and each tie is reported.
 func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 	t.Parallel()
 	const list, narrow = "type: array, items: {type: string}", "type: array, items: {type: string, enum: [a, b]}"
 	const entry = "{$ref: '#/components/schemas/A'}"
+	const referenced = "    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'}}}\n"
 	for _, note := range againNotes {
 		own := func(v string) string { return "{properties: {f: {" + list + ", " + fmt.Sprintf(note.write, v) + "}}}" }
 		typed := func(v string) string { return "[" + fmt.Sprintf(note.typed, v) + "]" }
@@ -280,8 +282,9 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 			want                         string
 			reports                      int // of the note
 		}{
-			{"the later own node is the type", list, own("o0") + ", " + entry + ", " + own("o1"), "", "M/allOf/2/properties/f list " + typed("o1"), 1},
+			{"the later own node is the type", list, own("o0") + ", " + entry + ", " + own("o1"), "", "M/allOf/2/properties/f list " + typed("o1"), 2},
 			{"the brought node is the type", list, own("o0") + ", " + own("o1") + ", " + entry, "", typed("o1") + " A/properties/f list", 2},
+			{"an own node holding none is the type", list, own("o0") + ", " + entry + ", " + plain, "", typed("o0") + " M/allOf/2/properties/f list", 1},
 			{"the own ones agree", list, own("o0") + ", " + own("o0") + ", " + entry, "", "M/allOf/0/properties/f list " + typed("o0"), 1},
 			{"the brought node narrows one saying another", narrow, plain + ", " + own("o0") + ", " + entry, "", typed("o0") + " A/properties/f list", 1},
 			{"it says the same", narrow, plain + ", " + own("b") + ", " + entry, "", typed("b") + " A/properties/f list", 0},
@@ -291,6 +294,16 @@ func TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn(t *testing.T) {
 				"    U: {properties: {h: {$ref: '#/components/schemas/M/allOf/1/properties/f'}}}\n", "M/allOf/1/properties/f list " + typed("o0"), 1},
 			{"a reference names the own one, dropped", list, own("o0") + ", " + entry,
 				"    U: {properties: {h: {$ref: '#/components/schemas/M/allOf/0/properties/f'}}}\n", typed("o0") + " A/properties/f list", 1},
+			{"a reference names the brought one", list, own("o0") + ", " + own("o1") + ", " + entry, referenced,
+				typed("o1") + " A/properties/f list " + typed("b"), 2},
+			{"a reference names the brought one, the own between", list, own("o0") + ", " + entry + ", " + own("o1"), referenced,
+				"M/allOf/2/properties/f list " + typed("o1"), 1},
+			{"a reference names both", list, own("o0") + ", " + entry,
+				"    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'}, i: {$ref: '#/components/schemas/M/allOf/0/properties/f'}}}\n",
+				typed("o0") + " A/properties/f list " + typed("b"), 1},
+			{"a reference names the brought one, which a property of the model's own is kept over", list,
+				"{properties: {f: {" + fmt.Sprintf(note.write, "o0") + "}}}, " + entry, referenced, typed("o0") + " A/properties/f list " + typed("b"), 1},
+			{"a reference names the brought one, saying the same", list, own("b") + ", " + plain + ", " + entry, referenced, "A/properties/f list " + typed("b"), 0},
 		} {
 			src := openapitest.ComponentSpec("    A: {properties: {f: {" + tc.brought + ", " + fmt.Sprintf(note.write, "b") + "}}}\n" +
 				"    M: {allOf: [" + tc.entries + "]}\n" + tc.rest)
@@ -329,25 +342,98 @@ func TestAllOfFold_ANoteOnABroughtNodeIsNotItsModelsOwn(t *testing.T) {
 	assert.Equal(t, "own", field.Docs.Description)
 }
 
-// TestAllOfFold_ACompositionHoldingItsModelsOwnNoteLeavesTheBroughtOne pins the
-// same where the types compose: the own declaration's node is a part, or is
-// one a $ref it names reaches through, so its note is read there and the field
-// holds no brought one.
-func TestAllOfFold_ACompositionHoldingItsModelsOwnNoteLeavesTheBroughtOne(t *testing.T) {
+// TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets pins the same
+// where the brought declaration writes none, or holds its note on a node no
+// carrier takes it off, its model declaring the member more than once itself:
+// the field holds the model's own, the last of several, unless the node its
+// type names does and is the note's home, as it is not where the last
+// declaration building no node gives it.
+func TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ name, own, want string }{
-		{"declared again", "{properties: {f: {type: object, properties: {p: {type: string}}, description: o0}}}, {properties: {f: {type: object}}}",
-			"composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description o0]; A/properties/f model)"},
-		{"naming a $ref", "{properties: {f: {allOf: [{$ref: '#/components/schemas/P'}], description: o0}}}",
-			"composed/M/allOf/0/properties/f model of (M/allOf/0/properties/f model [description o0]; A/properties/f model)"},
+	const list = "type: array, items: {type: string}"
+	entry := func(schema string) string { return "{properties: {f: {" + schema + "}}}" }
+	own := func(v string) string { return entry(list + ", description: " + v) }
+	const brought = "{$ref: '#/components/schemas/A'}"
+	const overOwn, overBrought = "M/allOf/0/properties/f, which is kept verbatim under Unmodeled", "A/properties/f, which stays declared on its model"
+	for _, tc := range []struct {
+		name, a, entries, want string
+		kept                   int      // the entry whose note the field's reader finds, where one is reported
+		over                   []string // the declarations it is kept over
+	}{
+		{"none brought", entry(list), own("o0") + ", " + own("o1") + ", " + brought, "[description o1] A/properties/f list", 1, []string{overOwn}},
+		{"none brought, the first noted alone", entry(list), own("o0") + ", " + entry(list) + ", " + brought, "[description o0] A/properties/f list", 0, nil},
+		{"none brought, a noted own node the type", entry(list), own("o0") + ", " + brought + ", " + own("o1"), "M/allOf/2/properties/f list [description o1]", 2, []string{overOwn}},
+		{"brought twice by its model", "{allOf: [" + own("b") + ", " + entry(list+", minItems: 0") + "]}", own("o0") + ", " + own("o1") + ", " + brought,
+			"[description o1] composed/A/allOf/1/properties/f list [description b]", 1, []string{overOwn, "A/allOf/1/properties/f, which stays declared on its model"}},
+		{"two own nodes agreeing, one the type", own("b"), own("o0") + ", " + own("o0") + ", " + brought, "M/allOf/0/properties/f list [description o0]", 1, []string{overBrought}},
+		{"an own property noted before the brought one, beside a noted own node", own("b"),
+			entry("description: o0") + ", " + own("o1") + ", " + brought, "[description o0] A/properties/f list", 0, []string{overBrought}},
+		{"an own property noted as the own node its type is built of", entry(list + ", maxItems: 3"),
+			entry("description: o0") + ", " + entry(list+", minItems: 1, description: o0") + ", " + brought,
+			"[description o0] composed/M/allOf/1/properties/f list [description o0]", 0, nil},
+		{"an own property noted as the own node that is its type, another property later", entry("description: b"),
+			entry("description: o0") + ", " + brought + ", " + own("o0"), "M/allOf/2/properties/f list [description o0]", 0, []string{overBrought}},
+		{"an own property noted as the component its type is, another property later", entry("description: b"),
+			entry("type: array, items: {}, description: o1") + ", " + entry("$ref: '#/components/schemas/L'") + ", " + brought,
+			"[description l] openapi/L list [description l]", 1, []string{overBrought}},
 	} {
-		doc, diags := parseVerified(t, openapitest.ComponentSpec("    P: {type: object, properties: {p: {type: string}}}\n"+
-			"    A: {properties: {f: {type: object, properties: {q: {type: string}}, title: Ta, description: b}}}\n"+
-			"    M: {allOf: ["+tc.own+", {$ref: '#/components/schemas/A'}]}\n"))
-		assert.Equal(t, "[title Ta] "+tc.want, memberText(t, doc, componentID("M")), tc.name)
-		reports := foldReports(diags)
-		require.Len(t, reports, 1, "%s: %v", tc.name, reports)
-		assert.Contains(t, reports[0], "give its description differently; kept the one the declaration at /components/schemas/M/allOf/0/properties/f gives", tc.name)
+		doc, diags := parseVerified(t, openapitest.ComponentSpec("    L: {"+list+", description: l}\n    A: "+tc.a+"\n    M: {allOf: ["+tc.entries+"]}\n"))
+		got, _, _ := strings.Cut(memberText(t, doc, componentID("M")), " | verbatim")
+		assert.Equal(t, tc.want, got, tc.name)
+		ties := slices.DeleteFunc(foldReports(diags), func(report string) bool { return !strings.Contains(report, " differently; ") })
+		require.Len(t, ties, len(tc.over), "%s: %v", tc.name, ties)
+		for _, over := range tc.over {
+			report := fmt.Sprintf("kept the one the declaration at /components/schemas/M/allOf/%d/properties/f gives over the one at /components/schemas/%s", tc.kept, over)
+			assert.True(t, slices.ContainsFunc(ties, func(tie string) bool { return strings.HasSuffix(tie, report) }), "%s: %s in %v", tc.name, report, ties)
+		}
+	}
+}
+
+// TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote pins the same where
+// the types compose: the own declaration's node is a part, and the composed
+// model, the node the field's type names, holds none of its parts' notes, so
+// the field holds the model's own, the last of several, over a brought one. The
+// node keeping another of the model's own is a part, and no declaration is kept
+// verbatim.
+func TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote(t *testing.T) {
+	t.Parallel()
+	const object, own = "{properties: {f: {type: object, properties: {%s: {type: string}}%s}}}", ", description: %s"
+	p := func(note string) string { return fmt.Sprintf(object, "p", note) }
+	q := func(note string) string { return fmt.Sprintf(object, "q", note) }
+	const inline = "{properties: {f: {type: object, properties: {q: {type: string}}, title: Ta, description: b}}}"
+	const untyped = "{properties: {f: {description: b}}}"
+	for _, tc := range []struct {
+		name, brought, own, want string
+		reports                  []string // the declaration each is kept over
+	}{
+		{"declared again", inline, p(", description: o0") + ", {properties: {f: {type: object}}}",
+			"[title Ta, description o0] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description o0]; A/properties/f model)",
+			[]string{"A/properties/f, which stays declared on its model"}},
+		{"naming a $ref", inline, "{properties: {f: {allOf: [{$ref: '#/components/schemas/P'}], description: o0}}}",
+			"[title Ta, description o0] composed/M/allOf/0/properties/f model of (M/allOf/0/properties/f model [description o0]; A/properties/f model)",
+			[]string{"A/properties/f, which stays declared on its model"}},
+		{"beside an untyped one saying the same", untyped, p(", description: b") + ", " + q(""),
+			"[description b] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description b]; M/allOf/1/properties/f model)", nil},
+		{"beside an untyped one saying another", untyped, p(", description: o0") + ", " + q(""),
+			"[description o0] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description o0]; M/allOf/1/properties/f model)",
+			[]string{"A/properties/f, which stays declared on its model"}},
+		{"noted twice", untyped, p(", description: o0") + ", " + q(", description: o1"),
+			"[description o1] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description o0]; M/allOf/1/properties/f model [description o1])",
+			[]string{"M/allOf/0/properties/f, which stays on the part of its type written there", "A/properties/f, which stays declared on its model"}},
+		{"deprecated beside an untyped deprecated one", "{properties: {f: {deprecated: true}}}", p(", deprecated: true") + ", " + q(""),
+			"[deprecated] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [deprecated]; M/allOf/1/properties/f model)", nil},
+	} {
+		for _, version := range []string{"3.1.0", "3.0.3"} {
+			doc, diags := parseVerified(t, openapitest.ComponentSpecVer(version, "    P: {type: object, properties: {p: {type: string}}}\n"+
+				"    A: "+tc.brought+"\n    M: {allOf: ["+tc.own+", {$ref: '#/components/schemas/A'}]}\n"))
+			assert.Equal(t, tc.want, memberText(t, doc, componentID("M")), tc.name)
+			reports := foldReports(diags)
+			require.Len(t, reports, len(tc.reports), "%s: %v", tc.name, reports)
+			for i, over := range tc.reports {
+				assert.Contains(t, reports[i], "give its description differently; kept the one the declaration at /components/schemas/M/allOf/", tc.name)
+				assert.Contains(t, reports[i], "over the one at /components/schemas/"+over, tc.name)
+			}
+		}
 	}
 }
 

@@ -437,9 +437,10 @@ func TestAllOfFold_AMemberDeclaredAgainReadsNoReplacementOffItsNode(t *testing.T
 // the model's own keep their notes on their nodes and the brought one's stays
 // on its model's property. Two maps no type holds both of compose with the
 // brought object, read as holding its note; two objects compose without it, as
-// it says nothing more. The field's types holding the model's own descriptions,
-// it holds none, the brought one's reported, in every order of the entries and
-// of the components (docs/compilers/openapi.md#allof-redeclared-property).
+// it says nothing more. The composed model holding none of its parts' notes,
+// the field holds the last of the model's own, the other, which stays on its
+// part, and the brought one reported, in every order of entries and components
+// (docs/compilers/openapi.md#allof-redeclared-property).
 func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testing.T) {
 	t.Parallel()
 	const base = "    Base: {type: object, properties: {f: {type: object, description: B}}}\n"
@@ -456,12 +457,12 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testi
 			"{properties: {f: {type: object, " + tc.second + ", description: D2}}}",
 		}
 		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-			entries, parts, lastOwn := make([]string, 3), make([]string, 0, 3), 0
+			entries, parts, ownAt := make([]string, 3), make([]string, 0, 3), []int(nil)
 			for at, k := range order {
 				entries[at] = declarations[k]
 				if k != 1 {
 					parts = append(parts, fmt.Sprintf("M/allOf/%d/properties/f %s [description D%d]", at, tc.kind, k))
-					lastOwn = at
+					ownAt = append(ownAt, at)
 				} else if tc.baseComposes {
 					parts = append(parts, "Base/properties/f model")
 				}
@@ -470,10 +471,16 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testi
 			for _, spec := range []string{base + model, model + base} {
 				label := fmt.Sprintf("%s, %v", tc.name, order)
 				doc, diags := parseVerified(t, openapitest.ComponentSpec(spec))
-				require.Len(t, diags, 1, label)
-				assert.Contains(t, diags[0].Message, fmt.Sprintf("give its description differently; kept the one the declaration at "+
-					"/components/schemas/M/allOf/%d/properties/f gives over the one at /components/schemas/Base/properties/f", lastOwn), label)
-				want := fmt.Sprintf("composed/M/allOf/%d/properties/f model of (%s)", lastOwn, strings.Join(parts, "; "))
+				lastOwn := ownAt[1]
+				for _, over := range []string{fmt.Sprintf("M/allOf/%d/properties/f, which stays on the part of its type written there", ownAt[0]),
+					"Base/properties/f, which stays declared on its model"} {
+					message := fmt.Sprintf("give its description differently; kept the one the declaration at /components/schemas/M/allOf/%d/properties/f "+
+						"gives over the one at /components/schemas/%s", lastOwn, over)
+					assert.True(t, slices.ContainsFunc(diags, func(diagnostic ir.Diagnostic) bool { return strings.Contains(diagnostic.Message, message) }),
+						"%s: %s in %v", label, over, diags)
+				}
+				require.Len(t, diags, 2, label)
+				want := fmt.Sprintf("[description D%d] composed/M/allOf/%d/properties/f model of (%s)", order[lastOwn], lastOwn, strings.Join(parts, "; "))
 				assert.Equal(t, want, memberText(t, doc, componentID("M")), label)
 				assert.Equal(t, "[description B] Base/properties/f model", memberText(t, doc, componentID("Base")), label)
 			}
@@ -498,7 +505,8 @@ func TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes(t *testi
 // its notes, each composes with the rest, in every order of the entries, or, at
 // three maps no type holds together, the model's own, written last, is the
 // field's. The field holds the model's own note, the others stay on their
-// models, and nothing is kept verbatim.
+// models, and nothing is kept verbatim. Of the brought notes, neither of the
+// type the field takes, it holds neither, each reported, in any order.
 func TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType(t *testing.T) {
 	t.Parallel()
 	const objects = "type: object, additionalProperties: {type: object}"
@@ -515,15 +523,18 @@ func TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType(t *testing.T) {
 		}
 		doc, diags := parseVerified(t, openapitest.ComponentSpec(base("type: object", strs)+"    M: {allOf: ["+strings.Join(written, ", ")+"]}\n"))
 		requireErrorsAndWarnings(t, diags, nil)
-		later := map[bool]string{true: "B2", false: "B1"}[slices.Index(order[:], 2) > slices.Index(order[:], 1)]
-		want := fmt.Sprintf("[title T0, description "+later+"] composed/M/allOf/%d/properties/f model of ("+strings.Join(composed, "; ")+")", ownAt, ownAt)
+		want := fmt.Sprintf("[title T0] composed/M/allOf/%d/properties/f model of ("+strings.Join(composed, "; ")+")", ownAt, ownAt)
 		assert.Equal(t, want, memberText(t, doc, componentID("M")), "%v", order)
+		none := slices.DeleteFunc(foldReports(diags), func(report string) bool {
+			return !strings.Contains(report, "give its description differently, and the type it takes is of none of them alone; kept none")
+		})
+		assert.Len(t, none, 2, "%v", order)
 	}
 
 	doc, diags := parseVerified(t, openapitest.ComponentSpec(base("type: object, additionalProperties: true, x-bar: 1", objects+", x-foo: 1")+
 		"    M: {properties: {f: {"+strs+", title: T0}}, allOf: [{$ref: '#/components/schemas/Second'}, {$ref: '#/components/schemas/First'}]}\n"))
 	requireErrorsAndWarnings(t, diags, nil)
-	assert.Equal(t, "[title T0, description B1] M/properties/f map", memberText(t, doc, componentID("M")))
+	assert.Equal(t, "[title T0] M/properties/f map", memberText(t, doc, componentID("M")))
 }
 
 // TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames pins that a note written
