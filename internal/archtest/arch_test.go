@@ -781,6 +781,12 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "tests, and a package with its own rule")
 	require.NoError(t, audits("emitters/plan", filepath.Join(base, "plan")))
 
+	require.NotContains(t, rules, "emitters/stray", "the planted package must carry no rule")
+	writeImporter(t, filepath.Join(base, "stray", "stray.go"), "fmt")
+	require.NoError(t, audits("emitters", base), "a package beneath with no rule of its own")
+	require.NoError(t, os.RemoveAll(filepath.Join(base, "stray")))
+	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "the planted package removed")
+
 	writeImporter(t, filepath.Join(base, "contract.go"), "fmt")
 	require.NoError(t, audits("emitters", base), "a Go file of its own")
 }
