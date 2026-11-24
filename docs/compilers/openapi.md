@@ -3415,9 +3415,9 @@ the field's. Elsewhere the fold judges them again with each node read as holding
 property carries off it, as it held them before IR 0.73.0. Where the first judgment drops any, the
 second is the field's: so a type that a note holds apart from what would drop it, the model's own or
 another's, is not lost to the note's move, and of two that a note alone tells apart the later is
-kept, as it was. Where the first drops none of a member the model's own nodes hold the notes of
-several of, the second is the field's too, unless it drops one beside a member a part settled. Where
-the first composes, the second is the field's only where it neither composes nor drops: one schema
+kept, as it was. Where the first drops none of a member the model declares more than once itself,
+the second is the field's too, unless it drops one beside a member a part settled. Where the first
+composes, the second is the field's only where it neither composes nor drops: one schema
 restated with one note, carried off one node and held by another, is then one type and not a model
 composing the two. Either way the field's type is built of the nodes as they stand, so a node the
 merge builds holds no note a property carries off one, and types only a note tells apart meet in the
@@ -3426,12 +3426,13 @@ so one a judge refuses of a narrower type is refused and kept verbatim.
 
 The second judgment reads a brought member its own model settled as that judgment of its
 declarations settles it: by the type it gives, the node of which is read as holding the notes of
-those it is built on, as it held them, whichever node the member then names. So a declaration beside
-it loses to it no type it kept before IR 0.73.0, nor does the field take a wider one. Where the
-member's declarations settle so to a node the fold would build and none of them says, or compose, no
-node is there to name, and it is judged by the type it settled to. That may be narrower, no note of
-its declarations holding their types apart, or be one model where two composed, so a declaration
-beside it can still lose to it what it would not to those noted types.
+those it is built on, as it held them, whichever node the member then names. Read so, a declaration
+beside it keeps against it the type it kept before IR 0.73.0, which it may not against the type the
+member settled to, narrower where no note of its declarations holds their types apart. Where those
+declarations settle so to a node the fold would build and none of them says, or compose, no node is
+there to name, and the member is judged by the type it settled to. There, and where one of their
+nodes stands for one the fold built of them then, a declaration beside it can still lose to it what
+it did not, and the field can take a wider type than it did.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write

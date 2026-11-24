@@ -281,11 +281,12 @@ func keptNote[T any](foldingValue *folding, reading noteReading[T], given []give
 	}
 }
 
-// ofTypesNode returns the declaration gives says gives a note whose node the
-// field's type is built on, its types judged with each node holding its notes
-// (notedJudgment): the winner's, then each it meets, the later first, as a
-// built node adopts one (builder.adoptInto). It is -1 where the types compose,
-// a model no declaration wrote standing for them, or where none gives any.
+// ofTypesNode returns the declaration gives says gives a note whose node is read
+// holding one and the field's type is built on, its types judged with each node
+// holding its notes (notedJudgment): the winner's, then each it meets, the later
+// first, as a built node adopts one (builder.adoptInto). It is -1 where the
+// types compose, a model no declaration wrote standing for them, or where none
+// gives any. A note a settled member took off a type it dropped is on no node.
 func ofTypesNode[T any](foldingValue *folding, reading noteReading[T], gives func(i int) bool) int {
 	noted := notedJudgment(foldingValue)
 	if len(noted.conjuncts) > 0 {
@@ -319,6 +320,8 @@ func notedJudgment(foldingValue *folding) *folding {
 // judging its declarations with their notes gives it (SettledNotes.Type), which
 // may be wider than the one it settled to: judged by the narrower one, a
 // declaration beside it could lose to it what it did not while nodes held notes.
+// One whose declarations so compose or build a node is judged by the type it
+// settled to, and still can cost a declaration beside it.
 func readAsNoted(decls []declaration) []declaration {
 	out := slices.Clone(decls)
 	for i, declarationValue := range out {
