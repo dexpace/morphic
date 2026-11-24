@@ -50,11 +50,6 @@
         "property/openapi/components/responses/Created/content/application~1json/schema/properties/r"
       ]
     },
-    "type/anonymous/components/schemas/": {
-      "flattened": [
-        "property/openapi/components/schemas//properties/p"
-      ]
-    },
     "type/anonymous/components/schemas/***/properties/": {
       "flattened": [
         "property/openapi/components/schemas/***/properties//properties/o"
@@ -485,6 +480,11 @@
     },
     "type/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf": {
       "union": "one_of"
+    },
+    "type/openapi/components/schemas/": {
+      "flattened": [
+        "property/openapi/components/schemas//properties/p"
+      ]
     },
     "type/openapi/components/schemas/***": {
       "flattened": [

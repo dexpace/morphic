@@ -1,8 +1,5 @@
 {
   "types": {
-    "type/anonymous/components/schemas/": {
-      "alias": "type/primitive/string"
-    },
     "type/anonymous/components/schemas/Holder/$defs/Deep": {
       "flattened": [
         "property/openapi/components/schemas/Holder/$defs/Deep/properties/d"
@@ -12,6 +9,7 @@
     "type/anonymous/components/schemas/Recursive/properties/children/items": {
       "alias": "type/openapi/components/schemas/Recursive"
     },
+    "type/openapi/components/schemas/": {},
     "type/openapi/components/schemas/Holder": {},
     "type/openapi/components/schemas/Leaf": {},
     "type/openapi/components/schemas/Linked": {

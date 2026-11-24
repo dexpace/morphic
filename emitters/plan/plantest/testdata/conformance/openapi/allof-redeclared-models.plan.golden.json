@@ -1,27 +1,11 @@
 {
   "types": {
-    "type/anonymous/components/schemas/BareAndModel/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
-      "flattened": [
-        "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
-        "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
-      ]
-    },
-    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
-      "flattened": [
-        "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street"
-      ]
-    },
     "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data": {
       "flattened": [
         "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
       ]
     },
-    "type/anonymous/components/schemas/ListsOfModels/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/ListsOfModels/allOf/1/properties/data": {},
     "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/MapsOfModels/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/MapsOfModels/allOf/1/properties/data": {},
     "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data": {},
     "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data": {
       "union": "one_of"
@@ -29,17 +13,6 @@
     "type/anonymous/components/schemas/Owner/properties/address": {
       "flattened": [
         "property/openapi/components/schemas/Owner/properties/address/properties/street"
-      ]
-    },
-    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
-      "flattened": [
-        "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
-        "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
-      ]
-    },
-    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
-      "flattened": [
-        "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street"
       ]
     },
     "type/anonymous/components/schemas/RefFirst/allOf/1/properties/data": {
@@ -68,16 +41,9 @@
       ]
     },
     "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/TuplesOfModels/allOf/0/properties/data": {},
-    "type/anonymous/components/schemas/TuplesOfModels/allOf/1/properties/data": {},
     "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner": {
       "flattened": [
         "property/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name"
-      ]
-    },
-    "type/anonymous/components/schemas/TwoCopies/allOf/1/properties/owner": {
-      "flattened": [
-        "property/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name"
       ]
     },
     "type/anonymous/components/schemas/TwoInline/allOf/0/properties/data": {

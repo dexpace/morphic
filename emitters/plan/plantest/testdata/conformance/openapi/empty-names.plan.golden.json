@@ -25,9 +25,6 @@
         "property/openapi/components/parameters/UnnamedList/schema/items/properties/p"
       ]
     },
-    "type/anonymous/components/schemas/": {
-      "alias": "type/primitive/string"
-    },
     "type/anonymous/components/schemas/Blob/properties/": {},
     "type/anonymous/components/schemas/Blob/properties//contentSchema": {
       "flattened": [
@@ -93,6 +90,7 @@
         "property/openapi/components/schemas/Alt/properties/alt"
       ]
     },
+    "type/openapi/components/schemas/": {},
     "type/openapi/components/schemas/Alt": {
       "flattened": [
         "property/openapi/components/schemas/Alt/properties/alt"

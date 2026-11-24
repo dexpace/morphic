@@ -1,37 +1,13 @@
 {
   "types": {
-    "type/anonymous/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/AliasedListMeetsLast/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p": {
-      "flattened": [
-        "property/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a"
-      ]
-    },
     "type/anonymous/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p": {},
     "type/anonymous/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p": {
-      "flattened": [
-        "property/openapi/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a"
-      ]
-    },
     "type/anonymous/components/schemas/EnumNarrowFirst/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/EnumNarrowFirst/allOf/1/properties/p": {},
     "type/anonymous/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p": {},
     "type/anonymous/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/EnumValueTypesMeet/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/EnumValueTypesMeet/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/EnumWideFirst/allOf/0/properties/p": {},
     "type/anonymous/components/schemas/EnumWideFirst/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/EnumsMeet/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/EnumsMeet/allOf/1/properties/p": {},
     "type/anonymous/components/schemas/HexBroadFirst/allOf/1/properties/p": {},
     "type/anonymous/components/schemas/HexNarrowFirst/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/ListNarrowFirst/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/ListNarrowFirst/allOf/1/properties/p": {},
-    "type/anonymous/components/schemas/ListWideFirst/allOf/0/properties/p": {},
-    "type/anonymous/components/schemas/ListWideFirst/allOf/1/properties/p": {},
     "type/anonymous/components/schemas/NarrowedPastARef/allOf/0": {
       "flattened": [
         "property/openapi/components/schemas/NarrowedPastARef/allOf/0/properties/p"
