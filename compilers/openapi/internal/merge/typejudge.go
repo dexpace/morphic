@@ -1332,6 +1332,9 @@ func refusesUnder(r registry, scalar *ir.Scalar, value ir.Value, depth int) bool
 	if _, held := heldFormat(scalar.Encoding); held && !encodingAdmits(scalar.Encoding, value) {
 		return true
 	}
+	if travels := r.travelsAs(scalar); travels != scalar.Base.Target {
+		return refusesAt(r, ir.TypeRef{Target: travels}, value, depth+1)
+	}
 	if base, ok := r.kindOf(*scalar.Base); ok && rewritesText(scalar.Encoding, base.primitive) {
 		return value.Kind != ir.ValueString
 	}
@@ -1349,6 +1352,20 @@ func encodingAdmits(enc *ir.Encoding, value ir.Value) bool {
 	format, held := heldFormat(enc)
 	inFormat, _ := admitsFormat(format, value)
 	return held && inFormat
+}
+
+// variantAdmitsNull reports whether the type ref names, at depth, is a union,
+// or an alias of one, a variant of which admits null: by its own bit, as the
+// top type, or in a variant of its own.
+func variantAdmitsNull(r registry, ref ir.TypeRef, depth int) bool {
+	td, ok := r.resolve(ref.Target)
+	if !ok || depth > maxJudgeDepth {
+		return false
+	}
+	union, isUnion := r.unaliased(td).(*ir.Union)
+	return isUnion && slices.ContainsFunc(union.Variants, func(variant ir.Variant) bool {
+		return variant.Type.Nullable || r.isAnyType(variant.Type) || variantAdmitsNull(r, variant.Type, depth+1)
+	})
 }
 
 // admitsAll reports whether every element of vs is a value of element.

@@ -308,7 +308,8 @@ func TestAllOfFold_AnExampleAFormatRefusesStaysRefused(t *testing.T) {
 // example of the model's own nothing judges against the field's type, which
 // does not admit it, stays off a field whose type, or a part of it, holds an
 // example of the model's own, and is kept verbatim, and one beside a type
-// holding another model's example is the field's.
+// holding another model's example, or beside a broader node of the model's own
+// the type neither is nor composes, is the field's.
 func TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds(t *testing.T) {
 	t.Parallel()
 	const union, object = "oneOf: [{type: string}, {type: integer}]", "type: object, properties: {p: {type: string}}"
@@ -324,6 +325,10 @@ func TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds(t *testing.T) {
 		{"another model's", object + ", example: {p: x}}}}\n    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'", fmt.Sprintf(outside, "{q: y}") + ", " + a,
 			`[description x, example {"kind":"object","object":[{"name":"q","value":{"kind":"string","string":"y"}}]}] ` +
 				`A/properties/f model [example {"kind":"object","object":[{"name":"p","value":{"kind":"string","string":"x"}}]}]`},
+		{"a broader union's", object, "{properties: {f: {oneOf: [{type: string}, {type: boolean}, {type: object}], example: b}}}, " + fmt.Sprintf(outside, "{p: x}") + ", " + a,
+			`[description x, example {"kind":"object","object":[{"name":"p","value":{"kind":"string","string":"x"}}]}] A/properties/f model`},
+		{"a broader union's, below a list", "type: array, items: {" + object + "}", a + ", " + fmt.Sprintf(outside, "[{p: x}]") + ", {properties: {f: {type: [array, string], example: b}}}",
+			`[description x, example {"kind":"list","list":[{"kind":"object","object":[{"name":"p","value":{"kind":"string","string":"x"}}]}]}] A/properties/f list`},
 	} {
 		doc, diags := parseVerified(t, openapitest.ComponentSpec("    Object: {"+object+"}\n    A: {properties: {f: {"+tc.brought+"}}}\n    M: {allOf: ["+tc.entries+"]}\n"))
 		assert.Equal(t, tc.want, memberText(t, doc, componentID("M")), tc.name)
@@ -334,15 +339,17 @@ func TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds(t *testing.T) {
 // TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped pins that an example of
 // the model's own both its declaration and the brought one admit is the field's,
 // in either order, though a pattern beside its type or within it, or a format
-// whose grammar the compiler does not hold, has no judge to show it, while one
-// a bound beside the pattern refuses is kept verbatim.
+// whose grammar the compiler does not hold, has no judge to show it, or a
+// Scalar's own values are not what the wire holds, while one a bound beside the
+// pattern or the type on the wire refuses is kept verbatim.
 func TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped(t *testing.T) {
 	t.Parallel()
 	items := func(schema string) string { return "type: array, items: {" + schema + "}" }
-	for _, tc := range []struct {
+	type row struct {
 		name, brought, own, example string
 		refused                     bool
-	}{
+	}
+	rows := []row{
 		{"a pattern beside an enum", "type: string, pattern: b$", "type: string, enum: [ab, b, c]", "ab", false},
 		{"a pattern beside a string", "type: string, pattern: b$", "type: string", "ab", false},
 		{"a pattern and a bound", "type: string, pattern: b$, maxLength: 1", "type: string", "ab", true},
@@ -351,7 +358,23 @@ func TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped(t *testing.T) {
 		{"a format not held", items("type: string, format: email"), items("type: string"), "[a@b.test]", false},
 		{"bytes", "type: string, format: byte", "type: string", "YWI=", false},
 		{"a format held", "type: string, format: uuid", "type: string", "ab", true},
+	}
+	for _, wire := range []struct{ written, format, example, off string }{
+		{"string", "decimal", "'1.5'", "1.5"}, {"string", "decimal128", "'1.5'", "1.5"}, {"string", "float", "'1.5'", "1.5"}, {"string", "double", "'1.5'", "1.5"},
+		{"string", "int32", "'12'", "12"}, {"string", "int64", "'12'", "12"}, {"string", "uint64", "'12'", "12"}, {"string", "unixtime", "'12'", "12"},
+		{"integer", "unixtime", "12", "'12'"}, {"number", "unixtime", "12.5", "'12.5'"},
 	} {
+		brought, own := "type: "+wire.written+", format: "+wire.format, "type: "+wire.written
+		for _, of := range []struct{ name, schema, example string }{
+			{"", "%s", "%s"}, {", below a list", "type: array, items: {%s}", "[%s]"}, {", below a map", "type: object, additionalProperties: {%s}", "{k: %s}"},
+		} {
+			for example, refused := range map[string]bool{wire.example: false, wire.off: true} {
+				rows = append(rows, row{wire.format + " on a " + wire.written + of.name, fmt.Sprintf(of.schema, brought), fmt.Sprintf(of.schema, own),
+					fmt.Sprintf(of.example, example), refused})
+			}
+		}
+	}
+	for _, tc := range rows {
 		entries := []string{"{properties: {f: {" + tc.own + ", example: " + tc.example + "}}}", "{$ref: '#/components/schemas/A'}"}
 		for order, written := range []string{entries[0] + ", " + entries[1], entries[1] + ", " + entries[0]} {
 			doc, diags := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+tc.brought+"}}}\n    M: {allOf: ["+written+"]}\n"))
@@ -362,6 +385,11 @@ func TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped(t *testing.T) {
 		}
 	}
 
+	// A null the field admits refuses nothing beside a value no judge reads.
+	nulls, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {type: [object, 'null'], properties: {p: {type: string}}}}}\n"+
+		"    M: {allOf: [{$ref: '#/components/schemas/A'}, {properties: {f: {type: [object, 'null'], examples: [null, {p: x}]}}}]}\n"))
+	assert.Len(t, memberF(t, nulls, componentID("M")).Examples, 2)
+
 	// A value the type admits is one a bound another declaration brings refuses.
 	doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {type: string, enum: [abc, b]}}}\n    B: {properties: {f: {type: string, maxLength: 2}}}\n"+
 		"    M: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}, {properties: {f: {type: string, example: abc, default: abc}}}]}\n"))
@@ -369,4 +397,45 @@ func TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped(t *testing.T) {
 	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/f"), field.Type.Target)
 	assert.Empty(t, field.Examples, "an example a bound refuses")
 	assert.Nil(t, field.Default, "a default a bound refuses")
+}
+
+// TestAllOfFold_ANullExampleAUnionsVariantAdmitsIsTyped pins a null example of
+// the model's own beside a union a variant of which admits null, by its own
+// bit, as the top type or in a union of its own, however the union is reached:
+// it is the field's, in either order, though the field says nothing of null,
+// and one no variant admits is kept verbatim. A null default is refused there,
+// being judged by the field's own null alone.
+func TestAllOfFold_ANullExampleAUnionsVariantAdmitsIsTyped(t *testing.T) {
+	t.Parallel()
+	const integer = "{type: integer}"
+	for _, tc := range []struct {
+		name, version, schema, rest string
+		typed                       bool
+	}{
+		{"a nullable kind", "3.1.0", "oneOf: [{type: [string, 'null']}, " + integer + "]", "", true},
+		{"a nullable kind, anyOf", "3.1.0", "anyOf: [{type: [string, 'null']}, " + integer + "]", "", true},
+		{"a nullable kind, 3.0", "3.0.3", "oneOf: [{type: string, nullable: true}, " + integer + "]", "", true},
+		{"a nullable component", "3.1.0", "oneOf: [{$ref: '#/components/schemas/N'}, " + integer + "]", "    N: {type: [string, 'null']}\n", true},
+		{"a nullable component, 3.0", "3.0.3", "oneOf: [{$ref: '#/components/schemas/N'}, " + integer + "]", "    N: {type: object, nullable: true, properties: {z: {type: string}}}\n", true},
+		{"a nullable enum", "3.1.0", "oneOf: [{enum: [a, null]}, " + integer + "]", "", true},
+		{"anything", "3.1.0", "oneOf: [{}, " + integer + "]", "", true},
+		{"a union of its own", "3.1.0", "oneOf: [{anyOf: [{type: [string, 'null']}, {type: boolean}]}, " + integer + "]", "", true},
+		{"an alias of a union", "3.1.0", "$ref: '#/components/schemas/N'", "    N: {allOf: [{$ref: '#/components/schemas/O'}], title: t}\n    O: {oneOf: [{type: [string, 'null']}, {type: boolean}]}\n", true},
+		{"none", "3.1.0", "oneOf: [{type: string}, {type: array, items: {type: [string, 'null']}}]", "", false},
+		{"a model", "3.1.0", "type: object, properties: {p: {type: [string, 'null']}}", "", false},
+	} {
+		for _, keyword := range []string{"example", "default"} {
+			entries := []string{"{properties: {f: {" + keyword + ": null}}}", "{$ref: '#/components/schemas/A'}"}
+			for order, written := range []string{entries[0] + ", " + entries[1], entries[1] + ", " + entries[0]} {
+				doc, diags := parseVerified(t, openapitest.ComponentSpecVer(tc.version, "    A: {properties: {f: {"+tc.schema+"}}}\n    M: {allOf: ["+written+"]}\n"+tc.rest))
+				field, label := memberF(t, doc, componentID("M")), fmt.Sprintf("%s, %s, order %d", tc.name, keyword, order)
+				require.False(t, field.Type.Nullable, label)
+				typed := tc.typed && keyword == "example"
+				assert.Equal(t, map[bool]string{true: `[{"value":{"kind":"null"}}]`, false: "[]"}[typed], examplesJSON(t, field.Examples), label)
+				assert.Nil(t, field.Default, label)
+				assert.Equal(t, !typed, field.Unmodeled != nil, "%s: kept verbatim", label)
+				assert.Zero(t, codeCounts(diags)[exampleOutsideType], label)
+			}
+		}
+	}
 }

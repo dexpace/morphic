@@ -3302,7 +3302,8 @@ and reported.
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where every declaration folded into it does, and a null any of them writes is
 judged against that: a `default: null` or a null example is refused where the merged field does not
-admit null, a declaration of the field's own type included. The top type admits null whatever its
+admit null, a declaration of the field's own type included, but for a null example a variant of the
+field's union admits (below). The top type admits null whatever its
 bit says, and one folded under another type says nothing of null. A `default` or `examples` a
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
 or nothing, but for examples a type with no judge refuses (below). The winning type admits a value
@@ -3331,7 +3332,11 @@ refuses, a null, a bound, an enum's members, a literal, a kind or a format's gra
 own or that of a list's element or a map's value, stays refused and kept, wherever the field takes
 no other. What has no judge refuses none: a model, a union, a tuple or an opaque `Scalar`, or a
 `Scalar`, list or map over one, whole; a `pattern`, a precision or a scale; and the text of `bytes`
-or of a format whose grammar the compiler does not hold. Those a declaration another model holds gives stay declared there. An example
+or of a format whose grammar the compiler does not hold. A union refuses a null no variant of it
+admits, by its own bit, as the top type or in a union of its own, and no other value. A `Scalar`
+whose `Encoding` carries its values as another kind, a number as text or a time as a number, is
+judged as the type on the wire, which an example is written in. Those a declaration another model
+holds gives stay declared there. An example
 illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
 takes, the last written is kept, examples a declaration the model writes itself gives over those of
 one another model holds, and a declaration giving another is reported and kept. Two values are one

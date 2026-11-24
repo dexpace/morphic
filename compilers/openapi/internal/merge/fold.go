@@ -660,11 +660,11 @@ func (f *folding) refuse(i int, what []string) {
 // examplesTaken reports, declaration by declaration, whether the field takes
 // the examples it gives: where takes takes each, and, at a field an entry
 // brings a declaration of, where it takes those of none the model writes and
-// no node its type holds keeps one of the model's own, each of the model's own
-// takes refuses no example of. An example illustrates rather than constrains,
-// so one the merge has no judge for, against a model say, is typed on the
-// field, which pass/example-outside-type holds to its type. One a bound, an
-// enum or a format refuses stays refused.
+// its type holds none a node of the model's own does (typeHoldsExamples), each
+// of the model's own takes refuses no example of. An example illustrates rather
+// than constrains, so one the merge has no judge for, against a model say, is
+// typed on the field, which pass/example-outside-type holds to its type. One a
+// bound, an enum or a format refuses stays refused.
 func examplesTaken(f *folding, nullable bool) []bool {
 	taken := make([]bool, len(f.decls))
 	unjudged := make([]bool, len(f.decls))
@@ -684,7 +684,7 @@ func examplesTaken(f *folding, nullable bool) []bool {
 			unjudged[i] = unjudged[i] && !refuses
 		}
 		adopted = adopted || own && taken[i] && len(declaration.property.Examples) > 0
-		adopted = adopted || own && len(builtNodeNotes(f.g, declaration).Examples) > 0
+		adopted = adopted || own && typeHoldsExamples(f, i)
 	}
 	if adopted {
 		return taken
@@ -693,6 +693,15 @@ func examplesTaken(f *folding, nullable bool) []bool {
 		taken[i] = taken[i] || unjudged[i]
 	}
 	return taken
+}
+
+// typeHoldsExamples reports whether the node declaration i of foldingValue
+// built holds examples that the field's type holds: the type's node holds the
+// same, or the type composes that node (isPart).
+func typeHoldsExamples(foldingValue *folding, i int) bool {
+	examples := builtNodeNotes(foldingValue.g, foldingValue.decls[i]).Examples
+	held := nodeNotes(foldingValue.g, foldingValue.merged.Type.Target).Examples
+	return len(examples) > 0 && (isPart(foldingValue, i) || sameExamples(held, examples))
 }
 
 // sameExamples reports whether two example lists say the same, each example's
@@ -715,13 +724,13 @@ func sameExamples(a, b []ir.Example) bool {
 // written against a declaration's own type is that declaration's to answer for,
 // and a composed field has no such declaration. The field's type is read where
 // its nodes are written (typeAt). refuses is whether a judge refuses value, not
-// the want of one (refusesConstraints, judgesAt, refusesAt).
+// the want of one (variantAdmitsNull, refusesConstraints, judgesAt, refusesAt).
 func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bool) {
+	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	if value.Kind == ir.ValueNull {
-		return nullable, !nullable
+		return nullable, !nullable && !variantAdmitsNull(judge.registry, f.merged.Type, 0)
 	}
 	own := &f.decls[i].property
-	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	bounds := boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own))
 	taken, refuses = admitsConstraints(bounds, value, 0), refusesConstraints(bounds, value, 0)
 	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
