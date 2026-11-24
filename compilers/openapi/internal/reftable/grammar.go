@@ -4,6 +4,8 @@
 package reftable
 
 import (
+	"encoding/json/jsontext"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
@@ -265,4 +267,90 @@ func roleOf(stateValue state) Role {
 // object or a list of its own, rather than as raw YAML or a scalar value.
 func modelled(stateValue state) bool {
 	return stateValue != sRaw && stateValue != sValue
+}
+
+// DefinitionsCeiling returns the shallowest ancestor pointer of at in at.Doc
+// from which at is reachable without stepping through a $defs or definitions
+// table. Reaching any ancestor of at from at.Pointer up to and including the
+// returned ceiling activates at; reaching an ancestor strictly above the
+// ceiling crosses a definitions table or an unmodelled boundary and does not.
+func DefinitionsCeiling(table *ReferenceTargetTable, at DocumentPointer) jsontext.Pointer {
+	if table == nil {
+		return at.Pointer
+	}
+	for rootEnd := 0; rootEnd <= len(at.Pointer); rootEnd++ {
+		if rootEnd > 0 && rootEnd < len(at.Pointer) && at.Pointer[rootEnd] != '/' {
+			continue
+		}
+		rootPtr := at.Pointer[:rootEnd]
+		start, ok := table.roots[DocumentPointer{Doc: at.Doc, Pointer: rootPtr}]
+		if !ok {
+			continue
+		}
+		if ceiling, ok := definitionsCeilingFrom(at.Pointer, rootEnd, start); ok {
+			return ceiling
+		}
+	}
+	return at.Pointer
+}
+
+// definitionsCeilingFrom walks full[rootLen:] from state start and reports
+// whether it reaches a schema position through modelled states, returning the
+// deepest $defs/<name> or definitions/<name> pointer entered along the way (or
+// full[:rootLen] when none is entered).
+func definitionsCeilingFrom(full jsontext.Pointer, rootLen int, start state) (jsontext.Pointer, bool) {
+	cur := start
+	ceilingEnd := rootLen
+	var afterItems, enteringDef bool
+	for offset := rootLen; offset < len(full); {
+		next := strings.IndexByte(string(full[offset+1:]), '/')
+		end := len(full)
+		if next >= 0 {
+			end = offset + 1 + next
+		}
+		token := string(full[offset+1 : end])
+		offset = end
+		if enteringDef {
+			ceilingEnd, cur, enteringDef, afterItems = end, sSchema, false, false
+			continue
+		}
+		if cur == sSchema || cur == sLoose {
+			if token == "$defs" || token == "definitions" {
+				cur, enteringDef, afterItems = sSchemaMap, true, false
+				continue
+			}
+			if nextState, ok := dialectSchemaStep(token, afterItems); ok {
+				cur, afterItems = nextState, false
+				continue
+			}
+		}
+		afterItems = (cur == sSchema || cur == sLoose) && token == "items"
+		cur = step(cur, token)
+		if !modelled(cur) {
+			return "", false
+		}
+	}
+	return full[:ceilingEnd], cur == sSchema
+}
+
+// dialectSchemaStep handles draft 4-7 schema keywords absent from 2020-12's
+// schemaFields (dependencies, additionalItems, and tuple items indices) so
+// definitionsCeilingFrom keeps sites inside them reachable.
+func dialectSchemaStep(token string, afterItems bool) (state, bool) {
+	switch {
+	case token == "dependencies":
+		return sSchemaMap, true
+	case token == "additionalItems":
+		return sSchema, true
+	case afterItems && isArrayIndex(token):
+		return sSchema, true
+	default:
+		return 0, false
+	}
+}
+
+// isArrayIndex reports whether token spells a non-negative base-10 integer.
+func isArrayIndex(token string) bool {
+	n, err := strconv.Atoi(token)
+	return err == nil && n >= 0
 }

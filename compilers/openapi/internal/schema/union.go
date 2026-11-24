@@ -249,10 +249,10 @@ func preserveBranchSets(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, s
 	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(unmodeled, schema, kw, pointer, loweringContext.Place())...)
+			diags = append(diags, preserveValidationOnlyKeyword(loweringContext, unmodeled, schema, kw, pointer)...)
 			continue
 		}
-		ok, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, kw, reason, pointer, loweringContext.Place())
+		ok, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, schema, kw, reason, pointer)
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, kw)
@@ -375,9 +375,9 @@ func preserveUnusedCombinator(loweringContext lowering.Ctx, unmodeled *ir.Unmode
 	if !setsDeclareShape(loweringContext, unionAtValue.schema, unionAtValue.holder, set) {
 		// Branches narrowing only what the position declares are validation
 		// logic, as the same union on an entry of its own is (entryUnionReason).
-		return annotation.PreserveValidationOnlyKeyword(unmodeled, unionAtValue.holder, unused, unionAtValue.at, loweringContext.Place())
+		return preserveValidationOnlyKeyword(loweringContext, unmodeled, unionAtValue.holder, unused, unionAtValue.at)
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, unionAtValue.holder, unused, ir.ReasonDegradedLowering, unionAtValue.at, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, unmodeled, unionAtValue.holder, unused, ir.ReasonDegradedLowering, unionAtValue.at)
 	if !kept {
 		return diags
 	}

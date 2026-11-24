@@ -285,10 +285,11 @@ type Set struct {
 	// Sensitive is a redaction the site or its referent asks for
 	// (DeclaresRedaction). A type node holds it as Sensitive, and a property or
 	// a parameter as Secret.
-	Sensitive bool
-	XML       *ir.XMLHints
-	Examples  []ir.Example
-	Unmodeled ir.Unmodeled
+	Sensitive   bool
+	XML         *ir.XMLHints
+	Examples    []ir.Example
+	Unmodeled   ir.Unmodeled
+	Unpreserved []ir.Provenance
 }
 
 // redactionFormat is the one format OpenAPI defines that names no shape: its
@@ -338,6 +339,7 @@ func Read(st SchemaPositionAnnotationSources, pointer jsontext.Pointer, doc prov
 			}
 		}
 		diags = append(diags, foldedEntryDiags...)
+		out.Unpreserved = append(out.Unpreserved, foldedEntry.Unpreserved...)
 		if out.XML == nil {
 			out.XML = foldedEntry.XML
 		}
@@ -408,7 +410,7 @@ func readLocal(schema *statement.Schema, pointer jsontext.Pointer, doc provenanc
 
 	ext, extDiags := SchemaExtensions(extensionsIn(schema), doc, pointer, "")
 	sub, subDiags := subObjectKeys(schema, out.XML, pointer, doc, own)
-	kept, keptDiags := unmodeledAt(schema, pointer, doc, own, dialect, closure)
+	kept, unpreserved, keptDiags := unmodeledAt(schema, pointer, doc, own, dialect, closure)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
@@ -417,6 +419,7 @@ func readLocal(schema *statement.Schema, pointer jsontext.Pointer, doc provenanc
 	diags = append(diags, keptDiags...)
 
 	out.Unmodeled = MergeUnmodeled(MergeUnmodeled(ext, sub), kept)
+	out.Unpreserved = unpreserved
 	return out, diags
 }
 
@@ -523,13 +526,13 @@ func definedNodeType(v string) bool {
 // built rather than the keyword that was written.
 func unmodeledAt(schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect,
 	closure bool,
-) (ir.Unmodeled, []ir.Diagnostic) {
-	vOnly, diags := validationOnlyAt(schema, pointer, doc, dialect, own, closure)
+) (ir.Unmodeled, []ir.Provenance, []ir.Diagnostic) {
+	vOnly, unpreserved, diags := validationOnlyAt(schema, pointer, doc, dialect, own, closure)
 	if !own {
-		return vOnly, diags
+		return vOnly, unpreserved, diags
 	}
 	kept, dDiags := dialectAt(schema, pointer, doc, dialect)
-	return MergeUnmodeled(vOnly, kept), append(diags, dDiags...)
+	return MergeUnmodeled(vOnly, kept), unpreserved, append(diags, dDiags...)
 }
 
 // dialectKeywords are the JSON Schema resource and dialect keywords the IR

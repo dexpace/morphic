@@ -126,6 +126,10 @@
                             }
                           }
                         },
+                        "targets": {
+                          "/inner/headers/X-Component/schema/$ref": "type/openapi/components/schemas/Part",
+                          "/inner/headers/X-Kept/schema/$ref": "type/anonymous/x-defs/Kept"
+                        },
                         "provenance": {
                           "source": 0,
                           "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding"
@@ -149,6 +153,10 @@
                               "$ref": "#/components/headers/Shared"
                             }
                           }
+                        },
+                        "targets": {
+                          "/headers/X-Component/schema/$ref": "type/openapi/components/schemas/Part",
+                          "/headers/X-Kept/schema/$ref": "type/anonymous/x-defs/Kept"
                         },
                         "provenance": {
                           "source": 0,
@@ -189,6 +197,10 @@
                             }
                           }
                         ],
+                        "targets": {
+                          "/0/headers/X-Component/schema/$ref": "type/openapi/components/schemas/Part",
+                          "/0/headers/X-Kept/schema/$ref": "type/anonymous/x-defs/Kept"
+                        },
                         "provenance": {
                           "source": 0,
                           "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding"

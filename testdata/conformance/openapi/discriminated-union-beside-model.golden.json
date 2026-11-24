@@ -163,6 +163,9 @@
               "$ref": "#/components/schemas/Bird"
             }
           ],
+          "targets": {
+            "/0/$ref": "type/openapi/components/schemas/Bird"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Animal/oneOf"
@@ -625,6 +628,9 @@
             },
             "propertyName": "kind"
           },
+          "targets": {
+            "/mapping/cat": "type/openapi/components/schemas/Cat"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Mixed/discriminator"
@@ -640,6 +646,10 @@
               "$ref": "#/components/schemas/Cat"
             }
           ],
+          "targets": {
+            "/0/$ref": "type/openapi/components/schemas/Kitten",
+            "/1/$ref": "type/openapi/components/schemas/Cat"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Mixed/oneOf"
@@ -724,6 +734,10 @@
               "$ref": "#/components/schemas/Square"
             }
           ],
+          "targets": {
+            "/0/$ref": "type/openapi/components/schemas/Circle",
+            "/1/$ref": "type/openapi/components/schemas/Square"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Shape/oneOf"
@@ -816,6 +830,9 @@
             },
             "propertyName": "kind"
           },
+          "targets": {
+            "/mapping/car": "type/openapi/components/schemas/Car"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Vehicle/discriminator"
@@ -828,6 +845,9 @@
               "$ref": "#/components/schemas/Car"
             }
           ],
+          "targets": {
+            "/0/$ref": "type/openapi/components/schemas/Car"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Vehicle/oneOf"

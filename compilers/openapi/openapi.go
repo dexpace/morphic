@@ -226,6 +226,7 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	out.Auth = lowered.Auth
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(svcDiags)
 	schema.ReserveNodesAtReferenceTargets(serviceContext.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
@@ -236,11 +237,31 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// carries each entry the registry refused, a compiler bug that would
 	// otherwise leave every reference to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
-	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
+		acc.AppendAll(settled)
 		return nil, acc.List(), err
 	}
 	out.Types = reg
+	// Attach typed Targets to kept Unmodeled entries before pruning so every
+	// kept $ref and discriminator-mapping landing is explicit in the IR for
+	// pruning, irverify, and emitters. Pruning then removes unreachable
+	// anonymous types before compileddoc.New runs links, promotions and
+	// inferences.
+	landings := schema.ReferenceLandings(serviceContext.Ctx)
+	var pruneDiags []ir.Diagnostic
+	if attachUnmodeledTargets(ctx, out, landings) {
+		discarded := schema.DiscardedTypes(serviceContext.Ctx)
+		seedDiscardedLandings(discarded, landings, schema.DiscardedSites(serviceContext.Ctx))
+		out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
+	}
+	if err := ctx.Err(); err != nil {
+		acc.AppendAll(settled)
+		acc.AppendAll(pruneDiags)
+		return nil, acc.List(), err
+	}
+	rewritePrunedFoldDiagnostics(settled, out.Types, schema.PrunedDiagnostics(serviceContext.Ctx))
+	acc.AppendAll(settled)
+	acc.AppendAll(pruneDiags)
 	// What is read once the document is whole is read here, in the one order
 	// docs/compilers/openapi.md#policies gives: links, then promotions, then
 	// inferences, an inference filling only what no keyword or promotion
@@ -258,7 +279,6 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// an operation writes true reads the root's; its findings keep their place.
 	meta, metaDiags := document.Lower(serviceContext)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, meta.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	// The operations whose extensions speak of a pagination are what the
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
