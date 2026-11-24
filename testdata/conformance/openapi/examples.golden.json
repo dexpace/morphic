@@ -237,22 +237,6 @@
       "anonymous": true,
       "docs": {},
       "sensitive": false,
-      "examples": [
-        {
-          "value": {
-            "kind": "object",
-            "object": [
-              {
-                "name": "k",
-                "value": {
-                  "kind": "string",
-                  "string": "v"
-                }
-              }
-            ]
-          }
-        }
-      ],
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/S/properties/inner"
@@ -394,6 +378,22 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "object",
+                "object": [
+                  {
+                    "name": "k",
+                    "value": {
+                      "kind": "string",
+                      "string": "v"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
           "docs": {},
           "provenance": {
             "source": 0,

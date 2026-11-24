@@ -9,6 +9,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,14 +34,20 @@ func UseDocs[T, S any, R interface {
 		written = append(written, writtenAs(hop.Ref))
 	}
 	for _, node := range slices.Backward(written) {
-		if summary, ok := docText(node, "summary"); ok {
+		if summary, ok := DocText(node, "summary"); ok {
 			docs.Summary = summary
 		}
-		if description, ok := docText(node, "description"); ok {
+		if description, ok := DocText(node, "description"); ok {
 			docs.Description = description
 		}
 	}
 	return docs
+}
+
+// WrittenAt returns the mapping the object b holds at at, read as kind, was
+// read from, or nil where b holds none there.
+func WrittenAt(b *typed.Bindings, at reftable.DocumentPointer, kind reftable.RefKind) *yaml.Node {
+	return writtenAs(b.ObjectAt(at, kind))
 }
 
 // writtenAs returns the mapping the wrapper model was read from, which its
@@ -57,9 +64,9 @@ func writtenAs(model any) *yaml.Node {
 	return core.GetRootNode()
 }
 
-// docText returns the text the mapping node writes under key, and false where
+// DocText returns the text the mapping node writes under key, and false where
 // it writes none: no such key, or a value that is null, empty or no scalar.
-func docText(node *yaml.Node, key string) (string, bool) {
+func DocText(node *yaml.Node, key string) (string, bool) {
 	child := nodeview.Deref(nodeview.Child(node, key))
 	if child == nil || child.Kind != yaml.ScalarNode || child.Value == "" || child.ShortTag() == "!!null" {
 		return "", false

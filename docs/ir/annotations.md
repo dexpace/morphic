@@ -173,9 +173,40 @@ hoists only when the declaration says something** one of those homes holds — a
 `items: {type: string}` gains nothing by owning a node, so it keeps resolving straight to the
 shared primitive and the type graph stays free of an anonymous node per element position.
 
-Where a carrier holds annotations of its own alongside a schema's — a header and a parameter both
-write a `description` beside their schema — the carrier's own win: they describe that input,
-while the schema's describe its type.
+**A carrier holds its notes whatever its schema lowered to.** Where the schema at a carried position
+builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a
+`Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
+has fields for, and the node holds none of them, so a reader of a model's members meets them on the
+member whichever kind its schema is. That holds of each note nothing at the position writes over: where a
+parameter or a header writes its own documentation, deprecation or examples beside its schema's, or a
+Reference Object naming a component one writes documentation beside its `$ref`, the node keeps the
+schema's for every use of that position, and each carrier holds only its own. A member a model
+declares more than once itself, in its own properties, an inline `allOf` entry or one nested in
+another, has one slot for the notes of several declarations, so the node each declaration's schema
+builds keeps that declaration's, as before 0.73.0, and a title, description, link or deprecation
+another model's declaration brings stands on the member only where none of them writes that one
+([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
+what speaks of the values it admits: its XML hints, which `ir.Parameter`
+has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
+verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
+its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
+[decorator](#decorators) among them, which an emitter folds onto the carrier. A carried position
+that a reference names keeps them on its node too, its carrier holding none, so every reference to
+it reads them where it lands.
+
+Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
+write a `description` beside their schema, an `example`, and a deprecation — the two stay apart: the
+carrier's own describe that input, and the schema's describe its type, so they stay with the node
+that type is. A deprecation is the carrier's own where its object writes `deprecated: true` or a key
+the compiler's promotion policy reads a deprecation or one of its members from, as does the content
+entry it elects; a Reference Object states none. The node then keeps the schema's deprecation whole,
+its message, dates and replacements with it, and the carrier holds its own members alone. Where the
+carrier holds the schema's notes, it is deprecated wherever its schema is: one writing only a
+message, a date, a replacement or a tier beside a deprecated schema is deprecated as one writing
+`deprecated: true` is, so it and the node are both deprecated and each member has one home. At a
+position a reference names, the node keeps the deprecation and the carrier holds none, its own
+member kept under `Unmodeled` alone. Where the schema hoists no node, the carrier's own
+documentation and examples still replace the schema's, which no node holds.
 
 Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
 and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a

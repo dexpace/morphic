@@ -69,7 +69,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// they return: immediate callbacks. operation's are a union's file reading
 		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    25,
+		"compilers/openapi/internal/schema":    27,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through
@@ -98,9 +98,10 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/load": 29,
 	},
 	"compilers/openapi/internal/promotion": {
-		// Promoter.Referent calls the function it is handed before it returns: an
-		// immediate callback.
-		"compilers/openapi/internal/schema": 1,
+		// Promoter.Referent calls the function it is handed before it returns,
+		// reading a $ref target's keys and those of a node whose notes its
+		// carrier holds: an immediate callback.
+		"compilers/openapi/internal/schema": 2,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

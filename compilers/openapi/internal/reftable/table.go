@@ -440,6 +440,7 @@ func (b *binder) table(referenceTargetTable *ReferenceTargetTable) *ReferenceTar
 	referenceTargetTable.entryList = slices.SortedFunc(maps.Values(referenceTargetTable.entries), func(referenceSite, referenceSiteValue ReferenceSite) int {
 		return b.docs.compare(referenceSite.Site, referenceSiteValue.Site)
 	})
+	referenceTargetTable.targets = referenceTargetsOf(b, referenceTargetTable)
 	referenceTargetTable.roots, referenceTargetTable.bases, referenceTargetTable.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
 	shared := sharedNames(b.ids)
 	var graph reach
@@ -473,6 +474,29 @@ func (b *binder) table(referenceTargetTable *ReferenceTargetTable) *ReferenceTar
 		return compareObjects(b.docs)(objectKey{at: reference.Site, kind: reference.Kind}, objectKey{at: referenceValue.Site, kind: referenceValue.Kind})
 	})
 	return referenceTargetTable
+}
+
+// referenceTargetsOf returns each position a schema reference of
+// referenceTargetTable lands on: a $ref's hop where it lands
+// (ReferenceSite.Lands), each position a chain passes writing a $ref of its
+// own, so every hop of a chain is one; a discriminator mapping value's hop; and
+// the target of an expanding $dynamicRef or $recursiveRef.
+func referenceTargetsOf(b *binder, referenceTargetTable *ReferenceTargetTable) map[DocumentPointer]bool {
+	targets := map[DocumentPointer]bool{}
+	for _, referenceSite := range referenceTargetTable.entries {
+		if referenceSite.Lands() {
+			targets[referenceSite.Hop.Target] = true
+		}
+	}
+	for _, mapping := range referenceTargetTable.mappings {
+		if mapping.Hop.Status == Resolved {
+			targets[mapping.Hop.Target] = true
+		}
+	}
+	for _, expansion := range b.find.expansions {
+		targets[expansion.to] = true
+	}
+	return targets
 }
 
 // attribute returns, for each position some $ref's, mapping value's or
@@ -553,12 +577,11 @@ type ReferenceTargetTable struct {
 	objLandings []ObjectLanding
 	entryList   []ReferenceSite
 	refList     []Reference
+	targets     map[DocumentPointer]bool
 	docs        []ReferencedDocument
 	steps       int
 	passes      int
-	limit       budget.Limit
-	exhausted   bool
-	truncated   bool
+	cost
 	// bases remembers each walk Base and Resource make, filled as they
 	// ask. It changes no answer, each being what a walk from the root gives,
 	// and nothing guards it, as only the lowering asks, on one goroutine.
@@ -581,6 +604,14 @@ func (t *ReferenceTargetTable) Entry(site DocumentPointer) (ReferenceSite, bool)
 
 // Entries returns every entry, ordered by site.
 func (t *ReferenceTargetTable) Entries() []ReferenceSite { return slices.Clone(t.entryList) }
+
+// Referenced reports whether a schema reference the table read names at: a
+// $ref's hop, a discriminator mapping value's or an expanding dynamic
+// reference's lands there, so the node built at at is what that reference
+// reads. A nil table read none.
+func (t *ReferenceTargetTable) Referenced(at DocumentPointer) bool {
+	return t != nil && t.targets[at]
+}
 
 // Mapping returns where the mapping value written by the discriminator at at
 // lands, and false for one the table did not read: a value naming a schema
@@ -738,18 +769,27 @@ func (t *ReferenceTargetTable) Base(documentPointer DocumentPointer) (string, bo
 	return res.uri, known
 }
 
+// cost is what reading a table cost: the work it was allowed, and whether the
+// budget or a merge past the bound cut the reading short. The table embeds it,
+// so its verdicts are the table's.
+type cost struct {
+	limit     budget.Limit
+	exhausted bool
+	truncated bool
+}
+
 // Limit reports the work the table was allowed (Config.Limit).
-func (t *ReferenceTargetTable) Limit() budget.Limit { return t.limit }
+func (c cost) Limit() budget.Limit { return c.limit }
 
 // Exhausted reports whether the budget ran out, so that a site may be missing
 // or answered OverBudget.
-func (t *ReferenceTargetTable) Exhausted() bool { return t.exhausted }
+func (c cost) Exhausted() bool { return c.exhausted }
 
 // Truncated reports whether a mapping of a document the table reached merges
 // through `<<` deeper than the view expands (nodeview.MergeDepthLimit), so that
 // a site past the bound may be missing, and a position past it read as holding
 // nothing.
-func (t *ReferenceTargetTable) Truncated() bool { return t.truncated }
+func (c cost) Truncated() bool { return c.truncated }
 
 // Unread returns why a schema $ref the table holds no entry for went unread:
 // the budget ran out, or a merge past the bound hid it. It is empty when

@@ -7,9 +7,12 @@ paths:
       deprecated: true
       parameters:
         - {name: legacy, in: query, deprecated: true, schema: {type: string}}
+        - {name: legacyList, in: query, schema: {type: array, deprecated: true, items: {type: string}}}
       responses:
         "200":
           description: ok
+          headers:
+            X-Old: {schema: {type: array, deprecated: true, items: {type: string}}}
 components:
   schemas:
     OldModel:
@@ -17,3 +20,4 @@ components:
       deprecated: true
       properties:
         oldField: {type: string, deprecated: true}
+        oldList: {type: array, deprecated: true, items: {type: string}}

@@ -21,10 +21,11 @@ import (
 // parameter by `<in>.<name>` or its name within its operation, a header by name
 // among the headers beside it, a property by name within its model, a schema by
 // its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). promoter is the run's
-// promoter, and compiledDocumentView the document, which is whole.
-func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
-	resolverValue := resolver{p: promoter, w: compiledDocumentView}
+// (docs/compilers/openapi.md#extension-promotion), a carrier naming none
+// reading its node's (nodeKeys), but for a member of declaredAgain
+// (schema.MembersDeclaredAgain). compiledDocumentView is whole.
+func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, declaredAgain map[ir.PropertyID]bool) []ir.Diagnostic {
+	resolverValue := resolver{p: promoter, w: compiledDocumentView, declaredAgain: declaredAgain}
 	if !resolverValue.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
@@ -54,42 +55,131 @@ func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.Comp
 type resolver struct {
 	p promotion.Promoter
 	w *compileddoc.CompiledDocumentView
+	// declaredAgain is the members whose declarations' notes stay on the nodes
+	// their schemas build, so none reads a node's keys (nodeKeys).
+	declaredAgain map[ir.PropertyID]bool
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
-// marking prov, each resolved by find, which returns how many entities a name
-// matches and the entity, read only where that is one. A node that is not
-// deprecated takes none, as a deprecation member beside none annotates
-// nothing. The names fill the field all or none: one naming nothing, several
-// entities or self is reported and leaves it unset, so no list a consumer reads
-// holds less than the source names, or one entity picked from several.
+// marking prov, each resolved by find (resolve).
 func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenance, self ir.EntityRef,
 	class string, find func(string) (ir.EntityRef, int),
 ) []ir.Diagnostic {
 	names, at, diags := r.p.Replacements(own)
+	return append(diags, r.resolve(names, at, dep, prov, self, class, find)...)
+}
+
+// resolve fills dep with the entities names, written at at, name, marking
+// prov, each resolved by find, which returns how many entities a name matches
+// and the entity, read only where that is one. A node that is not deprecated
+// takes none, as a deprecation member beside none annotates nothing. The names
+// fill the field all or none: one naming nothing, several entities or self is
+// reported and leaves it unset, so no list a consumer reads holds less than
+// the source names, or one entity picked from several.
+func (r *resolver) resolve(names []string, at ir.Provenance, dep *ir.Deprecation, prov *ir.Provenance, self ir.EntityRef,
+	class string, find func(string) (ir.EntityRef, int),
+) []ir.Diagnostic {
 	if len(names) == 0 || dep == nil {
-		return diags
+		return nil
 	}
 	refs := make([]ir.EntityRef, 0, len(names))
 	for _, name := range names {
 		ref, matched := find(name)
 		switch {
 		case matched == 0:
-			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"replacement %q names no %s, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy))
+			return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
+				"replacement %q names no %s, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy)}
 		case matched > 1:
-			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
+			return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"replacement %q names more than one %s, so it does not fill %s", name, class,
-				promotion.TargetDeprecationReplacedBy))
+				promotion.TargetDeprecationReplacedBy)}
 		case ref == self:
-			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"replacement %q names the %s it sits on, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy))
+			return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
+				"replacement %q names the %s it sits on, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy)}
 		}
 		refs = append(refs, ref)
 	}
 	dep.ReplacedBy = refs
 	prov.Inferred = ir.JoinInferred(prov.Inferred, promotion.ExtensionPromotionHeuristic)
-	return diags
+	return nil
+}
+
+// fillCarrier fills the replacements of carrier, a property, a parameter or a
+// header, as fill does, each resolved by find, unless it reads them off the
+// keys of the node its own position built (nodeKeys). Those are a schema's
+// keys, so each name resolves as a schema's, and the node, whose keys Resolve
+// reads too, reports any it misreads, once.
+func (r *resolver) fillCarrier(carrier deprecated, class string, find func(string) (ir.EntityRef, int)) []ir.Diagnostic {
+	if id, keys, ok := r.nodeKeys(carrier); ok {
+		names, at, _ := r.p.Replacements(keys)
+		return r.resolve(names, at, carrier.dep, carrier.prov, ir.EntityRef{Type: id}, "schema", r.schema)
+	}
+	return r.fill(carrier.own, carrier.dep, carrier.prov, carrier.self, class, find)
+}
+
+// nodeKeys returns the ID and the keys of the node carrier's type names where
+// carrier reads its replacements there: carrier is deprecated, its own keys
+// write none, and the node, which writes some, is the one its declaration
+// built (builtAt, or headerSchemaAt for a header) and holds no deprecation.
+// One a reference names, whose carrier deprecates itself, or of a member
+// declared again keeps its schema's (docs/compilers/openapi.md#docs-and-deprecation).
+// Replacement inference asks too, so no message is read over those keys. It
+// cannot tell a schema stating no deprecation from one the carrier took, so one
+// deprecating itself reads the first's (GitHub #2189).
+func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) {
+	if carrier.dep == nil || r.declaredAgain[carrier.self.Property] || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
+		return "", nil, false
+	}
+	td := r.w.Types[carrier.typeRef.Target]
+	if ir.IsNilTypeDef(td) {
+		return "", nil, false
+	}
+	node := td.Common()
+	built := builtAt(*carrier.prov, node.Provenance) || carrier.header && headerSchemaAt(node.Provenance)
+	if node.Deprecation != nil || !built || !r.p.Writes(node.Unmodeled, promotion.TargetDeprecationReplacedBy) {
+		return "", nil, false
+	}
+	return carrier.typeRef.Target, node.Unmodeled, true
+}
+
+// builtAt reports whether node, a type node's provenance, is the position of
+// the carrier at carrier or of that carrier's schema: a property's node is
+// written where the property is, and an inline parameter's or header's, or a
+// parameter's a Reference Object reaches, beneath it, at `schema` or
+// `content/<media type>/schema`.
+func builtAt(carrier, node ir.Provenance) bool {
+	if carrier.Source == ir.NoSource || carrier.Source != node.Source {
+		return false
+	}
+	at := node.Pointer
+	switch {
+	case at == carrier.Pointer:
+		return true
+	case at.LastToken() != "schema":
+		return false
+	case at.Parent() == carrier.Pointer:
+		return true
+	default:
+		return at.Parent().Parent().LastToken() == "content" && at.Parent().Parent().Parent() == carrier.Pointer
+	}
+}
+
+// headerSchemaAt reports whether node, a type node's provenance, is a Header
+// Object's own schema position, `<header>/schema` or
+// `<header>/content/<media type>/schema` beneath a `headers` map, in any
+// document. A header a Reference Object reaches keeps the provenance of its
+// use, while its schema is built at its declaration, which may lie in another
+// document (operation.lowerHeaders), so builtAt's comparison refuses its node.
+func headerSchemaAt(node ir.Provenance) bool {
+	at := node.Pointer
+	if node.Source == ir.NoSource || at.LastToken() != "schema" {
+		return false
+	}
+	declaration := at.Parent()
+	if declaration.Parent().LastToken() == "content" {
+		declaration = declaration.Parent().Parent()
+	}
+	return declaration.Parent().LastToken() == "headers"
 }
 
 // scheme finds the security schemes the document declares under name.
@@ -124,7 +214,8 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	member := r.memberFinder(model.ID)
 	for i := range model.Properties {
 		property := &model.Properties[i]
-		diags = append(diags, r.fill(property.Unmodeled, property.Deprecation, &property.Provenance, ir.EntityRef{Property: property.ID}, "property", member)...)
+		diags = append(diags, r.fillCarrier(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
+			ir.EntityRef{Property: property.ID}, property.Type, false}, "property", member)...)
 	}
 	return diags
 }
@@ -159,7 +250,8 @@ func (r *resolver) headers(hs []ir.Header) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(hs))
 	for i := range hs {
 		property := &hs[i].Property
-		diags = append(diags, r.fill(property.Unmodeled, property.Deprecation, &property.Provenance, ir.EntityRef{Property: property.ID}, "header", sibling)...)
+		diags = append(diags, r.fillCarrier(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
+			ir.EntityRef{Property: property.ID}, property.Type, true}, "header", sibling)...)
 	}
 	return diags
 }

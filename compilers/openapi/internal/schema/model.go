@@ -313,6 +313,7 @@ func fillModelProperties(loweringContext lowering.Ctx, ts *compile.Types, depth 
 		if property.Secret && !declared {
 			secretBy = promotion.ExtensionPromotionHeuristic
 		}
+		noteCarried(loweringContext, js.Schema, property, ppointer)
 		fields.merge(property, redeclarationSource(js), secretBy)
 	}
 	return diags

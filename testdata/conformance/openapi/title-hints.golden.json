@@ -182,9 +182,7 @@
         "hint": "postal_address"
       },
       "anonymous": true,
-      "docs": {
-        "summary": "Postal Address"
-      },
+      "docs": {},
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -294,9 +292,7 @@
         "hint": "point_list"
       },
       "anonymous": true,
-      "docs": {
-        "summary": "Point List"
-      },
+      "docs": {},
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -845,7 +841,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "summary": "Postal Address"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/address"
@@ -872,7 +870,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "summary": "Point List"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/points"

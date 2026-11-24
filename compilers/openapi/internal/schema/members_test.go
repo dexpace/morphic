@@ -79,8 +79,10 @@ func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *tes
 // either entry order, the field takes the type, docs and bounds it takes where
 // the named schema's declaration is written inline in the entry's place, the
 // narrower type wherever it is written and, of a pair no value satisfies, the
-// later. A report about the entry's declaration names the member, and the
-// property keeps the identity of the declaration the model writes.
+// later. Of two descriptions, the $ref spelling keeps the model's own, the
+// other staying on its model, and the inline one the later. A report about
+// the entry's declaration names the member, which keeps the identity of the
+// model's own declaration.
 func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 	t.Parallel()
 	const base = "{type: integer, description: from base}"
@@ -106,7 +108,12 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 			assert.Equal(t, ids.Ptr("components", "schemas", "Ref", "allOf", mineAt, "properties", "id"),
 				byRef.Provenance.Pointer, name)
 			assert.Equal(t, written.Type, byRef.Type, name)
-			assert.Equal(t, written.Docs, byRef.Docs, name)
+			if own == "{description: own}" {
+				assert.Equal(t, "own", byRef.Docs.Description, name)
+				assert.Equal(t, map[bool]string{true: "own", false: "from base"}[refFirst], written.Docs.Description, name)
+			} else {
+				assert.Equal(t, written.Docs, byRef.Docs, name)
+			}
 			assert.Equal(t, written.Constraints, byRef.Constraints, name)
 			atRef := 0
 			for _, diagnostic := range diags {

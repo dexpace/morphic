@@ -670,36 +670,38 @@ func sameNodes(a, b ir.TypeRef, aHoisted, bHoisted bool) relation {
 // and the provenance of the node and of what it keeps under Unmodeled) and
 // their members' IDs: one declaration written twice, hoisted to two nodes.
 func sameNode(a, b ir.TypeDef) bool {
-	switch x := a.(type) {
-	case *ir.Literal:
-		literal, ok := b.(*ir.Literal)
-		if !ok {
-			return false
-		}
-		x2, y2 := *x, *literal
-		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(literal.TypeCommon)
-		return reflect.DeepEqual(x2, y2)
-	case *ir.Scalar:
-		scalar, ok := b.(*ir.Scalar)
-		if !ok {
-			return false
-		}
-		x2, y2 := *x, *scalar
-		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(scalar.TypeCommon)
-		return reflect.DeepEqual(x2, y2)
-	case *ir.Enum:
-		enum, ok := b.(*ir.Enum)
-		return ok && sameEnum(*x, *enum)
+	switch a.(type) {
+	case *ir.Literal, *ir.Scalar, *ir.Enum:
+		return sameButSite(a, b)
 	default:
 		return false
 	}
 }
 
-// sameEnum compares two enums as sameNode does, members by position.
-func sameEnum(enum, irEnum ir.Enum) bool {
-	enum.TypeCommon, irEnum.TypeCommon = siteless(enum.TypeCommon), siteless(irEnum.TypeCommon)
-	enum.Members, irEnum.Members = idless(enum.Members), idless(irEnum.Members)
-	return reflect.DeepEqual(enum, irEnum)
+// sameButSite reports whether a and b are nodes of one kind equal but for what
+// names their site and their members' IDs (sameNode), members by position.
+func sameButSite(a, b ir.TypeDef) bool {
+	return reflect.DeepEqual(sitelessNode(a), sitelessNode(b))
+}
+
+// sitelessNode returns a copy of td with what names its site (siteless) and its
+// members' IDs zeroed. It shares all else of td.
+func sitelessNode(td ir.TypeDef) ir.TypeDef {
+	bare := copyOfNode(td)
+	common := bare.Common()
+	*common = siteless(*common)
+	if enum, ok := bare.(*ir.Enum); ok {
+		enum.Members = idless(enum.Members)
+	}
+	return bare
+}
+
+// copyOfNode returns a copy of td, which is no nil node, sharing all it holds.
+func copyOfNode(td ir.TypeDef) ir.TypeDef {
+	held := reflect.New(reflect.TypeOf(td).Elem())
+	held.Elem().Set(reflect.ValueOf(td).Elem())
+	node, _ := reflect.TypeAssert[ir.TypeDef](held) // held is of td's concrete type
+	return node
 }
 
 // siteless returns typeCommon with what names where its node was declared
@@ -1262,6 +1264,84 @@ func (r registry) admitsAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	}
 }
 
+// judgesAt reports whether admitsAt judges the values of the type ref names, at
+// depth, rather than refusing them for want of a judge: a primitive, Any, an
+// Enum and a Literal, a Scalar by its base, a list by its element and a map by
+// its value. A model, a union or any other kind admitsAt refuses whole, as is a
+// type the registry does not hold and nesting past maxJudgeDepth.
+func (r registry) judgesAt(ref ir.TypeRef, depth int) bool {
+	td, ok := r.resolve(ref.Target)
+	if !ok || depth > maxJudgeDepth {
+		return false
+	}
+	switch t := td.(type) {
+	case *ir.Primitive, *ir.Any, *ir.Enum, *ir.Literal:
+		return true
+	case *ir.Scalar:
+		return t.Base != nil && r.judgesAt(*t.Base, depth+1)
+	case *ir.List:
+		return r.judgesAt(t.ElementType, depth+1)
+	case *ir.MapT:
+		return r.judgesAt(t.Value, depth+1)
+	default:
+		return false
+	}
+}
+
+// refusesAt reports whether a judge refuses value as one of the type ref names,
+// at depth, one judgesAt says is judged, where admitsAt may refuse it for want
+// of a judge: a primitive refuses a value of another kind, an Enum or a Literal
+// one it does not hold, a Scalar, list or map one a keyword
+// (refusesConstraints), a held format or a type under it refuses. Nothing
+// judges the text of bytes or of a format not held, a kind judgesAt does not, a
+// type the registry does not hold, or nesting past maxJudgeDepth.
+func refusesAt(r registry, ref ir.TypeRef, value ir.Value, depth int) bool {
+	td, ok := r.resolve(ref.Target)
+	if !ok || depth > maxJudgeDepth {
+		return false
+	}
+	if value.Kind == ir.ValueNull {
+		return !ref.Nullable && !isTop(td)
+	}
+	switch t := td.(type) {
+	case *ir.Primitive:
+		if t.PrimitiveKind == ir.PrimitiveBytes {
+			return value.Kind != ir.ValueString
+		}
+		return !Admits(t.PrimitiveKind, value)
+	case *ir.Enum, *ir.Literal:
+		return !r.admitsAt(ref, value, depth)
+	case *ir.Scalar:
+		return t.Base != nil && (refusesConstraints(t.Constraints, value, depth) || refusesUnder(r, t, value, depth))
+	case *ir.List:
+		return value.Kind != ir.ValueList || refusesConstraints(t.Constraints, value, depth) ||
+			slices.ContainsFunc(value.List, func(item ir.Value) bool { return refusesAt(r, t.ElementType, item, depth+1) })
+	case *ir.MapT:
+		return value.Kind != ir.ValueObject || refusesConstraints(t.Constraints, value, depth) ||
+			slices.ContainsFunc(value.Object, func(field ir.Field) bool { return refusesAt(r, t.Value, field.Value, depth+1) })
+	default:
+		return false
+	}
+}
+
+// refusesUnder reports whether the base of scalar, at depth, refuses value
+// under scalar's Encoding: a format it holds judges the value too, one carrying
+// the base's values as another kind has them judged as that kind (travelsAs),
+// and under one it does not hold a string format's own grammar judges no text
+// (rewritesText).
+func refusesUnder(r registry, scalar *ir.Scalar, value ir.Value, depth int) bool {
+	if _, held := heldFormat(scalar.Encoding); held && !encodingAdmits(scalar.Encoding, value) {
+		return true
+	}
+	if travels := r.travelsAs(scalar); travels != scalar.Base.Target {
+		return refusesAt(r, ir.TypeRef{Target: travels}, value, depth+1)
+	}
+	if base, ok := r.kindOf(*scalar.Base); ok && rewritesText(scalar.Encoding, base.primitive) {
+		return value.Kind != ir.ValueString
+	}
+	return refusesAt(r, *scalar.Base, value, depth+1)
+}
+
 // encodingAdmits reports whether a Scalar with the Encoding enc lets value
 // through: any value where it has none, and otherwise only one its held format
 // admits (heldFormat), since any other encoding's wire form need not be the
@@ -1273,6 +1353,34 @@ func encodingAdmits(enc *ir.Encoding, value ir.Value) bool {
 	format, held := heldFormat(enc)
 	inFormat, _ := admitsFormat(format, value)
 	return held && inFormat
+}
+
+// variantAdmitsNull reports whether the type target names is a union, or an
+// alias of one, a variant of which admits null: by its own bit, as the top type,
+// or in a variant of its own. It reads each type once, maxVariantReads of them at
+// most; one past them is read to admit none, which only refuses an example.
+func variantAdmitsNull(r registry, target ir.TypeID) bool {
+	read, queue := map[ir.TypeID]bool{}, []ir.TypeID{target}
+	for len(queue) > 0 && len(read) < maxVariantReads {
+		id := queue[0]
+		queue = queue[1:]
+		td, ok := r.resolve(id)
+		if !ok || read[id] {
+			continue
+		}
+		read[id] = true
+		union, isUnion := r.unaliased(td).(*ir.Union)
+		if !isUnion {
+			continue
+		}
+		for _, variant := range union.Variants {
+			if variant.Type.Nullable || r.isAnyType(variant.Type) {
+				return true
+			}
+			queue = append(queue, variant.Type.Target)
+		}
+	}
+	return false
 }
 
 // admitsAll reports whether every element of vs is a value of element.

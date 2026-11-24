@@ -5,10 +5,12 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -923,4 +925,188 @@ func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"openapi/unlowered-construct /paths/~1x/get/parameters/0/schema/default"}, found)
+}
+
+// TestParams_NotesAreTheParametersWhateverItsSchemaHoists pins a parameter as
+// the home of what its schema notes where that schema hoists a node, as where
+// it hoists none: written inline, as content and in a component, each schema
+// a list, an enum or a model, the parameter holds the documentation, the
+// deprecation with a promoted member and its mark, and the examples, unless it
+// writes its own, the node keeping the schema's then, so none is lost
+// (docs/ir/annotations.md#one-structural-home-per-declaration), and a plain
+// use of a component one use describes reads them on the node. Both orders of
+// the components compile alike.
+func TestParams_NotesAreTheParametersWhateverItsSchemaHoists(t *testing.T) {
+	t.Parallel()
+	const notes = "description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]], format: password"
+	const list = "{type: array, items: {type: string}, " + notes + "}"
+	components := []string{
+		"Shared: {name: shared, in: query, schema: {type: object, properties: {a: {type: string}}, " + notes + "}}",
+		"Described: {name: described, in: query, description: OWN, schema: " + list + "}",
+		"Used: {name: used, in: query, schema: " + list + "}",
+		"Aliased: {$ref: '#/components/parameters/Hopped', description: HOP}",
+		"Hopped: {name: hopped, in: query, schema: " + list + "}",
+		"Flagged: {name: flagged, in: query, deprecated: true, schema: " + list + "}",
+	}
+	compile := func(components []string) (*ir.Document, ir.Service) {
+		doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+			"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: inline, in: query, schema: "+list+"}\n"+
+			"        - {name: content, in: query, content: {application/json: {schema: "+list+"}}}\n"+
+			"        - {name: own, in: query, description: OWN, schema: "+list+"}\n"+
+			"        - {name: en, in: query, description: OWN, schema: {type: string, enum: [a, b], "+
+			"description: DOC, deprecated: true, x-deprecated-reason: why, examples: [[a]]}}\n"+
+			"        - {name: example, in: query, example: [b], schema: "+list+"}\n"+
+			"        - {name: entry, in: query, content: {application/json: {examples: {e: {value: [b]}}, schema: "+list+"}}}\n"+
+			"        - $ref: '#/components/parameters/Shared'\n"+
+			"        - $ref: '#/components/parameters/Described'\n"+
+			"        - {$ref: '#/components/parameters/Used', description: USE}\n"+
+			"        - $ref: '#/components/parameters/Aliased'\n"+
+			"        - {name: self, in: query, deprecated: true, x-deprecated-reason: own, schema: "+list+"}\n"+
+			"        - {name: keyed, in: query, x-deprecated-reason: own, schema: "+list+"}\n"+
+			"        - {name: entrykey, in: query, content: {application/json: {x-deprecated-reason: own, schema: "+list+"}}}\n"+
+			"        - $ref: '#/components/parameters/Flagged'\n"+
+			"        - {name: capitalised, in: query, deprecated: True, schema: "+list+"}\n"+
+			"        - {name: unflagged, in: query, deprecated: false, schema: "+list+"}\n"+
+			"        - {name: tiered, in: query, x-stability: beta, schema: "+list+"}\n"+
+			"        - {name: stated, in: query, x-stability: deprecated, schema: "+list+"}\n"+
+			"        - {name: written, in: query, description: OWN, example: [b], x-deprecated-reason: own, schema: "+list+"}\n"+
+			"      responses: {\"204\": {description: none}}\n"+
+			"  /y:\n    get:\n      operationId: h\n      parameters:\n"+
+			"        - $ref: '#/components/parameters/Used'\n"+
+			"      responses: {\"204\": {description: none}}\n"+
+			"components:\n  parameters:\n    "+strings.Join(components, "\n    ")+"\n")
+		openapitest.RequireNoErrorDiags(t, diags)
+		return doc, svc
+	}
+	doc, svc := compile(components)
+	operation := openapitest.FirstOperation(t, svc)
+	why, own := &ir.Deprecation{Message: "why"}, &ir.Deprecation{Message: "own"}
+	for _, tc := range []struct {
+		name, docs, nodeDocs   string
+		examples, nodeExamples []string
+		dep, nodeDep           *ir.Deprecation
+	}{
+		{"inline", "DOC", "", []string{"a"}, nil, why, nil},
+		{"content", "DOC", "", []string{"a"}, nil, why, nil},
+		{"own", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"en", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"example", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"entry", "DOC", "", []string{"b"}, []string{"a"}, why, nil},
+		{"shared", "DOC", "", []string{"a"}, nil, why, nil},
+		{"described", "OWN", "DOC", []string{"a"}, nil, why, nil},
+		{"used", "USE", "DOC", []string{"a"}, nil, why, nil},
+		{"hopped", "HOP", "DOC", []string{"a"}, nil, why, nil},
+		// A deprecation the parameter, or the content entry it elects, states
+		// leaves the schema's on the node, members and all, the parameter
+		// holding its own members alone, deprecated as its schema is.
+		{"self", "DOC", "", []string{"a"}, nil, own, why},
+		{"keyed", "DOC", "", []string{"a"}, nil, own, why},
+		{"entrykey", "DOC", "", []string{"a"}, nil, own, why},
+		{"flagged", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		{"capitalised", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// A `deprecated: false` states nothing, so the schema's stands. A key
+		// read into a deprecation speaks to it whatever its value says, the
+		// parameter writing no member of its own then.
+		{"unflagged", "DOC", "", []string{"a"}, nil, why, nil},
+		{"tiered", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// A key stating what the schema's keyword states fills nothing, so it
+		// marks nothing, as beside a string.
+		{"stated", "DOC", "", []string{"a"}, nil, &ir.Deprecation{}, why},
+		// One writing every note over is deprecated as its schema is still.
+		{"written", "OWN", "DOC", []string{"b"}, []string{"a"}, own, why},
+	} {
+		param, ok := openapitest.ParamBySource(operation, tc.name)
+		require.True(t, ok, tc.name)
+		assert.Equal(t, tc.docs, param.Docs.Description, tc.name)
+		assert.Equal(t, tc.examples, listedExamples(param.Examples), tc.name)
+		assert.Equal(t, tc.dep, param.Deprecation, tc.name)
+		promoted := tc.dep != nil && tc.dep.Message != ""
+		assert.Equal(t, promoted, param.Provenance.Inferred == "extension-promotion", "%s: marked where a key fills it", tc.name)
+		assert.False(t, param.Secret, "%s: the node keeps the redaction", tc.name)
+
+		node, ok := doc.Types[param.Type.Target]
+		require.True(t, ok, "%s: the schema hoists a node", tc.name)
+		require.True(t, node.Common().Anonymous, tc.name)
+		assert.Equal(t, tc.nodeDocs, node.Common().Docs.Description, tc.name)
+		assert.Equal(t, tc.nodeExamples, listedExamples(node.Common().Examples), tc.name)
+		assert.Equal(t, tc.nodeDep, node.Common().Deprecation, tc.name)
+		assert.Equal(t, tc.name != "en", node.Common().Sensitive, tc.name)
+		assert.Contains(t, node.Common().Unmodeled, "openapi:x-deprecated-reason", tc.name)
+	}
+
+	described, ok := openapitest.ParamBySource(operation, "used")
+	require.True(t, ok)
+	plain, ok := openapitest.ParamBySource(openapitest.FindOperation(t, doc, "h"), "used")
+	require.True(t, ok)
+	assert.Empty(t, plain.Docs.Description, "a plain use reads the docs on the node")
+	assert.Equal(t, described.Examples, plain.Examples)
+	assert.Equal(t, described.Deprecation, plain.Deprecation)
+	assert.Equal(t, described.Type.Target, plain.Type.Target, "both uses name one node")
+	node, ok := doc.Types[plain.Type.Target]
+	require.True(t, ok)
+	assert.Equal(t, "DOC", node.Common().Docs.Description)
+
+	reversed := slices.Clone(components)
+	slices.Reverse(reversed)
+	reversedDoc, reversedSvc := compile(reversed)
+	assert.Empty(t, cmp.Diff(doc.Types, reversedDoc.Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(svc, reversedSvc), "nor do the parameters")
+}
+
+// listedExamples returns the strings each of examples lists, or the string it
+// is, in order, nil where there are none.
+func listedExamples(examples []ir.Example) []string {
+	var listed []string
+	for _, example := range examples {
+		if example.Value == nil {
+			continue
+		}
+		if example.Value.Kind == ir.ValueString {
+			listed = append(listed, example.Value.String)
+		}
+		for _, item := range example.Value.List {
+			listed = append(listed, item.String)
+		}
+	}
+	return listed
+}
+
+// TestParams_AQuotedDeprecatedStatesNoDeprecation pins the deprecation verdict
+// to the parser's reading of the keyword: a `deprecated` written as the string
+// "true", quoted or as an alias of a string another field accepts, is refused
+// and read as no deprecation, so the Parameter Object states none of its own,
+// and the parameter holds its schema's, the node holding none.
+func TestParams_AQuotedDeprecatedStatesNoDeprecation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, title, deprecated, refusedAt string }{
+		{"quoted", "T", `"true"`, "/paths/~1x/get/parameters/0/deprecated"},
+		// The alias is one node, which the title accepts as a string, so the
+		// load phase leaves it a string scalar whose text is true, and refuses
+		// it where the node is written.
+		{"aliased", `&t "true"`, "*t", "/info/title"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := compileService(t, "openapi: 3.1.0\ninfo: {title: "+tc.title+", version: \"1\"}\npaths:\n"+
+				"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+				"        - {name: quoted, in: query, deprecated: "+tc.deprecated+", "+
+				"schema: {type: array, items: {type: string}, deprecated: true, x-deprecated-reason: why}}\n"+
+				"      responses: {\"204\": {description: none}}\n")
+			var refused []string
+			for _, diagnostic := range diags {
+				if diagnostic.Severity == ir.SeverityError {
+					refused = append(refused, string(diagnostic.Provenance.Pointer))
+					assert.Contains(t, diagnostic.Message, `field "deprecated" must be a boolean`)
+				}
+			}
+			assert.Equal(t, []string{tc.refusedAt}, refused, "the keyword is refused")
+			param, ok := openapitest.ParamBySource(openapitest.FirstOperation(t, svc), "quoted")
+			require.True(t, ok)
+			assert.Equal(t, &ir.Deprecation{Message: "why"}, param.Deprecation, "the parameter holds its schema's")
+			node, ok := doc.Types[param.Type.Target]
+			require.True(t, ok, "the schema hoists a node")
+			assert.Nil(t, node.Common().Deprecation)
+		})
+	}
 }

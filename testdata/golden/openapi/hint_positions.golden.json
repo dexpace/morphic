@@ -1106,7 +1106,9 @@
                       "eventHeader": false,
                       "eventPayload": false,
                       "secret": false,
-                      "docs": {},
+                      "docs": {
+                        "summary": "Titled Header"
+                      },
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1structures/get/responses/200/headers/X-Titled"
@@ -3810,9 +3812,7 @@
         "hint": "titled_list"
       },
       "anonymous": true,
-      "docs": {
-        "summary": "Titled List"
-      },
+      "docs": {},
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -5741,9 +5741,7 @@
         "hint": "titled_header"
       },
       "anonymous": true,
-      "docs": {
-        "summary": "Titled Header"
-      },
+      "docs": {},
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -7707,7 +7705,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "summary": "Titled List"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Positions/properties/titledList"

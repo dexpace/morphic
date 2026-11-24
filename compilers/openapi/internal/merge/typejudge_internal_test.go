@@ -729,6 +729,209 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		"a list nested past the cap is refused")
 }
 
+// TestRegistry_JudgesAtTheKindsAdmitsAtJudges pins judgesAt to admitsAt's arms:
+// a primitive, Any, an enum and a literal are judged, a scalar by its base, a
+// list by its element and a map by its value, and a model, a union, a tuple, an
+// opaque scalar, a type the registry does not hold and a cycle past
+// maxJudgeDepth are not.
+func TestRegistry_JudgesAtTheKindsAdmitsAtJudges(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	reg["type/union"] = &ir.Union{ID: "type/union", Closed: true}
+	reg["type/tuple-int"] = &ir.Tuple{ID: "type/tuple-int", ElementTypes: []ir.TypeRef{primitiveRef(ir.PrimitiveInteger)}}
+	reg["type/map-int"] = &ir.MapT{ID: "type/map-int", Value: primitiveRef(ir.PrimitiveInteger)}
+	reg["type/map-model"] = &ir.MapT{ID: "type/map-model", Value: ref("type/model")}
+	reg["type/list-model"] = &ir.List{ID: "type/list-model", ElementType: ref("type/model")}
+	reg["type/scalar-model"] = &ir.Scalar{ID: "type/scalar-model", Base: &ir.TypeRef{Target: "type/model"}}
+	registryValue := registry{resolve: stubResolve(reg)}
+	for id, want := range map[ir.TypeID]bool{
+		"type/primitive/integer": true, "type/any": true, "type/enum-int": true, "type/lit-a": true,
+		"type/scalar-int": true, "type/scalar-time": true, "type/alias-time": true, "type/list-int": true, "type/map-int": true,
+		"type/model": false, "type/union": false, "type/tuple-int": false, "type/scalar-opaque": false, "type/scalar-model": false,
+		"type/list-model": false, "type/map-model": false, "type/absent": false, "type/cycle": false,
+	} {
+		assert.Equal(t, want, registryValue.judgesAt(ref(id), 0), "%s", id)
+	}
+}
+
+// TestRegistry_RefusesAtWhatAJudgeRefuses pins refusesAt to what admitsAt
+// refuses for a reason: a value of another kind, a Scalar's on the wire, one
+// outside an enum or a literal, one a bound, a held format or a type below
+// refuses, a list's items and a map's values too, and a null none admits. What
+// lacks a judge it refuses nothing of: a pattern, a precision or a scale, the
+// text of bytes or of a format not held, a model, a union, a tuple, an opaque
+// scalar, a type the registry does not hold and a cycle past maxJudgeDepth.
+func TestRegistry_RefusesAtWhatAJudgeRefuses(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	scalar := func(id, base ir.TypeID, encoding *ir.Encoding, constraints ir.Constraints) {
+		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Encoding: encoding, Constraints: &constraints}
+	}
+	reg["type/union"] = &ir.Union{ID: "type/union", Closed: true}
+	reg["type/tuple"] = &ir.Tuple{ID: "type/tuple", ElementTypes: []ir.TypeRef{primitiveRef(ir.PrimitiveInteger)}}
+	scalar("type/patterned", "type/primitive/string", nil, ir.Constraints{Pattern: "b$", MaxLength: new(int64(2))})
+	scalar("type/precise", "type/primitive/number", nil, ir.Constraints{Precision: new(int64(1)), Scale: new(int64(0))})
+	scalar("type/email", "type/primitive/string", &ir.Encoding{Name: "email"}, ir.Constraints{MaxLength: new(int64(2))})
+	scalar("type/http-date", "type/primitive/datetime_offset", &ir.Encoding{Name: "http-date"}, ir.Constraints{})
+	scalar("type/scalar-cycle", "type/scalar-cycle", nil, ir.Constraints{})
+	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveDecimal, ir.PrimitiveUUID} {
+		reg[primitiveRef(kind).Target] = &ir.Primitive{ID: primitiveRef(kind).Target, PrimitiveKind: kind}
+	}
+	wire := func(id, base ir.TypeID, name string, kind ir.PrimitiveKind) {
+		scalar(id, base, &ir.Encoding{Name: name, WireType: new(primitiveRef(kind))}, ir.Constraints{MaxLength: new(int64(4))})
+	}
+	wire("type/decimal-text", "type/primitive/decimal", "string", ir.PrimitiveString)
+	wire("type/seconds", "type/primitive/datetime_offset", "unixTimestamp", ir.PrimitiveInteger)
+	wire("type/seconds-text", "type/primitive/datetime_offset", "unixTimestamp", ir.PrimitiveString)
+	wire("type/uuid-text", "type/primitive/uuid", "", ir.PrimitiveString)
+	reg["type/map-cycle"] = &ir.MapT{ID: "type/map-cycle", Value: ref("type/map-cycle")}
+	scalar("type/scalar-model", "type/model", nil, ir.Constraints{})
+	for id, element := range map[ir.TypeID]ir.TypeID{"type/patterns": "type/patterned", "type/models": "type/model"} {
+		reg[id] = &ir.List{ID: id, ElementType: ref(element), Constraints: &ir.Constraints{MaxItems: new(int64(1))}}
+		reg[id+"-map"] = &ir.MapT{ID: id + "-map", Value: ref(element), Constraints: &ir.Constraints{MaxProperties: new(int64(1))}}
+	}
+	registryValue := registry{resolve: stubResolve(reg)}
+	text := func(v string) ir.Value { return ir.Value{Kind: ir.ValueString, String: v} }
+	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
+	object := func(vs ...ir.Value) ir.Value {
+		out := ir.Value{Kind: ir.ValueObject}
+		for i, value := range vs {
+			out.Object = append(out.Object, ir.Field{Name: fmt.Sprint(i), Value: value})
+		}
+		return out
+	}
+	nested := func(depth int) ir.Value {
+		value := number("1")
+		for range depth {
+			value = list(value)
+		}
+		return value
+	}
+	nestedMap := func(depth int) ir.Value {
+		value := number("1")
+		for range depth {
+			value = object(value)
+		}
+		return value
+	}
+	null := ir.Value{Kind: ir.ValueNull}
+	for _, tc := range []struct {
+		id      ir.TypeID
+		value   ir.Value
+		refuses bool
+	}{
+		{"type/primitive/integer", number("1"), false},
+		{"type/primitive/integer", text("a"), true},
+		{"type/primitive/integer", null, true},
+		{"type/primitive/bytes", text("a"), false},
+		{"type/primitive/bytes", number("1"), true},
+		{"type/primitive/any", null, false},
+		{"type/any", null, true},
+		{"type/any", number("1"), false},
+		{"type/enum-int", text("a"), true},
+		{"type/lit-a", text("a"), false},
+		{"type/lit-a", text("b"), true},
+		{"type/patterned", text("a"), false},
+		{"type/patterned", text("aaa"), true},
+		{"type/patterned", number("1"), true},
+		{"type/precise", number("1.25"), false},
+		{"type/precise", text("1"), true},
+		{"type/email", text("a"), false},
+		{"type/email", text("aaa"), true},
+		{"type/email", number("1"), true},
+		{"type/http-date", text("Sun, 06 Nov 1994"), false},
+		{"type/http-date", number("1"), true},
+		{"type/scalar-time", text("10:00:00Z"), false},
+		{"type/scalar-time", text("a"), true},
+		{"type/decimal-text", text("1.5"), false},
+		{"type/decimal-text", text("1.555"), true},
+		{"type/decimal-text", number("1.5"), true},
+		{"type/seconds", number("1"), false},
+		{"type/seconds", number("1.5"), true},
+		{"type/seconds", text("1"), true},
+		{"type/seconds-text", text("1"), false},
+		{"type/seconds-text", number("1"), true},
+		{"type/uuid-text", text("a"), true},
+		{"type/scalar-opaque", number("1"), false},
+		{"type/scalar-model", number("1"), false},
+		{"type/patterns", list(text("a")), false},
+		{"type/patterns", list(text("aaa")), true},
+		{"type/patterns", list(text("a"), text("a")), true},
+		{"type/patterns", text("a"), true},
+		{"type/patterns-map", object(text("a")), false},
+		{"type/patterns-map", object(text("aaa")), true},
+		{"type/patterns-map", object(text("a"), text("a")), true},
+		{"type/patterns-map", list(), true},
+		{"type/models", list(number("1")), false},
+		{"type/models-map", object(number("1")), false},
+		{"type/model", number("1"), false},
+		{"type/union", number("1"), false},
+		{"type/tuple", number("1"), false},
+		{"type/absent", number("1"), false},
+		{"type/scalar-cycle", number("1"), false},
+		{"type/map-cycle", nestedMap(maxJudgeDepth), true},
+		{"type/map-cycle", nestedMap(maxJudgeDepth + 1), false},
+		{"type/cycle", nested(maxJudgeDepth), true},
+		{"type/cycle", nested(maxJudgeDepth + 1), false},
+	} {
+		assert.Equal(t, tc.refuses, refusesAt(registryValue, ref(tc.id), tc.value, 0), "%s of %s", tc.id, tc.value.Kind)
+	}
+	nullable := ref("type/primitive/integer")
+	nullable.Nullable = true
+	assert.False(t, refusesAt(registryValue, nullable, null, 0))
+	assert.False(t, refusesAt(registryValue, ref("type/decimal-text"), number("1"), maxJudgeDepth), "what it travels as is a level below")
+}
+
+// TestVariantAdmitsNull_ReadsAUnionsVariants pins variantAdmitsNull: a union
+// admits null where a variant does by its own bit, as the top type, or in a
+// union of its own, reached through an alias too, each type read once and
+// maxVariantReads of them; and any other type, or one the registry does not
+// hold, answers for no variant.
+func TestVariantAdmitsNull_ReadsAUnionsVariants(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	union := func(id ir.TypeID, variants ...ir.TypeRef) {
+		out := &ir.Union{ID: id}
+		for _, variant := range variants {
+			out.Variants = append(out.Variants, ir.Variant{Type: variant})
+		}
+		reg[id] = out
+	}
+	nullable := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id, Nullable: true} }
+	integer := primitiveRef(ir.PrimitiveInteger)
+	union("type/none", integer, ref("type/lit-a"))
+	union("type/bit", integer, nullable("type/lit-a"))
+	union("type/top", integer, ref("type/primitive/any"))
+	union("type/holds", integer, ref("type/bit"))
+	union("type/holds-none", integer, ref("type/none"))
+	union("type/cyclic", integer, ref("type/cyclic"))
+	union("type/cyclic-bit", ref("type/cyclic-bit"), integer, ref("type/bit"))
+	reg["type/alias"] = &ir.Scalar{ID: "type/alias", Base: new(ref("type/bit"))}
+	deep := ir.TypeID("type/bit")
+	for depth := range maxVariantReads {
+		id := ir.TypeID(fmt.Sprint("type/deep-", depth))
+		union(id, ref(deep))
+		deep = id
+	}
+	registryValue := registry{resolve: stubResolve(reg)}
+	for id, want := range map[ir.TypeID]bool{
+		"type/none": false, "type/bit": true, "type/top": true, "type/holds": true, "type/holds-none": false, "type/cyclic": false,
+		"type/alias": true, "type/model": false, "type/primitive/any": false, "type/absent": false,
+		"type/cyclic-bit": true, ir.TypeID(fmt.Sprint("type/deep-", maxVariantReads-2)): true, deep: false,
+	} {
+		assert.Equal(t, want, variantAdmitsNull(registryValue, id), id)
+	}
+	resolve, reads := registryValue.resolve, 0
+	counting := registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) { reads++; return resolve(id) }}
+	for depth := range maxVariantReads {
+		next := ref(ir.TypeID(fmt.Sprint("type/wide-", depth+1)))
+		union(ir.TypeID(fmt.Sprint("type/wide-", depth)), next, next, next)
+	}
+	union(ir.TypeID(fmt.Sprint("type/wide-", maxVariantReads)), integer)
+	assert.False(t, variantAdmitsNull(counting, "type/wide-0"))
+	assert.Less(t, reads, 20*maxVariantReads, "each union is read once")
+}
+
 func TestRelation_Flipped(t *testing.T) {
 	t.Parallel()
 	for _, relationValue := range []relation{relUnrelated, relDisjoint, relOverlap, relSame, relMeet} {

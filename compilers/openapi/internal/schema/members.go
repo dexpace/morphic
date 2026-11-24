@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,6 +27,9 @@ type members struct {
 	tables map[ir.TypeID]merge.RedeclaredWireNameTable
 	// shared is the wire names more than one model declares (sharedNames).
 	shared map[string]bool
+	// carried is the notes each property lowered carries off the node its
+	// schema built, by that node.
+	carried map[ir.TypeID]merge.CarriedNotes
 	// reads is what remains of the declarations settleMembers reads
 	// (maxMemberReads), and cut the first model it read none for.
 	reads budget.Budget
@@ -36,8 +40,25 @@ type members struct {
 func membersOf(loweringContext lowering.Ctx) *members {
 	return lowering.Settled(loweringContext, func() *members {
 		return &members{byID: map[ir.TypeID]modelFields{}, settled: map[ir.TypeID]bool{},
-			tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, reads: budget.New(budget.AtMost(maxMemberReads))}
+			tables: map[ir.TypeID]merge.RedeclaredWireNameTable{}, carried: map[ir.TypeID]merge.CarriedNotes{},
+			reads: budget.New(budget.AtMost(maxMemberReads))}
 	})
+}
+
+// MembersDeclaredAgain returns the members of the models the run lowered that
+// one model declares more than once itself, once its members have settled
+// (merge.ModelPropertyDeclarations.DeclaredAgain): the notes of each
+// declaration stay on the node its schema builds, not on the member
+// (notesOnCarrier), which a reader of the finished document cannot tell from
+// the nodes (replacement.Resolve).
+func MembersDeclaredAgain(loweringContext lowering.Ctx) map[ir.PropertyID]bool {
+	out := map[ir.PropertyID]bool{}
+	for _, modelFieldsValue := range membersOf(loweringContext).byID {
+		for _, id := range modelFieldsValue.idx.DeclaredAgain() {
+			out[id] = true
+		}
+	}
+	return out
 }
 
 // note records the model modelFieldsValue builds as one with members to settle,
@@ -186,7 +207,8 @@ func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.T
 func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.SourceInfo) []ir.Diagnostic {
 	rec.settled[id] = true
 	modelFields := rec.byID[id]
-	merger := merge.Merger{Reg: reg, IDs: modelFields.c.IDs(), Doc: modelFields.c.Place(), Sources: sources, Reads: &rec.reads, Walk: modelFields}
+	merger := merge.Merger{Reg: reg, IDs: modelFields.c.IDs(), Doc: modelFields.c.Place(), Sources: sources, Reads: &rec.reads, Walk: modelFields, Carried: rec.carried,
+		Promotion: promotion.ExtensionPromotionHeuristic}
 	diags, table := modelFields.idx.Settle(merger, rec.partTables(reg, modelFields.m), rec.shared)
 	rec.tables[id] = table
 	rec.cutAt(id)

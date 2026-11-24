@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1287,4 +1288,168 @@ func underSchema(unmodeled ir.Unmodeled) ir.Unmodeled {
 		}
 	}
 	return out
+}
+
+// TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles the document
+// GitHub #2150 reports, in both orders of its components, beside an allOf
+// redeclaring it and a holder whose position a response's $ref, a component's
+// and a list's items name. A property, a parameter and a header hold the
+// documentation, deprecation and examples their own schema writes whatever
+// node it hoists, and the node holds none of them
+// (docs/ir/annotations.md#one-structural-home-per-declaration), unless a
+// reference names the position: its node holds them, read by every reference,
+// and its carrier none. A parameter or a header writing its own description or
+// example leaves its schema's on the node, so neither is lost.
+func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: plain, in: query, schema: {type: string, deprecated: true, description: plain note}}
+        - {name: list, in: query, schema: {type: array, deprecated: true, description: list note, items: {type: string}}}
+      responses:
+        '204':
+          description: none
+          headers:
+            X-Plain: {schema: {type: string, deprecated: true}}
+            X-List: {schema: {type: array, deprecated: true, items: {type: string}}}
+  /b:
+    get:
+      operationId: getB
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Named/properties/list'}
+`
+	schemas := []string{
+		`Holder:
+      type: object
+      properties:
+        plain: {type: string, deprecated: true, description: plain note, example: a}
+        list: {type: array, deprecated: true, description: list note, example: [a], items: {type: string}}
+        map: {type: object, deprecated: true, description: map note, additionalProperties: {type: string}}
+        enum: {type: string, deprecated: true, description: enum note, enum: [a, b]}
+        model: {type: object, deprecated: true, description: model note, properties: {x: {type: string}}}`,
+		"Redeclared: {allOf: [{$ref: '#/components/schemas/Holder'}, {properties: {list: {type: array, items: {type: string}}}}]}",
+		"Named: {type: object, properties: {list: {type: array, deprecated: true, description: named note, example: [a], items: {type: string}}}}",
+		"Out: {$ref: '#/components/schemas/Named/properties/list'}",
+		"Arr: {type: array, items: {$ref: '#/components/schemas/Named/properties/list'}}",
+	}
+	named := ir.TypeID("type/anonymous/components/schemas/Named/properties/list")
+	var compiled []*ir.Document
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "carrier notes", admissionSpec("3.0.3", paths, schemas...))
+		assert.Empty(t, diags)
+		compiled = append(compiled, doc)
+
+		carriers := carriersOfNotes(t, doc)
+		require.Len(t, carriers, 10)
+		for _, carried := range carriers {
+			assert.NotNil(t, carried.Deprecation, "%s is deprecated", carried.WireName)
+			if carried.WireName != "X-Plain" && carried.WireName != "X-List" {
+				assert.Equal(t, carried.WireName+" note", carried.Docs.Description, carried.WireName)
+			}
+		}
+		for _, property := range []ir.Property{carriers[0], carriers[1], carriers[5]} {
+			require.Len(t, property.Examples, 1, "%s holds its example", property.WireName)
+			assert.NotNil(t, property.Examples[0].Value, property.WireName)
+		}
+		for id, td := range doc.Types {
+			if id == named {
+				continue
+			}
+			assert.Nil(t, td.Common().Deprecation, "%s holds no deprecation", id)
+			assert.Empty(t, td.Common().Docs.Description, "%s holds no description", id)
+			assert.Empty(t, td.Common().Examples, "%s holds no example", id)
+		}
+
+		node := doc.Types[named]
+		require.NotNil(t, node, "the referenced position keeps its node")
+		assert.NotNil(t, node.Common().Deprecation, "which holds the notes every reference reads")
+		assert.Equal(t, "named note", node.Common().Docs.Description)
+		assert.Len(t, node.Common().Examples, 1)
+		model, ok := doc.Types[componentID("Named")].(*ir.Model)
+		require.True(t, ok)
+		carrier, ok := propertyByWire(model, "list")
+		require.True(t, ok)
+		assert.Equal(t, named, carrier.Type.Target)
+		assert.Nil(t, carrier.Deprecation, "and its carrier none of them")
+		assert.Empty(t, carrier.Docs.Description)
+		assert.Empty(t, carrier.Examples)
+	})
+	require.Len(t, compiled, 2)
+	assert.Empty(t, cmp.Diff(compiled[0].Types, compiled[1].Types), "the types do not depend on component order")
+	assert.Empty(t, cmp.Diff(compiled[0].Services, compiled[1].Services), "nor do the operations")
+
+	t.Run("a carrier writing its own notes", func(t *testing.T) {
+		t.Parallel()
+		doc, diags := compileAnnotationSpec(t, "own notes", ownNotesSpec)
+		assert.Empty(t, diags)
+		encoded, err := json.Marshal(doc)
+		require.NoError(t, err)
+		for _, text := range []string{"P-li", "S-li", "P-en", "S-en", "H-li", "HS-li", "pex-li", "sex-li"} {
+			assert.Equal(t, 1, strings.Count(string(encoded), `"`+text+`"`), "%s is kept, once", text)
+		}
+		operation, ok := operationByName(doc, "getA")
+		require.True(t, ok)
+		header, ok := headerByWire(operation.Responses[0].Headers, "X-L")
+		require.True(t, ok)
+		for name, carrier := range map[string]struct {
+			docs        ir.Docs
+			to          ir.TypeRef
+			own, schema string
+		}{
+			"li":  {operation.Params[1].Docs, operation.Params[1].Type, "P-li", "S-li"},
+			"en":  {operation.Params[2].Docs, operation.Params[2].Type, "P-en", "S-en"},
+			"X-L": {header.Docs, header.Type, "H-li", "HS-li"},
+		} {
+			assert.Equal(t, carrier.own, carrier.docs.Description, "%s holds its own", name)
+			assert.Equal(t, carrier.schema, doc.Types[carrier.to.Target].Common().Docs.Description, "%s's node keeps its schema's", name)
+		}
+	})
+}
+
+// ownNotesSpec is a document whose parameters and header each write a
+// description, and two an example, beside the schema's own, whose schema
+// hoists nothing (sc), a list (li, X-L) or an enum (en).
+const ownNotesSpec = `openapi: 3.1.0
+info: {title: own, version: '1'}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: sc, in: query, description: P-sc, example: pex-sc, schema: {type: string, description: S-sc, example: sex-sc}}
+        - {name: li, in: query, description: P-li, example: [pex-li], schema: {type: array, items: {type: string}, description: S-li, example: [sex-li]}}
+        - {name: en, in: query, description: P-en, schema: {type: string, enum: [a, b], description: S-en}}
+      responses:
+        '200': {description: ok, headers: {X-L: {description: H-li, schema: {type: array, items: {type: string}, description: HS-li}}}}
+`
+
+// carriersOfNotes returns the carriers of the document
+// TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles, each read as
+// a property: Holder's members, then Redeclared's, getA's parameters and its
+// response's headers.
+func carriersOfNotes(t *testing.T, doc *ir.Document) []ir.Property {
+	t.Helper()
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	redeclared, ok := doc.Types[componentID("Redeclared")].(*ir.Model)
+	require.True(t, ok)
+	operation, ok := operationByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, operation.Responses, 1)
+	carriers := slices.Concat(holder.Properties, redeclared.Properties)
+	for _, param := range operation.Params {
+		carriers = append(carriers, ir.Property{WireName: param.Name.Source, Type: param.Type, Docs: param.Docs,
+			Deprecation: param.Deprecation, Examples: param.Examples})
+	}
+	for _, header := range operation.Responses[0].Headers {
+		carriers = append(carriers, header.Property)
+	}
+	return carriers
 }

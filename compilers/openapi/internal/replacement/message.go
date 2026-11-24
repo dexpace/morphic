@@ -21,13 +21,13 @@ import (
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
 // every promotion (docs/compilers/openapi.md#policies), and reads nothing while
-// policy is off. promoter is the run's promoter, and compiledDocumentView the
-// document, which is whole.
-func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView) []ir.Diagnostic {
+// policy is off. promoter is the run's promoter, compiledDocumentView the
+// document, which is whole, and declaredAgain what Resolve takes.
+func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, declaredAgain map[ir.PropertyID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
-	resolverValue := resolver{p: promoter, w: compiledDocumentView}
+	resolverValue := resolver{p: promoter, w: compiledDocumentView, declaredAgain: declaredAgain}
 	diags := resolverValue.inferService()
 	for _, id := range slices.Sorted(maps.Keys(compiledDocumentView.Types)) {
 		if model, ok := compiledDocumentView.Types[id].(*ir.Model); ok && model != nil {
@@ -46,12 +46,12 @@ func (r *resolver) inferService() []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, operation := range operations {
 		diags = append(diags, r.message(deprecated{operation.Unmodeled, operation.Deprecation, &operation.Provenance,
-			ir.EntityRef{Operation: operation.ID}}, scope{"operation", routes.named, routes.find})...)
+			ir.EntityRef{Operation: operation.ID}, ir.TypeRef{}, false}, scope{"operation", routes.named, routes.find})...)
 		param := r.paramFinder(operation)
 		for i := range operation.Params {
 			parameter := &operation.Params[i]
 			diags = append(diags, r.message(deprecated{parameter.Unmodeled, parameter.Deprecation, &parameter.Provenance,
-				ir.EntityRef{Param: parameter.ID}}, scope{"parameter", codeSpans, param})...)
+				ir.EntityRef{Param: parameter.ID}, parameter.Type, false}, scope{"parameter", codeSpans, param})...)
 		}
 	}
 	return diags
@@ -65,19 +65,22 @@ func (r *resolver) inferMembers(diags []ir.Diagnostic, model *ir.Model) []ir.Dia
 	for i := range model.Properties {
 		property := &model.Properties[i]
 		diags = append(diags, r.message(deprecated{property.Unmodeled, property.Deprecation, &property.Provenance,
-			ir.EntityRef{Property: property.ID}}, scope{"property", codeSpans, member})...)
+			ir.EntityRef{Property: property.ID}, property.Type, false}, scope{"property", codeSpans, member})...)
 	}
 	return diags
 }
 
-// deprecated is a node whose deprecation's message Infer reads: the keys it
-// keeps, its deprecation, the provenance a replacement read marks, and the
-// entity it is.
+// deprecated is a node whose replacements Resolve or Infer reads: the keys it
+// keeps, its deprecation, the provenance a replacement read marks, the entity
+// it is, and, for a carrier, the type it names and whether it is a header
+// (nodeKeys).
 type deprecated struct {
-	own  ir.Unmodeled
-	dep  *ir.Deprecation
-	prov *ir.Provenance
-	self ir.EntityRef
+	own     ir.Unmodeled
+	dep     *ir.Deprecation
+	prov    *ir.Provenance
+	self    ir.EntityRef
+	typeRef ir.TypeRef
+	header  bool
 }
 
 // scope is how a message names an entity of one class: the class, as a report
@@ -91,17 +94,20 @@ type scope struct {
 }
 
 // message fills, under the replacement policy, the replacements
-// deprecatedValue's message names, where deprecatedValue is deprecated and its
-// own keys write none, so that nothing the promotion fills is read over. Only a
-// name a phrase introduces is read (introducedNames). A message naming no
-// entity of deprecatedValue's class, or deprecatedValue alone, names no
-// replacement. One naming another fills the field all or none, deprecatedValue
-// passed over and a repeat kept once: a name naming nothing, or several
-// entities, leaves it unset, reported, the prose keeping it. deprecatedValue is
-// marked where they fill it. The rule is
-// docs/compilers/openapi.md#replacement-inference.
+// deprecatedValue's message names, where deprecatedValue is deprecated and no
+// key it reads names any, its own nor its node's (nodeKeys), so nothing the
+// promotion fills is read over. Only a name a phrase introduces is read
+// (introducedNames). A message naming no entity of deprecatedValue's class, or
+// deprecatedValue alone, names no replacement. One naming another fills the
+// field all or none, deprecatedValue passed over and a repeat kept once: a
+// name naming nothing, or several entities, leaves it unset, reported, the
+// prose keeping it. deprecatedValue is marked where they fill it
+// (docs/compilers/openapi.md#replacement-inference).
 func (r *resolver) message(deprecatedValue deprecated, scopeValue scope) []ir.Diagnostic {
 	if deprecatedValue.dep == nil || r.p.Writes(deprecatedValue.own, promotion.TargetDeprecationReplacedBy) {
+		return nil
+	}
+	if _, _, keyed := r.nodeKeys(deprecatedValue); keyed {
 		return nil
 	}
 	names := introducedNames(deprecatedValue.dep.Message, scopeValue.named(deprecatedValue.dep.Message))

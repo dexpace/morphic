@@ -456,6 +456,25 @@ func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
 	}
 }
 
+// DeprecationKey reports whether promoter reads a deprecation, one of its
+// members or its replacements from key, an extension's name, whatever the value
+// written under it says: an object writing it has spoken to its deprecation, as
+// Writes reads a key.
+func DeprecationKey(promoter Promoter, key string) bool {
+	targets := [...]ExtensionTarget{
+		TargetDeprecation, TargetDeprecationMessage, TargetDeprecationSince,
+		TargetDeprecationRemovalVersion, TargetDeprecationRemovalDate, TargetDeprecationReplacedBy,
+	}
+	for _, target := range targets {
+		for _, src := range promoter.targets[target] {
+			if src.Key == key {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Stability fills tier from the vendor extensions kept in unmodeled, by
 // promoter's sources of TargetStability, and marks prov with the heuristic when
 // it does.

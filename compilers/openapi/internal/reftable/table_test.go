@@ -585,3 +585,42 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	_, ok = table.Find("gone.yaml")
 	assert.False(t, ok, "a document that could not be read is none the table read")
 }
+
+// TestReferenced_NamesWhereEachReferenceLands pins the positions a reference
+// names: each hop of a chain of $refs, a discriminator's mapping value and an
+// expanding $dynamicRef land on one, while a position no reference reaches,
+// one writing a reference, and a member of a loop of $refs, which lands
+// nowhere, are named by none. A nil table read none.
+func TestReferenced_NamesWhereEachReferenceLands(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+`components:
+  schemas:
+    Holder:
+      type: object
+      properties:
+        ref: {type: string}
+        hop: {type: string}
+        mapped: {type: string}
+        anchored: {$dynamicAnchor: D, type: string}
+        alone: {type: string}
+        loop: {$ref: '#/components/schemas/Holder/properties/loop'}
+    Out: {$ref: '#/components/schemas/Holder/properties/ref'}
+    Mid: {$ref: '#/components/schemas/Holder/properties/hop'}
+    Chain: {$ref: '#/components/schemas/Mid'}
+    Tagged: {type: string, discriminator: {propertyName: k, mapping: {m: '#/components/schemas/Holder/properties/mapped'}}}
+    Dynamic: {$dynamicRef: '#D'}
+`, self)
+	for pointer, want := range map[jsontext.Pointer]bool{
+		"/components/schemas/Holder/properties/ref":      true,
+		"/components/schemas/Holder/properties/hop":      true,
+		"/components/schemas/Mid":                        true,
+		"/components/schemas/Holder/properties/mapped":   true,
+		"/components/schemas/Holder/properties/anchored": true,
+		"/components/schemas/Holder/properties/alone":    false,
+		"/components/schemas/Holder/properties/loop":     false,
+		"/components/schemas/Out":                        false,
+	} {
+		assert.Equal(t, want, table.Referenced(documentPointerAt(pointer)), "%s", pointer)
+	}
+	assert.False(t, (*reftable.ReferenceTargetTable)(nil).Referenced(documentPointerAt("/components/schemas/Out")))
+}

@@ -1952,27 +1952,70 @@ declaration that owns it.
 keyword states no message, version, date or replacement, which only
 [`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
 where no keyword does; a replacement the message it supplies names is read too
-([`replacement-inference`](#replacement-inference)). An operation, and a
-tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
-beside its `description` and `externalDocs`; a response and an error case take `description` and
-`summary` ([`response-summary`](#response-summary)); a request
-body, a security scheme, a server and a server variable take `description`, an example `summary` and
-`description`, and a security scheme `deprecated` (3.2). `info` and the root `externalDocs` make the
-Document's one `Docs`, while the Service takes `info.description` alone. A schema's documentation
-lands on the node its position owns; where the position owns none (a shared primitive, a `$ref`), it
-lands on the property, parameter or header that carries it, the referent's under the use site's
-field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
-over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
-neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
-no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
-marked ([references in prose](../ir/annotations.md#references-in-prose)).
+([`replacement-inference`](#replacement-inference)). An operation, and a tag on its `TagDef` and on
+the group it names, take all three; a schema's `title` is the `Summary`, beside its `description`
+and `externalDocs`; a response and an error case take `description` and `summary`
+([`response-summary`](#response-summary)); a request body, a security scheme, a server and a server
+variable take `description`, an example `summary` and `description`, and a security scheme
+`deprecated` (3.2). `info` and the root `externalDocs` make the Document's one `Docs`, while the
+Service takes `info.description` alone. A schema's documentation and deprecation land on the
+property, parameter or header that carries its position, whatever node the schema hoists there, a
+list, a map, an enum, a model, a union, a tuple, a literal or a scalar, and that node holds neither
+([one home](../ir/annotations.md#one-structural-home-per-declaration)); a deprecation a key states
+or annotates follows them, its node keeping the key, and so does a replacement a key the policy maps
+to `deprecation.replacedBy` names there ([`extension-promotion`](#extension-promotion)). A carried
+position a reference names, a `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`,
+keeps them on its node, which every reference to it reads, and its carrier holds none of them.
+Through a `$ref` the referent's land on the carrier under the use site's field by field
+([`ref-use-site`](#ref-use-site)), and a schema naming one, beside its keywords or as a conjunct of
+its `allOf`, keeps its own on the node it builds. So does each declaration of a member a model
+declares more than once itself, in its own `properties`, an inline `allOf` entry or one nested in
+another, whose carrier has one slot for what several declarations write
+([`allof-redeclared-property`](#allof-redeclared-property)). At a position no carrier holds, they
+land on the node the position owns. A parameter's or header's
+own `description`, or a `summary` or `description` a Reference Object naming it writes beside its
+`$ref` ([`ref-use-site`](#ref-use-site)), stands on the carrier in place of its schema's, while the
+node that schema hoists keeps the schema's documentation, so neither is lost; a component's schema
+keeps its documentation on the node for every use once one Reference Object writes documentation
+beside its `$ref`, so a use writing none reads them there and its carrier holds none; where the
+schema hoists none, the carrier's own replace it, and nothing keeps the schema's. A deprecation a
+parameter or a header states itself stands on it the same way: where its object writes
+`deprecated: true`, or it or the content entry it elects writes a key the promotion reads a
+deprecation or one of its members from, whatever its value, the node keeps the schema's deprecation
+whole, members and replacement with it, and the carrier holds its own members alone. Where its
+carrier holds the schema's notes, it is deprecated wherever its schema is, by its keyword or a key,
+so one writing only a message, a date, a replacement or a tier beside a deprecated schema is
+deprecated as one writing `deprecated: true` is, it and the node then both deprecated. At a position
+a reference names, the node keeps the deprecation and the carrier holds none, its own member kept
+under `Unmodeled` alone. A Reference Object
+states none, as the keys beside its `$ref` are promoted nowhere
+([`reference-object-siblings`](#reference-object-siblings)), so every use agrees. Where the schema
+hoists no node, `deprecated: true` on a parameter or header and on its schema each deprecate it,
+neither one's `false` clearing the other. A request body's `description`
+lands on its Payload ([`request-body`](#request-body)), and a response's payload states no docs of
+its own. OpenAPI has no syntax for naming a type in prose, so a `description` is kept as written and
+no span of it is marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
-  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`,
+  `schema.TestPropertyAnnotations_NotesAreThePropertysWhateverItsSchemaHoists`,
+  `schema.TestPropertyAnnotations_APromotedDeprecationIsTheCarriers`,
+  `schema.TestPropertyAnnotations_AUseOfARefKeepsItsNotesOnItsNode`,
+  `schema.TestDeclaredAgain_IsReadOfTheModelComposingTheMember`,
+  `schema.TestDeclaredAgain_ReadsEachSchemaComposingTheEntry`,
+  `operation.TestParams_NotesAreTheParametersWhateverItsSchemaHoists`,
+  `operation.TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists`,
+  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`,
+  `schema.TestCarriedAnnotations_APositionAReferenceNamesKeepsItsNotesOnItsNode`,
+  `schema.TestCarriedAnnotations_AnExpandingDynamicRefKeepsTheNotesOnItsTarget`,
+  `reftable.TestReferenced_NamesWhereEachReferenceLands`,
+  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`,
+  `operation.TestParams_AQuotedDeprecatedStatesNoDeprecation`
 
 ### `replacement-inference`
 
@@ -1980,8 +2023,9 @@ The replacement policy, `Options.ReplacementInference` and the text option `repl
 ([`policies`](#policies)), reads what a deprecation's message names as its replacement into
 `Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)). It reads the message
 [`extension-promotion`](#extension-promotion) fills on three classes of deprecated node, each where
-no key the promotion maps to `deprecation.replacedBy` is written beside it, and reports a message
-naming a replacement it cannot settle as an info `openapi/undecided-replacement`:
+no key the promotion maps to `deprecation.replacedBy` is written beside it or on the node whose keys
+a carrier reads its replacements from, and reports a message naming a replacement it cannot settle
+as an info `openapi/undecided-replacement`:
 
 1. An operation's message names an operation by its route: a word that is a method an operation of
    the document is bound with, a backtick or a parenthesis before it aside, then, after white
@@ -2038,7 +2082,9 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
   `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
   `replacement.TestMessage_CostsItsLength`, `replacement.TestMessage_UseOpensItsSentence`,
-  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`,
+  `replacement.TestMessage_AKeyACarriersNodeKeepsIsNotReadOver`,
+  `replacement.TestMessage_AMemberItsModelDeclaresAgainIsReadOverItsNodesKey`
 - Status: open: a `use` after a colon, a parenthesis or a dash is no cue, so
   ``Deprecated: use `b` instead.``, which `main` read, names nothing (#1956).
 
@@ -2147,15 +2193,24 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
 ### `schema-examples`
 
 A schema's `example`, then each entry of its `examples` in order, lowers to `Examples`, one
-`Example` apiece holding the value ([`values`](#values)), on the node the position owns or, where it
-owns none, on the property that carries it. An example written beside a `$ref` describes the
-position, not the referent, whose own examples stay on its node. A value no `Value` holds is dropped
+`Example` apiece holding the value ([`values`](#values)), where its documentation does
+([`docs-and-deprecation`](#docs-and-deprecation)): on the property, parameter or header that carries
+the position, whatever node it hoists, and elsewhere on the node the position owns. An example
+written beside a `$ref` describes the position, not the referent, whose own examples stay on its
+node. Where a parameter or a header writes an `example` or `examples` of its own, or the content
+entry it elects does, those stand on the carrier in place of its schema's, and the node the schema
+hoists keeps the schema's, so neither is lost; where the schema hoists none, the carrier's own
+replace them, and nothing keeps the schema's. A value no `Value` holds is dropped
 with an `openapi/degraded-construct` warning at it.
 
 - Cases: `examples`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestSchemaExamplesAt_ReadsBothKeywordsInOrder`,
-  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
+  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
+  `operation.TestParams_NotesAreTheParametersWhateverItsSchemaHoists`,
+  `operation.TestHeaders_NotesAreTheHeadersWhateverItsSchemaHoists`,
+  `e2e.TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists`,
+  `schema.TestCarriedAnnotations_ACarrierWritingItsOwnNoteLeavesTheSchemasOnTheNode`
 
 ### `xml-hints`
 
@@ -3247,11 +3302,13 @@ and reported.
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where every declaration folded into it does, and a null any of them writes is
 judged against that: a `default: null` or a null example is refused where the merged field does not
-admit null, a declaration of the field's own type included. The top type admits null whatever its
+admit null, a declaration of the field's own type included, but for a null example a variant of the
+field's union admits (below). The top type admits null whatever its
 bit says, and one folded under another type says nothing of null. A `default` or `examples` a
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
-or nothing. The winning type admits a value by its kind, by the `full-time` grammar where it is a
-`Scalar` hoisted for `time`, and by the constraints its node carries:
+or nothing, but for examples a type with no judge refuses (below). The winning type admits a value
+by its kind, by the `full-time` grammar where it is a `Scalar` hoisted for `time`, and by the
+constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
 declaration's value is held by the same checks to each bound the field keeps that another
@@ -3263,8 +3320,26 @@ against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
-each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
-last written is kept, and a declaration giving another is reported and kept; two values are one
+each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
+again where an entry brings one of the field's declarations and the field takes none of any
+declaration the model writes itself that way, whatever it takes of one another model holds, and no
+node its type holds, the type's own or one it composes, keeps one of the model's own. There the
+examples each declaration the model writes itself gives are taken where no judge refused them, so an
+example of an inline schema beside a model, of its kind or another, or one a brought `pattern`
+applies to, lands typed on the field, and `pass/example-outside-type` holds it to the field's type
+as it holds any example ([values](../ir/values.md#values-held-to-their-type)). An example a judge
+refuses, a null, a bound, an enum's members, a literal, a kind or a format's grammar, the field's
+own or that of a list's element or a map's value, stays refused and kept, wherever the field takes
+no other. What has no judge refuses none: a model, a union, a tuple or an opaque `Scalar`, or a
+`Scalar`, list or map over one, whole; a `pattern`, a precision or a scale; and the text of `bytes`
+or of a format whose grammar the compiler does not hold. A union refuses a null no variant of it
+admits, by its own bit, as the top type or in a union of its own, and no other value. A `Scalar`
+whose `Encoding` carries its values as another kind, a number as text or a time as a number, is
+judged as the type on the wire, which an example is written in. Those a declaration another model
+holds gives stay declared there. An example
+illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
+takes, the last written is kept, examples a declaration the model writes itself gives over those of
+one another model holds, and a declaration giving another is reported and kept. Two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
 written after it.
@@ -3285,9 +3360,83 @@ declaration wrote, whose multiples are exactly those both admit. `pattern`, `pat
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
-declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
-the one written first is the field's, in the document listed first and then at the pointer sorting
-first, since two files each holding one schema write the same pointers. An entry two declarations
+declaration giving one differently is reported and kept. The title, description, external links and
+deprecation describe the field, so of those one the model writes itself is kept over one another
+model holds, in either order and wherever either stands: that one stays declared on its model, and
+is reported where it differs. A deprecation the field holds is a copy, so a replacement read into it
+is read into no other member's.
+
+Where a note stands follows where its reader looks, on the field and then on the node its type
+names. A declaration's note is its property's, or its node's where the node keeps it: a reference
+names its position, its schema names a `$ref`, or its model declares the member more than once
+itself (below). Where an entry brings a declaration, the field holds the last note a property of the
+model's own gives, unless the node the field's type names holds the same and the last declaration to
+give one off no node, if any does, gives another. Where only nodes of its own hold one, the field
+holds none where the node its type names holds one of them, and otherwise the last, each other
+reported: as where that node is a brought declaration's, whatever it writes, or the model the types
+compose, which holds none of its parts' notes. One reported so stays on the part whose node holds
+it, and is kept verbatim with its declaration where none does. An example is not moved off a node
+so, as nothing shows the field's type to admit it, nor a replacement only a key names, which stays
+on the node keeping the key.
+
+A note none of the model's own declarations writes is a brought declaration's, one on its node read
+there alone, the field taking none off it, but for a member a part settled, some declaration of
+which gives one off no node: the member's note is its own, though a reference holds it on the node
+of its type. Of several giving it differently, the field's reader finds that of the declaration
+whose note it found before IR 0.73.0, as its own model now reads it: in either order one whose
+schema builds no node to hold it, a member a part settled being one where some declaration of it
+gives the note and builds none, and the last of two such; and otherwise the one of the node the
+field's type is built on, the types judged with each node holding its notes as below, the winner's
+or one it meets, where that node is read holding one. A note a member settled off a type it dropped
+is of no such node. Where those types tie, the later declaration decides it, and where they compose,
+or the type is of none of them, the field holds none. Each is reported, where the field holds none
+at every declaration giving one.
+
+A member a model declares more than once itself, in its own `properties`, an inline `allOf` entry or
+one nested in another, has one slot for the notes several declarations write, so each declaration
+keeps its title, description, external links, deprecation and examples on the node its schema
+builds, as before IR 0.73.0
+([annotations](../ir/annotations.md#one-structural-home-per-declaration)), and the field holds only
+those of one whose schema builds none. The fold judges the nodes holding them, as it judges any that
+hold a note: a node saying what another lacks composes with it or adopts it, and two alike but for a
+note are two types the source declared apart, the field keeping the later and the earlier
+declaration verbatim. A reference naming one of the entries changes nothing of it but the member's
+identity. An `allOf` that refines composes no model, lowering one conjunct's properties, so it
+declares none of them again. Where another model brings a declaration of such a member, the two
+paragraphs above say which note the field holds, and the field holds a brought example only where
+the node its type names holds none of the model's own. A deprecation accumulates over a member's
+declarations ([models](../ir/models.md#the-flattening)), so the flattening reads a brought one there
+all the same.
+
+Beside a declaration another model brings, the fold judges the types as their nodes stand, a node
+whose notes a property carries holding none of them. Where they drop none of a member the model
+declares at most once, and compose nothing, they keep each declaration's type, so that judgment is
+the field's. Elsewhere the fold judges them again with each node read as holding the notes a
+property carries off it, as it held them before IR 0.73.0. Where the first judgment drops any, the
+second is the field's: so a type that a note holds apart from what would drop it, the model's own or
+another's, is not lost to the note's move, and of two that a note alone tells apart the later is
+kept, as it was. Where the first drops none of a member the model declares more than once itself,
+the second is the field's too, unless it drops one beside a member a part settled. Where the first
+composes, the second is the field's only where it neither composes nor drops: one schema
+restated with one note, carried off one node and held by another, is then one type and not a model
+composing the two. Either way the field's type is built of the nodes as they stand, so a node the
+merge builds holds no note a property carries off one, and types only a note tells apart meet in the
+narrower one's own node. And an example of the model's own is judged by the type the field then has,
+so one a judge refuses of a narrower type is refused and kept verbatim.
+
+The second judgment reads a brought member its own model settled as that judgment of its
+declarations settles it: by the type it gives, the node of which is read as holding the notes of
+those it is built on, as it held them, whichever node the member then names. Read so, a declaration
+beside it keeps against it the type it kept before IR 0.73.0, which it may not against the type the
+member settled to, narrower where no note of its declarations holds their types apart. Where those
+declarations settle so to a node the fold would build and none of them says, or compose, no node is
+there to name, and the member is judged by the type it settled to. There, and where one of their
+nodes stands for one the fold built of them then, a declaration beside it can still lose to it what
+it did not, and the field can take a wider type than it did.
+
+Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
+listed first and then at the pointer sorting first, since two files each holding one schema write
+the same pointers. An entry two declarations
 write alike is one where it writes no relative `$ref`, or both read it against one base: under an
 `$id` naming another URI, a `$ref` spelled alike names another schema.
 
@@ -3343,10 +3492,9 @@ that keeps them from composing), since which of them the field keeps then follow
 order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
-would leave one field asserting two contradictory things, with nothing downstream comparing a
-value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where no one value says
-what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
+would leave one field asserting two contradictory things; this is keyed on the type being dropped,
+not on the drop being called a conflict. A declaration folded into the field is reported as well
+where no one value says what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
 naming the declaration the value was kept from, or where it gives a detail differently from the one
 kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
 merged
@@ -3364,10 +3512,13 @@ A member a model's composition declares more than once folds the same way, where
 are written, so a `$ref` entry and the schema it names written inline in its place fold alike, but
 for a tie inside the entry: an entry brings its member already folded, so a declaration that lost a
 tie there no longer counts toward the type holding the most declarations, as it does where the
-entry's schema is written inline. The flattening ([models](../ir/models.md#the-flattening)) would
-otherwise take the model's own declaration over an entry's, and of two entries the later, and judge
-none. Once every lowering has returned, one settlement folds, on each model, every member its own
-declarations or its `allOf` entries decide more than once, asking the run's context before each
+entry's schema is written inline. And for a note: the model's own is kept over the one a `$ref`
+entry brings, which stays on its model, while written inline the two are both the model's own and
+stay on the nodes they build. The flattening ([models](../ir/models.md#the-flattening)) would
+otherwise take the model's own declaration over an
+entry's, and of two entries the later, and judge none. Once every lowering has returned, one
+settlement folds, on each model, every member its own declarations or its `allOf` entries decide
+more than once, asking the run's context before each
 model. Each entry brings the declaration the flattening of what it names takes, which a model
 settled first holds folded from every other its composition gives the member, and one another
 entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
@@ -3435,6 +3586,45 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
+  `merge.TestFold_ANoteTheModelWritesIsKeptOverOneItBrings`,
+  `merge.TestSettle_ReadsANodeHoldingItsNotesWhereTheModelDeclaresTheMemberAgain`,
+  `merge.TestSettle_ReadsNotesWhereTheTypesAsTheyStandDropOne`,
+  `merge.TestSettle_ATypeANoteAloneTellsApartIsNoNodeOfItsOwn`,
+  `merge.TestSayingAll_NamesTheFirstSortingNodeThatSaysAll`,
+  `merge.TestFold_ANoteOnAnOwnNodeIsKeptOverOneBrought`,
+  `merge.TestSettle_JudgesAMemberTheModelAloneDeclaresAsItsNodesStand`,
+  `merge.TestWithNotes_HoldsTheNotesOnACopy`,
+  `schema.TestDeclaredAgain_IsReadOfTheModelComposingTheMember`,
+  `schema.TestDeclaredAgain_ReadsEachSchemaComposingTheEntry`,
+  `e2e.TestAllOfFold_ANoteTheModelWritesWinsOverOneItBrings`,
+  `e2e.TestAllOfFold_AnOwnDeclarationOfAnotherTypeLosesNoNoteToOneBrought`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainKeepsItsNotesOnItsNodes`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainFoldsItsNotedNodes`,
+  `e2e.TestAllOfFold_AReferenceToAnEntryMovesNoNoteOfAMemberDeclaredAgain`,
+  `e2e.TestAllOfFold_ADistributedModelsMemberDeclaredAgainKeepsItsNotes`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainKeepsTheLaterOfTwoThatMeetAnother`,
+  `e2e.TestAllOfFold_AMemberIsDeclaredAgainInItsOwnDocument`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainBesideOneBroughtHoldsItsOwnNotes`,
+  `e2e.TestAllOfFold_ATypeANoteHeldApartIsNotLostToTheNotesMove`,
+  `e2e.TestAllOfFold_AnEntryOrderDecidesNoTypeItsNotesSettle`,
+  `e2e.TestAllOfFold_ABuiltNodeHoldsNoNoteItsFieldHolds`,
+  `e2e.TestAllOfFold_ADeprecationIsEachMembersOwn`,
+  `e2e.TestAllOfFold_ABuiltNodesDeprecationIsItsOwn`,
+  `e2e.TestAllOfFold_AFieldHoldsNoBroughtNoteOverItsModelsOwn`,
+  `e2e.TestAllOfFold_ANoteOnABroughtNodeIsNotItsModelsOwn`,
+  `e2e.TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets`,
+  `e2e.TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote`,
+  `e2e.TestAllOfFold_ATieOfBroughtNotesFollowsTheTypeNotTheOrder`,
+  `e2e.TestAllOfFold_ASettledMembersNotesAreJudgedOnItsNode`,
+  `e2e.TestAllOfFold_ANoteAMemberSettledKeepsItsHome`,
+  `e2e.TestAllOfFold_TwoSettledMembersOfOneNodeAreReadInOneWay`,
+  `e2e.TestAllOfFold_AFieldNamesNoHeuristicItsNodesKindWasChosenBy`,
+  `merge.TestFold_ATieOfBroughtNotesFollowsTheTypesNode`,
+  `merge.TestFold_ASettledMembersNotesAreThoseOfItsNodes`,
+  `merge.TestFold_ASettledMemberIsJudgedWithItsNotes`,
+  `e2e.TestAllOfFold_AFieldHoldsNoBroughtExampleOverItsTypesOwn`,
+  `e2e.TestAllOfFold_AnOwnDeclarationBesideTwoBroughtKeepsItsType`,
+  `e2e.TestAllOfFold_ANoteOfAUseIsNoNoteOfTheNodeItNames`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
@@ -3583,7 +3773,6 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_EnumPairsAreJudgedByKind`,
   `merge.TestTypeJudge_RelateArms`,
   `merge.TestTypeJudge_AdmitsPerNode`,
-  `merge.TestAdmitsConstraints_JudgesEachKeyword`,
   `merge.TestIsMultipleOf_JudgesExactly`,
   `schema.TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder`,
   `merge.TestClassify_ALiteralOverlapsWhatHoldsValues`,
@@ -3609,6 +3798,18 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
+  `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
+  `merge.TestRegistry_RefusesAtWhatAJudgeRefuses`,
+  `merge.TestAdmitsConstraints_JudgesEachKeyword`,
+  `e2e.TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds`,
+  `e2e.TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped`,
+  `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
+  `e2e.TestAllOfFold_AnExampleAVariantsEnumRefusesStaysRefused`,
+  `e2e.TestAllOfFold_AnExampleAFormatRefusesStaysRefused`,
+  `e2e.TestAllOfFold_AnExampleTheFieldTakesKeepsAnotherOut`,
+  `e2e.TestAllOfFold_AnExampleAnotherModelDeclaresStaysThere`,
+  `e2e.TestAllOfFold_AnExampleAtAReferencedPositionStaysOnItsNode`,
   `merge.TestFold_AnInadmissibleValueIsKeptNotAdopted`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`,
   `merge.TestFold_IdenticalNodesAreOneType`,
@@ -5465,8 +5666,8 @@ listed number is that variant's alone, so a width beside `integer` and `number` 
 ### `password`
 
 `format: password` is a redaction request rather than a pairing of type and format, so the shape
-lowers without it, and it lands where a declaration's annotations do: on the node the position owns,
-whatever its kind, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
+lowers without it, and it lands on the node the position owns, whatever its kind and whether or not
+a carrier holds the position, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
 property, header or parameter that owns none, as `Secret`, inherited from a `$ref` target as
 `deprecated` is. An inline `allOf` entry writing it folds as any annotation does
 ([`allof-inline-residue`](#allof-inline-residue)).
@@ -7881,12 +8082,18 @@ is the precedence among the sources: the first source stating a value fills the 
 one stating another is reported as an info `openapi/degraded-construct` at its own key. An absent
 member states nothing, and a key with no members to read is reported the same way, once however many
 sources read it. The node keeping the extension is marked as [`policies`](#policies) marks a
-promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
-untouched.
+promotion, as is a use its `$ref`'s target lends a field to and a carrier the node its schema hoists
+lends a deprecation to ([`docs-and-deprecation`](#docs-and-deprecation)), and the extension stays in
+`Unmodeled` untouched.
 
 A carrier also reads the objects whose keys it keeps beneath a scope: an operation its path item
 (`openapi:pathItem/`), and a parameter or a header the content entry it elects (`content/<mt>/`) and
-the schema of its spelling (`schema/` or `content/<mt>/schema/`). It reads them two ways, as
+the schema of its spelling (`schema/` or `content/<mt>/schema/`). A property, a parameter or a header
+whose schema hoists a node reads that node's keys the same way for its deprecation alone, beneath
+every scope, where the deprecation the keyword states is the carrier's, a parameter or a header
+stating none of its own ([`docs-and-deprecation`](#docs-and-deprecation)); where one states its
+own, it reads from them only whether they deprecate it, none of their members. The node keeps the
+keys, and its redaction. It reads them two ways, as
 [annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
 single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
 states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws
@@ -8037,9 +8244,20 @@ of strings, names each replacement as the document names an entity of the node's
 by its `operationId`, a parameter of the same operation as a link's key names one (`<in>.<name>` or
 a name one parameter carries), a header by its name among the headers beside it, a response's or
 those an encoding gives a part or a stream's items, in any case, a property by its name within its
-model, a schema by its name under `components/schemas`, and a security scheme by its key. A property
-whose schema lowers to a type of its own, such as an inline object or enum, is deprecated on that
-type ([`docs-and-deprecation`](#docs-and-deprecation)), so a name there is read as a schema's. The
+model, a schema by its name under `components/schemas`, and a security scheme by its key. A
+property, a parameter or a header whose own schema hoists a node holds that schema's deprecation,
+unless a parameter or a header states one of its own ([`docs-and-deprecation`](#docs-and-deprecation)),
+while the node keeps its keys, so where its own keys name no replacement it reads the names that
+node's keys give, each as a schema's, as the node read them when it held the deprecation. That node
+is the one its declaration builds, at its own position or its schema's, or, for a header a Reference
+Object reaches, which stands at its use, at the schema of the Header Object it names, in whichever
+document declares it. A node keeping its deprecation, as one a reference names does and one whose
+parameter or header states its own does, resolves its names itself, and its carrier reads none of
+them. Nor does a member its model declares more than once itself, each of whose declarations keeps
+its deprecation on its node ([`allof-redeclared-property`](#allof-redeclared-property)). Where that
+node holds none because its schema states no deprecation, a parameter or a header deprecating itself
+still reads the names its keys give, which the resolution, reading the document alone, cannot tell
+from a node whose deprecation is the carrier's. The
 names are resolved once the document is whole, since a replacement may be declared after what it
 replaces, and they fill the field all or none: a name that names nothing, names more than one
 entity, or names the node itself, leaves the field unset and is reported as an info
@@ -8075,6 +8293,12 @@ saying why.
   `service.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
+  `e2e.TestPromotion_ACarrierReadsTheReplacementItsNodeKeeps`,
+  `replacement.TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt`,
+  `replacement.TestResolve_ACarrierLeavesItsNodesMisreadKeyToTheNode`,
+  `replacement.TestResolve_AMemberItsModelDeclaresAgainReadsNoNodesKeys`,
+  `schema.TestMembersDeclaredAgain_AreTheMembersOneModelDeclaresMoreThanOnce`,
+  `e2e.TestAllOfFold_AMemberDeclaredAgainReadsNoReplacementOffItsNode`,
   `promotion.TestServerName_ReadsTheDefaultKey`,
   `promotion.TestTokenEndpointAuthMethods_ReadsASet`,
   `promotion.TestAllowReserved_OnlyTrueAsksForIt`,
@@ -8110,13 +8334,17 @@ saying why.
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
   `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`,
   `promotion.TestWithOwnCarriedState_ASingleSidedFactHoldsWhereAnyStatesIt`,
-  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
+  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`,
+  `e2e.TestPromotion_ACarrierStatingItsOwnDeprecationLeavesTheSchemasOnTheNode`,
+  `e2e.TestPromotion_ACarrierWritingOnlyAMemberIsDeprecatedByItsSchema`
 - Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
   object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,
   where beside a `$ref` to a string it lands on the carrier (#2061); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field.
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a parameter or a
+  header deprecating itself reads the replacement its schema's key names where that schema states
+  no deprecation, though a member beside none annotates nothing (#2189).
 
 ### `mutually-exclusive-parameters`
 
