@@ -884,8 +884,9 @@ func TestRegistry_RefusesAtWhatAJudgeRefuses(t *testing.T) {
 
 // TestVariantAdmitsNull_ReadsAUnionsVariants pins variantAdmitsNull: a union
 // admits null where a variant does by its own bit, as the top type, or in a
-// union of its own within maxJudgeDepth, reached through an alias too; and any
-// other type, or one the registry does not hold, answers for no variant.
+// union of its own, reached through an alias too, each type read once and
+// maxVariantReads of them; and any other type, or one the registry does not
+// hold, answers for no variant.
 func TestVariantAdmitsNull_ReadsAUnionsVariants(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
@@ -904,9 +905,10 @@ func TestVariantAdmitsNull_ReadsAUnionsVariants(t *testing.T) {
 	union("type/holds", integer, ref("type/bit"))
 	union("type/holds-none", integer, ref("type/none"))
 	union("type/cyclic", integer, ref("type/cyclic"))
+	union("type/cyclic-bit", ref("type/cyclic-bit"), integer, ref("type/bit"))
 	reg["type/alias"] = &ir.Scalar{ID: "type/alias", Base: new(ref("type/bit"))}
 	deep := ir.TypeID("type/bit")
-	for depth := range maxJudgeDepth + 1 {
+	for depth := range maxVariantReads {
 		id := ir.TypeID(fmt.Sprint("type/deep-", depth))
 		union(id, ref(deep))
 		deep = id
@@ -915,11 +917,19 @@ func TestVariantAdmitsNull_ReadsAUnionsVariants(t *testing.T) {
 	for id, want := range map[ir.TypeID]bool{
 		"type/none": false, "type/bit": true, "type/top": true, "type/holds": true, "type/holds-none": false, "type/cyclic": false,
 		"type/alias": true, "type/model": false, "type/primitive/any": false, "type/absent": false,
-		ir.TypeID(fmt.Sprint("type/deep-", maxJudgeDepth-1)): true, deep: false,
+		"type/cyclic-bit": true, ir.TypeID(fmt.Sprint("type/deep-", maxVariantReads-2)): true, deep: false,
 	} {
-		assert.Equal(t, want, variantAdmitsNull(registryValue, ref(id), 0), id)
+		assert.Equal(t, want, variantAdmitsNull(registryValue, id), id)
 	}
-	assert.False(t, variantAdmitsNull(registryValue, nullable("type/model"), 0), "the field's own null is another question")
+	resolve, reads := registryValue.resolve, 0
+	counting := registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) { reads++; return resolve(id) }}
+	for depth := range maxVariantReads {
+		next := ref(ir.TypeID(fmt.Sprint("type/wide-", depth+1)))
+		union(ir.TypeID(fmt.Sprint("type/wide-", depth)), next, next, next)
+	}
+	union(ir.TypeID(fmt.Sprint("type/wide-", maxVariantReads)), integer)
+	assert.False(t, variantAdmitsNull(counting, "type/wide-0"))
+	assert.Less(t, reads, 20*maxVariantReads, "each union is read once")
 }
 
 func TestRelation_Flipped(t *testing.T) {

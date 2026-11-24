@@ -1325,8 +1325,9 @@ func refusesAt(r registry, ref ir.TypeRef, value ir.Value, depth int) bool {
 }
 
 // refusesUnder reports whether the base of scalar, at depth, refuses value
-// under scalar's Encoding: a format it holds judges the value too, and under
-// one it does not hold a string format's own grammar judges no text
+// under scalar's Encoding: a format it holds judges the value too, one carrying
+// the base's values as another kind has them judged as that kind (travelsAs),
+// and under one it does not hold a string format's own grammar judges no text
 // (rewritesText).
 func refusesUnder(r registry, scalar *ir.Scalar, value ir.Value, depth int) bool {
 	if _, held := heldFormat(scalar.Encoding); held && !encodingAdmits(scalar.Encoding, value) {
@@ -1354,18 +1355,32 @@ func encodingAdmits(enc *ir.Encoding, value ir.Value) bool {
 	return held && inFormat
 }
 
-// variantAdmitsNull reports whether the type ref names, at depth, is a union,
-// or an alias of one, a variant of which admits null: by its own bit, as the
-// top type, or in a variant of its own.
-func variantAdmitsNull(r registry, ref ir.TypeRef, depth int) bool {
-	td, ok := r.resolve(ref.Target)
-	if !ok || depth > maxJudgeDepth {
-		return false
+// variantAdmitsNull reports whether the type target names is a union, or an
+// alias of one, a variant of which admits null: by its own bit, as the top type,
+// or in a variant of its own. It reads each type once, maxVariantReads of them at
+// most; one past them is read to admit none, which only refuses an example.
+func variantAdmitsNull(r registry, target ir.TypeID) bool {
+	read, queue := map[ir.TypeID]bool{}, []ir.TypeID{target}
+	for len(queue) > 0 && len(read) < maxVariantReads {
+		id := queue[0]
+		queue = queue[1:]
+		td, ok := r.resolve(id)
+		if !ok || read[id] {
+			continue
+		}
+		read[id] = true
+		union, isUnion := r.unaliased(td).(*ir.Union)
+		if !isUnion {
+			continue
+		}
+		for _, variant := range union.Variants {
+			if variant.Type.Nullable || r.isAnyType(variant.Type) {
+				return true
+			}
+			queue = append(queue, variant.Type.Target)
+		}
 	}
-	union, isUnion := r.unaliased(td).(*ir.Union)
-	return isUnion && slices.ContainsFunc(union.Variants, func(variant ir.Variant) bool {
-		return variant.Type.Nullable || r.isAnyType(variant.Type) || variantAdmitsNull(r, variant.Type, depth+1)
-	})
+	return false
 }
 
 // admitsAll reports whether every element of vs is a value of element.

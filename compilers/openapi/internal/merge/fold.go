@@ -747,11 +747,11 @@ func sameExamples(a, b []ir.Example) bool {
 // its nodes are written (typeAt). refuses is whether a judge refuses value, not
 // the want of one (variantAdmitsNull, refusesConstraints, judgesAt, refusesAt).
 func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bool) {
-	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	if value.Kind == ir.ValueNull {
-		return nullable, !nullable && !variantAdmitsNull(judge.registry, f.merged.Type, 0)
+		return nullable, !nullable && !variantAdmitsNull(registry{f.g.resolve}, f.merged.Type.Target)
 	}
 	own := &f.decls[i].property
+	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	bounds := boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own))
 	taken, refuses = admitsConstraints(bounds, value, 0), refusesConstraints(bounds, value, 0)
 	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
