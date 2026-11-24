@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -287,8 +286,8 @@ func keepUnreadKeys(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *
 	var diags []ir.Diagnostic
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		ok, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword,
-			ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+		ok, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, schema, keyword,
+			ir.ReasonDegradedLowering, pointer)
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, keyword)

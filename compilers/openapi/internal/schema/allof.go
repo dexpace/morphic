@@ -430,8 +430,8 @@ func applyFalseEntries(loweringContext lowering.Ctx, model *ir.Model, comp allOf
 
 	closer := comp.closer
 	if closer.schema != nil && model.Additional == ir.AdditionalClosed && model.AdditionalProperties != nil && model.AdditionalProperties.Value != nil {
-		_, keptDiags := annotation.PreserveSchemaKeyword(&model.Unmodeled, closer.schema, "additionalProperties",
-			ir.ReasonDegradedLowering, closer.at, loweringContext.Place())
+		_, keptDiags := preserveSchemaKeyword(loweringContext, &model.Unmodeled, closer.schema, "additionalProperties",
+			ir.ReasonDegradedLowering, closer.at)
 		diags = append(diags, keptDiags...)
 	}
 	forbidRest(loweringContext, model)

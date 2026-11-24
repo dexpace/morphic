@@ -945,10 +945,23 @@ components:
         DroppedNot: {type: object, properties: {n: {type: string}}}
         KeptNot: {type: object, properties: {live: {type: string}}}
         DroppedDisc: {type: object, properties: {m: {type: string}}}
+        DroppedIf: {type: object, properties: {f: {type: string}}}
+        DroppedUnknown: {type: object, properties: {u: {type: string}}}
     UnpreservableNot:
       type: object
       not:
         $ref: '#/components/schemas/Holder/$defs/DroppedNot'
+        x-bad: .inf
+    UnpreservableIf:
+      type: object
+      if:
+        $ref: '#/components/schemas/Holder/$defs/DroppedIf'
+        x-bad: .inf
+      then: {required: [a]}
+    UnpreservableUnknown:
+      type: object
+      additionalItems:
+        $ref: '#/components/schemas/Holder/$defs/DroppedUnknown'
         x-bad: .inf
     PreservableNot:
       type: object
@@ -975,6 +988,8 @@ components:
 		"type/anonymous/components/schemas/Holder/$defs/DroppedParam",
 		"type/anonymous/components/schemas/Holder/$defs/DroppedNot",
 		"type/anonymous/components/schemas/Holder/$defs/DroppedDisc",
+		"type/anonymous/components/schemas/Holder/$defs/DroppedIf",
+		"type/anonymous/components/schemas/Holder/$defs/DroppedUnknown",
 	} {
 		assert.NotContains(t, doc.Types, gone, "unpreservable target %s must not leak", gone)
 	}
@@ -1023,4 +1038,77 @@ components:
 		}
 	}
 	assert.True(t, sawCollision, "declaring \"\" beside Empty must draw pass/name-collision; got %+v", diags)
+}
+
+// TestCompile_RefBroughtAllOfFoldRewritesPrunedLoserDiagnostic pins that when
+// an allOf mixes an inline schema with a $ref-brought declaration (so
+// settlement stamps Provenance.Node onto each fold diagnostic), post-pruning
+// diagnostic rewriting still matches and removes every pruned anonymous TypeID
+// from both degraded-construct and conflicting-redeclaration messages.
+func TestCompile_RefBroughtAllOfFoldRewritesPrunedLoserDiagnostic(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    delete:
+      operationId: delA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      result:
+                        type: array
+                        items: {type: string}
+                      conflict:
+                        type: object
+                        properties:
+                          c: {type: string}
+                  - $ref: '#/components/schemas/Failure'
+components:
+  schemas:
+    Failure:
+      type: object
+      properties:
+        result:
+          type: array
+          items: {type: integer}
+        conflict:
+          type: string
+`
+	doc, diags := parseVerified(t, spec)
+	assert.Empty(t, irverify.Verify(doc))
+
+	const (
+		prunedOverlap  ir.TypeID = "type/anonymous/paths/~1a/delete/responses/200/content/application~1json/schema/allOf/0/properties/result"
+		prunedConflict ir.TypeID = "type/anonymous/paths/~1a/delete/responses/200/content/application~1json/schema/allOf/0/properties/conflict"
+		keptOverlap    ir.TypeID = "type/anonymous/components/schemas/Failure/properties/result"
+	)
+	assert.NotContains(t, doc.Types, prunedOverlap)
+	assert.NotContains(t, doc.Types, prunedConflict)
+	assert.Contains(t, doc.Types, keptOverlap)
+
+	var sawOverlap, sawConflict bool
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, string(prunedOverlap), "pruned type ID must not appear in diagnostic: %+v", d)
+		assert.NotContains(t, d.Message, string(prunedConflict), "pruned type ID must not appear in diagnostic: %+v", d)
+		if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/paths/~1a/delete/responses/200/content/application~1json/schema/allOf/0/properties/result" {
+			assert.Contains(t, d.Message, string(keptOverlap))
+			assert.Contains(t, d.Message, "over the declaration at")
+			assert.NotEmpty(t, d.Provenance.Node, "brought allOf fold must still stamp Provenance.Node")
+			sawOverlap = true
+		}
+		if d.Code == "openapi/conflicting-redeclaration" && d.Provenance.Pointer == "/paths/~1a/delete/responses/200/content/application~1json/schema/allOf/0/properties/conflict" {
+			assert.Contains(t, d.Message, "incompatible types (")
+			assert.NotEmpty(t, d.Provenance.Node, "brought allOf fold must still stamp Provenance.Node")
+			sawConflict = true
+		}
+	}
+	assert.True(t, sawOverlap, "expected rewritten degraded-construct diagnostic for result; got %+v", diags)
+	assert.True(t, sawConflict, "expected rewritten conflicting-redeclaration diagnostic for conflict; got %+v", diags)
 }

@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -410,17 +409,10 @@ func pointerBeneath(ptr, base jsontext.Pointer) bool {
 }
 
 // seedDiscardedLandings adds to discarded the TypeID of every landing at or
-// beneath a dropped provenance (an unpreservable construct diagnostic or a
-// discarded Unmodeled container). Landings still reached elsewhere remain live
-// during pruning.
-func seedDiscardedLandings(discarded map[ir.TypeID]bool, landings map[schema.LandingSite][]schema.Landing, dropped []ir.Provenance, diagLists ...[]ir.Diagnostic) {
-	for _, diags := range diagLists {
-		for _, diagnostic := range diags {
-			if diagnostic.Code == diag.UnpreservableConstruct {
-				dropped = append(dropped, diagnostic.Provenance)
-			}
-		}
-	}
+// beneath a dropped provenance (an unpreservable construct or a discarded
+// Unmodeled container). Landings still reached elsewhere remain live during
+// pruning.
+func seedDiscardedLandings(discarded map[ir.TypeID]bool, landings map[schema.LandingSite][]schema.Landing, dropped []ir.Provenance) {
 	if len(dropped) == 0 {
 		return
 	}
@@ -447,27 +439,31 @@ func siteDropped(site schema.LandingSite, dropped []ir.Provenance) bool {
 // rewritePrunedFoldDiagnostics substitutes the alternate location-based wording
 // on any fold drop diagnostic whose losing anonymous TypeID was actually
 // removed from types by post-settlement pruning, leaving every diagnostic whose
-// losing type survived untouched.
+// losing type survived untouched. Matching ignores Provenance.Node because
+// ModelPropertyDeclarations.Settle stamps the decided property ID onto Node
+// after folding records candidates.
 func rewritePrunedFoldDiagnostics(diags []ir.Diagnostic, types ir.TypeRegistry, candidates []schema.PrunedDiagnostic) {
 	if len(candidates) == 0 {
 		return
 	}
 	type diagKey struct {
-		code       string
-		provenance ir.Provenance
-		message    string
+		code    string
+		source  int
+		pointer jsontext.Pointer
+		message string
 	}
 	rewrites := map[diagKey]string{}
 	for _, candidate := range candidates {
 		if _, live := types[candidate.Loser]; !live {
-			rewrites[diagKey{candidate.Code, candidate.Provenance, candidate.Full}] = candidate.Pruned
+			rewrites[diagKey{candidate.Code, candidate.Provenance.Source, candidate.Provenance.Pointer, candidate.Full}] = candidate.Pruned
 		}
 	}
 	if len(rewrites) == 0 {
 		return
 	}
 	for i := range diags {
-		if replacement, ok := rewrites[diagKey{diags[i].Code, diags[i].Provenance, diags[i].Message}]; ok {
+		key := diagKey{diags[i].Code, diags[i].Provenance.Source, diags[i].Provenance.Pointer, diags[i].Message}
+		if replacement, ok := rewrites[key]; ok {
 			diags[i].Message = replacement
 		}
 	}

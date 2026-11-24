@@ -779,8 +779,8 @@ func recordSkippedFamilies(loweringContext lowering.Ctx, td ir.TypeDef, schema *
 			written, named = append(written, conjuncts...), append(named, as...)
 			continue
 		}
-		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, schema, keyword,
-			ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+		stored, storedDiags := preserveSchemaKeyword(loweringContext, &common.Unmodeled, schema, keyword,
+			ir.ReasonDegradedLowering, pointer)
 		diags = append(diags, storedDiags...)
 		if stored {
 			written, named = append(written, keyword), append(named, keyword)

@@ -48,6 +48,10 @@ type Merger struct {
 	// that a fold superseded or dropped so post-settlement pruning can remove
 	// it if nothing else reaches it.
 	Discarded map[ir.TypeID]bool
+	// DiscardedSites, when non-nil, records source provenances whose losing
+	// declaration could not be preserved verbatim under Unmodeled so
+	// post-settlement pruning can seed any landings beneath them.
+	DiscardedSites *[]ir.Provenance
 	// Walk is the walk that declared the field.
 	Walk FieldDeclarationContext
 }

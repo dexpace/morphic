@@ -87,15 +87,12 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 
 // UnknownKeywordsIn records on unmodeled the keywords schema writes that no
 // field of the JSON Schema model names, and announces each: legal JSON Schema
-// 2020-12 an implementation must ignore, so a decision rather than a fault. The
-// model keeps only a keyword's name, so its value is read from the raw node
-// (docs/parser-library.md#unmodeled-keywords).
-//
-// It runs after every other reader and keeps what none kept: `$vocabulary`
-// and `dependentRequired` have readers of their own. A keyword no reader
-// leaves a trace of is named in decidedKeywords, or in taken where only the
-// caller knows a reader took it.
-func UnknownKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
+// 2020-12 an implementation must ignore, so a decision rather than a fault. It
+// also returns the source provenances of any keywords that could not be
+// preserved as JSON. It runs after every other reader and keeps what none kept:
+// `$vocabulary` and `dependentRequired` have readers of their own, and decided
+// or caller-taken keywords are skipped.
+func UnknownKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) ([]ir.Provenance, []ir.Diagnostic) {
 	keys, root := unknownSchemaKeys(schema)
 	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })
 	return census(unmodeled, keys, root, doc, pointer, "", keyClass{
@@ -188,12 +185,13 @@ func UndefinedKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, keys
 	if len(keys) == 0 {
 		return nil
 	}
-	return census(unmodeled, keys, schema.Node, doc, pointer, "", keyClass{
+	_, diags := census(unmodeled, keys, schema.Node, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q is not defined by the dialect this schema is read in, and no policy reads it " +
 			"here; kept verbatim under Unmodeled",
 	})
+	return diags
 }
 
 // UnknownKeysIn records on unmodeled the keys an OpenAPI object writes that the
@@ -235,7 +233,8 @@ func UnknownKeysUnder(unmodeled *ir.Unmodeled, model any, doc provenance.Doc, ow
 func UnknownKeysNamed(unmodeled *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(unmodeled, keys, root, doc, owner, scope, keyClass{skip: taken})
+	_, diags := census(unmodeled, keys, root, doc, owner, scope, keyClass{skip: taken})
+	return diags
 }
 
 // TakeString reads a string field the parser's model names no member for,
@@ -315,41 +314,49 @@ type keyClass struct {
 // unrecorded). That happens before the bound applies (see MaxUnknownKeys).
 func census(unmodeled *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass,
-) []ir.Diagnostic {
+) ([]ir.Provenance, []ir.Diagnostic) {
 	if len(keys) == 0 {
-		return nil // the common case: most objects write no key their model misses
+		return nil, nil // the common case: most objects write no key their model misses
 	}
 	fresh := unrecorded(unmodeled, slices.Sorted(slices.Values(keys)), owner, scope, cl.skip)
 	if len(fresh) == 0 {
-		return nil
+		return nil, nil
 	}
+	var unpreserved []ir.Provenance
 	var diags []ir.Diagnostic
 	if len(fresh) > MaxUnknownKeys {
 		diags = append(diags, budgetDiag(len(fresh), doc.At(owner)))
 		fresh = fresh[:MaxUnknownKeys]
 	}
 	for _, key := range fresh {
-		diags = append(diags, keep(unmodeled, root, key, doc, owner, scope, cl)...)
+		keyDiags, failed := keep(unmodeled, root, key, doc, owner, scope, cl)
+		if failed {
+			unpreserved = append(unpreserved, doc.At(owner+ids.Ptr(key)))
+		}
+		diags = append(diags, keyDiags...)
 	}
-	return diags
+	return unpreserved, diags
 }
 
 // keep writes one key's value under its entry and announces it, or says why it
-// could not.
-func keep(unmodeled *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
+// could not, reporting whether raw conversion failed.
+func keep(unmodeled *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass) ([]ir.Diagnostic, bool) {
 	entry, at := EntryKey(scope, key), doc.At(owner+ids.Ptr(key))
 	if taken, occupied := (*unmodeled)[entry]; occupied {
-		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}, false
 	}
 	node := nodeview.Child(root, key)
 	if node == nil {
-		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
+		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}, false
 	}
 	kept, diags := PreserveNodeInto(unmodeled, entry, node, ir.ReasonOutOfScope, at)
-	if !kept || cl.code == "" {
-		return diags
+	if !kept {
+		return diags, len(diags) > 0
 	}
-	return append(diags, diag.Newf(cl.severity, cl.code, at, cl.message, key))
+	if cl.code == "" {
+		return diags, false
+	}
+	return append(diags, diag.Newf(cl.severity, cl.code, at, cl.message, key)), false
 }
 
 // unrecorded returns the keys this census has to answer for: those not in skip,

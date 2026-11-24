@@ -406,6 +406,8 @@ func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 	}
 	decls = append(decls, declaration{property: ir.Property{WireName: "p", Type: primitiveRef(ir.PrimitiveURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
 
+	var discardedSites []ir.Provenance
+	stubbed.DiscardedSites = &discardedSites
 	got := stubbed.fold(decls)
 
 	require.Len(t, *recorded, 2, "%+v", *recorded)
@@ -414,6 +416,7 @@ func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
 	assert.Equal(t, at(maxFoldDeclarations), (*recorded)[1].Provenance.Pointer)
 	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
 	assert.Empty(t, got.Unmodeled, "nothing of it could be kept")
+	assert.Equal(t, []ir.Provenance{ptrAt(at(maxFoldDeclarations))}, discardedSites)
 }
 
 // TestFold_ANarrowerTypeThatLosesIsAnOverlap pins how the fold reports a type

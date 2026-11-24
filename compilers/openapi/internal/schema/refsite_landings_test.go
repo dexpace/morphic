@@ -255,3 +255,21 @@ func TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs(t *testing.T) {
 	assert.Equal(t, []ir.Provenance{prov}, schema.DiscardedSites(lowerer.Ctx))
 	assert.Empty(t, schema.PrunedDiagnostics(lowerer.Ctx))
 }
+
+// TestUnpreservableValidationOnlyBranch_RecordsDiscardedSite pins that an
+// unpreservable validation-only combinator (kept via
+// preserveValidationOnlyKeyword) records its keyword provenance as a discarded
+// site for post-settlement pruning.
+func TestUnpreservableValidationOnlyBranch_RecordsDiscardedSite(t *testing.T) {
+	t.Parallel()
+	lowerer, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    BadValOnly:
+      type: string
+      oneOf:
+        - minLength: 1
+          x-bad: .inf
+        - maxLength: 5
+`))
+	lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	_ = lowerer.Document(t)
+	assert.Contains(t, schema.DiscardedSites(lowerer.Ctx), ir.Provenance{Source: 0, Pointer: "/components/schemas/BadValOnly/oneOf"})
+}

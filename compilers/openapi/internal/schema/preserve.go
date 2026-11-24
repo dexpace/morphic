@@ -7,21 +7,67 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
-// How a construct is kept verbatim is annotation's: the key its entry takes, the
-// position it is located at, the conversion of its value, and the report when
-// it cannot be kept. This package calls annotation for that directly, with
-// c.Place(). What it decides is what a position keeps and why: which
-// keywords, under which reason, announced how. PreserveUnknownKeywords is one
-// such decision, reading the dialect a schema is read in. A preservation
-// function that decides nothing and only keys, locates or converts belongs in
-// annotation, or the same call gains a second spelling.
+// How a construct is kept verbatim is annotation's: keying, locating, raw
+// conversion, and unpreservable diagnostics. The helpers below wrap those
+// calls at schema positions solely to feed failed conversions into
+// RecordDiscardedSite so post-settlement pruning removes landings beneath an
+// unpreservable construct without inspecting diagnostics by code.
+
+// ReadAnnotations reads site's annotations at pointer and records any
+// unpreservable construct provenances as discarded sites for pruning.
+func ReadAnnotations(loweringContext lowering.Ctx, site annotation.SchemaPositionAnnotationSources, pointer jsontext.Pointer) (annotation.Set, []ir.Diagnostic) {
+	set, diags := annotation.Read(site, pointer, loweringContext.Place())
+	recordDiscardedSites(loweringContext, set.Unpreserved)
+	return set, diags
+}
+
+// preserveNode converts node into unmodeled at at and records at as a
+// discarded site when conversion fails.
+func preserveNode(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, key string, node *yaml.Node,
+	reason ir.UnmodeledReason, at jsontext.Pointer,
+) (bool, []ir.Diagnostic) {
+	prov := loweringContext.Place().At(at)
+	kept, diags := annotation.PreserveNodeInto(unmodeled, key, node, reason, prov)
+	if !kept && len(diags) > 0 {
+		RecordDiscardedSite(loweringContext, prov)
+	}
+	return kept, diags
+}
+
+// preserveSchemaKeyword keeps keyword of schema at pointer in unmodeled and
+// records the keyword's provenance as a discarded site when conversion fails.
+func preserveSchemaKeyword(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer,
+) (bool, []ir.Diagnostic) {
+	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword, reason, pointer, loweringContext.Place())
+	if !kept && len(diags) > 0 {
+		RecordDiscardedSite(loweringContext, loweringContext.Place().At(pointer+ids.Ptr(keyword)))
+	}
+	return kept, diags
+}
+
+// preserveValidationOnlyKeyword keeps a validation-only keyword of schema at
+// pointer in unmodeled and records the keyword's provenance as a discarded
+// site when conversion fails.
+func preserveValidationOnlyKeyword(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
+	pointer jsontext.Pointer,
+) []ir.Diagnostic {
+	kept, diags := annotation.PreserveValidationOnlyKeyword(unmodeled, schema, keyword, pointer, loweringContext.Place())
+	if !kept && len(diags) > 0 {
+		RecordDiscardedSite(loweringContext, loweringContext.Place().At(pointer+ids.Ptr(keyword)))
+	}
+	return diags
+}
 
 // PreserveUnknownKeywords records every keyword schema writes that no field of
 // the schema model names, or that the model names and the dialect does not
@@ -36,7 +82,8 @@ import (
 func PreserveUnknownKeywords(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef,
 	left ...string,
 ) []ir.Diagnostic {
-	diags := annotation.UnknownKeywordsIn(unmodeled, schema, pointer, loweringContext.Place(), slices.Concat(unknownTaken(loweringContext, schema, pointer), left)...)
+	unpreserved, diags := annotation.UnknownKeywordsIn(unmodeled, schema, pointer, loweringContext.Place(), slices.Concat(unknownTaken(loweringContext, schema, pointer), left)...)
+	recordDiscardedSites(loweringContext, unpreserved)
 	return append(diags, annotation.UndefinedKeywordsIn(unmodeled, schema, undefinedKeywords(loweringContext, schema), pointer, loweringContext.Place())...)
 }
 

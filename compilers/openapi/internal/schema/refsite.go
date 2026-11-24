@@ -204,12 +204,20 @@ func RecordDiscarded(loweringContext lowering.Ctx, id ir.TypeID) {
 }
 
 // RecordDiscardedSite records a source provenance whose lowered Unmodeled
-// container was dropped (such as a header discarded when a form part's
-// encoding is kept whole) so landings written beneath it are seeded for
-// post-settlement pruning when nothing else reaches them.
+// container was dropped (such as an unpreservable construct or a header
+// discarded when a form part's encoding is kept whole) so landings written
+// beneath it are seeded for post-settlement pruning when nothing else reaches
+// them.
 func RecordDiscardedSite(loweringContext lowering.Ctx, prov ir.Provenance) {
 	trackers := runTrackersOf(loweringContext)
 	trackers.discardedSites = append(trackers.discardedSites, prov)
+}
+
+// recordDiscardedSites appends every provenance in sites to the run's
+// discarded-site list.
+func recordDiscardedSites(loweringContext lowering.Ctx, sites []ir.Provenance) {
+	trackers := runTrackersOf(loweringContext)
+	trackers.discardedSites = append(trackers.discardedSites, sites...)
 }
 
 // DiscardedTypes returns the set of TypeIDs explicitly superseded or dropped

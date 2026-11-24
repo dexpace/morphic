@@ -152,8 +152,8 @@ func TestAttachUnmodeledTargets_MatchesEveryEntryForm(t *testing.T) {
 }
 
 // TestSeedDiscardedLandings_SeedsDroppedProvenances pins seedDiscardedLandings
-// across empty drops, unpreservable diagnostics, exact and descendant dropped
-// sites (including document-root ""), and untouched live sites.
+// across empty drops, exact and descendant dropped sites (including
+// document-root ""), and untouched live sites.
 func TestSeedDiscardedLandings_SeedsDroppedProvenances(t *testing.T) {
 	t.Parallel()
 	const (
@@ -171,22 +171,19 @@ func TestSeedDiscardedLandings_SeedsDroppedProvenances(t *testing.T) {
 		{Source: 2, Pointer: "/components/schemas/B/not"}:        {{ID: droppedRoot, Path: "/$ref", Ref: "#/e"}},
 	}
 
-	// Fast path: no unpreservable diagnostics and no dropped sites seeds nothing.
+	// Fast path: no dropped sites seeds nothing.
 	discarded := map[ir.TypeID]bool{}
-	openapi.SeedDiscardedLandings(discarded, landings, nil, []ir.Diagnostic{{Code: diag.DegradedConstruct}})
+	openapi.SeedDiscardedLandings(discarded, landings, nil)
 	assert.Empty(t, discarded)
 
-	// Unpreservable diagnostic + dropped provenances seed exact and descendant sites only.
+	// Dropped provenances seed exact and descendant sites only.
 	openapi.SeedDiscardedLandings(
 		discarded,
 		landings,
 		[]ir.Provenance{
+			{Source: 0, Pointer: "/components/schemas/A/not"},
 			{Source: 0, Pointer: "/components/headers/H/schema"},
 			{Source: 2, Pointer: ""},
-		},
-		[]ir.Diagnostic{
-			{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/Live/not"}},
-			{Code: diag.UnpreservableConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/A/not"}},
 		},
 	)
 	assert.Equal(t, map[ir.TypeID]bool{
@@ -198,8 +195,9 @@ func TestSeedDiscardedLandings_SeedsDroppedProvenances(t *testing.T) {
 
 // TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers pins that
 // rewritePrunedFoldDiagnostics substitutes the alternate message only when the
-// losing TypeID is absent from Document.Types and leaves surviving losers and
-// unrelated diagnostics untouched.
+// losing TypeID is absent from Document.Types (including when settlement later
+// stamps Provenance.Node for a $ref-brought fold) and leaves surviving losers
+// and unrelated diagnostics untouched.
 func TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers(t *testing.T) {
 	t.Parallel()
 	const (
@@ -209,11 +207,13 @@ func TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers(t *testin
 	types := ir.TypeRegistry{liveLoser: anonModel(liveLoser)}
 	provLive := ir.Provenance{Source: 0, Pointer: "/components/schemas/A/allOf/0/properties/p"}
 	provPruned := ir.Provenance{Source: 0, Pointer: "/components/schemas/B/allOf/0/properties/p"}
+	provPrunedNamed := provPruned
+	provPrunedNamed.Node = "prop/openapi/components/schemas/B/allOf/properties/p"
 
 	diags := []ir.Diagnostic{
 		{Code: diag.ConflictingRedecl, Provenance: provLive, Message: "full live"},
-		{Code: diag.ConflictingRedecl, Provenance: provPruned, Message: "full pruned"},
-		{Code: diag.DegradedConstruct, Provenance: provPruned, Message: "unrelated"},
+		{Code: diag.ConflictingRedecl, Provenance: provPrunedNamed, Message: "full pruned"},
+		{Code: diag.DegradedConstruct, Provenance: provPrunedNamed, Message: "unrelated"},
 	}
 
 	// Empty candidates and surviving-only candidates leave all messages untouched.
@@ -224,7 +224,8 @@ func TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers(t *testin
 	assert.Equal(t, "full live", diags[0].Message)
 	assert.Equal(t, "full pruned", diags[1].Message)
 
-	// An actually pruned loser rewrites only its matching diagnostic.
+	// An actually pruned loser rewrites only its matching diagnostic even when
+	// Provenance.Node was populated after fold candidate recording.
 	openapi.RewritePrunedFoldDiagnostics(diags, types, []schema.PrunedDiagnostic{
 		{Code: diag.ConflictingRedecl, Provenance: provLive, Full: "full live", Pruned: "pruned live", Loser: liveLoser},
 		{Code: diag.ConflictingRedecl, Provenance: provPruned, Full: "full pruned", Pruned: "pruned msg", Loser: prunedLoser},

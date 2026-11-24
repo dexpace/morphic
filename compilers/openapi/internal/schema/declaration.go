@@ -308,7 +308,7 @@ func attachDeclaredAnnotations(loweringContext lowering.Ctx, ts *compile.Types, 
 	site := use.SiteAt(loweringContext, schema, pointer)
 	site.Closure = closureTyped(loweringContext, ts, schema, td)
 	site.Leaves = leftToWhole(loweringContext, schema, target, pointer)
-	a, diags := annotation.Read(site, pointer, loweringContext.Place())
+	a, diags := ReadAnnotations(loweringContext, site, pointer)
 	held, heldDiags := principalDiscriminatorKeys(loweringContext, schema, pointer, target)
 	a.Unmodeled = annotation.MergeUnmodeled(a.Unmodeled, held)
 	diags = append(diags, heldDiags...)
@@ -395,7 +395,7 @@ func recordResidue(loweringContext lowering.Ctx, common *ir.TypeCommon, schema *
 		if left(keyword) {
 			continue
 		}
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer, loweringContext.Place())
+		kept, keptDiags := preserveSchemaKeyword(loweringContext, &common.Unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

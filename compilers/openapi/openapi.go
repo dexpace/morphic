@@ -251,7 +251,7 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	var pruneDiags []ir.Diagnostic
 	if attachUnmodeledTargets(ctx, out, landings) {
 		discarded := schema.DiscardedTypes(serviceContext.Ctx)
-		seedDiscardedLandings(discarded, landings, schema.DiscardedSites(serviceContext.Ctx), acc.List(), settled)
+		seedDiscardedLandings(discarded, landings, schema.DiscardedSites(serviceContext.Ctx))
 		out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
 	}
 	if err := ctx.Err(); err != nil {

@@ -195,6 +195,7 @@ func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.Sourc
 		Reads:             &rec.reads,
 		PrunedDiagnostics: &trackers.prunedDiagnostics,
 		Discarded:         trackers.discarded,
+		DiscardedSites:    &trackers.discardedSites,
 		Walk:              modelFields,
 	}
 	diags, table := modelFields.idx.Settle(merger, rec.partTables(reg, modelFields.m), rec.shared)
