@@ -1625,7 +1625,8 @@ the empty string is minted `Hint: "empty"` and no `Source` rather than passed th
 `operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
 property's wire name stays `""`. A component schema keyed `""` stays in the declared component
 namespace at its own pointer (`type/openapi/components/schemas/`, `Anonymous: false`) with that
-hint, as a security scheme keyed `""` stays at `auth/openapi/components/securitySchemes/`. An entity
+hint — departing from the anonymous hoist #405 recorded, since a declared component is no hoisted
+inline type — as a security scheme keyed `""` stays at `auth/openapi/components/securitySchemes/`. An entity
 the document gives no name — an inline schema, a union variant, a response
 ([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
 `server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
@@ -1696,7 +1697,8 @@ one.
   `naming.TestAt_ATitleNamesAlikeInEitherOrder`,
   `naming.TestAt_ATitleNamesAcrossDocuments`, `naming.TestTitle_IsTheNameATitleGives`,
   `naming.TestAt_NamesAHeaderAnEncodingNests`,
-  `e2e.TestGolden_HintPositions`, `e2e.TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader`
+  `e2e.TestGolden_HintPositions`, `e2e.TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader`,
+  `e2e.TestCompile_EmptySchemaCollidesWithEmpty`
 
 ### `values`
 

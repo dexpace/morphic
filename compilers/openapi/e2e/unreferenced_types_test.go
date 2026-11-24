@@ -954,3 +954,37 @@ components:
 	assert.Equal(t, map[jsontext.Pointer]ir.TypeID{"/headers/X-Item/schema/$ref": "type/anonymous/components/schemas/Holder/$defs/KeptItem"},
 		seqPrefixBad.Request.Contents[0].Unmodeled["openapi:itemEncoding"].Targets)
 }
+
+// TestCompile_EmptySchemaCollidesWithEmpty pins that a component schema keyed
+// "" lowers as a declared non-anonymous type (type/openapi/components/schemas/,
+// Anonymous: false, Hint: "empty") and joins the names pass's type scope, so
+// declaring "" beside Empty draws pass/name-collision just as security schemes
+// do.
+func TestCompile_EmptySchemaCollidesWithEmpty(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    "": {type: string}
+    Empty: {type: string}
+`
+	doc, diags := compileVerified(t, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, openapi.Options{})
+	require.NotNil(t, doc)
+
+	emptyComp := doc.Types["type/openapi/components/schemas/"]
+	require.NotNil(t, emptyComp)
+	assert.False(t, emptyComp.Common().Anonymous)
+	assert.Equal(t, ir.Naming{Hint: "empty"}, emptyComp.Common().Name)
+
+	var sawCollision bool
+	for _, d := range diags {
+		if d.Code == "pass/name-collision" && d.Severity == ir.SeverityWarning {
+			assert.Contains(t, d.Message, "type/openapi/components/schemas/")
+			assert.Contains(t, d.Message, "type/openapi/components/schemas/Empty")
+			sawCollision = true
+		}
+	}
+	assert.True(t, sawCollision, "declaring \"\" beside Empty must draw pass/name-collision; got %+v", diags)
+}

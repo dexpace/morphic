@@ -11,8 +11,8 @@ components:
   securitySchemes:
     "": {type: http, scheme: bearer}
   schemas:
-    # A component keyed "" stays in the declared component namespace
-    # (type/openapi/components/schemas/, Anonymous: false) with a minted hint.
+    # A component keyed "" stays in OpenAPISpace (type/openapi/components/schemas/,
+    # Anonymous: false) with a minted hint (departing from GitHub #405).
     "": {type: string}
     # "" and "empty" are two distinct values whose members land on the same word.
     # Both must survive: uniquifying identifiers is an emitter's job.

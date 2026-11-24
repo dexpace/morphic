@@ -1270,7 +1270,10 @@ it sees. Changes made together in one bump are listed together under it.
   for a scalar reference string) to the `TypeID` it lowered to; an empty-named OpenAPI component
   schema (`components.schemas[""]`) stays in the declared component namespace
   (`type/openapi/components/schemas/`, `Anonymous: false`, matching
-  `auth/openapi/components/securitySchemes/`); and `irverify` enforces that every `Anonymous: true`
+  `auth/openapi/components/securitySchemes/`), departing from the anonymous hoist #405 recorded
+  because a declared component is no hoisted inline type — it joins the names pass's type scope, so
+  a `""` schema beside `Empty` now draws `pass/name-collision`, as the security schemes already do;
+  and `irverify` enforces that every `Anonymous: true`
   type in `Document.Types` is reachable from a non-anonymous type or a reference outside
   `Document.Types` (`ir/unreferenced-anonymous-type`,
   [type-graph](./type-graph.md#reachability-of-anonymous-types)). A consumer pinned to 0.72.0
