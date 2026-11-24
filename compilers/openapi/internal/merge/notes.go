@@ -76,6 +76,9 @@ func builtNodeNotes(g *Merger, declarationValue declaration) heldNotes {
 
 // SettledNotes is what a later fold reads of the notes of a member a fold
 // settled, whose property holds one of each kind whichever declaration gave it.
+// They are read on the type it settled to, which may be narrower than its
+// declarations' noted nodes would have given it, so what a later fold drops for
+// that type it drops still.
 type SettledNotes struct {
 	// Node is what the node of the member's type is read holding where a fold
 	// reads notes there (Merger.Carried): those of the nodes its type is built
@@ -225,11 +228,13 @@ func homeIsNode[T any](reading noteReading[T], given []givenNote[T], kept T) boo
 	})
 }
 
-// keptNote returns the index in given of the note the field keeps: the last of
-// those ranked highest, of the model's own on its nodes the last the field's
-// type holds, if any, and of several of nodes other models' declarations built
-// the one ofTypesNode names, or the last the field's type holds. It is -1 where
-// none is given, or where neither names one of several.
+// keptNote returns the index in given of the note the field keeps, of those
+// ranked highest: of several of the model's own on its nodes the last the
+// field's type holds, of several of nodes other models' declarations built the
+// one ofTypesNode names, or the last the field's type holds, and otherwise the
+// last, so the order of the model's entries decides between two of its own its
+// type does not hold. It is -1 where none is given, or where none of several
+// other models' is the type's.
 func keptNote[T any](foldingValue *folding, reading noteReading[T], given []givenNote[T]) int {
 	highest := givesNone
 	for _, givenValue := range given {
