@@ -3368,9 +3368,10 @@ itself (the next paragraph). Where an entry brings a declaration, the field hold
 property of the model's own gives. Where only nodes of its own hold one, the field holds none where
 the node its type names holds one of them, and otherwise the last, each other reported: as where
 that node is a brought declaration's, whatever it writes, or the model the types compose, which
-holds none of its parts' notes, an own one staying on its part besides. An example is not moved off
-a node so, as nothing shows the field's type to admit it, nor a replacement only a key names, which
-stays on the node keeping the key.
+holds none of its parts' notes. One reported so stays on the part whose node holds it, and is kept
+verbatim with its declaration where none does. An example is not moved off a node so, as nothing
+shows the field's type to admit it, nor a replacement only a key names, which stays on the node
+keeping the key.
 
 A note none of the model's own declarations writes is a brought declaration's, one on its node read
 there alone, the field taking none off it. Of several giving it differently, the field's reader

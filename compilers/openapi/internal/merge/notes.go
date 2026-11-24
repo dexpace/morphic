@@ -189,7 +189,7 @@ func settleNote[T any](foldingValue *folding, reading noteReading[T]) T {
 	kept := given[at]
 	reportOthers(foldingValue, reading.detail, at, func(i int) (T, bool) {
 		return given[i].note, given[i].rank != givesNone && (given[i].rank != ownOnNode || kept.rank != ownOnProperty)
-	}, reading.same, func(i int) bool { return given[i].rank == ownOnNode && foldingValue.cone[i] })
+	}, reading.same, func(i int) bool { return given[i].rank == ownOnNode && isPart(foldingValue, i) })
 	if !slices.ContainsFunc(given, func(givenValue givenNote[T]) bool { return givenValue.rank != givesNone && !givenValue.ofNode }) {
 		reading.carry(&foldingValue.offNodes, kept.note)
 	}
@@ -197,6 +197,14 @@ func settleNote[T any](foldingValue *folding, reading noteReading[T]) T {
 		return *new(T)
 	}
 	return kept.note
+}
+
+// isPart reports whether foldingValue's field's type composes the node the
+// declaration at i names, so a reader finds what that node holds there.
+func isPart(foldingValue *folding, i int) bool {
+	return slices.ContainsFunc(foldingValue.conjuncts, func(part conjunct) bool {
+		return part.ref.Target == foldingValue.decls[i].property.Type.Target
+	})
 }
 
 // homeIsNode reports whether a node is the home of kept, of the notes given: a

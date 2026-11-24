@@ -366,6 +366,9 @@ func TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets(t *testing.T) {
 		{"brought twice by its model", "{allOf: [" + own("b") + ", " + entry(list+", minItems: 0") + "]}", own("o0") + ", " + own("o1") + ", " + brought,
 			"[description o1] composed/A/allOf/1/properties/f list [description b]", 1, []string{overOwn, "A/allOf/1/properties/f, which stays declared on its model"}},
 		{"two own nodes agreeing, one the type", own("b"), own("o0") + ", " + own("o0") + ", " + brought, "M/allOf/0/properties/f list [description o0]", 1, []string{overBrought}},
+		{"two own unions noted apart, the type narrower than both", entry("type: string, description: b"),
+			entry("anyOf: [{type: string}, {type: boolean}], description: o0") + ", " + entry("anyOf: [{type: string}, {type: boolean}], description: o1") + ", " + brought,
+			"[description o1] primitive/string primitive", 1, []string{overOwn, overBrought}},
 		{"an own property noted before the brought one, beside a noted own node", own("b"),
 			entry("description: o0") + ", " + own("o1") + ", " + brought, "[description o0] A/properties/f list", 0, []string{overBrought}},
 		{"an own property noted as the own node its type is built of", entry(list + ", maxItems: 3"),
@@ -378,8 +381,11 @@ func TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets(t *testing.T) {
 			"[description l] openapi/L list [description l]", 1, []string{overBrought}},
 	} {
 		doc, diags := parseVerified(t, openapitest.ComponentSpec("    L: {"+list+", description: l}\n    A: "+tc.a+"\n    M: {allOf: ["+tc.entries+"]}\n"))
-		got, _, _ := strings.Cut(memberText(t, doc, componentID("M")), " | verbatim")
+		got, verbatim, _ := strings.Cut(memberText(t, doc, componentID("M")), " | verbatim ")
 		assert.Equal(t, tc.want, got, tc.name)
+		if slices.Contains(tc.over, overOwn) {
+			assert.Contains(t, verbatim, "M/allOf/0/properties/f", tc.name)
+		}
 		ties := slices.DeleteFunc(foldReports(diags), func(report string) bool { return !strings.Contains(report, " differently; ") })
 		require.Len(t, ties, len(tc.over), "%s: %v", tc.name, ties)
 		for _, over := range tc.over {
@@ -392,9 +398,9 @@ func TestAllOfFold_AModelsOwnNoteIsReadWhateverBroughtOneItMeets(t *testing.T) {
 // TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote pins the same where
 // the types compose: the own declaration's node is a part, and the composed
 // model, the node the field's type names, holds none of its parts' notes, so
-// the field holds the model's own, the last of several, over a brought one. The
-// node keeping another of the model's own is a part, and no declaration is kept
-// verbatim.
+// the field holds the model's own, the last of several, over a brought one.
+// Another of the model's own stays on its node where that is a part, and is
+// kept verbatim where a narrower part stands for it.
 func TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote(t *testing.T) {
 	t.Parallel()
 	const object, own = "{properties: {f: {type: object, properties: {%s: {type: string}}%s}}}", ", description: %s"
@@ -420,6 +426,10 @@ func TestAllOfFold_AFieldOfACompositionHoldsItsModelsOwnNote(t *testing.T) {
 		{"noted twice", untyped, p(", description: o0") + ", " + q(", description: o1"),
 			"[description o1] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [description o0]; M/allOf/1/properties/f model [description o1])",
 			[]string{"M/allOf/0/properties/f, which stays on the part of its type written there", "A/properties/f, which stays declared on its model"}},
+		{"noted twice, one a union of the other's type", inline, "{properties: {f: {anyOf: [{$ref: '#/components/schemas/P'}, {type: string}], description: o0}}}, " +
+			"{properties: {f: {allOf: [{$ref: '#/components/schemas/P'}], description: o1}}}",
+			"[title Ta, description o1] composed/M/allOf/1/properties/f model of (M/allOf/1/properties/f model [description o1]; A/properties/f model) | verbatim M/allOf/0/properties/f",
+			[]string{"M/allOf/0/properties/f, which is kept verbatim under Unmodeled", "A/properties/f, which stays declared on its model"}},
 		{"deprecated beside an untyped deprecated one", "{properties: {f: {deprecated: true}}}", p(", deprecated: true") + ", " + q(""),
 			"[deprecated] composed/M/allOf/1/properties/f model of (M/allOf/0/properties/f model [deprecated]; M/allOf/1/properties/f model)", nil},
 	} {

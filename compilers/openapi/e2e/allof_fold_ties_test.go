@@ -132,9 +132,9 @@ func TestAllOfFold_ANoteAMemberSettledKeepsItsHome(t *testing.T) {
 
 // TestAllOfFold_TwoSettledMembersOfOneNodeAreReadInOneWay pins two members two
 // composed models settled on one node of a third, each with a note of its own:
-// the node is read holding that of the one written first, so which of the
-// composing model's own declarations it drops, each with a note of its own,
-// does not follow the order of the entries.
+// the node is read holding that of the one written first, so the composing
+// model's own list of the same note is kept, and its other, of another, dropped,
+// in either order of the entries.
 func TestAllOfFold_TwoSettledMembersOfOneNodeAreReadInOneWay(t *testing.T) {
 	t.Parallel()
 	const list = "type: array, items: {type: string}, maxItems: 9"
@@ -144,8 +144,8 @@ func TestAllOfFold_TwoSettledMembersOfOneNodeAreReadInOneWay(t *testing.T) {
 	for _, entries := range []string{"{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/C'}", "{$ref: '#/components/schemas/C'}, {$ref: '#/components/schemas/B'}"} {
 		doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+list+"}}}\n    B: "+settled("b")+"\n    C: "+settled("c")+"\n"+
 			"    M: {allOf: ["+entries+", {properties: {f: {type: array, items: {}, externalDocs: {url: 'https://e.test/b'}}}}], properties: {f: {"+list+
-			", title: T, externalDocs: {url: 'https://e.test/3'}}}}\n"))
-		assert.Equal(t, "[title T, link https://e.test/3] A/properties/f list | verbatim M/properties/f", memberText(t, doc, componentID("M")), entries)
+			", title: T}}}\n"))
+		assert.Equal(t, "[title T, link https://e.test/b] A/properties/f list | verbatim M/properties/f", memberText(t, doc, componentID("M")), entries)
 	}
 }
 
