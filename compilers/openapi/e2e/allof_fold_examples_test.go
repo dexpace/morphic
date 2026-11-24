@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -299,4 +300,71 @@ func TestAllOfFold_AnExampleAFormatRefusesStaysRefused(t *testing.T) {
 		assert.Equal(t, 1, countCode(diags, diag.DegradedConstruct, tc.refused), "%s: and the fold reports it", name)
 		assert.Equal(t, map[string]int{diag.DegradedConstruct: 1}, codeCounts(diags), name)
 	}
+}
+
+// TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds pins that an
+// example of the model's own nothing judges against the field's type, which
+// does not admit it, stays off a field whose type, or a part of it, holds an
+// example of the model's own, and is kept verbatim, and one beside a type
+// holding another model's example is the field's.
+func TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds(t *testing.T) {
+	t.Parallel()
+	const union, object = "oneOf: [{type: string}, {type: integer}]", "type: object, properties: {p: {type: string}}"
+	const outside, a = "{properties: {f: {description: x, example: %s}}}", "{$ref: '#/components/schemas/A'}"
+	const part = `M/allOf/1/properties/f model [example {"kind":"object","object":[{"name":"p","value":{"kind":"string","string":"x"}}]}]`
+	for _, tc := range []struct{ name, brought, entries, want string }{
+		{"a union's", union, a + ", {properties: {f: {" + union + ", example: u}}}, " + fmt.Sprintf(outside, "[1]"),
+			`[description x] M/allOf/1/properties/f union [example {"kind":"string","string":"u"}] | verbatim M/allOf/2/properties/f`},
+		{"a model's", "type: object", fmt.Sprintf(outside, "5") + ", {properties: {f: {" + object + ", example: {p: x}}}}, " + a,
+			"[description x] " + part + " | verbatim M/allOf/0/properties/f"},
+		{"a part's", "$ref: '#/components/schemas/Object'", fmt.Sprintf(outside, "5") + ", {properties: {f: {" + object + ", example: {p: x}}}}, " + a,
+			"[description x] composed/M/allOf/1/properties/f model of (" + part + ") | verbatim M/allOf/0/properties/f"},
+		{"another model's", object + ", example: {p: x}}}}\n    U: {properties: {h: {$ref: '#/components/schemas/A/properties/f'", fmt.Sprintf(outside, "{q: y}") + ", " + a,
+			`[description x, example {"kind":"object","object":[{"name":"q","value":{"kind":"string","string":"y"}}]}] ` +
+				`A/properties/f model [example {"kind":"object","object":[{"name":"p","value":{"kind":"string","string":"x"}}]}]`},
+	} {
+		doc, diags := parseVerified(t, openapitest.ComponentSpec("    Object: {"+object+"}\n    A: {properties: {f: {"+tc.brought+"}}}\n    M: {allOf: ["+tc.entries+"]}\n"))
+		assert.Equal(t, tc.want, memberText(t, doc, componentID("M")), tc.name)
+		assert.Zero(t, codeCounts(diags)[exampleOutsideType], tc.name)
+	}
+}
+
+// TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped pins that an example of
+// the model's own both its declaration and the brought one admit is the field's,
+// in either order, though a pattern beside its type or within it, or a format
+// whose grammar the compiler does not hold, has no judge to show it, while one
+// a bound beside the pattern refuses is kept verbatim.
+func TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped(t *testing.T) {
+	t.Parallel()
+	items := func(schema string) string { return "type: array, items: {" + schema + "}" }
+	for _, tc := range []struct {
+		name, brought, own, example string
+		refused                     bool
+	}{
+		{"a pattern beside an enum", "type: string, pattern: b$", "type: string, enum: [ab, b, c]", "ab", false},
+		{"a pattern beside a string", "type: string, pattern: b$", "type: string", "ab", false},
+		{"a pattern and a bound", "type: string, pattern: b$, maxLength: 1", "type: string", "ab", true},
+		{"a pattern below", items("type: string, pattern: b$"), items("type: string"), "[ab]", false},
+		{"a bound beside a pattern below", items("type: string, pattern: b$, maxLength: 1"), items("type: string"), "[ab]", true},
+		{"a format not held", items("type: string, format: email"), items("type: string"), "[a@b.test]", false},
+		{"bytes", "type: string, format: byte", "type: string", "YWI=", false},
+		{"a format held", "type: string, format: uuid", "type: string", "ab", true},
+	} {
+		entries := []string{"{properties: {f: {" + tc.own + ", example: " + tc.example + "}}}", "{$ref: '#/components/schemas/A'}"}
+		for order, written := range []string{entries[0] + ", " + entries[1], entries[1] + ", " + entries[0]} {
+			doc, diags := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {"+tc.brought+"}}}\n    M: {allOf: ["+written+"]}\n"))
+			field := memberF(t, doc, componentID("M"))
+			assert.Equal(t, tc.refused, len(field.Examples) == 0, "%s, order %d", tc.name, order)
+			assert.Equal(t, tc.refused, field.Unmodeled != nil, "%s, order %d: kept verbatim", tc.name, order)
+			assert.Zero(t, codeCounts(diags)[exampleOutsideType], "%s, order %d", tc.name, order)
+		}
+	}
+
+	// A value the type admits is one a bound another declaration brings refuses.
+	doc, _ := parseVerified(t, openapitest.ComponentSpec("    A: {properties: {f: {type: string, enum: [abc, b]}}}\n    B: {properties: {f: {type: string, maxLength: 2}}}\n"+
+		"    M: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}, {properties: {f: {type: string, example: abc, default: abc}}}]}\n"))
+	field := memberF(t, doc, componentID("M"))
+	assert.Equal(t, ir.TypeID("type/anonymous/components/schemas/A/properties/f"), field.Type.Target)
+	assert.Empty(t, field.Examples, "an example a bound refuses")
+	assert.Nil(t, field.Default, "a default a bound refuses")
 }

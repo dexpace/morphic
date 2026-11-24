@@ -626,13 +626,13 @@ func (f *folding) refuse(i int, what []string) {
 }
 
 // examplesTaken reports, declaration by declaration, whether the field takes
-// the examples it gives: where takes admits each, and, at a field an entry
-// brings a declaration of, where takes admits those of none the model writes
-// itself, whatever one brought gives, for each of these takes refused no
-// example of that it judged. An example illustrates rather than constrains, so
-// one the merge has no judge for, against a model say, is typed on the field,
-// which pass/example-outside-type holds to its type. One the merge refuses, by
-// a bound, an enum or a format, stays refused.
+// the examples it gives: where takes takes each, and, at a field an entry
+// brings a declaration of, where it takes those of none the model writes and
+// no node its type holds keeps one of the model's own, each of the model's own
+// takes refuses no example of. An example illustrates rather than constrains,
+// so one the merge has no judge for, against a model say, is typed on the
+// field, which pass/example-outside-type holds to its type. One a bound, an
+// enum or a format refuses stays refused.
 func examplesTaken(f *folding, nullable bool) []bool {
 	taken := make([]bool, len(f.decls))
 	unjudged := make([]bool, len(f.decls))
@@ -647,11 +647,12 @@ func examplesTaken(f *folding, nullable bool) []bool {
 			if example.Value == nil {
 				continue
 			}
-			takes, judged := f.takes(i, *example.Value, nullable)
+			takes, refuses := f.takes(i, *example.Value, nullable)
 			taken[i] = taken[i] && takes
-			unjudged[i] = unjudged[i] && (takes || !judged)
+			unjudged[i] = unjudged[i] && !refuses
 		}
 		adopted = adopted || own && taken[i] && len(declaration.property.Examples) > 0
+		adopted = adopted || own && len(builtNodeNotes(f.g, declaration).Examples) > 0
 	}
 	if adopted {
 		return taken
@@ -681,23 +682,22 @@ func sameExamples(a, b []ir.Example) bool {
 // but for those bounds (ownType), or the field's type admits it. A value
 // written against a declaration's own type is that declaration's to answer for,
 // and a composed field has no such declaration. The field's type is read where
-// its nodes are written (typeAt). judged is false where the answer came from a
-// type admitsAt has no judge for (judgesAt), whose refusal says nothing.
-func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, judged bool) {
+// its nodes are written (typeAt). refuses is whether a judge refuses value, not
+// the want of one (refusesConstraints, refusesAt).
+func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bool) {
 	if value.Kind == ir.ValueNull {
-		return nullable, true
+		return nullable, !nullable
 	}
 	own := &f.decls[i].property
 	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
-	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), value, 0) {
-		return false, true
-	}
+	bounds := boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own))
+	taken, refuses = admitsConstraints(bounds, value, 0), refusesConstraints(bounds, value, 0)
 	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
-		return true, true
+		return taken, refuses
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
-	return judge.admits(ref, value), judge.judgesAt(ref, 0)
+	return taken && judge.admits(ref, value), refuses || judge.refusesAt(ref, value, 0)
 }
 
 // ownType reports whether decls[i]'s type is the field's but for bounds: the

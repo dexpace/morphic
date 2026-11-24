@@ -1264,28 +1264,54 @@ func (r registry) admitsAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	}
 }
 
-// judgesAt reports whether admitsAt judges the values of the type ref names, at
-// depth, rather than refusing them for want of a judge: a primitive, Any, an
-// Enum and a Literal, a Scalar by its base, a list by its element and a map by
-// its value. A model, a union or any other kind admitsAt refuses whole, as is a
-// type the registry does not hold and nesting past maxJudgeDepth.
-func (r registry) judgesAt(ref ir.TypeRef, depth int) bool {
+// refusesAt reports whether a judge refuses value as one of the type ref names,
+// at depth, where admitsAt may refuse it for want of one: a primitive refuses a
+// value of another kind, an Enum or a Literal one it does not hold, a Scalar,
+// list or map one a keyword (refusesConstraints), a held format or a type under
+// it refuses. Nothing judges the text of bytes or of a format not held, a
+// model, a union or any other kind, a type the registry does not hold, or
+// nesting past maxJudgeDepth.
+func (r registry) refusesAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	td, ok := r.resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {
 		return false
 	}
+	if value.Kind == ir.ValueNull {
+		return !ref.Nullable && !isTop(td)
+	}
 	switch t := td.(type) {
-	case *ir.Primitive, *ir.Any, *ir.Enum, *ir.Literal:
-		return true
+	case *ir.Primitive:
+		if t.PrimitiveKind == ir.PrimitiveBytes {
+			return value.Kind != ir.ValueString
+		}
+		return !Admits(t.PrimitiveKind, value)
+	case *ir.Enum, *ir.Literal:
+		return !r.admitsAt(ref, value, depth)
 	case *ir.Scalar:
-		return t.Base != nil && r.judgesAt(*t.Base, depth+1)
+		return t.Base != nil && (refusesConstraints(t.Constraints, value, depth) || r.refusesUnder(t, value, depth))
 	case *ir.List:
-		return r.judgesAt(t.ElementType, depth+1)
+		return value.Kind != ir.ValueList || refusesConstraints(t.Constraints, value, depth) ||
+			slices.ContainsFunc(value.List, func(item ir.Value) bool { return r.refusesAt(t.ElementType, item, depth+1) })
 	case *ir.MapT:
-		return r.judgesAt(t.Value, depth+1)
+		return value.Kind != ir.ValueObject || refusesConstraints(t.Constraints, value, depth) ||
+			slices.ContainsFunc(value.Object, func(field ir.Field) bool { return r.refusesAt(t.Value, field.Value, depth+1) })
 	default:
 		return false
 	}
+}
+
+// refusesUnder reports whether the base of scalar, at depth, refuses value
+// under scalar's Encoding: a format it holds judges the value too, and under
+// one it does not hold a string format's own grammar judges no text
+// (rewritesText).
+func (r registry) refusesUnder(scalar *ir.Scalar, value ir.Value, depth int) bool {
+	if _, held := heldFormat(scalar.Encoding); held && !encodingAdmits(scalar.Encoding, value) {
+		return true
+	}
+	if base, ok := r.kindOf(*scalar.Base); ok && rewritesText(scalar.Encoding, base.primitive) {
+		return value.Kind != ir.ValueString
+	}
+	return r.refusesAt(*scalar.Base, value, depth+1)
 }
 
 // encodingAdmits reports whether a Scalar with the Encoding enc lets value

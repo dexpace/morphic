@@ -3320,15 +3320,18 @@ judges a value against a model, and no declaration's type is a composed field's 
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Examples alone are taken
-again where the field takes none of any declaration the model writes itself that way, whatever it
-takes of one another model holds, where an entry brings one of its declarations, and where its type
-is one nothing here judges a value of: a model, a union, a tuple, an opaque `Scalar`, or a `Scalar`,
-list or map over one. There the examples each declaration the model writes itself gives are taken
-where only that type refused them, so an example of an inline schema beside a model, of its kind or another,
-lands typed on the field, and `pass/example-outside-type` holds it to the field's type as it holds
-any example ([values](../ir/values.md#values-held-to-their-type)). An example a judge refuses, a null, a bound,
-an enum's members, a literal, a kind or a format's grammar, stays refused and kept, wherever the
-field takes no other. Those a declaration another model holds gives stay declared there. An example
+again where an entry brings one of the field's declarations and the field takes none of any
+declaration the model writes itself that way, whatever it takes of one another model holds, and no
+node its type holds, the type's own or one it composes, keeps one of the model's own. There the
+examples each declaration the model writes itself gives are taken where no judge refused them, so an
+example of an inline schema beside a model, of its kind or another, or one a brought `pattern`
+applies to, lands typed on the field, and `pass/example-outside-type` holds it to the field's type
+as it holds any example ([values](../ir/values.md#values-held-to-their-type)). An example a judge
+refuses, a null, a bound, an enum's members, a literal, a kind or a format's grammar, the field's
+own or that of a list's element or a map's value, stays refused and kept, wherever the field takes
+no other. What has no judge refuses none: a model, a union, a tuple or an opaque `Scalar`, a
+`pattern`, a precision or a scale, and the text of `bytes` or of a format whose grammar the compiler
+does not hold. Those a declaration another model holds gives stay declared there. An example
 illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
 takes, the last written is kept, examples a declaration the model writes itself gives over those of
 one another model holds, and a declaration giving another is reported and kept. Two values are one
@@ -3395,7 +3398,7 @@ types only a note tells apart meet in the narrower one's own node. The field's t
 was only beside a brought member its own model settled, which is judged by the type it settled to,
 narrower where no note of its declarations held their types apart, so a declaration beside it can
 lose to it what it would not to those noted types. And an example of the model's own is judged by
-the type the field then has, so one outside a narrower type is refused and kept verbatim.
+the type the field then has, so one a judge refuses of a narrower type is refused and kept verbatim.
 
 Of two keeping one `Unmodeled` entry alike, the one written first is the field's, in the document
 listed first and then at the pointer sorting first, since two files each holding one schema write
@@ -3754,7 +3757,9 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
   `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
-  `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
+  `merge.TestRegistry_RefusesAtWhatAJudgeRefuses`,
+  `e2e.TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds`,
+  `e2e.TestAllOfFold_AnExampleRefusedForWantOfAJudgeIsTyped`,
   `e2e.TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped`,
   `e2e.TestAllOfFold_AnExampleAVariantsEnumRefusesStaysRefused`,
   `e2e.TestAllOfFold_AnExampleAFormatRefusesStaysRefused`,
