@@ -137,7 +137,7 @@ func unmodeledHolding(a, b ir.Unmodeled, walk FieldDeclarationContext) (holding,
 // base leaves empty, as a reference to each would read it: the first of others
 // to set it gives it, and differ hears of each later one setting it otherwise,
 // by its index and the name a document spells the field with. Base keeps its
-// site and its examples (builder.adoptInto).
+// site and its examples, which nothing adopts (detailOf).
 func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk FieldDeclarationContext,
 	differ func(k int, field string),
 ) ir.TypeCommon {
@@ -204,12 +204,12 @@ func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk FieldDeclarat
 	return out
 }
 
-// copyOf returns a pointer to a copy of what pointer points at, or nil where it
-// is nil. What a fold takes of a declaration's deprecation it copies, since a
-// later stage writes each holder's own (replacement.Resolve, replacement.Infer).
-func copyOf[T any](pointer *T) *T {
-	if pointer == nil {
+// copyOf returns a copy of deprecation, nil for nil: what a fold takes of one
+// declaration's it copies, since a later stage writes each holder's own
+// (replacement.Resolve, replacement.Infer).
+func copyOf(deprecation *ir.Deprecation) *ir.Deprecation {
+	if deprecation == nil {
 		return nil
 	}
-	return new(*pointer)
+	return new(*deprecation)
 }

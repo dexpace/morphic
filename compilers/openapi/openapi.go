@@ -268,9 +268,9 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	acc.AppendAll(pageDiags)
 	acc.AppendAll(stream.PromoteDetail(promoter, compiledDocumentView))
 	acc.AppendAll(paramchoice.PromoteChoices(promoter, compiledDocumentView))
-	declaredAgain := schema.MembersDeclaredAgain(serviceContext.Ctx)
-	acc.AppendAll(replacement.Resolve(promoter, compiledDocumentView, declaredAgain))
-	acc.AppendAll(replacement.Infer(infinity.replacement, promoter, compiledDocumentView, declaredAgain))
+	carrying := schema.CarryingMembers(serviceContext.Ctx)
+	acc.AppendAll(replacement.Resolve(promoter, compiledDocumentView, carrying))
+	acc.AppendAll(replacement.Infer(infinity.replacement, promoter, compiledDocumentView, carrying))
 	acc.AppendAll(convention.Apply(infinity.convention, promoter, compiledDocumentView))
 	acc.AppendAll(pagination.InferWalks(infinity.pagination, compiledDocumentView, stated))
 

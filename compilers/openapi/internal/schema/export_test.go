@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"iter"
 	"slices"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -195,12 +197,37 @@ func UnreadKeys(schema *statement.Schema, read []string) []string {
 // ReadDomain returns readDomain.
 func ReadDomain() []string { return slices.Clone(readDomain) }
 
-// MembersDeclaredAgainIn lowers src as LowerSpec does, and returns the members
-// its models declare more than once themselves (MembersDeclaredAgain).
-func MembersDeclaredAgainIn(t *testing.T, src string) map[ir.PropertyID]bool {
+// MaxConjunctReads is maxConjunctReads, for the external tests.
+const MaxConjunctReads = maxConjunctReads
+
+// MayFoldWithin reads src for the declarations a fold may meet within limit
+// (readFoldedDeclarations), and returns what that reading says of a pointer of
+// src.
+func MayFoldWithin(t *testing.T, src string, limit budget.Limit) func(pointer jsontext.Pointer) bool {
+	t.Helper()
+	lowerer, _ := LoweredFor(t, src)
+	folded := readFoldedDeclarations(lowerer.Ctx, limit)
+	return func(pointer jsontext.Pointer) bool { return folded.hold(lowerer.Ctx.Position(pointer)) }
+}
+
+// CarryingMembersIn lowers src as LowerSpec does, and returns the properties
+// that hold notes of their schemas off the nodes those built (CarryingMembers).
+func CarryingMembersIn(t *testing.T, src string) map[ir.PropertyID]bool {
 	t.Helper()
 	lowerer, _ := LoweredFor(t, src)
 	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
 	lowerer.Document(t)
-	return MembersDeclaredAgain(lowerer.Ctx)
+	return CarryingMembers(lowerer.Ctx)
+}
+
+// SettledHoldingNotes lowers src as LowerSpec does, records property as holding
+// notes off the node its schema built before the members settle, as no lowering
+// records one a fold reads, and returns what the run reports.
+func SettledHoldingNotes(t *testing.T, src string, property ir.PropertyID) []ir.Diagnostic {
+	t.Helper()
+	lowerer, diags := LoweredFor(t, src)
+	lowerer.Diags.AppendAll(LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+	membersOf(lowerer.Ctx).carried[property] = true
+	lowerer.Document(t)
+	return append(diags, lowerer.Diags.List()...)
 }

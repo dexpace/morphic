@@ -51,9 +51,6 @@ func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) posi
 		}
 	}
 	positionValue.winner = positionValue.widestCone()
-	if g.noted {
-		positionValue.winner = positionValue.standing(positionValue.winner)
-	}
 	positionValue.conjuncts = positionValue.composition(registry{g.resolve})
 	return positionValue
 }
@@ -96,18 +93,6 @@ func (p position) stands(i, j int) bool {
 		return a < b
 	}
 	return i > j
-}
-
-// standing returns the member standing for member i's type (stands). A tie of
-// different types leaves one by the order of those before it, and a type read
-// noted names its node where that says all the others add (sayingAll).
-func (p position) standing(i int) int {
-	for j := range p.members {
-		if p.rel[j][i] == relSame && p.stands(j, i) {
-			i = j
-		}
-	}
-	return i
 }
 
 // meeting returns the winner and each other member of the cone whose type

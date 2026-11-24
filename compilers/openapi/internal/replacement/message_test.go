@@ -327,21 +327,22 @@ func TestMessage_AKeyACarriersNodeKeepsIsNotReadOver(t *testing.T) {
 	}
 }
 
-// TestMessage_AMemberItsModelDeclaresAgainIsReadOverItsNodesKey pins the same
-// members for a message: the node's key is none of theirs, so their message
-// names the replacement, as where the node keeps no key.
-func TestMessage_AMemberItsModelDeclaresAgainIsReadOverItsNodesKey(t *testing.T) {
+// TestMessage_APropertyHoldingNoNotesIsReadOverItsNodesKey pins the same
+// properties for a message: the node's key is none of a property's that holds
+// no notes off it, so its message names the replacement, as where the node
+// keeps no key.
+func TestMessage_APropertyHoldingNoNotesIsReadOverItsNodesKey(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name  string
-		again map[ir.PropertyID]bool
-		want  []ir.EntityRef
+		name     string
+		carrying map[ir.PropertyID]bool
+		want     []ir.EntityRef
 	}{
-		{"declared once", nil, nil},
-		{"declared again", map[ir.PropertyID]bool{"property/old": true}, []ir.EntityRef{{Property: "property/v2"}}},
+		{"holding its notes", map[ir.PropertyID]bool{"property/old": true}, nil},
+		{"holding none", nil, []ir.EntityRef{{Property: "property/v2"}}},
 	} {
 		doc := memberDoc(says("Use `v2` instead."))
-		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc), tc.again), tc.name)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, mapped(), compileddoc.New(doc), tc.carrying), tc.name)
 		assert.Equal(t, tc.want, doc.Types["type/M"].(*ir.Model).Properties[0].Deprecation.ReplacedBy, tc.name)
 	}
 }

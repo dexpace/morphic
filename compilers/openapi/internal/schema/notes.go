@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
@@ -35,21 +34,20 @@ type carriedNotes struct {
 
 // notesOnCarrier returns which notes schema writes the carrier holding its
 // position, pointer, holds, though typeRef names the node that position builds.
-// It holds none unless it holds the position (carriedAt), no reference names
-// it (reftable.ReferenceTargetTable.Referenced), schema names no $ref among
-// its conjuncts (allOfRefEntries), and no model declares it again
-// (declaredAgain). Then it holds each note nothing at its position writes over
-// (writtenOver), deprecated where the schema is either way. Node and carrier
-// both ask it, so each note has one home
-// (docs/ir/annotations.md#one-structural-home-per-declaration). Elsewhere the
-// node keeps them, and a $ref is read off what the position writes alone
+// It holds none unless it holds the position (carriedAt), no reference names it
+// (reftable.ReferenceTargetTable.Referenced), schema names no $ref among its
+// conjuncts (allOfRefEntries), and no fold reads it (mayFold). Then it holds
+// each note nothing at its position writes over (writtenOver), deprecated where
+// the schema is either way. Node and carrier both ask it, so each note has one
+// home (docs/ir/annotations.md#one-structural-home-per-declaration). Elsewhere
+// the node keeps them, and a $ref is read off what the position writes alone
 // (docs/compilers/openapi.md#ref-use-site).
 func notesOnCarrier(loweringContext lowering.Ctx, schema *statement.Schema, pointer jsontext.Pointer, typeRef ir.TypeRef) carriedNotes {
 	if !stated(schema) || !LoweredToOwnNode(loweringContext, pointer, typeRef) || !carriedAt(loweringContext, schema) {
 		return carriedNotes{}
 	}
 	at, _ := siteOf(schema)
-	if loweringContext.Bindings().Table().Referenced(at) || declaredAgain(loweringContext, at) {
+	if loweringContext.Bindings().Table().Referenced(at) || mayFold(loweringContext, at) {
 		return carriedNotes{}
 	}
 	for range allOfRefEntries(loweringContext, schema) {
@@ -203,15 +201,16 @@ func carriedNoteKeys(loweringContext lowering.Ctx, schema *statement.Schema, typ
 	return lent
 }
 
-// noteCarried records the notes property, which schema declares at pointer and
-// which is lowered whole, carries off the node its schema built
-// (notesOnCarrier), for the folds that read them there (merge.Merger.Carried).
+// noteCarried records property, which schema declares at pointer and which is
+// lowered whole, as one holding notes of its schema off the node that schema
+// built (notesOnCarrier): no fold may read it (merge.Merger.Carried), and it
+// reads that node's replacement keys (replacement.Resolve).
 func noteCarried(loweringContext lowering.Ctx, schema *statement.Schema, property ir.Property, pointer jsontext.Pointer) {
-	notes := merge.CarriedNotes{Docs: property.Docs, Deprecation: property.Deprecation, Examples: property.Examples}
-	if reflect.ValueOf(notes).IsZero() || notesOnCarrier(loweringContext, schema, pointer, property.Type) == (carriedNotes{}) {
+	holdsNone := reflect.ValueOf(property.Docs).IsZero() && property.Deprecation == nil && len(property.Examples) == 0
+	if holdsNone || notesOnCarrier(loweringContext, schema, pointer, property.Type) == (carriedNotes{}) {
 		return
 	}
-	membersOf(loweringContext).carried[property.Type.Target] = notes
+	membersOf(loweringContext).carried[property.ID] = true
 }
 
 // placeNotes writes the notes a holds on common, the node schema, written at

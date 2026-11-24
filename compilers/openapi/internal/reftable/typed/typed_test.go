@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -194,6 +195,19 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	bd := typed.NewBuilder(nil)
 	bd.Schema(nil, reftable.DocumentPointer{})
 	assert.Nil(t, bd.Bindings().At(reftable.DocumentPointer{}), "recording no schema holds none")
+}
+
+// TestBindings_SchemasYieldsEachPositionHoldingOne pins what Schemas yields:
+// the position of each schema recorded, once, and none for nil bindings.
+func TestBindings_SchemasYieldsEachPositionHoldingOne(t *testing.T) {
+	t.Parallel()
+	bd := typed.NewBuilder(nil)
+	first, second := reftable.DocumentPointer{Pointer: "/a"}, reftable.DocumentPointer{Doc: 1, Pointer: "/a"}
+	for _, at := range []reftable.DocumentPointer{first, second, first} {
+		bd.Schema(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}), at)
+	}
+	assert.ElementsMatch(t, []reftable.DocumentPointer{first, second}, slices.Collect(bd.Bindings().Schemas()))
+	assert.Empty(t, slices.Collect((*typed.Bindings)(nil).Schemas()))
 }
 
 // TestBindings_HoldsTheFirstObjectRecordedAtAPosition pins the object index:

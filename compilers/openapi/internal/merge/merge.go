@@ -45,9 +45,6 @@ type ModelPropertyDeclarations struct {
 	// typeAt is where the nodes of the type of each member Settle folded may
 	// be written, by wire name (Merger.typeSites).
 	typeAt map[string][]ir.Provenance
-	// settled is what Settle says of the notes of each such member an entry
-	// brings a declaration of, by wire name.
-	settled map[string]*SettledNotes
 }
 
 // field is one wire name the model declares: where its property sits, and
@@ -69,7 +66,7 @@ type composedEntry struct {
 // NewModelPropertyDeclarations returns an empty index of model's properties;
 // model holds none yet, so every property reaches it through MergeProperty.
 func NewModelPropertyDeclarations(model *ir.Model) *ModelPropertyDeclarations {
-	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}, settled: map[string]*SettledNotes{}}
+	return &ModelPropertyDeclarations{m: model, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration
@@ -95,18 +92,6 @@ func (idx *ModelPropertyDeclarations) MergeProperty(property ir.Property, source
 	idx.redeclared = true
 	fieldValue.decls = append(fieldValue.decls, declarationValue)
 	return first
-}
-
-// DeclaredAgain returns the members the model declares more than once itself,
-// in no order, as they stand: settled once Settle has run.
-func (idx *ModelPropertyDeclarations) DeclaredAgain() []ir.PropertyID {
-	var out []ir.PropertyID
-	for _, fieldValue := range idx.byWire {
-		if len(fieldValue.decls) > 1 {
-			out = append(out, idx.m.Properties[fieldValue.pos].ID)
-		}
-	}
-	return out
 }
 
 // Compose records that the model composes target, written at at, after what

@@ -4,7 +4,6 @@
 package merge
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ import (
 // TestAdmitsConstraints_JudgesEachKeyword pins each constraint keyword at its
 // boundary, the last value in and the first out, a keyword that does not apply
 // to the value's kind, and the keywords with no judge, which refuse what they
-// apply to, though refusesConstraints says no judge does.
+// apply to.
 func TestAdmitsConstraints_JudgesEachKeyword(t *testing.T) {
 	t.Parallel()
 	n := func(i int64) *int64 { return &i }
@@ -78,8 +77,6 @@ func TestAdmitsConstraints_JudgesEachKeyword(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.want, admitsConstraints(tc.c, tc.v, 0))
-			unjudged := strings.HasSuffix(tc.name, "which has no judge")
-			assert.Equal(t, !tc.want && !unjudged, refusesConstraints(tc.c, tc.v, 0), "what a judge refuses")
 		})
 	}
 }

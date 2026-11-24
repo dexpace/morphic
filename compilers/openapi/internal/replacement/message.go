@@ -22,12 +22,12 @@ import (
 // that it cannot settle. It runs after Resolve, as an inference reads after
 // every promotion (docs/compilers/openapi.md#policies), and reads nothing while
 // policy is off. promoter is the run's promoter, compiledDocumentView the
-// document, which is whole, and declaredAgain what Resolve takes.
-func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, declaredAgain map[ir.PropertyID]bool) []ir.Diagnostic {
+// document, which is whole, and carrying what Resolve takes.
+func Infer(policy Inference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, carrying map[ir.PropertyID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
-	resolverValue := resolver{p: promoter, w: compiledDocumentView, declaredAgain: declaredAgain}
+	resolverValue := resolver{p: promoter, w: compiledDocumentView, carrying: carrying}
 	diags := resolverValue.inferService()
 	for _, id := range slices.Sorted(maps.Keys(compiledDocumentView.Types)) {
 		if model, ok := compiledDocumentView.Types[id].(*ir.Model); ok && model != nil {

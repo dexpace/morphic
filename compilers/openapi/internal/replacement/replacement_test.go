@@ -282,9 +282,9 @@ func carrierDoc(old ir.Parameter, node *ir.Scalar) *ir.Document {
 }
 
 // TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt pins where a
-// deprecated carrier whose own keys name no replacement reads them: off the
-// node its type names, as a schema's, where its declaration built that node,
-// at the carrier's pointer or its schema's, or, for a header, at any Header
+// deprecated parameter or header whose own keys name no replacement reads
+// them: off the node its type names, as a schema's, where its declaration
+// built that node, at its schema's pointer, or, for a header, at any Header
 // Object's schema in any document, and the node holds no deprecation
 // (docs/compilers/openapi.md#extension-promotion). A node anywhere else, or
 // deprecated itself, lends nothing, and a key the carrier keeps is its own.
@@ -304,14 +304,16 @@ func TestResolve_ACarrierReadsTheKeysOfTheNodeItsPositionBuilt(t *testing.T) {
 		own     ir.Unmodeled
 		want    []ir.EntityRef
 	}{
-		{"a node at the carrier's pointer", false, at(0, "/p"), at(0, "/p"), nil, nil, schema},
+		{"a node at the carrier's pointer", false, at(0, "/p"), at(0, "/p"), nil, nil, nil},
 		{"a node at its schema", false, at(0, "/p"), at(0, "/p/schema"), nil, nil, schema},
 		{"a node at its content's schema", false, at(0, "/p"), at(0, "/p/content/application~1json/schema"), nil, nil, schema},
+		{"a node at another keyword", false, at(0, "/p"), at(0, "/p/items"), nil, nil, nil},
 		{"a node beneath its schema", false, at(0, "/p"), at(0, "/p/oneOf/1"), nil, nil, nil},
+		{"a node at another parameter's content's schema", false, at(0, "/p"), at(0, "/q/content/application~1json/schema"), nil, nil, nil},
 		{"a node beneath its content", false, at(0, "/p"), at(0, "/p/content/a/b/schema"), nil, nil, nil},
 		{"a node beneath another keyword", false, at(0, "/p"), at(0, "/p/allOf/0/schema"), nil, nil, nil},
 		{"a node of another document", false, at(0, "/p"), at(1, "/p/schema"), nil, nil, nil},
-		{"a carrier of no document", false, at(ir.NoSource, ""), at(ir.NoSource, ""), nil, nil, nil},
+		{"a carrier of no document", false, at(ir.NoSource, "/p"), at(ir.NoSource, "/p/schema"), nil, nil, nil},
 		{"a node deprecated itself", false, at(0, "/p"), at(0, "/p/schema"), deprecated(), nil, nil},
 		{"a carrier keeping its own key", false, at(0, "/p"), at(0, "/p/schema"), nil, names(`"v2"`),
 			[]ir.EntityRef{{Param: "parameter/v2"}}},
@@ -359,21 +361,22 @@ func memberDoc(dep *ir.Deprecation) *ir.Document {
 	}}
 }
 
-// TestResolve_AMemberItsModelDeclaresAgainReadsNoNodesKeys pins the members a
-// model declares more than once itself: their deprecation is not their node's,
-// so none reads the key its node keeps, where any other member does.
-func TestResolve_AMemberItsModelDeclaresAgainReadsNoNodesKeys(t *testing.T) {
+// TestResolve_APropertyReadsItsNodesKeysWhereItHoldsItsNotes pins the
+// properties reading the keys of the node their schemas built: those holding
+// notes off it, as the lowering recorded them, and no other, one whose notes a
+// composition keeps on the node among them.
+func TestResolve_APropertyReadsItsNodesKeysWhereItHoldsItsNotes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name  string
-		again map[ir.PropertyID]bool
-		want  []ir.EntityRef
+		name     string
+		carrying map[ir.PropertyID]bool
+		want     []ir.EntityRef
 	}{
-		{"declared once", map[ir.PropertyID]bool{"property/v2": true}, []ir.EntityRef{{Type: ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")}}},
-		{"declared again", map[ir.PropertyID]bool{"property/old": true}, nil},
+		{"holding its notes", map[ir.PropertyID]bool{"property/old": true}, []ir.EntityRef{{Type: ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")}}},
+		{"holding none", map[ir.PropertyID]bool{"property/v2": true}, nil},
 	} {
 		doc := memberDoc(deprecated())
-		assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc), tc.again), tc.name)
+		assert.Empty(t, replacement.Resolve(mapped(), compileddoc.New(doc), tc.carrying), tc.name)
 		assert.Equal(t, tc.want, doc.Types["type/M"].(*ir.Model).Properties[0].Deprecation.ReplacedBy, tc.name)
 	}
 }

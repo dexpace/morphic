@@ -1275,22 +1275,18 @@ it sees. Changes made together in one bump are listed together under it.
   policy reads a deprecation or one of its members from, on it or the content entry it elects, and
   the node then keeps the schema's whole, its message and replacement with it, while the carrier
   holds its own members alone, deprecated wherever its schema is, except that at a position a
-  reference names one writing only a member holds no deprecation. They were the
-  node's, so the carrier was documented, deprecated and exemplified only where its schema hoisted
-  nothing. A deprecation the promotion policy reads from a key on that schema follows, with the
-  carrier marked `extension-promotion`, and so does a replacement such a key names; the node keeps
-  the key, its XML hints, its redaction, its bounds and what is kept verbatim. A schema naming a
-  `$ref`, beside its keywords or as a conjunct of its `allOf`, and a position a reference names, a
-  `$ref`, a discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as
-  before. A member a model declares more than once itself, in its own properties, an inline `allOf`
-  entry or one nested in another, keeps them on the node each declaration builds, as before. Where
-  an `allOf` entry brings a declaration another model holds, the title, description, external link or
-  deprecation its model's own declarations write is kept over that one's, which stays on that model:
-  the member holds it, unless the node its type names does, the last of several standing on other
-  nodes. Of several such declarations', none its model's own, it holds that of the one whose note a
-  reader found before, on the member and then on the node its type names, as that one's model reads
-  it, and none where one found none. It takes an example its own model's gives that no judge of the
-  fold refuses, where neither it nor its type holds another of them
-  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
-  pinned to 0.72.0 refuses the document; one reading an older document reads such a member's notes
-  off the node its type names, and finds none on the member.
+  reference names one writing only a member holds no deprecation. They were the node's, so the
+  carrier was documented, deprecated and exemplified only where its schema hoisted nothing. A
+  deprecation the promotion policy reads from a key on that schema follows, with the carrier marked
+  `extension-promotion`, and so does a replacement such a key names; the node keeps the key, its XML
+  hints, its redaction, its bounds and what is kept verbatim. A schema naming a `$ref`, beside its
+  keywords or as a conjunct of its `allOf`, and a position a reference names, a `$ref`, a
+  discriminator's mapping value or an expanding `$dynamicRef`, keep them on the node, as before. A
+  member a composition declares several times, the model's own declarations, its inline `allOf`
+  entries' and those of the schemas its references name, at any depth, keeps each declaration's on
+  the node its schema builds, as before, since the fold of the several judges them there
+  ([`docs-and-deprecation`](../compilers/openapi.md#docs-and-deprecation)); so does any other
+  declaration the reading of the documents takes in with them. A deprecation a fold takes is a copy,
+  so a replacement read into it is that member's alone, where it was every sharing declaration's. A
+  consumer pinned to 0.72.0 refuses the document; one reading an older document reads such a
+  member's notes off the node its type names, and finds none on the member.

@@ -177,22 +177,20 @@ shared primitive and the type graph stays free of an anonymous node per element 
 builds a node of its own — a `List`, a `MapT`, an `Enum`, a `Model`, a `Union`, a `Tuple`, a
 `Literal`, a `Scalar` — the carrier holds its documentation, deprecation and examples, the three it
 has fields for, and the node holds none of them, so a reader of a model's members meets them on the
-member whichever kind its schema is. That holds of each note nothing at the position writes over: where a
-parameter or a header writes its own documentation, deprecation or examples beside its schema's, or a
-Reference Object naming a component one writes documentation beside its `$ref`, the node keeps the
-schema's for every use of that position, and each carrier holds only its own. A member a model
-declares more than once itself, in its own properties, an inline `allOf` entry or one nested in
-another, has one slot for the notes of several declarations, so the node each declaration's schema
-builds keeps that declaration's, as before 0.73.0, and a title, description, link or deprecation
-another model's declaration brings stands on the member only where none of them writes that one
-([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). The node keeps
-what speaks of the values it admits: its XML hints, which `ir.Parameter`
-has no field for, a redaction, which lands on the type (#1220), the bounds below, and what is kept
-verbatim, which stays where the promotion reads a key. A schema at a carrier naming a `$ref`, beside
-its keywords or as a conjunct of its `allOf`, keeps them on the node it builds, a
-[decorator](#decorators) among them, which an emitter folds onto the carrier. A carried position
-that a reference names keeps them on its node too, its carrier holding none, so every reference to
-it reads them where it lands.
+member whichever kind its schema is. That holds of each note nothing at the position writes over:
+where a parameter or a header writes its own documentation, deprecation or examples beside its
+schema's, or a Reference Object naming a component one writes documentation beside its `$ref`, the
+node keeps the schema's for every use of that position, and each carrier holds only its own. A
+member a composition declares several times has one slot for the notes of several declarations, and
+its fold judges the node each declaration's schema builds by what that node says, so each node keeps
+its declaration's notes, as before 0.73.0, and the carrier holds none of them
+([`docs-and-deprecation`](../compilers/openapi.md#docs-and-deprecation)). The node keeps what speaks
+of the values it admits: its XML hints, which `ir.Parameter` has no field for, a redaction, which
+lands on the type (#1220), the bounds below, and what is kept verbatim, which stays where the
+promotion reads a key. A schema at a carrier naming a `$ref`, beside its keywords or as a conjunct
+of its `allOf`, keeps them on the node it builds, a [decorator](#decorators) among them, which an
+emitter folds onto the carrier. A carried position that a reference names keeps them on its node
+too, its carrier holding none, so every reference to it reads them where it lands.
 
 Where a carrier writes annotations of its own alongside a schema's — a header and a parameter both
 write a `description` beside their schema, an `example`, and a deprecation — the two stay apart: the

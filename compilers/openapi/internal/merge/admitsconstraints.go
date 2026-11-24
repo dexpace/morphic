@@ -39,17 +39,6 @@ func admitsConstraints(constraints *ir.Constraints, value ir.Value, depth int) b
 	}
 }
 
-// refusesConstraints reports whether a keyword of constraints with a judge
-// refuses value, which admitsConstraints may refuse for one that has none.
-func refusesConstraints(constraints *ir.Constraints, value ir.Value, depth int) bool {
-	if constraints == nil {
-		return false
-	}
-	judged := *constraints
-	judged.Pattern, judged.Precision, judged.Scale = "", nil, nil
-	return !admitsConstraints(&judged, value, depth)
-}
-
 // admitsNumber reports whether bigVal meets constraints's numeric keywords:
 // each bound, and multipleOf where isMultipleOf can say. A number or a bound
 // that reads as no number admits nothing. Precision and scale have no judge

@@ -8,6 +8,8 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -131,6 +133,16 @@ func (b *Bindings) At(documentPointer reftable.DocumentPointer) *schemaRef {
 		return nil
 	}
 	return b.held[documentPointer]
+}
+
+// Schemas yields the position of each schema b holds, in no order, and none for
+// a nil b.
+func (b *Bindings) Schemas() iter.Seq[reftable.DocumentPointer] {
+	var held map[reftable.DocumentPointer]*schemaRef
+	if b != nil {
+		held = b.held
+	}
+	return maps.Keys(held)
 }
 
 // Mapping returns where value, a mapping value of the discriminator read at

@@ -36,19 +36,17 @@ func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []json
 }
 
 // meetNode returns the node base and partners, members that meet it, stand on:
-// the one of them that says all they say together (sayingAll), and otherwise
-// one minted at pointer, built from the node each stands for (registry.view). A
-// literal among them is the node, since it is within each; a literal meets only
-// one node, so it is built beside one partner alone. Each is read as it stands,
-// so the node holds no note a property carries off one, whichever judgment
-// chose them.
+// base's own where no partner adds anything, and otherwise one minted at
+// pointer, built from the node each stands for (registry.view). A literal among
+// them is the node, since it is within each; a literal meets only one node, so
+// it is built beside one partner alone.
 func (b *builder) meetNode(base member, partners []member, pointer jsontext.Pointer, depth int) ir.TypeID {
 	if len(partners) == 0 {
 		return base.ref.Target
 	}
 	all := append([]member{base}, partners...)
 	nodes := make([]ir.TypeDef, len(all))
-	reg := asTheyStand(b.f.g)
+	reg := registry{b.f.g.resolve}
 	for k, member := range all {
 		td, ok := reg.resolve(member.ref.Target)
 		if !ok {
@@ -70,27 +68,10 @@ func (b *builder) meetNode(base member, partners []member, pointer jsontext.Poin
 		return base.ref.Target
 	}
 	built = b.adoptInto(built, all, nodes)
-	if target, said := sayingAll(built, all, nodes); said {
-		return target
+	if reflect.DeepEqual(built, nodes[0]) {
+		return all[0].ref.Target
 	}
 	return b.mint(pointer, built, nil)
-}
-
-// sayingAll returns the target of the member whose node says what built, the
-// node they all meet in, does, the one sorting first of several, and false
-// where none does. Two that only a note a property carries tells apart meet in
-// the narrower one's own node, whichever of them built was built from.
-func sayingAll(built ir.TypeDef, all []member, nodes []ir.TypeDef) (ir.TypeID, bool) {
-	var targets []ir.TypeID
-	for k, td := range nodes {
-		if sameButSite(built, td) {
-			targets = append(targets, all[k].ref.Target)
-		}
-	}
-	if len(targets) == 0 {
-		return "", false
-	}
-	return slices.Min(targets), true
 }
 
 // build returns nodes[0] holding what each of nodes[1:] adds: its members built
@@ -242,9 +223,7 @@ func (b *builder) settle(ms []member, pointer jsontext.Pointer, depth int) ir.Ty
 // adds: all a reference to each would read. A keyword or a field two give
 // differently is the first's, and the later one is reported where its
 // declaration is written and kept verbatim, as foldDocs keeps a property's. A
-// literal takes no bounds, since every node meeting it admits its value. Nodes
-// meet only giving the same examples (detailOf), so any that holds them as it
-// stands gives them.
+// literal takes no bounds, since every node meeting it admits its value.
 func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) ir.TypeDef {
 	sets := make([]*ir.Constraints, len(b.f.decls))
 	for k, td := range nodes {
@@ -262,9 +241,6 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 	typeCommon := built.Common()
 	*typeCommon = adopt(*typeCommon, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
 	typeCommon.Deprecation = copyOf(typeCommon.Deprecation)
-	if at := slices.IndexFunc(others, func(other ir.TypeCommon) bool { return len(other.Examples) > 0 }); at >= 0 {
-		typeCommon.Examples = others[at].Examples
-	}
 	if list, ok := built.(*ir.List); ok && list.Encoding == nil {
 		b.adoptEncoding(list, all, nodes)
 	}

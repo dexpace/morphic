@@ -231,11 +231,8 @@ lists that no member declares and the composition entries that name no model. It
   lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
   reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
   about their types, which the flattening does not ask. A compiler may ask it: the OpenAPI compiler
-  folds every declaration of a member a model's composition decides more than once, its own and its
-  entries' alike, a tie going to the later as here but for a note, which goes to the model's own
-  declaration over an entry's, and declares the result on the model, a note on the member unless the
-  node its type names holds it, as the node of a declaration of a member the model declares more than
-  once does
+  folds every declaration of a member a model's composition decides more than once, its own and
+  its entries' alike, a tie going to the later as here, and declares the result on the model
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)), so in a
   document it compiles the member is the model's own and this clause decides only what it reported.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model

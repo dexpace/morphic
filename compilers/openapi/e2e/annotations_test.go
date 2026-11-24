@@ -1291,8 +1291,8 @@ func underSchema(unmodeled ir.Unmodeled) ir.Unmodeled {
 }
 
 // TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles the document
-// GitHub #2150 reports, in both orders of its components, beside an allOf
-// redeclaring it and a holder whose position a response's $ref, a component's
+// GitHub #2150 reports, in both orders of its components, beside a model
+// composing the holder and one whose position a response's $ref, a component's
 // and a list's items name. A property, a parameter and a header hold the
 // documentation, deprecation and examples their own schema writes whatever
 // node it hoists, and the node holds none of them
@@ -1334,7 +1334,7 @@ func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
         map: {type: object, deprecated: true, description: map note, additionalProperties: {type: string}}
         enum: {type: string, deprecated: true, description: enum note, enum: [a, b]}
         model: {type: object, deprecated: true, description: model note, properties: {x: {type: string}}}`,
-		"Redeclared: {allOf: [{$ref: '#/components/schemas/Holder'}, {properties: {list: {type: array, items: {type: string}}}}]}",
+		"Composing: {allOf: [{$ref: '#/components/schemas/Holder'}, {properties: {own: {type: array, deprecated: true, description: own note, items: {type: string}}}}]}",
 		"Named: {type: object, properties: {list: {type: array, deprecated: true, description: named note, example: [a], items: {type: string}}}}",
 		"Out: {$ref: '#/components/schemas/Named/properties/list'}",
 		"Arr: {type: array, items: {$ref: '#/components/schemas/Named/properties/list'}}",
@@ -1354,7 +1354,7 @@ func TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists(t *testing.T) {
 				assert.Equal(t, carried.WireName+" note", carried.Docs.Description, carried.WireName)
 			}
 		}
-		for _, property := range []ir.Property{carriers[0], carriers[1], carriers[5]} {
+		for _, property := range []ir.Property{carriers[0], carriers[1]} {
 			require.Len(t, property.Examples, 1, "%s holds its example", property.WireName)
 			assert.NotNil(t, property.Examples[0].Value, property.WireName)
 		}
@@ -1432,18 +1432,18 @@ paths:
 
 // carriersOfNotes returns the carriers of the document
 // TestDocs_ACarrierHoldsItsNotesWhateverItsSchemaHoists compiles, each read as
-// a property: Holder's members, then Redeclared's, getA's parameters and its
-// response's headers.
+// a property: Holder's members, then the one Composing declares beside them,
+// getA's parameters and its response's headers.
 func carriersOfNotes(t *testing.T, doc *ir.Document) []ir.Property {
 	t.Helper()
 	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	redeclared, ok := doc.Types[componentID("Redeclared")].(*ir.Model)
+	composing, ok := doc.Types[componentID("Composing")].(*ir.Model)
 	require.True(t, ok)
 	operation, ok := operationByName(doc, "getA")
 	require.True(t, ok)
 	require.Len(t, operation.Responses, 1)
-	carriers := slices.Concat(holder.Properties, redeclared.Properties)
+	carriers := slices.Concat(holder.Properties, composing.Properties)
 	for _, param := range operation.Params {
 		carriers = append(carriers, ir.Property{WireName: param.Name.Source, Type: param.Type, Docs: param.Docs,
 			Deprecation: param.Deprecation, Examples: param.Examples})

@@ -5,6 +5,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -131,4 +132,69 @@ func TestFold_EveryDocsDisagreementIsReported(t *testing.T) {
 	}
 	require.Len(t, dst.Unmodeled, 1)
 	assert.Equal(t, ir.RawValue(firstSource), dst.Unmodeled[losingDeclarationKey+"/first"].Value)
+}
+
+// TestFold_ADeprecationTheFieldTakesIsACopy pins that the field holds the
+// deprecation the fold keeps apart from the declaration giving it, whose own a
+// later stage writes (copyOf), and none where no declaration gives one.
+func TestFold_ADeprecationTheFieldTakesIsACopy(t *testing.T) {
+	t.Parallel()
+	stubbed, _ := stubMerger(nil)
+	given := &ir.Deprecation{Message: "m", ReplacedBy: []ir.EntityRef{{Type: "type/r"}}}
+	field := foldTwo(stubbed, ir.Property{WireName: "p", Deprecation: given}, ir.Property{WireName: "p", Provenance: ptrAt("/other")}, unread(t))
+	assert.Equal(t, given, field.Deprecation)
+	assert.NotSame(t, given, field.Deprecation)
+	assert.Nil(t, foldTwo(stubbed, ir.Property{WireName: "p"}, ir.Property{WireName: "p", Provenance: ptrAt("/other")}, unread(t)).Deprecation)
+}
+
+// TestFold_ADeclarationHoldingNotesOffItsNodeIsReported pins the check on what
+// a fold reads: a declaration the walk gave its schema's notes off the node that
+// schema built, the model's own or one an entry brings, judged or past the
+// bound, is reported as a compiler bug where its declaration is, and the note
+// it holds is the field's all the same. One holding none draws nothing.
+func TestFold_ADeclarationHoldingNotesOffItsNodeIsReported(t *testing.T) {
+	t.Parallel()
+	const own, brought ir.PropertyID = "property/own", "property/brought"
+	decls := func() []declaration {
+		return []declaration{
+			{property: ir.Property{ID: own, WireName: "p", Type: primitiveRef(ir.PrimitiveString), Docs: ir.Docs{Description: "d"}, Provenance: ptrAt("/own")},
+				source: written(`{}`)},
+			{property: ir.Property{ID: brought, WireName: "p", Type: primitiveRef(ir.PrimitiveString), Provenance: ptrAt("/part/p")},
+				via: &composedEntry{target: "type/part", at: "/M/allOf/0"}, typeAt: sitesAt("/part/p")},
+		}
+	}
+	for _, tc := range []struct {
+		name    string
+		carried map[ir.PropertyID]bool
+		at      []jsontext.Pointer
+	}{
+		{"none", nil, []jsontext.Pointer{}},
+		{"another property", map[ir.PropertyID]bool{"property/other": true}, []jsontext.Pointer{}},
+		{"the model's own", map[ir.PropertyID]bool{own: true}, []jsontext.Pointer{"/own"}},
+		{"one an entry brings", map[ir.PropertyID]bool{brought: true}, []jsontext.Pointer{"/M/allOf/0"}},
+		{"both", map[ir.PropertyID]bool{own: true, brought: true}, []jsontext.Pointer{"/own", "/M/allOf/0"}},
+	} {
+		stubbed, recorded := stubMerger(narrowingRegistry())
+		stubbed.Carried = tc.carried
+		field := stubbed.fold(decls())
+		assert.Equal(t, "d", field.Docs.Description, tc.name)
+		at := make([]jsontext.Pointer, 0, len(*recorded))
+		for _, diagnostic := range *recorded {
+			assert.Equal(t, diag.InternalInvariant, diagnostic.Code, tc.name)
+			assert.Equal(t, ir.SeverityError, diagnostic.Severity, tc.name)
+			assert.Contains(t, diagnostic.Message, `a declaration of field "p" a composition folds holds notes off the node its schema built`, tc.name)
+			at = append(at, diagnostic.Provenance.Pointer)
+		}
+		assert.Equal(t, tc.at, at, tc.name)
+	}
+
+	stubbed, recorded := stubMerger(narrowingRegistry())
+	stubbed.Carried = map[ir.PropertyID]bool{"property/last": true}
+	many := make([]declaration, maxFoldDeclarations+1)
+	for i := range many {
+		many[i] = decls()[0]
+	}
+	many[maxFoldDeclarations].property.ID = "property/last"
+	stubbed.fold(many)
+	assert.True(t, slices.ContainsFunc(*recorded, func(diagnostic ir.Diagnostic) bool { return diagnostic.Code == diag.InternalInvariant }), "past the bound")
 }

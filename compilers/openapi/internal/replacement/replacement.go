@@ -22,10 +22,10 @@ import (
 // among the headers beside it, a property by name within its model, a schema by
 // its components name, and a security scheme by its key
 // (docs/compilers/openapi.md#extension-promotion), a carrier naming none
-// reading its node's (nodeKeys), but for a member of declaredAgain
-// (schema.MembersDeclaredAgain). compiledDocumentView is whole.
-func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, declaredAgain map[ir.PropertyID]bool) []ir.Diagnostic {
-	resolverValue := resolver{p: promoter, w: compiledDocumentView, declaredAgain: declaredAgain}
+// reading its node's (nodeKeys), a property only where it is of carrying
+// (schema.CarryingMembers). compiledDocumentView is whole.
+func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, carrying map[ir.PropertyID]bool) []ir.Diagnostic {
+	resolverValue := resolver{p: promoter, w: compiledDocumentView, carrying: carrying}
 	if !resolverValue.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
@@ -55,9 +55,9 @@ func Resolve(promoter promotion.Promoter, compiledDocumentView *compileddoc.Comp
 type resolver struct {
 	p promotion.Promoter
 	w *compileddoc.CompiledDocumentView
-	// declaredAgain is the members whose declarations' notes stay on the nodes
-	// their schemas build, so none reads a node's keys (nodeKeys).
-	declaredAgain map[ir.PropertyID]bool
+	// carrying is the properties holding notes of their schemas off the nodes
+	// those built, which alone read a node's keys (nodeKeys).
+	carrying map[ir.PropertyID]bool
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
@@ -120,14 +120,13 @@ func (r *resolver) fillCarrier(carrier deprecated, class string, find func(strin
 // nodeKeys returns the ID and the keys of the node carrier's type names where
 // carrier reads its replacements there: carrier is deprecated, its own keys
 // write none, and the node, which writes some, is the one its declaration
-// built (builtAt, or headerSchemaAt for a header) and holds no deprecation.
-// One a reference names, whose carrier deprecates itself, or of a member
-// declared again keeps its schema's (docs/compilers/openapi.md#docs-and-deprecation).
-// Replacement inference asks too, so no message is read over those keys. It
+// built (built) and holds no deprecation. Any other node keeps its schema's
+// (docs/compilers/openapi.md#docs-and-deprecation). Replacement inference asks
+// too, so no message is read over those keys. Of a parameter or a header, it
 // cannot tell a schema stating no deprecation from one the carrier took, so one
 // deprecating itself reads the first's (GitHub #2189).
 func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) {
-	if carrier.dep == nil || r.declaredAgain[carrier.self.Property] || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
+	if carrier.dep == nil || r.p.Writes(carrier.own, promotion.TargetDeprecationReplacedBy) {
 		return "", nil, false
 	}
 	td := r.w.Types[carrier.typeRef.Target]
@@ -135,33 +134,39 @@ func (r *resolver) nodeKeys(carrier deprecated) (ir.TypeID, ir.Unmodeled, bool) 
 		return "", nil, false
 	}
 	node := td.Common()
-	built := builtAt(*carrier.prov, node.Provenance) || carrier.header && headerSchemaAt(node.Provenance)
-	if node.Deprecation != nil || !built || !r.p.Writes(node.Unmodeled, promotion.TargetDeprecationReplacedBy) {
+	if node.Deprecation != nil || !r.built(carrier, node.Provenance) || !r.p.Writes(node.Unmodeled, promotion.TargetDeprecationReplacedBy) {
 		return "", nil, false
 	}
 	return carrier.typeRef.Target, node.Unmodeled, true
 }
 
-// builtAt reports whether node, a type node's provenance, is the position of
-// the carrier at carrier or of that carrier's schema: a property's node is
-// written where the property is, and an inline parameter's or header's, or a
-// parameter's a Reference Object reaches, beneath it, at `schema` or
-// `content/<media type>/schema`.
-func builtAt(carrier, node ir.Provenance) bool {
-	if carrier.Source == ir.NoSource || carrier.Source != node.Source {
-		return false
-	}
-	at := node.Pointer
+// built reports whether node, the provenance of the type node carrier names, is
+// the position of carrier's own schema: for a property, as the lowering recorded
+// it (carrying), and for a parameter or a header by where the two are written
+// (builtBeneath, headerSchemaAt).
+func (r *resolver) built(carrier deprecated, node ir.Provenance) bool {
 	switch {
-	case at == carrier.Pointer:
-		return true
-	case at.LastToken() != "schema":
-		return false
-	case at.Parent() == carrier.Pointer:
-		return true
+	case carrier.header:
+		return headerSchemaAt(node)
+	case carrier.self.Property != "":
+		return r.carrying[carrier.self.Property]
 	default:
-		return at.Parent().Parent().LastToken() == "content" && at.Parent().Parent().Parent() == carrier.Pointer
+		return builtBeneath(*carrier.prov, node)
 	}
+}
+
+// builtBeneath reports whether node, a type node's provenance, is the position
+// of the schema of the parameter at carrier, inline or one a Reference Object
+// reaches: beneath it, at `schema` or `content/<media type>/schema`.
+func builtBeneath(carrier, node ir.Provenance) bool {
+	if carrier.Source == ir.NoSource || carrier.Source != node.Source || node.Pointer.LastToken() != "schema" {
+		return false
+	}
+	holder := node.Pointer.Parent()
+	if holder == carrier.Pointer {
+		return true
+	}
+	return holder.Parent().LastToken() == "content" && holder.Parent().Parent() == carrier.Pointer
 }
 
 // headerSchemaAt reports whether node, a type node's provenance, is a Header
@@ -169,7 +174,7 @@ func builtAt(carrier, node ir.Provenance) bool {
 // `<header>/content/<media type>/schema` beneath a `headers` map, in any
 // document. A header a Reference Object reaches keeps the provenance of its
 // use, while its schema is built at its declaration, which may lie in another
-// document (operation.lowerHeaders), so builtAt's comparison refuses its node.
+// document (operation.lowerHeaders), so where it is used does not say.
 func headerSchemaAt(node ir.Provenance) bool {
 	at := node.Pointer
 	if node.Source == ir.NoSource || at.LastToken() != "schema" {
