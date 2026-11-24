@@ -7,7 +7,8 @@ package merge
 // property declaring it, beneath what the declaration writes itself
 // (docs/compilers/openapi.md#ref-use-site). A fold keeps a detail a
 // declaration writes over one another only borrowed, in either order, and
-// reports no conflict (lastWritten): it set aside nothing written.
+// reports no conflict (lastWritten): it set aside nothing written, while the
+// referent holds what it lent (setsAsideReferent).
 type Details uint8
 
 // The details a referent may lend. Examples and XML hints stay on the

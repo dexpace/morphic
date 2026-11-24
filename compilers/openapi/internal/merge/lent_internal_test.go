@@ -5,6 +5,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,6 +101,62 @@ func TestFold_AWrittenDetailIsKeptOverALentOne(t *testing.T) {
 			assert.Equal(t, tc.detail, written, "%s, %s first", tc.name, first)
 			assert.Empty(t, diags, "%s, %s first", tc.name, first)
 			assert.Empty(t, got.Unmodeled, "%s, %s first", tc.name, first)
+		}
+	}
+}
+
+// TestFold_ALentDetailOnANodeTheFieldLeavesOutIsKept pins that a lent detail
+// losing to a written one is reported, and its declaration kept, where the
+// referent lending it is an anonymous node the field's type leaves out, which
+// pruning may remove with the detail on it. Nothing is reported where the
+// referent is a declared type, where the field takes it, where the two details
+// are alike, or where an entry brings the declaration, whose model references it.
+func TestFold_ALentDetailOnANodeTheFieldLeavesOutIsKept(t *testing.T) {
+	t.Parallel()
+	const lender = "type/anonymous/lender"
+	for _, tc := range lendable {
+		for _, row := range []struct {
+			name      string
+			anonymous bool
+			brought   bool
+			value     string
+			written   ir.TypeRef
+			reported  bool
+		}{
+			{"left out", true, false, "lent", primitiveRef(ir.PrimitiveString), true},
+			{"declared", false, false, "lent", primitiveRef(ir.PrimitiveString), false},
+			{"taken", true, false, "lent", ir.TypeRef{Target: lender}, false},
+			{"alike", true, false, "written", primitiveRef(ir.PrimitiveString), false},
+			{"brought", true, true, "lent", primitiveRef(ir.PrimitiveString), false},
+		} {
+			lent, writing := givingAt("/lent", tc.give, row.value), givingAt("/written", tc.give, "written")
+			lent.property.Type, writing.property.Type = ir.TypeRef{Target: lender}, row.written
+			if row.brought {
+				lent.via = &composedEntry{target: "type/part", at: "/allOf/0"}
+			}
+			for _, order := range [][]declaration{{lent, writing}, {writing, lent}} {
+				reg := narrowingRegistry()
+				reg[lender] = &ir.Scalar{ID: lender, Anonymous: row.anonymous, Base: new(primitiveRef(ir.PrimitiveAny))}
+				stubbedValue, _ := stubMerger(reg)
+				stubbedValue.walk.borrowed = map[jsontext.Pointer]Details{"/lent": tc.detail}
+
+				got, _, diags := stubbedValue.foldAt(order, "/p", nil)
+
+				at := fmt.Sprintf("%s, %s, %s first", tc.name, row.name, order[0].property.Provenance.Pointer)
+				assert.Equal(t, writing.property.Docs, got.Docs, at)
+				assert.Equal(t, writing.property.Deprecation, got.Deprecation, at)
+				if !row.reported {
+					assert.Empty(t, diags, at)
+					assert.Empty(t, got.Unmodeled, at)
+					continue
+				}
+				require.Len(t, diags, 1, at)
+				assert.Equal(t, jsontext.Pointer("/lent"), diags[0].Provenance.Pointer, at)
+				assert.Contains(t, diags[0].Message, "give its "+tc.name+" differently; kept the one the declaration at /written "+
+					"gives over the one the declaration at /lent borrows from a schema the field does not take as its type; "+
+					"that declaration is kept verbatim under Unmodeled", at)
+				assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/lent", at)
+			}
 		}
 	}
 }

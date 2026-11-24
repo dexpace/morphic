@@ -741,46 +741,75 @@ func (f *folding) foldAnnotations() {
 // lastWritten returns the last value of detail a declaration gives (of), and
 // that declaration's index, or the zero value and -1: a later declaration is
 // where a spec writes the specialization. A value a $ref's referent lent, of
-// lendable (zero for none), loses in either order to one written, which sets
-// aside nothing written (docs/ir/annotations.md#what-a-reference-carries-down);
-// lent values tie only where none is written, and are reported as borrowed.
-// An earlier one of the kept side giving another value is reported and kept.
+// lendable (zero for none), loses in either order to one written
+// (docs/ir/annotations.md#what-a-reference-carries-down). Every other value the
+// kept one is not the same as is reported and its declaration kept, a lent one
+// beside a written one only where pruning may remove its referent (detailTie).
 // Each caller says what is the same; one code lowered every declaration, so
 // spellings alike land on one side.
 func lastWritten[T any](foldingValue *folding, detail string, lendable Details, of func(i int, property *ir.Property) (T, bool), same func(a, b T) bool) (T, int) {
-	keepWritten := false
-	for i := range foldingValue.decls {
-		if _, gives := of(i, &foldingValue.decls[i].property); gives && foldingValue.written.writes(i, lendable) {
-			keepWritten = true
-			break
-		}
-	}
-	tie := "declarations of field %q give its %s differently; kept the one the declaration at %s gives " +
-		"over the one at %s, which %s"
-	// Where keepWritten is false, every declaration giving the detail borrows
-	// it: one giving a detail no referent lends writes it (writes).
-	if !keepWritten {
-		tie = "declarations of field %q borrow its %s differently from the schemas their $refs name; " +
-			"kept the one the declaration at %s borrows over the one at %s, which %s"
-	}
 	var kept T
-	at := -1
-	for i := len(foldingValue.decls) - 1; i >= 0; i-- {
+	at, keepWritten := -1, false
+	for i := range foldingValue.decls {
 		v, gives := of(i, &foldingValue.decls[i].property)
-		switch {
-		case !gives || foldingValue.written.writes(i, lendable) != keepWritten:
-		case at < 0:
-			kept, at = v, i
-		case !same(kept, v):
-			foldingValue.lost[i] = true
-			foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct, tie,
-				foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), foldingValue.decls[i].keptAs())
+		if !gives {
+			continue
+		}
+		if writes := foldingValue.written.writes(i, lendable); writes || !keepWritten {
+			kept, at, keepWritten = v, i, writes
 		}
 	}
-	if at >= 0 && keepWritten {
+	if at < 0 {
+		return kept, at
+	}
+	if keepWritten {
 		foldingValue.keptWritten |= lendable
 	}
+
+	for i := range foldingValue.decls {
+		v, gives := of(i, &foldingValue.decls[i].property)
+		if !gives || same(kept, v) {
+			continue
+		}
+		tie, reported := detailTie(foldingValue, i, keepWritten, foldingValue.written.writes(i, lendable))
+		if !reported {
+			continue
+		}
+		foldingValue.lost[i] = true
+		foldingValue.note(i, ir.SeverityInfo, diag.DegradedConstruct, tie,
+			foldingValue.merged.WireName, detail, foldingValue.at(at), foldingValue.at(i), foldingValue.decls[i].keptAs())
+	}
 	return kept, at
+}
+
+// detailTie returns how a report says decls[i] gives a detail otherwise than
+// the field keeps it, given whether the kept value and decls[i]'s own are
+// written, and whether one is made: not for a value decls[i] borrows, beside a
+// written one, from a referent that still holds it. Where no value is written,
+// each is borrowed, as a detail no referent lends is always written (writes).
+func detailTie(foldingValue *folding, i int, keepWritten, writes bool) (string, bool) {
+	switch {
+	case !keepWritten:
+		return "declarations of field %q borrow its %s differently from the schemas their $refs name; " +
+			"kept the one the declaration at %s borrows over the one at %s, which %s", true
+	case writes:
+		return "declarations of field %q give its %s differently; kept the one the declaration at %s gives " +
+			"over the one at %s, which %s", true
+	default:
+		return "declarations of field %q give its %s differently; kept the one the declaration at %s gives " +
+			"over the one the declaration at %s borrows from a schema the field does not take as its type; " +
+			"that declaration %s", setsAsideReferent(foldingValue, i)
+	}
+}
+
+// setsAsideReferent reports whether pruning may remove the node lending decls[i]
+// its details (Merger.Discarded), leaving them nowhere: an anonymous one the
+// field does not take as its type, of a declaration the field's own model
+// writes. The model an entry brings one from still references it.
+func setsAsideReferent(foldingValue *folding, i int) bool {
+	declaration := foldingValue.decls[i]
+	target := declaration.property.Type.Target
+	return declaration.via == nil && target != foldingValue.merged.Type.Target && isAnonymousType(foldingValue, target)
 }
 
 // note records a diagnostic for decls[i], reported when the fold finishes.

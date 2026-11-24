@@ -5,6 +5,8 @@ package e2e_test
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -88,4 +90,62 @@ func TestCompile_AWrittenDescriptionIsKeptOverALentOne(t *testing.T) {
 		}
 		assert.Empty(t, cmp.Diff(want.Types, got.Types), "%s, Response first: %t", tc.entries, tc.responseFirst)
 	}
+}
+
+// TestCompile_ALentDetailSurvivesPruningItsReferent pins that a detail losing
+// to a written one is still in the IR where the $defs node lending it is one
+// the member's type leaves out: the declaration borrowing it is reported and
+// kept verbatim, so its reference holds the node past pruning, in either order
+// of the entries. A component the same declaration names is never pruned, so
+// nothing is reported or kept for it.
+func TestCompile_ALentDetailSurvivesPruningItsReferent(t *testing.T) {
+	t.Parallel()
+	const (
+		lenderID = "type/anonymous/components/schemas/Both/$defs/Lender"
+		written  = "{properties: {p: {$ref: '#/components/schemas/Narrow', description: Written.}}}"
+		spec     = `    Narrow: {type: string, enum: [a]}
+    Named: {type: [string, integer], description: Lent.}
+    Both: {$defs: {Lender: {%s, description: Lent.}}, allOf: [%s, %s]}
+`
+	)
+	for _, lender := range []string{"type: [string, integer]", "$ref: '#/components/schemas/Named'"} {
+		for _, use := range []string{"$ref: '#/components/schemas/Both/$defs/Lender'", "allOf: [{$ref: '#/components/schemas/Both/$defs/Lender'}]"} {
+			lent := "{properties: {p: {" + use + "}}}"
+			for lentAt, entries := range [][2]string{{lent, written}, {written, lent}} {
+				doc, diags := parseVerified(t, openapitest.ComponentSpec(fmt.Sprintf(spec, lender, entries[0], entries[1])))
+
+				at := fmt.Sprintf("%s by %s, entry %d", lender, use, lentAt)
+				field := lentField(t, doc)
+				assert.Equal(t, "Written.", field.Docs.Description, at)
+				require.Contains(t, doc.Types, ir.TypeID(lenderID), at)
+				assert.Equal(t, "Lent.", doc.Types[lenderID].Common().Docs.Description, at)
+				pointer := fmt.Sprintf("/components/schemas/Both/allOf/%d/properties/p", lentAt)
+				entry, kept := field.Unmodeled["openapi:conflicting-redeclaration"+pointer]
+				require.True(t, kept, at)
+				assert.Contains(t, slices.Collect(maps.Values(entry.Targets)), ir.TypeID(lenderID), at)
+				require.Len(t, diags, 1, at)
+				assert.Equal(t, pointer, string(diags[0].Provenance.Pointer), at)
+				assert.Contains(t, diags[0].Message, pointer+" borrows from a schema the field does not take as its type", at)
+			}
+		}
+	}
+
+	named := "{properties: {p: {$ref: '#/components/schemas/Named'}}}"
+	for _, entries := range [][2]string{{named, written}, {written, named}} {
+		doc, diags := parseVerified(t, openapitest.ComponentSpec(fmt.Sprintf(spec, "type: string", entries[0], entries[1])))
+		assert.Empty(t, diags)
+		field := lentField(t, doc)
+		assert.Equal(t, "Written.", field.Docs.Description)
+		assert.Empty(t, field.Unmodeled)
+		assert.Equal(t, "Lent.", doc.Types["type/openapi/components/schemas/Named"].Common().Docs.Description)
+	}
+}
+
+// lentField returns the one property of component Both.
+func lentField(t *testing.T, doc *ir.Document) ir.Property {
+	t.Helper()
+	both, ok := doc.Types["type/openapi/components/schemas/Both"].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, both.Properties, 1)
+	return both.Properties[0]
 }

@@ -3345,10 +3345,14 @@ by a key or in an `allOf` entry read as written there, loses in either order to 
 writes, as a referent's loses to its use site's
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)). The referent still holds it,
 so losing it sets aside nothing written, and that declaration is neither reported nor kept for it.
-Lent values tie only where no declaration writes the detail, the last keeping it, and an earlier one
-lending another is kept and reported as borrowing it, not giving it, from the schema its `$ref`
-names. A deprecation keeps its single side: the field is deprecated where any declaration states
-one, and only which one it carries is chosen so. A member a fold
+It is both where a declaration of the field's own model borrows the detail from an anonymous node
+the field does not take as its type: [pruning](#unreferenced-anonymous-types) may remove that node
+with the detail on it, and the reference the kept declaration holds is what keeps it. That covers
+such a node something else references too, as a fold settles before pruning reads what is
+reachable. Lent values tie only where no declaration writes the detail, the last keeping it, and an
+earlier one lending another is kept and reported as borrowing it, not giving it, from the schema its
+`$ref` names. A deprecation keeps its single side: the field is deprecated where any declaration
+states one, and only which one it carries is chosen so. A member a fold
 settled lends a later fold what it kept from a declaration writing none, and a declaration in
 another document than the model composing it is read as writing every one. Declaration order alone
 was weighed and declined: reversing two `allOf` entries, which conjoin alike, would change which
@@ -3505,6 +3509,7 @@ removed by post-settlement pruning ([`unreferenced-anonymous-types`](#unreferenc
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
   `merge.TestFold_ABorrowedDetailIsNoConflict`,
   `merge.TestFold_AWrittenDetailIsKeptOverALentOne`,
+  `merge.TestFold_ALentDetailOnANodeTheFieldLeavesOutIsKept`,
   `merge.TestFold_LentDetailsTieOnlyWhereNoDeclarationWritesOne`,
   `merge.TestFold_ThePromotionMarkerFollowsAWrittenDeprecationOverALentOne`,
   `merge.TestFold_ADetailNoReferentLendsIsAlwaysWritten`,
@@ -3514,6 +3519,7 @@ removed by post-settlement pruning ([`unreferenced-anonymous-types`](#unreferenc
   `schema.TestAllOf_ADetailWrittenBesideARefIsAPartyToAConflict`,
   `schema.TestAllOf_AMemberAFoldSettledLendsWhatItKept`,
   `e2e.TestCompile_AWrittenDescriptionIsKeptOverALentOne`, `e2e.TestGolden_AllOfLentDescription`,
+  `e2e.TestCompile_ALentDetailSurvivesPruningItsReferent`,
   `promotion.TestPromoter_WritesDeprecationKnowsEveryDeprecationTarget`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
