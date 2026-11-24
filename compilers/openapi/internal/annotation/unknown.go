@@ -87,11 +87,14 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 
 // UnknownKeywordsIn records on unmodeled the keywords schema writes that no
 // field of the JSON Schema model names, and announces each: legal JSON Schema
-// 2020-12 an implementation must ignore, so a decision rather than a fault. It
-// also returns the source provenances of any keywords that could not be
-// preserved as JSON. It runs after every other reader and keeps what none kept:
-// `$vocabulary` and `dependentRequired` have readers of their own, and decided
-// or caller-taken keywords are skipped.
+// 2020-12 an implementation must ignore, so a decision rather than a fault. The
+// model keeps only a keyword's name, so its value is read from the raw node
+// (docs/parser-library.md#unmodeled-keywords). It returns failed provenances.
+//
+// It runs after every other reader and keeps what none kept: `$vocabulary`
+// and `dependentRequired` have readers of their own. A keyword no reader
+// leaves a trace of is named in decidedKeywords, or in taken where only the
+// caller knows a reader took it.
 func UnknownKeywordsIn(unmodeled *ir.Unmodeled, schema *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) ([]ir.Provenance, []ir.Diagnostic) {
 	keys, root := unknownSchemaKeys(schema)
 	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })

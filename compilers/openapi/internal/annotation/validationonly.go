@@ -253,8 +253,9 @@ func validationOnlyAt(schema *statement.Schema, pointer jsontext.Pointer, doc pr
 	var diags []ir.Diagnostic
 
 	// A keyword kept at its own node goes through PreserveValidationOnlyKeyword.
-	// Combined entries (if/then/else, contains, unevaluated) go through
-	// keepCombinedValidationOnly.
+	// The entries combining several keywords into one object — if/then/else,
+	// contains, unevaluated — go through keepCombinedValidationOnly, because no
+	// single keyword names those.
 	keepKeyword := func(keyword string) {
 		kept, kwDiags := PreserveValidationOnlyKeyword(&unmodeled, schema, keyword, pointer, doc)
 		if !kept && len(kwDiags) > 0 {
@@ -270,13 +271,21 @@ func validationOnlyAt(schema *statement.Schema, pointer jsontext.Pointer, doc pr
 		diags = append(diags, keepCombinedValidationOnly(&unmodeled, &unpreserved, pointer, doc,
 			"openapi:if-then-else", ite, iteErr, validationOnlyMessage("if/then/else"), iteKeys...)...)
 	}
+	// An empty dependency map is the keyword left out, and keeps nothing
+	// (docs/compilers/openapi.md#validation-only).
 	if schema != nil && schema.Logic != nil && len(schema.Logic.DependentSchemas) > 0 {
 		keepKeyword("dependentSchemas")
 	}
+	// dependentRequired has no oas3.Schema field to gate on
+	// (docs/parser-library.md#unmodeled-keywords), which is why it was once
+	// silently dropped where its sibling dependentSchemas was kept. Its raw node
+	// is the only reading, and an absent one keeps nothing.
 	if !WritesEmptyDependencyMap(schema, "dependentRequired") {
 		keepKeyword("dependentRequired")
 	}
 	if dialect.Dependencies && !WritesEmptyDependencyMap(schema, "dependencies") {
+		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
+		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
 	}
 	if schema.ObjectKeywords().PropertyNames.SchemaValueForm() != statement.Unwritten {
@@ -297,10 +306,14 @@ func validationOnlyAt(schema *statement.Schema, pointer jsontext.Pointer, doc pr
 	return unmodeled, unpreserved, diags
 }
 
-// keepCombinedValidationOnly records a combined validation-only entry
-// (if/then/else, contains, or unevaluated) into unmodeled, or appends each
-// failed keyword's provenance to unpreserved and returns an unpreservable
-// diagnostic on conversion error (GitHub #144).
+// keepCombinedValidationOnly takes the conversion's error alongside its payload
+// so an entry that could not be converted is reported rather than passed on as
+// an absent one — the two were indistinguishable here before GitHub #144.
+//
+// The entry is located at pointer and attributed by combined, the keywords it
+// folds together, and so is the report that stands in for it when it cannot be
+// kept (with each failed keyword's provenance appended to unpreserved). note is
+// what the report of one kept says.
 func keepCombinedValidationOnly(unmodeled *ir.Unmodeled, unpreserved *[]ir.Provenance,
 	pointer jsontext.Pointer, doc provenance.Doc, key string, raw ir.RawValue, err error, note string, combined ...string,
 ) []ir.Diagnostic {

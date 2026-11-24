@@ -84,10 +84,11 @@ func PreserveSchemaKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, ke
 // PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a validation-only
 // keyword: it keeps the keyword under ReasonValidationOnly, at its own node,
 // which is what a validation emitter reports against, and announces it at
-// pointer, the schema that wrote it. It reports whether the entry was written,
-// matching PreserveSchemaKeyword's three outcomes. A validation-only entry
-// combining several keywords is kept by Read, which attributes it by the
-// keywords it holds (GitHub #534).
+// pointer, the schema that wrote it. What PreserveSchemaKeyword keeps nothing
+// of, it announces nothing of, reporting whether the entry was written. A
+// validation-only entry combining several keywords has no such node and is not
+// kept here but by Read, which attributes it by the keywords it holds
+// (GitHub #534).
 func PreserveValidationOnlyKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
 	pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {

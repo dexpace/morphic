@@ -17,11 +17,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// How a construct is kept verbatim is annotation's: keying, locating, raw
-// conversion, and unpreservable diagnostics. The helpers below wrap those
-// calls at schema positions solely to feed failed conversions into
-// RecordDiscardedSite so post-settlement pruning removes landings beneath an
-// unpreservable construct without inspecting diagnostics by code.
+// How a construct is kept verbatim is annotation's: the key its entry takes, the
+// position it is located at, the conversion of its value, and the report when
+// it cannot be kept. This package calls annotation for that directly, with
+// c.Place(). What it decides is what a position keeps and why: which
+// keywords, under which reason, announced how. PreserveUnknownKeywords is one
+// such decision, reading the dialect a schema is read in. A preservation
+// function that decides nothing and only keys, locates or converts belongs in
+// annotation, or the same call gains a second spelling.
+//
+// ReadAnnotations, preserveNode, preserveSchemaKeyword, and
+// preserveValidationOnlyKeyword are deliberate departures from calling
+// annotation directly: each feeds failed conversions into RecordDiscardedSite
+// on lowering.Ctx so post-settlement pruning removes landings beneath
+// unpreservable constructs without inspecting diagnostics by code or pulling
+// lowering.Ctx down into annotation.
 
 // ReadAnnotations reads site's annotations at pointer and records any
 // unpreservable construct provenances as discarded sites for pruning.
