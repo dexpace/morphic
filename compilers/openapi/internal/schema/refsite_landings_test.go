@@ -253,4 +253,5 @@ func TestReserveNodesAtReferenceTargets_SkipsUnreferencedDefs(t *testing.T) {
 	schema.RecordDiscardedSite(lowerer.Ctx, prov)
 	assert.True(t, schema.DiscardedTypes(lowerer.Ctx)["type/anonymous/dropped"])
 	assert.Equal(t, []ir.Provenance{prov}, schema.DiscardedSites(lowerer.Ctx))
+	assert.Empty(t, schema.PrunedDiagnostics(lowerer.Ctx))
 }

@@ -40,10 +40,10 @@ type Merger struct {
 	// declaration stands within another's composition spends (ownership); nil
 	// reads without bound.
 	Reads *budget.Budget
-	// Referenced, when non-nil, holds anonymous TypeIDs targeted by a $ref or
-	// discriminator mapping, so fold diagnostics keep their ID even when the
-	// losing declaration is inline.
-	Referenced map[ir.TypeID]bool
+	// PrunedDiagnostics, when non-nil, records alternate messages for drop
+	// diagnostics naming an anonymous losing TypeID so post-settlement pruning
+	// can substitute them if and only if that TypeID is actually removed.
+	PrunedDiagnostics *[]PrunedDiagnostic
 	// Discarded, when non-nil, records every TypeID carried by a declaration
 	// that a fold superseded or dropped so post-settlement pruning can remove
 	// it if nothing else reaches it.
@@ -347,6 +347,17 @@ func (f *folding) meetField() ir.TypeID {
 	return b.meetNode(base, partners, f.field, 0)
 }
 
+// PrunedDiagnostic pairs a drop diagnostic's full message (naming an anonymous
+// losing TypeID) with the replacement message to substitute after
+// post-settlement pruning if Loser is actually removed from Document.Types.
+type PrunedDiagnostic struct {
+	Code       string
+	Provenance ir.Provenance
+	Full       string
+	Pruned     string
+	Loser      ir.TypeID
+}
+
 // drop reports how decls[i]'s type, which the field does not hold, relates to
 // the winner's (typeJudge.relateFrom), even where nothing says how, since the type
 // the field keeps then follows declaration order; and it marks the declaration
@@ -358,50 +369,59 @@ func (f *folding) meetField() ir.TypeID {
 func (f *folding) drop(i int) {
 	f.lost[i] = true
 	kept, loser := f.merged.Type.Target, f.decls[i].property.Type.Target
-	pruned := loserMayBePruned(f, loser, i)
+	anonLoser := isAnonymousType(f, loser)
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
-		f.disagree(i, f.winner, incompatibleDetail(f, kept, loser, i, pruned))
+		fullDetail := fmt.Sprintf("incompatible types %s and %s", kept, loser)
+		f.disagree(i, f.winner, fullDetail)
+		if anonLoser {
+			prunedDetail := fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, f.at(i))
+			last := f.notes[i][len(f.notes[i])-1]
+			recordPrunedDiagnostic(f, last.code, last.at, last.message,
+				strings.Replace(last.message, fullDetail, prunedDetail, 1), loser)
+		}
 	case relOverlap, secondTypeIsNarrower, relMeet:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s",
-			degradedTypeMessage(f, kept, loser, i, pruned, "whose values overlap but that the merge does not narrow to one"))
+		dropDegraded(f, i, kept, loser, anonLoser, "whose values overlap but that the merge does not narrow to one")
 	default:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s",
-			degradedTypeMessage(f, kept, loser, i, pruned, "that the merge does not compare"))
+		dropDegraded(f, i, kept, loser, anonLoser, "that the merge does not compare")
 	}
 }
 
-// loserMayBePruned reports whether decls[i]'s losing type is an unreferenced
-// anonymous node hoisted at an inline declaration rather than held by a
-// composed model or targeted by a $ref, so post-settlement pruning may remove
-// it.
-func loserMayBePruned(fold *folding, loser ir.TypeID, i int) bool {
-	if fold.decls[i].via != nil || fold.g.Referenced[loser] {
-		return false
-	}
-	td, ok := fold.g.resolve(loser)
-	return ok && hoistedUnder(td.Common(), fold.decls[i].property.Provenance)
+// isAnonymousType reports whether id resolves in fold's registry to an
+// anonymous type.
+func isAnonymousType(fold *folding, id ir.TypeID) bool {
+	td, ok := fold.g.resolve(id)
+	return ok && td.Common().Anonymous
 }
 
-// incompatibleDetail formats a type-disjointness detail, omitting a losing
-// type ID that post-settlement pruning may remove.
-func incompatibleDetail(fold *folding, kept, loser ir.TypeID, i int, pruned bool) string {
-	if pruned {
-		return fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, fold.at(i))
-	}
-	return fmt.Sprintf("incompatible types %s and %s", kept, loser)
-}
-
-// degradedTypeMessage formats a drop diagnostic, keeping both type IDs unless
-// the losing type is an unreferenced inline anonymous node that
-// post-settlement pruning may remove.
-func degradedTypeMessage(fold *folding, kept, loser ir.TypeID, i int, pruned bool, relation string) string {
-	if pruned {
-		return fmt.Sprintf("declarations of field %q give types %s; kept %s (from %s) over the declaration at %s, which %s",
-			fold.merged.WireName, relation, kept, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
-	}
-	return fmt.Sprintf("declarations of field %q give types %s and %s %s; kept the type the declaration at %s gives over the one at %s, which %s",
+// dropDegraded records a degraded-construct drop diagnostic naming both kept
+// and loser, and registers the alternate location-based message to substitute
+// if post-settlement pruning removes an anonymous loser.
+func dropDegraded(fold *folding, i int, kept, loser ir.TypeID, anonLoser bool, relation string) {
+	full := fmt.Sprintf("declarations of field %q give types %s and %s %s; kept the type the declaration at %s gives over the one at %s, which %s",
 		fold.merged.WireName, kept, loser, relation, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
+	fold.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s", full)
+	if anonLoser {
+		last := fold.notes[i][len(fold.notes[i])-1]
+		pruned := fmt.Sprintf("declarations of field %q give types %s; kept %s (from %s) over the declaration at %s, which %s",
+			fold.merged.WireName, relation, kept, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
+		recordPrunedDiagnostic(fold, last.code, last.at, full, pruned, loser)
+	}
+}
+
+// recordPrunedDiagnostic appends an alternate post-pruning message to fold's
+// Merger.PrunedDiagnostics slice when the caller collects them.
+func recordPrunedDiagnostic(fold *folding, code string, at ir.Provenance, full, pruned string, loser ir.TypeID) {
+	if fold.g.PrunedDiagnostics == nil {
+		return
+	}
+	*fold.g.PrunedDiagnostics = append(*fold.g.PrunedDiagnostics, PrunedDiagnostic{
+		Code:       code,
+		Provenance: at,
+		Full:       full,
+		Pruned:     pruned,
+		Loser:      loser,
+	})
 }
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says

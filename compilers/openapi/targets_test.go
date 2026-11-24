@@ -173,20 +173,20 @@ func TestSeedDiscardedLandings_SeedsDroppedProvenances(t *testing.T) {
 
 	// Fast path: no unpreservable diagnostics and no dropped sites seeds nothing.
 	discarded := map[ir.TypeID]bool{}
-	openapi.SeedDiscardedLandings(discarded, landings, []ir.Diagnostic{{Code: diag.DegradedConstruct}}, nil)
+	openapi.SeedDiscardedLandings(discarded, landings, nil, []ir.Diagnostic{{Code: diag.DegradedConstruct}})
 	assert.Empty(t, discarded)
 
 	// Unpreservable diagnostic + dropped provenances seed exact and descendant sites only.
 	openapi.SeedDiscardedLandings(
 		discarded,
 		landings,
-		[]ir.Diagnostic{
-			{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/Live/not"}},
-			{Code: diag.UnpreservableConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/A/not"}},
-		},
 		[]ir.Provenance{
 			{Source: 0, Pointer: "/components/headers/H/schema"},
 			{Source: 2, Pointer: ""},
+		},
+		[]ir.Diagnostic{
+			{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/Live/not"}},
+			{Code: diag.UnpreservableConstruct, Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/A/not"}},
 		},
 	)
 	assert.Equal(t, map[ir.TypeID]bool{
@@ -194,4 +194,42 @@ func TestSeedDiscardedLandings_SeedsDroppedProvenances(t *testing.T) {
 		droppedChild: true,
 		droppedRoot:  true,
 	}, discarded)
+}
+
+// TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers pins that
+// rewritePrunedFoldDiagnostics substitutes the alternate message only when the
+// losing TypeID is absent from Document.Types and leaves surviving losers and
+// unrelated diagnostics untouched.
+func TestRewritePrunedFoldDiagnostics_RewritesOnlyActuallyPrunedLosers(t *testing.T) {
+	t.Parallel()
+	const (
+		liveLoser   ir.TypeID = "type/anonymous/live-loser"
+		prunedLoser ir.TypeID = "type/anonymous/pruned-loser"
+	)
+	types := ir.TypeRegistry{liveLoser: anonModel(liveLoser)}
+	provLive := ir.Provenance{Source: 0, Pointer: "/components/schemas/A/allOf/0/properties/p"}
+	provPruned := ir.Provenance{Source: 0, Pointer: "/components/schemas/B/allOf/0/properties/p"}
+
+	diags := []ir.Diagnostic{
+		{Code: diag.ConflictingRedecl, Provenance: provLive, Message: "full live"},
+		{Code: diag.ConflictingRedecl, Provenance: provPruned, Message: "full pruned"},
+		{Code: diag.DegradedConstruct, Provenance: provPruned, Message: "unrelated"},
+	}
+
+	// Empty candidates and surviving-only candidates leave all messages untouched.
+	openapi.RewritePrunedFoldDiagnostics(diags, types, nil)
+	openapi.RewritePrunedFoldDiagnostics(diags, types, []schema.PrunedDiagnostic{
+		{Code: diag.ConflictingRedecl, Provenance: provLive, Full: "full live", Pruned: "pruned live", Loser: liveLoser},
+	})
+	assert.Equal(t, "full live", diags[0].Message)
+	assert.Equal(t, "full pruned", diags[1].Message)
+
+	// An actually pruned loser rewrites only its matching diagnostic.
+	openapi.RewritePrunedFoldDiagnostics(diags, types, []schema.PrunedDiagnostic{
+		{Code: diag.ConflictingRedecl, Provenance: provLive, Full: "full live", Pruned: "pruned live", Loser: liveLoser},
+		{Code: diag.ConflictingRedecl, Provenance: provPruned, Full: "full pruned", Pruned: "pruned msg", Loser: prunedLoser},
+	})
+	assert.Equal(t, "full live", diags[0].Message)
+	assert.Equal(t, "pruned msg", diags[1].Message)
+	assert.Equal(t, "unrelated", diags[2].Message)
 }

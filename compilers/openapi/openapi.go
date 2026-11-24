@@ -237,8 +237,8 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// carries each entry the registry refused, a compiler bug that would
 	// otherwise leave every reference to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
-	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
+		acc.AppendAll(settled)
 		return nil, acc.List(), err
 	}
 	out.Types = reg
@@ -248,16 +248,20 @@ func run(ctx context.Context, serviceContext service.Ctx, infinity inferences, t
 	// anonymous types before compileddoc.New runs links, promotions and
 	// inferences.
 	landings := schema.ReferenceLandings(serviceContext.Ctx)
+	var pruneDiags []ir.Diagnostic
 	if attachUnmodeledTargets(ctx, out, landings) {
 		discarded := schema.DiscardedTypes(serviceContext.Ctx)
-		seedDiscardedLandings(discarded, landings, acc.List(), schema.DiscardedSites(serviceContext.Ctx))
-		var pruneDiags []ir.Diagnostic
+		seedDiscardedLandings(discarded, landings, schema.DiscardedSites(serviceContext.Ctx), acc.List(), settled)
 		out, pruneDiags = pruneUnreferencedTypes(ctx, out, discarded)
-		acc.AppendAll(pruneDiags)
 	}
 	if err := ctx.Err(); err != nil {
+		acc.AppendAll(settled)
+		acc.AppendAll(pruneDiags)
 		return nil, acc.List(), err
 	}
+	rewritePrunedFoldDiagnostics(settled, out.Types, schema.PrunedDiagnostics(serviceContext.Ctx))
+	acc.AppendAll(settled)
+	acc.AppendAll(pruneDiags)
 	// What is read once the document is whole is read here, in the one order
 	// docs/compilers/openapi.md#policies gives: links, then promotions, then
 	// inferences, an inference filling only what no keyword or promotion

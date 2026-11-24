@@ -436,55 +436,47 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	assert.True(t, folding.lost[1])
 }
 
-// TestFold_DropOmitsAnonymousLoserTypeID pins that (*folding).drop omits a
-// losing type ID only when it is an anonymous node hoisted at an inline
-// declaration (which post-settlement pruning may remove), while keeping both
-// type IDs for non-anonymous types, declarations brought from a composed model
-// (via != nil), and anonymous types referenced from elsewhere.
-func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
+// TestFold_DropRecordsAlternateMessageForAnonymousLoser pins that
+// (*folding).drop always emits the full message naming both type IDs and
+// records an alternate location-based message in Merger.PrunedDiagnostics if
+// and only if the losing type is anonymous (with a nil slice safely ignored).
+func TestFold_DropRecordsAlternateMessageForAnonymousLoser(t *testing.T) {
 	t.Parallel()
 	const (
 		inlineAnon ir.TypeID = "type/anonymous/allOf/1/properties/p"
-		otherAnon  ir.TypeID = "type/anonymous/components/schemas/Other/properties/p"
 		primLoser  ir.TypeID = "type/primitive/integer"
 	)
 	reg := narrowingRegistry()
 	reg[inlineAnon] = &ir.Model{ID: inlineAnon, Anonymous: true, Provenance: ptrAt("/allOf/1/properties/p")}
-	reg[otherAnon] = &ir.Model{ID: otherAnon, Anonymous: true, Provenance: ptrAt("/components/schemas/Other/properties/p")}
-	broughtEntry := &composedEntry{at: "/allOf/1"}
 
 	for _, tc := range []struct {
-		name       string
-		rel        relation
-		loser      ir.TypeID
-		via        *composedEntry
-		referenced bool
-		wantSub    string
-		wantGone   string
+		name           string
+		rel            relation
+		loser          ir.TypeID
+		collect        bool
+		wantFullSub    string
+		wantPrunedSub  string
+		wantPrunedGone string
 	}{
-		{"disjoint inline hoisted anonymous omits ID", relDisjoint, inlineAnon, nil, false, "/allOf/1/properties/p", string(inlineAnon)},
-		{"disjoint inline hoisted referenced keeps ID", relDisjoint, inlineAnon, nil, true, string(inlineAnon), ""},
-		{"disjoint primitive keeps ID", relDisjoint, primLoser, nil, false, string(primLoser), ""},
-		{"disjoint brought anonymous keeps ID", relDisjoint, inlineAnon, broughtEntry, false, string(inlineAnon), ""},
-		{"disjoint referenced anonymous keeps ID", relDisjoint, otherAnon, nil, false, string(otherAnon), ""},
-		{"overlap inline hoisted anonymous omits ID", relOverlap, inlineAnon, nil, false, "whose values overlap", string(inlineAnon)},
-		{"overlap inline hoisted referenced keeps ID", relOverlap, inlineAnon, nil, true, "give types type/primitive/string and " + string(inlineAnon), ""},
-		{"overlap primitive keeps ID", relOverlap, primLoser, nil, false, "give types type/primitive/string and " + string(primLoser), ""},
-		{"overlap brought anonymous keeps ID", relOverlap, inlineAnon, broughtEntry, false, "give types type/primitive/string and " + string(inlineAnon), ""},
-		{"uncompared inline hoisted anonymous omits ID", relUnrelated, inlineAnon, nil, false, "that the merge does not compare", string(inlineAnon)},
-		{"uncompared primitive keeps ID", relUnrelated, primLoser, nil, false, "give types type/primitive/string and " + string(primLoser), ""},
+		{"disjoint anonymous records alternate", relDisjoint, inlineAnon, true, string(inlineAnon), "/allOf/1/properties/p", string(inlineAnon)},
+		{"disjoint anonymous nil sink", relDisjoint, inlineAnon, false, string(inlineAnon), "", ""},
+		{"disjoint primitive records nothing", relDisjoint, primLoser, true, string(primLoser), "", ""},
+		{"overlap anonymous records alternate", relOverlap, inlineAnon, true, "give types type/primitive/string and " + string(inlineAnon), "whose values overlap", string(inlineAnon)},
+		{"overlap primitive records nothing", relOverlap, primLoser, true, "give types type/primitive/string and " + string(primLoser), "", ""},
+		{"uncompared anonymous records alternate", relUnrelated, inlineAnon, true, "give types type/primitive/string and " + string(inlineAnon), "that the merge does not compare", string(inlineAnon)},
+		{"uncompared primitive records nothing", relUnrelated, primLoser, true, "give types type/primitive/string and " + string(primLoser), "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			stubbed, _ := stubMerger(reg)
-			if tc.referenced {
-				stubbed.Referenced = map[ir.TypeID]bool{tc.loser: true}
+			var recorded []PrunedDiagnostic
+			if tc.collect {
+				stubbed.PrunedDiagnostics = &recorded
 			}
 			d0 := stringAt("/allOf/0/properties/p", `{}`)
 			d1 := declaration{
 				property: ir.Property{WireName: "p", Type: ir.TypeRef{Target: tc.loser}, Provenance: ptrAt("/allOf/1/properties/p")},
 				source:   written(`{}`),
-				via:      tc.via,
 			}
 			decls := []declaration{d0, d1}
 			_, field := fieldSpan(decls)
@@ -494,10 +486,16 @@ func TestFold_DropOmitsAnonymousLoserTypeID(t *testing.T) {
 			folding.drop(1)
 
 			require.Len(t, folding.notes[1], 1)
-			assert.Contains(t, folding.notes[1][0].message, tc.wantSub)
-			if tc.wantGone != "" {
-				assert.NotContains(t, folding.notes[1][0].message, tc.wantGone)
+			assert.Contains(t, folding.notes[1][0].message, tc.wantFullSub)
+			if tc.wantPrunedSub == "" {
+				assert.Empty(t, recorded)
+				return
 			}
+			require.Len(t, recorded, 1)
+			assert.Equal(t, tc.loser, recorded[0].Loser)
+			assert.Equal(t, folding.notes[1][0].message, recorded[0].Full)
+			assert.Contains(t, recorded[0].Pruned, tc.wantPrunedSub)
+			assert.NotContains(t, recorded[0].Pruned, tc.wantPrunedGone)
 		})
 	}
 }

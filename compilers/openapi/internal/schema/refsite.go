@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -142,17 +143,21 @@ func resolveAt(loweringContext lowering.Ctx, ts *compile.Types, at reftable.Docu
 	return resolvePointer(loweringContext, ts, at.Pointer, decl)
 }
 
+// PrunedDiagnostic is a fold drop diagnostic's alternate wording to apply if
+// post-settlement pruning actually removes its losing anonymous type.
+type PrunedDiagnostic = merge.PrunedDiagnostic
+
 // runTrackers holds run-scoped tracking state for post-lowering attachment and
 // seeded pruning: kept verbatim discriminator routes, explicitly reached schema
 // positions (hoisted targets and external schemas), the active reference
-// reserver, and TypeIDs or dropped provenances explicitly superseded during
-// lowering and settlement.
+// reserver, alternate fold diagnostics for anonymous losers, and TypeIDs or
+// dropped provenances explicitly superseded during lowering and settlement.
 type runTrackers struct {
 	keptDiscriminatorRoutes map[LandingSite][]Landing
 	reachedSchemas          map[reftable.DocumentPointer]bool
 	pendingReached          []reftable.DocumentPointer
 	reserver                *refReserver
-	referenced              map[ir.TypeID]bool
+	prunedDiagnostics       []merge.PrunedDiagnostic
 	discarded               map[ir.TypeID]bool
 	discardedSites          []ir.Provenance
 }
@@ -163,7 +168,6 @@ func runTrackersOf(loweringContext lowering.Ctx) *runTrackers {
 		return &runTrackers{
 			keptDiscriminatorRoutes: map[LandingSite][]Landing{},
 			reachedSchemas:          map[reftable.DocumentPointer]bool{},
-			referenced:              map[ir.TypeID]bool{},
 			discarded:               map[ir.TypeID]bool{},
 		}
 	})
@@ -218,6 +222,12 @@ func DiscardedTypes(loweringContext lowering.Ctx) map[ir.TypeID]bool {
 // lowering and settlement. Call after compile.Types.Finish.
 func DiscardedSites(loweringContext lowering.Ctx) []ir.Provenance {
 	return slices.Clone(runTrackersOf(loweringContext).discardedSites)
+}
+
+// PrunedDiagnostics returns the alternate fold-drop messages collected during
+// settlement for anonymous losing types. Call after compile.Types.Finish.
+func PrunedDiagnostics(loweringContext lowering.Ctx) []PrunedDiagnostic {
+	return slices.Clone(runTrackersOf(loweringContext).prunedDiagnostics)
 }
 
 // refReserver holds the linear reachability index built by
@@ -405,7 +415,6 @@ func ReferenceLandings(loweringContext lowering.Ctx) map[LandingSite][]Landing {
 func resolvePointer(loweringContext lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *statement.Statement) (ir.TypeID, bool) {
 	id, hoisted, ok := declaredIn(loweringContext, pointer, decl)
 	if hoisted {
-		runTrackersOf(loweringContext).referenced[id] = true
 		recordReachedSchema(loweringContext, loweringContext.Position(pointer))
 		ts.ReserveNodeAtCoordinate(loweringContext.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(loweringContext, ts, decl, pointer) })
 	}

@@ -34,3 +34,7 @@ var AttachUnmodeledTargetsWith = attachUnmodeledTargetsWith
 
 // SeedDiscardedLandings is seedDiscardedLandings, for the external tests.
 var SeedDiscardedLandings = seedDiscardedLandings
+
+// RewritePrunedFoldDiagnostics is rewritePrunedFoldDiagnostics, for the
+// external tests.
+var RewritePrunedFoldDiagnostics = rewritePrunedFoldDiagnostics

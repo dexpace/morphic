@@ -378,9 +378,10 @@ assertion shapes:
   member settled from one, each node a tied member's fold mints where it stands or at a position
   beneath it the fold builds a member at (`minted` in `canon.go`), each anonymous node present in
   only one order that is reachable through anonymous types from a tied member (`prunedByTie` in
-  `sequenceorder.go`), and all at or beneath a report the reversal moves that carries no pair. Of a tied member it compares what its fold settles from
-  every declaration alike: whether it is required or secret and where it is visible, and its
-  deprecation, docs, name and XML hints where a stated tie alone decided it (`statedAlone`). So a
+  `sequenceorder.go`), and all at or beneath a report the reversal moves that carries no pair. Of a
+  tied member it compares what its fold settles from every declaration alike: whether it is
+  required or secret and where it is visible, and its deprecation, docs, name and XML hints where
+  a stated tie alone decided it (`statedAlone`). So a
   dependence of a member settled from a tied one that the tie does not explain passes, #2099's
   among them where it lands on such a member, though #2099's own documents are found. Of a
   member no tie decided, a report's kept place is compared by the node its

@@ -188,14 +188,14 @@ func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.Sourc
 	modelFields := rec.byID[id]
 	trackers := runTrackersOf(modelFields.c)
 	merger := merge.Merger{
-		Reg:        reg,
-		IDs:        modelFields.c.IDs(),
-		Doc:        modelFields.c.Place(),
-		Sources:    sources,
-		Reads:      &rec.reads,
-		Referenced: trackers.referenced,
-		Discarded:  trackers.discarded,
-		Walk:       modelFields,
+		Reg:               reg,
+		IDs:               modelFields.c.IDs(),
+		Doc:               modelFields.c.Place(),
+		Sources:           sources,
+		Reads:             &rec.reads,
+		PrunedDiagnostics: &trackers.prunedDiagnostics,
+		Discarded:         trackers.discarded,
+		Walk:              modelFields,
 	}
 	diags, table := modelFields.idx.Settle(merger, rec.partTables(reg, modelFields.m), rec.shared)
 	rec.tables[id] = table

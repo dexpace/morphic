@@ -413,10 +413,12 @@ func pointerBeneath(ptr, base jsontext.Pointer) bool {
 // beneath a dropped provenance (an unpreservable construct diagnostic or a
 // discarded Unmodeled container). Landings still reached elsewhere remain live
 // during pruning.
-func seedDiscardedLandings(discarded map[ir.TypeID]bool, landings map[schema.LandingSite][]schema.Landing, diags []ir.Diagnostic, dropped []ir.Provenance) {
-	for _, diagnostic := range diags {
-		if diagnostic.Code == diag.UnpreservableConstruct {
-			dropped = append(dropped, diagnostic.Provenance)
+func seedDiscardedLandings(discarded map[ir.TypeID]bool, landings map[schema.LandingSite][]schema.Landing, dropped []ir.Provenance, diagLists ...[]ir.Diagnostic) {
+	for _, diags := range diagLists {
+		for _, diagnostic := range diags {
+			if diagnostic.Code == diag.UnpreservableConstruct {
+				dropped = append(dropped, diagnostic.Provenance)
+			}
 		}
 	}
 	if len(dropped) == 0 {
@@ -440,4 +442,33 @@ func siteDropped(site schema.LandingSite, dropped []ir.Provenance) bool {
 		}
 	}
 	return false
+}
+
+// rewritePrunedFoldDiagnostics substitutes the alternate location-based wording
+// on any fold drop diagnostic whose losing anonymous TypeID was actually
+// removed from types by post-settlement pruning, leaving every diagnostic whose
+// losing type survived untouched.
+func rewritePrunedFoldDiagnostics(diags []ir.Diagnostic, types ir.TypeRegistry, candidates []schema.PrunedDiagnostic) {
+	if len(candidates) == 0 {
+		return
+	}
+	type diagKey struct {
+		code       string
+		provenance ir.Provenance
+		message    string
+	}
+	rewrites := map[diagKey]string{}
+	for _, candidate := range candidates {
+		if _, live := types[candidate.Loser]; !live {
+			rewrites[diagKey{candidate.Code, candidate.Provenance, candidate.Full}] = candidate.Pruned
+		}
+	}
+	if len(rewrites) == 0 {
+		return
+	}
+	for i := range diags {
+		if replacement, ok := rewrites[diagKey{diags[i].Code, diags[i].Provenance, diags[i].Message}]; ok {
+			diags[i].Message = replacement
+		}
+	}
 }
