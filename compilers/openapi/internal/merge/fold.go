@@ -729,7 +729,7 @@ func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bo
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
-	return taken && judge.admits(ref, value), refuses || judge.judgesAt(ref, 0) && judge.refusesAt(ref, value, 0)
+	return taken && judge.admits(ref, value), refuses || judge.judgesAt(ref, 0) && refusesAt(judge.registry, ref, value, 0)
 }
 
 // ownType reports whether decls[i]'s type is the field's but for bounds: the

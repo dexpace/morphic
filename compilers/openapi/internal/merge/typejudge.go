@@ -1295,7 +1295,7 @@ func (r registry) judgesAt(ref ir.TypeRef, depth int) bool {
 // (refusesConstraints), a held format or a type under it refuses. Nothing
 // judges the text of bytes or of a format not held, a kind judgesAt does not, a
 // type the registry does not hold, or nesting past maxJudgeDepth.
-func (r registry) refusesAt(ref ir.TypeRef, value ir.Value, depth int) bool {
+func refusesAt(r registry, ref ir.TypeRef, value ir.Value, depth int) bool {
 	td, ok := r.resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {
 		return false
@@ -1312,13 +1312,13 @@ func (r registry) refusesAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	case *ir.Enum, *ir.Literal:
 		return !r.admitsAt(ref, value, depth)
 	case *ir.Scalar:
-		return t.Base != nil && (refusesConstraints(t.Constraints, value, depth) || r.refusesUnder(t, value, depth))
+		return t.Base != nil && (refusesConstraints(t.Constraints, value, depth) || refusesUnder(r, t, value, depth))
 	case *ir.List:
 		return value.Kind != ir.ValueList || refusesConstraints(t.Constraints, value, depth) ||
-			slices.ContainsFunc(value.List, func(item ir.Value) bool { return r.refusesAt(t.ElementType, item, depth+1) })
+			slices.ContainsFunc(value.List, func(item ir.Value) bool { return refusesAt(r, t.ElementType, item, depth+1) })
 	case *ir.MapT:
 		return value.Kind != ir.ValueObject || refusesConstraints(t.Constraints, value, depth) ||
-			slices.ContainsFunc(value.Object, func(field ir.Field) bool { return r.refusesAt(t.Value, field.Value, depth+1) })
+			slices.ContainsFunc(value.Object, func(field ir.Field) bool { return refusesAt(r, t.Value, field.Value, depth+1) })
 	default:
 		return false
 	}
@@ -1328,14 +1328,14 @@ func (r registry) refusesAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 // under scalar's Encoding: a format it holds judges the value too, and under
 // one it does not hold a string format's own grammar judges no text
 // (rewritesText).
-func (r registry) refusesUnder(scalar *ir.Scalar, value ir.Value, depth int) bool {
+func refusesUnder(r registry, scalar *ir.Scalar, value ir.Value, depth int) bool {
 	if _, held := heldFormat(scalar.Encoding); held && !encodingAdmits(scalar.Encoding, value) {
 		return true
 	}
 	if base, ok := r.kindOf(*scalar.Base); ok && rewritesText(scalar.Encoding, base.primitive) {
 		return value.Kind != ir.ValueString
 	}
-	return r.refusesAt(*scalar.Base, value, depth+1)
+	return refusesAt(r, *scalar.Base, value, depth+1)
 }
 
 // encodingAdmits reports whether a Scalar with the Encoding enc lets value

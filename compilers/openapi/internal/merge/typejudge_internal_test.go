@@ -856,11 +856,11 @@ func TestRegistry_RefusesAtWhatAJudgeRefuses(t *testing.T) {
 		{"type/cycle", nested(maxJudgeDepth), true},
 		{"type/cycle", nested(maxJudgeDepth + 1), false},
 	} {
-		assert.Equal(t, tc.refuses, registryValue.refusesAt(ref(tc.id), tc.value, 0), "%s of %s", tc.id, tc.value.Kind)
+		assert.Equal(t, tc.refuses, refusesAt(registryValue, ref(tc.id), tc.value, 0), "%s of %s", tc.id, tc.value.Kind)
 	}
 	nullable := ref("type/primitive/integer")
 	nullable.Nullable = true
-	assert.False(t, registryValue.refusesAt(nullable, null, 0))
+	assert.False(t, refusesAt(registryValue, nullable, null, 0))
 }
 
 func TestRelation_Flipped(t *testing.T) {
