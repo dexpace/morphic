@@ -715,7 +715,7 @@ func sameExamples(a, b []ir.Example) bool {
 // written against a declaration's own type is that declaration's to answer for,
 // and a composed field has no such declaration. The field's type is read where
 // its nodes are written (typeAt). refuses is whether a judge refuses value, not
-// the want of one (refusesConstraints, refusesAt).
+// the want of one (refusesConstraints, judgesAt, refusesAt).
 func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bool) {
 	if value.Kind == ir.ValueNull {
 		return nullable, !nullable
@@ -729,7 +729,7 @@ func (f *folding) takes(i int, value ir.Value, nullable bool) (taken, refuses bo
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
-	return taken && judge.admits(ref, value), refuses || judge.refusesAt(ref, value, 0)
+	return taken && judge.admits(ref, value), refuses || judge.judgesAt(ref, 0) && judge.refusesAt(ref, value, 0)
 }
 
 // ownType reports whether decls[i]'s type is the field's but for bounds: the

@@ -1264,13 +1264,37 @@ func (r registry) admitsAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	}
 }
 
+// judgesAt reports whether admitsAt judges the values of the type ref names, at
+// depth, rather than refusing them for want of a judge: a primitive, Any, an
+// Enum and a Literal, a Scalar by its base, a list by its element and a map by
+// its value. A model, a union or any other kind admitsAt refuses whole, as is a
+// type the registry does not hold and nesting past maxJudgeDepth.
+func (r registry) judgesAt(ref ir.TypeRef, depth int) bool {
+	td, ok := r.resolve(ref.Target)
+	if !ok || depth > maxJudgeDepth {
+		return false
+	}
+	switch t := td.(type) {
+	case *ir.Primitive, *ir.Any, *ir.Enum, *ir.Literal:
+		return true
+	case *ir.Scalar:
+		return t.Base != nil && r.judgesAt(*t.Base, depth+1)
+	case *ir.List:
+		return r.judgesAt(t.ElementType, depth+1)
+	case *ir.MapT:
+		return r.judgesAt(t.Value, depth+1)
+	default:
+		return false
+	}
+}
+
 // refusesAt reports whether a judge refuses value as one of the type ref names,
-// at depth, where admitsAt may refuse it for want of one: a primitive refuses a
-// value of another kind, an Enum or a Literal one it does not hold, a Scalar,
-// list or map one a keyword (refusesConstraints), a held format or a type under
-// it refuses. Nothing judges the text of bytes or of a format not held, a
-// model, a union or any other kind, a type the registry does not hold, or
-// nesting past maxJudgeDepth.
+// at depth, one judgesAt says is judged, where admitsAt may refuse it for want
+// of a judge: a primitive refuses a value of another kind, an Enum or a Literal
+// one it does not hold, a Scalar, list or map one a keyword
+// (refusesConstraints), a held format or a type under it refuses. Nothing
+// judges the text of bytes or of a format not held, a kind judgesAt does not, a
+// type the registry does not hold, or nesting past maxJudgeDepth.
 func (r registry) refusesAt(ref ir.TypeRef, value ir.Value, depth int) bool {
 	td, ok := r.resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {

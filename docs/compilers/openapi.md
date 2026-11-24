@@ -3329,9 +3329,9 @@ applies to, lands typed on the field, and `pass/example-outside-type` holds it t
 as it holds any example ([values](../ir/values.md#values-held-to-their-type)). An example a judge
 refuses, a null, a bound, an enum's members, a literal, a kind or a format's grammar, the field's
 own or that of a list's element or a map's value, stays refused and kept, wherever the field takes
-no other. What has no judge refuses none: a model, a union, a tuple or an opaque `Scalar`, a
-`pattern`, a precision or a scale, and the text of `bytes` or of a format whose grammar the compiler
-does not hold. Those a declaration another model holds gives stay declared there. An example
+no other. What has no judge refuses none: a model, a union, a tuple or an opaque `Scalar`, or a
+`Scalar`, list or map over one, whole; a `pattern`, a precision or a scale; and the text of `bytes`
+or of a format whose grammar the compiler does not hold. Those a declaration another model holds gives stay declared there. An example
 illustrates and a default sets what a client sends, so a default is judged alone. Of the values it
 takes, the last written is kept, examples a declaration the model writes itself gives over those of
 one another model holds, and a declaration giving another is reported and kept. Two values are one
@@ -3780,6 +3780,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
   `merge.TestFold_AnExampleTheFieldTakesNoOtherOfIsAdopted`,
+  `merge.TestRegistry_JudgesAtTheKindsAdmitsAtJudges`,
   `merge.TestRegistry_RefusesAtWhatAJudgeRefuses`,
   `merge.TestAdmitsConstraints_JudgesEachKeyword`,
   `e2e.TestAllOfFold_AnExampleNoJudgeReadsYieldsToOneTheTypeHolds`,

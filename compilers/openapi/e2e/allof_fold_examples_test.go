@@ -100,6 +100,8 @@ func TestAllOfFold_AnExampleOfTheFieldsOwnDeclarationIsTyped(t *testing.T) {
 			`[{"value":{"kind":"object","object":[{"name":"count","value":{"kind":"number","number":"1"}}]}}]`, 0},
 		{"an example of another kind", ref, "{type: object, example: abc}",
 			`[{"value":{"kind":"string","string":"abc"}}]`, 1},
+		{"a string beside a list of models", "{type: array, items: " + ref + "}", "{type: array, items: {}, example: abc}",
+			`[{"value":{"kind":"string","string":"abc"}}]`, 1},
 	} {
 		for _, layout := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 			field, diags, _ := collField(t, foldedExampleSpec(tc.base, tc.inline, layout[0], layout[1]))

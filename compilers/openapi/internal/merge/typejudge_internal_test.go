@@ -729,6 +729,31 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		"a list nested past the cap is refused")
 }
 
+// TestRegistry_JudgesAtTheKindsAdmitsAtJudges pins judgesAt to admitsAt's arms:
+// a primitive, Any, an enum and a literal are judged, a scalar by its base, a
+// list by its element and a map by its value, and a model, a union, a tuple, an
+// opaque scalar, a type the registry does not hold and a cycle past
+// maxJudgeDepth are not.
+func TestRegistry_JudgesAtTheKindsAdmitsAtJudges(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	reg["type/union"] = &ir.Union{ID: "type/union", Closed: true}
+	reg["type/tuple-int"] = &ir.Tuple{ID: "type/tuple-int", ElementTypes: []ir.TypeRef{primitiveRef(ir.PrimitiveInteger)}}
+	reg["type/map-int"] = &ir.MapT{ID: "type/map-int", Value: primitiveRef(ir.PrimitiveInteger)}
+	reg["type/map-model"] = &ir.MapT{ID: "type/map-model", Value: ref("type/model")}
+	reg["type/list-model"] = &ir.List{ID: "type/list-model", ElementType: ref("type/model")}
+	reg["type/scalar-model"] = &ir.Scalar{ID: "type/scalar-model", Base: &ir.TypeRef{Target: "type/model"}}
+	registryValue := registry{resolve: stubResolve(reg)}
+	for id, want := range map[ir.TypeID]bool{
+		"type/primitive/integer": true, "type/any": true, "type/enum-int": true, "type/lit-a": true,
+		"type/scalar-int": true, "type/scalar-time": true, "type/alias-time": true, "type/list-int": true, "type/map-int": true,
+		"type/model": false, "type/union": false, "type/tuple-int": false, "type/scalar-opaque": false, "type/scalar-model": false,
+		"type/list-model": false, "type/map-model": false, "type/absent": false, "type/cycle": false,
+	} {
+		assert.Equal(t, want, registryValue.judgesAt(ref(id), 0), "%s", id)
+	}
+}
+
 // TestRegistry_RefusesAtWhatAJudgeRefuses pins refusesAt to what admitsAt
 // refuses for a reason: a value of another kind, one outside an enum or a
 // literal, one a bound, a held format or a type below refuses, each of a list's
