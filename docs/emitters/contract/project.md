@@ -56,8 +56,8 @@ func Validate(project Project) error
   the plan's policy. They are findings of the run that generates from the project: its caller hands
   them to it, and the run reports and rates them with the rest, as it does the upgrade report a
   target's `Configure` returns, so a threshold and a triage rule read all three alike.
-- **A target is its output root and its options.** Both are required. `options` is the target's
-  configuration as the target's `Configure` reads it ([the
+- **A target is its output root and its options.** Both are required, and an empty `output` is
+  none. `options` is the target's configuration as the target's `Configure` reads it ([the
   contract](emitter.md#a-target-is-configured-once)), kept undecoded here, since only the target
   knows its shape: a run decodes the options of the targets it runs, and reports their faults.
 - **Each target has an output root of its own** ([write /
@@ -65,12 +65,13 @@ func Validate(project Project) error
   directory, or one inside the other, compared segment by segment under the path fold once each is
   cleaned, are refused: `out` twice, `Out` beside `out`, `out` beside `out/go`, `a/../out` beside
   `out`. An output written relative is read with `/` between its segments and cleaned, and each
-  segment it then names, a leading `..` aside, is one every file system writes ([emit
-  rules](../emit/rules.md)), so a project checked out on another system names the same roots:
-  `./sdk/go`, `sdk/go/` and `a/../out` are `sdk/go`, `sdk/go` and `out`, `../sdk/go` is a root
-  beside the file's directory, and `sdk/nul` and `C:\sdk\go` are refused. A `..` that leads is
-  path syntax and no name, and refusing it would send a project kept in a directory of its own to
-  an absolute output, which no second checkout shares.
+  segment it then names, a leading `..` and a `.` that is all of it aside, is one every file system
+  writes ([emit rules](../emit/rules.md)), so a project checked out on another system names the
+  same roots: `./sdk/go`, `sdk/go/` and `a/../out` are `sdk/go`, `sdk/go` and `out`; `.`, `./` and
+  `a/..` are the directory holding the file; `../sdk/go` is a root beside that directory; and
+  `sdk/nul` and `C:\sdk\go` are refused. A `..` that leads and a `.` that is the whole cleaned
+  output are path syntax and no name, and refusing either would send a project kept in a directory
+  of its own, or in the root it generates, to an absolute output, which no second checkout shares.
 - **One rule for a file and for Go.** A caller using the engine as a library builds the same
   `Project` value in Go. `Validate` is what a project must hold, and both `Decode` and the engine
   call it, so a project built in Go is refused where the same one decoded would be.
