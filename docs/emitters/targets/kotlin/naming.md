@@ -157,16 +157,16 @@ does Go's package, cut by bytes and not at a word.
 A unit's name is its package segment, its module's project and artifact and that module's directory
 alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)): its words
 joined with no separator, folded by the path fold, each character outside `a`–`z` and `0`–`9`
-written as `u` and its hex code point, so `useraccounts`, `strasse` for `Straße` and `u65e5u672c`
-for `日本`; a partition's is the name the options give it. A Maven artifact's name takes ASCII
-letters, digits and `_-.` alone: Gradle 9.8.2 built a module `straße` and refused to publish it
-(`artifactId (straße) is not a valid Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once
-its artifact was `strasse`. Escaping only the artifact, which published too, was not taken, as it
-gives a unit two names, the package a caller imports and the artifact its build depends on. So two
-groups whose words break differently render alike and collide ([output
-units](../../refine/output-units.md)), as two that fold alike do; a name the options give a unit
-that this rendering would change, two partitions' names that fold alike among them, is an options
-error, and a group whose name folds as a partition's yields to it.
+written as `u` and its hex code point, and a name that would begin with a digit or a mark led by
+`pkg`, so `useraccounts`, `strasse` for `Straße` and `u65e5u672c` for `日本`; a partition's is the
+name the options give it. A Maven artifact's name takes ASCII letters, digits and `_-.` alone:
+Gradle 9.8.2 built a module `straße` and refused to publish it (`artifactId (straße) is not a valid
+Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once its artifact was `strasse`. Escaping
+only the artifact, which published too, was not taken, as it gives a unit two names, the package a
+caller imports and the artifact its build depends on. So two groups whose words break differently
+render alike and collide ([output units](../../refine/output-units.md)), as two that fold alike do;
+a name the options give a unit that this rendering would change, two partitions' names that fold
+alike among them, is an options error, and a group whose name folds as a partition's yields to it.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
 takes the escape below, which kotlinc accepts in a `package` and an `import` alike: every hard
