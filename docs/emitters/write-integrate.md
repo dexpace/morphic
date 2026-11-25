@@ -260,12 +260,15 @@ generation judges it the same way.
   beside an edited old one a second name no other volume can hold. Otherwise, where an old
   spelling holds a file, it is pruned and the new one written, whatever the new spelling answers,
   since the old file may be what answers; where none does, the new spelling is judged by the
-  table. Where the generation holds none of them, each is judged by the table.
+  table. Where the generation holds none of them, each is judged by the table, so a file that is
+  kept is kept under each spelling it answers: on a volume that ignores case a saved file two
+  listed spellings name is reported `engine/file-edited` at each and keeps both entries, where a
+  volume that tells case apart keeps one entry and drops the other.
 - **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
   edited one, under a directory a write needs as a file, or where a write needs a directory, is
   `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
-- **A directory keeps the spelling the generation gives it.** A directory standing under another
-  spelling of a segment a write passes through, `Models` for `models`, is
+- **A directory a write passes through keeps the spelling the generation gives it.** A directory
+  standing under another spelling of a segment a write passes through, `Models` for `models`, is
   `engine/artifact-would-overwrite` unless the run removes it before the write, as it does one
   the prunes empty and one standing empty above a listed path the generation drops. Under one left
   standing, a write on a volume that ignores case would land under the old spelling, and the
@@ -285,7 +288,12 @@ generation judges it the same way.
   held path is judged alone, and once it is written the tree holds two names no volume that
   ignores case can. So the verdict and the tree differ by volume there, and a root the first
   kind left listing a spelling its disk lacks gains, on the second, a file under that spelling
-  beside the old one.
+  beside the old one. On the second a later generation holding the old spelling again is
+  `engine/artifact-would-overwrite` over the file left under it, marked or not, where its digest
+  is neither fresh nor known, the two spellings being judged together. And on either kind a run
+  cut short over such a root can end in another tree than an uninterrupted one's, or refused
+  where that one is not: no modelled sequence starts from such a root
+  ([below](#every-write-is-planned-before-the-verdict)).
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
   file that it leaves empty, and a listed path the generation drops and the disk no longer holds
   has its empty directories removed too. Either removal goes up from the path, passes over a
@@ -351,7 +359,14 @@ Applying a plan, in order:
   target's plan was carried out; the root it stops in heals on the next run that writes, as any
   interrupted one does. Nor is the verdict the last thing that can fail a run that asks for the
   build check, which runs on the tree as written: a check that fails the run leaves the files in
-  place ([verification](verification.md#the-output-builds)).
+  place ([verification](verification.md#the-output-builds)). And a rename in letter case cut
+  short does not heal over its owner's save. While two spellings of a path are listed, as the
+  pending manifest of such a run lists them, a file saved under either is
+  `engine/artifact-would-overwrite` to a generation holding either
+  ([above](#a-file-is-judged-by-its-digest)). That holds for the generation whose spelling the
+  file stands under too, where an uninterrupted run keeps the file and reports
+  `engine/file-edited`. The refused plan holds nothing, so what the cut run left, its pending
+  manifest and its half-written tree, stays until the save is undone or the file moved away.
 - **What a killed write leaves.** A temporary file, named for its destination with a dot before
   and digits after, may be left beside it. No later run reads or removes it, and a file's name is
   held short enough that it fits ([emit rules](emit/rules.md)). It is an unlisted file like any
