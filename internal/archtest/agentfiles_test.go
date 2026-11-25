@@ -81,8 +81,9 @@ func TestSkills_ManifestLoadsEachOne(t *testing.T) {
 // TestSkills_NoneSitsBesideTheManifest fails on a skill under the manifest's
 // directory. Antigravity loads one from there whatever the manifest names, as
 // its command line showed at 1.5.17, while skills_lint and an agent reading
-// skillsTree alone never meet it. A directory of that name below the root,
-// which Antigravity reads when started inside it, is not looked for.
+// skillsTree alone never meet it. Not looked for: a directory of that name
+// below the root, which Antigravity reads when started inside it, and the
+// names .agent, _agents and _agent, which it reads as it does .agents.
 func TestSkills_NoneSitsBesideTheManifest(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
