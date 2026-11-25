@@ -1,10 +1,10 @@
 # The emitter contract
 
 Package `emitters` is the Layer-2 contract, as package `compilers` is the compilers'. It imports
-`ir`, `ir/irfacts`, `barrier`, `pathfold` and the shared packages whose types its own declarations
-name (`plan`, `policy`, `hints`, `symbol`, `manifest`, `verify`), never a compiler, never `engine`,
-never a target package, and no shared package imports it (INV1; architecture.md §3). Enforced by
-the import-graph test ([package layout](../packages.md)).
+`ir`, `ir/irfacts`, `barrier`, `pathfold`, the shared packages whose types its own declarations
+name (`plan`, `policy`, `hints`, `manifest`, `verify`) and `symbol`, which reads the key a span
+holds, never a compiler, never `engine`, never a target package, and no shared package imports it
+(INV1; architecture.md §3). Enforced by the import-graph test ([package layout](../packages.md)).
 
 A target is two values. The `Emitter` is constant: what the registry lists and the engine looks up.
 The `Generator` is that target bound to the options one configuration gave it

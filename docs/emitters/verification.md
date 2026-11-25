@@ -77,9 +77,9 @@ generation used, so that release notes could name the steps that moved, was weig
   which is why the plan carries a digest and no revision ([the plan's
   version](plan/overview.md#the-plans-version)). T-10's trace lists step names, so a step whose
   output changes at an unmoved version fails no test that names the version.
-- **It would not narrow.** `Run` runs every step of a target's list on every document ([the
-  refiner contract](refine/pipeline.md)), and templates render into every SDK, so the steps an SDK
-  used are its target's whole list. The file digests already narrow a change to the SDKs it
+- **It would not narrow.** `refine.RunSteps` runs every step of a target's list on every document
+  ([the refiner contract](refine/pipeline.md)), and templates render into every SDK, so the steps
+  an SDK used are its target's whole list. The file digests already narrow a change to the SDKs it
   reaches.
 - **Steps are not all that shapes a file.** The plan, the derived facts, the printer and the
   formatter each change bytes and are no step's, so the steps that moved would not account for what
