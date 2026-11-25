@@ -59,7 +59,7 @@ func TestSkills_ManifestLoadsEachOne(t *testing.T) {
 	require.NoError(t, err)
 	var manifest skillsManifest
 	require.NoError(t, json.Unmarshal(data, &manifest, json.RejectUnknownMembers(true)),
-		"%s holds a member other than an entry's path", skillsManifestPath)
+		"%s must decode as entries holding a path and nothing else", skillsManifestPath)
 	directories := make([]string, 0, len(manifest.Entries))
 	for _, entry := range manifest.Entries {
 		directories = append(directories, entry.Path)
