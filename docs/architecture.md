@@ -669,9 +669,10 @@ Dependency rules, enforced by an architecture test as in oagen:
   `barrier`, and no lowering package may reach the compiler that calls it.
 - The OpenAPI compiler's own packages also sit in five layers, described below.
 - Each package under `emitters/` imports what [package layout](./emitters/packages.md) tables for
-  it — never a compiler, the engine or another target, and no shared package imports the contract
-  package `emitters`. The rule is in place before the first emitter package: `emitters` is ruled
-  now, and each package beneath it carries an entry of its own, as a compiler's packages do.
+  it — never a compiler, the engine or another target, and no package of that layout's kernel
+  imports the contract package `emitters`. The rule is in place before the first emitter package:
+  `emitters` is ruled now, and each package beneath it carries an entry of its own, as a compiler's
+  packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The import rules bound what a package names, not where control goes: a package can still call into
