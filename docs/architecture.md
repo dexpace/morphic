@@ -802,11 +802,11 @@ before anything is written, so a run it fails writes nothing ([write /
 integrate](./emitters/write-integrate.md#every-write-is-planned-before-the-verdict)). A build check
 the run asks for comes after it, on the written tree: what it reports is rated as any finding is,
 and a run it fails keeps the files as written
-([verification](./emitters/verification.md#the-output-builds)). The passes are not gated, since they
-run on every compiled document, errors reported or not (§2.2), and the verdict reads their findings
-too. Error is the default threshold because an error means the document may say
-something the spec does not: an SDK built on it is something a caller asks for with `none`, never a
-default.
+([verification](./emitters/verification.md#the-output-builds)); where a driver reads that failure is
+the check's to state when it is built (#2260). The passes are not gated, since they run on every
+compiled document, errors reported or not (§2.2), and the verdict reads their findings too. Error is
+the default threshold because an error means the document may say something the spec does not: an
+SDK built on it is something a caller asks for with `none`, never a default.
 
 ## 5. Testing strategy
 

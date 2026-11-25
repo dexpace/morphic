@@ -1535,8 +1535,9 @@ throughout these documents.
     minimum or newer than its maximum, and a `Setup` check that fails, each skip the checks
     depending on it under `check-skipped`, never reading as a pass; a check running past its
     `Timeout` is ended with the processes it started and has failed; a failing check leaves the
-    written files in place and fails the run at the default threshold; and a run that does not ask
-    for the check starts no process ([verification](../verification.md#the-output-builds)).
+    written files in place, and one reported under `check-failed` fails the run at the default
+    threshold; and a run that does not ask for the check starts no process
+    ([verification](../verification.md#the-output-builds)).
 74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
     naming no entity of the document, a declaration written under an `Origin` with no entry, a
     shape's declaration among them, an entry naming no declaration, and two entries of one scope
