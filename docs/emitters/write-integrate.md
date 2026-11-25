@@ -293,9 +293,10 @@ Applying a plan, in order:
    ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed.
 5. **The manifest is written last**, and then the pending manifest is removed.
 
-- **An interrupted write heals.** A run killed at any point leaves the pending manifest, which
-  lists every digest the generation may have written, and planning reads it as it reads the
-  manifest. So the next run recognizes a half-written tree as the generation's own, finishes it,
+- **An interrupted write heals.** A run killed once it has begun to write leaves the pending
+  manifest, which lists every digest the generation may have written, and planning reads it as it
+  reads the manifest. So the next run recognizes a half-written tree as the generation's own,
+  finishes it,
   and reports no file as its owner's edit, however many runs were cut short: a pending manifest
   only grows until a manifest lands.
 - **The gaps that stay.** Reading the root again narrows the time between a plan and its writes

@@ -112,9 +112,9 @@ func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[stri
 - **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
   of one Unicode version, read from data in the package and never from the `unicode` package of
   the Go release that builds Morphic
-  ([below](#a-character-a-target-cannot-write-is-written-by-its-name)),
-  and a `RuneSet` is categories and ranges. A `Cap` is built from a byte count of 16 or more, the
-  room one character and a hash take.
+  ([below](#a-character-a-target-cannot-write-is-written-by-its-name)), and a `RuneSet` is
+  categories and ranges. A `Cap` is built from a byte count of 16 or more, the room one character
+  and a hash take.
 - **A target calls `Resolve` once per scope**, in its own order, which is how Go settles the names
   its files give their imports between two passes ([the refine layer](pipeline.md)) and how
   Multiplatform resolves the Objective-C namespace as a second scope.
@@ -129,11 +129,10 @@ there is no lossy runtime re-splitting of a cased string (oagen's `splitWords` c
 built from the wire channel, so wire correctness never depends on the rendered identifier
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically by
 `naming.Resolve`, which keys each member by its IR ID, and against the names the prior generation
-shipped, so adding one endpoint
-never renames an existing method (the oagen collision-cascade counterexample; INV3;
-[collisions](#collisions-and-the-names-a-generation-shipped)). Those a target may meet, neutral
-names one scope shares and, in a scope a first target joins or folds, names whose words differ only
-where they break, the `names` pass reports to the document's author
+shipped, so adding one endpoint never renames an existing method (the oagen collision-cascade
+counterexample; INV3; [collisions](#collisions-and-the-names-a-generation-shipped)). Those a target
+may meet, neutral names one scope shares and, in a scope a first target joins or folds, names whose
+words differ only where they break, the `names` pass reports to the document's author
 ([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
 hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames
 (`Service.Renames`) change how a shape is presented in a service without changing its `TypeID` or
