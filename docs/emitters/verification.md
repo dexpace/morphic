@@ -209,8 +209,9 @@ diagnostic:
   that never reached the manifest, a kept region shadowing a generated symbol. Three things are
   not checked here. A symbol the surface leaves out, one generated code alone calls, is held by
   the build. A record declared in a file the writer left as its owner edited it is passed over,
-  the edit being reported already. And a target with no extractor (`Capabilities.SurfaceVerify`
-  unset), or one whose extractor reads what its build writes, as Kotlin's reads the ABI dumps, in a
-  run that did not ask for the build check, has the check skipped and said to be.
+  the edit being reported already. And a target with no extractor
+  ([capabilities](contract/registry.md#a-capability-an-interface-shows)), or one whose extractor
+  reads what its build writes, as Kotlin's reads the ABI dumps, in a run that did not ask for the
+  build check, has the check skipped and said to be.
 
 Both land with the manifest (M4), and T-74 holds them.

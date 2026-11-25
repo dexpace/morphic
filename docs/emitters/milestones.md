@@ -1,6 +1,7 @@
 # Per-target milestone plan
 
-Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
+Extends architecture.md §6 milestone 3 (the first emitters) and beyond. The code every target
+stands on comes ahead of the first of them ([the foundation](#the-foundation)).
 
 1. **M3a — plan layer + the three first targets' skeletons.** `emitters/plan` with its
    language-independent golden corpus; `emitters/golang` and both Kotlin targets (`emitters/kotlin`)
@@ -18,8 +19,10 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    wire-conformance harness; the behavior server, its workflows and its coverage gate (T-14).
 4. **M3d — docs + mock emitters.** Prove reuse of `Doc + Plan` over a second and third target AST,
    and that docs/mock agree with the SDK by construction.
-5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
-   additive merge (`dst` for Go), regions that follow their entity, README blocks, staleness;
+5. **M4 — write/integrate + surface verification.** The manifest's entities and the names a
+   generation shipped, ignore regions, additive merge (`dst` for Go), regions that follow their
+   entity, README blocks, staleness; the file-level manifest and pruning by digest are the
+   foundation's, since the first write needs them;
    neutral surface diff with injectable per-language severity; the [manifest's
    checks](verification.md#the-manifest-says-what-the-output-holds). It needs the [correlation
    key](../ir/derived-facts.md#correlation-keys), which shipped names, regions, files written once
@@ -65,3 +68,43 @@ symbol values; every protocol but HTTP, and the auth schemes only those use; pag
 long-running, one-way and overloaded operations, idempotency, resources and stream details;
 versioning, from `Availability` to `Document.versions`; and facts no OpenAPI construct sets, such
 as `Model.abstract`, `Property.presence`, `Enum.flags` and the `host` parameter location.
+
+## The foundation
+
+The foundation is the code every target shares, and it ends where a target can be registered,
+configured, run, checked and written, with one home for every rule two targets must agree on. It
+emits nothing itself: the first target's first slice is its acceptance. It comes ahead of M3a
+because each of those rules, built target by target, is written once per target and the copies
+disagree, on where a word ends, on which paths collide, on what an interrupted write leaves
+behind. [Package layout](packages.md) holds its layers.
+
+It builds, of the layout's packages:
+
+- `pathfold` and `emitters/options`, the vocabulary under everything else;
+- `emitters`, the contract, the registry and the two checked calls, with the members each struct
+  has at landing ([the contract](contract/emitter.md#the-structs-grow-with-their-readers));
+- `emitters/manifest` at file level, `emitters/naming` and `emitters/typemap`;
+- `engine/project`, holding the plan's policy and each target's options and output root; the emit
+  stage over one snapshot, `engine/emit`; `engine/artifacts`, the planned writes ([write /
+  integrate](write-integrate.md)); and the command that generates;
+- `emitters/emittertest`: a fake target, a golden tree and the oracles every target is held to.
+
+`naming` and `typemap` land ahead of their first caller, since they hold the rules two targets
+must agree on and each is tested against its document without a target. Everything else the
+layout names lands with its first reader, since a package or a member with no caller is held by no
+test:
+
+| Work | Lands with |
+|---|---|
+| `emitters/policy`, `emitters/hints`, `emitters/embed`, and a run's policy and hint layers | the first runtime templates |
+| `emitters/symbol` | the first derived symbol, a shape's declaration, or the manifest's entities |
+| `emitters/refine`'s step runner | the first target's refine pipeline, its first caller that is not generic |
+| `emitters/refine`'s helpers and template guards | their first caller in a target |
+| `emitters/placement` | the first target with more than one output unit |
+| `emitters/prose` | the first documentation comment naming another entity |
+| A scope's rule over a name's shape | the target that reserves by one, Kotlin's |
+| The protocols a target covers, and the binding it lowers | the first client |
+| The build check and what it reads, `Artifact.Kind` and `Spans` among it | the first target whose output it builds |
+| Samples and routes, and the order targets run in for them | the docs target |
+| A file written once | the first scaffolding file |
+| The manifest's entities, shipped names, regions, merging, surface verification | M4 |

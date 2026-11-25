@@ -472,7 +472,7 @@ render](../docs-and-mock.md#what-the-docs-render)).
 
 A type no shape reaches keeps its own name. The words are neutral, and each target cases them with
 the type's ([naming](../refine/naming.md)). A name that renders as another declaration's is a
-collision `Ctx.Syms` resolves
+collision `naming.Resolve` resolves
 ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Two filters of
 one type whose words come out alike, as the custom lifecycles `Foo:BarBaz` and `FooBar:Baz` do, are
 still two shapes and two declarations, told apart there in the order of their keys. Among the names

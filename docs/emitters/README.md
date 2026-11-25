@@ -35,11 +35,13 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 
 **What an emitter is given and returns**
 
-- [The emitter contract](contract/emitter.md): `Emitter`, its input and output, who computes the
-  plan, and the rules the contract holds to.
+- [The emitter contract](contract/emitter.md): `Emitter` and the `Generator` it configures, their
+  input and output, the checked calls, who computes the plan, and the rules the contract holds to.
 - [The registry and capabilities](contract/registry.md): how targets are composed and what the
   engine knows of one without running it.
-- [Target options](contract/options.md): strict, versioned, each default belonging to a version.
+- [Target options](contract/options.md): strict, versioned, each default belonging to a version,
+  and [the project configuration](contract/project.md) a run reads its targets, their options and
+  their output roots from.
 - [The type table](contract/type-table.md): which target type each IR leaf type becomes.
 - [Runtime policy](contract/runtime-policy.md) and [shaping hints](contract/shaping-hints.md): the
   two inputs that are not the IR, and [the policy a document embeds](contract/embedded-policy.md),
@@ -121,7 +123,11 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the
 derived-fact index and the shared plan, and finally each requested emitter, with the targets a docs
-target names for its samples. The passes designed are `link · dedup · filter · version-slice ·
+target names for its samples. It then plans every target's writes, takes the run's one verdict, and
+writes only for a run that has not failed ([write /
+integrate](write-integrate.md#every-write-is-planned-before-the-verdict)). Generation is not built
+for Windows ([where generation runs](write-integrate.md#where-generation-runs)). The passes designed
+are `link · dedup · filter · version-slice ·
 overlay · const-unions · names · validate`, and `const-unions`, `names` and `validate` are built
 (architecture.md §2.2). An emitter never sees a source spec, a compiler, the engine (INV1) or
 another emitter's code, only what the engine hands it of another's output: a docs target's samples

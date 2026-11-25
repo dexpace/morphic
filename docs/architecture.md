@@ -469,15 +469,16 @@ Language-specific naming (casing, reserved words, import layout) lives here excl
 carries source names, wire names, and naming hints — never camelCase/PascalCase renderings.
 
 Two further emitter-side stages are named here so their obligations shape the contracts, even
-though both are post-milestone scope:
+though both are post-milestone scope, but for the file-level half of the first, which the first
+write needs ([write / integrate](./emitters/write-integrate.md)):
 
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
   deterministic file paths, a generation manifest (digests of the IR and of what else the generation
   read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
   survive a rename of what they are not built from, a [correlation
   key](./ir/derived-facts.md#correlation-keys) carrying one that keeps the name the key is built
-  from), file-header provenance that gates pruning (never delete a file
-  lacking the generated-by header), ignore-region markers for hand-written islands, and
+  from), provenance that gates pruning (never delete a file whose bytes are not ones a generation
+  wrote, which the manifest's digests say), ignore-region markers for hand-written islands, and
   additive-only merging. Additive-only writers also need a staleness check — (previous-revision
   entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
 - **Surface verification** — per-language extractors project existing SDK source into a

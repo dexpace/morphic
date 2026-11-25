@@ -1,8 +1,19 @@
 # Write / integrate
 
-Post-milestone (architecture.md §2.3), but the contract is designed so it bolts on with **no IR
-change** (INV9). The `manifest.Manifest` and `Artifact` fields returned from `Generate` are the
-seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
+Regenerating into a directory its owner also writes in has two halves, and they land apart.
+
+The **file-level** half lands with the first write, since a second generation into a directory is
+only correct if the files the first wrote and this one does not are removed, and removing a file
+needs the list of what was written: [one output root per target](#one-output-root-per-target), a
+manifest of the files a generation wrote, [a file judged by its
+digest](#a-file-is-judged-by-its-digest), and [every write planned before the run's
+verdict](#every-write-is-planned-before-the-verdict).
+
+The **entity-level** half is post-milestone (architecture.md §2.3; M4 of the [milestone
+plan](milestones.md)): the entity → symbol map, the names a generation shipped, regions, merging,
+blocks and staleness. The contract is designed so it bolts on with **no IR change** (INV9). The
+`Artifact` fields returned from `Generate` and the manifest's entities are the seams; the
+`Origin`-tagged AST makes the entities a byproduct of the emit walk.
 
 - **Generation manifest keyed by IR stable IDs.** Records what the generation was built from,
   a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
@@ -22,16 +33,20 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   one `#` left: the `create` shape of a property `x`'s type keys apart from the type of a property
   `x#create` beside it, where the two joined as written were one key. So no two symbols share a key
   (T-60). Write/integrate and surface verification (architecture.md §2.3) both rest on it.
-- **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
-  writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
-  pruning, writes a baseline, emits a notice.
+- **A digest gates pruning.** The writer deletes a file only where the manifest lists its path and
+  its bytes are ones a generation wrote ([below](#a-file-is-judged-by-its-digest)), so it **never
+  deletes a file its owner wrote or edited**. First adoption (no prior manifest) prunes nothing,
+  writes a baseline, emits a notice. The generated-by line a target writes
+  ([the contract](contract/emitter.md#the-generated-by-line)) tells a reader the file is generated,
+  and gates one thing: overwriting a file no manifest lists.
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
   (`@morphic:ignore-file`) and region (`@morphic:keep <name>`/`:end`,
   [below](#regions-follow-their-entity)) — with append-only merge. The structural merge is
   **language-parameterised** by an adapter registered into the manifest driver
   ([Go](targets/go/overview.md#merging-and-surface-extraction),
   [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)). No adapter ⇒ skip, never
-  clobber. Case-only renames go via a temp name (APFS/NTFS hazard).
+  clobber. A file renamed in letter case alone needs no temporary name: its old spelling is pruned
+  before its new one is written ([below](#every-write-is-planned-before-the-verdict)).
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
   dead code additive writers cannot prune — cheap because both manifests are ID-keyed and the prior
   IR/plan snapshot is serializable (INV7). A prior entity counts as current where its entry is a
@@ -39,10 +54,21 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   shipped](refine/naming.md#collisions-and-the-names-a-generation-shipped)), so an operation whose
   path variable was renamed is not listed as dead though its old ID is gone.
 
+## One output root per target
+
+Each target a project configures has an output root of its own ([the
+project](contract/project.md)), and every path of its generation is under it. A run is refused,
+before any target runs, where two targets' roots are one directory or one holds the other, compared
+segment by segment under the path fold ([emit rules](emit/rules.md)), so `out` beside `Out` and
+`out` beside `out/go` are each refused. A root shared by two targets would make each one's files
+unlisted files in the other's way, and each one's manifest the other's.
+
 ## What the manifest records
 
 A manifest holds the choices a later generation must honor and cannot recompute from the spec: the
-names it shipped, the behavior it pinned, the files a user now owns. So it records more than hashes:
+names it shipped, the behavior it pinned, the files a user now owns. So it records more than hashes.
+The engine composes it, since it alone knows what was written, and keeps it at the target's output
+root as `morphic.manifest.json`:
 
 ```go
 package manifest
@@ -50,7 +76,7 @@ package manifest
 type Manifest struct {
     Schema   int                 // this format's version; an older one is migrated forward
     Target   string              // the emitter's TargetKey
-    Options  int                 // OptionsVersion(), the behavior pinned for this SDK
+    Options  int                 // Configuration.Version, the behavior pinned for this SDK
                                  // (contract/options.md)
     Inputs   Inputs              // what the generation was built from
     Files    []File              // every file of the SDK, sorted by path, written by this run
@@ -74,8 +100,8 @@ type Inputs struct {
     Plan    string               // Plan.Version
     Emitter string               // the Morphic version and the Go release that built it, from
                                  // its build information
-    Config  string               // SHA-256 of the decoded options, resolved policy and resolved
-                                 // hints, each as its canonical JSON
+    Config  string               // SHA-256 of the decoded options (Configuration.Canonical),
+                                 // resolved policy and resolved hints, each as its canonical JSON
     Handed  string               // SHA-256 of the snapshot label, samples and routes the engine
                                  // handed the run beside its document (contract/emitter.md), as
                                  // canonical JSON; "" = none
@@ -83,7 +109,8 @@ type Inputs struct {
 
 type File struct {
     Path    string
-    Digest  string               // SHA-256 over the bytes written, normalized (below)
+    Digest  string               // SHA-256 over the bytes written, normalized (below), as
+                                 // "sha256:" and its lowercase hex
     Origins []EntityID           // as the Artifact lists them
     Once    bool                 // its Artifact's SkipIfExists: written by the first generation
                                  // that finds it absent, the user's thereafter
@@ -91,8 +118,8 @@ type File struct {
 
 type Entry struct {
     Key    string                // the entity's correlation key, which ir/irfacts derives
-    Scope  string                // the scope its name was resolved in, as Ctx.Syms keys it
-                                 // (refine/reserved-names.md)
+    Scope  string                // the scope its name was resolved in, as its target names the
+                                 // scopes it resolves (refine/reserved-names.md)
     Base   string                // its rendered name before a collision was resolved
     Symbol string                // the name the generation gave it (refine/naming.md)
     Kind   string                // the target-AST node kind it was declared as
@@ -100,6 +127,14 @@ type Entry struct {
 }
 ```
 
+- **What the first write records.** `Schema`, `Target`, `Options`, `Inputs` and `Files`, a file's
+  `Path` and `Digest`, are written from the first generation on. `Entities`, `Keys`, `Regions`, a
+  file's `Origins` and `Once`, `Inputs.Handed` and `Generations` each join with the code that fills
+  and reads it: the entities and regions with M4, `Once` with the first scaffolding file, and
+  `Handed` and `Generations` with the docs target. `Inputs.Config` digests the decoded options
+  alone until policy and hints are resolved. A manifest is decoded strictly, so each member that
+  joins is a new `Schema`, whose migration from the one before adds nothing: an older Morphic
+  meeting it refuses the manifest as newer, where it would otherwise misread it.
 - **The document, not the spec text.** `Inputs.Doc` is the IR's digest, canonical JSON with
   `sources` and `diagnostics` left out. Reformatting a spec, or moving it to another path, changes
   the spec's bytes and where its reports point, and leaves the rest of the IR whole, so it is no new
@@ -107,28 +142,31 @@ type Entry struct {
 - **A file as written.** `Digest` covers the bytes after formatting, each keep region's text left
   out and its markers kept, with a byte-order mark stripped, line endings made `\n` and trailing
   newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
-  checkout that converts line endings are not mistaken for an edit. A file carrying the generated
-  header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
+  checkout that converts line endings are not mistaken for an edit. A file the manifest lists
+  whose bytes on disk, normalized alike, match no digest recorded for it was edited outside its
   regions. The writer leaves it as it is, neither overwriting nor pruning it, reports it as a
-  warning, since nothing is lost, and keeps its prior entry in the new manifest, so the next
-  generation reports it again. An entity a rename moves out of it is written in its new place as any
+  warning `engine/file-edited`, since nothing is lost, and keeps its prior entry in the new
+  manifest, so the next generation reports it again. An entity a rename moves out of it is written
+  in its new place as any
   other, since its callers name it there, and its regions stay in the kept file, which still holds
   them, rather than being written twice. A file marked `@morphic:ignore-file` is its user's whole,
   as a file written once is, so it is never written, pruned or checked for an edit, and a file
   integrated as blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
-- **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest, a
-  file written once or marked `@morphic:ignore-file` aside, the engine writes nothing. `Emitter` is
-  a version, not the hash of the executable the plan and IR caches key on, since a team's machines
-  share the manifest and must agree on what it holds, and it holds the Go release beside Morphic's,
-  since its `go/format` shapes Go's output ([emit rules](emit/rules.md)). A version naming no one
-  tree, `(devel)` or one marked `+dirty`, never matches, so a change being developed is never
-  skipped.
+- **Nothing to do.** A file whose bytes on disk are what this run generated is not written, and
+  where no file is written or pruned and every `Inputs` field matches, the manifest is not written
+  either, so a regeneration that changes nothing touches nothing and leaves every modification
+  time. A file written once or marked `@morphic:ignore-file` is set aside. `Emitter` is a version,
+  not the hash of the executable the plan and IR caches key on, since a team's machines share the
+  manifest and must agree on what it holds, and it holds the Go release beside Morphic's, since its
+  `go/format` shapes Go's output ([emit rules](emit/rules.md)). The run generates whatever the
+  manifest says: what is compared is what it generated, so a change being developed, whose version
+  names no one tree, is never skipped.
 - **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
   check and no-op test read what was shipped, not what one run wrote.
-- **One generation across snapshots.** A target whose `Capabilities.CrossVersion` is set is run on
-  every version snapshot as one generation, each run under its label's directory ([the
+- **One generation across snapshots.** A cross-version target is run on every version snapshot as
+  one generation, each run under its label's directory ([the
   contract](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)). Its manifest is
   a `Generations`, which holds each snapshot run's `Manifest` under that snapshot's label; each
   run's `Prior` is its own label's, and the writer reads a path across all of them, so a file no run
@@ -140,8 +178,8 @@ type Entry struct {
   holding the files spanning versions, the one entry listing a path outside its own label's
   directory, else its `""` one, so the names the site last shipped carry over. A prior is read as a
   `Generations` where it holds `Snapshots`, a field no `Manifest` has, else as a `Manifest`, which a
-  target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry holding
-  the spanning files.
+  target that becomes cross-version reads as its `""` entry and one that stops being so reads as the
+  entry holding the spanning files.
 - **Behavior.** `Options` is the version whose defaults this SDK keeps until its owner moves it
   ([target options](contract/options.md)). No refine step's version is recorded: what a
   regeneration changed is read off the digests, the surface and `Inputs`
@@ -158,8 +196,134 @@ type Entry struct {
   its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
-  manifest from a newer Morphic is refused as an error and nothing is written, since its fields
-  cannot be read and a generation run without them would rename what was shipped.
+  manifest from a newer Morphic is refused as an error `engine/manifest-newer` and nothing is
+  written, since its fields cannot be read and a generation run without them would rename what was
+  shipped. A manifest whose `Target` is another target's is an error `engine/manifest-foreign`,
+  and nothing is written: the root is another generation's.
+
+## A file is judged by its digest
+
+Before a run writes, the engine reads the output root and judges every path the generation holds
+and every path the manifest lists. A path is *listed* where the manifest, or a pending manifest an
+interrupted run left ([below](#every-write-is-planned-before-the-verdict)), records it. *Known* is
+every digest either records for the path, and *fresh* the digest of this generation's artifact
+there, where it has one.
+
+| On disk at the path | The generation holds the path | It does not |
+|---|---|---|
+| nothing | write | drop the entry |
+| a file whose digest is fresh | nothing to do | — |
+| a file whose digest is known | write | prune |
+| a file of any other digest, the path listed | keep, `engine/file-edited` | keep, `engine/file-edited` |
+| a file of any other digest, the path unlisted, the marker present | write | — |
+| a file of any other digest, the path unlisted, no marker | `engine/artifact-would-overwrite` | — |
+| a directory | write where every file under it is pruned, else `engine/artifact-would-overwrite` | — |
+| a file where the path needs a directory | write where that file is pruned, else `engine/artifact-would-overwrite` | drop the entry |
+
+A path the generation does not hold and the manifest does not list is never read: it is its
+owner's. A kept file's entry keeps the digest the manifest recorded for it, so the next generation
+judges it the same way.
+
+- **The digest decides, with or without a marker.** A file is the generation's own where its bytes
+  are ones a generation wrote there, which the manifest records, and its owner's where they are
+  not. So a file that can hold no comment, a JSON file whose `Header` is `none`, is rewritten and
+  pruned as any other, and a file carrying the generated-by line that its owner then edited is
+  kept. Gating a prune on the line alone, as the generators this design was drawn from do
+  ([reference learnings](../reference-learnings.md)), fails both ways: it can never prune a file
+  with no comment syntax, and it prunes a marked file whatever its owner did to it.
+- **The marker gates one thing: a file no manifest lists.** A first generation into a tree an
+  older generation wrote, or one whose manifest was deleted, meets files it has no digest for. One
+  carrying the marker ([the contract](contract/emitter.md#the-generated-by-line)) is rewritten;
+  any other is an error `engine/artifact-would-overwrite`, and nothing is written. With the
+  manifest gone, a file an earlier generation wrote and this one drops stays, since nothing lists
+  it.
+- **A first generation says so.** A root holding no manifest is a first generation: nothing is
+  pruned, and the run reports an info `engine/first-generation`.
+- **Spellings a disk may not tell apart are judged together.** Where a listed path the generation
+  drops folds as a path it holds, `Setup.kt` and then `SetUp.kt`, a volume that ignores case
+  answers the new spelling with the old file. So what is known of either spelling is known of
+  both. Where the old spelling holds a file of a known or fresh digest, it is pruned and the new
+  one written, whatever the new spelling answers, since the old file may be what answers; where it
+  holds none, the new spelling is judged by the table. Where either holds any other digest, the
+  write is `engine/artifact-would-overwrite` on every volume:
+  on one that ignores case it would replace its owner's edit, and on one that does not the tree
+  would hold two names no other volume can.
+- **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
+  edited one, under a directory a write needs as a file, or where a write needs a directory, is
+  `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
+- **A directory keeps the spelling the generation gives it.** A directory standing under another
+  spelling of a segment a write passes through, `Models` for `models`, is
+  `engine/artifact-would-overwrite` unless the prunes empty it: on a volume that ignores case the
+  write would land under the old spelling, and the manifest would list a path another volume
+  lacks. A name a volume merely stores decomposed, as macOS lists a composed `é`, is the same
+  name.
+- **An emptied directory does not outlive its files.** A prune removes each directory above the
+  file that it leaves empty, and a listed path the generation drops and the disk no longer holds
+  has its empty directories removed too, so a run cut between a prune and the removal of its
+  directory is finished by the next.
+
+`engine/file-edited` is a warning, since nothing is lost, and `engine/artifact-would-overwrite`
+an error. Each is a finding about the output root, which the engine reports and a threshold or a
+triage rule reads as any other.
+
+## Every write is planned before the verdict
+
+The engine splits writing in two. *Planning* reads a target's output root and decides every write
+and every prune of its generation, by the rules above, and writes nothing. *Applying* carries a
+plan out and decides nothing. Every target's plan is made before the run's one verdict
+(architecture.md §4), and its findings join the run's, so everything that can fail a run is found
+before anything is written: a run of two targets writes both or neither, whichever order they are
+named in, and a file that would be overwritten fails the run with its root untouched.
+
+Applying a plan, in order:
+
+1. **The root is read again.** The plan records what it read at every path a decision turned on,
+   the manifest's among them, a digest or an absence. Where one no longer holds, the root moved:
+   another run wrote there, or its owner saved a file. Nothing is written, and the run fails with
+   an error naming the root.
+2. **A pending manifest is written**, `morphic.manifest.pending.json`: for each path, every digest
+   known to be the generation's, those the manifest and any earlier pending manifest record and
+   the new one.
+3. **Prunes come before writes.** A path a write needs may be held by a file a prune removes: the
+   other spelling of a file renamed in letter case alone, or a file where a directory must go.
+   Written first on a volume that ignores case, the new file is the one the prune of the old then
+   removes.
+4. **Each file is replaced atomically**, through a temporary file beside it, under the root
+   ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed.
+5. **The manifest is written last**, and then the pending manifest is removed.
+
+- **An interrupted write heals.** A run killed at any point leaves the pending manifest, which
+  lists every digest the generation may have written, and planning reads it as it reads the
+  manifest. So the next run recognizes a half-written tree as the generation's own, finishes it,
+  and reports no file as its owner's edit, however many runs were cut short: a pending manifest
+  only grows until a manifest lands.
+- **The gaps that stay.** Reading the root again narrows the time between a plan and its writes
+  and does not close it: a file saved between that check and its own write is replaced, so two
+  runs into one root at once are not supported. And both-or-neither holds for what planning can
+  find. A root that moved, or a disk that fails, is met only while applying, after an earlier
+  target's plan was carried out; the root it stops in heals on the next run, as any interrupted
+  one does.
+- **What a killed write leaves.** A temporary file, named for its destination with a dot before
+  and digits after, may be left beside it. No later run reads or removes it, and a file's name is
+  held short enough that it fits ([emit rules](emit/rules.md)).
+
+The rules were modelled before they were written (#2247 holds the model): planning and applying,
+over a file system that ignores case and one that does not, each run cut after every single
+operation on the disk, then rerun with the same generation and with a later one, cut again, and
+finished. Every sequence ended in the tree an uninterrupted run leaves, with no empty directory,
+no pending manifest and no file reported as edited. Each of five rules, taken out, failed
+sequences of its own: prunes before writes, a pending manifest that keeps every earlier digest,
+planning that reads the pending manifest, spellings judged together, and the removal of
+directories a cut left empty. T-40 holds the rules, the interrupted runs among them.
+
+## Where generation runs
+
+Generation is not built for Windows. The atomic replace the writer stands on does not build
+there (`GOOS=windows go build ./cmd/morphic` fails in `engine/internal/atomicfile`, morphic
+@9be567bdb), and the rules above were measured on APFS and modelled over a volume that ignores
+case and one that does not, never on NTFS. What a run writes is held portable all the same: every
+path it writes is one Windows takes ([emit rules](emit/rules.md)), so a tree generated elsewhere
+checks out there.
 
 ## Regions follow their entity
 

@@ -331,8 +331,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   manifest holds each run's under its label ([write /
   integrate](write-integrate.md#what-the-manifest-records)). A document no pass slices by version,
   one stating none among them, is one snapshot labelled `""`, written at the output root. For a
-  target whose `Capabilities.CrossVersion` is set, the engine asks the target for every snapshot's
-  route table through `Router` ([the contract](contract/emitter.md)), before any snapshot's
+  cross-version target, one whose generator implements `Router` ([the
+  contract](contract/emitter.md#a-target-is-configured-once)), the engine asks it for every
+  snapshot's route table through that interface, before any snapshot's
   `Generate`, handing it the input it will hand that `Generate` but for `Samples` and `Routes`,
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
@@ -387,12 +388,12 @@ model's constructor — is that SDK emitter's refine output, and an emitter neve
 ([emitters](README.md)). A docs emitter that spelled calls itself would re-derive them and could
 disagree with the SDK it documents. So each SDK emitter returns its usage samples per operation in
 `EmitterOutput.Samples`, one for each language its callers write: a Multiplatform target's callers
-write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). A target whose
-`Capabilities.ReadsSamples` is set names in its options the targets whose samples it shows, which
-the engine reads through `SampleReader` ([the contract](contract/emitter.md)), a decoded options
-value without it being `engine/sample-target-invalid`, and the engine runs each of them on every
-snapshot before it, whether or not the run names them, with the configuration that target would run
-with, which the engine finds as it finds any target's ([target options](contract/options.md)), and
+write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). A target that shows samples names in
+its options the targets whose samples it shows, and its generator implements `SampleReader`, which
+the engine reads them through ([the contract](contract/emitter.md#a-target-is-configured-once)),
+and the engine runs each of them on every snapshot before it, whether or not the run names them,
+with the configuration that target would run with, which the engine finds in the project's
+configuration as it finds any target's ([the project](contract/project.md)), and
 the prior manifest of that target's own output, as a run naming it would read it, writing none of
 its artifacts unless the run names it too, and hands it their samples in `EmitterInput.Samples`. So
 what a docs run shows depends on its options and never on which other targets share the run: a docs

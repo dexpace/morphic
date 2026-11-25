@@ -9,6 +9,8 @@ nothing](../write-integrate.md#a-key-that-matches-nothing), reported with the en
 key now names where one does:
 
 ```go
+package hints
+
 type ShapeHint struct {
     Rename         string      // presentation rename for the entity's symbol; "" = none
     Remount        *ir.GroupID // move an operation under a different sub-client; nil = keep
@@ -34,7 +36,9 @@ type ParamKey struct {         // a parameter as every operation names it, never
 }
 ```
 
-A hint's JSON form names each field in lower camel case, as runtime policy's does
+The type is `emitters/hints`'s and not the contract's, so the reader of a document's embedded
+hints imports no contract ([package layout](../packages.md)). A hint's JSON form names each field
+in lower camel case, as runtime policy's does
 ([delivery](runtime-policy.md#delivery)): `rename`, `alsoMount`, `clientParams`.
 
 `Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol

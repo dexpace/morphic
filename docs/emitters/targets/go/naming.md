@@ -120,7 +120,8 @@ and a directory that escaped it, `package straße` in `strasse`, would have each
 its import does not show. The units' scope compares the names so rendered, so `Straße` and `Strasse`
 collide there as `Webhooks` and `webhooks` do ([output units](../../refine/output-units.md)). A
 package name is the one Go identifier written into a path, so it is the one Go role held to the
-length cap ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+length cap ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)), and one past
+it is shortened as a file's name is ([above](#file-names)).
 
 A name the options give, the root's module path or a partition's unit, never yields, so one that
 `golang.org/x/mod/module.CheckPath` refuses, or whose last element is a units name above, is an
