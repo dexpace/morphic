@@ -73,10 +73,11 @@ as `Model.abstract`, `Property.presence`, `Enum.flags` and the `host` parameter 
 
 The foundation is the code every target shares, and it ends where a target can be registered,
 configured, run, checked and written, with one home for every rule two targets must agree on. It
-emits nothing itself: the first target's first slice is its acceptance. It comes ahead of M3a
-because each of those rules, built target by target, is written once per target and the copies
-disagree, on where a word ends, on which paths collide, on what an interrupted write leaves
-behind. [Package layout](packages.md) holds its layers.
+emits nothing itself: the first target's first slice is its acceptance. It comes ahead of M3a's
+targets, and after the first slice of the plan layer, which its contract reads, because each of
+those rules, built target by target, is written once per target and the copies disagree, on where a
+word ends, on which paths collide, on what an interrupted write leaves behind. [Package
+layout](packages.md) holds its layers.
 
 It builds, of the layout's packages:
 

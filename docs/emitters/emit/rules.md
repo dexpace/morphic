@@ -43,10 +43,17 @@ the tree the rule exists to prevent.
 - **No path is a directory of another.** A file cannot stand where a directory must, so an
   artifact `a` beside one at `a/b` is a breach, and by the fold so is `Models` beside
   `models/x.go`, which a file system that ignores case makes the same pair.
+- **One spelling per directory.** Two paths whose directories fold alike spell them alike, so
+  `Models/a.go` beside `models/b.go` is a breach. A file system that ignores case keeps both files
+  under the spelling written first, where the manifest lists the other, and one that does not
+  holds two directories no other volume can. A directory standing on disk under another spelling
+  is the writer's to refuse ([write /
+  integrate](../write-integrate.md#a-file-is-judged-by-its-digest)).
 - **No path is the manifest's own.** The engine keeps the generation's manifest at the output
   root, as `morphic.manifest.json`, and while it writes, `morphic.manifest.pending.json` beside it
   ([write / integrate](../write-integrate.md#what-the-manifest-records)). An artifact at either
-  path, compared by the fold, is a breach.
+  path, or under one as a directory, compared by the fold, is a breach: the manifest's own write
+  would find a directory in its place, after the run's verdict.
 - **The path fold.** Two paths are one where their folds are equal, and a string's fold
   (`pathfold.Fold`, the one implementation the engine, the contract and naming compare by) is its
   canonical decomposition (NFD) with each character upper-cased by its simple mapping, then folded

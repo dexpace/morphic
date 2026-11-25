@@ -237,10 +237,11 @@ is.
 
 `Generate` holds a generation to these duties:
 
-- **Paths**, each a rule of the [emit rules](../emit/rules.md): the artifacts sorted by `Path`;
-  each path forward-slashed, local and naming a file; no two equal under the path fold; none a
-  directory of another under the fold; none the manifest's own; each segment one every file system
-  writes, and a file's own name short enough for the writer.
+- **Paths**, each a rule of the [emit rules](../emit/rules.md): the artifacts sorted by `Path`; each
+  path forward-slashed, local and naming a file; no two equal under the path fold; none a directory
+  of another under the fold, and no directory spelled two ways under it; none the manifest's own or
+  under it; each segment one every file system writes, and a file's own name short enough for the
+  writer.
 - **The header.** The generated-by line stands where `Header` says
   ([below](#the-generated-by-line)).
 - **Diagnostics.** Each code is in a namespace the target may report, and each provenance names a

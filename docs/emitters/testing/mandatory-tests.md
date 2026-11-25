@@ -253,17 +253,18 @@ throughout these documents.
     checked call as a breach of the contract, an error that is `emitters.ErrContract`, names the
     target and draws no diagnostic, at any threshold and under any triage rule: artifacts out of
     path order; two on one path, and two whose paths fold alike; a path that is a directory of
-    another, `a` beside `a/b` and `Models` beside `models/x.go`; one that is the manifest's own or
-    its pending twin's, in any letter case; a segment of 86 three-byte characters, 258 bytes, where
-    one of 85 is admitted; each Windows device name the rule lists, `conin$` and `com¹` among them,
-    before a first dot in two letter cases, before the first of two (`aux.v1.go`) and before
-    spaces and a dot (`nul .txt`); each character Windows refuses, U+001F among them; a trailing
-    dot or space, where a space inside a segment is admitted; a file's name of 236 bytes, where
-    one of 235 is admitted; an empty path, an absolute one, one holding `\`, `..` or an empty
-    segment; a header line that lacks the marker where `Header` says it stands, and a placement
-    outside the three; and no artifact with no `no-artifacts` warning. The checks' work grows as
-    the artifacts do, over paths nested three directories deep. A template that fails the formatter
-    draws a located error and no artifact, and a build with and without `-trimpath` give identical
+    another, `a` beside `a/b` and `Models` beside `models/x.go`; two that spell one directory two
+    ways, `Models/a.go` beside `models/b.go`; one that is the manifest's own or its pending twin's,
+    or lies under either, in any letter case; a segment of 86 three-byte characters, 258 bytes,
+    where one of 85 is admitted; each Windows device name the rule lists, `conin$` and `com¹` among
+    them, before a first dot in two letter cases, before the first of two (`aux.v1.go`) and before
+    spaces and a dot (`nul .txt`); each character Windows refuses, U+001F among them; a trailing dot
+    or space, where a space inside a segment is admitted; a file's name of 236 bytes, where one of
+    235 is admitted; an empty path, an absolute one, one holding `\`, `..` or an empty segment; a
+    header line that lacks the marker where `Header` says it stands, and a placement outside the
+    three; and no artifact with no `no-artifacts` warning. The checks' work grows as the artifacts
+    do, over paths nested three directories deep. A template that fails the formatter draws a
+    located error and no artifact, and a build with and without `-trimpath` give identical
     artifacts. A `Scope` matching nothing and a document with nothing to emit each draw
     `no-artifacts`. A path reaching a sibling that shares the root's prefix does so through `..`,
     the breach above, and a symlink in the tree that leaves the root is refused by the writer.
@@ -545,8 +546,9 @@ throughout these documents.
     holding another target's manifest is `engine/manifest-foreign`; two targets whose roots are
     one directory, or one inside the other, by the path fold, are refused before any target runs;
     of two targets one of which would overwrite a file, neither is written, in either order they
-    are named; a root changed between its plan and its writes, a file edited, one added under a
-    directory a write replaces, or a second plan applied, is refused with nothing written; a write
+    are named; a root changed between its plan and its writes, a file edited or a second plan
+    applied, is refused with nothing written, and a file added under a directory a write replaces
+    is refused when that write meets it, the next run finding it in the write's way; a write
     cut after any single operation on the disk, a file removed, a directory removed or a file
     written, heals when the same generation or a later one runs next, itself cut at any operation
     and run again, the tree then an uninterrupted run's, with no empty directory, no pending

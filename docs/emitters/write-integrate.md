@@ -33,12 +33,13 @@ blocks and staleness. The contract is designed so it bolts on with **no IR chang
   one `#` left: the `create` shape of a property `x`'s type keys apart from the type of a property
   `x#create` beside it, where the two joined as written were one key. So no two symbols share a key
   (T-60). Write/integrate and surface verification (architecture.md §2.3) both rest on it.
-- **A digest gates pruning.** The writer deletes a file only where the manifest lists its path and
-  its bytes are ones a generation wrote ([below](#a-file-is-judged-by-its-digest)), so it **never
-  deletes a file its owner wrote or edited**. First adoption (no prior manifest) prunes nothing,
-  writes a baseline, emits a notice. The generated-by line a target writes
-  ([the contract](contract/emitter.md#the-generated-by-line)) tells a reader the file is generated,
-  and gates one thing: overwriting a file no manifest lists.
+- **A digest gates pruning.** The writer deletes a file only where the manifest, or a pending one an
+  interrupted run left, lists its path and its bytes are ones a generation wrote
+  ([below](#a-file-is-judged-by-its-digest)), so it **never deletes a file its owner wrote or
+  edited**. First adoption (no manifest, and no pending one) prunes nothing, writes a baseline,
+  emits a notice. The generated-by line a target writes ([the
+  contract](contract/emitter.md#the-generated-by-line)) tells a reader the file is generated, and
+  gates one thing: overwriting a file no manifest lists.
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
   (`@morphic:ignore-file`) and region (`@morphic:keep <name>`/`:end`,
   [below](#regions-follow-their-entity)) — with append-only merge. The structural merge is
@@ -144,25 +145,26 @@ type Entry struct {
 - **A file as written.** `Digest` covers the bytes after formatting, each keep region's text left
   out and its markers kept, with a byte-order mark stripped, line endings made `\n` and trailing
   newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
-  checkout that converts line endings are not mistaken for an edit. A file the manifest lists
-  whose bytes on disk, normalized alike, match neither a digest recorded for it nor what this run
+  checkout that converts line endings are not mistaken for an edit. A file the manifest lists whose
+  bytes on disk, normalized alike, match neither a digest recorded for it nor what this run
   generates was edited outside its regions. The writer leaves it as it is, neither overwriting nor
-  pruning it, reports it as a warning `engine/file-edited`, since nothing is lost, and keeps its
-  prior entry in the new manifest, so the next generation reports it again. An entity a rename
-  moves out of it is written in its new place as any other, since its callers name it there, and
-  its regions stay in the kept file, which still holds them, rather than being written twice. A
-  file marked `@morphic:ignore-file` is its user's whole, as a file written once is, so it is never
-  written, pruned or checked for an edit, and a file integrated as blocks is checked by its blocks
-  alone ([below](#a-document-the-user-writes-around)).
+  pruning it, reports it as a warning `engine/file-edited`, since nothing is lost, and keeps an
+  entry for it in the new manifest ([below](#a-file-is-judged-by-its-digest)), so the next
+  generation reports it again. An entity a rename moves out of it is written in its new place as any
+  other, since its callers name it there, and its regions stay in the kept file, which still holds
+  them, rather than being written twice. A file marked `@morphic:ignore-file` is its user's whole,
+  as a file written once is, so it is never written, pruned or checked for an edit, and a file
+  integrated as blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** A file whose bytes on disk are what this run generated is not written, and
-  where no file is written or pruned and `Options` and every `Inputs` field match, the manifest is
-  not written either, so a regeneration that changes nothing touches nothing and leaves every
-  modification time. A file written once or marked `@morphic:ignore-file` is set aside. `Emitter`
-  is a version, not the hash of the executable the plan and IR caches key on, since a team's
-  machines share the manifest and must agree on what it holds, and it holds the Go release beside
-  Morphic's, since its `go/format` shapes Go's output ([emit rules](emit/rules.md)). The run
-  generates whatever the manifest says: what is compared is what it generated, so a change being
-  developed, whose version names no one tree, is never skipped.
+  where no file is written or pruned, no pending manifest stands and the manifest the run would
+  write is the one the root holds, its `Options` and every `Inputs` field included, nothing is
+  written, so a regeneration that changes nothing touches nothing and leaves every modification
+  time. A file written once or marked `@morphic:ignore-file` is set aside. `Emitter` is a version,
+  not the hash of the executable the plan and IR caches key on, since a team's machines share the
+  manifest and must agree on what it holds, and it holds the Go release beside Morphic's, since its
+  `go/format` shapes Go's output ([emit rules](emit/rules.md)). The run generates whatever the
+  manifest says: what is compared is what it generated, so a change being developed, whose version
+  names no one tree, is never skipped.
 - **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
@@ -219,12 +221,13 @@ there, where it has one.
 | a file of any other digest, the path listed | keep, `engine/file-edited` | keep, `engine/file-edited` |
 | a file of any other digest, the path unlisted, the marker present | write | — |
 | a file of any other digest, the path unlisted, no marker | `engine/artifact-would-overwrite` | — |
-| a directory | write where every file under it is pruned, else `engine/artifact-would-overwrite` | — |
+| a directory | write where every file under it is pruned, else `engine/artifact-would-overwrite` | drop the entry |
 | a file where the path needs a directory | write where that file is pruned, else `engine/artifact-would-overwrite` | drop the entry |
 
-A path the generation does not hold and the manifest does not list is never read: it is its
-owner's. A kept file's entry keeps the digest the manifest recorded for it, so the next generation
-judges it the same way.
+A path the generation does not hold and nothing lists is never read: it is its owner's. A kept
+file's entry keeps the digest the manifest recorded for it, or, where only a pending manifest
+lists the path, the least of the digests that one records, so the path stays listed and the next
+generation judges it the same way.
 
 - **The digest decides, with or without a marker.** A file is the generation's own where its bytes
   are ones a generation wrote there, which the manifest records, and its owner's where they are
@@ -239,17 +242,19 @@ judges it the same way.
   contract](contract/emitter.md#the-generated-by-line)) is rewritten; any other is an error
   `engine/artifact-would-overwrite`, and nothing is written. With the manifest gone, a file an
   earlier generation wrote and this one drops stays, since nothing lists it.
-- **A first generation says so.** A root holding no manifest is a first generation: nothing is
-  pruned, and the run reports an info `engine/first-generation`.
+- **A first generation says so.** A root holding no manifest is a first generation, and the run
+  reports an info `engine/first-generation`. Nothing is pruned there but what a pending manifest
+  lists, as a first generation cut short leaves one.
 - **Spellings a disk may not tell apart are judged together.** Where a listed path the generation
   drops folds as a path it holds, `Setup.kt` and then `SetUp.kt`, a volume that ignores case
   answers the new spelling with the old file. So what is known of either spelling is known of
-  both. Where the old spelling holds a file of a known or fresh digest, it is pruned and the new
-  one written, whatever the new spelling answers, since the old file may be what answers; where it
-  holds none, the new spelling is judged by the table. Where either holds any other digest, the
-  write is `engine/artifact-would-overwrite` on every volume: on one that ignores case it would
-  replace its owner's edit, and on one that does not the tree would hold two names no other volume
-  can.
+  both. Where either holds a file of any other digest, that file is its owner's and the write is
+  `engine/artifact-would-overwrite` on every volume: on one that ignores case the write would
+  replace it, and on one that does not it would replace the file at the new spelling, or leave
+  beside an edited old one a second name no other volume can hold. Otherwise, where the old
+  spelling holds a file, it is pruned and the new one written, whatever the new spelling answers,
+  since the old file may be what answers; where it holds none, the new spelling is judged by the
+  table.
 - **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
   edited one, under a directory a write needs as a file, or where a write needs a directory, is
   `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
@@ -291,7 +296,10 @@ Applying a plan, in order:
    Written first on a volume that ignores case, the new file is the one the prune of the old then
    removes.
 4. **Each file is replaced atomically**, through a temporary file beside it, under the root
-   ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed.
+   ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed. A
+   directory no longer empty there, a file added under it since the plan, is the root moved as
+   well, met after the prunes and the writes before it: the run stops as an interrupted one does,
+   and the next plan finds the file in the write's way.
 5. **The manifest is written last**, and then the pending manifest is removed.
 
 - **An interrupted write heals.** A run killed once it has begun to write leaves the pending
@@ -304,8 +312,8 @@ Applying a plan, in order:
   and does not close it: a file saved between that check and its own write is replaced, so two
   runs into one root at once are not supported. And both-or-neither holds for what planning can
   find. A root that moved, or a disk that fails, is met only while applying, after an earlier
-  target's plan was carried out; the root it stops in heals on the next run, as any interrupted
-  one does.
+  target's plan was carried out; the root it stops in heals on the next run that writes, as any
+  interrupted one does.
 - **What a killed write leaves.** A temporary file, named for its destination with a dot before
   and digits after, may be left beside it. No later run reads or removes it, and a file's name is
   held short enough that it fits ([emit rules](emit/rules.md)).
@@ -324,9 +332,10 @@ directories a cut left empty. T-40 holds the rules, the interrupted runs among t
 Generation is not built for Windows. The atomic replace the writer stands on does not build
 there (`GOOS=windows go build ./cmd/morphic` fails in `engine/internal/atomicfile`, morphic
 @9be567bdb), and the rules above were measured on APFS and modelled over a volume that ignores
-case and one that does not, never on NTFS. What a run writes is held portable all the same: every
-path it writes is one Windows takes ([emit rules](emit/rules.md)), so a tree generated elsewhere
-checks out there.
+case and one that does not, never on NTFS. What a run writes is meant to be portable all the same:
+every segment of a path it writes is one Windows takes, and no two paths fold alike ([emit
+rules](emit/rules.md)), though that the fold joins every pair NTFS does is assumed there and not
+measured, and nothing bounds a path's whole length.
 
 ## Regions follow their entity
 
