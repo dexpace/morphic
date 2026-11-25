@@ -1532,15 +1532,16 @@ throughout these documents.
     and never run; a planted compile error inside a method of a client is reported at the operation
     whose declaration holds it, through `Artifact.Spans`, with a kept region restored above it or
     inside it as without, and likewise in a file a second run finds as generated and does not write,
-    one on an import line, in a file its owner edited or in one a merge adapter wrote at its file,
-    and a message with no position at the target; the same error is reported once, the checks after
-    the failing one not run; a toolchain missing, older than its minimum or newer than its maximum,
-    and a `Setup` check that fails, each skip the checks depending on it under `check-skipped`,
-    never reading as a pass; a check running past its `Timeout` is ended with the processes it
-    started and has failed; a failing check leaves the written files in place, and one reported
-    under `check-failed` fails the run at the default threshold; and a run that does not ask for the
-    check, or that failed before it, starts no process, and a run that stands starts none in a root
-    whose plan drew an error ([verification](../verification.md#the-output-builds)).
+    one on an import line, in a file its owner edited, kept at a path the generation holds or at one
+    it dropped, or in one a merge adapter wrote at its file, and a message with no position at the
+    target; the same error is reported once, the checks after the failing one not run; a toolchain
+    missing, older than its minimum or newer than its maximum, and a `Setup` check that fails, each
+    skip the checks depending on it under `check-skipped`, never reading as a pass; a check running
+    past its `Timeout` is ended with the processes it started and has failed; a failing check leaves
+    the written files in place, and one reported under `check-failed` fails the run at the default
+    threshold; and a run that does not ask for the check, or that failed before it, starts no
+    process, and a run that stands starts none in a root whose plan drew an error
+    ([verification](../verification.md#the-output-builds)).
 74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
     naming no entity of the document, a declaration written under an `Origin` with no entry, a
     shape's declaration among them, an entry naming no declaration, and two entries of one scope
