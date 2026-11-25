@@ -327,7 +327,9 @@ Applying a plan, in order:
   one root at once are not supported. And that a failed run writes nothing holds for what planning
   can find. A root that moved, or a disk that fails, is met only while applying, after an earlier
   target's plan was carried out; the root it stops in heals on the next run that writes, as any
-  interrupted one does.
+  interrupted one does. Nor is the verdict the last thing that can fail a run that asks for the
+  build check, which runs on the tree as written: a failing check fails the run, and the files stay
+  ([verification](verification.md#the-output-builds)).
 - **What a killed write leaves.** A temporary file, named for its destination with a dot before
   and digits after, may be left beside it. No later run reads or removes it, and a file's name is
   held short enough that it fits ([emit rules](emit/rules.md)). It is an unlisted file like any

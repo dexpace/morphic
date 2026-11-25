@@ -785,21 +785,24 @@ its JSON report writes every finding with the rule it met, under a schema versio
 the encoded shape.
 
 **What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
-taken once every stage of the run has reported and the triage has rated the findings, and recorded
-as `Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read one rule rather
-than each reading the diagnostics its own way. `RunOptions.FailOn` sets the threshold. At `error`,
-the default, a finding rated an error fails the run; `warning` and `info` are stricter gates, each
-failing it on a finding rated at or above that severity, and no threshold fails it on a finding a
-rule accepted; `none` fails only a run that produced no document, which fails at every threshold. A
-diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
-with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
-through every gate. Failing withholds nothing: a failed run still returns its document and every
-diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only where
-the findings the passes leave have not failed the run. A run that generates is then judged over the
-whole list, what its targets report and what planning their writes finds rated with the rest: that
-is the one verdict `Result.Failed` records, taken before anything is written ([write /
-integrate](./emitters/write-integrate.md#every-write-is-planned-before-the-verdict)). The passes are
-not gated, since they run on every compiled document, errors reported or not (§2.2), and the verdict
+taken once every stage that runs before a write has reported and the triage has rated the findings,
+and recorded as `Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read
+one rule rather than each reading the diagnostics its own way. `RunOptions.FailOn` sets the
+threshold. At `error`, the default, a finding rated an error fails the run; `warning` and `info` are
+stricter gates, each failing it on a finding rated at or above that severity, and no threshold fails
+it on a finding a rule accepted; `none` fails only a run that produced no document, which fails at
+every threshold. A diagnostic of a severity the IR does not declare is a stage breaking its contract
+and fails the run with a Go error: no threshold can rank it, and ranking it below them all would let
+a misspelt error through every gate. Failing withholds nothing: a failed run still returns its
+document and every diagnostic, to inspect or persist. What it stops is the emitters, which the
+engine starts only where the findings the passes leave have not failed the run. A run that generates
+is then judged over the whole list, what its targets report and what planning their writes finds
+rated with the rest: that is the one verdict `Result.Failed` records, taken before anything is
+written ([write /
+integrate](./emitters/write-integrate.md#every-write-is-planned-before-the-verdict)). A build check
+the run asks for comes after it, on the written tree: a failing check fails the run and leaves the
+files as written ([verification](./emitters/verification.md#the-output-builds)). The passes are not
+gated, since they run on every compiled document, errors reported or not (§2.2), and the verdict
 reads their findings too. Error is the default threshold because an error means the document may say
 something the spec does not: an SDK built on it is something a caller asks for with `none`, never a
 default.

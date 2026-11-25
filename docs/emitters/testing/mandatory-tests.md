@@ -95,12 +95,12 @@ throughout these documents.
     options version reports each built-in row a later version changed, added or removed and its
     own table does not replace, and none it does; an encoding with no row is typed as its value
     travels and reported once (T-51), the lookup saying which of its three ways found the row; a
-    table holding an unknown or repeated member, a `null`, a kind `ir` does not declare, an empty
-    type or half a dependency is refused by the shared decode, and a row naming an import `Imports`
-    does not bind, an `Imports` key it does not use, or a Go `Codec` by its target, each an options
-    error; one golden per options version pins the built-in table; and two rows that spell one name
-    for two packages generate code that compiles in a file using both ([type
-    table](../contract/type-table.md)).
+    table holding an unknown or repeated member, a `null`, a row's `dependency` written `null`
+    included, a kind `ir` does not declare, an empty type or half a dependency is refused by
+    `typemap.Decode`, and a row naming an import `Imports` does not bind, an `Imports` key it does
+    not use, or a Go `Codec` by its target, each an options error; one golden per options version
+    pins the built-in table; and two rows that spell one name for two packages generate code that
+    compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
