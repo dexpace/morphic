@@ -37,17 +37,17 @@ refuses:
   vocabulary; and a declared build check on an emitter that does not implement `Checker`.
 
 The engine is the only caller of `Lookup`, and the only thing that touches the filesystem, prunes,
-and renders diagnostics. It configures and generates through the two checked calls and no other
-way ([the contract](emitter.md#the-checked-calls)). Emitters are I/O-free. Reading, rendering and
+and renders diagnostics. It configures and generates through the two checked calls and no other way
+([the contract](emitter.md#the-checked-calls)). Emitters are I/O-free. Reading, rendering and
 writing the IR document have homes already: `engine/reader` reads what a run's references name,
 `engine/report` renders, and `engine/output` writes, replacing a file through the atomic replace in
 `engine/internal/atomicfile`. Writing artifacts and pruning are [write /
-integrate](../write-integrate.md)'s, under the [emit rules](../emit/rules.md). The engine
-configures and generates only for a run that has not failed (`engine.Result.Failed`,
-architecture.md §4): at the default threshold a document carrying an error diagnostic reaches no
-emitter, and a caller that wants one built from it anyway says so with the `none` threshold. A run
-naming a target the registry lacks, or one the project does not configure
-([the project](project.md)), is refused before the spec is read.
+integrate](../write-integrate.md)'s, under the [emit rules](../emit/rules.md). The engine configures
+and generates only where the findings the passes leave have not failed the run (architecture.md §4):
+at the default threshold a document carrying an error diagnostic reaches no emitter, and a caller
+that wants one built from it anyway says so with the `none` threshold. A run naming a target the
+registry lacks, or one the project does not configure ([the project](project.md)), is refused before
+the spec is read.
 
 ## Capabilities
 

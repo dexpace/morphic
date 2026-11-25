@@ -269,18 +269,24 @@ generation judges it the same way.
   has its empty directories removed too, so a run cut between a prune and the removal of its
   directory is finished by the next.
 
-`engine/file-edited` is a warning, since nothing is lost, and `engine/artifact-would-overwrite`
-an error. Each is a finding about the output root, which the engine reports and a threshold or a
-triage rule reads as any other.
+`engine/file-edited` is a warning, since nothing is lost, and `engine/artifact-would-overwrite` an
+error. Each is a finding about the output root, which the engine reports and a threshold or a triage
+rule reads as any other. Whatever either makes of an error, the root it was found in is not written:
+its plan holds nothing ([below](#every-write-is-planned-before-the-verdict)).
 
 ## Every write is planned before the verdict
 
 The engine splits writing in two. *Planning* reads a target's output root and decides every write
-and every prune of its generation, by the rules above, and writes nothing. *Applying* carries a
-plan out and decides nothing. Every target's plan is made before the run's one verdict
-(architecture.md §4), and its findings join the run's, so everything that can fail a run is found
-before anything is written: a run of two targets writes both or neither, whichever order they are
-named in, and a file that would be overwritten fails the run with its root untouched.
+and every prune of its generation, by the rules above, and writes nothing. *Applying* carries a plan
+out and decides nothing. Every target's plan is made before the run's one verdict (architecture.md
+§4), and its findings join the run's, so everything that can fail a run is found before anything is
+written, and a failed run writes nothing: of two targets one of which would overwrite a file,
+neither is written, whichever order they are named in.
+
+A plan that draws an error holds no write and no prune, so applying it changes nothing, whatever the
+verdict. Where the `none` threshold or a triage rule lets such a run stand, the other targets' roots
+are written and that one is left as it was: no rating writes over a file its owner wrote, or into a
+root holding another target's manifest or a newer Morphic's.
 
 Applying a plan, in order:
 
@@ -305,13 +311,12 @@ Applying a plan, in order:
 - **An interrupted write heals.** A run killed once it has begun to write leaves the pending
   manifest, which lists every digest the generation may have written, and planning reads it as it
   reads the manifest. So the next run recognizes a half-written tree as the generation's own,
-  finishes it,
-  and reports no file as its owner's edit, however many runs were cut short: a pending manifest
-  only grows until a manifest lands.
-- **The gaps that stay.** Reading the root again narrows the time between a plan and its writes
-  and does not close it: a file saved between that check and its own write is replaced, so two
-  runs into one root at once are not supported. And both-or-neither holds for what planning can
-  find. A root that moved, or a disk that fails, is met only while applying, after an earlier
+  finishes it, and reports no file as its owner's edit, however many runs were cut short: a pending
+  manifest only grows until a manifest lands.
+- **The gaps that stay.** Reading the root again narrows the time between a plan and its writes and
+  does not close it: a file saved between that check and its own write is replaced, so two runs into
+  one root at once are not supported. And that a failed run writes nothing holds for what planning
+  can find. A root that moved, or a disk that fails, is met only while applying, after an earlier
   target's plan was carried out; the root it stops in heals on the next run that writes, as any
   interrupted one does.
 - **What a killed write leaves.** A temporary file, named for its destination with a dot before

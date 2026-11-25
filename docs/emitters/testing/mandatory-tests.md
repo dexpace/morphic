@@ -529,51 +529,51 @@ throughout these documents.
     shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
-40. **T-40 · Manifest and integration** — a first generation writes every file and its manifest,
-    prunes nothing and reports `engine/first-generation`, into a root that does not exist yet too;
-    a regeneration whose inputs all match writes nothing and leaves every modification time; a
-    file the generation drops is pruned by its digest, a marked one and one that can hold no
-    comment alike, with each directory that leaves empty; a file at a path no manifest lists is
-    rewritten where it carries the marker and is `engine/artifact-would-overwrite` where it does
-    not, nothing written; with the manifest deleted a file this generation drops stays; a file
-    renamed in letter case alone is pruned and written, its content changed or not, and is
-    `engine/artifact-would-overwrite` where its owner edited the old spelling, on a volume that
-    ignores case and one that does not, each judged from what such a volume answers; a file and a
-    directory trade places both ways, a directory left empty in the way removed, and a file that
-    stays in a write's way, its owner's or an edited one, is `engine/artifact-would-overwrite`
-    before any write; a directory standing under another spelling of a write's segment is the same
-    error unless the prunes empty it, one a volume lists decomposed being the same name; a root
-    holding another target's manifest is `engine/manifest-foreign`; two targets whose roots are
-    one directory, or one inside the other, by the path fold, are refused before any target runs;
-    of two targets one of which would overwrite a file, neither is written, in either order they
-    are named; a root changed between its plan and its writes, a file edited or a second plan
-    applied, is refused with nothing written, and a file added under a directory a write replaces
-    is refused when that write meets it, the next run finding it in the write's way; a write
-    cut after any single operation on the disk, a file removed, a directory removed or a file
-    written, heals when the same generation or a later one runs next, itself cut at any operation
-    and run again, the tree then an uninterrupted run's, with no empty directory, no pending
-    manifest and no file reported as edited or in the way, and the run after it doing nothing; a
-    spec reformatted, one drawing a warning among them, is the same generation; a generated file
-    edited outside its regions is reported `engine/file-edited` and neither overwritten nor
-    pruned, by the next generation too, an entity a rename moves out of it written in its new place
-    and its regions left in the kept file, written once, while one edited only inside a region, or
-    checked out with other line endings, is not an edit; a region follows its entity into the file
-    a rename moves it to,
-    one the declaration enclosed still inside it, and one whose entity is gone is reported and its
-    file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
-    entity a correlation key carried across a renamed path variable; a file written once is never
-    written again, even after its user deletes it, nor reported when its user edits it, and one
-    marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
-    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
-    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
-    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
-    for byte, an edit outside its blocks draws nothing and one inside an unfrozen block is replaced
-    and draws a warning, a block new to the generation lands beside its neighbours in the generated
-    order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
-    frozen before its entity's path variable is renamed gains no twin, and its table of contents
-    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
-    refused as `engine/manifest-newer` with nothing written ([write /
-    integrate](../write-integrate.md)).
+40. **T-40 · Manifest and integration** — a first generation writes every file and its manifest and
+    reports `engine/first-generation`, into a root that does not exist yet too, and prunes nothing
+    but what a pending manifest lists; a regeneration whose inputs all match writes nothing and
+    leaves every modification time; a file the generation drops is pruned by its digest, a marked
+    one and one that can hold no comment alike, with each directory that leaves empty; a file at a
+    path no manifest lists is rewritten where it carries the marker and is
+    `engine/artifact-would-overwrite` where it does not, nothing written; with the manifest deleted
+    a file this generation drops stays; a file renamed in letter case alone is pruned and written,
+    its content changed or not, and is `engine/artifact-would-overwrite` where its owner edited the
+    old spelling, on a volume that ignores case and one that does not, each judged from what such a
+    volume answers; a file and a directory trade places both ways, a directory left empty in the way
+    removed, and a file that stays in a write's way, its owner's or an edited one, is
+    `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
+    of a write's segment is the same error unless the prunes empty it, one a volume lists decomposed
+    being the same name; a root holding another target's manifest is `engine/manifest-foreign`; two
+    targets whose roots are one directory, or one inside the other, by the path fold, are refused
+    before any target runs; of two targets one of which would overwrite a file, neither is written,
+    in either order they are named, and at the `none` threshold, or under a triage rule accepting
+    the code, the other is written and that root left as it was; a root changed between its plan and
+    its writes, a file edited or a second plan applied, is refused with nothing written, and a file
+    added under a directory a write replaces is refused when that write meets it, the next run
+    finding it in the write's way; a write cut after any single operation on the disk, a file
+    removed, a directory removed or a file written, heals when the same generation or a later one
+    runs next, itself cut at any operation and run again, the tree then an uninterrupted run's, with
+    no empty directory, no pending manifest and no file reported as edited or in the way, and the
+    run after it doing nothing; a spec reformatted, one drawing a warning among them, is the same
+    generation; a generated file edited outside its regions is reported `engine/file-edited` and
+    neither overwritten nor pruned, by the next generation too, an entity a rename moves out of it
+    written in its new place and its regions left in the kept file, written once, while one edited
+    only inside a region, or checked out with other line endings, is not an edit; a region follows
+    its entity into the file a rename moves it to, one the declaration enclosed still inside it, and
+    one whose entity is gone is reported and its file kept; a scoped run's manifest keeps every
+    entry it left out; the staleness check lists no entity a correlation key carried across a
+    renamed path variable; a file written once is never written again, even after its user deletes
+    it, nor reported when its user edits it, and one marked `@morphic:ignore-file` is never written,
+    pruned or reported; a hint's key, a runtime-policy key, an envelope's `Except` entry and a
+    `Remount` group naming nothing in the document each draw `emitters/unmatched-key` once, naming
+    the entity of the same correlation key, and no other diagnostic; a README's text outside its
+    blocks and its frozen blocks survive byte for byte, an edit outside its blocks draws nothing and
+    one inside an unfrozen block is replaced and draws a warning, a block new to the generation
+    lands beside its neighbours in the generated order, the first of them included, a block whose ID
+    holds `-->` keeps its markers whole, one frozen before its entity's path variable is renamed
+    gains no twin, and its table of contents lists the user's headings; and a manifest of an older
+    `Schema` is migrated, one of a newer refused as `engine/manifest-newer` with nothing written
+    ([write / integrate](../write-integrate.md)).
 41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
     `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
     places it, and every content, the primary response and the elected content first; a table for
