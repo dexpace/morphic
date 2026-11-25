@@ -247,14 +247,17 @@ generation judges it the same way.
   lists, as a first generation cut short leaves one.
 - **Spellings a disk may not tell apart are judged together.** Where a listed path the generation
   drops folds as a path it holds, `Setup.kt` and then `SetUp.kt`, a volume that ignores case
-  answers the new spelling with the old file. So what is known of either spelling is known of
-  both. Where either holds a file of any other digest, that file is its owner's and the write is
+  answers the new spelling with the old file, and a run cut short there leaves both spellings
+  listed, whatever the next generation holds. So what is known of one listed spelling is known of
+  every path that folds as it, whether the generation holds one of them or none, and a file that
+  answers several of them is pruned once. Where the generation holds one and any of them holds a
+  file of any other digest, that file is its owner's and the write is
   `engine/artifact-would-overwrite` on every volume: on one that ignores case the write would
   replace it, and on one that does not it would replace the file at the new spelling, or leave
-  beside an edited old one a second name no other volume can hold. Otherwise, where the old
+  beside an edited old one a second name no other volume can hold. Otherwise, where an old
   spelling holds a file, it is pruned and the new one written, whatever the new spelling answers,
-  since the old file may be what answers; where it holds none, the new spelling is judged by the
-  table.
+  since the old file may be what answers; where none does, the new spelling is judged by the
+  table. Where the generation holds none of them, each is judged by the table.
 - **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
   edited one, under a directory a write needs as a file, or where a write needs a directory, is
   `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.

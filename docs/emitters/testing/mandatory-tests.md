@@ -540,8 +540,10 @@ throughout these documents.
     a file this generation drops stays; a file renamed in letter case alone is pruned and written,
     its content changed or not, and is `engine/artifact-would-overwrite` where its owner edited the
     old spelling, on a volume that ignores case and one that does not, each judged from what such a
-    volume answers; a file and a directory trade places both ways, a directory left empty in the way
-    removed, and a file that stays in a write's way, its owner's or an edited one, is
+    volume answers, and where that rename was cut short and the next generation drops the file or
+    renames it again, a file both spellings name is pruned once and none is reported edited; a
+    file and a directory trade places both ways, a directory left empty in the way removed, and a
+    file that stays in a write's way, its owner's or an edited one, is
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
     of a write's segment is the same error unless the run removes it first, emptied by the prunes or
     standing empty above a listed path the generation drops, one a volume lists decomposed being the
