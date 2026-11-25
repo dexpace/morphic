@@ -203,7 +203,10 @@ type Entry struct {
   manifest from a newer Morphic is refused as an error `engine/manifest-newer` and nothing is
   written, since its fields cannot be read and a generation run without them would rename what was
   shipped. A manifest whose `Target` is another target's is an error `engine/manifest-foreign`,
-  and nothing is written: the root is another generation's.
+  and nothing is written: the root is another generation's. A pending manifest states its `Schema`
+  and `Target` as the manifest does ([below](#every-write-is-planned-before-the-verdict)) and is
+  refused by each rule the same way, so a root where another target's first generation was cut
+  short is refused, and none of that target's files is pruned.
 
 ## A file is judged by its digest
 
@@ -298,9 +301,9 @@ Applying a plan, in order:
    the manifest's among them, a digest or an absence. Where one no longer holds, the root moved:
    another run wrote there, or its owner saved a file. Nothing is written, and the run fails with
    an error naming the root.
-2. **A pending manifest is written**, `morphic.manifest.pending.json`: for each path, every digest
-   known to be the generation's, those the manifest and any earlier pending manifest record and
-   the new one.
+2. **A pending manifest is written**, `morphic.manifest.pending.json`: the `Schema` and `Target`
+   the manifest will state, and for each path, every digest known to be the generation's, those
+   the manifest and any earlier pending manifest record and the new one.
 3. **Prunes come before writes**, and with them the removal of each directory left empty, those
    above a listed path the generation drops and the disk no longer holds among them. A path a
    write needs may be held by a file a prune removes: the other spelling of a file renamed in

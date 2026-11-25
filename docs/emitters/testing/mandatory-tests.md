@@ -547,9 +547,10 @@ throughout these documents.
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
     of a write's segment is the same error unless the run removes it first, emptied by the prunes or
     standing empty above a listed path the generation drops, one a volume lists decomposed being the
-    same name; a root holding another target's manifest is `engine/manifest-foreign`; two
-    targets whose roots are one directory, or one inside the other, by the path fold, are refused
-    before any target runs; of two targets one of which would overwrite a file, neither is written,
+    same name; a root holding another target's manifest, or its pending manifest alone, is
+    `engine/manifest-foreign`, and nothing there is pruned; two targets whose roots are one
+    directory, or one inside the other, by the path fold, are refused before any target runs; of
+    two targets one of which would overwrite a file, neither is written,
     in either order they are named, and at the `none` threshold, or under a triage rule accepting
     the code, the other is written and that root left as it was; a root changed between its plan and
     its writes, a file edited or a second plan applied, is refused with nothing written, and a file
@@ -576,8 +577,8 @@ throughout these documents.
     lands beside its neighbours in the generated order, the first of them included, a block whose ID
     holds `-->` keeps its markers whole, one frozen before its entity's path variable is renamed
     gains no twin, and its table of contents lists the user's headings; and a manifest of an older
-    `Schema` is migrated, one of a newer refused as `engine/manifest-newer` with nothing written
-    ([write / integrate](../write-integrate.md)).
+    `Schema` is migrated, one of a newer, or a pending manifest of a newer, refused as
+    `engine/manifest-newer` with nothing written ([write / integrate](../write-integrate.md)).
 41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
     `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
     places it, and every content, the primary response and the elected content first; a table for
