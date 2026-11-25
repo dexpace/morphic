@@ -6,9 +6,11 @@ package archtest_test
 import (
 	"encoding/json/v2"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +29,8 @@ const (
 	// agentRulesPath is the rule file an agent that does not read CLAUDE.md
 	// loads, which sends it there.
 	agentRulesPath = "AGENTS.md"
+	// instructionsPath is the file agentRulesPath sends an agent to.
+	instructionsPath = "CLAUDE.md"
 	// ruleFileByteCap is how much of a rule file Antigravity gives a session
 	// at most, cutting at a line's end and counting the bytes it left out. Its
 	// command line showed that at 1.5.17.
@@ -52,12 +56,13 @@ type skillsManifestEntry struct {
 	Path string `json:"path"`
 }
 
-// TestSkills_ManifestLoadsEachOne fails on a skill the manifest's reader would
-// not load, and on an entry naming a directory that holds none. An agent
-// missing a skill reports nothing, so no session shows either. No gate runs
-// the reader: this holds the manifest to what Antigravity's command line did
-// with one at 1.5.17.
-func TestSkills_ManifestLoadsEachOne(t *testing.T) {
+// TestSkills_ManifestReachesEachOne fails on a skill placed where the
+// manifest's reader does not look, and on an entry naming no directory or one
+// that holds no skill. An agent missing a skill reports nothing, so no session
+// shows either. No gate runs the reader: this holds the manifest to what
+// Antigravity's command line did with one at 1.5.17. It reads no skill's
+// frontmatter, which skills_lint holds.
+func TestSkills_ManifestReachesEachOne(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
 	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(skillsManifestPath)))
@@ -93,12 +98,19 @@ func TestSkills_NoneSitsBesideTheManifest(t *testing.T) {
 		"a skill under %s is outside %s, which holds every skill", manifestDirectory, skillsTree)
 }
 
-// skillFiles returns each SKILL.md under tree, as a path from root.
+// skillFiles returns each SKILL.md under tree, as a path from root. It reads a
+// directory whose name opens with a dot like any other and the file's name in
+// any case, as Antigravity's command line did at 1.5.17, the second on a file
+// system that folds case.
 func skillFiles(t *testing.T, root, tree string) []string {
 	t.Helper()
 	var skills []string
-	err := keydoc.Walk(root, tree, func(file string) error {
-		if filepath.Base(file) == "SKILL.md" {
+	start := filepath.Join(root, filepath.FromSlash(tree))
+	err := filepath.WalkDir(start, func(file string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.EqualFold(entry.Name(), "SKILL.md") {
 			skills = append(skills, keydoc.Rel(root, file))
 		}
 		return nil
@@ -109,12 +121,17 @@ func skillFiles(t *testing.T, root, tree string) []string {
 
 // manifestProblems returns what keeps the directories a manifest names from
 // loading exactly the skills: a skill that sits directly under none of them,
-// since each is read one level deep, and a directory holding no skill. A
-// directory is named from the root in any spelling [path.Clean] reads alike.
+// since each is read one level deep, a directory holding no skill, and an
+// entry naming none, for which nothing is read. A directory is named from the
+// root in any spelling [path.Clean] reads alike.
 func manifestProblems(directories, skills []string) []string {
 	var problems []string
 	holdsSkill := make(map[string]bool, len(directories))
 	for _, directory := range directories {
+		if directory == "" {
+			problems = append(problems, "an entry names no directory")
+			continue
+		}
 		holdsSkill[path.Clean(directory)] = false
 	}
 	for _, skill := range skills {
@@ -126,7 +143,7 @@ func manifestProblems(directories, skills []string) []string {
 		holdsSkill[directory] = true
 	}
 	for _, directory := range directories {
-		if !holdsSkill[path.Clean(directory)] {
+		if directory != "" && !holdsSkill[path.Clean(directory)] {
 			problems = append(problems, fmt.Sprintf("%s holds no skill", directory))
 		}
 	}
@@ -157,10 +174,19 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 			skills:      []string{"skills/a/SKILL.md"},
 		},
 		{
-			name:        "the root named by an empty path",
-			directories: []string{""},
+			name:        "the root named by a dot",
+			directories: []string{"."},
 			skills:      []string{"a/SKILL.md", "skills/b/SKILL.md"},
 			want:        []string{"skills/b/SKILL.md sits directly under no directory it names"},
+		},
+		{
+			name:        "an entry naming no directory",
+			directories: []string{"skills", ""},
+			skills:      []string{"skills/a/SKILL.md", "b/SKILL.md"},
+			want: []string{
+				"an entry names no directory",
+				"b/SKILL.md sits directly under no directory it names",
+			},
 		},
 		{
 			name:        "a skill one level deeper than is read",
@@ -198,7 +224,7 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 }
 
 // TestAgentRules_PointAtTheInstructionsWithinTheCap fails when the rule file
-// stops naming CLAUDE.md, grows past the size it is cut at, or includes a
+// stops linking CLAUDE.md, grows past the size it is cut at, or includes a
 // file, whose text counts toward that size. So the instructions stay out of
 // it: every session would get their start and a count of the rest.
 func TestAgentRules_PointAtTheInstructionsWithinTheCap(t *testing.T) {
@@ -207,7 +233,14 @@ func TestAgentRules_PointAtTheInstructionsWithinTheCap(t *testing.T) {
 	text, err := os.ReadFile(filepath.Join(root, agentRulesPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, string(text), "](CLAUDE.md)", "%s links no CLAUDE.md", agentRulesPath)
+	linksInstructions := false
+	for _, line := range linkLines(string(text)) {
+		for _, link := range markdownLink.FindAllStringSubmatch(line, -1) {
+			file, _, _ := strings.Cut(link[1], "#")
+			linksInstructions = linksInstructions || path.Clean(file) == instructionsPath
+		}
+	}
+	assert.True(t, linksInstructions, "%s links no %s", agentRulesPath, instructionsPath)
 	assert.NotContains(t, string(text), ruleFileInclude,
 		"%s includes a file, whose text counts toward the %d bytes it is cut at", agentRulesPath, ruleFileByteCap)
 	assert.LessOrEqual(t, len(text), ruleFileByteCap, "%s is cut at %d bytes", agentRulesPath, ruleFileByteCap)
