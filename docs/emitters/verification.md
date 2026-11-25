@@ -122,9 +122,9 @@ type Check struct {
   be a package of a module, or a project of a Gradle build, that only resolves there. Building the
   bare generation in a directory of its own would pass an SDK a kept region breaks and fail one
   whose build is its parent's, and a copy of the merged tree resolves no better than the bare one.
-  So a failing check does not undo the write: it fails the run, and the files stay for their owner
-  to read. It runs whenever it is asked for, a run that wrote nothing among them, since the tree
-  holds its owner's edits too.
+  So a failing check does not undo the write: whatever its finding is rated, the files stay for
+  their owner to read. It runs whenever it is asked for, a run that wrote nothing among them, since
+  the tree holds its owner's edits too.
 - **Asked for, never the default.** The check starts the target's toolchain on code generated from
   the spec, a build script and tests among it, with the caller's privileges, environment and
   network, which resolving dependencies needs. A spec is untrusted input

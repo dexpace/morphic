@@ -288,7 +288,9 @@ and every prune of its generation, by the rules above, and writes nothing. *Appl
 out and decides nothing. Every target's plan is made before the run's one verdict (architecture.md
 §4), and its findings join the run's, so everything that can fail a run is found before anything is
 written, and a failed run writes nothing: of two targets one of which would overwrite a file,
-neither is written, whichever order they are named in.
+neither is written, whichever order they are named in. That order decides nothing else either: a
+run's targets have their findings reported, and their writes planned and applied, in the byte order
+of their keys.
 
 A plan that draws an error holds no write and no prune, so applying it changes nothing, whatever the
 verdict. Where the `none` threshold or a triage rule lets such a run stand, the other targets' roots

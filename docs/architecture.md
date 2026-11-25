@@ -797,8 +797,8 @@ a misspelt error through every gate. Failing withholds nothing: a failed run sti
 document and every diagnostic, to inspect or persist. What it stops is the emitters, which the
 engine starts only where the findings the passes leave have not failed the run. A run that generates
 is then judged over the whole list, what its targets report and what planning their writes finds
-rated with the rest: that is the one verdict `Result.Failed` records, taken before anything is
-written ([write /
+rated with the rest: one verdict for every target, which `Result.Failed` records and which is taken
+before anything is written, so a run it fails writes nothing ([write /
 integrate](./emitters/write-integrate.md#every-write-is-planned-before-the-verdict)). A build check
 the run asks for comes after it, on the written tree: what it reports is rated as any finding is,
 and a run it fails keeps the files as written
