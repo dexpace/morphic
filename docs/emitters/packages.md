@@ -80,7 +80,7 @@ holds it:
 
 ```bash
 git ls-files 'pathfold/*.go' 'emitters/*.go' 'engine/project/*.go' 'engine/emit/*.go' \
-  'engine/artifacts/*.go' | xargs -n1 dirname | sort -u
+  'engine/artifacts/*.go' | xargs -r -n1 dirname | sort -u
 ```
 
 Every other row is planned. The [milestone plan](milestones.md#the-foundation) says which land
