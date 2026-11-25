@@ -105,7 +105,7 @@ test:
 | `emitters/prose` | the first documentation comment naming another entity |
 | A scope's rule over a name's shape | the target that reserves by one, Kotlin's |
 | The protocols a target covers, and the binding it lowers | the first client |
-| The build check and what it reads, `Artifact.Kind` and `Spans` among it | the first target whose output it builds |
+| The build check and what it reads, `Artifact.Spans` among it | the first target whose output it builds |
 | Samples and routes, and the order targets run in for them | the docs target |
 | A file written once | the first scaffolding file |
 | The manifest's entities, shipped names, regions, merging, surface verification | M4 |

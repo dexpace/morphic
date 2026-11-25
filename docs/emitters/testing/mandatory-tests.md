@@ -542,8 +542,9 @@ throughout these documents.
     volume answers; a file and a directory trade places both ways, a directory left empty in the way
     removed, and a file that stays in a write's way, its owner's or an edited one, is
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
-    of a write's segment is the same error unless the prunes empty it, one a volume lists decomposed
-    being the same name; a root holding another target's manifest is `engine/manifest-foreign`; two
+    of a write's segment is the same error unless the run removes it first, emptied by the prunes or
+    standing empty above a listed path the generation drops, one a volume lists decomposed being the
+    same name; a root holding another target's manifest is `engine/manifest-foreign`; two
     targets whose roots are one directory, or one inside the other, by the path fold, are refused
     before any target runs; of two targets one of which would overwrite a file, neither is written,
     in either order they are named, and at the `none` threshold, or under a triage rule accepting

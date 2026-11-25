@@ -260,10 +260,11 @@ generation judges it the same way.
   `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
 - **A directory keeps the spelling the generation gives it.** A directory standing under another
   spelling of a segment a write passes through, `Models` for `models`, is
-  `engine/artifact-would-overwrite` unless the prunes empty it: on a volume that ignores case the
-  write would land under the old spelling, and the manifest would list a path another volume
-  lacks. A name a volume lists in another normalization, a composed `é` decomposed, is the same
-  name.
+  `engine/artifact-would-overwrite` unless the run removes it before the write, as it does one
+  the prunes empty and one standing empty above a listed path the generation drops. Under one left
+  standing, a write on a volume that ignores case would land under the old spelling, and the
+  manifest would list a path another volume lacks. A name a volume lists in another normalization,
+  a composed `é` decomposed, is the same name.
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
   file that it leaves empty, and a listed path the generation drops and the disk no longer holds
   has its empty directories removed too, so a run cut between a prune and the removal of its
@@ -297,10 +298,12 @@ Applying a plan, in order:
 2. **A pending manifest is written**, `morphic.manifest.pending.json`: for each path, every digest
    known to be the generation's, those the manifest and any earlier pending manifest record and
    the new one.
-3. **Prunes come before writes.** A path a write needs may be held by a file a prune removes: the
-   other spelling of a file renamed in letter case alone, or a file where a directory must go.
-   Written first on a volume that ignores case, the new file is the one the prune of the old then
-   removes.
+3. **Prunes come before writes**, and with them the removal of each directory left empty, those
+   above a listed path the generation drops and the disk no longer holds among them. A path a
+   write needs may be held by a file a prune removes: the other spelling of a file renamed in
+   letter case alone, or a file where a directory must go. Written first on a volume that ignores
+   case, the new file is the one the prune of the old then removes, or it lands under the old
+   spelling of a directory an interrupted run emptied and left standing.
 4. **Each file is replaced atomically**, through a temporary file beside it, under the root
    ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed. A
    directory no longer empty there, a file added under it since the plan, is the root moved as

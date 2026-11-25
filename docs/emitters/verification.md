@@ -214,4 +214,4 @@ diagnostic:
   reads what its build writes, as Kotlin's reads the ABI dumps, in a run that did not ask for the
   build check, has the check skipped and said to be.
 
-Both land with the manifest (M4), and T-74 holds them.
+Both land with the manifest's entities (M4), and T-74 holds them.
