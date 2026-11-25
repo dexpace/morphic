@@ -67,6 +67,8 @@ need Python 3.14, run as `python3.14`.
 Antigravity does not look for skills under `.claude`, so `.agents/skills.json` names
 `.claude/skills` for it. It loads what sits directly under a directory named there, and
 `internal/archtest` holds each skill to that and `AGENTS.md` to the size a rule file is cut at.
+Antigravity would also load a skill from `.agents/skills`, where `skills_lint` does not look, so the
+same package refuses one there.
 
 **The skills are experimental.** A rule can be wrong or stale, and a script can report what its
 input does not support. Treat what a skill says as a claim to check, not a result: before relying on

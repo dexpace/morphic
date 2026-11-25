@@ -21,8 +21,8 @@ import (
 const (
 	// skillsTree is where the repository keeps its skills, one directory each.
 	skillsTree = ".claude/skills"
-	// skillsManifestPath is the file naming directories of skills for an agent
-	// that looks for them under .agents alone, as Antigravity does.
+	// skillsManifestPath is the file naming directories of skills for
+	// Antigravity, which does not look for them under .claude.
 	skillsManifestPath = ".agents/skills.json"
 	// agentRulesPath is the rule file an agent that does not read CLAUDE.md
 	// loads, which sends it there.
@@ -31,11 +31,16 @@ const (
 	// at most, cutting at a line's end and counting the bytes it left out. Its
 	// command line showed that at 1.5.17.
 	ruleFileByteCap = 24_000
+	// ruleFileInclude opens an include in a rule file. Antigravity puts the
+	// named file's text in its place before it cuts, so the cap counts text
+	// the rule file does not hold. Its command line showed that at 1.5.17.
+	ruleFileInclude = "@["
 )
 
 // skillsManifest is the manifest as this repository writes it. Its reader also
 // takes members that keep a skill of an entry out or add another manifest's
-// entries; decoding refuses them, so what the entries name is what loads.
+// entries; decoding refuses them, so an entry loads each skill directly under
+// its directory.
 type skillsManifest struct {
 	// Entries are the directories read for skills.
 	Entries []skillsManifestEntry `json:"entries"`
@@ -65,19 +70,40 @@ func TestSkills_ManifestLoadsEachOne(t *testing.T) {
 		directories = append(directories, entry.Path)
 	}
 
+	skills := skillFiles(t, root, skillsTree)
+	require.NotEmpty(t, skills, "found no skill under %s, so this proves nothing", skillsTree)
+
+	for _, problem := range manifestProblems(directories, skills) {
+		t.Errorf("%s: %s", skillsManifestPath, problem)
+	}
+}
+
+// TestSkills_NoneSitsBesideTheManifest fails on a skill under the manifest's
+// directory. Antigravity loads one from there whatever the manifest names, as
+// its command line showed at 1.5.17, while skills_lint and an agent reading
+// skillsTree alone never meet it. A directory of that name below the root,
+// which Antigravity reads when started inside it, is not looked for.
+func TestSkills_NoneSitsBesideTheManifest(t *testing.T) {
+	t.Parallel()
+	root := irtest.RepoRoot(t)
+	manifestDirectory := path.Dir(skillsManifestPath)
+
+	assert.Empty(t, skillFiles(t, root, manifestDirectory),
+		"a skill under %s is outside %s, which holds every skill", manifestDirectory, skillsTree)
+}
+
+// skillFiles returns each SKILL.md under tree, as a path from root.
+func skillFiles(t *testing.T, root, tree string) []string {
+	t.Helper()
 	var skills []string
-	err = keydoc.Walk(root, skillsTree, func(file string) error {
+	err := keydoc.Walk(root, tree, func(file string) error {
 		if filepath.Base(file) == "SKILL.md" {
 			skills = append(skills, keydoc.Rel(root, file))
 		}
 		return nil
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, skills, "found no skill under %s, so this proves nothing", skillsTree)
-
-	for _, problem := range manifestProblems(directories, skills) {
-		t.Errorf("%s: %s", skillsManifestPath, problem)
-	}
+	return skills
 }
 
 // manifestProblems returns what keeps the directories a manifest names from
@@ -171,9 +197,9 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 }
 
 // TestAgentRules_PointAtTheInstructionsWithinTheCap fails when the rule file
-// stops naming CLAUDE.md or grows past the size it is cut at, which is why the
-// instructions stay out of it: every session would get their start and a count
-// of the rest.
+// stops naming CLAUDE.md, grows past the size it is cut at, or includes a
+// file, whose text counts toward that size. So the instructions stay out of
+// it: every session would get their start and a count of the rest.
 func TestAgentRules_PointAtTheInstructionsWithinTheCap(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
@@ -181,5 +207,7 @@ func TestAgentRules_PointAtTheInstructionsWithinTheCap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, string(text), "](CLAUDE.md)", "%s links no CLAUDE.md", agentRulesPath)
+	assert.NotContains(t, string(text), ruleFileInclude,
+		"%s includes a file, whose text counts toward the %d bytes it is cut at", agentRulesPath, ruleFileByteCap)
 	assert.LessOrEqual(t, len(text), ruleFileByteCap, "%s is cut at %d bytes", agentRulesPath, ruleFileByteCap)
 }
