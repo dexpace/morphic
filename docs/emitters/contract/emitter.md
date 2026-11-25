@@ -185,9 +185,9 @@ another type, and nothing asserts one back to its type.
   shape, defaults filled, so two configurations that decode alike are one generation.
 - **A capability an optional interface shows is not stated a second time.** A cross-version target
   is one whose generator implements `Router`, and a target shows other targets' samples where its
-  generator implements `SampleReader`. Each is the configured target's, so the engine reads it once
-  every target a run needs is configured, which is before any generates. A flag beside the
-  interface could disagree with it
+  generator implements `SampleReader`. Each is the configured target's, so the engine reads it off
+  a target once that target is configured, and every target a run needs is configured before any
+  generates. A flag beside the interface could disagree with it
   ([capabilities](registry.md#a-capability-an-interface-shows)).
 
 Handing every `Generate` its options as a value of a shared interface, which each target asserted
@@ -196,8 +196,9 @@ programmer's error, which the contract then had to report, and `Configure` leave
 
 ## The checked calls
 
-The engine reaches a target's code through two functions and no other way, as
-`compilers.Detection.Compile` is the one way to a compiler's.
+The engine configures and generates through two functions and no other way, as
+`compilers.Detection.Compile` is the one way to compile. The registry reads a target's key and
+capabilities behind the same barrier ([the registry](registry.md#the-registry)).
 
 ```go
 // Bound is a target configured. Only Configure builds one, so no generator runs under another

@@ -1,10 +1,12 @@
 # Package layout & layering
 
-Consistent with architecture.md §3: `emitters/*` is Layer 2, which imports `ir` and `ir/irfacts`
-and never a compiler or `engine`, and the engine's packages are Layer 3. Shared code is libraries
-a target calls, never a framework: a target is a package that imports the contract and whichever
-shared packages it needs, and composes them itself. Nothing shared calls into a target but the two
-checked calls of the contract ([the contract](contract/emitter.md#the-checked-calls)).
+Consistent with architecture.md §3: `emitters/*` is Layer 2, which imports Layer 0 as [the
+table](#the-layers) lists for each package and never a compiler or `engine`, and the engine's
+packages are Layer 3. Shared code is libraries a target calls, never a framework: a target is a
+package that imports the contract and whichever shared packages it needs, and composes them
+itself. Nothing shared calls into a target but the contract: its registry reads a target's key and
+capabilities, and its two checked calls configure and run one ([the
+contract](contract/emitter.md#the-checked-calls)).
 
 ## The layers
 
@@ -45,8 +47,8 @@ Inside Layer 2 the packages form tiers, and an import only ever points down.
 | `emitters/manifest` | the generation manifest as data, and its migrations ([write / integrate](write-integrate.md)) | `emitters/symbol`, once it holds entities |
 | `emitters/verify` | the neutral surface, the differ, the severity type ([surface verification](surface-verification.md)) | `emitters/symbol` |
 | `emitters` | the contract, the registry, the checked calls ([the contract](contract/emitter.md)) | `ir`, `ir/irfacts`, `barrier`, `pathfold`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/symbol`, `emitters/manifest`, `emitters/verify` |
-| `emitters/emittertest` | the fake target, the golden tree, the oracles every target is held to | `emitters`, the kernel, `ir/irtest`, go-cmp |
-| `emitters/<target>` | one target | `emitters`, any kernel package, its own `internal/*` |
+| `emitters/emittertest` | the fake target, the golden tree, the oracles every target is held to | `ir`, `ir/irfacts`, `ir/irtest`, `emitters`, the kernel, go-cmp |
+| `emitters/<target>` | one target | `ir`, `ir/irfacts`, `emitters`, any kernel package, its own packages; `emitters/golang` also `github.com/dave/dst` |
 | `engine/project` | the project configuration, decoded ([the project](contract/project.md)) | `ir`, `pathfold`, `emitters`, `emitters/options`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed` |
 | `engine/emit` | the emit stage, with no I/O | `ir`, `ir/irfacts`, `emitters`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed`, `engine/project` |
 | `engine/artifacts` | planning and applying a generation's writes under its root ([write / integrate](write-integrate.md)) | `ir`, `pathfold`, `emitters`, `emitters/manifest`, `engine/internal/atomicfile` |

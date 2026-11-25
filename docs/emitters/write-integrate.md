@@ -42,8 +42,9 @@ blocks and staleness. The contract is designed so it bolts on with **no IR chang
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
   (`@morphic:ignore-file`) and region (`@morphic:keep <name>`/`:end`,
   [below](#regions-follow-their-entity)) — with append-only merge. The structural merge is
-  **language-parameterised** by an adapter registered into the manifest driver
-  ([Go](targets/go/overview.md#merging-and-surface-extraction),
+  **language-parameterised** by an adapter the target supplies
+  ([capabilities](contract/registry.md#a-capability-an-interface-shows);
+  [Go](targets/go/overview.md#merging-and-surface-extraction),
   [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)). No adapter ⇒ skip, never
   clobber. A file renamed in letter case alone needs no temporary name: its old spelling is pruned
   before its new one is written ([below](#every-write-is-planned-before-the-verdict)).
@@ -154,14 +155,14 @@ type Entry struct {
   written, pruned or checked for an edit, and a file integrated as blocks is checked by its blocks
   alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** A file whose bytes on disk are what this run generated is not written, and
-  where no file is written or pruned and every `Inputs` field matches, the manifest is not written
-  either, so a regeneration that changes nothing touches nothing and leaves every modification
-  time. A file written once or marked `@morphic:ignore-file` is set aside. `Emitter` is a version,
-  not the hash of the executable the plan and IR caches key on, since a team's machines share the
-  manifest and must agree on what it holds, and it holds the Go release beside Morphic's, since its
-  `go/format` shapes Go's output ([emit rules](emit/rules.md)). The run generates whatever the
-  manifest says: what is compared is what it generated, so a change being developed, whose version
-  names no one tree, is never skipped.
+  where no file is written or pruned and `Options` and every `Inputs` field match, the manifest is
+  not written either, so a regeneration that changes nothing touches nothing and leaves every
+  modification time. A file written once or marked `@morphic:ignore-file` is set aside. `Emitter`
+  is a version, not the hash of the executable the plan and IR caches key on, since a team's
+  machines share the manifest and must agree on what it holds, and it holds the Go release beside
+  Morphic's, since its `go/format` shapes Go's output ([emit rules](emit/rules.md)). The run
+  generates whatever the manifest says: what is compared is what it generated, so a change being
+  developed, whose version names no one tree, is never skipped.
 - **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness

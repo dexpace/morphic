@@ -37,8 +37,8 @@ refuses:
   vocabulary; and a declared build check on an emitter that does not implement `Checker`.
 
 The engine is the only caller of `Lookup`, and the only thing that touches the filesystem, prunes,
-and renders diagnostics. It reaches a target's code through the two checked calls and no other way
-([the contract](emitter.md#the-checked-calls)). Emitters are I/O-free. Reading, rendering and
+and renders diagnostics. It configures and generates through the two checked calls and no other
+way ([the contract](emitter.md#the-checked-calls)). Emitters are I/O-free. Reading, rendering and
 writing the IR document have homes already: `engine/reader` reads what a run's references name,
 `engine/report` renders, and `engine/output` writes, replacing a file through the atomic replace in
 `engine/internal/atomicfile`. Writing artifacts and pruning are [write /
@@ -107,8 +107,8 @@ implements already shows each, and a flag beside it could say otherwise:
 
 - **Reading every snapshot's routes** is implementing `Router`, and **showing other targets'
   samples** is implementing `SampleReader`, each on the target's generator ([the
-  contract](emitter.md#a-target-is-configured-once)). The engine reads both once it has configured
-  every target a run needs, before any generates, which is when it orders the run.
+  contract](emitter.md#a-target-is-configured-once)). The engine reads each off a target once that
+  target is configured, and orders the run once every target it needs is, before any generates.
 - **Merging into a live tree** and **extracting a surface** are a merge adapter and an extractor
   ([write / integrate](../write-integrate.md), [surface
   verification](../surface-verification.md)), each an optional interface that lands with M4. A

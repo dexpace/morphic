@@ -11,9 +11,9 @@ target's configuration as one JSON object, which the engine reads from the proje
 Every versioned configuration is decoded by one function, in `emitters/options`: a target's
 options, the project's configuration and the plan's policy ([plan
 policy](../plan/policy.md#the-policy-is-data)). A configuration differs from another in its type
-and its versions, which are data, and never in how a version, a default or a `null` is read. A
-runtime-policy layer and a hint layer state no version of their own and are read by the same
-rules, over the version the project's configuration states
+and its versions, which are data, and never in how `Decode` reads a version, a default or a
+`null`. A runtime-policy layer and a hint layer state no version of their own and are read by the
+same rules, over the version the project's configuration states
 ([delivery](runtime-policy.md#delivery)).
 
 ```go
@@ -49,7 +49,10 @@ func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, st
   would zero the default in silence (json/v2 in Go 1.27.3 reads `{"name": null}` over a default
   `name` as the empty string, and `{"rows": null}` as no table), and a configuration that means
   "the default" leaves the member out. The member's own type decides, read by the codec as it
-  decodes, so no second reading of a configuration's names can disagree with the first.
+  decodes, so no second reading of a configuration's names can disagree with the first. The
+  pointer exception is `Decode`'s alone: a member a rule of its own decodes is refused what that
+  rule refuses, and the type table's refuses every `null`, a row's `dependency` among them
+  ([type table](type-table.md)).
 - **Defaults belong to a version.** A target declares each optional setting's default per version,
   and `Decode` fills what a configuration leaves unset with the defaults of the version it states:
   it decodes over a copy of that version's `Defaults`, a map merged key by key and a struct member

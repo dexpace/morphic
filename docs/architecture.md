@@ -668,9 +668,11 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's. That is what keeps the ordering among them real: `diag` reaches only `ir` and
   `barrier`, and no lowering package may reach the compiler that calls it.
 - The OpenAPI compiler's own packages also sit in five layers, described below.
-- `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
-  The rule is in place before the first emitter package: `emitters` is ruled now, and each package
-  beneath it carries an entry of its own, as a compiler's packages do.
+- `emitters/*` imports `ir`, `ir/irfacts`, `barrier`, `pathfold` and the emitter packages of a
+  lower tier, as [package layout](./emitters/packages.md) tables each — never a compiler, and no
+  shared package imports the contract package `emitters`. The rule is in place before the first
+  emitter package: `emitters` is ruled now, and each package beneath it carries an entry of its
+  own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The import rules bound what a package names, not where control goes: a package can still call into
