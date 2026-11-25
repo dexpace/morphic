@@ -273,8 +273,10 @@ generation judges it the same way.
   a composed `é` decomposed, is the same name.
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
   file that it leaves empty, and a listed path the generation drops and the disk no longer holds
-  has its empty directories removed too, so a run cut between a prune and the removal of its
-  directory is finished by the next.
+  has its empty directories removed too. Either removal goes up from the path, passes over a
+  directory already gone and ends at the first that holds something, so a run cut between a prune
+  and the removal of its directory, or between the removals of two directories above one file, is
+  finished by the next.
 
 `engine/file-edited` is a warning, since nothing is lost, and `engine/artifact-would-overwrite` an
 error. Each is a finding about the output root, which the engine reports and a threshold or a triage
@@ -349,7 +351,9 @@ manifest, spellings judged together, and the removal of directories a cut left e
 the rules, the interrupted runs among them. #2247 holds the model as it stood before the spellings
 a generation drops were judged together: it judges each of those alone, so over a rename cut short
 whose file the next generation drops or renames again it reports an edit nobody made, or prunes
-one file twice.
+one file twice. And it stops going up at a directory already gone, where the rule above passes over
+it, which none of its sequences shows: over a file pruned alone two directories deep, a run cut
+between their removals, it leaves the upper one standing empty.
 
 ## Where generation runs
 

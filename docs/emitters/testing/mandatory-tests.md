@@ -556,10 +556,11 @@ throughout these documents.
     its writes, a file edited or a second plan applied, is refused with nothing written, and a file
     added under a directory a write replaces is refused when that write meets it, the next run
     finding it in the write's way; a write cut after any single operation on the disk, a file
-    removed, a directory removed or a file written, heals when the same generation or a later one
-    runs next, itself cut at any operation and run again, the tree then an uninterrupted run's, with
-    no empty directory, no pending manifest and no file reported as edited or in the way, and the
-    run after it doing nothing; a spec reformatted, one drawing a warning among them, is the same
+    removed, a directory removed, the lower of two that one pruned file leaves empty among them, or
+    a file written, heals when the same generation or a later one runs next, itself cut at any
+    operation and run again, the tree then an uninterrupted run's, with no empty directory, no
+    pending manifest and no file reported as edited or in the way, and the run after it doing
+    nothing; a spec reformatted, one drawing a warning among them, is the same
     generation; a generated file edited outside its regions is reported `engine/file-edited` and
     neither overwritten nor pruned, by the next generation too, an entity a rename moves out of it
     written in its new place and its regions left in the kept file, written once, while one edited
