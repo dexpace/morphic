@@ -70,12 +70,13 @@ type CheckOutput struct {
     Check  string   // the check's Name
     Output []byte   // both streams, cut at the engine's cap
     Root   string   // the output root's absolute path, as the tool was run in it
-    Files  []string // the paths the run wrote, from the root, forward-slashed
+    Files  []string // the paths the generation holds, from the root, forward-slashed: those this
+                    // run wrote and those it left, found as generated or kept as their owner's
 }
 
-// CheckMessage is one message of a check, at the written file and the line its tool named.
+// CheckMessage is one message of a check, at the generation's file and the line its tool named.
 type CheckMessage struct {
-    Path string // one of CheckOutput.Files; "" where the tool named no file, or none written
+    Path string // one of CheckOutput.Files; "" where the tool named no file, or none of them
     Line int    // 1-based; 0 where the tool gave none
     Text string
 }

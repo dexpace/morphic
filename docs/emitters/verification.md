@@ -148,24 +148,28 @@ type Check struct {
   same code, and the checks after it are skipped: what it could not fetch says nothing of the
   output.
 - **A failure maps to its entity.** A target declaring checks implements `Checker` ([the
-  contract](contract/emitter.md)), a pure function from what a failed check printed to its
-  messages, since one build prints its compiler's lines and its build tool's and only the target
-  knows either form. A tool names a file its own way, by an absolute path or one from a package's
-  directory, so the function is handed the output root and the paths written and gives each
-  message the written path it lies in. The engine maps the message's line through `Artifact.Spans`
-  to the innermost declaration holding it, and reports an error `emitters/<target>/check-failed`
-  carrying that entity's provenance. A file's `Origins` would not do: they list every entity of the
-  file, which for one of Go's units is every model in it. A message on a line no span holds, a
-  package clause or an import, or in a file with none, as the runtime's are, is reported at the
-  file, and one with no position, or a failing check that printed no message, at the target, naming
-  the check. Such a finding names no source, and its message the file or the target.
+  contract](contract/emitter.md)), a pure function from what a failed check printed to its messages,
+  since one build prints its compiler's lines and its build tool's and only the target knows either
+  form. A tool names a file its own way, by an absolute path or one from a package's directory, so
+  the function is handed the output root and the paths the generation holds, whether this run wrote
+  the file there or left it, and gives each message the one it lies in. The engine maps the
+  message's line through `Artifact.Spans` to the innermost declaration holding it, and reports an
+  error `emitters/<target>/check-failed` carrying that entity's provenance. A file's `Origins` would
+  not do: they list every entity of the file, which for one of Go's units is every model in it. A
+  message on a line no span holds, a package clause or an import, or in a file with none, as the
+  runtime's are, is reported at the file, and one with no position, or a failing check that printed
+  no message, at the target, naming the check. Such a finding names no source, and its message the
+  file or the target.
 - **Spans are of the file as written.** A span counts the lines of `Artifact.Content`, which a
-  target that formats in `Generate` returns formatted. They hold for a file this run wrote from
-  that content: the writer shifts each span past the regions it restored above it and lengthens
-  one a region lies inside, since it alone knows them. Any other file keeps no span, so a message
-  there is reported at the file: one its owner edited and the writer left
-  ([what the manifest records](write-integrate.md#what-the-manifest-records)), one written once or
-  marked `@morphic:ignore-file`, and one a merge adapter wrote, whose lines are its own.
+  target that formats in `Generate` returns formatted. They hold for a file this run wrote from that
+  content, and for one it judged fresh and so left ([write /
+  integrate](write-integrate.md#a-file-is-judged-by-its-digest)). Of what a digest sets aside,
+  converted line endings, a byte-order mark and trailing newlines move no line and a region's text
+  does, so the writer shifts each span past the regions the file holds above it and lengthens one a
+  region lies inside, since it alone knows them. Any other file keeps no span, so a message there is
+  reported at the file: one its owner edited and the writer left ([what the manifest
+  records](write-integrate.md#what-the-manifest-records)), one written once or marked
+  `@morphic:ignore-file`, and one a merge adapter wrote, whose lines are its own.
 - **Samples are built by the same checks.** A target that returns samples
   ([docs and mocks](docs-and-mock.md#samples-come-from-the-sdk-emitters)) returns, among its test
   artifacts, a file holding each sample of the snapshot it writes, its `Code` as returned inside

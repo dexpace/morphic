@@ -306,8 +306,11 @@ Applying a plan, in order:
    another run wrote there, or its owner saved a file. Nothing is written, and the run fails with
    an error naming the root.
 2. **A pending manifest is written**, `morphic.manifest.pending.json`: the `Schema` and `Target`
-   the manifest will state, and for each path, every digest known to be the generation's, those
-   the manifest and any earlier pending manifest record and the new one.
+   the manifest will state, and for each path, every digest known to be the generation's: those
+   the manifest and any earlier pending manifest record, the one read at a marked file no manifest
+   lists that the plan overwrites, and the new one. The marked file's is recorded because this
+   record makes its path a listed one: left out, a run cut before that file's write would leave
+   it at a listed path under a digest nothing knows, which reads as its owner's edit.
 3. **Prunes come before writes**, and with them the removal of each directory left empty, those
    above a listed path the generation drops and the disk no longer holds among them. A path a
    write needs may be held by a file a prune removes: the other spelling of a file renamed in
@@ -322,10 +325,10 @@ Applying a plan, in order:
 5. **The manifest is written last**, and then the pending manifest is removed.
 
 - **An interrupted write heals.** A run killed once it has begun to write leaves the pending
-  manifest, which lists every digest the generation may have written, and planning reads it as it
-  reads the manifest. So the next run recognizes a half-written tree as the generation's own,
-  finishes it, and reports no file as its owner's edit, however many runs were cut short: a pending
-  manifest only grows until a manifest lands.
+  manifest, which lists every digest the generation may have written and that of each marked file it
+  set out to replace, and planning reads it as it reads the manifest. So the next run recognizes a
+  half-written tree as the generation's own, finishes it, and reports no file as its owner's edit,
+  however many runs were cut short: a pending manifest only grows until a manifest lands.
 - **The gaps that stay.** Reading the root again narrows the time between a plan and its writes and
   does not close it: a file saved between that check and its own write is replaced, so two runs into
   one root at once are not supported. And that a failed run writes nothing holds for what planning
@@ -353,7 +356,11 @@ a generation drops were judged together: it judges each of those alone, so over 
 whose file the next generation drops or renames again it reports an edit nobody made, or prunes
 one file twice. And it stops going up at a directory already gone, where the rule above passes over
 it, which none of its sequences shows: over a file pruned alone two directories deep, a run cut
-between their removals, it leaves the upper one standing empty.
+between their removals, it leaves the upper one standing empty. Nor does its pending manifest
+record the digest read at a marked file no manifest lists, and each of its sequences starts from an
+empty root, so none shows it: over two marked files and no manifest, a first generation cut once
+its pending manifest is written, it reports both as edited on every later run and replaces
+neither.
 
 ## Where generation runs
 
