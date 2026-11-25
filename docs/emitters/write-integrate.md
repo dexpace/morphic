@@ -134,7 +134,8 @@ type Entry struct {
   `Handed` and `Generations` with the docs target. `Inputs.Config` digests the decoded options
   alone until policy and hints are resolved. A manifest is decoded strictly, so each member that
   joins is a new `Schema`, whose migration from the one before adds nothing: an older Morphic
-  meeting it refuses the manifest as newer, where it would otherwise misread it.
+  meeting it refuses the manifest as newer, where it would otherwise refuse a member it does not
+  know and say nothing of why.
 - **The document, not the spec text.** `Inputs.Doc` is the IR's digest, canonical JSON with
   `sources` and `diagnostics` left out. Reformatting a spec, or moving it to another path, changes
   the spec's bytes and where its reports point, and leaves the rest of the IR whole, so it is no new
@@ -143,15 +144,15 @@ type Entry struct {
   out and its markers kept, with a byte-order mark stripped, line endings made `\n` and trailing
   newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
   checkout that converts line endings are not mistaken for an edit. A file the manifest lists
-  whose bytes on disk, normalized alike, match no digest recorded for it was edited outside its
-  regions. The writer leaves it as it is, neither overwriting nor pruning it, reports it as a
-  warning `engine/file-edited`, since nothing is lost, and keeps its prior entry in the new
-  manifest, so the next generation reports it again. An entity a rename moves out of it is written
-  in its new place as any
-  other, since its callers name it there, and its regions stay in the kept file, which still holds
-  them, rather than being written twice. A file marked `@morphic:ignore-file` is its user's whole,
-  as a file written once is, so it is never written, pruned or checked for an edit, and a file
-  integrated as blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
+  whose bytes on disk, normalized alike, match neither a digest recorded for it nor what this run
+  generates was edited outside its regions. The writer leaves it as it is, neither overwriting nor
+  pruning it, reports it as a warning `engine/file-edited`, since nothing is lost, and keeps its
+  prior entry in the new manifest, so the next generation reports it again. An entity a rename
+  moves out of it is written in its new place as any other, since its callers name it there, and
+  its regions stay in the kept file, which still holds them, rather than being written twice. A
+  file marked `@morphic:ignore-file` is its user's whole, as a file written once is, so it is never
+  written, pruned or checked for an edit, and a file integrated as blocks is checked by its blocks
+  alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** A file whose bytes on disk are what this run generated is not written, and
   where no file is written or pruned and every `Inputs` field matches, the manifest is not written
   either, so a regeneration that changes nothing touches nothing and leaves every modification
@@ -233,10 +234,10 @@ judges it the same way.
   with no comment syntax, and it prunes a marked file whatever its owner did to it.
 - **The marker gates one thing: a file no manifest lists.** A first generation into a tree an
   older generation wrote, or one whose manifest was deleted, meets files it has no digest for. One
-  carrying the marker ([the contract](contract/emitter.md#the-generated-by-line)) is rewritten;
-  any other is an error `engine/artifact-would-overwrite`, and nothing is written. With the
-  manifest gone, a file an earlier generation wrote and this one drops stays, since nothing lists
-  it.
+  carrying the marker where its artifact's `Header` places it ([the
+  contract](contract/emitter.md#the-generated-by-line)) is rewritten; any other is an error
+  `engine/artifact-would-overwrite`, and nothing is written. With the manifest gone, a file an
+  earlier generation wrote and this one drops stays, since nothing lists it.
 - **A first generation says so.** A root holding no manifest is a first generation: nothing is
   pruned, and the run reports an info `engine/first-generation`.
 - **Spellings a disk may not tell apart are judged together.** Where a listed path the generation
@@ -245,9 +246,9 @@ judges it the same way.
   both. Where the old spelling holds a file of a known or fresh digest, it is pruned and the new
   one written, whatever the new spelling answers, since the old file may be what answers; where it
   holds none, the new spelling is judged by the table. Where either holds any other digest, the
-  write is `engine/artifact-would-overwrite` on every volume:
-  on one that ignores case it would replace its owner's edit, and on one that does not the tree
-  would hold two names no other volume can.
+  write is `engine/artifact-would-overwrite` on every volume: on one that ignores case it would
+  replace its owner's edit, and on one that does not the tree would hold two names no other volume
+  can.
 - **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
   edited one, under a directory a write needs as a file, or where a write needs a directory, is
   `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
@@ -255,7 +256,7 @@ judges it the same way.
   spelling of a segment a write passes through, `Models` for `models`, is
   `engine/artifact-would-overwrite` unless the prunes empty it: on a volume that ignores case the
   write would land under the old spelling, and the manifest would list a path another volume
-  lacks. A name a volume merely stores decomposed, as macOS lists a composed `é`, is the same
+  lacks. A name a volume lists in another normalization, a composed `é` decomposed, is the same
   name.
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
   file that it leaves empty, and a listed path the generation drops and the disk no longer holds

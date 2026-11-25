@@ -175,7 +175,7 @@ own `Configure` closed over: no options value crosses the contract, so none can 
 another type, and nothing asserts one back to its type.
 
 - **A configuration's fault is a Go error**, the invocation's, as a compiler's unknown setting is:
-  an unknown member, a missing or unknown version, a member written `null`, a value out of range
+  an unknown member, a missing or unknown version, a misplaced `null`, a value out of range
   ([target options](options.md)). The one diagnostic `Configure` returns is the upgrade report.
 - **A generator is immutable.** The engine calls one `Generate` for each snapshot it runs the
   target on, and may call several at once.
