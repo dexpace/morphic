@@ -270,7 +270,22 @@ generation judges it the same way.
   the prunes empty and one standing empty above a listed path the generation drops. Under one left
   standing, a write on a volume that ignores case would land under the old spelling, and the
   manifest would list a path another volume lacks. A name a volume lists in another normalization,
-  a composed `é` decomposed, is the same name.
+  a composed `é` decomposed, is the same name. The rule is met at a write alone: on a volume that
+  ignores case, a directory under which every held file is fresh is refused only once a write
+  passes through it, and until then the manifest lists a path under a spelling the disk does not
+  hold.
+- **A file's own name is judged by what the volume answers.** No rule looks for a file standing
+  under another spelling of a held path's own name where nothing lists that spelling: `Setup.kt`
+  for `SetUp.kt` in a root whose manifest was deleted, or its owner's `readme.md` where a
+  generation adds `README.md`. A volume that ignores case answers the held path with that file,
+  and the table judges it as the file there. Where the held path is unlisted too, one of the
+  fresh digest is left under the spelling it has and a marked one is replaced, the manifest
+  listing the held spelling either way, whatever name the volume keeps, and any other is
+  `engine/artifact-would-overwrite`. A volume that tells case apart never reads that file: the
+  held path is judged alone, and once it is written the tree holds two names no volume that
+  ignores case can. So the verdict and the tree differ by volume there, and a root the first
+  kind left listing a spelling its disk lacks gains, on the second, a file under that spelling
+  beside the old one.
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
   file that it leaves empty, and a listed path the generation drops and the disk no longer holds
   has its empty directories removed too. Either removal goes up from the path, passes over a
