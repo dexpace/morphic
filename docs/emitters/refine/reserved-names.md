@@ -2,7 +2,8 @@
 
 Each scope a target resolves names in is a `naming.Scope` it builds ([naming](naming.md)): how the
 scope's names compare, the names it reserves, and what a reserved name takes. Every scope reserves
-the language's keywords and predeclared names. Generated code binds names of its own too, and a
+the language's keywords and predeclared names, bar a keyword its target quotes and so keeps, as
+Kotlin does a hard keyword (below). Generated code binds names of its own too, and a
 spec name rendered equal to one of them shadows it or fails to compile, so each scope reserves what
 the code generated into it binds as well, and the units' scope and a unit's what a unit or a
 top-level declaration cannot be named:

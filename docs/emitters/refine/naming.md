@@ -42,8 +42,8 @@ type Tables struct {
     Case     CaseTables        // the letter case and the categories of a named Unicode version
 }
 
-// Role is the data a target states for one role: a type, a field, a method, a constant, a
-// parameter, a package.
+// Role is the data a target states for one identifier role: a type, a field, a method, a
+// constant, a parameter. A package's name is a path name (PathName, below).
 type Role struct {
     Convention    Convention
     LeadingWord   string    // the word before an identifier that would begin with what Start

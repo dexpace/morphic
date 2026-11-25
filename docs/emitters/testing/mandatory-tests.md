@@ -554,9 +554,9 @@ throughout these documents.
     spec reformatted, one drawing a warning among them, is the same generation; a generated file
     edited outside its regions is reported `engine/file-edited` and neither overwritten nor
     pruned, by the next generation too, an entity a rename moves out of it written in its new place
-    and its regions left
-    in the kept file, written once, while one edited only inside a region, or checked out with other
-    line endings, is not an edit; a region follows its entity into the file a rename moves it to,
+    and its regions left in the kept file, written once, while one edited only inside a region, or
+    checked out with other line endings, is not an edit; a region follows its entity into the file
+    a rename moves it to,
     one the declaration enclosed still inside it, and one whose entity is gone is reported and its
     file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
     entity a correlation key carried across a renamed path variable; a file written once is never
