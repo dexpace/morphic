@@ -84,7 +84,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     Kotlin, exports as `Duration__` ([Swift](swift.md)).
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
-    naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
+    naming tables are ([naming](../../refine/naming.md)), the target's own names included, so
     the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name the
     export declares for a class of its own or a public class, object or interface of the standard
     library, `Kotlin` before its name joined to its outer's (`KotlinInt`, `KotlinThrowable`,

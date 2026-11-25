@@ -167,8 +167,8 @@ throughout these documents.
     whose constructor takes a string, a `clean` and a `wrapper` at the build's root leave every
     module's sources, no path the build writes, an artifact's or a class file's, has a Windows
     device name for a segment, and the Multiplatform framework links, its header holding none of
-    what only generated code calls and giving each declaration the Swift name the naming policy
-    chose, none of them a type Swift's standard library or Foundation declares, a module's name or a
+    what only generated code calls and giving each declaration the Swift name the target chose,
+    none of them a type Swift's standard library or Foundation declares, a module's name or a
     name the export declares for a class of its own or for a class, object or interface of the
     standard library, so a Swift file that imports the framework and Foundation compiles its uses of
     both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
@@ -182,7 +182,7 @@ throughout these documents.
     and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion object: the header
     builds a module, a Swift caller importing the platform's UI framework reads each property's own
     value into a binding that states no type, calls each method and reaches each entry, of an enum
-    lowered with `OpenEnums` off so that it is an `enum class`, by the name the policy chose, which
+    lowered with `OpenEnums` off so that it is an `enum class`, by the name the target chose, which
     is the name the header gives it, a property `value`, one `version`, a method `hashValue()` and
     an entry `HASH_VALUE` keep their names, `hash`, `copy()` and `responds(to:)` on a model still
     answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion` as its own, and
@@ -1083,12 +1083,12 @@ throughout these documents.
     module, and a Java caller, sets and reads each property and calls each operation by its rendered
     name; a name holding U+2E2F links into a Multiplatform framework whose header clang compiles,
     and a Swift file importing the framework reaches each class, property and entry by the Swift
-    name the policy chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a
+    name the target chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a
     framework `Probe` and `ProbeA日本Builder` for the builder it nests, or an explicit name in ASCII
     where it takes one, as enum entries `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both
     declaration orders, and each method whose name or a parameter's is past ASCII, an ASCII
     `fetch(id:名前:)` and a `listBy(id:名前:)` among them, by the name read from the built module, its
-    selector the policy's
+    selector the target's
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
     [leading
     words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
@@ -1188,7 +1188,7 @@ throughout these documents.
     decorator not at all; a Kotlin unit holding types `UserKt` and `UserCreateKt` beside `User` and
     its alias declares them `UserKt_` and `UserCreateKt_` and builds on the JVM and as a framework
     whose header names no class for the alias's file, and two units each holding a literal `Kind`
-    give each constant, in both orders of the units' packages, the Swift name the policy chose,
+    give each constant, in both orders of the units' packages, the Swift name the target chose,
     `Kind.shared.VALUE` and the other's under its object's suffix, no file holding the spec's
     declarations declaring a function or a property at its top level; a model only a `PUT` writes,
     with a `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`,

@@ -7,8 +7,8 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
 - A name the export would mangle, or a Swift caller could not reach — a member `NSObject` gives
   every exported class (below), a method or an enum entry in the `alloc`, `copy`, `init`,
   `mutableCopy` or `new` method family, a Swift keyword, a name another declaration exports — gets
-  an explicit Objective-C and Swift name from the [naming policy](../../refine/naming.md)
-  (`@ObjCName`), so the Swift name is the policy's choice rather than the exporter's. That name is
+  an explicit Objective-C and Swift name from the target's [naming](../../refine/naming.md)
+  (`@ObjCName`), so the Swift name is the target's choice rather than the exporter's. That name is
   the Kotlin name with the escape's trailing underscore ([the escape](naming.md#the-escape)),
   `zone_`, and for a method family the Kotlin name behind its role's leading word ([leading
   words](../../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word)),
@@ -51,7 +51,7 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `responds(toSelector:)` or `perform(selector:)`, was imported under `NSObject`'s Swift name
   (`incorrect argument label in call (have 'toSelector:', expected 'to:')`), and one formed as
   `setValuesForKeysWithDictionary:` left a header no module builds from (`'swift_name' and
-  'swift_name' attributes are not compatible`). So the policy holds a table of the options version,
+  'swift_name' attributes are not compatible`). So the target holds a table of the options version,
   read by the commands below from Foundation and the UI framework of each Apple platform the target
   builds a framework for, AppKit at the macOS 26.2 SDK and UIKit at the iOS 26.2 one, one table for
   every platform, as the Swift type names are ([naming](naming.md#reserved-names)): each selector
@@ -134,14 +134,14 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `ProbeA日本Builder`, and a class `Inनाम` nested in an ASCII `Outer` `ProbeOuterInनाम`, none keeping
   its nesting; a property `名前` and an enum entry kept their names, and a constructor its labels; and
   an ASCII class kept its Swift name beside a member `café`. For a class, a property and an entry
-  that Objective-C name is the Swift name, which the policy reads as the export forms it, and
+  that Objective-C name is the Swift name, which the target reads as the export forms it, and
   resolves in the namespace every unit shares (below).
 - A method whose name or a parameter's is past ASCII has a selector the export forms, the method's
   name, its first parameter's capitalized and each later parameter's, and a Swift name Swift derives
   from the selector by rules of its own. Measured so, `取得(値:数:)` was `取得値(_:数:)`, so `取得(値: 1)`
   failed, an ASCII `fetch(id:名前:)` was `fetchId(_:名前:)`, a builder's `名前(value:)` `名前Value(_:)`, and
   a first piece holding a preposition was split at it, `listBy(id:名前:)` becoming `list(byId:名前:)`.
-  So the policy fixes such a method's selector and states no Swift name for it: T-54 holds the
+  So the target fixes such a method's selector and states no Swift name for it: T-54 holds the
   selector, and reads the name a Swift caller writes from the framework it builds. A parameter keeps
   its name as its label, and an ASCII method's Swift name moves when it gains a parameter past
   ASCII, as it does on any new parameter, a default argument not reaching Swift (below).
