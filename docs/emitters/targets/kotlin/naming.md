@@ -147,10 +147,12 @@ file: measured with Kotlin 2.4.0 on a file system that ignores case, `NotFoundEx
 name whatever its letter case, on every target ([what a layer
 writes](../../contract/runtime-policy.md#what-a-layer-writes)).
 
-A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into paths,
-a method's in the class kotlinc writes for its body, so each is held to the length cap
+A type's name, a variant's and a method's are the roles Kotlin writes into paths, a method's in the
+class kotlinc writes for its body, so each is held to the length cap
 ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)); a source file is named
-for its class, so the cap holds it too, and a Gradle module's directory is its unit's name.
+for its class, so the cap holds it too. A unit's name, its package segment and its Gradle module's
+directory, is no role's identifier but a path name, which the same section holds to the cap as it
+does Go's package, cut by bytes and not at a word.
 
 A unit's name is its package segment, its module's project and artifact and that module's directory
 alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)): its words

@@ -144,22 +144,22 @@ throughout these documents.
     template's declared names held to what it binds, on Go the table of predeclared identifiers to
     `go/types.Universe.Names()` of the Go release the options version reads, and on Kotlin the table
     of default-imported classes to each name that resolves, on each platform the target builds for,
-    in a file importing nothing. Every name that meets a reserved one, or folds as one where its
-    scope compares folded, is its own name with the target's escape, whatever reserved it, and none
-    is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
-    that keeps its name, in both declaration orders, and two types that meet one reserved name are
-    the escaped name and that name with a suffix. A name a target quotes is quoted last, around the
-    symbol its scope gave, so of two Kotlin properties rendering `class` the second is `class2` and
-    no symbol holds a quote; an import that yields takes the collision's suffix whatever it met,
-    its scope built to suffix what it reserves; and a scope is refused that states a comparison
-    outside the vocabulary, an empty escape or an empty reserved name. On Go a caller's package
-    importing every unit
-    under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a method taking
-    a parameter `time2`, in a file importing the standard library's `time` and a unit `time`,
-    compiles its body's use of each. On Go `go list` lists every file the target writes among a
-    package's `GoFiles`, none among the files it ignores or builds for tests alone, on each port `go
-    tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and import path
-    is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
+    in a file importing nothing. Every name but an import's that meets a reserved one, or folds as
+    one where its scope compares folded, is its own name with the target's escape, whatever reserved
+    it, and none is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside
+    an `Error2` that keeps its name, in both declaration orders, and two types that meet one
+    reserved name are the escaped name and that name with a suffix. A name a target quotes is quoted
+    last, around the symbol its scope gave, so of two Kotlin properties rendering `class` the second
+    is `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
+    whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
+    a comparison outside the vocabulary, an empty escape or an empty reserved name. On Go a caller's
+    package importing every unit under its own name compiles its uses of `error`, `string`, `len`
+    and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
+    `time` and a unit `time`, compiles its body's use of each. On Go `go list` lists every file the
+    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
+    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
+    every file and import path is one the module proxy takes
+    ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
@@ -1047,16 +1047,16 @@ throughout these documents.
     that end in a digit), generates code that compiles on every target: each identifier of a role
     written into a path within the cap but for its escape and its suffix, a shortened one keeping
     its leading words and its hash word, the hash cased and set off as a word is, a name written
-    as a path segment, a Go package's and a file's, keeping its first 102 bytes and the hash's
-    eight digits, each once any character is written by its name, so 30 Cyrillic letters, 150
-    bytes so written, are 110, and each drawing one `emitters/<target>/name-shortened`, two that
-    share their first 110 bytes apart, among them two names with no words (twelve and thirteen `_`),
-    two types named from hints and one long type's create and patch declarations, the property's
-    name whole, and no segment of a path the build writes past 255 bytes, every class file kotlinc
-    writes among them, each counted as if every name at the cap it holds had taken the 8 bytes the
-    naming steps may add, so a variant's serializer is at most 255 bytes and a class written for a
-    method's body adds at most 12 after the method's name, none of them named for an inline function
-    ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+    as a path segment, a Go package's, a Go file's and a Kotlin unit's, keeping its first 102 bytes
+    and the hash's eight digits, each once any character is written by its name, so 30 Cyrillic
+    letters, 150 bytes so written, are 110, and each drawing one `emitters/<target>/name-shortened`,
+    two that share their first 110 bytes apart, among them two names with no words (twelve and
+    thirteen `_`), two types named from hints and one long type's create and patch declarations, the
+    property's name whole, and no segment of a path the build writes past 255 bytes, every class
+    file kotlinc writes among them, each counted as if every name at the cap it holds had taken the
+    8 bytes the naming steps may add, so a variant's serializer is at most 255 bytes and a class
+    written for a method's body adds at most 12 after the method's name, none of them named for an
+    inline function ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
     does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark

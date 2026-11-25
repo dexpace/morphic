@@ -526,7 +526,7 @@ explicit name is written in ASCII, `a_u65e5u672c`, beside `A日本`'s `a日本`
 
 Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
 without an underscore. The two names would collide, and `Resolve` would tell them apart by ID
-order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version102`, each
+order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version10_2`, each
 constant reading as another value, which no warning of the pass could set right. Go's standard
 library writes the underscore between two digit words itself (`sha512.Sum512_256`), and golint's
 naming rule, which revive's `var-naming` keeps, accepts it there while reporting one between two
