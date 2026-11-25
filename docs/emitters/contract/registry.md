@@ -44,10 +44,10 @@ writing the IR document have homes already: `engine/reader` reads what a run's r
 `engine/internal/atomicfile`. Writing artifacts and pruning are [write /
 integrate](../write-integrate.md)'s, under the [emit rules](../emit/rules.md). The engine configures
 and generates only where the findings the passes leave have not failed the run (architecture.md §4):
-at the default threshold a document carrying an error diagnostic reaches no emitter, and a caller
-that wants one built from it anyway says so with the `none` threshold. A run naming a target the
-registry lacks, or one the project does not configure ([the project](project.md)), is refused before
-the spec is read.
+at the default threshold a document carrying a finding rated an error that no rule accepted reaches
+no emitter, and a caller that wants one built from it anyway says so with the `none` threshold or a
+rule accepting the finding. A run naming a target the registry lacks, or one the project does not
+configure ([the project](project.md)), is refused before the spec is read.
 
 ## Capabilities
 

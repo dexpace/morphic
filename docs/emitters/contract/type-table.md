@@ -105,11 +105,11 @@ no plan: resolving a reference to its key through the plan's scalar chain is a r
   which would merge a row member by member ([target
   options](options.md#three-kinds-of-versioned-data)): the configuration holds them alone, and
   `Merge` lays them over the stated version's built-in table. `Decode` refuses, by the rules every
-  target shares, an unknown or repeated member, a `null`, a `dependency`'s among them, since a row
-  leaves out what it lacks, a row under a `PrimitiveKind` that `ir` does not declare, an empty
-  `Type` and a `Dependency` without both fields. A target then checks the table it gets back for
-  its own: a spelling it cannot parse, a name `Type` or `Codec` imports that `Imports` does not
-  bind, a key of `Imports` neither spells, and on Go a `Codec`. Each is an options error.
+  target shares, an unknown or repeated member; every `null`, a row's `dependency` among them,
+  since a row leaves out what it lacks; a row under a `PrimitiveKind` that `ir` does not declare;
+  an empty `Type`; and a `Dependency` without both fields. A target then checks the table it gets
+  back for its own: a spelling it cannot parse, a name `Type` or `Codec` imports that `Imports`
+  does not bind, a key of `Imports` neither spells, and on Go a `Codec`. Each is an options error.
 - **The rows a version moved.** A configuration behind the current options version keeps the
   built-in table of the version it states. `Moved` lists the built-in rows that differ between
   that table and the current one, a row changed, added or removed, and that the user's table does
