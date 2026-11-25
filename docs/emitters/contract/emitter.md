@@ -227,9 +227,9 @@ var ErrContract = errors.New("emitter broke its contract")
 A breach is a Go error wrapping `ErrContract` and naming the target: a bug in the target, never a
 finding about the user's document, as a compiler's breach is an error and no diagnostic. So it
 takes no code, no triage rule accepts it, and it fails the run at any threshold. A caller's own
-mistake, a zero `Bound`, a nil document or a nil context, is an error that does not wrap it, since
-the target did nothing wrong. Both calls run the target behind `barrier.Catch`, so a panic in one
-is a breach too.
+mistake, a nil emitter, a zero `Bound`, a nil document or a nil context, is an error that does not
+wrap it, since no target did anything wrong, as the compilers' registry returns a plain error for a
+nil compiler. Both calls run the target behind `barrier.Catch`, so a panic in one is a breach too.
 
 `Configure` refuses a nil generator returned with no error, a diagnostic coded outside the
 target's own namespace ([below](#the-codes-a-target-reports)), and a `Configuration` stating a
