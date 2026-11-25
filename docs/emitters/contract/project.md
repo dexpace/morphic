@@ -39,9 +39,9 @@ func Validate(project Project) error
 
 - **Named, never discovered.** The command that generates takes the file's path, and nothing
   searches a working directory or its parents for one. A run that found its configuration by where
-  it was started would generate two trees from one command line. A relative `output` is resolved
-  against the directory holding the file, for the same reason, and never against the working
-  directory.
+  it was started would generate two trees from one command line, started in two directories. A
+  relative `output` is resolved against the directory holding the file, for the same reason, and
+  never against the working directory.
 - **Strict and versioned.** The file is decoded as every configuration is ([target
   options](options.md)): it states its `version`, an unknown or repeated member and a misplaced
   `null` are refused, and what it leaves unset takes the defaults of the version it states. Its
@@ -52,8 +52,8 @@ func Validate(project Project) error
   chose.
 - **What `Decode` reports** is the upgrade report alone ([target options](options.md)): an info
   `engine/project-behind` for each setting the project leaves unset whose default a later version
-  of the project's configuration moved, and `emitters/plan/policy-behind` for each of the plan's
-  policy.
+  of the project's configuration moved, and `emitters/plan/policy-behind` for each such setting of
+  the plan's policy.
 - **A target is its output root and its options.** Both are required. `options` is the target's
   configuration as the target's `Configure` reads it ([the
   contract](emitter.md#a-target-is-configured-once)), kept undecoded here, since only the target
