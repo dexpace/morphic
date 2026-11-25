@@ -327,16 +327,22 @@ Applying a plan, in order:
   interrupted one does.
 - **What a killed write leaves.** A temporary file, named for its destination with a dot before
   and digits after, may be left beside it. No later run reads or removes it, and a file's name is
-  held short enough that it fits ([emit rules](emit/rules.md)).
+  held short enough that it fits ([emit rules](emit/rules.md)). It is an unlisted file like any
+  other, so the directory holding it is never emptied: it stands when the generation drops every
+  file in it, and a later generation that puts a file in that directory's place, or spells it
+  another way, is `engine/artifact-would-overwrite` until the leftover is deleted.
 
-The rules were modelled before they were written (#2247 holds the model): planning and applying,
-over a file system that ignores case and one that does not, each run cut after every single
-operation on the disk, then rerun with the same generation and with a later one, cut again, and
-finished. Every sequence ended in the tree an uninterrupted run leaves, with no empty directory,
-no pending manifest and no file reported as edited. Each of five rules, taken out, failed
-sequences of its own: prunes before writes, a pending manifest that keeps every earlier digest,
-planning that reads the pending manifest, spellings judged together, and the removal of
-directories a cut left empty. T-40 holds the rules, the interrupted runs among them.
+The rules were modelled before they were written: planning and applying, over a file system that
+ignores case and one that does not, each run cut after every single operation on the disk, then
+rerun with the same generation and with a later one, cut again, and finished. Every sequence ended
+in the tree an uninterrupted run leaves, with no empty directory, no pending manifest and no file
+reported as edited. Each of five rules, taken out, failed sequences of its own: prunes before
+writes, a pending manifest that keeps every earlier digest, planning that reads the pending
+manifest, spellings judged together, and the removal of directories a cut left empty. T-40 holds
+the rules, the interrupted runs among them. #2247 holds the model as it stood before the spellings
+a generation drops were judged together: it judges each of those alone, so over a rename cut short
+whose file the next generation drops or renames again it reports an edit nobody made, or prunes
+one file twice.
 
 ## Where generation runs
 
