@@ -189,9 +189,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
-emitters/*   Layer 2 — imports ir, ir/irfacts, barrier, pathfold and the emitter packages of its
-             own tier or a lower one, as docs/emitters/packages.md tables each; never compiler.
-             (Not built yet.)
+emitters/*   Layer 2 — each package imports what docs/emitters/packages.md tables for it; never a
+             compiler, the engine or another target. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
   cache/     what a run compiled, kept on disk between processes, and what names a build.
