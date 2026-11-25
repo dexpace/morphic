@@ -144,22 +144,22 @@ throughout these documents.
     template's declared names held to what it binds, on Go the table of predeclared identifiers to
     `go/types.Universe.Names()` of the Go release the options version reads, and on Kotlin the table
     of default-imported classes to each name that resolves, on each platform the target builds for,
-    in a file importing nothing. Every name but an import's that meets a reserved one, or folds as
-    one where its scope compares folded, is its own name with the target's escape, whatever reserved
-    it, and none is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside
-    an `Error2` that keeps its name, in both declaration orders, and two types that meet one
-    reserved name are the escaped name and that name with a suffix. A name a target quotes is quoted
-    last, around the symbol its scope gave, so of two Kotlin properties rendering `class` the second
-    is `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
-    whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
-    a comparison outside the vocabulary, an empty escape or an empty reserved name. On Go a caller's
-    package importing every unit under its own name compiles its uses of `error`, `string`, `len`
-    and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
-    `time` and a unit `time`, compiles its body's use of each. On Go `go list` lists every file the
-    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
-    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
-    every file and import path is one the module proxy takes
-    ([Go](../targets/go/naming.md#file-names), [package
+    in a file importing nothing. Bar an import's name and the Swift name of a method or an entry in
+    an Objective-C method family, every name that meets a reserved one, or folds as one where its
+    scope compares folded, is its own name with the target's escape, whatever reserved it, and none
+    is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
+    that keeps its name, in both declaration orders, and two types that meet one reserved name are
+    the escaped name and that name with a suffix. A name a target quotes is quoted last, around the
+    symbol its scope gave, so of two Kotlin properties rendering `class` the second is `class2` and
+    no symbol holds a quote; an import that yields takes the collision's suffix whatever it met, its
+    scope built to suffix what it reserves; and a scope is refused that states a comparison outside
+    the vocabulary, an empty escape or an empty reserved name. On Go a caller's package importing
+    every unit under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a
+    method taking a parameter `time2`, in a file importing the standard library's `time` and a unit
+    `time`, compiles its body's use of each. On Go `go list` lists every file the target writes
+    among a package's `GoFiles`, none among the files it ignores or builds for tests alone, on each
+    port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and
+    import path is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
