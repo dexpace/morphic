@@ -182,7 +182,8 @@ another type, and nothing asserts one back to its type.
 - **`Configuration` is what the manifest records** of the options: the version the configuration
   stated and the digest of the decoded options ([write /
   integrate](../write-integrate.md#what-the-manifest-records)). `Canonical` is in the current
-  shape, defaults filled, so two configurations that decode alike are one generation.
+  shape, defaults filled, so two configurations that state one version and decode alike are one
+  generation.
 - **A capability an optional interface shows is not stated a second time.** A cross-version target
   is one whose generator implements `Router`, and a target shows other targets' samples where its
   generator implements `SampleReader`. Each is the configured target's, so the engine reads it off

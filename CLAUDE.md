@@ -189,8 +189,9 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
-emitters/*   Layer 2 — imports ir, ir/irfacts, barrier, pathfold and the emitter packages of a
-             lower tier, as docs/emitters/packages.md tables each; never compiler. (Not built yet.)
+emitters/*   Layer 2 — imports ir, ir/irfacts, barrier, pathfold and the emitter packages of its
+             own tier or a lower one, as docs/emitters/packages.md tables each; never compiler.
+             (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
   cache/     what a run compiled, kept on disk between processes, and what names a build.
@@ -228,7 +229,7 @@ Read them off the tree:
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 ```
 
-The emitter half's packages sit in tiers of their own, an import only ever pointing down: the
+The emitter half's packages sit in tiers of their own, no import pointing up: the
 contract, the kernel of shared packages beneath it, one package per target, and the engine's
 packages that run and write them. `docs/emitters/packages.md` tables each, with what it holds and
 what it may import, and says how to list the ones built; the diagram above marks as planned those

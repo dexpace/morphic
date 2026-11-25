@@ -4,13 +4,15 @@ Consistent with architecture.md §3: `emitters/*` is Layer 2, which imports Laye
 table](#the-layers) lists for each package and never a compiler or `engine`, and the engine's
 packages are Layer 3. Shared code is libraries a target calls, never a framework: a target is a
 package that imports the contract and whichever shared packages it needs, and composes them
-itself. Nothing shared calls into a target but the contract: its registry reads a target's key and
+itself. Nothing shared runs a target but the contract: its registry reads a target's key and
 capabilities, and its two checked calls configure and run one ([the
-contract](contract/emitter.md#the-checked-calls)).
+contract](contract/emitter.md#the-checked-calls)). Any other shared package calls a target's code
+only where the target hands it that code, as `refine.RunSteps` applies a target's steps and
+`options.Decode` its migrations.
 
 ## The layers
 
-Inside Layer 2 the packages form tiers, and an import only ever points down.
+Inside Layer 2 the packages form tiers, and no import points up.
 
 ```
                      engine            Layer 3: orchestration, every read, write and process
@@ -26,7 +28,7 @@ Inside Layer 2 the packages form tiers, and an import only ever points down.
                  emitters/plan         tier 1: decisions, computed once
                        │
         options   symbol   pathfold    tier 0: vocabulary with no emitter concept
-                       │
+                       │               (pathfold is top-level, in Layer 0)
                  ir, ir/irfacts        Layer 0
 ```
 
@@ -81,10 +83,8 @@ git ls-files 'pathfold/*.go' 'emitters/*.go' 'engine/project/*.go' 'engine/emit/
   'engine/artifacts/*.go' | xargs -n1 dirname | sort -u
 ```
 
-Every other row is planned. Each lands with code that calls it, since a function with no caller
-outside its tests is held by no test and `internal/archtest` refuses it: the
-[milestone plan](milestones.md#the-foundation) says which land with the foundation and which with
-their first reader.
+Every other row is planned. The [milestone plan](milestones.md#the-foundation) says which land
+with the foundation, some of them ahead of their first caller, and which with their first reader.
 
 ## A target's packages
 
