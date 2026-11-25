@@ -43,8 +43,8 @@ const (
 
 // skillsManifest is the manifest as this repository writes it. Its reader also
 // takes members that keep a skill of an entry out or add another manifest's
-// entries; decoding refuses them, so an entry loads each skill directly under
-// its directory.
+// entries; decoding refuses them, so an entry loads each skill its directory
+// holds.
 type skillsManifest struct {
 	// Entries are the directories read for skills.
 	Entries []skillsManifestEntry `json:"entries"`
@@ -83,25 +83,31 @@ func TestSkills_ManifestReachesEachOne(t *testing.T) {
 	}
 }
 
-// TestSkills_NoneSitsBesideTheManifest fails on a skill under the manifest's
-// directory. Antigravity loads one from there whatever the manifest names, as
-// its command line showed at 1.5.17, while skills_lint and an agent reading
-// skillsTree alone never meet it. Not looked for: a directory of that name
+// TestManifestDirectory_HoldsTheManifestAlone fails on anything beside the
+// manifest in its directory. Antigravity's command line at 1.5.17 loaded a
+// skill from there through a skills directory, a link to one and a plugin,
+// whatever the manifest names, and skills_lint and an agent reading skillsTree
+// alone never meet such a skill. Not looked for: a directory of that name
 // below the root, which Antigravity reads when started inside it, and the
 // names .agent, _agents and _agent, which it reads as it does .agents.
-func TestSkills_NoneSitsBesideTheManifest(t *testing.T) {
+func TestManifestDirectory_HoldsTheManifestAlone(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
 	manifestDirectory := path.Dir(skillsManifestPath)
+	entries, err := os.ReadDir(filepath.Join(root, manifestDirectory))
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
 
-	assert.Empty(t, skillFiles(t, root, manifestDirectory),
-		"a skill under %s is outside %s, which holds every skill", manifestDirectory, skillsTree)
+	assert.Equal(t, []string{path.Base(skillsManifestPath)}, names,
+		"%s holds the manifest alone: a skill belongs under %s", manifestDirectory, skillsTree)
 }
 
 // skillFiles returns each SKILL.md under tree, as a path from root. It reads a
-// directory whose name opens with a dot like any other and the file's name in
-// any case, as Antigravity's command line did at 1.5.17, the second on a file
-// system that folds case.
+// directory whose name opens with a dot like any other, as Antigravity's
+// command line did at 1.5.17, and follows no link to a directory.
 func skillFiles(t *testing.T, root, tree string) []string {
 	t.Helper()
 	var skills []string
@@ -110,7 +116,7 @@ func skillFiles(t *testing.T, root, tree string) []string {
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() && strings.EqualFold(entry.Name(), "SKILL.md") {
+		if !entry.IsDir() && entry.Name() == "SKILL.md" {
 			skills = append(skills, keydoc.Rel(root, file))
 		}
 		return nil
@@ -120,10 +126,12 @@ func skillFiles(t *testing.T, root, tree string) []string {
 }
 
 // manifestProblems returns what keeps the directories a manifest names from
-// loading exactly the skills: a skill that sits directly under none of them,
-// since each is read one level deep, a directory holding no skill, and an
-// entry naming none, for which nothing is read. A directory is named from the
-// root in any spelling [path.Clean] reads alike.
+// loading exactly the skills. The reader takes each directory a named one
+// holds as a skill, and a named one holding a SKILL.md as that skill alone.
+// This asks for the first shape: it reports a skill whose directory is
+// directly under no named one, a named directory holding no such skill, and
+// an entry naming none, for which nothing is read. A directory is named from
+// the root in any spelling [path.Clean] reads alike.
 func manifestProblems(directories, skills []string) []string {
 	var problems []string
 	holdsSkill := make(map[string]bool, len(directories))
@@ -137,7 +145,7 @@ func manifestProblems(directories, skills []string) []string {
 	for _, skill := range skills {
 		directory := path.Dir(path.Dir(skill))
 		if _, named := holdsSkill[directory]; !named {
-			problems = append(problems, fmt.Sprintf("%s sits directly under no directory it names", skill))
+			problems = append(problems, fmt.Sprintf("%s is in no directory directly under one it names", skill))
 			continue
 		}
 		holdsSkill[directory] = true
@@ -177,7 +185,7 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 			name:        "the root named by a dot",
 			directories: []string{"."},
 			skills:      []string{"a/SKILL.md", "skills/b/SKILL.md"},
-			want:        []string{"skills/b/SKILL.md sits directly under no directory it names"},
+			want:        []string{"skills/b/SKILL.md is in no directory directly under one it names"},
 		},
 		{
 			name:        "an entry naming no directory",
@@ -185,34 +193,43 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 			skills:      []string{"skills/a/SKILL.md", "b/SKILL.md"},
 			want: []string{
 				"an entry names no directory",
-				"b/SKILL.md sits directly under no directory it names",
+				"b/SKILL.md is in no directory directly under one it names",
 			},
 		},
 		{
 			name:        "a skill one level deeper than is read",
 			directories: []string{"skills"},
 			skills:      []string{"skills/a/SKILL.md", "skills/group/b/SKILL.md"},
-			want:        []string{"skills/group/b/SKILL.md sits directly under no directory it names"},
+			want:        []string{"skills/group/b/SKILL.md is in no directory directly under one it names"},
 		},
 		{
-			name:        "a skill at the directory itself",
+			name:        "a SKILL.md in the named directory itself",
 			directories: []string{"skills"},
 			skills:      []string{"skills/SKILL.md", "skills/a/SKILL.md"},
-			want:        []string{"skills/SKILL.md sits directly under no directory it names"},
+			want:        []string{"skills/SKILL.md is in no directory directly under one it names"},
 		},
 		{
 			name:        "a directory the skills moved out of",
 			directories: []string{"old"},
 			skills:      []string{"skills/a/SKILL.md"},
 			want: []string{
-				"skills/a/SKILL.md sits directly under no directory it names",
+				"skills/a/SKILL.md is in no directory directly under one it names",
 				"old holds no skill",
+			},
+		},
+		{
+			name:        "two skills under one directory it does not name",
+			directories: []string{"skills"},
+			skills:      []string{"skills/a/SKILL.md", "other/b/SKILL.md", "other/c/SKILL.md"},
+			want: []string{
+				"other/b/SKILL.md is in no directory directly under one it names",
+				"other/c/SKILL.md is in no directory directly under one it names",
 			},
 		},
 		{
 			name:   "no directory named",
 			skills: []string{"skills/a/SKILL.md"},
-			want:   []string{"skills/a/SKILL.md sits directly under no directory it names"},
+			want:   []string{"skills/a/SKILL.md is in no directory directly under one it names"},
 		},
 	}
 	for _, test := range tests {
@@ -226,22 +243,57 @@ func TestManifestProblems_ReportsAnUnloadedSkillAndAnEmptyDirectory(t *testing.T
 // TestAgentRules_PointAtTheInstructionsWithinTheCap fails when the rule file
 // stops linking CLAUDE.md, grows past the size it is cut at, or includes a
 // file, whose text counts toward that size. So the instructions stay out of
-// it: every session would get their start and a count of the rest.
+// it: every session would get their start and a count of the rest. It reads
+// this file alone. A GEMINI.md beside it and an AGENTS.md below the root load
+// too, as Antigravity's command line showed at 1.5.17, and nothing holds them.
 func TestAgentRules_PointAtTheInstructionsWithinTheCap(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
 	text, err := os.ReadFile(filepath.Join(root, agentRulesPath))
 	require.NoError(t, err)
 
-	linksInstructions := false
-	for _, line := range linkLines(string(text)) {
-		for _, link := range markdownLink.FindAllStringSubmatch(line, -1) {
-			file, _, _ := strings.Cut(link[1], "#")
-			linksInstructions = linksInstructions || path.Clean(file) == instructionsPath
-		}
-	}
-	assert.True(t, linksInstructions, "%s links no %s", agentRulesPath, instructionsPath)
+	assert.True(t, linksFile(string(text), instructionsPath), "%s links no %s", agentRulesPath, instructionsPath)
 	assert.NotContains(t, string(text), ruleFileInclude,
 		"%s includes a file, whose text counts toward the %d bytes it is cut at", agentRulesPath, ruleFileByteCap)
 	assert.LessOrEqual(t, len(text), ruleFileByteCap, "%s is cut at %d bytes", agentRulesPath, ruleFileByteCap)
+}
+
+// linksFile reports whether the Markdown text links file, a neighbour of the
+// document holding it, in any spelling [path.Clean] reads alike and at any
+// heading. A link inside a span or block of code is none.
+func linksFile(text, file string) bool {
+	for _, line := range linkLines(text) {
+		for _, link := range markdownLink.FindAllStringSubmatch(line, -1) {
+			target, _, _ := strings.Cut(link[1], "#")
+			if path.Clean(target) == file {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestLinksFile_ReadsALinkInAnySpelling(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{name: "a link", text: "Read [the instructions](CLAUDE.md) first.", want: true},
+		{name: "a label that is a span of code", text: "Read [`CLAUDE.md`](CLAUDE.md) first.", want: true},
+		{name: "a target spelt from the directory", text: "Read [them](./CLAUDE.md).", want: true},
+		{name: "a target at a heading", text: "Read [them](CLAUDE.md#project-status).", want: true},
+		{name: "a link to another file", text: "Read [them](README.md).", want: false},
+		{name: "a file of that name elsewhere", text: "Read [them](docs/CLAUDE.md).", want: false},
+		{name: "a link inside a span of code", text: "Write `[them](CLAUDE.md)` there.", want: false},
+		{name: "a link inside a block of code", text: "```\n[them](CLAUDE.md)\n```\n", want: false},
+		{name: "the file named and not linked", text: "Read CLAUDE.md first.", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, test.want, linksFile(test.text, "CLAUDE.md"))
+		})
+	}
 }
