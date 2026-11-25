@@ -177,8 +177,9 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    holds it, else that name with the lowest numeric suffix, `2` up, that nothing holds and the
    scope does not reserve: a suffix can make a reserved name, as `com2` is a Windows device name
    the units of Go and Kotlin reserve ([Go](../targets/go/naming.md#reserved-names),
-   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set apart from
-   a name ending in a digit as its role sets two digit words apart ([a break letter case cannot
+   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix follows `_` after a name ending
+   in a digit, in every scope, since `Resolve` reads no role, as a camel or Pascal role sets two
+   digit words apart ([a break letter case cannot
    mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is `V12_2`, and
    what a digit is the tables say, never the building release. A member's rank is its target's to
    give, and the order within a rank is the ID's, whatever order the members arrive in. The
@@ -282,9 +283,9 @@ without the quotes that are no part of either.
 [naming](../../ir/naming.md) derives `Canonical` from `Source` by one grammar, which lives in `ir`
 (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
 (`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar. `ir` has one
-reading of a name into its words as written, and `CanonicalWords` is their lowercased join;
-`ir.SourceWords`, its sibling, returns those words, so each spelling aligns with its canonical word
-and no emitter carries a second copy of the grammar. A name with no `Source` — one
+reading of a name into its words as written, and `CanonicalWords` is their lowercased join; `ir`
+gains `SourceWords`, its sibling, which returns those words, so each spelling aligns with its
+canonical word and no emitter carries a second copy of the grammar. A name with no `Source` — one
 built from a hint — has no spellings, and neither has a `Naming` the grammar does not derive, which
 `Words` leaves unspelled rather than guess. A convention may read a spelling (`Spelled`) to recover
 the letter case of a word whose boundaries the canonical form already fixes: `iOSVersion` is
@@ -293,9 +294,12 @@ the letter case of a word whose boundaries the canonical form already fixes: `iO
 the words gives `IOsVersion` and `HttpServer2Fa` and an acronym table would have to capitalize `os`
 and `fa` in every name. It never reads one to find a boundary — the words are fixed before any
 spelling is read — so the rule against re-splitting a cased string holds. Ignoring the spellings is
-conforming, and the acronym table applies either way: a word the table holds is written as its
-entry says, whatever its spelling, one it lacks as the source spells it where the convention reads
-spellings, and any other cased.
+conforming, and the acronym table applies either way. The table and a spelling are read in a
+`Capital` position alone: there a word the table holds is written as its entry says, whatever its
+spelling, one it lacks as the source spells it, its first character upper-cased, where the
+convention reads spellings, and any other cased. A `Lower` or an `Upper` position gives the
+canonical word that case and reads neither, so a camel role's first word stays lower: `id_token`
+under an acronym `ID` is `idToken`.
 
 An acronym or a spelling can make two names meet: `iOSVersion` and `IOSVersion`, of words
 `i_os_version` and `ios_version`, both render `IOSVersion` once their spellings are read, and
@@ -541,12 +545,12 @@ class's name to its outer's by `$` (`Payment$Card.class`), and the classes kotli
 them, such as the continuation of each `suspend` method, named for the method (`Client$getA$1.class`
 with Kotlin 2.4.0). No segment past 255 bytes is one every file system writes ([emit
 rules](../emit/rules.md)). So `RenderCasing` holds each identifier of a role a target writes into a
-path, as its naming document names them ([Go](../targets/go/naming.md#package-directories),
-[Kotlin](../targets/kotlin/naming.md#reserved-names)), to a cap, the role's `PathCap`, 110 bytes of
-UTF-8 in version 1, a default of the target's options version as the naming tables are. A longer
-identifier keeps the leading words that fit beside one more, the first eight hex digits of the
-SHA-256 of the identifier whole, a first word too long alone being cut at a character's end, and
-the node carries `Inferred` provenance, `shortened` (INV6), with a warning
+path, as its naming document names them ([Kotlin](../targets/kotlin/naming.md#reserved-names)), to
+a cap, the role's `PathCap`, 110 bytes of UTF-8 in version 1, a default of the target's options
+version as the naming tables are; Go has no such role, its package being a path name (below). A
+longer identifier keeps the leading words that fit beside one more, the first eight hex digits of
+the SHA-256 of the identifier whole, a first word too long alone being cut at a character's end,
+and the node carries `Inferred` provenance, `shortened` (INV6), with a warning
 `emitters/<target>/name-shortened` naming the entity and both names. The hash is a word like any
 other, cased by the role's convention and set off by `_` where a break needs one, as after a name
 ending in a digit. The shortened name reads nothing but the name, so it moves only with it, and two

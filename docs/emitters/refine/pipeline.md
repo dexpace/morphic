@@ -35,8 +35,9 @@ func RunSteps[State any](ctx context.Context, state *State, steps []Step[State])
   it resolves. Every member has the target's own type, so a step asserts nothing.
 - **The step list is the target's**, a value its generator builds: the order is part of the
   target's contract, and T-10 pins it.
-- **`RunSteps` refuses** a step with no name or no `Apply`, and two steps of one name, since the
-  trace names them, and stops between two steps at a done context with the context's error.
+- **`RunSteps` refuses** a step with no name, since the trace names each, or no `Apply`, and stops
+  between two steps at a done context with the context's error. A list may hold one name more than
+  once, as Go's does (below): the trace is in order, so each is pinned by its place.
 
 A shared `Refiner` interface, a context struct `Ctx` every target's steps read, and a marker
 interface `TargetAST` over the AST roots stood here before. A context struct every target shares

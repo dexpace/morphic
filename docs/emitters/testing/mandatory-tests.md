@@ -64,8 +64,8 @@ throughout these documents.
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling), the one `refine.RunSteps` returns, Go's ending in
     casing and then the escaping and collision steps twice; and the runner refuses a step with no
-    name or no function and two steps of one name, and stops between two steps at a done context
-    ([the refiner contract](../refine/pipeline.md)).
+    name or no function, and stops between two steps at a done context ([the refiner
+    contract](../refine/pipeline.md)).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
     alone, the elected media type among them, diffed against the generated SDK under HTTP
