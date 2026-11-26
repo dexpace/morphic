@@ -386,33 +386,37 @@ identifier as it stands. Measured over every one past ASCII, the 145,620 letters
   builds no module, so a Swift file using none of its names fails as well (`could not build
   Objective-C module 'Probe'`).
 
-`RenderCasing` settles an identifier before it writes any character another way. `Compose` reads
+`RenderCasing` settles an identifier before any character is written another way. `Compose` reads
 the grammar's words beside their spellings and the tables, the role's convention composes the
 identifier, and the leading word and the underscore below are decided on that identifier, which
-still holds the name's own characters. The target's form for a character the role cannot hold as it
-stands comes after them, so it changes nothing those read, and only the length cap follows it
-([below](#a-name-too-long-for-a-path-is-shortened)):
+still holds the name's own characters. Only then does `Render` act on a character the role cannot
+hold as it stands — before the length cap ([below](#a-name-too-long-for-a-path-is-shortened)), so
+it changes nothing those read — by rewriting it on Go or marking `Rendered.HoldsUnwritable` on
+Kotlin, where quoting waits until collisions are resolved
+([above](#a-name-is-rendered-bare-and-quoted-last)):
 
-- **Go** writes each such character where it stands in its word, as the character-name table writes
-  a character it does not hold: `u`, in lower case wherever it falls, and its code point in
-  lowercase hex, four digits at least (`u0301`, `u10570`). A decomposed `café` is the field
-  `Cafeu0301`, `नाम`, whose `ा` is U+093E DEVANAGARI VOWEL SIGN AA, `Field_नu093eम` (below), a
-  property of U+0301 and `x`, whose word begins with the mark, `Field_u0301x`, and a group `名前` the
-  package `u540du524d`. The node carries `Inferred` provenance, `character-names`, as a name with no
-  words does.
-- **Kotlin** writes the identifier in backticks and keeps every character: a property `` `café` ``,
-  a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name,
-  in a class file or in the header, so the node is marked nothing, a caller writes them where its
-  own compiler needs them, and they go around the identifier as the later steps leave it, since a
-  reserved name's underscore and a collision's suffix neither add such a character nor remove one. A
-  KDoc link writes them too, around each such segment: Dokka 2.3.0 linked ``[`नाम`.`café`]`` and
-  left `[नाम]` plain text. What backticks cannot hold is ASCII punctuation, a backtick and a line
-  break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:` and `\` on the JVM and a further
-  thirteen on Native), none of which an identifier holds: a word is letters, marks and digits, and a
-  name with none is named in ASCII (above). A Java caller writes such a name where its JDK's tables
-  hold each character, as javac 25 did `नाम` and the decomposed `café`; Java 25's lack 4,709 of the
-  code points above. A unit's name, a package segment and a module's directory too, is rendered as
-  the target's naming document says ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+- **Go** sets `Role.WrittenByName` and writes each such character where it stands in its word, as
+  the character-name table writes a character it does not hold: `u`, in lower case wherever it
+  falls, and its code point in lowercase hex, four digits at least (`u0301`, `u10570`). A decomposed
+  `café` is the field `Cafeu0301`, `नाम`, whose `ा` is U+093E DEVANAGARI VOWEL SIGN AA,
+  `Field_नu093eम` (below), a property of U+0301 and `x`, whose word begins with the mark,
+  `Field_u0301x`, and a group `名前` the package `u540du524d`. The node carries `Inferred` provenance,
+  `character-names`, as a name with no words does.
+- **Kotlin** leaves `Role.WrittenByName` false so `Render` keeps every character bare, sets
+  `Rendered.HoldsUnwritable`, and shortens under the bare identifier; after `ResolveCollisions`, the
+  target wraps the final symbol in backticks: a property `` `café` ``, a class `` `नाम` ``, and for
+  a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name, in a class file or in the
+  header, so the node is marked nothing, a caller writes them where its own compiler needs them, and
+  quoting last puts a reserved name's underscore and a collision's suffix inside them, since neither
+  adds such a character nor removes one. A KDoc link writes them too, around each such segment:
+  Dokka 2.3.0 linked ``[`नाम`.`café`]`` and left `[नाम]` plain text. What backticks cannot hold is
+  ASCII punctuation, a backtick and a line break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`,
+  `:` and `\` on the JVM and a further thirteen on Native), none of which an identifier holds: a word
+  is letters, marks and digits, and a name with none is named in ASCII (above). A Java caller writes
+  such a name where its JDK's tables hold each character, as javac 25 did `नाम` and the decomposed
+  `café`; Java 25's lack 4,709 of the code points above. A unit's name, a package segment and a
+  module's directory too, is rendered as the target's naming document says
+  ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 Which characters a role cannot hold as they stand is a table of the target's options version, read
 from its toolchain and no configuration's to replace: on Go a toolchain that learns a mark would
