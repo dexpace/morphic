@@ -123,10 +123,11 @@ the tree the rule exists to prevent.
   the toolchain a release is built with is a change to the output, which T-6's goldens show.
   Kotlin's formatter runs outside `Generate`, and its printer lays out what it checks ([Kotlin
   formatting](../targets/kotlin/overview.md#formatting)).
-- **Nothing written, something said.** A target that returns no artifact reports why, as a warning
+- **Nothing written, something said.** A target that returns no artifact reports why, as an error
+  diagnostic where an error prevented emission (such as a formatter failure above) or as a warning
   `emitters/<target>/no-artifacts` naming the cause, such as a `Scope` that matches nothing or a
   document with no type or operation, so an empty directory never reads as success. A generation
-  holding neither an artifact nor the warning is a breach.
+  holding no artifact, no error diagnostic and no `no-artifacts` warning is a breach.
 - **Contained writes.** Every `Path` is forward-slashed, local (`filepath.IsLocal` once converted)
   and names a file, or the generation is a breach and nothing of the run is written. The engine
   then reads and writes through an `os.Root` opened at the target's output root, which refuses what

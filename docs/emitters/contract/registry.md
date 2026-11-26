@@ -22,9 +22,10 @@ func (r *Registry) Targets() []TargetKey                 // sorted — determini
 `Register` reads an emitter's key and capabilities once, behind `barrier.Catch`, as
 `compilers.Registry` reads a compiler's formats, so a panic in either is a breach of the contract
 (`emitters.ErrContract`, [the checked calls](emitter.md#the-checked-calls)) and no crash. It
-refuses:
+refuses, as a plain error for a caller's mistake and wrapping `emitters.ErrContract` for an
+emitter's:
 
-- a nil emitter, and a key already registered;
+- a nil emitter, and a key already registered (plain errors);
 - a key that is not one or more segments joined by `/`, each of lowercase ASCII letters, digits and
   `-` and none empty, as `go`, `kotlin-jvm` and `mock/go` are. A key is written into a diagnostic
   code, a manifest and a command line, so it holds what each takes as it stands;
@@ -37,8 +38,9 @@ refuses:
   vocabulary; and a declared build check on an emitter that does not implement `Checker`.
 
 The engine is the only caller of `Lookup`, and the only thing that touches the filesystem, prunes,
-and renders diagnostics. It configures and generates through the two checked calls and no other way
-([the contract](emitter.md#the-checked-calls)). Emitters are I/O-free. Reading, rendering and
+and renders diagnostics. It configures, inspects and runs targets through the contract's checked
+calls and `Bound`'s accessors and no other way ([the contract](emitter.md#the-checked-calls)).
+Emitters are I/O-free. Reading, rendering and
 writing the IR document have homes already: `engine/reader` reads what a run's references name,
 `engine/report` renders, and `engine/output` writes, replacing a file through the atomic replace in
 `engine/internal/atomicfile`. Writing artifacts and pruning are [write /

@@ -199,16 +199,25 @@ programmer's error, which the contract then had to report, and `Configure` leave
 
 ## The checked calls
 
-The engine configures and generates through two functions and no other way, as
+The engine reaches a target only through checked calls in this package — `Configure` and `Generate`
+at landing, and checked calls over `Bound` for each optional interface as it lands — as
 `compilers.Detection.Compile` is the one way to compile. The registry reads a target's key and
-capabilities behind the same barrier ([the registry](registry.md#the-registry)).
+capabilities behind the same barrier ([the registry](registry.md#the-registry)), and `Bound`
+exposes the cached key, capabilities and configuration so the engine never calls `Emitter` or
+`Generator` directly.
 
 ```go
 // Bound is a target configured. Only Configure builds one, so no generator runs under another
-// emitter's key.
-type Bound struct{ /* the emitter's key and capabilities, and the generator it returned */ }
+// emitter's key, and the engine reads a target's metadata from it rather than calling the target
+// outside a barrier.
+type Bound struct{ /* the emitter, its key and capabilities, and the generator and configuration it returned */ }
 
-// Configure calls emitter.Configure behind a barrier and binds what it returns to the emitter.
+func (b Bound) Target() TargetKey
+func (b Bound) Capabilities() Capabilities   // returns a copy, so no caller mutates its slices
+func (b Bound) Configuration() Configuration // returns a copy, so no caller mutates Canonical
+
+// Configure calls emitter.Target, emitter.Capabilities, emitter.Configure and
+// generator.Configuration behind a barrier, holds each to the contract, and binds them.
 func Configure(emitter Emitter, raw []byte) (Bound, []ir.Diagnostic, error)
 
 // Generation is one target's output, held to the contract.
@@ -231,14 +240,17 @@ finding about the user's document, as a compiler's breach is an error and no dia
 takes no code, no triage rule accepts it, and it fails the run at any threshold. A caller's own
 mistake, a nil emitter, a zero `Bound`, a nil document or a nil context, is an error that does not
 wrap it, since no target did anything wrong, as the compilers' registry returns a plain error for a
-nil compiler. Both calls run the target behind `barrier.Catch`, so a panic in one is a breach too.
+nil compiler. Every checked call runs the target behind `barrier.Catch`, so a panic in one is a
+breach too.
 
-`Configure` refuses a nil generator returned with no error, a diagnostic coded outside the
-target's own namespace ([below](#the-codes-a-target-reports)), a diagnostic whose severity the IR
-does not declare or whose provenance names a source (anything other than `ir.NoSource`, since
-`Configure` reads no document), and a `Configuration` stating a version below 1 or carrying a
-`Canonical` that is not a valid canonical JSON object. A configuration the target itself refuses is
-the target's error, passed on as it is.
+`Configure` checks the emitter's key and capabilities by the same rules as `Registry.Register`
+([the registry](registry.md#the-registry)), and refuses a nil generator returned with no error, a
+diagnostic coded outside the target's own namespace ([below](#the-codes-a-target-reports)), a
+diagnostic whose severity the IR does not declare or whose provenance names a source (anything
+other than `ir.NoSource`, since `Configure` reads no document), and a `Configuration` stating a
+version below 1 or carrying a `Canonical` that is not a valid canonical JSON object. A
+configuration the target itself refuses is the target's error, passed on as it is, with no `Bound`
+and no diagnostics.
 
 `Generate` holds a generation to these duties:
 
@@ -251,7 +263,7 @@ the target's error, passed on as it is.
   ([below](#the-generated-by-line)).
 - **Diagnostics.** Each code is in a namespace the target may report, each severity is one the IR
   declares, and each provenance names a source the document holds, or none.
-- **Something said.** A generation holding no artifact carries the warning
+- **Something said.** A generation holding no artifact carries an error diagnostic or the warning
   `emitters/<target>/no-artifacts` ([emit rules](../emit/rules.md)).
 - **The context.** One done when `Generate` returns yields the context's error, which is no
   breach, with nothing judged or kept.
@@ -284,22 +296,24 @@ open (#2266).
 
 ## The structs grow with their readers
 
-`EmitterInput`, `EmitterOutput`, `Artifact` and `Capabilities` are structs, so a member added later
-breaks no target. Each lands with the members some code fills and some target or oracle reads, since
-a
-member with neither is held by no test:
+`EmitterInput`, `EmitterOutput`, `Generation`, `Artifact` and `Capabilities` are structs, so a
+member added later breaks no target. Each lands with the members some code fills and some target or
+oracle reads, since a member with neither is held by no test:
 
 | Struct | At landing | Lands later, with |
 |---|---|---|
 | `EmitterInput` | `Doc`, `Facts`, `Plan` | `Policy` and `Hints`: the first runtime templates. `Snapshot`, `Samples`, `Routes`: the docs target. `Scope`: the first scoped run. `Prior`: the manifest's entities (M4) |
 | `EmitterOutput` | `Artifacts`, `Diagnostics` | `Samples`: the docs target. `Manifest`, `Surface`: M4 |
+| `Generation` | `Target`, `Configuration`, `Artifacts`, `Diagnostics` | `Samples`: the docs target. `Manifest`, `Surface`: M4 |
 | `Artifact` | `Path`, `Content`, `Header` | `Kind`: the first reader of a kind. `Spans`: the build check. `SkipIfExists`: the first scaffolding file. `Overwrite`, `Integrate`, `Origins`: M4 |
 | `Capabilities` | `Lifecycle`, `Successor` | `Protocols`, `RPCSystems`: the first client. `WritesSamples`: the docs target. `Build`: the build check |
 
 The optional interfaces land the same way, `Router` and `SampleReader` with the docs target and
-`Checker` with the build check, and so does each refusal of the registry over a member that is not
-there yet. The engine composes the
-file-level manifest itself, from what it wrote, from the first write on ([write /
+`Checker` with the build check, each with its checked call over `Bound` behind `barrier.Catch`
+(`Bound.IsCrossVersion` and `Routes`, `Bound.ReadsSamples` and `SampleTargets`, and `CheckMessages`,
+holding each message's path and line to its `CheckOutput`), and so does each refusal of the
+registry over a member that is not there yet. The engine composes the file-level manifest itself,
+from what it wrote, from the first write on ([write /
 integrate](../write-integrate.md#what-the-manifest-records)); `EmitterOutput.Manifest` carries the
 entities a target declares, which only M4 reads.
 

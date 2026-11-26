@@ -262,8 +262,9 @@ throughout these documents.
     U+001F among them; a trailing dot or space, where a space inside a segment is admitted; a file's
     name of 236 bytes, where one of 235 is admitted; an empty path, an absolute one, one holding
     `\`, `..` or an empty segment; a header line that lacks the marker where `Header` says it
-    stands, and a placement outside the three; and no artifact with no `no-artifacts` warning. The
-    checks' work grows as the artifacts do, over paths nested three directories deep. A template
+    stands, and a placement outside the three; and no artifact with neither an error diagnostic nor
+    a `no-artifacts` warning (where a generation carrying an error diagnostic alone is admitted).
+    The checks' work grows as the artifacts do, over paths nested three directories deep. A template
     that fails the formatter draws a located error and no artifact, and a build with and without
     `-trimpath` give identical artifacts. A `Scope` matching nothing and a document with nothing to
     emit each draw `no-artifacts`. A path reaching a sibling that shares the root's prefix does so
