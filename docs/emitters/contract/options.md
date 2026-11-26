@@ -68,11 +68,14 @@ func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, st
   `Generate` sees only the current shape. A migration writes no default: those come from the stated
   version, so no migration can carry the wrong ones forward.
 - **The upgrade report.** Decoding a configuration behind the current version reports, as info
-  diagnostics under `behindCode`, which a target gives as `emitters/<target>/options-behind`, each
-  setting it leaves unset whose default differs between its version and the current one, under the
-  name the current shape gives it, so an owner sees exactly what moving changes. The manifest
-  ([write / integrate](../write-integrate.md)) records the stated version,
-  `Configuration.Version`.
+  diagnostics (`ir.SeverityInfo`, `ir.NoSource`, since decoding reads no IR document) under
+  `behindCode`, which a target gives as `emitters/<target>/options-behind`, each setting it leaves
+  unset whose default differs between its version and the current one, under the name the current
+  shape gives it, so an owner sees exactly what moving changes. For a map setting merged key by key
+  (such as a naming table), the report diffs entries key by key and reports each default entry
+  added, changed or removed between those versions that the configuration does not set, as
+  `typemap.Moved` does for a type table. The manifest ([write / integrate](../write-integrate.md))
+  records the stated version, `Configuration.Version`.
 
 ## Three kinds of versioned data
 

@@ -5,7 +5,7 @@ table](#the-layers) lists for each package and never a compiler or `engine`, and
 packages are Layer 3. Shared code is libraries a target calls, never a framework: a target is a
 package that imports the contract and whichever shared packages it needs, and composes them
 itself. Nothing shared runs a target but the contract: its registry reads a target's key and
-capabilities, and its two checked calls configure and run one ([the
+capabilities, and its checked calls configure, inspect and run one ([the
 contract](contract/emitter.md#the-checked-calls)). Any other shared package calls a target's code
 only where the target hands it that code, as `refine.RunSteps` applies a target's steps and
 `options.Decode` its migrations.
@@ -37,7 +37,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `pathfold` | the path fold and the rules of a portable path segment ([emit rules](emit/rules.md)) | `golang.org/x/text` |
 | `emitters/symbol` | a symbol's key and its text form ([write / integrate](write-integrate.md)) | `ir` |
 | `emitters/options` | versioned, strict configuration decoding ([target options](contract/options.md)) | `ir` |
-| `emitters/plan` | the shared plan, and under `plantest` its goldens ([the plan](plan/overview.md)) | `ir`, `ir/irfacts` |
+| `emitters/plan` | the shared plan, its policy decoding, and under `plantest` its goldens ([the plan](plan/overview.md)) | `ir`, `ir/irfacts`, `emitters/options` |
 | `emitters/naming` | words, casing primitives, scopes, collisions ([naming](refine/naming.md)) | `ir`, `pathfold` |
 | `emitters/typemap` | the type table: shape, merge, lookup ([type table](contract/type-table.md)) | `ir` |
 | `emitters/policy` | runtime policy: vocabulary, layers, resolve ([runtime policy](contract/runtime-policy.md)) | `ir`, `emitters/options` |
@@ -52,7 +52,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `emitters/emittertest` | the fake target, the golden tree, the oracles every target is held to | `ir`, `ir/irfacts`, `ir/irtest`, `emitters`, the kernel, go-cmp |
 | `emitters/<target>` | one target | `ir`, `ir/irfacts`, `emitters`, any kernel package, its own packages; `emitters/golang` also `github.com/dave/dst` |
 | `engine/project` | the project configuration, decoded ([the project](contract/project.md)) | `ir`, `pathfold`, `emitters`, `emitters/options`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed` |
-| `engine/emit` | the emit stage, with no I/O | `ir`, `ir/irfacts`, `emitters`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed`, `engine/project` |
+| `engine/emit` | the emit stage, with no I/O | `ir`, `ir/irfacts`, `pathfold`, `emitters`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed`, `engine/project` |
 | `engine/artifacts` | planning and applying a generation's writes under its root ([write / integrate](write-integrate.md)) | `ir`, `pathfold`, `emitters`, `emitters/manifest`, `engine/internal/atomicfile` |
 
 The kernel is tiers 0 to 2. What the table implies:
