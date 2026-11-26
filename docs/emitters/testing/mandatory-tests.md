@@ -543,11 +543,15 @@ throughout these documents.
     volume answers, and where that rename was cut short and the next generation drops the file or
     renames it again, a file both spellings name is pruned once and none is reported edited; a
     file and a directory trade places both ways, a directory left empty in the way removed, and a
-    file that stays in a write's way, its owner's or an edited one, is
+    file that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory
+    under a directory a write replaces, or a kept edited listed path whose folded path is a
+    directory prefix of a held path or vice versa (`Models` beside `models/user.go`, `Models/user.go`
+    beside `models`), on a volume that ignores case and one that does not, is
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
-    of a write's segment is the same error unless the run removes it first, emptied by the prunes or
-    standing empty above a listed path the generation drops, one a volume lists decomposed being the
-    same name; a root holding another target's manifest, or its pending manifest alone, is
+    of a write's segment is the same error unless the run's prunes and dropped-path directory
+    removals remove it first, including a nested directory left empty above dropped listed paths,
+    one a volume lists decomposed being the same name; a root holding another target's manifest, or
+    its pending manifest alone, is
     `engine/manifest-foreign`, and nothing there is pruned; two targets whose roots are one
     directory, or one inside the other, by the path fold, are refused before any target runs; of
     two targets one of which would overwrite a file, neither is written,

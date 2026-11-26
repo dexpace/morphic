@@ -225,7 +225,7 @@ there, where it has one.
 | a file of any other digest, the path listed | keep, `engine/file-edited` | keep, `engine/file-edited` |
 | a file of any other digest, the path unlisted, the marker present | write | — |
 | a file of any other digest, the path unlisted, no marker | `engine/artifact-would-overwrite` | — |
-| a directory | write where every file under it is pruned, else `engine/artifact-would-overwrite` | drop the entry |
+| a directory | write where the run's prunes and directory removals leave it empty or gone, else `engine/artifact-would-overwrite` | drop the entry |
 | a file where the path needs a directory | write where that file is pruned, else `engine/artifact-would-overwrite` | drop the entry |
 
 A path the generation does not hold and nothing lists is never read: it is its owner's. A kept
@@ -265,13 +265,21 @@ generation judges it the same way.
   kept is kept under each spelling it answers: on a volume that ignores case a saved file two
   listed spellings name is reported `engine/file-edited` at each and keeps both entries, where a
   volume that tells case apart keeps one entry and drops the other.
-- **A file in a write's way is refused before the verdict.** A file that stays, its owner's or an
-  edited one, under a directory a write needs as a file, or where a write needs a directory, is
-  `engine/artifact-would-overwrite`. A directory standing empty in a write's way is removed.
+- **A file or directory in a write's way is refused before the verdict.** A file that stays, its
+  owner's or an edited one, or an unlisted subdirectory, even empty, under a directory a write needs
+  as a file, or a file that stays where a write needs a directory, is
+  `engine/artifact-would-overwrite`. A directory left empty at a write's path, already empty on disk
+  or emptied by the run's prunes and dropped-path directory removals, is removed. The same holds
+  across letter case for listed paths on every volume: where a kept edited listed path's folded path
+  is a directory prefix of a held path (`Models` beside `models/user.go`), or a held path's folded
+  path is a directory prefix of a kept edited listed path (`models` beside `Models/user.go`), that
+  held path draws `engine/artifact-would-overwrite` on a volume that tells case apart as on one
+  that does not, so no run writes a tree or manifest a volume that ignores case cannot hold.
 - **A directory a write passes through keeps the spelling the generation gives it.** A directory
   standing under another spelling of a segment a write passes through, `Models` for `models`, is
-  `engine/artifact-would-overwrite` unless the run removes it before the write, as it does one
-  the prunes empty and one standing empty above a listed path the generation drops. Under one left
+  `engine/artifact-would-overwrite` unless the run's prunes and dropped-path directory removals
+  remove it before the write, whether it holds only files pruned in this run or only directories
+  emptied above listed paths the generation drops, at any depth. Under one left
   standing, a write on a volume that ignores case would land under the old spelling, and the
   manifest would list a path another volume lacks. A name a volume lists in another normalization,
   a composed `é` decomposed, is the same name. The rule is met at a write alone: on a volume that
@@ -343,9 +351,9 @@ Applying a plan, in order:
    spelling of a directory an interrupted run emptied and left standing.
 4. **Each file is replaced atomically**, through a temporary file beside it, under the root
    ([emit rules](emit/rules.md)), after any empty directory standing at its path is removed. A
-   directory no longer empty there, a file added under it since the plan, is the root moved as
-   well, met after the prunes and the writes before it: the run stops as an interrupted one does,
-   and the next plan finds the file in the write's way.
+   directory no longer empty there, a file or subdirectory added under it since the plan, is the
+   root moved as well, met after the prunes and the writes before it: the run stops as an
+   interrupted one does, and the next plan finds it in the write's way.
 5. **The manifest is written last**, and then the pending manifest is removed.
 
 - **An interrupted write heals.** A run killed once it has begun to write leaves the pending
