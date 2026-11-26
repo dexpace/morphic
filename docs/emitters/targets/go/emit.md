@@ -5,7 +5,7 @@
 ```go
 package goast
 
-type Node interface { node(); Kind() NodeKind; Origin() emitter.EntityID }
+type Node interface { node(); Kind() NodeKind; Origin() emitters.EntityID }
 
 type Module struct { Packages []*Package }
 type StructType struct {
@@ -25,7 +25,7 @@ type InterfaceType struct { Common; Methods []MethodSig; Marker string } // unio
 type Method struct { Common; Name Ident; Params []*Param; Returns Expr; Kind MethodKind }
 
 type Common struct {
-    origin emitter.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
+    origin emitters.EntityID  // ← the IR ID this node came from (manifest / surface / prune; INV3)
     prov   ir.Provenance      // passthrough for diagnostics + Inferred marking
     ident  Ident              // NEUTRAL until RenderCasing runs: naming.Words(Naming), never cased
 }
