@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to a coding agent working with code in this repository. Claude Code
+loads it by name, and [`AGENTS.md`](AGENTS.md) sends an agent that loads that file here.
 
 ## Project status
 
@@ -62,6 +63,12 @@ covers.
 a PR, the lessons past PRs taught, and the scripts they use. A skill links to these documents
 rather than restating them; `morphic-curating-skills` says where a new lesson goes. The scripts
 need Python 3.14, run as `python3.14`.
+
+Antigravity does not look for skills under `.claude`, so `.agents/skills.json` names
+`.claude/skills` for it. It loads each skill whose directory sits directly under one named there,
+and `internal/archtest` holds each skill to that and `AGENTS.md` to the size a rule file is cut at.
+Antigravity would also load a skill from `.agents/skills`, where `skills_lint` does not look, so the
+same package holds `.agents` to the manifest alone.
 
 **The skills are experimental.** A rule can be wrong or stale, and a script can report what its
 input does not support. Treat what a skill says as a claim to check, not a result: before relying on
