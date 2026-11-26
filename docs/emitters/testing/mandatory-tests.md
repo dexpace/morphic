@@ -148,12 +148,14 @@ throughout these documents.
     an Objective-C method family, every name that meets a reserved one, or folds as one where its
     scope compares folded, is its own name with the target's escape, whatever reserved it, and none
     is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
-    that keeps its name, in both declaration orders, and two types that meet one reserved name are
-    the escaped name and that name with a suffix. A name a target quotes is quoted last, around the
-    symbol its scope gave, so of two Kotlin properties rendering `class` the second is `class2` and
-    no symbol holds a quote; an import that yields takes the collision's suffix whatever it met, its
-    scope built to suffix what it reserves; and a scope is refused that states a comparison outside
-    the vocabulary, an empty escape or an empty reserved name. On Go a caller's package importing
+    that keeps its name, in both declaration orders, two types that meet one reserved name are
+    the escaped name and that name with a suffix, and a scope reserving both a name and its escaped
+    form appends the escape until the result is not reserved. A name a target quotes is quoted last,
+    around the symbol its scope gave, so of two Kotlin properties rendering `class` the second is
+    `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
+    whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
+    a comparison outside the vocabulary, an escape that is empty or folds empty, or an empty
+    reserved name. On Go a caller's package importing
     every unit under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a
     method taking a parameter `time2`, in a file importing the standard library's `time` and a unit
     `time`, compiles its body's use of each. On Go `go list` lists every file the target writes
@@ -1078,8 +1080,9 @@ throughout these documents.
     spelled with a Kelvin sign beside `User` and its alias, which folds as a name ending in `Kt` and
     on Kotlin is `UserKt_` with the sign kept, generates code that compiles on every target: on Go
     each character a role cannot hold written by its name once the identifier is cased, its `u` in
-    lower case and its hex four digits at least (`Cafeu0301`, `Field_u0301x`, `u11046`), and every
-    import path in ASCII; on Kotlin each such identifier in backticks with the spec's characters (a
+    lower case and its hex four digits at least (`Cafeu0301`, `Field_u0301x`, `u11046`), a group
+    beginning with U+0301 and `x` led before writing by name (`pkgu0301x`), and every import path in
+    ASCII; on Kotlin each such identifier in backticks with the spec's characters (a
     type `Ɤx`, a property of `field_`, U+0301 and `x`), a collision's suffix inside them, built for
     the JVM, JS, Wasm and a framework, under the serialization plugin, every KDoc link to one
     resolving, and every module published to a Maven repository; and the casing of every code

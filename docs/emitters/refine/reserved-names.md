@@ -59,7 +59,11 @@ Kotlin name after its own scope's escape, and reserves the target's names as the
 escaped in one scope can meet one escaped in another: it takes the escape again there, a type
 `Duration`, `Duration_` in Kotlin, exporting as `Duration__` beside the runtime's `Duration_`, and
 which unit's package sorts first decides nothing
-([Kotlin](../targets/kotlin/naming.md#reserved-names)). A suffix is one another can: a type `Error`
+([Kotlin](../targets/kotlin/naming.md#reserved-names)). Within a single scope that reserves both a
+name and its escaped form (as Multiplatform's Objective-C/Swift scope reserves both `Duration` and
+`Duration_`), `naming.Resolve` repeats `escapeSuffix` while the result is reserved, which terminates
+because `NewScope` refuses an `escapeSuffix` that is empty or folds empty and the reserved set is
+finite; no symbol `Resolve` returns is ever reserved. A suffix is one another can: a type `Error`
 given `Error2` for a reserved `Error` would hold what a type `error_2` renders to, and their IDs
 would decide which kept it. Names that meet one reserved name are escaped and then told apart as any
 two are, `Result_` and `Result_2`, and a suffix that would make a reserved name is passed over, as

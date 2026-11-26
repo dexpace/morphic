@@ -111,12 +111,14 @@ named from its words like any other, and shares its file with a spec declaration
 A unit's package name is its directory's, the last element of its import path, so a caller writes
 the name its import ends in. An import path takes ASCII letters, digits and `-._~+` alone: with Go
 1.27.3, a root importing a unit `straße` failed (`malformed import path "example.com/sdk/straße":
-invalid char 'ß'`). So a unit's name is rendered as a declaration's file is ([above](#file-names)):
-its words joined, folded by the path fold, and each character outside `a`–`z` and `0`–`9` written as
-`u` and its hex code point. Unlike a file's, a unit's name that would begin with a digit or a mark
-is led by `pkg` ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)), so a
-group `2fa` is the package `pkg2fa`. A group `Straße` is the package `strasse`, `日本` the package
-`u65e5u672c`, and both built where `straße` did not; on the golden spec, whose groups' names are
+invalid char 'ß'`). So a unit's name is rendered as a declaration's file is ([above](#file-names)),
+with one step between folding and writing by name: its words joined and folded by the path fold, a
+name that would begin with a digit or a mark led by `pkg`
+([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)), and then each character
+outside `a`–`z` and `0`–`9` written as `u` and its hex code point, so a group `2fa` is the package
+`pkg2fa` and one of U+0301 and `x` is `pkgu0301x`. A group `Straße` is the package `strasse`, `日本`
+the package `u65e5u672c`, and both built where `straße` did not; on the golden spec, whose groups'
+names are
 ASCII, the rule renders each as its words joined in lowercase. A package clause that kept the name
 and a directory that escaped it, `package straße` in `strasse`, would have each caller write a name
 its import does not show. The units' scope compares the names so rendered, so `Straße` and `Strasse`

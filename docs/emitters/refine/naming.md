@@ -65,13 +65,15 @@ type Rendered struct {
 
 // Compose renders words under a convention, after prefix where it is not "": an owner's
 // identifier the role composes the name after, as Go's enum constant begins with its enum's name.
+// When prefix is non-empty, it stands in the first position, so every word of words takes Rest and
+// the boundary between prefix and the first word follows the same join and break rules.
 func Compose(prefix string, words []Word, convention Convention, tables Tables) (string, error)
 
 // Render composes, leads, writes by name and shortens, in that order.
 func Render(prefix string, words []Word, role Role, tables Tables) (Rendered, error)
 
-// PathName renders words as a path segment names them (below).
-func PathName(words []Word, leadingWord string, limit Cap, tables CaseTables) Rendered
+// PathName renders words as a path segment names them (below). The zero Cap is uncapped.
+func PathName(words []Word, leadingWord string, limit Cap, tables CaseTables) (Rendered, error)
 
 // Scope is one scope's rules as data: how its names compare, Exact or Folded, the names it
 // reserves, and what a reserved name takes.
@@ -106,9 +108,12 @@ func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[stri
   records ([reference learnings](../../reference-learnings.md)), and a `Policy` interface each
   target implemented, which stood here before, left the rules two targets must agree on to code
   each wrote.
-- **Nothing is accepted in silence.** `Compose`, `Render` and the scope constructors return an
-  error for a value outside their vocabulary, a convention that marks no break at all among them,
-  and `Resolve` for a list it cannot name: one ID twice, or an empty rendered name.
+- **Nothing is accepted in silence.** `Compose`, `Render`, `PathName` and the scope constructors
+  return an error for a value outside their vocabulary — a convention that marks no break at all,
+  empty words, an uninitialized `CaseTables`, a `Role.LeadingWord` that is empty or fails `Start`
+  (or, for `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), or an
+  `escapeSuffix` that is empty or folds empty — and `Resolve` for a list it cannot name: one ID
+  twice, or an empty rendered name.
 - **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
   of one Unicode version, read from data in the package and never from the `unicode` package of
   the Go release that builds Morphic
@@ -573,12 +578,14 @@ words alone. T-53 holds it.
 A name a target writes as a path segment apart from any identifier, as Go names a package's
 directory and a declaration's file and Kotlin a unit ([Go](../targets/go/naming.md#file-names),
 [Kotlin](../targets/kotlin/naming.md#reserved-names)), is `naming.PathName`'s, one rendering for
-every target: the words joined with no separator, folded by the path fold, each character then
-outside `a`–`z` and `0`–`9` written as `u` and its code point in lowercase hex, four digits at
-least, and a name that would begin with a digit or a mark led by its role's word where the target
-gives one, as Go gives a package `pkg` and a file none. Past the cap it keeps its first bytes, the
-cap less eight, and the first eight hex digits of the SHA-256 of the whole. It is cut by bytes and
-not at a word, since a name joined and folded shows no word to keep, and it takes the cap itself
+every target: the words joined with no separator and folded by the path fold; a name that would then
+begin with a digit or a mark (read from `CaseTables` before any character is written by its name, as
+`Render` checks `Start`) led by its role's folded word where the target gives one, as Go gives a
+package `pkg` and a file none; and then each character outside `a`–`z` and `0`–`9` written as `u` and
+its code point in lowercase hex, four digits at least. So a group beginning with U+0301 and `x` is
+the package `pkgu0301x`, and `名前` is `u540du524d`. Past a non-zero cap it keeps its first bytes,
+the cap less eight, and the first eight hex digits of the SHA-256 of the whole. It is cut by bytes
+and not at a word, since a name joined and folded shows no word to keep, and it takes the cap itself
 because writing by name lengthens it: 30 Cyrillic letters are 150 bytes so written. It lists what
 it inferred as `Render` does, so a target reports `name-shortened` without deriving it again.
 

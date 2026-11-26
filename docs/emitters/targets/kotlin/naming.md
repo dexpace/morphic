@@ -156,9 +156,10 @@ does Go's package, cut by bytes and not at a word.
 
 A unit's name is its package segment, its module's project and artifact and that module's directory
 alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)): its words
-joined with no separator, folded by the path fold, each character outside `a`–`z` and `0`–`9`
-written as `u` and its hex code point, and a name that would begin with a digit or a mark led by
-`pkg`, so `useraccounts`, `strasse` for `Straße` and `u65e5u672c` for `日本`; a partition's is the
+joined with no separator and folded by the path fold, a name that would begin with a digit or a mark
+led by `pkg`, and then each character outside `a`–`z` and `0`–`9` written as `u` and its hex code
+point, so `useraccounts`, `strasse` for `Straße`, `pkg2fa` for `2fa`, `pkgu0301x` for U+0301 and
+`x`, and `u65e5u672c` for `日本`; a partition's is the
 name the options give it. A Maven artifact's name takes ASCII letters, digits and `_-.` alone:
 Gradle 9.8.2 built a module `straße` and refused to publish it (`artifactId (straße) is not a valid
 Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once its artifact was `strasse`. Escaping
