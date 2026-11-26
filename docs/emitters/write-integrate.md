@@ -83,7 +83,8 @@ type Manifest struct {
     Inputs   Inputs              // what the generation was built from
     Files    []File              // every file of the SDK, sorted by path, written by this run
                                  // or kept from the prior manifest (below)
-    Entities map[EntityID]Entry  // every entity the SDK declares and each symbol derived from one
+    Entities map[string]Entry    // every entity the SDK declares and each symbol derived from
+                                 // one, keyed by EntityID (contract/emitter.md)
     Keys     int                 // irfacts.CorrelationVersion, the derivation of every Key here
                                  // (ir/derived-facts.md#correlation-keys)
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
@@ -113,7 +114,7 @@ type File struct {
     Path    string
     Digest  string               // SHA-256 over the bytes written, normalized (below), as
                                  // "sha256:" and its lowercase hex
-    Origins []EntityID           // as the Artifact lists them
+    Origins []string             // entity IDs, as Artifact.Origins lists them
     Once    bool                 // its Artifact's SkipIfExists: written by the first generation
                                  // that finds it absent, the user's thereafter
 }
@@ -420,7 +421,7 @@ then it is kept, and the regions stay in it ([above](#what-the-manifest-records)
 
 ```go
 type Region struct {
-    Entity EntityID              // the entity it belongs to
+    Entity string                // the entity ID it belongs to
     Key    string                // that entity's correlation key
     Name   string                // the name its marker gives it, unique within the entity
     Place  string                // where it stood against the entity's declaration: "inside" its
