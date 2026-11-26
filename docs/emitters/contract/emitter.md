@@ -234,9 +234,11 @@ wrap it, since no target did anything wrong, as the compilers' registry returns 
 nil compiler. Both calls run the target behind `barrier.Catch`, so a panic in one is a breach too.
 
 `Configure` refuses a nil generator returned with no error, a diagnostic coded outside the
-target's own namespace ([below](#the-codes-a-target-reports)), and a `Configuration` stating a
-version below 1. A configuration the target itself refuses is the target's error, passed on as it
-is.
+target's own namespace ([below](#the-codes-a-target-reports)), a diagnostic whose severity the IR
+does not declare or whose provenance names a source (anything other than `ir.NoSource`, since
+`Configure` reads no document), and a `Configuration` stating a version below 1 or carrying a
+`Canonical` that is not a valid canonical JSON object. A configuration the target itself refuses is
+the target's error, passed on as it is.
 
 `Generate` holds a generation to these duties:
 
@@ -247,8 +249,8 @@ is.
   writer.
 - **The header.** The generated-by line stands where `Header` says
   ([below](#the-generated-by-line)).
-- **Diagnostics.** Each code is in a namespace the target may report, and each provenance names a
-  source the document holds, or none.
+- **Diagnostics.** Each code is in a namespace the target may report, each severity is one the IR
+  declares, and each provenance names a source the document holds, or none.
 - **Something said.** A generation holding no artifact carries the warning
   `emitters/<target>/no-artifacts` ([emit rules](../emit/rules.md)).
 - **The context.** One done when `Generate` returns yields the context's error, which is no
