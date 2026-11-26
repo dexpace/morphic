@@ -12,9 +12,10 @@ Every versioned configuration is decoded by one function, in `emitters/options`:
 options, the project's configuration and the plan's policy ([plan
 policy](../plan/policy.md#the-policy-is-data)). A configuration differs from another in its type
 and its versions, which are data, and never in how `Decode` reads a version, a default or a
-`null`. A runtime-policy layer and a hint layer state no version of their own and are read by the
-same rules, over the version the project's configuration states
-([delivery](runtime-policy.md#delivery)).
+`null`. A runtime-policy layer and a hint layer state no version of their own and follow the same
+strict rules, over the version the project's configuration states, refusing every `null` because a
+layer leaves out any member it does not set ([delivery](runtime-policy.md#delivery), [shaping
+hints](shaping-hints.md)).
 
 ```go
 package options
@@ -51,8 +52,10 @@ func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, st
   "the default" leaves the member out. The member's own type decides, read by the codec as it
   decodes, so no second reading of a configuration's names can disagree with the first. The
   pointer exception is `Decode`'s alone: a member a rule of its own decodes is refused what that
-  rule refuses, and the type table's refuses every `null`, a row's `dependency` among them
-  ([type table](type-table.md)).
+  rule refuses, and the type table's, a runtime-policy layer's and a hint layer's each refuse every
+  `null`, a type-table row's `dependency` and a hint's `remount` among them
+  ([type table](type-table.md), [delivery](runtime-policy.md#delivery), [shaping
+  hints](shaping-hints.md)).
 - **Defaults belong to a version.** A target declares each optional setting's default per version,
   and `Decode` fills what a configuration leaves unset with the defaults of the version it states:
   it decodes over a copy of that version's `Defaults`, a map merged key by key and a struct member
