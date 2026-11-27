@@ -252,15 +252,19 @@ def resolve_base(base: str) -> tuple[Path, str]:
 
 
 def export_base(root: Path, sha: str, dest: Path) -> None:
-    """Export commit sha into dest without writing to root: git archive writes the tarball beside
-    dest, which tar unpacks and which is removed afterwards. Each step raises CalledProcessError
-    with its own stderr, so a failure names the tool that failed."""
+    """Export commit sha into dest without writing to root: git archive writes a tarball of its own
+    beside dest, which tar unpacks and which is removed afterwards. Each step raises
+    CalledProcessError with its own stderr, so a failure names the tool that failed."""
     if dest.is_symlink() or dest.is_file():
         dest.unlink()
     else:
         shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
-    tarball = dest.with_name(f"{dest.name}.tar")
+    # A new file of its own, named absolutely: git -C reads a relative --output against root, and
+    # a fixed name would follow a symlink or meet a directory already there.
+    fd, name = tempfile.mkstemp(suffix=".tar", dir=dest.parent.resolve())
+    os.close(fd)
+    tarball = Path(name)
     try:
         git(root, "archive", f"--output={tarball}", sha)
         subprocess.run(["tar", "-x", "-f", str(tarball), "-C", str(dest)], check=True,

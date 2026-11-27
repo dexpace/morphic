@@ -5,6 +5,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-verifying-changes
 import contextlib
 import io
 import os
+import shutil
 import re
 import subprocess
 import sys
@@ -557,6 +558,42 @@ class MainTest(unittest.TestCase):
         self.assertTrue((dest / "marker.txt").is_file())
         self.assertTrue((target / "keep.txt").is_file())
 
+    def test_export_base_leaves_only_dest_beside_it_and_root_untouched(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        # tar runs between the archive and the removal, so it sees anything written into root.
+        check = (f'if [ -n "$(git -C \'{self.root}\' status --porcelain --ignored)" ]; then\n'
+                 '  echo "root written during the export" >&2\n  exit 1\nfi\n')
+        env = self.fake_tar("checking-tar-bin", check + f'exec \'{shutil.which("tar")}\' "$@"\n')
+        with unittest.mock.patch.dict(os.environ, env):
+            sweep.export_base(self.root, "HEAD", dest)
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertEqual(list(dest.parent.iterdir()), [dest], "a file outlived the export")
+        self.assertEqual(self.git("status", "--porcelain", "--ignored"), "")
+
+    def test_export_base_takes_a_relative_dest_against_the_working_directory(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        (self.root / "rel").mkdir()  # a relative --output read against root would land here
+        with contextlib.chdir(self.dir.name):
+            sweep.export_base(self.root, "HEAD", Path("rel") / "base-src")
+        dest = Path(self.dir.name) / "rel" / "base-src"
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertEqual(list(dest.parent.iterdir()), [dest], "a file outlived the export")
+        self.assertEqual(list((self.root / "rel").iterdir()), [], "the export wrote into root")
+
+    def test_a_failed_unpack_is_reported_with_tars_own_message(self):
+        tar = Path(self.dir.name) / "bin" / "tar"
+        tar.parent.mkdir()
+        tar.write_text("#!/bin/sh\necho 'tar: disk full' >&2\nexit 2\n")
+        tar.chmod(0o755)
+        code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 2, out)
+        self.assertIn("sweep: tar: disk full", out)
+
     def fake_tar(self, name: str, script: str) -> dict[str, str]:
         """Return an environment whose PATH finds a tar running script first."""
         fake_bin = Path(self.dir.name) / name
@@ -575,7 +612,7 @@ class MainTest(unittest.TestCase):
         self.assertEqual(caught.exception.cmd[0], "tar")
         self.assertEqual(caught.exception.returncode, 2)
         self.assertIn("tar: disk full", caught.exception.stderr)
-        self.assertFalse(dest.with_name("base-src.tar").exists(), "the tarball outlived the export")
+        self.assertEqual(sorted(dest.parent.glob("*.tar")), [], "the tarball outlived the export")
 
     def test_export_base_reports_git_archives_error_and_runs_no_tar(self):
         dest = Path(self.dir.name) / "out" / "base-src"
@@ -587,7 +624,7 @@ class MainTest(unittest.TestCase):
         self.assertEqual(caught.exception.cmd[0], "git")
         self.assertIn("not a tree object", caught.exception.stderr)
         self.assertFalse(ran.exists(), "tar ran after git archive failed")
-        self.assertFalse(dest.with_name("base-src.tar").exists(), "the tarball outlived the export")
+        self.assertEqual(sorted(dest.parent.glob("*.tar")), [], "the tarball outlived the export")
 
 
 class CrashTest(unittest.TestCase):
