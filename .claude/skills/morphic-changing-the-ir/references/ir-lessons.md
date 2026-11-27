@@ -391,8 +391,8 @@ design rules.
 - **Rule.** A measurement needing a derivation `ir` keeps unexported reaches it through a test-only
   export in `ir/export_test.go` from an uncommitted scratch test in `ir`'s directory, or asks for
   the export and cites that request. Never copy the function or use `go:linkname`.
-- **Why.** Measuring `sourceWords` in `ir/naming.go`, a copy that dropped the underscore break
-  counted 6,650 where the real function counted 6,292 (#1789).
+- **Why.** Measuring `ir/naming.go`'s `SourceWords`, unexported then, a copy that dropped the
+  underscore break counted 6,650 where the real function counted 6,292 (#1789).
 - **Probe.** Compare the `ir/export_test.go` route's count against a copy's on one input; they
   differ by the step the copy dropped.
 

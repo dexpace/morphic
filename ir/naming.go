@@ -159,7 +159,7 @@ func HasCanonicalWords(name, words string) bool {
 func canonicalRunes(name string) iter.Seq[rune] {
 	return func(yield func(rune) bool) {
 		first := true
-		for word := range sourceWords(name) {
+		for word := range SourceWords(name) {
 			if !first && !yield('_') {
 				return
 			}
@@ -173,15 +173,15 @@ func canonicalRunes(name string) iter.Seq[rune] {
 	}
 }
 
-// sourceWords yields the words the grammar reads in name, each as name spells
+// SourceWords yields the words the grammar reads in name, each as name spells
 // it: a run of word runes ended by a non-word rune, by a camel-case or
-// letter/digit boundary, or by the end of name. A word is a substring of name,
-// so reading one allocates nothing.
+// letter/digit boundary, or by the end of name. Each word is a substring of
+// name, so reading one allocates nothing.
 //
-// It is the grammar's one reading of a name, which canonicalRunes renders for
-// CanonicalWords and HasCanonicalWords alike, so the two cannot segment a name
-// differently.
-func sourceWords(name string) iter.Seq[string] {
+// It is the grammar's one reading of a name, which CanonicalWords and
+// HasCanonicalWords render, so an emitter reading source spellings cannot
+// segment a name differently.
+func SourceWords(name string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		start, inWord := 0, false
 		var prev rune
