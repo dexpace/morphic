@@ -259,10 +259,9 @@ it.
 `repeats-need-many-runs`
 
 - **Rule.** Repeating a run against itself is the weaker form of
-  `references/assertions-and-reach.md#ordering-tests-pin-the-order`. Go ranges a small map from a
-  random start in a fixed slot order, so 8 repeats over two keys agreed in about a third of trials
-  and 16 in about a ninth, while 128 agreed in none (`go1.27.3`). Name the Go release, as the
-  runtime may change it.
+  `references/assertions-and-reach.md#ordering-tests-pin-the-order`; where it is used, repeat at
+  least 128 times. Go ranges a small map from a random start in a fixed slot order, so a few
+  repeats over two keys often agree. Name the Go release measured, as the runtime may change it.
 - **Why.** Over 20,000 trials on `go1.27.3`, two keys agreed in 6,907 trials at 8 runs, 2,353 at
   16 and 0 at 128 (#1948, #1546).
 - **Probe.** Run #1948's map-range trial program at the repository's Go release; 128 repeats agree

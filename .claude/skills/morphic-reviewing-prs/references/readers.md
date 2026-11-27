@@ -51,13 +51,13 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Probe.** The reader's brief names each cell with its share and the budget as the shares' sum,
   and the report runs each cell or quotes why it could not.
 
-## Start every delegated reader at the host's highest reasoning setting
+## Start every delegated reader at effort `xhigh`, never on a smaller model
 `start-readers-at-xhigh`
 
-- **Rule.** Start each delegated reader at the highest reasoning setting the host exposes, never a
-  smaller model than the session's, set on the call that starts the reader rather than in its brief:
-  `effort: "xhigh"` on Claude Code's `Agent` tool, or `Model: "inherit"` where the host exposes
-  model choice without an `effort` parameter.
+- **Rule.** Start each delegated reader at effort `xhigh` where the host has an effort setting, and
+  never on a smaller model than the session's, set on the call that starts the reader rather than in
+  its brief: `effort: "xhigh"` on Claude Code's `Agent` tool, or `Model: "inherit"` where the host
+  exposes model choice without an `effort` parameter.
 - **Why.** #1532's readers started without effort set ran at the session's (#1532, #1542); #2272
   showed the old Probe read an 83-call Antigravity reader as 0.
 - **Probe.** Run the host's effort query from `references/readers.md#transcript-probes-per-host` on

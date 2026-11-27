@@ -47,11 +47,11 @@ The matrix is each construct and fact by order and limit, with the diff each pro
   cannot vary from run to run.
 - **Why.** On #1977 (`f44092a41`), a settlement charged ownership walks inside a map range over
   `byWire`, changing which member a model declared across runs at the cut until
-  `compilers/openapi/internal/merge/members.go` sorted its keys (#2285).
+  `compilers/openapi/internal/merge/members.go` sorted its keys; in 20,000 trials at go1.27.3, 30
+  runs agreed in 374, 64 in 2 and 128 in 0 (#2285).
 - **Probe.** Compile at a limit cutting between two items at least 128 times
-  (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#repeats-need-many-runs`:
-  in 20,000 trials at go1.27.3, 30 runs agreed in 374, 64 in 2 and 128 in 0). Remove the sort: the
-  repeated run differs.
+  (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#repeats-need-many-runs`).
+  Remove the sort: the repeated run differs.
 
 ## Diff both orders across two documents sharing pointers
 `orders-across-two-documents`

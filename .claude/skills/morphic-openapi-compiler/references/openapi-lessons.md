@@ -293,13 +293,13 @@ canary. A behaviour found that the page lacks is added there.
 - **Probe.** `go test ./internal/harness ./compilers/openapi/...`
   (`references/openapi-lessons.md#every-testdata-spec-meets-the-oracle`).
 
-## Every spec under `testdata/` meets the validation oracle
+## Every OpenAPI 3 spec under `testdata/` meets the validation oracle
 `every-testdata-spec-meets-the-oracle`
 
-- **Rule.** Any spec under `testdata/`, not only `testdata/conformance/openapi/`, meets the
-  validation oracle: its roots in `compilers/openapi/internal/canary/validation_oracle_test.go` are
-  `validationSpecs` (`compilers/openapi/internal/canary/testdata/validation`) and `testdata`. Run
-  `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`
+- **Rule.** Any OpenAPI 3 spec under `testdata/`, not only `testdata/conformance/openapi/`, meets
+  the validation oracle: its roots in `compilers/openapi/internal/canary/validation_oracle_test.go`
+  are `validationSpecs` (`compilers/openapi/internal/canary/testdata/validation`) and `testdata`.
+  Run `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`
   and classify any new disagreement row.
 - **Why.** Adding a 3.2 fixture naming `defaultMapping` under `testdata/openapi/` failed
   `TestValidationOracle_AgreesWithTheLibrary` in CI (`discriminator_maps_its_own_base.yaml 20:25`,

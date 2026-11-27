@@ -102,13 +102,14 @@ design rules.
 `reserved-space-takes-no-qualifier`
 
 - **Rule.** A space `irverify` reserves for a kind (`IDSpacePrimitive` and `IDSpaceUnresolved` in
-  `ir/ids.go`, held by `checkUnresolvedSchemes` in `ir/irverify/unresolved.go`) takes no document
-  qualifier. Mint a node of that kind in the reserved space whatever document declares it.
+  `ir/ids.go`; `checkUnresolvedSchemes` in `ir/irverify/unresolved.go` holds the second) takes no
+  document qualifier. Mint a node of that kind in the reserved space whatever document declares it.
 - **Why.** Minting an unresolved auth scheme in a qualified space (`unresolved@other.yaml`) passed
   every hand list and failed `morphic compile --verify` with `ir/unresolved-auth-space` (#1937,
   #1962).
-- **Probe.** `go run ./cmd/morphic compile --verify` on a two-document input declaring the node in
-  the second document.
+- **Probe.** `go run ./cmd/morphic compile --verify` on a root whose path item `$ref`s an operation
+  in a second document requiring a scheme neither declares: it reports
+  `openapi/unresolved-security-scheme` and no `ir/unresolved-auth-space`.
 
 ## Expect a new ID namespace to rewrite every golden document
 `new-id-namespace`
