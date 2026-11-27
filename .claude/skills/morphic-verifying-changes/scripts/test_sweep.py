@@ -5,6 +5,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-verifying-changes
 import contextlib
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -68,8 +69,16 @@ class SweepTest(unittest.TestCase):
                                  "same.yaml"])
 
     def test_a_corpus_file_is_read_as_one_document(self):
-        specs = [self.corpus / "same.yaml", self.corpus / "notes.txt", self.corpus / "golden.json"]
-        self.assertEqual(sweep.find_specs(specs), [specs[0].resolve()])
+        spec = self.corpus / "same.yaml"
+        self.assertEqual(sweep.find_specs([spec]), [spec.resolve()])
+        empty = self.root / "empty-dir"
+        empty.mkdir()
+        (empty / "readme.txt").write_text("not a spec\n")
+        for bad in (self.corpus / "notes.txt", self.corpus / "golden.json",
+                    self.root / "no/such/openapi.json", empty):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, re.escape(str(bad))):
+                    sweep.find_specs([spec, bad])
 
     def test_a_json_document_is_judged_by_its_top_level_keys(self):
         cases = {b'{"openapi":"3.0.3","info":{}}': True, b' {"swagger":"2.0"}': True,
@@ -438,12 +447,90 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn(f"HEAD does not hold {later[:12]}", out)
 
-    def test_both_sides_are_built_and_compared_and_the_base_worktree_removed(self):
+    def test_both_sides_are_built_and_compared_and_base_src_removed(self):
         code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs))
         self.assertEqual(code, 0, out)
         self.assertIn("sweep: no spec's exit code, IR or diagnostics differ", out)
-        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1,
-                         "the base worktree outlived the sweep")
+        self.assertFalse((Path(self.dir.name) / "out" / "base-src").exists(),
+                         "base-src outlived the sweep")
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def test_an_argument_yielding_no_spec_exits_2_even_beside_a_real_spec(self):
+        a_spec = self.specs / "a.yaml"
+        notes = self.root / "notes.txt"
+        notes.write_text("openapi: 3.1.0\n")
+        golden = self.root / "golden.json"
+        golden.write_text('{"irVersion": "0.1.0"}\n')
+        (self.empty / "readme.txt").write_text("not a spec\n")
+        missing = self.root / "no/such/openapi.json"
+        for label, bad in (("missing path", missing), ("non-spec .txt", notes),
+                           ("non-spec .json", golden), ("directory with no spec", self.empty)):
+            with self.subTest(label=label):
+                code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(a_spec), str(bad))
+                self.assertEqual(code, 2, out)
+                self.assertIn(str(bad.resolve()), out)
+
+    def test_each_arguments_count_is_printed_beside_the_total(self):
+        extra = self.root / "b.yaml"
+        extra.write_text("openapi: 3.1.0\n")
+        code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs), str(extra))
+        self.assertEqual(code, 0, out)
+        self.assertIn("sweep: 2 specs (", out)
+        self.assertIn(f"{self.specs.resolve()}=1", out)
+        self.assertIn("b.yaml=1", out)
+
+    def test_base_build_exports_without_a_worktree_and_passes_buildvcs_false(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        check_go = (
+            "#!/bin/sh\n"
+            f'if [ -e "{self.root}/.git/worktrees" ]; then\n'
+            '  echo "worktree directory created" >&2\n'
+            "  exit 1\n"
+            "fi\n"
+            'case "$PWD" in\n'
+            '  */base-src)\n'
+            '    if [ ! -f marker.txt ]; then echo "archived file missing" >&2; exit 1; fi\n'
+            '    found_vcs=0\n'
+            '    for arg in "$@"; do\n'
+            '      if [ "$arg" = "-buildvcs=false" ]; then found_vcs=1; fi\n'
+            '    done\n'
+            '    if [ "$found_vcs" -ne 1 ]; then echo "missing -buildvcs=false" >&2; exit 1; fi\n'
+            '    ;;\n'
+            'esac\n'
+            'while [ "$1" != "-o" ]; do shift; done\n'
+            "printf '#!/bin/sh\\necho {}\\n' > \"$2\"\n"
+            'chmod +x "$2"\n'
+        )
+        code, out = self.sweep(check_go, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((Path(self.dir.name) / "out" / "base-src").exists(),
+                         "base-src outlived the build")
+        self.assertFalse((self.root / ".git" / "worktrees").exists())
+
+    def test_base_build_clears_a_stale_base_src_before_unpacking(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        out_dir = Path(self.dir.name) / "out"
+        stale = out_dir / "base-src" / "stale.txt"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("from an earlier run\n")
+        check_go = (
+            "#!/bin/sh\n"
+            'case "$PWD" in\n'
+            '  */base-src)\n'
+            '    if [ -e stale.txt ]; then echo "stale file survived" >&2; exit 1; fi\n'
+            '    ;;\n'
+            'esac\n'
+            'while [ "$1" != "-o" ]; do shift; done\n'
+            "printf '#!/bin/sh\\necho {}\\n' > \"$2\"\n"
+            'chmod +x "$2"\n'
+        )
+        code, out = self.sweep(check_go, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((out_dir / "base-src").exists(), "base-src outlived the build")
 
 
 class CrashTest(unittest.TestCase):
