@@ -116,6 +116,7 @@ round runs and when the loop ends.
   (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`).
 - **Why.** Five mechanisms drew findings round after round until a sweep settled them: unbudgeted
   read paths (#1927), nondeterministic verdicts (#1926), readers of a registry key as an ID (#1938),
-  overlays erasing a source's errors, and YAML 1.1 number readings, settled in round six against an
-  oracle from both YAML specifications (#1940).
-- **Probe.** The report names the sweep test, its rows' source and the rows the control reddens.
+  overlays erasing a source's errors, and YAML 1.1 numbers, against an oracle from both YAML
+  specifications (#1940).
+- **Probe.** The report names the sweep test or the `issue:` asking for it, its rows' source, and
+  any rows the control reddens.

@@ -172,10 +172,10 @@ ones.
 - **Why.** A review of eleven open pull requests found defects only their merged build showed, which
   no test catches if they merge in another order (#1809, #1810, #1813), and the merge train found
   more (#1840 with #1819, #1846 with #1833).
-- **Probe.** The review's angles run on a worktree of the trial merge
-  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree`
-  builds, for each pair `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`
-  names.
+- **Probe.** For each pair of the plan's open pull requests reading or writing one fact, the
+  angles run on a worktree of their trial merge, built by
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree` and
+  confirmed by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
 
 ## Assign no version ahead of the merge
 `no-version-ahead-of-the-merge`

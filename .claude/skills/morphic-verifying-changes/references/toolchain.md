@@ -187,7 +187,8 @@
 - **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
   never by a pattern: `pkill -f` and `kill` over `pgrep -f` match every process whose command line
   holds the words, and `killall` every one of that name, other sessions' runs among them. A killed
-  pid's children live on, so stop a run with children by `references/mutation.md#stop-a-plant-run`.
+  shell's children live on, so stop each by its own pid, and a plant run by
+  `references/mutation.md#stop-a-plant-run`.
 - **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
   machine and may have stopped another run's plants (#1938).
 - **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
@@ -228,8 +229,9 @@
   another YAML package's nodes, which broke the build while `go mod tidy` passed, though the
   library's `go.mod` required none of those moves; #394 took only what its library required (#804,
   #394).
-- **Probe.** Each module whose version `git diff go.mod` moves is the bumped one or appears in
-  `go mod graph | grep '^<bumped module>@<new version> '`, and `go build ./...` exits 0.
+- **Probe.** For each module but the bumped one that `git diff go.mod` moves,
+  `go mod graph | grep -x '<bumped>@<new> <module>@<version it moves to>'` prints its line, and
+  `go build ./...` exits 0.
 
 ## Probe build-cache reuse from one checkout path
 `cache-reuse-from-one-path`
@@ -240,9 +242,9 @@
   measures nothing. The `Makefile` adds `-trimpath`; a direct `go` command does not.
 - **Why.** A per-commit CI cache measured with one worktree per commit showed a documentation-only
   change rebuilding everything, though CI checks out to one path (#755).
-- **Probe.** After `go build ./ir/irfacts` in one worktree, the same in a second at that commit,
-  `go build -x ./ir/irfacts 2>&1 | grep -c '/compile '`, prints a count under `GOFLAGS=` and 0
-  under `GOFLAGS=-trimpath`.
+- **Probe.** Under `GOFLAGS=` and then under `GOFLAGS=-trimpath`, each time after
+  `go build ./ir/irfacts` in one worktree, `go build -x ./ir/irfacts 2>&1 | grep -c '/compile '` in
+  a second at that commit prints a count, then 0.
 
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`
