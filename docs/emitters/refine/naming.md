@@ -70,7 +70,8 @@ type Rendered struct {
 func Compose(prefix string, words []Word, convention Convention, tables Tables) (string, error)
 
 // Render composes, leads, writes by name and shortens, in that order, and then reads whether the
-// identifier it returns holds a character the role cannot.
+// identifier it returns holds a character the role cannot. It refuses a non-empty prefix that
+// fails role.Start.
 func Render(prefix string, words []Word, role Role, tables Tables) (Rendered, error)
 
 // PathName renders words as a path segment names them (below). The zero Cap is uncapped.
@@ -114,12 +115,13 @@ func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[stri
   two words unmarked, one joining them with `""` whose `Rest` is not `Capital` or whose `First` is
   `Upper` (`ABC` and `Def` make `ABCDef`), empty words, an uninitialized `CaseTables`, a
   `Role.LeadingWord` that is empty or, cased as the role's first word, fails `Start` (or, for
-  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a `prefix` that fails
-  `Start`, being an identifier its owner's role rendered, which takes no leading word, a comparison
-  outside the two, an empty reserved name, or an empty `escapeSuffix` — and `Resolve` for a list it
-  cannot name: one ID twice, or an empty rendered name. The leading word is checked as it is
-  written, so version 1's `field` passes as Go's `Field`, and a role whose `First` is `Lower` beside
-  a `Start` of `UpperCaseLetterOnly`, which no leading word could satisfy, is refused.
+  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a non-empty `prefix`
+  that fails the role's `Start`, being an identifier its owner's role rendered, which takes no
+  leading word, a comparison outside the two, an empty reserved name, or an empty `escapeSuffix` —
+  and `Resolve` for a list it cannot name: one ID twice, or an empty rendered name. The leading word
+  is checked as it is written, so version 1's `field` passes as Go's `Field`, and a role whose
+  `First` is `Lower` beside a `Start` of `UpperCaseLetterOnly`, which no leading word could satisfy,
+  is refused.
 - **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
   of one Unicode version, read from data in the package and never from the `unicode` package of
   the Go release that builds Morphic

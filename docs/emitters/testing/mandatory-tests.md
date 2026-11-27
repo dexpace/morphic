@@ -154,10 +154,10 @@ throughout these documents.
     around the symbol its scope gave, so of two Kotlin properties rendering `class` the second is
     `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
     whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
-    a comparison outside the vocabulary, an empty escape or an empty reserved name, and a role whose
-    convention leaves a break unmarked, whose prefix fails its `Start`, or whose leading word, cased
-    as its first word, fails its
-    `Start`, where version 1's `field` cased `Field` is admitted on a Go field. On Go a caller's
+    a comparison outside the vocabulary, an empty escape or an empty reserved name, a non-empty
+    prefix that fails its role's `Start`, the empty prefix admitted, and a role whose convention
+    leaves a break unmarked or whose leading word, cased as its first word, fails its `Start`,
+    where version 1's `field` cased `Field` is admitted on a Go field. On Go a caller's
     package importing every unit under its own name compiles its uses of `error`, `string`, `len`
     and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
     `time` and a unit `time`, compiles its body's use of each. On Go `go list` lists every file the
@@ -260,21 +260,21 @@ throughout these documents.
     path order; two on one path, and two whose paths fold alike; a path that is a directory of
     another, `a` beside `a/b` and `Models` beside `models/x.go`; two that spell one directory two
     ways, `Models/a.go` beside `models/b.go` and beside `models/sub/b.go`; one that is the
-    manifest's own or its pending twin's, or lies under either, in any letter case; a segment of 86
-    three-byte characters, 258 bytes, where one of 85 is admitted; each Windows device name the rule
-    lists, `conin$` and `com¹` among them, before a first dot in two letter cases, before the first
-    of two (`aux.v1.go`) and before spaces and a dot (`nul .txt`); each character Windows refuses,
-    U+001F among them; a trailing dot or space, where a space inside a segment is admitted; a file's
-    name of 236 bytes, where one of 235 is admitted; an empty path, an absolute one, one holding
-    `\`, a `.` or `..` segment or an empty one (`a//b`, `a/./b`); a header line that lacks the
-    marker where `Header` says it stands, and a placement outside the three; and no artifact with
-    neither an error diagnostic nor a `no-artifacts` warning (where a generation carrying an error
-    diagnostic alone is admitted). The checks' work grows as the artifacts do, over paths nested
-    three directories deep. A template that fails the formatter draws a located error and no
-    artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
-    nothing and a document with nothing to emit each draw `no-artifacts`. A path reaching a sibling
-    that shares the root's prefix does so through `..`, the breach above, and a symlink in the tree
-    that leaves the root is refused by the writer.
+    manifest's own, its pending twin's or that one's temporary file's, or lies under any of them, in
+    any letter case; a segment of 86 three-byte characters, 258 bytes, where one of 85 is admitted;
+    each Windows device name the rule lists, `conin$` and `com¹` among them, before a first dot in
+    two letter cases, before the first of two (`aux.v1.go`) and before spaces and a dot
+    (`nul .txt`); each character Windows refuses, U+001F among them; a trailing dot or space, where
+    a space inside a segment is admitted; a file's name of 236 bytes, where one of 235 is admitted;
+    an empty path, an absolute one, one holding `\`, a `.` or `..` segment or an empty one (`a//b`,
+    `a/./b`); a header line that lacks the marker where `Header` says it stands, and a placement
+    outside the three; and no artifact with neither an error diagnostic nor a `no-artifacts` warning
+    (where a generation carrying an error diagnostic alone is admitted). The checks' work grows as
+    the artifacts do, over paths nested three directories deep. A template that fails the formatter
+    draws a located error and no artifact, and a build with and without `-trimpath` give identical
+    artifacts. A `Scope` matching nothing and a document with nothing to emit each draw
+    `no-artifacts`. A path reaching a sibling that shares the root's prefix does so through `..`,
+    the breach above, and a symlink in the tree that leaves the root is refused by the writer.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
@@ -538,73 +538,81 @@ throughout these documents.
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
 40. **T-40 · Manifest and integration** — a first generation writes every file and its manifest and
     reports `engine/first-generation`, into a root that does not exist yet too, and prunes nothing
-    but what a pending manifest lists; a regeneration whose inputs all match writes nothing and
-    leaves every modification time; a file the generation drops is pruned by its digest, a marked
-    one and one that can hold no comment alike, with each directory that leaves empty; a file at a
-    path no manifest lists is rewritten where it carries the marker and is
-    `engine/artifact-would-overwrite` where it does not, nothing written; with the manifest deleted
-    a file this generation drops stays; a file renamed in letter case alone is pruned and written,
-    its content changed or not, and is `engine/artifact-would-overwrite` where its owner edited the
-    old spelling, on a volume that ignores case and one that does not, each judged from what such a
-    volume answers, and where that rename was cut short and the next generation drops the file or
-    renames it again, a file both spellings name is pruned once and none is reported edited; a file
-    and a directory trade places both ways, a directory left empty in the way removed, and a file
-    that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory under
-    a directory a write replaces, or a kept edited listed path whose folded path is a directory
-    prefix of a held path or vice versa (`Models` beside `models/user.go`, `Models/user.go` beside
-    `models`), on a volume that ignores case and one that does not, is
+    but what a pending manifest lists and a file of the generation's under another spelling of a
+    path it holds; a regeneration whose inputs all match writes nothing and leaves every
+    modification time; a file the generation drops is pruned by its digest, a marked one and one
+    that can hold no comment alike, with each directory that leaves empty; a file at a path no
+    manifest lists is rewritten where it carries the marker and is `engine/artifact-would-overwrite`
+    where it does not, nothing written; with the manifest deleted a file this generation drops
+    stays; a file renamed in letter case alone is pruned and written, its content changed or not,
+    and is `engine/artifact-would-overwrite` where its owner edited the old spelling, on a volume
+    that ignores case and one that does not, and where that rename was cut short and the next
+    generation drops the file or renames it again, a file both spellings name is pruned once and
+    none is reported edited; a file standing under another spelling of a held path that nothing
+    lists, of its name or of a directory it passes through, `readme.md` where a generation adds
+    `README.md` and `Models/user.go` where it holds `models/user.go`, is pruned and the held
+    spelling written where its digest is fresh or it carries the marker, its bytes changed or not,
+    and is `engine/artifact-would-overwrite` where its bytes are its owner's, alike on both volumes;
+    a file and a directory trade places both ways, a directory left empty in the way removed, and a
+    file that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory
+    under a directory a write replaces, or a kept edited listed path whose folded path is a
+    directory prefix of a held path or vice versa (`Models` beside `models/user.go`,
+    `Models/user.go` beside `models`), on a volume that ignores case and one that does not, is
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
-    of a write's segment is the same error unless the run's prunes and dropped-path directory
-    removals remove it first, including a nested directory left empty above dropped listed paths,
-    and so is a file standing under another spelling of a write's segment, `Models` beside
-    `models/user.go`, on either volume, one a volume lists decomposed being the same name on a
-    volume that joins the two and another spelling on one that does not; a directory at a dropped
+    of a directory a held path passes through, an unchanged file's too, is the same error unless the
+    run's prunes and directory removals remove it first, and so is a file standing there, `Models`
+    beside `models/user.go`, on either volume, one a volume lists decomposed being the same name on
+    a volume that joins the two and another spelling on one that does not; a directory at a dropped
     listed spelling of a held path, `Setup.kt/notes.txt` beside `SetUp.kt`, is the same error where
-    it holds anything, and an empty one is removed before the write; a symbolic link at a held path
-    or above one is the same error, and one at or above a dropped listed path is kept and reported
-    `engine/file-edited`, nothing written or pruned through it; a manifest or a pending manifest
-    that is no manifest, or a directory or a link at its path, is `engine/manifest-unreadable` with
-    nothing written; a write cut between its temporary file and the rename leaves that file beside
-    its destination, in the destination's own directory and never at the root's top; a root
-    holding another target's manifest, or its pending manifest alone, is
-    `engine/manifest-foreign`, and nothing there is pruned; two targets whose roots are one
-    directory, or one inside the other, by the path fold, are refused before any target runs; of two
-    targets one of which would overwrite a file, neither is written, in either order they are named,
-    and at the `none` threshold, or under a triage rule accepting the code, the other is written and
-    that root left as it was; a root changed between its plan and its writes, a file edited or a
-    second plan applied, is refused with nothing written, and a file added under a directory a write
-    replaces is refused when that write meets it, the next run finding it in the write's way; a
-    write cut after any single operation on the disk, a file removed, a directory removed, the lower
-    of two that one pruned file leaves empty among them, or a file written, heals when the same
-    generation or a later one runs next, itself cut at any operation and run again, the tree then an
-    uninterrupted run's, with no empty directory the root did not hold, no pending manifest and no
-    file reported as edited or in the way, and the run after it doing nothing, as does a first
-    generation over marked files no manifest lists, cut before it replaced them, and a run cut once
-    it replaced a directory `a/b` with a file `a/b`, whose next run removes nothing above the dropped
-    `a/b/x.go`; the one way such a tree may differ from an uninterrupted run's is an empty
-    directory where a generation writes a file, which an uninterrupted run removes and which stands
-    after a run cut before that write when the generation that finishes no longer writes there; a pending
-    manifest records no new digest at a path kept as its owner's, so a save of exactly those bytes
-    after a cut run stays the owner's; a spec reformatted, one drawing a warning among them, is the
-    same generation; a generated file edited outside its regions is reported `engine/file-edited`
-    and neither overwritten nor pruned, by the next generation too, an entity a rename moves out of
-    it written in its new place and its regions left in the kept file, written once, while one
-    edited only inside a region, or checked out with other line endings, is not an edit; a region
-    follows its entity into the file a rename moves it to, one the declaration enclosed still inside
-    it, and one whose entity is gone is reported and its file kept; a scoped run's manifest keeps
-    every entry it left out; the staleness check lists no entity a correlation key carried across a
-    renamed path variable; a file written once is never written again, even after its user deletes
-    it, nor reported when its user edits it, and one marked `@morphic:ignore-file` is never written,
-    pruned or reported; a hint's key, a runtime-policy key, an envelope's `Except` entry and a
-    `Remount` group naming nothing in the document each draw `emitters/unmatched-key` once, naming
-    the entity of the same correlation key, and no other diagnostic; a README's text outside its
-    blocks and its frozen blocks survive byte for byte, an edit outside its blocks draws nothing and
-    one inside an unfrozen block is replaced and draws a warning, a block new to the generation
-    lands beside its neighbours in the generated order, the first of them included, a block whose ID
-    holds `-->` keeps its markers whole, one frozen before its entity's path variable is renamed
-    gains no twin, and its table of contents lists the user's headings; and a manifest of an older
-    `Schema` is migrated, one of a newer, or a pending manifest of a newer, refused as
-    `engine/manifest-newer` with nothing written ([write / integrate](../write-integrate.md)).
+    it holds anything; an empty directory at a listed path the generation drops, or under another
+    spelling of a path held or listed or of a directory one of them passes through, is removed with
+    each directory above it that leaves empty; a symbolic link at a held path or above one is the
+    same error, and one at or above a dropped listed path is kept and reported `engine/file-edited`,
+    nothing written or pruned through it; a manifest or a pending manifest that is no manifest, or a
+    directory or a link at its path, is `engine/manifest-unreadable` with nothing written; a write
+    cut between its temporary file and the rename leaves that file beside its destination, under the
+    name the pending manifest records, and the next run removes it, one the pending manifest's own
+    write left being written over, while a file standing at the name a write would take gives that
+    write's temporary file another; a root holding another target's manifest, or its pending
+    manifest alone, is `engine/manifest-foreign`, and nothing there is pruned; two targets whose
+    roots are one directory, or one inside the other, by the path fold, are refused before any
+    target runs; of two targets one of which would overwrite a file, neither is written, in either
+    order they are named, and at the `none` threshold, or under a triage rule accepting the code,
+    the other is written and that root left as it was; a root changed between its plan and its
+    writes, a file edited or a second plan applied, is refused with nothing written, and a file
+    added under a directory a write replaces is refused when that write meets it, the next run
+    finding it in the write's way; a write cut after any single operation on the disk, a temporary
+    file made, a file removed, a directory removed, the lower of two that one pruned file leaves
+    empty among them, or a file written, heals over any root when the same generation or a later one
+    runs next, itself cut at any operation and run again, the tree then an uninterrupted run's, with
+    no empty directory the root did not hold, no temporary file, no pending manifest and no file
+    reported as edited or in the way, and the run after it doing nothing, a run cut before its
+    pending manifest landed being one that never ran but for the temporary file the next run writes
+    over; so does a first generation over marked files no manifest lists, cut before it replaced
+    them, a run cut before it replaced an empty directory with a file whose path the next generation
+    drops, and a run cut once it replaced a directory `a/b` with a file `a/b`, whose next run
+    removes nothing above the dropped `a/b/x.go`; a pending manifest records no new digest at a path
+    kept as its owner's, so a save of exactly those bytes after a cut run stays the owner's; a spec
+    reformatted, one drawing a warning among them, is the same generation; a generated file edited
+    outside its regions is reported `engine/file-edited` and neither overwritten nor pruned, by the
+    next generation too, an entity a rename moves out of it written in its new place and its regions
+    left in the kept file, written once, while one edited only inside a region, or checked out with
+    other line endings, is not an edit; a region follows its entity into the file a rename moves it
+    to, one the declaration enclosed still inside it, and one whose entity is gone is reported and
+    its file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists
+    no entity a correlation key carried across a renamed path variable; a file written once is never
+    written again, even after its user deletes it, nor reported when its user edits it, and one
+    marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
+    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
+    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
+    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
+    for byte, an edit outside its blocks draws nothing and one inside an unfrozen block is replaced
+    and draws a warning, a block new to the generation lands beside its neighbours in the generated
+    order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
+    frozen before its entity's path variable is renamed gains no twin, and its table of contents
+    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer, or a
+    pending manifest of a newer, refused as `engine/manifest-newer` with nothing written ([write /
+    integrate](../write-integrate.md)).
 41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
     `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
     places it, and every content, the primary response and the elected content first; a table for

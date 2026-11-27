@@ -230,19 +230,20 @@ there, where it has one.
 | a file of any other digest, the path listed | keep, `engine/file-edited` | keep, `engine/file-edited` |
 | a file of any other digest, the path unlisted, the marker present | write | — |
 | a file of any other digest, the path unlisted, no marker | `engine/artifact-would-overwrite` | — |
-| a directory | write where the run's prunes and directory removals leave it empty or gone, else `engine/artifact-would-overwrite` | drop the entry |
+| an empty directory | write | remove it, and drop the entry |
+| a directory holding anything | write where the run's prunes and directory removals leave it empty or gone, else `engine/artifact-would-overwrite` | drop the entry |
 | a file where the path needs a directory | write where that file is pruned, else `engine/artifact-would-overwrite` | drop the entry |
 | a symbolic link, at the path or at a directory above it | `engine/artifact-would-overwrite` | keep, `engine/file-edited` |
 
-A path the generation does not hold and nothing lists is never read: it is its owner's. Planning
-reads a path segment by segment without following a link (`os.Root.Lstat`), so a link is met as
-itself, and it is its owner's, as no generation writes one: nothing is written or pruned through
-it. `os.Root` refuses a link that leaves the root ([emit rules](emit/rules.md)) and follows one that
-stays inside it, so a write through `models`, a link to `util`, would land in `util/` while the
-manifest listed `models/`, and a prune there would remove a file the link's target holds. A kept
-file's entry keeps the digest the manifest recorded for it, or, where only a pending manifest
-lists the path, the least of the digests that one records, so the path stays listed and the next
-generation judges it the same way.
+A path the generation does not hold and nothing lists is its owner's, read only as another spelling
+of a path held or listed (below). Planning reads a path segment by segment without following a link
+(`os.Root.Lstat`), so a link is met as itself, and it is its owner's, as no generation writes one:
+nothing is written or pruned through it. `os.Root` refuses a link that leaves the root ([emit
+rules](emit/rules.md)) and follows one that stays inside it, so a write through `models`, a link to
+`util`, would land in `util/` while the manifest listed `models/`, and a prune there would remove a
+file the link's target holds. A kept file's entry keeps the digest the manifest recorded for it, or,
+where only a pending manifest lists the path, the least of the digests that one records, so the path
+stays listed and the next generation judges it the same way.
 
 - **The digest decides, with or without a marker.** A file is the generation's own where its bytes
   are ones a generation wrote there, which the manifest records, and its owner's where they are
@@ -259,70 +260,65 @@ generation judges it the same way.
   earlier generation wrote and this one drops stays, since nothing lists it.
 - **A first generation says so.** A root holding no manifest is a first generation, and the run
   reports an info `engine/first-generation`. Nothing is pruned there but what a pending manifest
-  lists, as a first generation cut short leaves one.
-- **Spellings a disk may not tell apart are judged together.** Where a listed path the generation
-  drops folds as a path it holds, `Setup.kt` and then `SetUp.kt`, a volume that ignores case
-  answers the new spelling with the old file, and a run cut short there leaves both spellings
-  listed, whatever the next generation holds. So what is known of one listed spelling is known of
-  every path that folds as it, whether the generation holds one of them or none, and a file that
-  answers several of them is pruned once. Where the generation holds one and any of them holds a
-  file of any other digest, or a directory the run's prunes and directory removals leave standing,
-  what stands there is its owner's and the write is `engine/artifact-would-overwrite` on every
-  volume: on one that ignores case the write would replace the file or meet the directory, and on
-  one that does not it would replace the file at the new spelling, or leave beside an edited old
-  one, or beside the directory, a second name no other volume can hold. Otherwise, where an old
-  spelling holds a file, it is pruned and the new one written, whatever the new spelling answers,
-  since the old file may be what answers; where none does, the new spelling is judged by the
-  table. Where the generation holds none of them, each is judged by the table, so a file that is
-  kept is kept under each spelling it answers: on a volume that ignores case a saved file two
-  listed spellings name is reported `engine/file-edited` at each and keeps both entries, where a
-  volume that tells case apart keeps one entry and drops the other.
+  lists, as a first generation cut short leaves one, and a file of the generation's standing under
+  another spelling of a path it holds (below).
+- **Spellings a disk may not tell apart are judged together, on every volume.** A path's spellings
+  are the paths folding as it that the generation holds or a manifest lists, and what stands on
+  disk under another spelling of a held path, read off the listing of each directory it passes
+  through, a name in another normalization being the same name where the volume answers with it
+  (below). Where a listed path the generation drops folds as a path it holds, `Setup.kt` and then
+  `SetUp.kt`, a volume that ignores case answers the new spelling with the old file, and a run cut
+  short there leaves both spellings listed, whatever the next generation holds; and a spelling
+  nothing lists, `Setup.kt` in a root whose manifest was deleted or an owner's `readme.md` where a
+  generation adds `README.md`, is the file such a volume answers the held path with. So what is
+  known of one listed spelling is known of every spelling, whether the generation holds one of them
+  or none, and a file that answers several of them is pruned once. Where the generation holds one,
+  a file under any spelling is the generation's where its digest is fresh or known, or where it
+  carries the marker and nothing lists it. Where any holds another file, or a directory the run's
+  prunes and directory removals leave standing, what stands there is its owner's and the write is
+  `engine/artifact-would-overwrite` on every volume: on one that ignores case the write would
+  replace the file or meet the directory, and on one that does not it would replace the file at the
+  new spelling, or leave beside an edited old one, or beside the directory, a second name no volume
+  that ignores case can hold. Otherwise, where another spelling holds a file, it is pruned and the
+  held one written, whatever the held spelling answers, since the old file may be what answers, so a
+  file of the generation's under another spelling of its name or of a directory it passes through is
+  written again under the generation's, its bytes fresh or not; where none does, the held spelling is
+  judged by the table. Where the generation holds none of them, each listed spelling is judged by
+  the table, so a file that is kept is kept under each listed spelling it answers: on a volume that
+  ignores case a saved file two listed spellings name is reported `engine/file-edited` at each and
+  keeps both entries, where a volume that tells case apart keeps one entry and drops the other.
 - **A file or directory in a write's way is refused before the verdict.** A file that stays, its
   owner's or an edited one, or an unlisted subdirectory, even empty, under a directory a write needs
   as a file, or a file that stays where a write needs a directory, is
   `engine/artifact-would-overwrite`. A directory left empty at a write's path, already empty on disk
-  or emptied by the run's prunes and dropped-path directory removals, is removed. The same holds
-  across letter case for listed paths on every volume: where a kept edited listed path's folded path
-  is a directory prefix of a held path (`Models` beside `models/user.go`), or a held path's folded
-  path is a directory prefix of a kept edited listed path (`models` beside `Models/user.go`), that
-  held path draws `engine/artifact-would-overwrite` on a volume that tells case apart as on one
-  that does not, so no run writes a tree or manifest a volume that ignores case cannot hold.
-- **A directory a write passes through keeps the spelling the generation gives it.** A directory or
-  a file standing under another spelling of a segment a write passes through, `Models` for `models`,
-  is `engine/artifact-would-overwrite` unless the run's prunes and dropped-path directory removals
-  remove it before the write: a file the run prunes, or a directory holding only files pruned in
-  this run or only directories emptied above listed paths the generation drops, at any depth. Under
-  a directory left standing, a write on a volume that ignores case would land under the old
+  or emptied by the run's prunes and directory removals, is removed. The same holds across letter
+  case for listed paths on every volume: where a kept edited listed path's folded path is a
+  directory prefix of a held path (`Models` beside `models/user.go`), or a held path's folded path
+  is a directory prefix of a kept edited listed path (`models` beside `Models/user.go`), that held
+  path draws `engine/artifact-would-overwrite` on a volume that tells case apart as on one that does
+  not, so no run writes a tree or manifest a volume that ignores case cannot hold.
+- **A directory a held path passes through keeps the spelling the generation gives it.** A directory
+  or a file standing under another spelling of a directory a held path passes through, `Models` for
+  `models`, is `engine/artifact-would-overwrite` unless the run's prunes and directory removals
+  remove it: a file the run prunes, or a directory holding only files it prunes, the generation's
+  own under that spelling among them (above), or only empty directories it removes, at any depth.
+  Under a directory left standing, a write on a volume that ignores case would land under the old
   spelling, and the manifest would list a path another volume lacks; beside a file, a volume that
   ignores case meets it where the directory must go, and one that does not holds two names no volume
-  that ignores case can. Planning lists each directory a write passes through to find another
-  spelling, so a file there costs no further read. A name a volume lists in another normalization, a
-  composed `é` decomposed, is the same name where the volume answers the write's spelling with it
-  (`os.SameFile` holds of the two), as APFS does; on a volume that keeps the two apart, as ext4
-  stores a name's bytes, it is another spelling, refused as one, since the write would leave beside
-  it a second directory no volume that joins them can hold. The rule is met at a write alone: on a
-  volume that ignores case, a directory under which every held file is fresh is refused only once a
-  write passes through it, and until then the manifest lists a path under a spelling the disk does
-  not hold.
-- **A file's own name is judged by what the volume answers.** No rule looks for a file or a
-  directory standing under another spelling of a held path's own name where nothing lists that
-  spelling: `Setup.kt` for `SetUp.kt` in a root whose manifest was deleted, or its owner's
-  `readme.md` where a generation adds `README.md`. A volume that ignores case answers the held path
-  with that file, and the table judges it as the file there. Where the held path is unlisted too,
-  one of the fresh digest is left under the spelling it has and a marked one is replaced, the
-  manifest listing the held spelling either way, whatever name the volume keeps, and any other is
-  `engine/artifact-would-overwrite`. A volume that tells case apart never reads that file: the held
-  path is judged alone, and once it is written the tree holds two names no volume that ignores case
-  can. So the verdict and the tree differ by volume there, and a root the first kind left listing a
-  spelling its disk lacks gains, on the second, a file under that spelling beside the old one. On
-  the second a later generation holding the old spelling again is `engine/artifact-would-overwrite`
-  over the file left under it, marked or not, where its digest is neither fresh nor known, the two
-  spellings being judged together. And on either kind a run cut short over such a root can end in
-  another tree than an uninterrupted one's, or refused where that one is not: no modelled sequence
-  starts from such a root ([below](#every-write-is-planned-before-the-verdict)).
+  that ignores case can. Planning lists each directory every held path passes through, an unchanged
+  file's among them, so the rule holds whether or not the run writes there, and a file there costs
+  no further read. A name a volume lists in another normalization, a composed `é` decomposed, is the
+  same name where the volume answers the held spelling with it (`os.SameFile` holds of the two), as
+  APFS does; on a volume that keeps the two apart, as ext4 stores a name's bytes, it is another
+  spelling, judged as one, since left there it would stand beside a second directory no volume that
+  joins them can hold.
 - **An emptied directory does not outlive its files.** A prune removes each directory above the
-  file that it leaves empty, and a listed path the generation drops and the disk no longer holds
-  has its empty directories removed too. Either removal goes up from the path, passes over a
+  file that it leaves empty. An empty directory standing at a listed path the generation drops is
+  removed: a run cut before it replaced one with a file leaves it there, where an uninterrupted run
+  would have written the file a later generation prunes. So is an empty directory under another
+  spelling of a path held or listed, or of a directory one of those passes through, which a volume
+  that ignores case would answer that path with. A listed path the generation drops where no file stands has the
+  empty directories above it removed too. Each removal goes up from the path, passes over a
   directory already gone and ends at the first that is no empty directory, one holding something or
   a file standing in a directory's place, which it leaves, so a run cut between a prune and the
   removal of its directory, or between the removals of two directories above one file, is finished
@@ -358,35 +354,46 @@ Applying a plan, in order:
    the manifest's among them, a digest or an absence. Where one no longer holds, the root moved:
    another run wrote there, or its owner saved a file. Nothing is written, and the run fails with
    an error naming the root.
-2. **A pending manifest is written**, `morphic.manifest.pending.json`: the `Schema` and `Target` the
-   manifest will state, and for each path, every digest known to be the generation's: those the
-   manifest and any earlier pending manifest record, the one read at a marked file no manifest lists
-   that the plan overwrites, and the new one where the plan writes the path or finds it fresh, never
-   at a path kept as its owner's, whose bytes the run leaves as they are. The marked file's is
-   recorded because this record makes its path a listed one: left out, a run cut before that file's
-   write would leave it at a listed path under a digest nothing knows, which reads as its owner's
-   edit.
-3. **Prunes come before writes**, and with them the removal of each directory left empty, those
-   above a listed path the generation drops and the disk no longer holds among them. A path a
-   write needs may be held by a file a prune removes: the other spelling of a file renamed in
-   letter case alone, or a file where a directory must go. Written first on a volume that ignores
-   case, the new file is the one the prune of the old then removes, or it lands under the old
-   spelling of a directory an interrupted run emptied and left standing.
-4. **Each file is replaced atomically**, through a temporary file beside it, under a root opened at
-   the file's own directory (`os.Root.OpenRoot`) ([emit rules](emit/rules.md)), after any empty
-   directory standing at its path, or at a listed path folding as it, is removed. The atomic replace
-   handed the output root alone makes its temporary file at the root's top (`renameio.WithRoot`,
-   v2.0.2), away from the directory what a killed write leaves (below) stands in. A directory no
+2. **A pending manifest is written**, `morphic.manifest.pending.json`, through a temporary file of
+   the fixed name `.morphic.manifest.pending.json.tmp`, written over where an interrupted run left
+   one. It holds the `Schema` and `Target` the manifest will state; for each path, every digest
+   known to be the generation's: those the manifest and any earlier pending manifest record, the one
+   read at a file no manifest lists that the plan overwrites or prunes, a marked file or one under
+   another spelling of a held path, and the new one where the plan writes the path or finds it
+   fresh, never at a path kept as its owner's, whose bytes the run leaves as they are; and the name
+   of each temporary file the plan's writes make, the manifest's among them, with those any earlier
+   pending manifest records. A temporary file's name is a dot, its file's name and a number of up to
+   19 digits, one planning picks so that nothing in that directory, and no artifact, takes it. The
+   read digest is recorded because this record makes its path a listed one: left out, a run cut
+   before that file's write or prune would leave it under a digest nothing knows, at a listed path
+   read as its owner's edit, and under another spelling where no generation that drops the path
+   reads it again.
+3. **Prunes come before writes.** Each file the plan prunes, a temporary file the pending manifest
+   records and an interrupted run left among them, is removed in byte order of path, each followed
+   by the removal of the directories above it left empty; then, in byte order, each path where the
+   plan removes an empty directory or finds no file of a listed path it drops, the empty directory
+   there removed and those above it left empty. A path a write needs may be held by a file a prune
+   removes: the other spelling of a file renamed in letter case alone, or a file where a directory
+   must go. Written first on a volume that ignores case, the new file is the one the prune of the
+   old then removes, or it lands under the old spelling of a directory an interrupted run emptied
+   and left standing.
+4. **Each file is replaced atomically**, in byte order of path, after an empty directory standing at
+   its path is removed: written to its temporary file beside it, under the name the pending manifest
+   records, created where nothing stands, then renamed over it, under a root opened at the file's own
+   directory (`os.Root.OpenRoot`) ([emit rules](emit/rules.md)). `renameio`, the atomic replace the
+   engine's other writes go through, picks the temporary name at random (v2.0.2), which no record made
+   before the write could name, so the writer makes the temporary file itself. A directory no
    longer empty there, a file or subdirectory added under it since the plan, is the root moved as
    well, met after the prunes and the writes before it: the run stops as an interrupted one does,
    and the next plan finds it in the write's way.
 5. **The manifest is written last**, and then the pending manifest is removed.
 
 - **An interrupted write heals.** A run killed once it has begun to write leaves the pending
-  manifest, which lists every digest the generation may have written and that of each marked file it
-  set out to replace, and planning reads it as it reads the manifest. So the next run recognizes a
-  half-written tree as the generation's own, finishes it, and reports no file as its owner's edit,
-  however many runs were cut short: a pending manifest only grows until a manifest lands.
+  manifest, which lists every digest the generation may have written, that of each file no manifest
+  lists it set out to replace or prune, and each temporary file's name, and planning reads it as it
+  reads the manifest. So the next run recognizes a half-written tree as the generation's own,
+  finishes it, removes what the cut left, and reports no file as its owner's edit, however many runs
+  were cut short: a pending manifest only grows until a manifest lands.
 - **The gaps that stay.** Reading the root again narrows the time between a plan and its writes and
   does not close it: a file saved between that check and its own write is replaced, so two runs into
   one root at once are not supported. And that a failed run writes nothing holds for what planning
@@ -394,51 +401,63 @@ Applying a plan, in order:
   target's plan was carried out; the root it stops in heals on the next run that writes, as any
   interrupted one does. Nor is the verdict the last thing that can fail a run that asks for the
   build check, which runs on the tree as written: a check that fails the run leaves the files in
-  place ([verification](verification.md#the-output-builds)). And a rename in letter case cut
-  short does not heal over its owner's save. While two spellings of a path are listed, as the
-  pending manifest of such a run lists them, a file saved under either is
-  `engine/artifact-would-overwrite` to a generation holding either
-  ([above](#a-file-is-judged-by-its-digest)). That holds for the generation whose spelling the
-  file stands under too, where an uninterrupted run keeps the file and reports
-  `engine/file-edited`. The refused plan holds nothing, so what the cut run left, its pending
-  manifest and its half-written tree, stays until the save is undone or the file moved away.
-- **What a killed write leaves.** A temporary file, named for its destination with a dot before
-  and digits after, may be left beside it. No later run reads or removes it, and a file's name is
-  held short enough that it fits ([emit rules](emit/rules.md)). It is an unlisted file like any
-  other, so the directory holding it is never emptied: it stands when the generation drops every
-  file in it, and a later generation that puts a file in that directory's place, or spells it
-  another way, is `engine/artifact-would-overwrite` until the leftover is deleted.
+  place ([verification](verification.md#the-output-builds)). And a rename between two spellings that
+  fold alike, in letter case or in normalization, cut short does not heal over its owner's save.
+  While two spellings of a path are listed, as the pending manifest of such a run lists them, a file
+  saved under either is `engine/artifact-would-overwrite` to a generation holding either
+  ([above](#a-file-is-judged-by-its-digest)). That holds for the generation whose spelling the file
+  stands under too, where an uninterrupted run keeps the file and reports `engine/file-edited`. The
+  refused plan holds nothing, so what the cut run left, its pending manifest and its half-written
+  tree, stays until the save is undone or the file moved away.
+- **What a killed write leaves heals too.** A write killed between its temporary file and the
+  rename leaves that file beside its destination, under the name the pending manifest records, and
+  the next run prunes it in step 3 as it prunes any file it knows, so the directory holding it
+  empties as its other files go; one the pending manifest's own write left is written over by the
+  next run's. Neither name is any artifact's: the fixed one is the manifest's own, and a file's
+  name is held short enough that its temporary name fits ([emit rules](emit/rules.md)).
 
 The rules were modelled before they were written: planning and applying, over a volume that joins
-names that fold alike, a composed and a decomposed letter among them, and one that joins none, each
-run cut after every single operation on the disk, then rerun with the same generation and with a
-later one, cut again, and finished. Every sequence ended in the tree an uninterrupted run leaves,
-with no pending manifest, no empty directory the root did not hold, no file reported as edited and
-no two names that fold alike, but over a root a limit above leaves unread, and in one way more: an
-empty directory where a generation writes a file, which an uninterrupted run removes, stands after a
-run cut before that write when the generation that finishes no longer writes there. Each rule taken
-out failed sequences of its own: prunes before writes, a pending manifest that keeps every earlier
-digest, planning that reads the pending manifest, spellings judged together, the removal of
-directories a cut left empty, passing over a directory already gone, the digest read at a marked
-file, a directory at a dropped spelling read, a file under another spelling of a directory a write
-passes through, another normalization the same name only where the volume answers with it, and a
-removal going up that stops at a file. Recording no new digest at a path kept as its owner's needs
-an owner's save the sequences do not make, which a trace beside the model shows: with that digest
-recorded, a run cut once its pending manifest is written, and its owner then saving exactly those
-bytes, the next generation replaces a save an uninterrupted run keeps. Links, an unreadable manifest
-and the temporary file's place are not modelled. T-40 holds the rules, the interrupted runs among
-them. The model is on #2247, in the comment that brings the one its body holds to these rules.
+names that fold alike, a composed and a decomposed letter among them, keeping a replaced file's old
+name or taking the new one, and one that joins none, each run cut after every single operation on
+the disk, a temporary file made among them, then rerun with the same generation and with a later
+one, cut again, and finished. Every sequence ended in the tree an uninterrupted run leaves, with no
+pending manifest, no temporary file, no empty directory the root did not hold, no file reported as
+edited, no two names that fold alike the run made and no held path under another spelling than the
+manifest's, over every root the model builds, a run cut before its pending manifest landed being
+held to the history without it. Each rule taken out failed sequences of its own: prunes before
+writes, a pending manifest that keeps every earlier digest and temporary name, planning that reads
+the pending manifest, spellings judged together, a spelling nothing lists read off the disk, the
+digest read at an unlisted file the plan overwrites or prunes, each temporary name recorded, an
+empty directory at a dropped listed path removed, the removal above a dropped path where no file
+stands, passing over a directory already gone, a removal going up that stops at a file, a directory
+at a dropped spelling read, a file under another spelling of a directory, another normalization the
+same name only where the volume answers with it, and an owner's empty subdirectory refused. The
+orders steps 3 and 4 fix, taken another way, failed none. Two rules change a verdict and not a tree,
+which probes beside the model show: an empty directory under another spelling is removed where it
+would else refuse the write on every volume, and, on a volume that tells case apart, an owner's
+directory under another spelling of an unchanged file's is refused before a write passes through it,
+so the verdict does not turn on whether a file's bytes changed. Recording no new digest at a path
+kept as its owner's needs an owner's save the sequences do not make, which a trace beside the model
+shows: with that digest recorded, a run cut once its pending manifest is written, and its owner then
+saving exactly those bytes, the next generation replaces a save an uninterrupted run keeps. With an
+owner's save or delete between two runs, each cut anywhere, the saved bytes stood, no other file was
+reported, and every finished run healed, but where this document says otherwise: a saved file two
+listed spellings name keeps both entries on a volume that joins them, and a rename cut short is
+refused over the save (above). Links and an unreadable manifest are not modelled. T-40 holds the
+rules, the interrupted runs among them. The model is on #2247, in the comment that brings the one
+its body holds to these rules, and the owner's saves in the comment after it.
 
 ## Where generation runs
 
-Morphic is not built for Windows, generation included. The atomic replace every file it writes
-goes through, an IR document's (`morphic compile -o`) as a generation's, does not build there
-(`GOOS=windows go build ./cmd/morphic` fails in `engine/internal/atomicfile`, morphic
-@cfb366317), and the rules above were measured on APFS and modelled over a volume that ignores
-case and one that does not, never on NTFS. What a run writes is meant to be portable all the same:
-every segment of a path it writes is one Windows takes, and no two paths fold alike ([emit
-rules](emit/rules.md)), though that the fold joins every pair NTFS does is assumed there and not
-measured, and nothing bounds a path's whole length.
+Morphic is not built for Windows, generation included. The atomic replace an IR document is written
+through (`morphic compile -o`), in the package a generation's writer imports too, does not build
+there (`GOOS=windows go build ./cmd/morphic` fails in `engine/internal/atomicfile`, morphic
+@cfb366317), and the rules above were measured on APFS and modelled over volumes that join names
+that fold alike, keeping a replaced file's old name or taking the new one, and one that joins none,
+never on NTFS. What a run writes is meant to be portable all the same: every segment of a path it
+writes is one Windows takes, and no two paths fold alike ([emit rules](emit/rules.md)), though that
+the fold joins every pair NTFS does is assumed there and not measured, and nothing bounds a path's
+whole length.
 
 ## Regions follow their entity
 

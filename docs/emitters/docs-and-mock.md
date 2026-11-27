@@ -309,8 +309,8 @@ a way to show one entity across API versions. Each is decided by data, never by 
   never a page that overwrites another and never a page dropped. The check runs on the URLs the
   templates produce, over every route a run plans, its table's and its agent documents' together, so
   no template can reintroduce a collision the catalog did not have. A route whose page would stand
-  at the manifest's own path, `morphic.manifest.json` or `morphic.manifest.pending.json` at the
-  output root, or under either, compared by the fold, is the same error, naming the entity and the
+  at a path of the manifest's own, `morphic.manifest.json`, `morphic.manifest.pending.json` or
+  `.morphic.manifest.pending.json.tmp` at the output root, or under one, compared by the fold, is the same error, naming the entity and the
   manifest: a template routing a page there is the options' fault, which the check of a
   generation's paths would otherwise report as a breach of the target's, after every target ran
   ([emit rules](emit/rules.md)).

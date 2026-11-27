@@ -376,9 +376,9 @@ the document, which determines it.
   on a file system that ignores case, as macOS's and Windows' do by default. So each label, in
   `Document.Versions` order, names its directory where that folds as no directory an earlier label
   took, and otherwise the label followed by `-` and the lowest number, `2` up, that does not: `v1`,
-  `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. The manifest's two names are taken before
-  the first label, so a label `morphic.manifest.json` writes under `morphic.manifest.json-2`: an
-  artifact at either name, or under one, is a breach of its target's ([emit
+  `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. The manifest's three names are taken
+  before the first label, so a label `morphic.manifest.json` writes under `morphic.manifest.json-2`:
+  an artifact at any of them, or under one, is a breach of its target's ([emit
   rules](../emit/rules.md)), and the label, which the document chose and no target, would else fail
   every valid run that writes it. Every run reads `Document.Versions` whole,
   so each derives the same directories; a version added after the others moves none, and one removed

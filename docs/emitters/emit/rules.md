@@ -47,15 +47,16 @@ the tree the rule exists to prevent.
   alike are spelled alike, so `Models/a.go` beside `models/b.go` is a breach, as it is beside
   `models/sub/b.go`. A file system that ignores case keeps both files under the spelling written
   first, where the manifest lists the other, and one that does not holds two directories no other
-  volume can. A directory standing on disk under another spelling is the writer's to refuse,
-  where a write passes through it
+  volume can. A directory standing on disk under another spelling is the writer's to judge,
+  where a held path passes through it
   ([write / integrate](../write-integrate.md#a-file-is-judged-by-its-digest)).
 - **No path is the manifest's own.** The engine keeps the generation's manifest at the output root,
-  as `morphic.manifest.json`, and while it writes, `morphic.manifest.pending.json` beside it ([write
-  / integrate](../write-integrate.md#what-the-manifest-records)). An artifact at either path, or
-  under one as a directory, compared by the fold, is a breach: the manifest's own write would find a
-  directory in its place, after the run's verdict. No valid document leads a target there: a
-  snapshot label takes a directory other than either name ([contract
+  as `morphic.manifest.json`, and while it writes, `morphic.manifest.pending.json` beside it, written
+  through `.morphic.manifest.pending.json.tmp` ([write
+  / integrate](../write-integrate.md#every-write-is-planned-before-the-verdict)). An artifact at any
+  of the three paths, or under one as a directory, compared by the fold, is a breach: the manifest's
+  own writes would meet it, after the run's verdict. No valid document leads a target there: a
+  snapshot label takes a directory other than any of the three names ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and the docs
   route plan refuses a page routed there as its own finding
   ([docs](../docs-and-mock.md#routes-and-links)).
