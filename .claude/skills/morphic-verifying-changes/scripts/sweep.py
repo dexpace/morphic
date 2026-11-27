@@ -25,9 +25,9 @@ testdata), are read for OpenAPI and Swagger documents: a JSON one, even one save
 by its top-level keys, minified or not, and a YAML one by a version key anywhere in it, so a file
 naming one in a comment or a nested mapping is compiled too, and fails alike on both sides. Each
 CORPUS argument is checked on its own, exiting 2 naming the first that yields no document, and the
-summary prints each argument's count beside the total. The sweep reports facts and judges none: specs that fail alike on both sides agree, so read the exit
-codes before taking agreement for a pass. Exit 0 when no spec differs but for its stamp, 1 when one
-does, 2 when the sweep cannot run.
+summary prints each argument's count beside the total. The sweep reports facts and judges none:
+specs that fail alike on both sides agree, so read the exit codes before taking agreement for a
+pass. Exit 0 when no spec differs but for its stamp, 1 when one does, 2 when the sweep cannot run.
 """
 
 import argparse
@@ -37,7 +37,6 @@ import json
 import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -253,27 +252,21 @@ def resolve_base(base: str) -> tuple[Path, str]:
 
 
 def export_base(root: Path, sha: str, dest: Path) -> None:
-    """Export commit sha into dest through git archive and tar without writing to root."""
+    """Export commit sha into dest without writing to root: git archive writes the tarball beside
+    dest, which tar unpacks and which is removed afterwards. Each step raises CalledProcessError
+    with its own stderr, so a failure names the tool that failed."""
     if dest.is_symlink() or dest.is_file():
         dest.unlink()
     else:
         shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
-    with subprocess.Popen(["git", "-C", str(root), "archive", sha],
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as arch:
-        try:
-            tar = subprocess.run(["tar", "-x", "-C", str(dest)], stdin=arch.stdout,
-                                 capture_output=True, text=True, errors="replace")
-        finally:
-            assert arch.stdout is not None
-            arch.stdout.close()
-        stderr = arch.stderr.read().decode(errors="replace") if arch.stderr else ""
-        rc = arch.wait()
-    if tar.returncode != 0 and rc in (0, -signal.SIGPIPE):
-        raise subprocess.CalledProcessError(tar.returncode, ["tar", "-x", "-C", str(dest)],
-                                            stderr=tar.stderr)
-    if rc != 0:
-        raise subprocess.CalledProcessError(rc, ["git", "archive", sha], stderr=stderr)
+    tarball = dest.with_name(f"{dest.name}.tar")
+    try:
+        git(root, "archive", f"--output={tarball}", sha)
+        subprocess.run(["tar", "-x", "-f", str(tarball), "-C", str(dest)], check=True,
+                       capture_output=True, text=True, errors="replace")
+    finally:
+        tarball.unlink(missing_ok=True)
 
 
 def build_pair(root: Path, sha: str, out: Path) -> tuple[Path, Path]:

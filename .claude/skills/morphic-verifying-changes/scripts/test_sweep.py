@@ -532,23 +532,6 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertFalse((out_dir / "base-src").exists(), "base-src outlived the build")
 
-    def test_export_base_reports_tar_stderr_over_git_sigpipe(self):
-        # Exceed the OS pipe buffer so git archive receives SIGPIPE when tar exits immediately.
-        (self.root / "bulk.bin").write_bytes(b"x" * 262144)
-        self.git("add", "bulk.bin")
-        self.commit("add bulk")
-        fake_bin = Path(self.dir.name) / "fake-tar-bin"
-        fake_bin.mkdir()
-        tar = fake_bin / "tar"
-        tar.write_text("#!/bin/sh\necho 'tar: disk full' >&2\nexit 2\n")
-        tar.chmod(0o755)
-        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
-        with unittest.mock.patch.dict(os.environ, env):
-            with self.assertRaises(subprocess.CalledProcessError) as caught:
-                sweep.export_base(self.root, "HEAD", Path(self.dir.name) / "out" / "base-src")
-        self.assertEqual(caught.exception.returncode, 2)
-        self.assertIn("tar: disk full", caught.exception.stderr)
-
     def test_export_base_replaces_a_regular_file_at_base_src(self):
         (self.root / "marker.txt").write_text("at-head\n")
         self.git("add", "marker.txt")
@@ -574,40 +557,37 @@ class MainTest(unittest.TestCase):
         self.assertTrue((dest / "marker.txt").is_file())
         self.assertTrue((target / "keep.txt").is_file())
 
-    def test_export_base_reports_tar_error_when_git_archive_exits_zero(self):
-        (self.root / "marker.txt").write_text("at-head\n")
-        self.git("add", "marker.txt")
-        self.commit("add marker")
-        fake_bin = Path(self.dir.name) / "drain-tar-bin"
+    def fake_tar(self, name: str, script: str) -> dict[str, str]:
+        """Return an environment whose PATH finds a tar running script first."""
+        fake_bin = Path(self.dir.name) / name
         fake_bin.mkdir()
         tar = fake_bin / "tar"
-        tar.write_text("#!/bin/sh\ncat >/dev/null\necho 'tar: corrupt header' >&2\nexit 2\n")
+        tar.write_text(f"#!/bin/sh\n{script}")
         tar.chmod(0o755)
-        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+        return {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+
+    def test_export_base_reports_tars_own_error_and_leaves_no_tarball(self):
+        dest = Path(self.dir.name) / "out" / "base-src"
+        env = self.fake_tar("failing-tar-bin", "echo 'tar: disk full' >&2\nexit 2\n")
         with unittest.mock.patch.dict(os.environ, env):
             with self.assertRaises(subprocess.CalledProcessError) as caught:
-                sweep.export_base(self.root, "HEAD", Path(self.dir.name) / "out" / "base-src")
+                sweep.export_base(self.root, "HEAD", dest)
+        self.assertEqual(caught.exception.cmd[0], "tar")
         self.assertEqual(caught.exception.returncode, 2)
-        self.assertIn("tar: corrupt header", caught.exception.stderr)
+        self.assertIn("tar: disk full", caught.exception.stderr)
+        self.assertFalse(dest.with_name("base-src.tar").exists(), "the tarball outlived the export")
 
-    def test_export_base_reports_git_archive_error_even_when_tar_exits_zero_or_nonzero(self):
-        bad_sha = "0" * 40
-        with self.assertRaises(subprocess.CalledProcessError) as real_tar:
-            sweep.export_base(self.root, bad_sha, Path(self.dir.name) / "out" / "base-src")
-        self.assertEqual(real_tar.exception.cmd[0], "git")
-        self.assertIn("not a tree object", real_tar.exception.stderr)
-
-        fake_bin = Path(self.dir.name) / "strict-tar-bin"
-        fake_bin.mkdir()
-        tar = fake_bin / "tar"
-        tar.write_text("#!/bin/sh\necho 'tar: empty archive' >&2\nexit 2\n")
-        tar.chmod(0o755)
-        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+    def test_export_base_reports_git_archives_error_and_runs_no_tar(self):
+        dest = Path(self.dir.name) / "out" / "base-src"
+        ran = Path(self.dir.name) / "tar-ran"
+        env = self.fake_tar("recording-tar-bin", f"touch '{ran}'\n")
         with unittest.mock.patch.dict(os.environ, env):
-            with self.assertRaises(subprocess.CalledProcessError) as strict_tar:
-                sweep.export_base(self.root, bad_sha, Path(self.dir.name) / "out" / "base-src")
-        self.assertEqual(strict_tar.exception.cmd[0], "git")
-        self.assertIn("not a tree object", strict_tar.exception.stderr)
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                sweep.export_base(self.root, "0" * 40, dest)
+        self.assertEqual(caught.exception.cmd[0], "git")
+        self.assertIn("not a tree object", caught.exception.stderr)
+        self.assertFalse(ran.exists(), "tar ran after git archive failed")
+        self.assertFalse(dest.with_name("base-src.tar").exists(), "the tarball outlived the export")
 
 
 class CrashTest(unittest.TestCase):
