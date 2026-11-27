@@ -65,6 +65,17 @@ it.
 - **Probe.** Feed each guard an input it cannot classify, assert every glob matches a file, fail
   when no comparison ran, and rename a fixture.
 
+## Compile end-to-end lowering tests through a verifying helper
+`compile-through-a-verifying-helper`
+
+- **Rule.** An end-to-end lowering test compiles through a helper that holds the document to
+  `irverify` (`compileVerified`, `requireVerifies` in `compilers/openapi/e2e`). This rule stands
+  until #2288's check lands.
+- **Why.** At #1937's `32bda46d9`, six helpers returned `Compile` output without verification,
+  letting a lowering test pass on a document `irverify` rejects (#1966).
+- **Probe.** `git grep -n -E 'Compile\(|RunSpec\(' -- compilers/openapi/e2e`, checking each helper
+  beside its verification until #2288 replaces the listing.
+
 ## Probe a new distinction where what it compares ignores its property
 `distinction-where-nothing-depends`
 
@@ -243,6 +254,19 @@ it.
   was dropped, and a missing version tiebreak passed about one run in five (#119, #565).
 - **Probe.** Plant a comparator returning 0 and a dropped tiebreak, run the test with -count=50, and
   confirm every run fails; plant a uniformly wrong result and confirm the two-order test fails.
+
+## A run-against-itself map-order test needs at least 128 repeats
+`repeats-need-many-runs`
+
+- **Rule.** Repeating a run against itself is the weaker form of
+  `references/assertions-and-reach.md#ordering-tests-pin-the-order`. Go ranges a small map from a
+  random start in a fixed slot order, so 8 repeats over two keys agreed in about a third of trials
+  and 16 in about a ninth, while 128 agreed in none (`go1.27.3`). Name the Go release, as the
+  runtime may change it.
+- **Why.** Over 20,000 trials on `go1.27.3`, two keys agreed in 6,907 trials at 8 runs, 2,353 at
+  16 and 0 at 128 (#1948, #1546).
+- **Probe.** Run #1948's map-range trial program at the repository's Go release; 128 repeats agree
+  in 0 trials.
 
 ## Name fixtures so the right answer sorts last
 `sort-order-fixture`
