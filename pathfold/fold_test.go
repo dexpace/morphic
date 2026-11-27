@@ -178,12 +178,12 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 }
 
 // parseHexRune decodes an uppercase hexadecimal code point from a golden line.
-func parseHexRune(t *testing.T, path string, lineNo int, raw string) rune {
+func parseHexRune(t *testing.T, goldenPath string, lineNo int, raw string) rune {
 	t.Helper()
 	value, err := strconv.ParseUint(raw, 16, 32)
-	require.NoError(t, err, "%s:%d: invalid hex code point %q", path, lineNo, raw)
+	require.NoError(t, err, "%s:%d: invalid hex code point %q", goldenPath, lineNo, raw)
 	r := rune(value)
-	require.True(t, utf8.ValidRune(r), "%s:%d: invalid rune %04X", path, lineNo, r)
+	require.True(t, utf8.ValidRune(r), "%s:%d: invalid rune %04X", goldenPath, lineNo, r)
 	return r
 }
 

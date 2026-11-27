@@ -21,8 +21,8 @@ type Pending struct {
 	TemporaryFiles []string            `json:"temporaryFiles,omitempty"`
 }
 
-// DecodePending reads a JSON pending manifest, checking Schema before strict
-// decoding so a newer pending manifest returns ErrNewerSchema even with
+// DecodePending reads a JSON pending manifest, checking [Schema] before strict
+// decoding so a newer pending manifest returns [ErrNewerSchema] even with
 // unknown members. Returned digests and TemporaryFiles are sorted.
 func DecodePending(raw []byte) (Pending, error) {
 	if err := checkSchema(raw, "pending manifest"); err != nil {

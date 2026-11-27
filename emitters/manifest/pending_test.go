@@ -94,9 +94,72 @@ func TestPending_RoundTrips(t *testing.T) {
 			}
 			got, err := manifest.DecodePending(raw)
 			require.NoError(t, err)
-			assert.Empty(t, cmp.Diff(row.want, got))
+			assert.Empty(t, cmp.Diff(row.want, got), "round-trip mismatch (-want +got)")
 		})
 	}
+}
+
+func TestDecodePending_SortsUnorderedEntries(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{
+  "schema": 1,
+  "target": "go",
+  "known": {
+    "x.go": ["` + digestBeta + `", "` + digestAlpha + `"],
+    "a.go": ["` + digestAlpha + `"]
+  },
+  "temporaryFiles": [".x.go2", ".a.go1"]
+}`)
+	got, err := manifest.DecodePending(raw)
+	require.NoError(t, err)
+	want := manifest.Pending{
+		Schema: manifest.Schema,
+		Target: "go",
+		Known: map[string][]string{
+			"a.go": {digestAlpha},
+			"x.go": {digestAlpha, digestBeta},
+		},
+		TemporaryFiles: []string{".a.go1", ".x.go2"},
+	}
+	assert.Empty(t, cmp.Diff(want, got), "decoded pending manifest mismatch (-want +got)")
+}
+
+func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
+	t.Parallel()
+	valid := manifest.Pending{
+		Schema: manifest.Schema,
+		Target: "go",
+		Known: map[string][]string{
+			"z.go": {digestBeta, digestAlpha},
+			"a.go": {digestAlpha},
+		},
+		TemporaryFiles: []string{".z.go2", ".a.go1"},
+	}
+	first, err := manifest.EncodePending(valid)
+	require.NoError(t, err)
+	second, err := manifest.EncodePending(valid)
+	require.NoError(t, err)
+	assert.Equal(t, first, second)
+
+	want := `{
+  "schema": 1,
+  "target": "go",
+  "known": {
+    "a.go": [
+      "` + digestAlpha + `"
+    ],
+    "z.go": [
+      "` + digestAlpha + `",
+      "` + digestBeta + `"
+    ]
+  },
+  "temporaryFiles": [
+    ".a.go1",
+    ".z.go2"
+  ]
+}
+`
+	assert.Equal(t, want, string(first))
 }
 
 func TestEncodePending_LeavesItsArgumentAsItWas(t *testing.T) {
@@ -137,7 +200,7 @@ func TestDecodePending_Refuses(t *testing.T) {
 		wantContains string
 	}
 
-	rows := []pendingDecodeRow{
+	baseRows := []pendingDecodeRow{
 		{name: "not json", raw: []byte("not json")},
 		{name: "empty object", raw: []byte("{}")},
 		{name: "schema 0", raw: withChange(t, func(value *manifest.Pending) { value.Schema = 0 })},
@@ -202,7 +265,11 @@ func TestDecodePending_Refuses(t *testing.T) {
 		},
 	}
 
-	for _, badPath := range badManifestPaths() {
+	badPaths := badManifestPaths()
+	badDigests := badManifestDigests()
+	rows := make([]pendingDecodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
+	rows = append(rows, baseRows...)
+	for _, badPath := range badPaths {
 		rows = append(rows, pendingDecodeRow{
 			name: "bad known path " + badPath.name,
 			raw: withChange(t, func(value *manifest.Pending) {
@@ -211,7 +278,7 @@ func TestDecodePending_Refuses(t *testing.T) {
 			}),
 		})
 	}
-	for _, badDigest := range badManifestDigests() {
+	for _, badDigest := range badDigests {
 		rows = append(rows, pendingDecodeRow{
 			name: "bad digest " + badDigest.name,
 			raw: withChange(t, func(value *manifest.Pending) {
@@ -250,7 +317,7 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 		value manifest.Pending
 	}
 
-	rows := []pendingEncodeRow{
+	baseRows := []pendingEncodeRow{
 		{name: "schema 0", value: withChange(func(value *manifest.Pending) { value.Schema = 0 })},
 		{name: "schema 2", value: withChange(func(value *manifest.Pending) { value.Schema = 2 })},
 		{name: "empty target", value: withChange(func(value *manifest.Pending) { value.Target = "" })},
@@ -312,7 +379,11 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 		})},
 	}
 
-	for _, badPath := range badManifestPaths() {
+	badPaths := badManifestPaths()
+	badDigests := badManifestDigests()
+	rows := make([]pendingEncodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
+	rows = append(rows, baseRows...)
+	for _, badPath := range badPaths {
 		rows = append(rows, pendingEncodeRow{
 			name: "bad known path " + badPath.name,
 			value: withChange(func(value *manifest.Pending) {
@@ -321,7 +392,7 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 			}),
 		})
 	}
-	for _, badDigest := range badManifestDigests() {
+	for _, badDigest := range badDigests {
 		rows = append(rows, pendingEncodeRow{
 			name: "bad digest " + badDigest.name,
 			value: withChange(func(value *manifest.Pending) {

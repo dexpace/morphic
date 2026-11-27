@@ -85,11 +85,18 @@ func checkPending(pending Pending) error {
 	if pending.Target == "" {
 		return errors.New("target is empty")
 	}
-	for _, listed := range slices.Sorted(maps.Keys(pending.Known)) {
+	if err := checkPendingKnown(pending.Known); err != nil {
+		return err
+	}
+	return checkPendingTemporaryFiles(pending.TemporaryFiles, pending.Known)
+}
+
+func checkPendingKnown(known map[string][]string) error {
+	for _, listed := range slices.Sorted(maps.Keys(known)) {
 		if err := checkFilePath(listed); err != nil {
 			return err
 		}
-		digests := pending.Known[listed]
+		digests := known[listed]
 		if len(digests) == 0 {
 			return fmt.Errorf("path %q has no digest", listed)
 		}
@@ -104,8 +111,12 @@ func checkPending(pending Pending) error {
 			seenDigests[digest] = true
 		}
 	}
-	seenTemp := make(map[string]bool, len(pending.TemporaryFiles))
-	for _, listed := range pending.TemporaryFiles {
+	return nil
+}
+
+func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]string) error {
+	seenTemp := make(map[string]bool, len(temporaryFiles))
+	for _, listed := range temporaryFiles {
 		if err := checkLocalPath(listed); err != nil {
 			return err
 		}
@@ -113,7 +124,7 @@ func checkPending(pending Pending) error {
 			return fmt.Errorf("duplicate temporary file %q", listed)
 		}
 		seenTemp[listed] = true
-		if err := checkTemporaryFile(listed, pending.Known); err != nil {
+		if err := checkTemporaryFile(listed, known); err != nil {
 			return err
 		}
 	}

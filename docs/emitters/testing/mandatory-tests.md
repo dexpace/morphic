@@ -1066,18 +1066,17 @@ throughout these documents.
     reversed, and a Cherokee letter in each case; and on a case-insensitive APFS volume, both sweeps
     the rule names, every spelling of each assigned character but a private-use one behind an `a`
     and names of one to four characters, each written to one empty directory, leave no two names of
-    one file in two folds,
-    where the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
-    upper-casing before it and under a fold of ASCII letters alone each do. The other direction is
-    held too: the names of two files that the fold joins in those sweeps equal a golden list, `aı`
-    and `ai` among them, and the fold keeps apart each pair of a second table, `ℌx` and `hx`, `café`
-    and `cafe`, `नाम` and `नम`, and `x` U+200D `y` and `xy`, so a fold joining more, by a
-    compatibility decomposition, by dropping marks or by dropping a format character, fails as one
-    joining less does; and the fold of every character the tables hold equals a golden, which a Go
-    release moving them may extend and must not otherwise change ([the path
-    fold](../emit/rules.md)). The gate's runners have no APFS volume, so the sweeps run on macOS
-    whenever a golden here is rewritten, recording which of their names APFS made one file, and on
-    every host the fold of those names is held to that record and to the golden list.
+    one file in two folds, where the same sweeps under a fold decomposing each character alone,
+    under `cases.Fold` with no upper-casing before it and under a fold of ASCII letters alone each
+    do. The other direction is held too: the names of two files that the fold joins in those sweeps
+    equal a golden list, `aı` and `ai` among them, and the fold keeps apart each pair of a second
+    table, `ℌx` and `hx`, `café` and `cafe`, `नाम` and `नम`, and `x` U+200D `y` and `xy`, so a fold
+    joining more, by a compatibility decomposition, by dropping marks or by dropping a format
+    character, fails as one joining less does; and the fold of every character the tables hold
+    equals a golden, which a Go release moving them may extend and must not otherwise change ([the
+    path fold](../emit/rules.md)). The gate's runners have no APFS volume, so the sweeps run on
+    macOS whenever a golden here is rewritten, recording which of their names APFS made one file,
+    and on every host the fold of those names is held to that record and to the golden list.
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
     characters of two, three and four bytes, the operation in the client of the group at the cap

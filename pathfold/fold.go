@@ -17,7 +17,7 @@ import (
 // (docs/emitters/emit/rules.md).
 //
 // Any byte that is not valid UTF-8 is read as U+FFFD, joining rather than
-// splitting invalid spellings; Portable refuses such segments.
+// splitting invalid spellings; [Portable] refuses such segments.
 func Fold(name string) string {
 	// Build the caser per call: a cases.Caser holds transform state and is not
 	// safe to share across goroutines.

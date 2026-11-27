@@ -242,19 +242,19 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	out.WriteString("# which names APFS made one file, for TestFold_JoinsWhatAPFSJoins; rewritten on macOS by -update\n")
 	fmt.Fprintf(&out, "tables %s\n", currentTablesLine())
 
-	var apartLines []string
+	var apartBuf bytes.Buffer
 	for _, sweep := range sweeps {
 		partition := sweepOnAPFS(t, sweep.names)
 		checkFoldNeverSplitsAPFSFiles(t, sweep.name, sweep.names, partition)
 		digest := partitionDigest(partition)
 		fmt.Fprintf(&out, "sweep %s names=%d files=%d partition=%s\n",
 			sweep.name, len(sweep.names), len(partition), digest)
-		apartLines = append(apartLines, buildApartLines(sweep.name, sweep.names, partition)...)
+		for _, line := range buildApartLines(sweep.name, sweep.names, partition) {
+			apartBuf.WriteString(line)
+			apartBuf.WriteByte('\n')
+		}
 	}
-	for _, line := range apartLines {
-		out.WriteString(line)
-		out.WriteByte('\n')
-	}
+	out.Write(apartBuf.Bytes())
 	return out.Bytes()
 }
 
@@ -402,8 +402,8 @@ func partitionDigest(partition [][]int) string {
 func parseAPFSRecord(t *testing.T, recordPath string, raw []byte) apfsRecord {
 	t.Helper()
 	rec := apfsRecord{
-		sweeps: map[string]sweepRecord{},
-		apart:  map[string][][][]string{},
+		sweeps: make(map[string]sweepRecord),
+		apart:  make(map[string][][][]string),
 	}
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
 	for lineNo, line := range lines {
@@ -478,7 +478,7 @@ func parseApartLine(t *testing.T, recordPath string, lineNo int, rest string) (s
 
 func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, apartClasses [][][]string) [][]int {
 	t.Helper()
-	require.Equal(t, rec.names, len(sweep.names),
+	require.Len(t, sweep.names, rec.names,
 		"sweep %s generated %d names, record expects %d", sweep.name, len(sweep.names), rec.names)
 
 	indexByName := make(map[string]int, len(sweep.names))
@@ -518,7 +518,7 @@ func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, a
 		_, duplicateClass := splitByFold[classFold]
 		require.False(t, duplicateClass, "sweep %s: two apart lines name fold class %q", sweep.name, classFold)
 		classMembers := byFold[classFold]
-		require.Equal(t, len(classMembers), listedCount,
+		require.Len(t, classMembers, listedCount,
 			"sweep %s: apart line lists %d names, fold class %q holds %d", sweep.name, listedCount, classFold, len(classMembers))
 		splitByFold[classFold] = splitGroups
 	}

@@ -116,9 +116,31 @@ func TestManifest_RoundTrips(t *testing.T) {
 			}
 			got, err := manifest.Decode(raw)
 			require.NoError(t, err)
-			assert.Empty(t, cmp.Diff(row.want, got))
+			assert.Empty(t, cmp.Diff(row.want, got), "round-trip mismatch (-want +got)")
 		})
 	}
+}
+
+func TestDecode_SortsUnorderedFiles(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{
+  "schema": 1,
+  "target": "go",
+  "options": 1,
+  "inputs": {
+    "doc": "sha256:doc",
+    "plan": "sha256:plan",
+    "emitter": "morphic@dev go1.27.4",
+    "config": "sha256:config"
+  },
+  "files": [
+    {"path": "models/user.go", "digest": "` + digestBeta + `"},
+    {"path": "client.go", "digest": "` + digestAlpha + `"}
+  ]
+}`)
+	got, err := manifest.Decode(raw)
+	require.NoError(t, err)
+	assert.Empty(t, cmp.Diff(validManifest(), got), "decoded manifest mismatch (-want +got)")
 }
 
 func TestEncode_WritesTheCanonicalForm(t *testing.T) {
@@ -130,27 +152,28 @@ func TestEncode_WritesTheCanonicalForm(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 
-	want := "{\n" +
-		"  \"schema\": 1,\n" +
-		"  \"target\": \"go\",\n" +
-		"  \"options\": 1,\n" +
-		"  \"inputs\": {\n" +
-		"    \"doc\": \"sha256:doc\",\n" +
-		"    \"plan\": \"sha256:plan\",\n" +
-		"    \"emitter\": \"morphic@dev go1.27.4\",\n" +
-		"    \"config\": \"sha256:config\"\n" +
-		"  },\n" +
-		"  \"files\": [\n" +
-		"    {\n" +
-		"      \"path\": \"client.go\",\n" +
-		"      \"digest\": \"" + digestAlpha + "\"\n" +
-		"    },\n" +
-		"    {\n" +
-		"      \"path\": \"models/user.go\",\n" +
-		"      \"digest\": \"" + digestBeta + "\"\n" +
-		"    }\n" +
-		"  ]\n" +
-		"}\n"
+	want := `{
+  "schema": 1,
+  "target": "go",
+  "options": 1,
+  "inputs": {
+    "doc": "sha256:doc",
+    "plan": "sha256:plan",
+    "emitter": "morphic@dev go1.27.4",
+    "config": "sha256:config"
+  },
+  "files": [
+    {
+      "path": "client.go",
+      "digest": "` + digestAlpha + `"
+    },
+    {
+      "path": "models/user.go",
+      "digest": "` + digestBeta + `"
+    }
+  ]
+}
+`
 	assert.Equal(t, want, string(first))
 }
 
@@ -190,7 +213,7 @@ func TestDecode_Refuses(t *testing.T) {
 		wantNewer bool
 	}
 
-	rows := []decodeRow{
+	baseRows := []decodeRow{
 		{name: "not json", raw: []byte("not json")},
 		{name: "empty object", raw: []byte("{}")},
 		{name: "schema 0", raw: withChange(t, func(value *manifest.Manifest) { value.Schema = 0 })},
@@ -224,7 +247,11 @@ func TestDecode_Refuses(t *testing.T) {
 		})},
 	}
 
-	for _, badPath := range badManifestPaths() {
+	badPaths := badManifestPaths()
+	badDigests := badManifestDigests()
+	rows := make([]decodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
+	rows = append(rows, baseRows...)
+	for _, badPath := range badPaths {
 		rows = append(rows, decodeRow{
 			name: "bad path " + badPath.name,
 			raw: withChange(t, func(value *manifest.Manifest) {
@@ -232,7 +259,7 @@ func TestDecode_Refuses(t *testing.T) {
 			}),
 		})
 	}
-	for _, badDigest := range badManifestDigests() {
+	for _, badDigest := range badDigests {
 		rows = append(rows, decodeRow{
 			name: "bad digest " + badDigest.name,
 			raw: withChange(t, func(value *manifest.Manifest) {
@@ -268,7 +295,7 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 		value manifest.Manifest
 	}
 
-	rows := []encodeRow{
+	baseRows := []encodeRow{
 		{name: "schema 0", value: withChange(func(value *manifest.Manifest) { value.Schema = 0 })},
 		{name: "schema 2", value: withChange(func(value *manifest.Manifest) { value.Schema = 2 })},
 		{name: "empty target", value: withChange(func(value *manifest.Manifest) { value.Target = "" })},
@@ -300,7 +327,11 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 		})},
 	}
 
-	for _, badPath := range badManifestPaths() {
+	badPaths := badManifestPaths()
+	badDigests := badManifestDigests()
+	rows := make([]encodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
+	rows = append(rows, baseRows...)
+	for _, badPath := range badPaths {
 		rows = append(rows, encodeRow{
 			name: "bad path " + badPath.name,
 			value: withChange(func(value *manifest.Manifest) {
@@ -308,7 +339,7 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 			}),
 		})
 	}
-	for _, badDigest := range badManifestDigests() {
+	for _, badDigest := range badDigests {
 		rows = append(rows, encodeRow{
 			name: "bad digest " + badDigest.name,
 			value: withChange(func(value *manifest.Manifest) {

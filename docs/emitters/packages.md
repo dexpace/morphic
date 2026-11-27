@@ -121,8 +121,9 @@ units](refine/output-units.md).
 `internal/archtest` rules `emitters`, and names it in `unbuilt` while the directory holds only
 packages carrying rules of their own, so the contract is audited from its first import. Each
 package under `emitters/` and each of the engine's carries an entry of its own, as a compiler's
-packages do, and none may be exempt, which only tooling under `internal/` is. A target's entry asserts: it may import `emitters`, any kernel
-package, `ir` and `ir/irfacts`; it may not import `compilers/*`, `engine`, or another target.
+packages do, and none may be exempt, which only tooling under `internal/` is. A target's entry
+asserts: it may import `emitters`, any kernel package, `ir` and `ir/irfacts`; it may not import
+`compilers/*`, `engine`, or another target.
 `emitters/golang` may also import `github.com/dave/dst`, for its merge adapter
 ([merging](targets/go/overview.md#merging-and-surface-extraction)), and `golang.org/x/mod`, whose
 `module.CheckPath` its options decoding calls ([package

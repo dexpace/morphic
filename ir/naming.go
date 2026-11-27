@@ -178,8 +178,8 @@ func canonicalRunes(name string) iter.Seq[rune] {
 // letter/digit boundary, or by the end of name. Each word is a substring of
 // name, so reading one allocates nothing.
 //
-// It is the grammar's one reading of a name, which CanonicalWords and
-// HasCanonicalWords render, so an emitter reading source spellings cannot
+// It is the grammar's one reading of a name, which [CanonicalWords] and
+// [HasCanonicalWords] render, so an emitter reading source spellings cannot
 // segment a name differently.
 func SourceWords(name string) iter.Seq[string] {
 	return func(yield func(string) bool) {

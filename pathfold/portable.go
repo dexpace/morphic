@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 )
 
-// ErrNotPortable is wrapped by every error Portable returns when a path
+// ErrNotPortable is wrapped by every error [Portable] returns when a path
 // segment violates a cross-filesystem portability rule.
 var ErrNotPortable = errors.New("path segment is not portable")
 
@@ -20,7 +20,7 @@ const (
 )
 
 // Portable reports whether segment can be written on every target file system,
-// returning nil if so or an error wrapping ErrNotPortable naming the first
+// returning nil if so or an error wrapping [ErrNotPortable] naming the first
 // rule broken (docs/emitters/emit/rules.md).
 //
 // Refused segments are empty, invalid UTF-8, longer than 255 bytes, contain a

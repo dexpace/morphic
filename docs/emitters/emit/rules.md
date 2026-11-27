@@ -81,10 +81,11 @@ the tree the rule exists to prevent.
   Cherokee letter against its other case among them, as that function maps each to the other, and a
   letter newer than its tables; Go's own tables upper-case both alike first. A final NFD, as the
   canonical caseless match ends with, changed no answer in either, so it is not taken, and a fold of
-  ASCII letters alone split them 14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from
-  a decomposed one, which APFS makes one path (#1729). That the fold joins every pair NTFS makes one
-  path is an assumption, not a measurement: NTFS compares names through an upper-case table each
-  volume stores, which no run here read, and the same two sweeps on an NTFS volume would settle it.
+  ASCII letters alone split them 14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from
+  `Strasse` and a composed `é` from a decomposed one, which APFS makes one path (#1729). That the
+  fold joins every pair NTFS makes one path is an assumption, not a measurement: NTFS compares
+  names through an upper-case table each volume stores, which no run here read, and the same two
+  sweeps on an NTFS volume would settle it.
   A file system that tells case apart joins fewer. Unicode's stability policies keep the case
   folding and decomposition of a string of assigned characters across its versions, so a toolchain
   moving Unicode refolds only a name holding a character the older one left unassigned. So the fold
@@ -107,10 +108,11 @@ the tree the rule exists to prevent.
   `aux.go`, but `golang.org/x/mod` 0.42.0 refused to zip it (`malformed file path "aux.go": "aux"
   disallowed as path element component on Windows`), and a module the proxy cannot zip is one no
   caller downloads. No segment holds a character Windows refuses in a name, `<`, `>`, `:`, `"`, `/`,
-  `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a space. A path breaking one is a breach. This is a backstop as well: each target renders the names
-  it writes as paths so that no spec name reaches it, and a snapshot label, which the engine takes
-  as the document writes it, is held to these rules before any run that writes it as a directory,
-  where breaking one is a finding about the document, `engine/snapshot-label-invalid` ([contract
+  `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a space. A path breaking one is a
+  breach. This is a backstop as well: each target renders the names it writes as paths so that no
+  spec name reaches it, and a snapshot label, which the engine takes as the document writes it, is
+  held to these rules before any run that writes it as a directory, where breaking one is a finding
+  about the document, `engine/snapshot-label-invalid` ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
   [naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
   [Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),

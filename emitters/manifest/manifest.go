@@ -17,16 +17,16 @@ const (
 	Schema = 1
 	// FileName is the manifest file kept at a target's output root.
 	FileName = "morphic.manifest.json"
-	// PendingName is the pending manifest kept beside FileName while a write
+	// PendingName is the pending manifest kept beside [FileName] while a write
 	// is in flight.
 	PendingName = "morphic.manifest.pending.json"
 	// PendingTemporaryName is the fixed temporary file through which
-	// PendingName is replaced atomically.
+	// [PendingName] is replaced atomically.
 	PendingTemporaryName = ".morphic.manifest.pending.json.tmp"
 )
 
 // ErrNewerSchema is wrapped when decoding a manifest or pending manifest whose
-// schema version exceeds Schema.
+// schema version exceeds [Schema].
 var ErrNewerSchema = errors.New("manifest is of a newer schema")
 
 // Manifest records the inputs and files of one completed generation at a
@@ -53,8 +53,8 @@ type File struct {
 	Digest string `json:"digest"`
 }
 
-// Decode reads a canonical or unordered JSON manifest, checking Schema before
-// strict decoding so a newer manifest returns ErrNewerSchema even when it
+// Decode reads a canonical or unordered JSON manifest, checking [Schema] before
+// strict decoding so a newer manifest returns [ErrNewerSchema] even when it
 // carries unknown members. Returned Files are sorted by Path.
 func Decode(raw []byte) (Manifest, error) {
 	if err := checkSchema(raw, "manifest"); err != nil {
