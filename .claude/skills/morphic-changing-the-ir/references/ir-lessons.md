@@ -1,8 +1,8 @@
 # IR lessons
 
 What an IR change meets that `docs/ir` does not say: other branches claiming the same version,
-hand lists that must name a new field, guarantees a type held without stating them, and what the
-verifier and codecs must reach.
+hand lists that must name a new field, guarantees a type held without stating them, and emitter
+design rules.
 
 ## The PR merging second takes the next version
 `version-collisions`
@@ -19,6 +19,17 @@ verifier and codecs must reach.
   prints only 0.3.0 and 0.4.0, repeated by design, and
   `grep -oE '^- \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*' docs/ir/version-history.md | sort | uniq -d` prints
   nothing.
+
+## Bump report SchemaVersion when a finding's shape changes
+`report-schema-version`
+
+- **Rule.** `engine/report`'s `SchemaVersion` in `engine/report/json.go` moves with any change to a
+  finding's shape, a field of `ir.Diagnostic` included, and `TestSchemaVersion_PinsTheEncodedShape`
+  holds it. An `ir.Diagnostic` change bumps both `IRVersion` and `SchemaVersion` where both shapes
+  move.
+- **Why.** #2098 moved `SchemaVersion` from 1 to 2 beside the new `ir.Diagnostic.Related` field,
+  while `morphic-changing-the-ir` named `IRVersion` alone (#2129).
+- **Probe.** `go test ./engine/report -run TestSchemaVersion_PinsTheEncodedShape`.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`
@@ -79,12 +90,25 @@ verifier and codecs must reach.
 - **Rule.** A new ID type joins every hand list of ID classes: the kind constants and
   `ir.IDKinds`, the compiler's kind table, `irverify`'s prefixes, ID types and identity classes,
   the reference label tables, and each hand-written loop over the registries. List the files by
-  searching for existing ID types together, never from memory.
+  searching for existing ID types together, never from memory. A reserved space takes
+  `references/ir-lessons.md#reserved-space-takes-no-qualifier`.
 - **Why.** Adding a server ID class touched lists across `ir`, `ir/irverify` and
   `compilers/compile`, one of which only `TestIDPositions_AreAllClassified` notices missing, and
   the registry checks loop over each registry by hand (#1144).
 - **Probe.** `git grep -l EnumMemberID -- '*.go' | xargs grep -l GroupID` lists the files; each
   must name the new type.
+
+## A reserved ID space takes no document qualifier
+`reserved-space-takes-no-qualifier`
+
+- **Rule.** A space `irverify` reserves for a kind (`IDSpacePrimitive` and `IDSpaceUnresolved` in
+  `ir/ids.go`, held by `checkUnresolvedSchemes` in `ir/irverify/unresolved.go`) takes no document
+  qualifier. Mint a node of that kind in the reserved space whatever document declares it.
+- **Why.** Minting an unresolved auth scheme in a qualified space (`unresolved@other.yaml`) passed
+  every hand list and failed `morphic compile --verify` with `unresolved-auth-space` (#1937,
+  #1962).
+- **Probe.** `go run ./cmd/morphic compile --verify` on a two-document input declaring the node in
+  the second document.
 
 ## Expect a new ID namespace to rewrite every golden document
 `new-id-namespace`
@@ -98,6 +122,19 @@ verifier and codecs must reach.
   `TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses` refused it while no spec minted it (#1213).
 - **Probe.** `go test ./compilers/openapi/e2e -run 'TestConformance|TestGolden' -update`, then
   `git diff -U0 -- testdata | grep -E '^[-+] ' | sort | uniq -c` prints the namespace's lines alone.
+
+## Show a minted ID's key injective across its owners
+`minted-key-injective`
+
+- **Rule.** Before a minted ID lands, name what makes its key unique. Then build two owners that
+  agree on it and differ in content: across type namespaces sharing a pointer (`openapi` or `anon`
+  beside `composed`), at each nesting position, and with targets that differ so `irverify`'s
+  fingerprint cannot excuse the repeat.
+- **Why.** On #1977 at `162f83147`, a `composed` model and the inline `anon` model at one pointer
+  minted the same settled property ID, failing `morphic compile --verify` with
+  `duplicate-prop-id` (exit 2) past four review rounds (#1980).
+- **Probe.** `go run ./cmd/morphic compile --verify` on #1980's two-owner spec (exit 2 at
+  `162f83147`, exit 0 at `main`).
 
 ## Never give a type in ir a method named typeDef
 `sealed-marker-reserved`
@@ -181,15 +218,27 @@ verifier and codecs must reach.
 ## A verdict landing on another node changes no meaning
 `verdict-on-another-node`
 
-- **Rule.** A lowering that changes which node a field names, mints nodes of a kind the IR already
-  declares, or adds an ID namespace changes no key's meaning, IDs being opaque to consumers
-  (`docs/ir/identity.md`), and bumps nothing. A value a consumer switches on, as a primitive, a
-  mode or a media type, is `references/ir-lessons.md#widened-field-values`'s, and bumps.
+- **Rule.** A lowering that mints a new node of a declared kind, moves a reference to another node,
+  or adds an ID namespace changes no key's meaning, IDs being opaque to consumers
+  (`docs/ir/identity.md`), and bumps nothing. A node changing kind at an existing ID takes
+  `references/ir-lessons.md#kind-change-at-an-id-bumps`; a value a consumer switches on takes
+  `references/ir-lessons.md#widened-field-values`.
 - **Why.** The redeclared-field merge added the `composed` namespace and minted composed models
   (#1181), then nodes holding two declarations' bounds (#1307), each without a bump, while the
   skill's values bullet read as asking a bump for each (#1657).
 - **Probe.** `git show <merge> --stat -- ir/document.go docs/ir/version-history.md` lists neither
   file for #1181's `20017d99b` or #1307's `7cf3f95fc`.
+
+## A node changing kind at an existing ID bumps IRVersion
+`kind-change-at-an-id-bumps`
+
+- **Rule.** A pass or lowering that replaces a node of one kind with a node of another at an
+  existing ID changes a value consumers switch on and bumps `IRVersion` (`docs/ir/ir-version.md`).
+- **Why.** #1707 bumped `IRVersion` to `0.42.0` when `const-unions` rewrote a `Union` as an `Enum`
+  at the union's own ID, while `references/ir-lessons.md#verdict-on-another-node` and
+  `references/ir-lessons.md#widened-field-values` left the case unnamed (#1808).
+- **Probe.** `git show 632099c95 --stat -- ir/document.go docs/ir/version-history.md` lists both
+  files for `0.42.0`.
 
 ## Ask each reader of a widened or unfilled field what it did with the old value
 `widened-field-consumers`
@@ -210,12 +259,27 @@ verifier and codecs must reach.
 - **Rule.** A flattened member (`ir.FlattenedProperties`) takes every facet bar `Required`,
   `Secret` and `Deprecation`, which accumulate, from one declaration, and lists the rest in
   `Overridden`. A new reader's comment says which its question needs, and it reads those: what an
-  instance carries conjoins every declaration, while what the member renders as is the taken one.
+  instance carries conjoins compatible declarations
+  (`references/ir-lessons.md#disjoint-declarations-take-the-flattening`), while what the member
+  renders as is the taken one.
 - **Why.** A redaction an overridden declaration asked for was dropped (#1211). On #1700, tag
   inference read only the taken declaration, so a body redeclaring the tag as a plain string hid
   each variant's pin, and the mapping was keyed by component names (#1704).
 - **Probe.** Compile a composition that redeclares the member more loosely than what it composes,
   and read the reader's result.
+
+## Disjoint member declarations take the flattening's winner
+`disjoint-declarations-take-the-flattening`
+
+- **Rule.** What a flattened member's instance carries conjoins its declarations where they admit a
+  common value; where they admit none, it takes the declaration the flattening takes, as the later
+  conjunct governs (`docs/ir/models.md#the-flattening`).
+- **Why.** On the golden spec @`bc6fad24`, 355 `success` members in 355 models redeclare
+  `enum: [false]` over `enum: [true]`; #1719's first draft conjoined both and left all 355 with no
+  value (#1741).
+- **Probe.** Compile a model redeclaring a composed member to a disjoint value set
+  (`success: {enum: [false]}` over `success: {enum: [true]}`); the reader yields the later
+  declaration's values, not an empty set.
 
 ## Check a design rule against every input it reads
 `design-rule-over-its-document`
@@ -239,7 +303,8 @@ verifier and codecs must reach.
 
 - **Rule.** Check a step order both ways: what each step reads that a later one changes, and what
   each adds to that a later one declares. A step adding to a declaration runs after the step
-  declaring it.
+  declaring it. Also take `references/ir-lessons.md#step-table-names-what-a-rule-changes` and
+  `references/ir-lessons.md#derived-fact-after-its-input`.
 - **Why.** An import step preceded the steps renaming what it imports (#1019). At 4cb221a80,
   `docs/emitters/refine/steps.md` placed `LowerRedaction` before `BuildRequestShaping`, whose
   request types it gives a redacting form, and `MarkStability` before the steps declaring the
@@ -248,6 +313,31 @@ verifier and codecs must reach.
   `awk -F'|' '/^\| \140/{print NR": "$2}' docs/emitters/refine/steps.md`, and beside each step
   what it reads and adds to, against the steps after it, as the ordering paragraph of
   `docs/emitters/refine/pipeline.md` argues each placement.
+
+## Name what a new rule changes in every refine step table
+`step-table-names-what-a-rule-changes`
+
+- **Rule.** A rule in `docs/emitters` that changes what a refine step produces or reads names it in
+  that step's row of `docs/emitters/refine/steps.md` and in each target's step table under
+  `docs/emitters/targets`.
+- **Why.** #1740 added per-variant `Required` and `Redacted` to `TypePlan.Composed`, updating
+  `LowerModels` and `ProjectVisibilityShapes` while leaving `LowerOptionality` and `LowerRedaction`
+  reading `TypePlan.Required` and `TypePlan.Redacted` alone (#1720).
+- **Probe.** For each field the change adds to a plan type,
+  `git grep -n '<field>' -- docs/emitters/refine/steps.md docs/emitters/targets` names every step
+  row that reads it.
+
+## Check every derived fact's producer and consumer against the step order
+`derived-fact-after-its-input`
+
+- **Rule.** A rule deriving a fact some step reads (a file, a unit, an import) from a fact another
+  step settles (an identifier) names both steps and checks the pair against
+  `docs/emitters/refine/steps.md`'s order.
+- **Why.** #1738 at `01f5c2b28` derived a Go file name from a declaration's identifier while
+  `ComputeImports` ran before `RenderCasing`, failing with `time redeclared in this block`; #1740
+  left `LowerOptionality` and `LowerRedaction` reading stale fields (#1754).
+- **Probe.** `git grep -nE 'ComputeImports|RenderCasing|ResolveCollisions|PlaceDeclarations' -- docs/emitters`
+  beside each derived fact the change states.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`
@@ -294,6 +384,17 @@ verifier and codecs must reach.
 - **Probe.** For each decision in the PR body, name its premise and the command that could
   have falsified it. A decision with neither is unproved.
 
+## Reach an unexported IR derivation through `export_test.go`, never a copy
+`measure-through-irs-own-derivation`
+
+- **Rule.** A measurement needing a derivation `ir` keeps unexported reaches it through a test-only
+  export in `ir/export_test.go` from an uncommitted scratch test in `ir`'s directory, or asks for
+  the export and cites that request. Never copy the function or use `go:linkname`.
+- **Why.** Measuring `sourceWords` in `ir/naming.go`, a copy that dropped the underscore break
+  counted 6,650 where the real function counted 6,292 (#1789).
+- **Probe.** Compare the `ir/export_test.go` route's count against a copy's on one input; they
+  differ by the step the copy dropped.
+
 ## Weigh designs that differ in what they rest on, not only in how they spell it
 `weigh-the-framing`
 
@@ -307,58 +408,6 @@ verifier and codecs must reach.
 - **Probe.** For each option rejected as impossible, compile or cite the constraint, then restate it
   without what the options shared and check that it still holds.
 
-## Give every field a check that rejects its zero and malformed values
-`verifier-rejects-every-degenerate-value`
-
-- **Rule.** For each field a consumer reads or routes on, the verifier rejects its empty, null,
-  absent, wrong-kind and malformed values, read from the unfiltered source and mirroring every
-  refusal the encoder makes. A derived identifier or canonical name is rejected wherever its grammar
-  cannot produce it, with one rejecting case per property: casing, character set, segmentation,
-  agreement with its coordinate.
-- **Why.** Empty keys and reasons, an absent `irVersion` and ill-formed UTF-8 all verified clean, so
-  a verified document could still fail to encode or misroute (#329, #361).
-- **Probe.** Write the zero, empty, null and wrong-kind variant of each field and assert each is a
-  violation; encode every document that verifies clean.
-
-## Check every reference position and every ID class, not a subset
-`verifier-reaches-every-reference-and-id-class`
-
-- **Rule.** A validator or verifier over references or IDs must cover every position a reference can
-  occupy (map keys, PropertyIDs, plain int indices) and every ID class and node class the document
-  holds, derived from the type graph rather than from the data a fixture happens to contain.
-- **Why.** Dangling rename targets, channel, message and PropertyID references, and malformed
-  operation IDs verified clean because the walk saw only TypeIDs or only registry-reached nodes
-  (#149, #119).
-- **Probe.** Plant a dangling or malformed value in each reference-bearing field and each ID class
-  in turn and assert a violation fires for each; a field whose plant stays green is uncovered.
-
-## Witness each character class a text predicate decides
-`character-predicate-witness-per-class`
-
-- **Rule.** A predicate over text (cased, blank, invisible) is tested against the producer's exact
-  transformation, with a witness per general category each set it claims spans, never a sample:
-  white space's Zs, Zl, Zp and Cc, default-ignorable's Cf, Mn, Lo and Cn, and caseless letters.
-  Redefining one rechecks it at each call site, as two rules sharing it can ask different questions.
-- **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
-  filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
-  case-boundary rule was applied to both, and the second went unverified until a mutation sweep
-  (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
-- **Probe.** Assert its verdict on each witness and producer output at each call site, taking
-  `references/ir-lessons.md#witness-past-the-bmp` and
-  `references/ir-lessons.md#sweep-a-published-property` where they apply.
-
-## Witness past the BMP each term whose set reaches there
-`witness-past-the-bmp`
-
-- **Rule.** Each term of a text predicate whose set reaches past the Basic Multilingual Plane, such
-  as `unicode.Cf` or `unicode.Other_Default_Ignorable_Code_Point`, has a committed witness above
-  U+FFFF that it alone decides. A row an earlier term answers first, such as an exclusion or
-  `unicode.Variation_Selector`, witnesses nothing of a later one.
-- **Why.** `isInvisible`'s tests passed with its `Cf` term, and separately its
-  `Other_Default_Ignorable_Code_Point` term, held below U+10000, and still did with a row per class
-  and per range bound, as its rows past the BMP reached earlier terms (#1621).
-- **Probe.** Narrow each such term alone with `&& r < 0x10000`: a committed row reddens.
-
 ## Sweep a predicate over every code point where Unicode publishes its property
 `sweep-a-published-property`
 
@@ -368,13 +417,3 @@ verifier and codecs must reach.
 - **Why.** A fix for #832 had a witness per class in `isInvisible`, yet moving a range's lower
   bound from U+FFF9 to U+FFF8 reddened no test (#832).
 - **Probe.** The sweep prints no code point where the predicate and the UCD files differ.
-
-## Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms
-`json-decoder-fixed-point`
-
-- **Rule.** A custom decoder must detect JSON literals by decoded value, not raw bytes, and must not
-  allocate on null; decode-encode-decode of null, padded null and the empty form must be stable.
-- **Why.** TypeRegistry allocated an empty map on null, and again on " null ", so Document.Types
-  became non-nil and the round trip never settled (#264).
-- **Probe.** For each UnmarshalJSONFrom touched, decode "null", " null ", "{}", re-encode, decode
-  again, and cmp.Diff the two decoded values.
