@@ -117,11 +117,11 @@ on, and each target the data it hands them. This document lays out Morphic's own
 generated SDK divides into packages of its own, by source document or by group, is in [output
 units](refine/output-units.md).
 
-**Architecture test.** The import-graph rule is in place before the first emitter package:
-`internal/archtest` rules `emitters`, and names it in `unbuilt` until the package exists, so the
-first package is audited from its first import. Each package under `emitters/` and each of the
-engine's carries an entry of its own, as a compiler's packages do, and none may be exempt, which
-only tooling under `internal/` is. A target's entry asserts: it may import `emitters`, any kernel
+**Architecture test.** The import-graph rule is in place before the contract package:
+`internal/archtest` rules `emitters`, and names it in `unbuilt` while the directory holds only
+packages carrying rules of their own, so the contract is audited from its first import. Each
+package under `emitters/` and each of the engine's carries an entry of its own, as a compiler's
+packages do, and none may be exempt, which only tooling under `internal/` is. A target's entry asserts: it may import `emitters`, any kernel
 package, `ir` and `ir/irfacts`; it may not import `compilers/*`, `engine`, or another target.
 `emitters/golang` may also import `github.com/dave/dst`, for its merge adapter
 ([merging](targets/go/overview.md#merging-and-surface-extraction)), and `golang.org/x/mod`, whose

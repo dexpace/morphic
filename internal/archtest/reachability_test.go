@@ -34,6 +34,8 @@ const (
 	pathAPI     = "the path fold and segment rules docs/emitters/emit/rules.md states, which the checked " +
 		"call (GitHub #2229), the project (GitHub #2242), naming (GitHub #2238, #2239) and the write plan " +
 		"(GitHub #2246) compare by"
+	manifestAPI = "the manifest docs/emitters/write-integrate.md records, which the write plan " +
+		"reads (GitHub #2246) and the writer writes (GitHub #2247)"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -74,6 +76,11 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
 	"pathfold.Fold":                        pathAPI,
 	"pathfold.Portable":                    pathAPI,
+	"emitters/manifest.Decode":             manifestAPI,
+	"emitters/manifest.Encode":             manifestAPI,
+	"emitters/manifest.DecodePending":      manifestAPI,
+	"emitters/manifest.EncodePending":      manifestAPI,
+	"emitters/manifest.Digest":             manifestAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

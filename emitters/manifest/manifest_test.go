@@ -1,0 +1,358 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package manifest_test
+
+import (
+	"encoding/json/v2"
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/emitters/manifest"
+)
+
+const (
+	digestAlpha = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	digestBeta  = "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+)
+
+func validManifest() manifest.Manifest {
+	return manifest.Manifest{
+		Schema:  manifest.Schema,
+		Target:  "go",
+		Options: 1,
+		Inputs: manifest.Inputs{
+			Doc:     "sha256:doc",
+			Plan:    "sha256:plan",
+			Emitter: "morphic@dev go1.27.4",
+			Config:  "sha256:config",
+		},
+		Files: []manifest.File{
+			{Path: "client.go", Digest: digestAlpha},
+			{Path: "models/user.go", Digest: digestBeta},
+		},
+	}
+}
+
+func TestManifest_RoundTrips(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name      string
+		input     manifest.Manifest
+		want      manifest.Manifest
+		omitFiles bool
+	}{
+		{
+			name: "sorts files by path",
+			input: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "models/user.go", Digest: digestBeta},
+					{Path: "client.go", Digest: digestAlpha},
+				},
+			},
+			want: validManifest(),
+		},
+		{
+			name: "admits hidden, leading double dot, spaces and non-ASCII paths",
+			input: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "\u00e9/x", Digest: digestAlpha},
+					{Path: "a b/c", Digest: digestBeta},
+					{Path: "..a", Digest: digestAlpha},
+					{Path: ".hidden", Digest: digestBeta},
+				},
+			},
+			want: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "..a", Digest: digestAlpha},
+					{Path: ".hidden", Digest: digestBeta},
+					{Path: "a b/c", Digest: digestBeta},
+					{Path: "\u00e9/x", Digest: digestAlpha},
+				},
+			},
+		},
+		{
+			name: "omits empty files and decodes to nil",
+			input: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files:   []manifest.File{},
+			},
+			want: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files:   nil,
+			},
+			omitFiles: true,
+		},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := manifest.Encode(row.input)
+			require.NoError(t, err)
+			if row.omitFiles {
+				assert.NotContains(t, string(raw), `"files"`)
+			}
+			got, err := manifest.Decode(raw)
+			require.NoError(t, err)
+			assert.Empty(t, cmp.Diff(row.want, got))
+		})
+	}
+}
+
+func TestEncode_WritesTheCanonicalForm(t *testing.T) {
+	t.Parallel()
+	valid := validManifest()
+	first, err := manifest.Encode(valid)
+	require.NoError(t, err)
+	second, err := manifest.Encode(valid)
+	require.NoError(t, err)
+	assert.Equal(t, first, second)
+
+	want := "{\n" +
+		"  \"schema\": 1,\n" +
+		"  \"target\": \"go\",\n" +
+		"  \"options\": 1,\n" +
+		"  \"inputs\": {\n" +
+		"    \"doc\": \"sha256:doc\",\n" +
+		"    \"plan\": \"sha256:plan\",\n" +
+		"    \"emitter\": \"morphic@dev go1.27.4\",\n" +
+		"    \"config\": \"sha256:config\"\n" +
+		"  },\n" +
+		"  \"files\": [\n" +
+		"    {\n" +
+		"      \"path\": \"client.go\",\n" +
+		"      \"digest\": \"" + digestAlpha + "\"\n" +
+		"    },\n" +
+		"    {\n" +
+		"      \"path\": \"models/user.go\",\n" +
+		"      \"digest\": \"" + digestBeta + "\"\n" +
+		"    }\n" +
+		"  ]\n" +
+		"}\n"
+	assert.Equal(t, want, string(first))
+}
+
+func TestEncode_LeavesItsArgumentAsItWas(t *testing.T) {
+	t.Parallel()
+	valid := validManifest()
+	valid.Files = []manifest.File{
+		{Path: "z.go", Digest: digestBeta},
+		{Path: "a.go", Digest: digestAlpha},
+	}
+	_, err := manifest.Encode(valid)
+	require.NoError(t, err)
+	assert.Equal(t, []manifest.File{
+		{Path: "z.go", Digest: digestBeta},
+		{Path: "a.go", Digest: digestAlpha},
+	}, valid.Files)
+}
+
+func TestDecode_Refuses(t *testing.T) {
+	t.Parallel()
+	marshalRaw := func(t *testing.T, value any) []byte {
+		t.Helper()
+		raw, err := json.Marshal(value)
+		require.NoError(t, err)
+		return raw
+	}
+	withChange := func(t *testing.T, mutate func(*manifest.Manifest)) []byte {
+		t.Helper()
+		value := validManifest()
+		mutate(&value)
+		return marshalRaw(t, value)
+	}
+
+	type decodeRow struct {
+		name      string
+		raw       []byte
+		wantNewer bool
+	}
+
+	rows := []decodeRow{
+		{name: "not json", raw: []byte("not json")},
+		{name: "empty object", raw: []byte("{}")},
+		{name: "schema 0", raw: withChange(t, func(value *manifest.Manifest) { value.Schema = 0 })},
+		{name: "schema string", raw: []byte(`{"schema":"1","target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"}}`)},
+		{name: "schema 2 with unknown member", raw: []byte(`{"schema":2,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"entities":{}}`), wantNewer: true},
+		{name: "schema 1 with unknown member", raw: []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"entities":{}}`)},
+		{name: "file with unknown member", raw: []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"files":[{"path":"a.go","digest":"` + digestAlpha + `","origins":["x"]}]}`)},
+		{name: "duplicate member name", raw: []byte(`{"schema":1,"target":"go","target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"}}`)},
+		{name: "invalid UTF-8 in target", raw: []byte("{\"schema\":1,\"target\":\"go\xff\",\"options\":1,\"inputs\":{\"doc\":\"d\",\"plan\":\"p\",\"emitter\":\"e\",\"config\":\"c\"}}")},
+		{name: "empty target", raw: withChange(t, func(value *manifest.Manifest) { value.Target = "" })},
+		{name: "options 0", raw: withChange(t, func(value *manifest.Manifest) { value.Options = 0 })},
+		{name: "empty inputs.doc", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Doc = "" })},
+		{name: "empty inputs.plan", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Plan = "" })},
+		{name: "empty inputs.emitter", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Emitter = "" })},
+		{name: "empty inputs.config", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Config = "" })},
+		{name: "missing inputs member", raw: []byte(`{"schema":1,"target":"go","options":1}`)},
+		{name: "duplicate file path", raw: withChange(t, func(value *manifest.Manifest) {
+			value.Files = []manifest.File{
+				{Path: "client.go", Digest: digestAlpha},
+				{Path: "client.go", Digest: digestBeta},
+			}
+		})},
+		{name: "reserved manifest file", raw: withChange(t, func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.FileName
+		})},
+		{name: "under reserved pending manifest", raw: withChange(t, func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.PendingName + "/x"
+		})},
+		{name: "reserved pending temporary file", raw: withChange(t, func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.PendingTemporaryName
+		})},
+	}
+
+	for _, badPath := range badManifestPaths() {
+		rows = append(rows, decodeRow{
+			name: "bad path " + badPath.name,
+			raw: withChange(t, func(value *manifest.Manifest) {
+				value.Files[0].Path = badPath.value
+			}),
+		})
+	}
+	for _, badDigest := range badManifestDigests() {
+		rows = append(rows, decodeRow{
+			name: "bad digest " + badDigest.name,
+			raw: withChange(t, func(value *manifest.Manifest) {
+				value.Files[0].Digest = badDigest.value
+			}),
+		})
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := manifest.Decode(row.raw)
+			require.Error(t, err)
+			if row.wantNewer {
+				assert.ErrorIs(t, err, manifest.ErrNewerSchema)
+			} else {
+				assert.NotErrorIs(t, err, manifest.ErrNewerSchema)
+			}
+		})
+	}
+}
+
+func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
+	t.Parallel()
+	withChange := func(mutate func(*manifest.Manifest)) manifest.Manifest {
+		value := validManifest()
+		mutate(&value)
+		return value
+	}
+
+	type encodeRow struct {
+		name  string
+		value manifest.Manifest
+	}
+
+	rows := []encodeRow{
+		{name: "schema 0", value: withChange(func(value *manifest.Manifest) { value.Schema = 0 })},
+		{name: "schema 2", value: withChange(func(value *manifest.Manifest) { value.Schema = 2 })},
+		{name: "empty target", value: withChange(func(value *manifest.Manifest) { value.Target = "" })},
+		{name: "options 0", value: withChange(func(value *manifest.Manifest) { value.Options = 0 })},
+		{name: "empty inputs.doc", value: withChange(func(value *manifest.Manifest) { value.Inputs.Doc = "" })},
+		{name: "empty inputs.plan", value: withChange(func(value *manifest.Manifest) { value.Inputs.Plan = "" })},
+		{name: "empty inputs.emitter", value: withChange(func(value *manifest.Manifest) { value.Inputs.Emitter = "" })},
+		{name: "empty inputs.config", value: withChange(func(value *manifest.Manifest) { value.Inputs.Config = "" })},
+		{name: "duplicate file path", value: withChange(func(value *manifest.Manifest) {
+			value.Files = []manifest.File{
+				{Path: "client.go", Digest: digestAlpha},
+				{Path: "client.go", Digest: digestBeta},
+			}
+		})},
+		{name: "reserved manifest file", value: withChange(func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.FileName
+		})},
+		{name: "under reserved pending manifest", value: withChange(func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.PendingName + "/x"
+		})},
+		{name: "reserved pending temporary file", value: withChange(func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.PendingTemporaryName
+		})},
+		{name: "invalid UTF-8 in target", value: withChange(func(value *manifest.Manifest) {
+			value.Target = "go\xff"
+		})},
+		{name: "invalid UTF-8 in file path", value: withChange(func(value *manifest.Manifest) {
+			value.Files[0].Path = "a/\xff"
+		})},
+	}
+
+	for _, badPath := range badManifestPaths() {
+		rows = append(rows, encodeRow{
+			name: "bad path " + badPath.name,
+			value: withChange(func(value *manifest.Manifest) {
+				value.Files[0].Path = badPath.value
+			}),
+		})
+	}
+	for _, badDigest := range badManifestDigests() {
+		rows = append(rows, encodeRow{
+			name: "bad digest " + badDigest.name,
+			value: withChange(func(value *manifest.Manifest) {
+				value.Files[0].Digest = badDigest.value
+			}),
+		})
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := manifest.Encode(row.value)
+			assert.Error(t, err)
+		})
+	}
+}
+
+type namedString struct {
+	name  string
+	value string
+}
+
+func badManifestPaths() []namedString {
+	return []namedString{
+		{name: "empty", value: ""},
+		{name: "absolute", value: "/a"},
+		{name: "backslash", value: `a\b`},
+		{name: "parent traversal", value: "../a"},
+		{name: "inner parent traversal", value: "a/../b"},
+		{name: "double slash", value: "a//b"},
+		{name: "inner dot segment", value: "a/./b"},
+		{name: "trailing slash", value: "a/"},
+		{name: "single dot", value: "."},
+		{name: "leading dot slash", value: "./a"},
+	}
+}
+
+func badManifestDigests() []namedString {
+	return []namedString{
+		{name: "empty", value: ""},
+		{name: "prefix only", value: "sha256:"},
+		{name: "63 hex chars", value: "sha256:" + strings.Repeat("a", 63)},
+		{name: "64 uppercase hex chars", value: "sha256:" + strings.Repeat("A", 64)},
+		{name: "sha1 algorithm", value: "sha1:" + strings.Repeat("a", 40)},
+		{name: "missing algorithm prefix", value: strings.Repeat("a", 64)},
+	}
+}

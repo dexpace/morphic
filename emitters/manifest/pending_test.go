@@ -1,0 +1,340 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package manifest_test
+
+import (
+	"encoding/json/v2"
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/emitters/manifest"
+)
+
+func validPending() manifest.Pending {
+	return manifest.Pending{
+		Schema: manifest.Schema,
+		Target: "go",
+		Known: map[string][]string{
+			"x.go": {digestAlpha},
+		},
+		TemporaryFiles: []string{".x.go1"},
+	}
+}
+
+func TestPending_RoundTrips(t *testing.T) {
+	t.Parallel()
+	nineteenDigits := strings.Repeat("9", 19)
+	rows := []struct {
+		name      string
+		input     manifest.Pending
+		want      manifest.Pending
+		omitEmpty bool
+	}{
+		{
+			name: "sorts digests and temporary files and admits valid temporary forms",
+			input: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known: map[string][]string{
+					"a/x.go": {digestBeta, digestAlpha},
+					"x.go":   {digestAlpha},
+					"a/404":  {digestBeta},
+				},
+				TemporaryFiles: []string{
+					"a/.x.go123",
+					".x.go" + nineteenDigits,
+					"a/.4041",
+					".morphic.manifest.json42",
+				},
+			},
+			want: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known: map[string][]string{
+					"a/404":  {digestBeta},
+					"a/x.go": {digestAlpha, digestBeta},
+					"x.go":   {digestAlpha},
+				},
+				TemporaryFiles: []string{
+					".morphic.manifest.json42",
+					".x.go" + nineteenDigits,
+					"a/.4041",
+					"a/.x.go123",
+				},
+			},
+		},
+		{
+			name: "omits empty known and temporaryFiles",
+			input: manifest.Pending{
+				Schema:         manifest.Schema,
+				Target:         "go",
+				Known:          map[string][]string{},
+				TemporaryFiles: []string{},
+			},
+			want: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+			},
+			omitEmpty: true,
+		},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := manifest.EncodePending(row.input)
+			require.NoError(t, err)
+			if row.omitEmpty {
+				assert.NotContains(t, string(raw), `"known"`)
+				assert.NotContains(t, string(raw), `"temporaryFiles"`)
+			}
+			got, err := manifest.DecodePending(raw)
+			require.NoError(t, err)
+			assert.Empty(t, cmp.Diff(row.want, got))
+		})
+	}
+}
+
+func TestEncodePending_LeavesItsArgumentAsItWas(t *testing.T) {
+	t.Parallel()
+	valid := manifest.Pending{
+		Schema: manifest.Schema,
+		Target: "go",
+		Known: map[string][]string{
+			"x.go": {digestBeta, digestAlpha},
+		},
+		TemporaryFiles: []string{".x.go2", ".x.go1"},
+	}
+	_, err := manifest.EncodePending(valid)
+	require.NoError(t, err)
+	assert.Equal(t, []string{digestBeta, digestAlpha}, valid.Known["x.go"])
+	assert.Equal(t, []string{".x.go2", ".x.go1"}, valid.TemporaryFiles)
+}
+
+func TestDecodePending_Refuses(t *testing.T) {
+	t.Parallel()
+	marshalRaw := func(t *testing.T, value any) []byte {
+		t.Helper()
+		raw, err := json.Marshal(value)
+		require.NoError(t, err)
+		return raw
+	}
+	withChange := func(t *testing.T, mutate func(*manifest.Pending)) []byte {
+		t.Helper()
+		value := validPending()
+		mutate(&value)
+		return marshalRaw(t, value)
+	}
+
+	type pendingDecodeRow struct {
+		name         string
+		raw          []byte
+		wantNewer    bool
+		wantContains string
+	}
+
+	rows := []pendingDecodeRow{
+		{name: "not json", raw: []byte("not json")},
+		{name: "empty object", raw: []byte("{}")},
+		{name: "schema 0", raw: withChange(t, func(value *manifest.Pending) { value.Schema = 0 })},
+		{name: "schema string", raw: []byte(`{"schema":"1","target":"go"}`)},
+		{name: "schema 2 with unknown member", raw: []byte(`{"schema":2,"target":"go","entities":{}}`), wantNewer: true},
+		{name: "schema 1 with unknown member", raw: []byte(`{"schema":1,"target":"go","entities":{}}`)},
+		{name: "duplicate member name", raw: []byte(`{"schema":1,"target":"go","target":"go"}`)},
+		{name: "invalid UTF-8 in target", raw: []byte("{\"schema\":1,\"target\":\"go\xff\"}")},
+		{name: "empty target", raw: withChange(t, func(value *manifest.Pending) { value.Target = "" })},
+		{name: "known path with empty digest list", raw: []byte(`{"schema":1,"target":"go","known":{"a":[]}}`)},
+		{name: "known path with null digest list", raw: []byte(`{"schema":1,"target":"go","known":{"a":null}}`)},
+		{name: "duplicate digest at known path", raw: withChange(t, func(value *manifest.Pending) {
+			value.Known["x.go"] = []string{digestAlpha, digestAlpha}
+		})},
+		{name: "bad temporary file path", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"../.x.go1"}
+		})},
+		{name: "duplicate temporary file", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go1", ".x.go1"}
+		})},
+		{name: "temporary file with no dot", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"src/user.go"}
+		})},
+		{name: "temporary file with no digit", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x"}
+		})},
+		{name: "temporary file with no name", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".1"}
+		})},
+		{name: "temporary file in directory not in known", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"a/.x.go1"}
+		})},
+		{name: "temporary file beside unknown file", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".env1"}
+		})},
+		{name: "temporary file with 20 digits", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go" + strings.Repeat("1", 20)}
+		})},
+		{name: "pending manifest temporary file listed", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{manifest.PendingTemporaryName}
+		})},
+		{name: "manifest temporary file under subdirectory", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"a/.morphic.manifest.json1"}
+		})},
+		{name: "reserved manifest file in known", raw: withChange(t, func(value *manifest.Pending) {
+			value.Known[manifest.FileName] = []string{digestAlpha}
+		})},
+		{name: "under reserved pending manifest in known", raw: withChange(t, func(value *manifest.Pending) {
+			value.Known[manifest.PendingName+"/x"] = []string{digestAlpha}
+		})},
+		{name: "reserved pending temporary file in known", raw: withChange(t, func(value *manifest.Pending) {
+			value.Known[manifest.PendingTemporaryName] = []string{digestAlpha}
+		})},
+		{
+			name: "four bad paths in known reports first in byte order",
+			raw: []byte(`{"schema":1,"target":"go","known":{` +
+				`"z/../y":["` + digestAlpha + `"],` +
+				`"m/../n":["` + digestAlpha + `"],` +
+				`"a/../b":["` + digestAlpha + `"],` +
+				`"d/../e":["` + digestAlpha + `"]}}`),
+			wantContains: "a/../b",
+		},
+	}
+
+	for _, badPath := range badManifestPaths() {
+		rows = append(rows, pendingDecodeRow{
+			name: "bad known path " + badPath.name,
+			raw: withChange(t, func(value *manifest.Pending) {
+				value.Known = map[string][]string{badPath.value: {digestAlpha}}
+				value.TemporaryFiles = nil
+			}),
+		})
+	}
+	for _, badDigest := range badManifestDigests() {
+		rows = append(rows, pendingDecodeRow{
+			name: "bad digest " + badDigest.name,
+			raw: withChange(t, func(value *manifest.Pending) {
+				value.Known["x.go"] = []string{badDigest.value}
+			}),
+		})
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := manifest.DecodePending(row.raw)
+			require.Error(t, err)
+			if row.wantNewer {
+				assert.ErrorIs(t, err, manifest.ErrNewerSchema)
+			} else {
+				assert.NotErrorIs(t, err, manifest.ErrNewerSchema)
+			}
+			if row.wantContains != "" {
+				assert.ErrorContains(t, err, row.wantContains)
+			}
+		})
+	}
+}
+
+func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
+	t.Parallel()
+	withChange := func(mutate func(*manifest.Pending)) manifest.Pending {
+		value := validPending()
+		mutate(&value)
+		return value
+	}
+
+	type pendingEncodeRow struct {
+		name  string
+		value manifest.Pending
+	}
+
+	rows := []pendingEncodeRow{
+		{name: "schema 0", value: withChange(func(value *manifest.Pending) { value.Schema = 0 })},
+		{name: "schema 2", value: withChange(func(value *manifest.Pending) { value.Schema = 2 })},
+		{name: "empty target", value: withChange(func(value *manifest.Pending) { value.Target = "" })},
+		{name: "known path with no digest", value: withChange(func(value *manifest.Pending) {
+			value.Known["x.go"] = nil
+		})},
+		{name: "duplicate digest at known path", value: withChange(func(value *manifest.Pending) {
+			value.Known["x.go"] = []string{digestAlpha, digestAlpha}
+		})},
+		{name: "bad temporary file path", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"../.x.go1"}
+		})},
+		{name: "duplicate temporary file", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go1", ".x.go1"}
+		})},
+		{name: "temporary file with no dot", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"src/user.go"}
+		})},
+		{name: "temporary file with no digit", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x"}
+		})},
+		{name: "temporary file with no name", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".1"}
+		})},
+		{name: "temporary file in directory not in known", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"a/.x.go1"}
+		})},
+		{name: "temporary file beside unknown file", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".env1"}
+		})},
+		{name: "temporary file with 20 digits", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go" + strings.Repeat("1", 20)}
+		})},
+		{name: "pending manifest temporary file listed", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{manifest.PendingTemporaryName}
+		})},
+		{name: "manifest temporary file under subdirectory", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"a/.morphic.manifest.json1"}
+		})},
+		{name: "reserved manifest file in known", value: withChange(func(value *manifest.Pending) {
+			value.Known[manifest.FileName] = []string{digestAlpha}
+		})},
+		{name: "under reserved pending manifest in known", value: withChange(func(value *manifest.Pending) {
+			value.Known[manifest.PendingName+"/x"] = []string{digestAlpha}
+		})},
+		{name: "reserved pending temporary file in known", value: withChange(func(value *manifest.Pending) {
+			value.Known[manifest.PendingTemporaryName] = []string{digestAlpha}
+		})},
+		{name: "invalid UTF-8 in target", value: withChange(func(value *manifest.Pending) {
+			value.Target = "go\xff"
+		})},
+		{name: "invalid UTF-8 in known path", value: withChange(func(value *manifest.Pending) {
+			value.Known = map[string][]string{"a/\xff": {digestAlpha}}
+			value.TemporaryFiles = nil
+		})},
+		{name: "invalid UTF-8 in temporary file", value: withChange(func(value *manifest.Pending) {
+			value.Known = map[string][]string{"\xff": {digestAlpha}}
+			value.TemporaryFiles = []string{".\xff1"}
+		})},
+	}
+
+	for _, badPath := range badManifestPaths() {
+		rows = append(rows, pendingEncodeRow{
+			name: "bad known path " + badPath.name,
+			value: withChange(func(value *manifest.Pending) {
+				value.Known = map[string][]string{badPath.value: {digestAlpha}}
+				value.TemporaryFiles = nil
+			}),
+		})
+	}
+	for _, badDigest := range badManifestDigests() {
+		rows = append(rows, pendingEncodeRow{
+			name: "bad digest " + badDigest.name,
+			value: withChange(func(value *manifest.Pending) {
+				value.Known["x.go"] = []string{badDigest.value}
+			}),
+		})
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := manifest.EncodePending(row.value)
+			assert.Error(t, err)
+		})
+	}
+}

@@ -258,7 +258,7 @@ linters:
       # forbidigo's output rules are invariant 5's, which binds the pipeline's
       # stages: ir, compilers, pass, emitters and engine, beside the plants that
       # hold the rules, whose tooling package stands for one outside it. emitters
-      # is held before it has a package, so no plant can show it reaches there.
+      # is held from its first package on.
       # Those rules carry no msg, which forbidigo reports as "forbidden by
       # pattern", so the recover rule, which carries one, holds everywhere.
       - path-except: ^((ir|compilers|pass|emitters|engine)/|internal/lintrules/testdata/planted/[^/]+$)
