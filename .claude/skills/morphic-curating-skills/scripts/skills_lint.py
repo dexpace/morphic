@@ -11,11 +11,11 @@ Prints one "path:line: problem" per finding, the line left out for one about a w
 summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run or finds no skill to check.
 Each rule in a reference is held to the format morphic-curating-skills gives. Scripts are executable
 Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
-and a test_<name>.py beside each. A path the tree lacks may name a diagnostic code declared under
-ir/ or pass/, or the Go toolchain's sources, which `go env GOROOT` locates; where go cannot say,
-the lint stops and says so. A Go name spelled `Name` in `path/to/file.go` on one line is held to
-what that file declares. A SKILL.md body spells no $ before a digit, which the skill loader
-replaces with an argument.
+and a test_<name>.py beside each. A span shaped as an ir/ or pass/ diagnostic code is no path, and
+a path the tree lacks may name the Go toolchain's sources, which `go env GOROOT` locates; where go
+cannot say, the lint stops and says so. A Go name spelled `Name` in `path/to/file.go` on one line
+is held to what that file declares. A SKILL.md body spells no $ before a digit, which the skill
+loader replaces with an argument.
 """
 
 import argparse
@@ -123,13 +123,10 @@ ELSEWHERE = {
     "refs": "a git ref",
     "repos": "a GitHub REST API path",
 }
-# Diagnostic codes declared in non-test Go files under ir/ and pass/: either one literal, or a
-# RefNoun-parameterized template such as `"ir/duplicate-" + noun + "-id"`, whose nouns come from
-# ir's own top-level `type <Name>ID string` declarations.
-DIAG_CODE = re.compile(r'"((?:ir|pass)/[a-z0-9]+(?:-[a-z0-9]+)+)"')
-DIAG_TEMPLATE = re.compile(
-    r'"((?:ir|pass)/(?:[a-z0-9]+-)*)"\s*\+\s*[^+\n]+\+\s*"(-[a-z0-9]+(?:-[a-z0-9]+)*)"')
-ID_TYPE = re.compile(r"^type ([A-Z][A-Za-z0-9]*)ID string\b", re.M)
+# A diagnostic code under ir/ or pass/, such as ir/duplicate-property-id: lowercase words joined by
+# hyphens. No directory there holds a hyphen, so the shape names no path, and, as with an openapi/
+# code, the code itself is not looked up.
+DIAGNOSTIC_CODE = re.compile(r"(?:ir|pass)/[a-z0-9]+(?:-[a-z0-9]+)+")
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 # A path below the toolchain's src, as path_word leaves one, with GO_ENV_GOROOT folded into $GOROOT
@@ -168,23 +165,6 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
     return top_level, tests, known
-
-
-def diagnostic_codes(root: Path, known: set[str]) -> set[str]:
-    """Return every ir/ and pass/ diagnostic code non-test Go files in known declare, including
-    each RefNoun-parameterized family expanded over ir/*.go's *ID types."""
-    codes, nouns, templates = set(), set(), set()
-    for rel in known:
-        if not (rel.startswith(("ir/", "pass/")) and rel.endswith(".go")
-                and not rel.endswith("_test.go")):
-            continue
-        source = (root / rel).read_text(errors="replace")
-        if rel.startswith("ir/") and "/" not in rel[3:]:
-            nouns.update(name.lower() for name in ID_TYPE.findall(source))
-        codes.update(DIAG_CODE.findall(source))
-        templates.update(DIAG_TEMPLATE.findall(source))
-    codes.update(f"{prefix}{noun}{suffix}" for prefix, suffix in templates for noun in nouns)
-    return codes
 
 
 def go_sources(root: Path) -> Path | None:
@@ -279,7 +259,6 @@ class Linter:
         # on disk that git ignores, such as a local plan or a built binary, is in no clone.
         self.names = {f.rsplit("/", 1)[-1] for f in known}
         self.known = sorted(known)
-        self.diagnostics = diagnostic_codes(root, known)
         self.paths = set(known)
         for f in known:
             parts = f.split("/")
@@ -533,10 +512,10 @@ class Linter:
         skill for its own references/ and scripts/, then to the repository, which holds a scripts/
         of its own, giving the skill's reason when neither holds it, and to the repository
         otherwise. A path is held up to a #entry, a line suffix or its first wildcard, and ./...
-        names the module's packages. One the tree lacks is None too when it names a diagnostic code
-        declared under ir/ or pass/, or the Go toolchain's sources. The reason names shown, the path
-        as a span wrote it, where p has been read out of that spelling."""
-        if p in self.diagnostics:
+        names the module's packages. A diagnostic code's shape under ir/ or pass/ is None too, as is
+        a path the tree lacks that names the Go toolchain's sources. The reason names shown, the
+        path as a span wrote it, where p has been read out of that spelling."""
+        if DIAGNOSTIC_CODE.fullmatch(p):
             return None
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
