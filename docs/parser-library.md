@@ -45,16 +45,22 @@ read them all:
 
 To bump the library:
 
-1. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
+1. Diff the old and new library trees from the module cache with tests left out,
+   `diff -ru -x '*_test.go' <old> <new>`, each directory from
+   `go mod download -json github.com/speakeasy-api/openapi@<version>`. A test below sees only the
+   changes an input it reads reaches, so for each change reaching a call the compiler or an oracle
+   makes, probe it against both versions, and where no committed input shows the difference, add
+   one a test reads: a canary's input or a document in the validation oracle's corpus.
+2. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
    changed, and its message says what the library did instead. A red test beside a reading the
    compiler reproduces names a reading that changed, the binding oracle names a `$ref` whose
    resolution moved, the resolver oracle a reference shape whose outcome moved, and the resolution
    pins in `internal/archtest` name a change to what in the library resolves a reference.
-2. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
+3. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
    code it names still needs: a guard against a defect the library fixed can go, and code relying on
    a behaviour the library dropped has to change. Settle each other red test where it stands: an
    oracle's golden or list of disagreements is regenerated with `-update` once each is read again.
-3. Set every entry's **Verified at** to the new version.
+4. Set every entry's **Verified at** to the new version.
 
 ## Resolution
 
