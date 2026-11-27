@@ -181,6 +181,16 @@
   run one at a time from one clean checkout sharing one private `GOCACHE` (#1248, #1347).
 - **Probe.** `sh -c 'sleep 3; : make gate' & pgrep -lf 'make gate'` lists a shell running no gate.
 
+## Stop a process by its own pid, never by a pattern
+`stop-by-pid-not-pattern`
+
+- **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
+  never by a pattern: `pkill -f`, `killall` and `kill` over a `pgrep` match every process whose
+  command line holds the words, other sessions' runs among them.
+- **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
+  machine and may have stopped another run's plants (#1938).
+- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
+
 ## Spell a class in `git grep -E` the POSIX way, and control every zero
 `git-grep-posix-classes`
 
@@ -193,15 +203,31 @@
 - **Probe.** On macOS, `git grep -cE '^\s+return' -- ir/document.go` prints nothing, and
   `git grep -cE '^[[:space:]]+return' -- ir/document.go` prints a count.
 
-## Stop a process by its own pid, never by a pattern
-`stop-by-pid-not-pattern`
+## Diff sorted sets in one collation
+`one-collation-for-sort-and-comm`
 
-- **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
-  never by a pattern: `pkill -f`, `killall` and `kill` over a `pgrep` match every process whose
-  command line holds the words, other sessions' runs among them.
-- **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
-  machine and may have stopped another run's plants (#1938).
-- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
+- **Rule.** `comm` and `join` merge by the locale's collation, so input sorted otherwise, as Go's
+  `slices.Sort` and `git` sort by bytes, reads a line both sides hold as held by one. Sort both
+  inputs with `LC_ALL=C sort`, run `LC_ALL=C comm`, print each side's line count, and grep a
+  reported line in the other file before believing it.
+- **Why.** A diff of two call-graph dumps sorted by Go reported 31 edges removed on #826; under
+  `LC_ALL=C` none was, and 39 were added (#826).
+- **Probe.** `printf 'B\na\n' > x; printf 'a\n' > y; LC_ALL=en_US.UTF-8 comm -13 x y` prints `a`,
+  and `LC_ALL=C comm -13 x y` prints nothing.
+
+## Read what a dependency bump changes before taking it
+`dependency-bump-reads-what-it-changes`
+
+- **Rule.** Before a `go.mod` bump, diff the old and new module trees, tests apart, and the
+  library's own `go.mod`; take only the transitive moves that `go.mod` requires; and
+  `go build ./...` before any test. A Go toolchain move takes with it what the `Makefile`'s comment
+  on `GO_VERSION` lists.
+- **Why.** A refresh beside #804's library bump moved a transitive YAML iterator to a release taking
+  another YAML package's nodes, which broke the build while `go mod tidy` passed, though the
+  library's `go.mod` required none of those moves; #394 took only what its library required (#804,
+  #394).
+- **Probe.** `diff -r -x '*_test.go' "$(go env GOMODCACHE)/<module>@<old>" "$(go env GOMODCACHE)/<module>@<new>"`
+  lists what the bump changes, and `go build ./...` exits 0.
 
 ## Probe build-cache reuse from one checkout path
 `cache-reuse-from-one-path`

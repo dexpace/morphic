@@ -55,6 +55,18 @@ it.
   deletions is a finding. A design-stated move takes
   `references/sweep-every-site.md#sweep-a-design-stated-move`.
 
+## Sweep a moved import path in its escaped spelling too
+`moved-import-path-escaped`
+
+- **Rule.** When a change moves an import path, grep its regex-escaped spelling as well as the plain
+  one: `.golangci.yml` and other pattern lists write `go\.yaml\.in/yaml/v3`, which a substring grep
+  for the plain path misses.
+- **Why.** #1116 moved the YAML import path across the module, and lint then failed on `exhaustive`
+  because `ignore-enum-types` still named the old path escaped, until a third commit pointed it at
+  the new one (#1116).
+- **Probe.** `git grep -nF 'go\.yaml\.in' -- .golangci.yml` prints the `ignore-enum-types` line,
+  and `git grep -nF 'go.yaml.in' -- .golangci.yml` prints nothing.
+
 ## Sweep the spellings of a declaration a design document moves
 `sweep-a-design-stated-move`
 
