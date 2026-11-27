@@ -6,9 +6,10 @@ description: "Use when scoping or designing a change that closes several issues 
 # Planning large morphic changes
 
 Most work here lands as one large pull request that closes several issues or builds a feature in
-slices; some is spread over several pull requests at once. Either way it stays `CLAUDE.md`'s one
-logical change, one mechanism family, with no cap on its size: it is reviewed slice by slice
-instead. The rules are in `references/large-changes.md`, in the order of the sections below.
+slices; some is spread over several pull requests at once. Each pull request stays `CLAUDE.md`'s
+one logical change, one mechanism family, with no cap on its size, and a large one is reviewed
+slice by slice instead. The rules are in `references/large-changes.md`, in the order of the
+sections below.
 
 ## Any change that closes several issues
 

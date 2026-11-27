@@ -2,8 +2,8 @@
 
 Where a lesson written into a tracking issue, a plan or a handoff goes, and when.
 
-## Move a lesson a tracker or plan records into the skills before its state next changes
-`recorded-lesson-moves-to-a-rule`
+## Route each lesson a tracker or plan records to the skills before its state next changes
+`recorded-lesson-goes-to-the-skills`
 
 - **Rule.** Before a tracker's state is updated or the next plan is drawn up, each lesson a
   tracker, plan or handoff records becomes a filed `skills:` issue, or a rule placed by "Where a

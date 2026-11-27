@@ -10,7 +10,7 @@ Keep each lesson once, in its strongest form, where the next person is when it a
 ## Where a lesson goes
 
 Take the first that fits. A tracker's, plan's or handoff's lessons take it too, before its state
-next changes (`references/recorded-lessons.md#recorded-lesson-moves-to-a-rule`).
+next changes (`references/recorded-lessons.md#recorded-lesson-goes-to-the-skills`).
 
 1. **A check.** If a test, lint or archtest rule can catch it, write or file that check. A filed
    check keeps a rule naming its issue until it lands.

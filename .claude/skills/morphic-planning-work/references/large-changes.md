@@ -53,8 +53,8 @@ ones.
   the design's author decides, and the design records the answer before the part is built on. A
   builder changes no decision inside its build.
 - **Why.** Nine builds under #1918 found the design's expectation wrong on real input, and what a
-  builder should do then changed three times during the work; builders of #2098 then changed or
-  overturned decisions inside their own builds (#1918, #2098).
+  builder should do then went through three versions during the work; builders of #2098 then
+  changed or overturned decisions inside their own builds (#1918, #2098).
 - **Probe.** Each departure from the design names its report and the decision recorded for it.
 
 ## Hand work on by pointing at the design, with every count a cap
@@ -63,8 +63,9 @@ ones.
 - **Rule.** A task handed to another session cites the design's section rather than restating it,
   and states every count as a cap, never a floor. A returned "Breaking: none" or "not checked" is a
   claim the design's author probes before relying on it.
-- **Why.** A test author's task contradicted the design it restated, and a verifier asked for "at
-  least sixty" plants made 343 and filled a 49 GB build cache (#1918).
+- **Why.** A test author's task contradicted the design it restated, a verifier asked for "at least
+  sixty" plants made 343 and filled a 49 GB build cache, and two builds of #1940 returned Breaking
+  sections a later pass had to correct (#1918, #1940).
 - **Probe.** Each number in the task reads as a maximum, and each section it builds from is cited,
   not copied.
 
@@ -84,8 +85,8 @@ ones.
 
 - **Rule.** A report names each defect it saw outside its task with an issue number or a written
   reason, and the issue goes to the change that owns its mechanism, by the tracker's routing table
-  where it has one, never widening the change that found it. Three new issues in one merged
-  change's own mechanism mean its design missed the mechanism, which
+  where it has one: the change that found it only when it owns that mechanism. Three new issues in
+  one merged change's own mechanism mean its design missed the mechanism, which
   `references/large-changes.md#measure-the-family-first` then measures.
 - **Why.** Before #1918, issues found were left for later; at least six reports during it left a
   defect unfiled; and a reviewer of #1940 named a gap in the review skill and filed nothing
