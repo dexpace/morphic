@@ -121,3 +121,16 @@ it.
   (`1d5b2bd69`; the package comment sweep's 212 lines held none of them, #1764).
 - **Probe.** `git grep -nE 'any target may render alike' 1d5b2bd69 -- .` hits all three stale
   summaries.
+
+## Find the guards a removed state served by coverage, not by name
+`removed-state-guards-by-coverage`
+
+- **Rule.** When a change makes a value's zero or empty state invalid, convert the tests off it,
+  then profile every package whose tests built that state,
+  `go test -covermode=set -coverprofile=<f> <packages>`, and read each statement left uncovered: a
+  guard serving only the removed state is spelled on whatever name the value has where it is
+  checked, a helper's parameter in another package among them, which a grep for the field misses.
+- **Why.** #1646 made a lowering context's zero value invalid; a grep for its guards missed a
+  `doc == nil` check on a helper's parameter, found only when that package's own coverage fell
+  below full (#1646).
+- **Probe.** `go run ./cmd/morphic-covergate <f>` lists the statements left uncovered.

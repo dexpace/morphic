@@ -181,6 +181,40 @@
   run one at a time from one clean checkout sharing one private `GOCACHE` (#1248, #1347).
 - **Probe.** `sh -c 'sleep 3; : make gate' & pgrep -lf 'make gate'` lists a shell running no gate.
 
+## Spell a class in `git grep -E` the POSIX way, and control every zero
+`git-grep-posix-classes`
+
+- **Rule.** `git grep -E` reads the platform's regular expressions, where on macOS `\s`, `\w` and
+  `\b` match nothing and raise no error, so a sweep built on them prints a clean zero. Spell a
+  class `[[:space:]]` or `[[:alnum:]_]`, a word boundary by `git grep -w`, or use `git grep -P`, and
+  read a zero only beside a control that must hit.
+- **Why.** A sweep for `.Properties` readers on #1181 printed nothing and read as clean, and sweeps
+  on #1145 reported no test named and an empty ID list, each from such a pattern (#1181, #1145).
+- **Probe.** On macOS, `git grep -cE '^\s+return' -- ir/document.go` prints nothing, and
+  `git grep -cE '^[[:space:]]+return' -- ir/document.go` prints a count.
+
+## Stop a process by its own pid, never by a pattern
+`stop-by-pid-not-pattern`
+
+- **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
+  never by a pattern: `pkill -f`, `killall` and `kill` over a `pgrep` match every process whose
+  command line holds the words, other sessions' runs among them.
+- **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
+  machine and may have stopped another run's plants (#1938).
+- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
+
+## Probe build-cache reuse from one checkout path
+`cache-reuse-from-one-path`
+
+- **Rule.** A probe of the Go build cache's reuse across commits builds from one checkout path,
+  switching commits in it, or under `-trimpath`: without it each compile's key holds the package's
+  absolute directory, so a second worktree misses on every package of the module and the probe
+  measures nothing. The `Makefile` adds `-trimpath`; a direct `go` command does not.
+- **Why.** A per-commit CI cache measured with one worktree per commit showed a documentation-only
+  change rebuilding everything, though CI checks out to one path (#755).
+- **Probe.** With an empty `GOCACHE`, `GOFLAGS= go build ./ir/irfacts` in a second worktree at the
+  same commit adds cache entries, and under `GOFLAGS=-trimpath` adds none.
+
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`
 

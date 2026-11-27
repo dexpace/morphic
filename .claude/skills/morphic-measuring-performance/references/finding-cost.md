@@ -335,11 +335,24 @@ how to measure so the number means what the claim says.
 - **Rule.** Escape analysis is field-insensitive: storing a value in a heap slice moves its whole
   struct, and a method value on a large struct copies it into a closure. For a change to a hot
   lowering path, diff `go build -gcflags=-m` escape sites per package against `main`, and compare
-  allocations and bytes per compile on both trees.
+  allocations and bytes per compile on both trees; a getter read through a helper takes
+  `references/finding-cost.md#getter-through-a-helper-escapes`.
 - **Why.** A change cost every path item mount allocations and every reference bytes, invisible to
   the allocation counts its body quoted (#591).
 - **Probe.** `go build -gcflags=-m ./... 2>&1 | grep -E 'escapes to heap|moved to heap'` on both
   trees, diffed.
+
+## Ask an inlined getter by a predicate, not through a helper returning its value
+`getter-through-a-helper-escapes`
+
+- **Rule.** A helper returning what an inlined getter builds, such as the one-element slice a
+  parser's type getter makes for a one-type schema, moves it to the heap at every call. Where
+  callers ask only whether a value is written, give them a predicate over the getter, and find such
+  a cost by an allocation profile's diff before changing anything.
+- **Why.** A helper returning a parser getter's slice allocated at every schema read; two guessed
+  fixes moved nothing, and the profile's diff named the helper at once (#1217).
+- **Probe.** `go tool pprof -sample_index=alloc_objects -top -diff_base=<main's profile> <head's profile>`
+  over `-memprofile` runs of one benchmark on both trees.
 
 ## Range over reflect values without its iterators on a hot path
 `reflect-iterators-allocate`

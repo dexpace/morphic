@@ -63,11 +63,35 @@ and every diagnostic is true, located, and decided from what actually happened.
   keyword as its home, or a census comment saying the rest is captured is a claim to test, not
   evidence.
 - **Why.** Fields such as allowReserved, propertyNames, minItems and x-* on most objects compiled to
-  byte-identical IR with or without them, which breaks the lossless-by-default invariant with a
-  clean exit (#345, #348).
-- **Probe.** For each keyword in the vocabulary, compile two specs that differ only in that keyword
-  and diff the IR plus diagnostics; byte-identical output is a silent drop. Enumerate the keywords
-  from the source schema, not a hand-picked sample.
+  byte-identical IR with or without them, breaking lossless-by-default with a clean exit (#345,
+  #348); a rebuilt check flagged nothing while `Sources` held each text's hash (#1217).
+- **Probe.** For each keyword in the vocabulary, compile two specs differing only in it and diff the
+  IR, `Sources` cleared, and diagnostics; byte-identical output is a silent drop, which `$comment`,
+  dropped by rule, must show. Enumerate the keywords from the source schema.
+
+## Compile each draft spelling beside its 2020-12 twin at every position
+`draft-spelling-beside-its-twin`
+
+- **Rule.** For a change to how a draft's spelling reads (`id`, `definitions`, `dependencies`, a
+  list under `items`), compile it beside its 2020-12 twin (`$id`, `$defs`, `dependentRequired`,
+  `prefixItems`) at the root, in a property, an `allOf` and a union branch, a nested `items`,
+  `additionalProperties` and a request body, and diff the IR with the spelling renamed away: a
+  keyword list written for 2020-12 shows only there.
+- **Why.** Three of #1467's later defects showed only so: a tuple under another `items` lowered as
+  `false`, and two hand-written keyword lists missed the draft spellings (#1467).
+- **Probe.** The twin grid's diffs hold nothing but the renamed spelling.
+
+## Probe every position the table walks before leaving its check to an owner
+`owner-reaches-what-the-table-walks`
+
+- **Rule.** Before a rule in `compilers/openapi/internal/specrules` names an `Owner`, which the
+  table's engine then skips, probe on `main` and the branch each position the table walks: under
+  `not`, `if`, `propertyNames` and `contains`, beside `enum`, an untyped schema, and an extension a
+  `$ref` reaches. The owner reaches each, or is handed the value to judge there.
+- **Why.** On #1467, leaving a bound's shape to the schema lowering, which reads a constraint only
+  where it lowers it, left `{not: {exclusiveMinimum: true}}` and a malformed bound beside an `enum`
+  or under `if` unreported (#1467).
+- **Probe.** Each position draws the same code on both builds.
 
 ## Report malformed or unusable input instead of mapping it to a valid-looking value
 `no-silent-fallback-to-a-valid-looking-value`
