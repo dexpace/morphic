@@ -269,8 +269,9 @@ how to measure so the number means what the claim says.
 - **Why.** On #1375 (`1f38bae67` against `5b9aaebaf`), 8,000 repeated `{$request.body#/x` openings
   before one `~2}` took 44.2G instructions against 0.16G on `main`, and 250,000 `/a` tokens over a
   recursive model took over three minutes against 0.6 s (#1724).
-- **Probe.** `GOMAXPROCS=1 /usr/bin/time -l <bin> compile -- <spec>` at n and 2n on base and head
-  (`references/finding-cost.md#instructions-not-wall-clock`).
+- **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>` at n and 2n on base
+  and head (`references/finding-cost.md#instructions-not-wall-clock`, dropping `GOGC=off` only where
+  a generated scalar exceeds memory per `references/finding-cost.md#count-on-one-thread`).
 
 ## Grow each dimension a nested loop iterates on its own
 `grow-each-dimension-alone`

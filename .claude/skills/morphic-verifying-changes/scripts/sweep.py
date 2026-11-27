@@ -37,6 +37,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -253,7 +254,10 @@ def resolve_base(base: str) -> tuple[Path, str]:
 
 def export_base(root: Path, sha: str, dest: Path) -> None:
     """Export commit sha into dest through git archive and tar without writing to root."""
-    shutil.rmtree(dest, ignore_errors=True)
+    if dest.is_symlink() or dest.is_file():
+        dest.unlink()
+    else:
+        shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
     with subprocess.Popen(["git", "-C", str(root), "archive", sha],
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE) as arch:
@@ -265,11 +269,11 @@ def export_base(root: Path, sha: str, dest: Path) -> None:
             arch.stdout.close()
         stderr = arch.stderr.read().decode(errors="replace") if arch.stderr else ""
         rc = arch.wait()
-    if rc != 0:
-        raise subprocess.CalledProcessError(rc, ["git", "archive", sha], stderr=stderr)
-    if tar.returncode != 0:
+    if tar.returncode != 0 and (rc == 0 or (rc == -signal.SIGPIPE and not stderr)):
         raise subprocess.CalledProcessError(tar.returncode, ["tar", "-x", "-C", str(dest)],
                                             stderr=tar.stderr)
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, ["git", "archive", sha], stderr=stderr)
 
 
 def build_pair(root: Path, sha: str, out: Path) -> tuple[Path, Path]:

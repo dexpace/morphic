@@ -23,8 +23,8 @@ canary. A behaviour found that the page lacks is added there.
 `readers-of-a-changed-kind`
 
 - **Rule.** A lowering changing a position's node kind, as a `Model` becoming a `Union`, has
-  readers outside the changed package that no getter search finds. List them, `<Kind>` as
-  `ir.Kind<Kind>` names it, `T?` reaching `MapT`:
+  readers outside the changed package that no getter search finds. List them, `<Kind>` the old one
+  as `ir.Kind<Kind>` names it, `T?` reaching `MapT`:
   `git grep -nE '\*(ir\.)?<Kind>T?([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
   a hit in `ir` serves a fact, as `IsSubtype`, whose callers read it too. Ask each what the new
   kind gives it, compile as each consumer names it
@@ -32,8 +32,8 @@ canary. A behaviour found that the page lacks is added there.
   `references/openapi-lessons.md#readers-of-a-moved-base` for a moved scalar base.
 - **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
   reader and `pass`'s `encoding` check read for properties, though no getter search named them
-  (#1688, #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
-- **Probe.** List in the PR body each hit with its answer.
+  (#1688, #1687). A subtype mapping made a `Union` failed `IsSubtype` (#1696).
+- **Probe.** List each hit and answer in the PR body.
 
 ## Find the readers of a scalar whose base chain moves
 `readers-of-a-moved-base`

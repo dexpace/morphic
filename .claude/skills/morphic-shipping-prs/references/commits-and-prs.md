@@ -65,7 +65,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** #1977's push `162ef1822` failed CI's lint job on three findings (`embedlit` and
   `testifylint`) in newly added tests, and rounds 4 and 12 lost runs the same way (#2013).
 - **Probe.** On a throwaway branch entered via `cd -P`, plant `assert.True(t, x > 0)` in a test: the
-  command reports `testifylint` and exits 1; on a non-Go branch it prints nothing.
+  command reports `testifylint` and exits 1; on a non-Go branch it prints `0 issues.` and exits 0.
 
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`

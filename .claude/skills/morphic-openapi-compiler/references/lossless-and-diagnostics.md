@@ -47,8 +47,8 @@ and every diagnostic is true, located, and decided from what actually happened.
   beside the IR with `2>"$file"` or reading them alone via `validate --verify`, or count from
   `compile`'s JSON (`jq '.diagnostics | length'`). Never `2>&1 >/dev/null | grep` (zsh `MULTIOS`
   sends the IR into the pipe too, doubling counts). Write options out or hold them in a zsh array
-  (`opts=(--opt a=b)`), as zsh passes a string variable as one argument; a bad flag exits 2 like a
-  `--verify` failure, so read stderr's first line.
+  (`opts=(--compiler-option a=b)`), as zsh passes a string variable as one argument; a bad flag
+  exits 2 like a `--verify` failure, so read stderr's first line.
 - **Why.** Default limits hid 3 of 7 findings (#1964), 2 of 5 (#2045) and 10 of 18 added warnings
   on #1977's sweep; a zsh string variable exited 2 (#2044).
 - **Probe.** `go run ./cmd/morphic validate testdata/conformance/openapi/extension-promotion.yaml 2>&1 | tail -1`

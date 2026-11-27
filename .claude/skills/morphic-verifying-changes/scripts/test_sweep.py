@@ -532,6 +532,33 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertFalse((out_dir / "base-src").exists(), "base-src outlived the build")
 
+    def test_export_base_reports_tar_stderr_over_git_sigpipe(self):
+        # Exceed the OS pipe buffer so git archive receives SIGPIPE when tar exits immediately.
+        (self.root / "bulk.bin").write_bytes(b"x" * 262144)
+        self.git("add", "bulk.bin")
+        self.commit("add bulk")
+        fake_bin = Path(self.dir.name) / "fake-tar-bin"
+        fake_bin.mkdir()
+        tar = fake_bin / "tar"
+        tar.write_text("#!/bin/sh\necho 'tar: disk full' >&2\nexit 2\n")
+        tar.chmod(0o755)
+        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+        with unittest.mock.patch.dict(os.environ, env):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                sweep.export_base(self.root, "HEAD", Path(self.dir.name) / "out" / "base-src")
+        self.assertEqual(caught.exception.returncode, 2)
+        self.assertIn("tar: disk full", caught.exception.stderr)
+
+    def test_export_base_replaces_a_regular_file_at_base_src(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        dest.parent.mkdir(parents=True)
+        dest.write_text("not a directory\n")
+        sweep.export_base(self.root, "HEAD", dest)
+        self.assertTrue((dest / "marker.txt").is_file())
+
 
 class CrashTest(unittest.TestCase):
     def test_a_missing_tool_exits_2_never_a_verdict(self):
