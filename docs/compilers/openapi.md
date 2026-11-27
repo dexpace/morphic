@@ -7431,8 +7431,8 @@ one OpenAPI allows a header, is an `openapi/validation` error of the class
 header's `content`, where neither has an effect, lowers as declared and is an
 `openapi/inapplicable-location-keyword` warning at the key
 ([`content-parameters`](#content-parameters)). A `Content-Type` entry in either headers
-map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as an
-`openapi/reserved-header-name` warning at the entry, as a parameter is
+map, which OpenAPI says SHALL be ignored, is reported as an `openapi/reserved-header-name` warning
+at the entry, and the compiler drops nothing for the name
 ([`reserved-header-names`](#reserved-header-names)).
 
 A key of either headers map is the header's name, so an HTTP field name: one that is no token, the
