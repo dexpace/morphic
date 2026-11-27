@@ -35,17 +35,19 @@ The matrix is each construct and name the change writes, with the example it was
 ## Sweep every renamed or deleted name from the code, not from memory
 `renamed-names-leave-no-trace`
 
-- **Rule.** Build the rename map from the code by pairing each changed file's `go/scanner` token
-  stream with its base twin's and taking each differing identifier pair (fields, methods and locals
-  included; `^-(func|type) ` only lists deleted declarations). Run `git grep -nw` for each old name
-  across comments, documents and `Test<Old>_` names; search single English words (`None`, `Site`)
-  per directory where they no longer name an identifier. Also apply
+- **Rule.** Build the rename map from the code with git's word diff,
+  `git diff --word-diff --word-diff-regex='[A-Za-z_][A-Za-z0-9_]*' "$main"...HEAD -- '*.go'`,
+  which prints a renamed identifier as `[-old-]{+new+}` and a deleted one as `[-old-]`, fields,
+  methods and locals included, where `^-(func|type) ` lists only deleted declarations. Run
+  `git grep -nw` for each old name across comments, documents and `Test<Old>_` names; search single
+  English words (`None`, `Site`) per directory where they no longer name an identifier. Also apply
   `references/consistency.md#pattern-rename-rewrites-prose`.
 - **Why.** #1725 left `groupFor` in untouched `callbacks.go` (#1727); #2130 (`0cf8e899e`) left
   `Elems` across 85 lines in 49 files and 22 test names while `^-(func|type) ` matched nothing
   (#2146).
-- **Probe.** At `0cf8e899e`, the token-pair map names `Elems` -> `ElementTypes`, and
-  `git grep -nw 'Elems' -- ir/types.go` hits four comment lines.
+- **Probe.** After `git fetch origin refs/pull/2130/head`, the word diff from `a22fdf935^` to
+  `0cf8e899e` prints `[-Elems-]{+ElementTypes+}`, and
+  `git grep -nw 'Elems' 0cf8e899e -- ir/types.go` hits four comment lines.
 
 ## Check pattern renames and wording sweeps against comments and test names
 `pattern-rename-rewrites-prose`
