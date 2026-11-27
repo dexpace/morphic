@@ -32,7 +32,7 @@ canary. A behaviour found that the page lacks is added there.
   `references/openapi-lessons.md#readers-of-a-moved-base` for a moved scalar base.
 - **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
   reader and `pass`'s `encoding` check read for properties, though no getter search named them
-  (#1688, #1687). A subtype mapping made a `Union` failed `IsSubtype` (#1696).
+  (#1688, #1687). A mapped subtype made a `Union` failed `IsSubtype` (#1696).
 - **Probe.** List each hit and answer in the PR body.
 
 ## Find the readers of a scalar whose base chain moves

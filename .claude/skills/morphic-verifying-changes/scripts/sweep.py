@@ -269,7 +269,7 @@ def export_base(root: Path, sha: str, dest: Path) -> None:
             arch.stdout.close()
         stderr = arch.stderr.read().decode(errors="replace") if arch.stderr else ""
         rc = arch.wait()
-    if tar.returncode != 0 and (rc == 0 or (rc == -signal.SIGPIPE and not stderr)):
+    if tar.returncode != 0 and rc in (0, -signal.SIGPIPE):
         raise subprocess.CalledProcessError(tar.returncode, ["tar", "-x", "-C", str(dest)],
                                             stderr=tar.stderr)
     if rc != 0:

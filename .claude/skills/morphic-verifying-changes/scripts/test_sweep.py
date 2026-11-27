@@ -559,6 +559,56 @@ class MainTest(unittest.TestCase):
         sweep.export_base(self.root, "HEAD", dest)
         self.assertTrue((dest / "marker.txt").is_file())
 
+    def test_export_base_unlinks_a_symlink_without_touching_its_target(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        target = Path(self.dir.name) / "target-dir"
+        target.mkdir()
+        (target / "keep.txt").write_text("do not delete\n")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        dest.parent.mkdir(parents=True)
+        dest.symlink_to(target)
+        sweep.export_base(self.root, "HEAD", dest)
+        self.assertFalse(dest.is_symlink())
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertTrue((target / "keep.txt").is_file())
+
+    def test_export_base_reports_tar_error_when_git_archive_exits_zero(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        fake_bin = Path(self.dir.name) / "drain-tar-bin"
+        fake_bin.mkdir()
+        tar = fake_bin / "tar"
+        tar.write_text("#!/bin/sh\ncat >/dev/null\necho 'tar: corrupt header' >&2\nexit 2\n")
+        tar.chmod(0o755)
+        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+        with unittest.mock.patch.dict(os.environ, env):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                sweep.export_base(self.root, "HEAD", Path(self.dir.name) / "out" / "base-src")
+        self.assertEqual(caught.exception.returncode, 2)
+        self.assertIn("tar: corrupt header", caught.exception.stderr)
+
+    def test_export_base_reports_git_archive_error_even_when_tar_exits_zero_or_nonzero(self):
+        bad_sha = "0" * 40
+        with self.assertRaises(subprocess.CalledProcessError) as real_tar:
+            sweep.export_base(self.root, bad_sha, Path(self.dir.name) / "out" / "base-src")
+        self.assertEqual(real_tar.exception.cmd[0], "git")
+        self.assertIn("not a tree object", real_tar.exception.stderr)
+
+        fake_bin = Path(self.dir.name) / "strict-tar-bin"
+        fake_bin.mkdir()
+        tar = fake_bin / "tar"
+        tar.write_text("#!/bin/sh\necho 'tar: empty archive' >&2\nexit 2\n")
+        tar.chmod(0o755)
+        env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+        with unittest.mock.patch.dict(os.environ, env):
+            with self.assertRaises(subprocess.CalledProcessError) as strict_tar:
+                sweep.export_base(self.root, bad_sha, Path(self.dir.name) / "out" / "base-src")
+        self.assertEqual(strict_tar.exception.cmd[0], "git")
+        self.assertIn("not a tree object", strict_tar.exception.stderr)
+
 
 class CrashTest(unittest.TestCase):
     def test_a_missing_tool_exits_2_never_a_verdict(self):
