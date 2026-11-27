@@ -17,6 +17,8 @@ criteria are `morphic-designing-code`'s, weighed only among correct options:
   (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`), and each
   fix at the owner of the invariant it restores
   (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#fix-at-the-invariants-owner`).
+- **Maintainable**: a maintained tool's feature before a hand-rolled mechanism
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#maintained-mechanism-first`).
 - **Not a rejected simplification**: `docs/prior-art.md` records those that failed elsewhere.
 
 1. Name what the change must deliver, and weigh it against its alternatives
