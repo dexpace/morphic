@@ -185,8 +185,9 @@
 `stop-by-pid-not-pattern`
 
 - **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
-  never by a pattern: `pkill -f`, `killall` and `kill` over a `pgrep` match every process whose
-  command line holds the words, other sessions' runs among them.
+  never by a pattern: `pkill -f` and `kill` over `pgrep -f` match every process whose command line
+  holds the words, and `killall` every one of that name, other sessions' runs among them. A killed
+  pid's children live on, so stop a run with children by `references/mutation.md#stop-a-plant-run`.
 - **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
   machine and may have stopped another run's plants (#1938).
 - **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
@@ -212,22 +213,23 @@
   reported line in the other file before believing it.
 - **Why.** A diff of two call-graph dumps sorted by Go reported 31 edges removed on #826; under
   `LC_ALL=C` none was, and 39 were added (#826).
-- **Probe.** `printf 'B\na\n' > x; printf 'a\n' > y; LC_ALL=en_US.UTF-8 comm -13 x y` prints `a`,
-  and `LC_ALL=C comm -13 x y` prints nothing.
+- **Probe.** Where `en_US.UTF-8` is installed,
+  `printf 'B\na\n' > x; printf 'a\n' > y; LC_ALL=en_US.UTF-8 comm -13 x y` prints `a`, and
+  `LC_ALL=C comm -13 x y` prints nothing.
 
-## Read what a dependency bump changes before taking it
-`dependency-bump-reads-what-it-changes`
+## Take into a hand-made bump only what its modules require
+`dependency-bump-takes-what-it-requires`
 
-- **Rule.** Before a `go.mod` bump, diff the old and new module trees, tests apart, and the
-  library's own `go.mod`; take only the transitive moves that `go.mod` requires; and
-  `go build ./...` before any test. A Go toolchain move takes with it what the `Makefile`'s comment
-  on `GO_VERSION` lists.
+- **Rule.** A dependency update follows `CONTRIBUTING.md`'s "Merge a dependency update", which sends
+  a parser-library bump through `docs/parser-library.md`'s tree diff and a toolchain move through
+  the `Makefile`'s list. A bump made by hand takes only the indirect moves a direct module's own
+  `go.mod` requires, as Dependabot does, and runs `go build ./...` before any test.
 - **Why.** A refresh beside #804's library bump moved a transitive YAML iterator to a release taking
   another YAML package's nodes, which broke the build while `go mod tidy` passed, though the
   library's `go.mod` required none of those moves; #394 took only what its library required (#804,
   #394).
-- **Probe.** `diff -r -x '*_test.go' "$(go env GOMODCACHE)/<module>@<old>" "$(go env GOMODCACHE)/<module>@<new>"`
-  lists what the bump changes, and `go build ./...` exits 0.
+- **Probe.** Each module whose version `git diff go.mod` moves is the bumped one or appears in
+  `go mod graph | grep '^<bumped module>@<new version> '`, and `go build ./...` exits 0.
 
 ## Probe build-cache reuse from one checkout path
 `cache-reuse-from-one-path`
@@ -238,8 +240,9 @@
   measures nothing. The `Makefile` adds `-trimpath`; a direct `go` command does not.
 - **Why.** A per-commit CI cache measured with one worktree per commit showed a documentation-only
   change rebuilding everything, though CI checks out to one path (#755).
-- **Probe.** With an empty `GOCACHE`, `GOFLAGS= go build ./ir/irfacts` in a second worktree at the
-  same commit adds cache entries, and under `GOFLAGS=-trimpath` adds none.
+- **Probe.** After `go build ./ir/irfacts` in one worktree, the same in a second at that commit,
+  `go build -x ./ir/irfacts 2>&1 | grep -c '/compile '`, prints a count under `GOFLAGS=` and 0
+  under `GOFLAGS=-trimpath`.
 
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`

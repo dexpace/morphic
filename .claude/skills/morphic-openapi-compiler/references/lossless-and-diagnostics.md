@@ -73,10 +73,10 @@ and every diagnostic is true, located, and decided from what actually happened.
 `draft-spelling-beside-its-twin`
 
 - **Rule.** For a change to how a draft's spelling reads (`id`, `definitions`, `dependencies`, a
-  list under `items`), compile it beside its 2020-12 twin (`$id`, `$defs`, `dependentRequired`,
-  `prefixItems`) at the root, in a property, an `allOf` and a union branch, a nested `items`,
-  `additionalProperties` and a request body, and diff the IR with the spelling renamed away: a
-  keyword list written for 2020-12 shows only there.
+  list under `items`), compile it beside its 2020-12 twin (`$id`, `$defs`, `dependentRequired` or
+  `dependentSchemas`, `prefixItems`) at the root, in a property, an `allOf` and a union branch, a
+  nested `items`, `additionalProperties` and a request body, and diff the IR with the spelling
+  renamed away: a keyword list written for 2020-12 shows only there.
 - **Why.** Three of #1467's later defects showed only so: a tuple under another `items` lowered as
   `false`, and two hand-written keyword lists missed the draft spellings (#1467).
 - **Probe.** The twin grid's diffs hold nothing but the renamed spelling.

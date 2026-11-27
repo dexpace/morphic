@@ -1,6 +1,6 @@
 ---
 name: morphic-planning-work
-description: "Use when scoping or designing a change that closes several issues or builds a whole feature, in one pull request or several (a tracking issue, a milestone, a handoff): cutting it into slices or pull requests, writing a design or brief that another session builds from, building parts in parallel and joining them, or deciding where an issue found during that work goes."
+description: "Use when scoping or designing a change that closes several issues or builds a whole feature, in one pull request or several (a tracking issue, a milestone, a handoff): cutting it into slices or pull requests, writing a design or brief that another session builds from, building parts in parallel and joining them, deciding where an issue found during that work goes, or updating a tracking issue's state."
 ---
 
 # Planning large morphic changes
