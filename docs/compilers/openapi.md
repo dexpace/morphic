@@ -6739,7 +6739,7 @@ compiler leaves it to the emitter, and claims nothing of the definition's fate.
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
   `specrules.TestCheck_ReservedHeaderParameter`, `specrules.TestCheck_ReservedHeaderEntries`,
-  `specrules.TestCheck_ReservedHeaderMessagesHoldUnreferenced`,
+  `specrules.TestCheck_TheTableWordsAndGradesWhatItReports`,
   `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`,
   `e2e.TestReservedHeaderNames_MessageHoldsWhereNothingLowers`,
   `e2e.TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept`,

@@ -81,29 +81,6 @@ func TestCheck_ReservedHeaderEntries(t *testing.T) {
 	})
 }
 
-// TestCheck_ReservedHeaderMessagesHoldUnreferenced pins the words of both
-// reserved-name findings in a document whose components nothing references:
-// the table runs before any lowering and cannot know what becomes of the
-// object, so each message states the reservation and who applies it, and
-// claims no fate for the definition.
-func TestCheck_ReservedHeaderMessagesHoldUnreferenced(t *testing.T) {
-	diagnostics := run(t, "3.1.0", specrules.Document, "{openapi: 3.1.0, info: {title: t, version: '1'}, components: {"+
-		"parameters: {U: {name: Accept, in: header, schema: {type: string}}}, "+
-		"responses: {R: {description: ok, headers: {content-type: {schema: {type: string}}}}}}}")
-
-	messages := map[string]string{}
-	for _, diagnostic := range diagnostics {
-		require.Equal(t, reservedHeader, diagnostic.Code, "no other finding: %s", diagnostic.Message)
-		messages[string(diagnostic.Provenance.Pointer)] = diagnostic.Message
-	}
-	assert.Equal(t, map[string]string{
-		"/components/parameters/U/name": `header parameter "Accept" is reserved: OpenAPI says a definition for ` +
-			"Accept SHALL be ignored, a rule the compiler leaves to the emitter",
-		"/components/responses/R/headers/content-type": `header "content-type" is reserved: OpenAPI says a ` +
-			"Content-Type entry in a headers map SHALL be ignored, a rule the compiler leaves to the emitter",
-	}, messages)
-}
-
 // besideRefDocument writes a key beside the $ref of a Reference Object at every
 // position one is read, and a path item beside its own $ref, which gives the
 // path item's fields their meaning.
@@ -226,18 +203,29 @@ func TestCheck_UnknownKeysAreReportedAtEveryObject(t *testing.T) {
 	verify(t, scenarios)
 }
 
-// TestCheck_TheTableWordsAndGradesWhatItReports holds two things no position
-// test reads: a key beside a $ref is worded as the Reference Object's, which
-// defines only $ref, summary and description, and a reserved name is graded by
-// its rule's level, a SHOULD, so a warning.
+// TestCheck_TheTableWordsAndGradesWhatItReports holds what no position test
+// reads: a key beside a $ref is worded as the Reference Object's, which defines
+// only $ref, summary and description, and a reserved name is graded by its
+// rule's level, a SHOULD, so a warning. Its message quotes the name as written
+// and then the name reserved, which a lower-case spelling tells apart, and
+// claims nothing of what becomes of the definition, since the table runs
+// before any lowering decides it.
 func TestCheck_TheTableWordsAndGradesWhatItReports(t *testing.T) {
 	beside := run(t, "3.1.0", specrules.Parameter, `{$ref: '#/components/parameters/P', bogus: 1}`)
 	require.Len(t, beside, 1)
 	assert.Contains(t, beside[0].Message, `key "bogus" is written beside a $ref, where the Reference Object `+
 		`defines only $ref, summary and description`)
 
-	reserved := run(t, "3.1.0", specrules.Parameter, `{name: Content-Type, in: header, schema: {type: string}}`)
+	reserved := run(t, "3.1.0", specrules.Parameter, `{name: content-type, in: header, schema: {type: string}}`)
 	require.Len(t, reserved, 1)
 	assert.Equal(t, diag.ReservedHeaderName, reserved[0].Code)
 	assert.Equal(t, ir.SeverityWarning, reserved[0].Severity)
+	assert.Equal(t, `header parameter "content-type" is reserved: OpenAPI says a definition for Content-Type `+
+		"SHALL be ignored, a rule the compiler leaves to the emitter", reserved[0].Message)
+
+	entry := run(t, "3.1.0", specrules.Response, `{description: ok, headers: {content-type: {schema: {type: string}}}}`)
+	require.Len(t, entry, 1)
+	assert.Equal(t, diag.ReservedHeaderName, entry[0].Code)
+	assert.Equal(t, `header "content-type" is reserved: OpenAPI says a Content-Type entry in a headers map `+
+		"SHALL be ignored, a rule the compiler leaves to the emitter", entry[0].Message)
 }

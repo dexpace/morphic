@@ -106,17 +106,13 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 	}
 }
 
-// acceptReserved is the finding at a header parameter named Accept, whatever
-// becomes of the definition.
-const acceptReserved = `header parameter "Accept" is reserved: OpenAPI says a definition for Accept SHALL be ` +
-	"ignored, a rule the compiler leaves to the emitter"
-
-// TestReservedHeaderNames_MessageHoldsWhereNothingLowers pins the words of the
-// finding at three fates: a component an operation lowers, one nothing
-// references, kept verbatim under Unmodeled, and a path item's inline parameter
-// its operation overrides, which is kept nowhere in the document. The table reports before any
-// lowering decides a fate, so the words state the reservation and who applies
-// it, and claim no fate.
+// TestReservedHeaderNames_MessageHoldsWhereNothingLowers holds that the
+// finding at a header parameter named Accept reads alike at three fates: a
+// component an operation lowers, one nothing references, kept verbatim under
+// Unmodeled, and a path item's inline parameter its operation overrides, kept
+// nowhere in the document. A headers map's Content-Type entry reads alike in a
+// response an operation lowers and in one nothing references. The table
+// reports before any lowering decides a fate; specrules pins the words.
 func TestReservedHeaderNames_MessageHoldsWhereNothingLowers(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
@@ -127,7 +123,7 @@ paths:
     get:
       operationId: g
       parameters: [{$ref: '#/components/parameters/Used'}]
-      responses: {"204": {description: ok}}
+      responses: {"204": {description: ok, headers: {Content-Type: {schema: {type: string}}}}}
 components:
   parameters:
     Used: {name: Accept, in: header, description: used, schema: {type: string}}
@@ -140,20 +136,23 @@ components:
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/Used", "an operation lowers it")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/parameters/Unused", "nothing lowers it")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/Unused", "nothing lowers it")
-	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
-	require.Len(t, params, 1, "the operation's Accept overrides its path item's")
-	assert.Equal(t, "used", params[0].Docs.Description)
+	operation := operationByID(t, doc, "operation/openapi/paths/~1a/get")
+	require.Len(t, operation.Params, 1, "the operation's Accept overrides its path item's")
+	assert.Equal(t, "used", operation.Params[0].Docs.Description)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1, "an operation lowers the entry")
+	assert.Equal(t, "Content-Type", operation.Responses[0].Headers[0].EffectiveWireName())
 	encoded, err := json.Marshal(doc)
 	require.NoError(t, err)
+	// Whether a definition every operation overrides is kept is open (#2176);
+	// this assertion goes with whatever that decides.
 	assert.NotContains(t, string(encoded), "path-level", "the overridden definition is kept nowhere")
 
-	for _, pointer := range []string{
-		"/components/parameters/Used/name", "/components/parameters/Unused/name", "/paths/~1a/parameters/0/name",
-	} {
-		assert.Equal(t, acceptReserved, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
+	lowered := messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Used/name")
+	for _, pointer := range []string{"/components/parameters/Unused/name", "/paths/~1a/parameters/0/name"} {
+		assert.Equal(t, lowered, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
 	}
-	assert.Equal(t, `header "Content-Type" is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be `+
-		"ignored, a rule the compiler leaves to the emitter",
+	assert.Equal(t, messageAt(t, diags, diag.ReservedHeaderName, "/paths/~1a/get/responses/204/headers/Content-Type"),
 		messageAt(t, diags, diag.ReservedHeaderName, "/components/responses/Unused/headers/Content-Type"))
 }
 
@@ -161,7 +160,7 @@ components:
 // the overridden path-item parameter by $ref. The override drops the
 // reference, so no lowering reaches the component, which is kept verbatim
 // under Unmodeled like any other nothing references, and the finding at its
-// name reads as it does everywhere else.
+// name reads as the one at the operation's own parameter, which lowers.
 func TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
@@ -171,7 +170,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/PathAccept'}]
     get:
       operationId: g
-      parameters: [{name: accept, in: header, description: op-level, schema: {type: string}}]
+      parameters: [{name: Accept, in: header, description: op-level, schema: {type: string}}]
       responses: {"204": {description: ok}}
 components:
   parameters:
@@ -180,14 +179,15 @@ components:
 	requireNoErrorDiagnostics(t, diags)
 
 	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
-	require.Len(t, params, 1, "the operation's accept overrides its path item's Accept")
+	require.Len(t, params, 1, "the operation's Accept overrides its path item's")
 	assert.Equal(t, "op-level", params[0].Docs.Description)
 	kept, ok := doc.Unmodeled["openapi:components/parameters/PathAccept"]
 	require.True(t, ok, "the overridden component is kept: %v", doc.Unmodeled)
 	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
 	assert.Contains(t, string(kept.Value), "path-level")
 
-	assert.Equal(t, acceptReserved, messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/PathAccept/name"))
+	assert.Equal(t, messageAt(t, diags, diag.ReservedHeaderName, "/paths/~1a/get/parameters/0/name"),
+		messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/PathAccept/name"))
 	assert.Equal(t, []string{
 		"warning " + diag.ReservedHeaderName + " /components/parameters/PathAccept/name",
 		"warning " + diag.ReservedHeaderName + " /paths/~1a/get/parameters/0/name",
