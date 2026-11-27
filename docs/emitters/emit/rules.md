@@ -95,17 +95,17 @@ the tree the rule exists to prevent.
   left unassigned was no letter to the word grammar either, so a name holding one changes its words
   with the release whatever the fold reads. T-52 holds it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
-  directory among them, is one `pathfold.Portable` admits. It is not empty, and at most 255 bytes of
-  UTF-8, the least any file system takes: ext4 documents 255 bytes, and APFS, as NTFS documents, 255
-  UTF-16 units, which on macOS 26.5.2 took 255 `日`, 765 bytes, and refused 256 `a`. No segment is a
-  Windows device name up to its first dot, trailing spaces dropped, in any letter case: `con`,
-  `prn`, `aux`, `nul`, `conin$`, `conout$`, or `com` or `lpt` followed by a digit or by `¹`, `²` or
-  `³`, which covers what Windows documents and what Go refuses, so `aux.v1.go` and `nul .txt` are
-  each one. `go build` builds a module holding `aux.go`, but `golang.org/x/mod` 0.42.0 refused to
-  zip it (`malformed file path "aux.go": "aux" disallowed as path element component on Windows`),
-  and a module the proxy cannot zip is one no caller downloads. No segment holds a character Windows
-  refuses in a name, `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a
-  space. A path breaking one is a breach. This is a backstop as well: each target renders the names
+  directory among them, is one `pathfold.Portable` admits. It is not empty, is valid UTF-8, which
+  APFS refuses a name without, and is at most 255 bytes, the least any file system takes: ext4
+  documents 255 bytes, and APFS, as NTFS documents, 255 UTF-16 units, which on macOS 26.5.2 took
+  255 `日`, 765 bytes, and refused 256 `a`. No segment is a Windows device name up to its first dot,
+  trailing spaces dropped, in any letter case: `con`, `prn`, `aux`, `nul`, `conin$`, `conout$`, or
+  `com` or `lpt` followed by a digit or by `¹`, `²` or `³`, which covers what Windows documents and
+  what Go refuses, so `aux.v1.go` and `nul .txt` are each one. `go build` builds a module holding
+  `aux.go`, but `golang.org/x/mod` 0.42.0 refused to zip it (`malformed file path "aux.go": "aux"
+  disallowed as path element component on Windows`), and a module the proxy cannot zip is one no
+  caller downloads. No segment holds a character Windows refuses in a name, `<`, `>`, `:`, `"`, `/`,
+  `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a space. A path breaking one is a breach. This is a backstop as well: each target renders the names
   it writes as paths so that no spec name reaches it, and a snapshot label, which the engine takes
   as the document writes it, is held to these rules before any run that writes it as a directory,
   where breaking one is a finding about the document, `engine/snapshot-label-invalid` ([contract

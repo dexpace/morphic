@@ -31,6 +31,9 @@ const (
 		"const-unions, replaces and removes types and edits nothing else"
 	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
 	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
+	pathAPI     = "the path fold and segment rules docs/emitters/emit/rules.md states, which the checked " +
+		"call (GitHub #2229), the project (GitHub #2242), naming (GitHub #2238, #2239) and the write plan " +
+		"(GitHub #2246) compare by"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -69,6 +72,8 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Component":   factAPI,
 	"ir/irfacts.DocumentFacts.Correlation": factAPI,
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
+	"pathfold.Fold":                        pathAPI,
+	"pathfold.Portable":                    pathAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

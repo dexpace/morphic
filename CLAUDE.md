@@ -174,7 +174,7 @@ scratchstate/
              Layer 0 — scratch state a check reads one collection after another through: the
              map both checkers empty between collections. Imports ONLY the stdlib.
 pathfold/    Layer 0 — the fold a file system compares paths by, and what makes a path segment
-             portable. Imports golang.org/x/text only. (Planned.)
+             portable. Imports golang.org/x/text only.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion, correlation keys), derived on demand and never stored. Imports

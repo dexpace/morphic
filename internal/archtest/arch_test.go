@@ -47,11 +47,15 @@ var rules = map[string][]string{
 	// Scratch state a check reads one collection after another through, which
 	// knows no morphic concept, so both checkers share it from below ir.
 	"scratchstate": {},
-	"ir":           {},
-	"ir/irfacts":   {module + "/ir"},
-	"ir/irtest":    {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
-	"ir/irverify":  {module + "/ir", module + "/scratchstate"},
-	"compilers":    {module + "/barrier", module + "/ir"},
+	// The path fold and a portable segment, which name no morphic concept, so
+	// it sits beside barrier and below the engine and naming, which compare by
+	// it.
+	"pathfold":    {"golang.org/x/text/cases", "golang.org/x/text/unicode/norm"},
+	"ir":          {},
+	"ir/irfacts":  {module + "/ir"},
+	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
+	"ir/irverify": {module + "/ir", module + "/scratchstate"},
+	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
 	"compilers/compile": {module + "/ir"},
