@@ -6722,19 +6722,28 @@ location but `query`, which OpenAPI forbids, it is an `openapi/validation` error
 ### `reserved-header-names`
 
 A header parameter named `Accept`, `Content-Type` or `Authorization`, which OpenAPI says SHALL be
-ignored because the protocol layer owns the name, lowers as declared and is reported as an
-`openapi/reserved-header-name` warning at its `name`: dropping declared content is an emitter's
-call, not a compiler's, and the diagnostic lets an emitter suppress it. A `headers` map of a
-Response Object or an Encoding Object reserves `Content-Type`, which each states elsewhere, and an
-entry under it is reported the same way at the entry. Names compare in any case, as HTTP compares
-field names. The rule table reports both ([`validation`](#validation)), wherever the object is
-written, so a component nothing references is reported, and one many operations use is reported
-once.
+ignored because the protocol layer owns the name, is reported as an `openapi/reserved-header-name`
+warning at its `name`, and the compiler drops nothing for the name: dropping declared content is
+an emitter's call, not a compiler's, and the diagnostic lets an emitter suppress it. A `headers`
+map of a Response Object or an Encoding Object reserves `Content-Type`, which each states
+elsewhere, and an entry under it is reported the same way at the entry. Names compare in any case,
+as HTTP compares field names. The rule table reports both ([`validation`](#validation)), wherever
+the object is written, so a component nothing references is reported, and one many operations use
+is reported once. The table runs before any lowering decides what becomes of the definition: an
+operation may lower it, an operation's own parameter may override it ([`parameters`](#parameters)),
+and it may be kept verbatim, as a component nothing references is
+([`unreferenced-components`](#unreferenced-components)) and a path item mounting no operation keeps
+its parameters ([`parameters`](#parameters)). So the message states the reservation and stops: it
+claims nothing of the definition's fate, nor that a later stage applies the rule.
 
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
   `specrules.TestCheck_ReservedHeaderParameter`, `specrules.TestCheck_ReservedHeaderEntries`,
-  `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`, `e2e.TestUnknownKeys_ObjectsKeptWhole`
+  `specrules.TestCheck_TheTableWordsAndGradesWhatItReports`,
+  `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`,
+  `e2e.TestReservedHeaderNames_MessageHoldsWhereNothingLowers`,
+  `e2e.TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept`,
+  `e2e.TestUnknownKeys_ObjectsKeptWhole`
 
 ### `idempotency-inference`
 
@@ -7422,8 +7431,8 @@ one OpenAPI allows a header, is an `openapi/validation` error of the class
 header's `content`, where neither has an effect, lowers as declared and is an
 `openapi/inapplicable-location-keyword` warning at the key
 ([`content-parameters`](#content-parameters)). A `Content-Type` entry in either headers
-map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as an
-`openapi/reserved-header-name` warning at the entry, as a parameter is
+map, which OpenAPI says SHALL be ignored, is reported as an `openapi/reserved-header-name` warning
+at the entry, and the compiler drops nothing for the name
 ([`reserved-header-names`](#reserved-header-names)).
 
 A key of either headers map is the header's name, so an HTTP field name: one that is no token, the
