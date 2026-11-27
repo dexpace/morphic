@@ -380,6 +380,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 	}{
 		{"before the component schemas are lowered", 0},
 		{"after the service walk", 1},
+		{"after target attachment and pruning", 2},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -430,18 +431,34 @@ components:
 	moved := func(diags []ir.Diagnostic) bool {
 		return openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator")
 	}
-	// Pet's is the one settlement, so the settling asks once, second to last,
-	// and the boundary after it asks last.
+	// Uncancelled, Pet's settlement moves the discriminator; cancelling right
+	// before it skips the settlement and stops at the boundary after Finish,
+	// while one call later lets the settlement run and still stops at that
+	// boundary before target attachment and pruning.
 	calls, diags, err := runUntil(math.MaxInt)
 	require.NoError(t, err)
 	require.True(t, moved(diags), "uncancelled, the settlement moves the discriminator")
 
-	seen, diags, err := runUntil(calls - 2)
+	// Find the exact call index where the settlement runs: the last live count
+	// where the discriminator has not moved yet is the settling's own check.
+	settleAt := -1
+	for live := range calls {
+		_, tryDiags, tryErr := runUntil(live)
+		require.ErrorIs(t, tryErr, context.Canceled)
+		if moved(tryDiags) {
+			settleAt = live - 1
+			break
+		}
+	}
+	require.GreaterOrEqual(t, settleAt, 0, "cancellation before the settlement must skip it")
+
+	seen, diags, err := runUntil(settleAt)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, moved(diags), "a cancelled settling takes no settlement")
-	assert.Equal(t, calls, seen, "and the boundary after it still asks")
+	assert.Equal(t, settleAt+2, seen, "and the boundary after Finish still asks")
 
-	_, diags, err = runUntil(calls - 1)
+	seenAfter, diags, err := runUntil(settleAt + 1)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.True(t, moved(diags), "one call later the settlement ran and only the boundary refused")
+	assert.Equal(t, settleAt+2, seenAfter, "and stopped at the boundary after Finish")
 }

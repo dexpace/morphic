@@ -1,6 +1,7 @@
 # The emit layer
 
-`emitters/<target>/emit` plus per-target printer. Emit is a **pure fold** `print(TargetAST) → []byte`,
+`emitters/<target>/emit` plus per-target printer. Emit is a **pure fold**
+`print(target AST) → []byte`,
 then the language's native formatter canonicalises the result.
 
 ## Typed AST → text → native formatter (the rationale)

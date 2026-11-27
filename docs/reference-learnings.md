@@ -168,7 +168,7 @@ as **injectable policy marked `Inferred`**, never a shared frozen function. Rout
 overrides through overlays keyed by **stable ID** (openapi-generator/openapi-python key by name →
 collisions; Morphic's fix).
 
-## A7. Multi-file output + regeneration/manifest/integration — CONFIRMS §2.3 point-for-point
+## A7. Multi-file output + regeneration/manifest/integration — CONFIRMS §2.3 but for the prune gate
 
 This is oagen's most valuable contribution (it shipped it for ~9 languages) and every reference
 touches some slice of it:
@@ -177,12 +177,16 @@ touches some slice of it:
   generator-ignore`): `{version, language, specSha, emitterSha, configSha, files:[sorted],
   operations: Record<key,{sdkMethod,service}>}`. **Header-gated pruning**: delete a stale file *only
   if its content starts with the auto-generated header*, else preserve + report as hand-edited;
-  **skip pruning entirely on first adoption**. Adopt this schema directly. Morphic's one improvement
-  (already specced): key the entity→symbol map by **IR stable ID**, not oagen's `"METHOD /path"`
-  string, so it survives a rename of anything the ID is not built from, and record a [correlation
-  key](./ir/derived-facts.md#correlation-keys) beside it for a reordered array or a renamed path
-  variable, which the ID does not survive. Record `service` per op (oagen needs it for scoped
-  runs).
+  **skip pruning entirely on first adoption**. Adopt this schema directly, but for the gate: Morphic
+  prunes a file by the digest its manifest records, since a header cannot stand in a file with no
+  comment syntax and outlives its owner's edit, and the header gates only the overwrite of a file no
+  manifest lists ([write /
+  integrate](./emitters/write-integrate.md#a-file-is-judged-by-its-digest)). Morphic's other
+  improvement (already specced): key the entity→symbol map by **IR stable ID**, not oagen's
+  `"METHOD /path"` string, so it survives a rename of anything the ID is not built from, and record
+  a [correlation key](./ir/derived-facts.md#correlation-keys) beside it for a reordered array or a
+  renamed path variable, which the ID does not survive. Record `service` per op (oagen needs it for
+  scoped runs).
 - **Scoped regeneration NEVER filters the spec** (oagen `orchestrator.ts:37`, `generate-files.ts:44`;
   fastapi `--specify-tags`; openapi-python full-rmtree). Placement/dedup/shared-files/barrels are
   computed over the *full* (or `selected ∪ already-on-disk`) surface so shared files stay byte-

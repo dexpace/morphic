@@ -144,10 +144,14 @@ func declaredAt(loweringContext lowering.Ctx, at reftable.DocumentPointer, decl 
 // Model: the one declared where the chain ends, promised a node. It is false
 // for a broken chain, whose last position is promised instead, so the $ref
 // failing there is lowered and reported where it is written, though only the
-// mapping reaches it.
+// mapping reaches it, and recorded as discarded so post-settlement pruning
+// removes it when nothing else references it.
 func hierarchyRoute(loweringContext lowering.Ctx, ts *compile.Types, chain valueChain) (ir.TypeID, bool) {
 	end := chain.end()
 	id, ok := resolveAt(loweringContext, ts, end.at, end.decl)
+	if ok && chain.broken {
+		recordDiscarded(loweringContext, id)
+	}
 	return id, ok && !chain.broken
 }
 
@@ -348,8 +352,9 @@ func resolveDiscriminatorRoutes(loweringContext lowering.Ctx, ts *compile.Types,
 	if discriminator == nil {
 		return nil
 	}
-	_, diags := discriminatorMapping(loweringContext, ts, discriminator, nil, pointer)
-	_, defaultDiags := discriminatorDefault(loweringContext, ts, discriminator, nil, pointer)
+	mapping, diags := discriminatorMapping(loweringContext, ts, discriminator, nil, pointer)
+	def, defaultDiags := discriminatorDefault(loweringContext, ts, discriminator, nil, pointer)
+	recordKeptDiscriminatorRoutes(loweringContext, pointer+ids.Ptr("discriminator"), discriminator, mapping, def)
 	return append(diags, defaultDiags...)
 }
 

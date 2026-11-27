@@ -277,7 +277,7 @@ func holdApart(loweringContext lowering.Ctx, comp allOfComposition, held *princi
 			members.Content = append(members.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Name}, key.Node)
 		}
 	}
-	kept, diags := annotation.PreserveNodeInto(unmodeled, comp.entryKey(pointer), members, shared, loweringContext.Place().At(pointer))
+	kept, diags := preserveNode(loweringContext, unmodeled, comp.entryKey(pointer), members, shared, pointer)
 	if kept {
 		held.apart, held.apartReason = all, shared
 	}

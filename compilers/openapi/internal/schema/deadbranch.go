@@ -13,7 +13,6 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -142,8 +141,8 @@ func keepDeadBranches(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bod
 	var diags []ir.Diagnostic
 	all := true
 	for _, deadBranchAt := range deadOf(loweringContext, unionAtValue, unionAtValue.dead) {
-		kept, keptDiags := annotation.PreserveNodeInto(unmodeled, unionBranchKey(deadBranchAt.at), deadBranchAt.st.Node,
-			ir.ReasonDegradedLowering, loweringContext.Place().At(deadBranchAt.at))
+		kept, keptDiags := preserveNode(loweringContext, unmodeled, unionBranchKey(deadBranchAt.at), deadBranchAt.st.Node,
+			ir.ReasonDegradedLowering, deadBranchAt.at)
 		diags = append(diags, keptDiags...)
 		all = all && kept
 	}
@@ -361,8 +360,8 @@ func keepDeadRoutes(loweringContext lowering.Ctx, union *ir.Union, unionAtValue 
 		}
 		at := ids.Ptr(tokens...)
 		node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: deadRoute.target}
-		_, keptDiags := annotation.PreserveNodeInto(&union.Unmodeled, "openapi:"+scope+string(at), node,
-			ir.ReasonDegradedLowering, loweringContext.Place().At(owner+at))
+		_, keptDiags := preserveNode(loweringContext, &union.Unmodeled, "openapi:"+scope+string(at), node,
+			ir.ReasonDegradedLowering, owner+at)
 		diags = append(diags, keptDiags...)
 	}
 	return diags

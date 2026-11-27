@@ -123,8 +123,9 @@ digest moved ([what the manifest records](write-integrate.md#what-the-manifest-r
 and a regeneration that changed no file has none. A deprecation is additive, and so a minor, as
 semantic versioning asks, on a target whose extractor reads the mark, as Go's does and Kotlin's
 ABI dumps are not shown to ([Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)).
-Where the surface was not compared, a target with no extractor (`Capabilities.SurfaceVerify`
-unset), there is no level to report, which an info `emitters/<target>/level-unknown` says: a patch
+Where the surface was not compared, a target with no extractor
+([capabilities](contract/registry.md#a-capability-an-interface-shows)), there is no level to
+report, which an info `emitters/<target>/level-unknown` says: a patch
 read off the digests alone could be a break. A behavioral record never raises the level. It says
 what the SDKs already deployed will meet, which no version of the new one changes, so those records
 lead the report and leave the level alone.

@@ -52,7 +52,21 @@ it.
   readers to code that no longer exists (#195, #834).
 - **Probe.** For each name the diff removes, `git grep -nF '<old>'` over `*.go`, `docs/`,
   `README.md`, `CLAUDE.md` and `.claude/skills` on the final tree; each hit outside the diff's own
-  deletions is a finding.
+  deletions is a finding. A design-stated move takes
+  `references/sweep-every-site.md#sweep-a-design-stated-move`.
+
+## Sweep the spellings of a declaration a design document moves
+`sweep-a-design-stated-move`
+
+- **Rule.** A move a design document states counts as a move though the diff removes no name. List
+  each moved declaration's spellings in other units — qualified by the unit it left
+  (`git grep -nE '(^|[^A-Za-z0-9_])<old unit>\.(<names>)'`) and unqualified in another unit's sample
+  or signature (`git grep -nE '[(*\[ ](<names>)[\[(,)]' -- docs`) — and read each hit against the
+  new placement.
+- **Why.** #1737 moved runtime types to `<root>/runtime` while `docs/` kept 9 `sdk.*` spellings at
+  `c463b8253` and 4 unqualified signatures (`*RawBody`, `*Response[...]`) at `55d067d21`, with 0
+  hits in the diff (#1747).
+- **Probe.** Run both greps at `c463b8253` and `55d067d21`: 9 and 4 hits where diff greps find 0.
 
 ## Rewrite every comment a behaviour change makes false
 `sweep-comments-a-behaviour-change-falsifies`
@@ -92,4 +106,18 @@ it.
   beside landed rows, a matrix cell denying client streaming the PR enabled), contributors build
   against a false spec (#310, #345, #352).
 - **Probe.** For each new code, key or step, `git grep` `docs/`, `README.md` and `CLAUDE.md` for a
-  neighbour and confirm the new one sits beside it.
+  neighbour and confirm the new one sits beside it. A widened pass or code takes
+  `references/sweep-every-site.md#widened-reach-sweeps-the-docs`.
+
+## Sweep every summary when a change widens an existing pass or code
+`widened-reach-sweeps-the-docs`
+
+- **Rule.** A change that widens what an existing pass or diagnostic code reports sweeps every
+  summary of its old reach, not only newly added codes. Grep `docs/`, `README.md` and `CLAUDE.md`
+  for each sentence naming the pass or code (backticked or bold), and read each hit against the new
+  reach.
+- **Why.** #1759 widened `names` (`name-collision`) while three summaries (`README.md`,
+  `docs/architecture.md`, `pass/names.go`) kept "any target may render alike" across four rounds
+  (`1d5b2bd69`; the package comment sweep's 212 lines held none of them, #1764).
+- **Probe.** `git grep -nE 'any target may render alike' 1d5b2bd69 -- .` hits all three stale
+  summaries.

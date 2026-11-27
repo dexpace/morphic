@@ -187,6 +187,22 @@ the rule here rather than reading it across.
   satisfying one of `optionalInterfaces` in `internal/archtest/assertion_test.go` without its
   assertion.
 
+## Hold the shadowing rule's package-level half in review
+`shadowing-package-half-unheld`
+
+- **Rule.** Rule 2.8's builtin half is held by `predeclared` and its import half by revive's
+  `import-shadowing`. Its package-level half is held by no configured tool: `.golangci.yml` leaves
+  `shadow` off, and `shadow` reports only a local matching a package-level name's exact type, never
+  a function or another type. Hold lines a change adds to rule 2.8 in review, and do not report
+  sites already in the tree (#2033).
+- **Why.** `golangci-lint run ./internal/harness/...` prints `0 issues` with 27 package-level sites
+  in `internal/harness` (#2033, #2034) and a closure shadowing a package function in #1996.
+- **Probe.** `golangci-lint run ./internal/harness/...` prints `0 issues`;
+  `go build -o <dir>/shadow golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow` then
+  `go vet -vettool=<dir>/shadow ./internal/harness` prints 9 findings at `cfb366317` (4 `fake`
+  locals over `type fake`, including `internal/harness/presence_internal_test.go` and
+  `internal/harness/spelling_internal_test.go`, plus 5 local-over-local).
+
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
 

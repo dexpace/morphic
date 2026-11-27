@@ -8,7 +8,8 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
 1. Read the diff before the PR body (`references/correctness.md#code-before-claims`).
 2. For each output the change alters, state the result a consumer should get on real input, then
    compile a minimal spec on `$main` and in the worktree and read the IR and every diagnostic
-   (`.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
+   (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#compile-and-read-every-finding`,
+   `.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
    golden spec where it holds the construct, fetched as `CLAUDE.md`'s "Priority" section shows.
    Where they differ, take `references/correctness.md#better-than-main`.
 3. Probe each `CLAUDE.md` invariant the diff could reach, rather than reading for it. Fidelity,
@@ -136,11 +137,26 @@ both builds' results.
 - **Rule.** No pull request or simulation reaches a job only `schedule` or `workflow_dispatch`
   starts: a schedule runs the default branch's workflow, and a dispatch only a workflow the default
   branch holds. Say so, read a real run's log from a trial branch in its place
-  (`gh run view <id> --log`), and hold each body sentence about the job to what that run predates.
+  (`gh run view <id> --log`) unless a step writes outside the run
+  (`references/correctness.md#stub-a-job-that-writes-outside`), and hold each body sentence about the
+  job to what that run predates.
 - **Why.** A nightly job's PR cited a push run on a trial branch, and `gh run list` filtered to
   `--event schedule` printed none (#1382, #1606).
 - **Probe.** `gh run view <id> --json event,headSha,headBranch`, beside the commits the branch
   gained after that run.
+
+## Stub a job whose steps write outside the run instead of dispatching it
+`stub-a-job-that-writes-outside`
+
+- **Rule.** Do not dispatch a job for a review when any step writes outside the run (the issue
+  tracker, a release, a cache). Extract its script and run it with the writing command stubbed, and
+  state in the report which steps were simulated and which were read from a real run.
+- **Why.** #1996 (`80340b71b`) added the nightly `cases` step and its tracker-writing report; its
+  review ran the report script by hand with `gh` stubbed on four logs without touching the tracker
+  (#2175).
+- **Probe.** Extract the report step's script from `.github/workflows/gate.yml` and run it with a
+  stub `gh` printing its arguments on one log per outcome: each failure's reported title appears and
+  no `gh` call reaches the tracker.
 
 ## Diff what a dependency update changes under morphic's code
 `dependency-update-differential`

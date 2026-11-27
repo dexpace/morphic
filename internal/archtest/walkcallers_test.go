@@ -82,6 +82,9 @@ var walkCallers = map[string]walkCaller{
 	"ir/irtest.SpacesUsed":       {answer: "returns the stop beside the spaces", readers: []string{"ir/irtest.SpacesUsed"}},
 	"ir/irtest.AllocatingVisits": {answer: "lists a stopped walk as a path"},
 	"internal/census.add":        {answer: "reads the stop"},
+	"internal/harness.appendPruned": {
+		answer: "a stopped walk only leaves fewer nodes exempted from comparison, never hiding a sequence-order difference",
+	},
 	"internal/harness.carriers": {
 		answer: "a carrier a stopped walk did not reach declines its case as not judged, so no instance is admitted unread",
 	},
@@ -89,6 +92,12 @@ var walkCallers = map[string]walkCaller{
 
 	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
+	},
+	"compilers/openapi.attachUnmodeledTargets": {
+		answer: "returns false on a stopped or cancelled walk so pruning is skipped and no live type is dropped; the caller checks ctx.Err() before returning the document",
+	},
+	"compilers/openapi.pruneUnreferencedTypes": {
+		answer: "a stopped walk removes no type, so no live anonymous type is dropped",
 	},
 }
 

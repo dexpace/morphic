@@ -58,6 +58,7 @@ var notParts = map[reflect.Type]string{
 	reflect.TypeFor[ir.TemplateInstantiation](): "a template argument made the type; a value of it holds none",
 	reflect.TypeFor[ir.DocRef]():                "prose naming a type holds no value of it",
 	reflect.TypeFor[ir.EntityRef]():             "a deprecation naming its replacement holds no value of it",
+	reflect.TypeFor[ir.UnmodeledEntry]():        "an unmodeled construct kept verbatim holds no modeled value of it",
 }
 
 // notPartFields are fields that name a type that is none of the parts, with the

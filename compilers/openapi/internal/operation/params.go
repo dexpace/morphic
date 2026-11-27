@@ -194,7 +194,7 @@ func fillParamSchemaAnnotations(serviceContext service.Ctx, param *ir.Parameter,
 	if schema.LoweredToOwnNode(serviceContext.Ctx, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(use.SiteAt(serviceContext.Ctx, statementSchema, pointer), pointer, serviceContext.Place())
+	a, readDiags := schema.ReadAnnotations(serviceContext.Ctx, use.SiteAt(serviceContext.Ctx, statementSchema, pointer), pointer)
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs

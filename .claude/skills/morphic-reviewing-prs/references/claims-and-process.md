@@ -17,7 +17,8 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    and text, its `--pushed` naming the head the setup fetched, or `origin/<branch>` before the PR
    exists
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#pushed-subject-is-disclosed`);
-   then hold title, commits, body, labels and scope to
+   then hold title, commits, body, labels, scope and added complexity
+   (`references/claims-and-process.md#added-complexity-removed-or-blocked`) to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, closing keywords to
    `.claude/skills/morphic-shipping-prs/references/closing-issues.md`, and open PRs to
    `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a
@@ -145,17 +146,29 @@ The matrix is each claim class with the members checked, and each closed issue w
 ## Search the tracker for what cites each issue the PR closes
 `tracker-on-what-cites-a-closing-issue`
 
-- **Rule.** For each issue the PR closes, by keyword or sidebar link, and for the PR's own number,
-  run `gh issue list --state all --limit 1000 --search "#<N> in:body"`, and settle each open hit as
+- **Rule.** For each closing issue (keyword or sidebar link) and the PR's own number, run
+  `gh issue list --state all --limit 1000 --search "#<N> in:body"`, and settle each open hit as
   `references/claims-and-process.md#tracker-on-what-a-rule-settles` settles a construct's. Run it
-  before judging the body's universal claims and before calling a defect beside the change
-  unfiled.
-- **Why.** A review of #1514, which closes #1086, called a defect beside it unfiled and passed the
-  body's claim that a branch on a loop "is reported once", while #1566 held the defect and #1570
-  contradicted the claim, both citing #1086; a search by construct found them only with their
-  words (#1669).
-- **Probe.** The report lists each number searched and each open hit, with what the change does
-  about it.
+  before judging universal body claims or calling a nearby defect unfiled.
+- **Why.** Reviewing #1514 (closing #1086) called a nearby defect unfiled and passed a claim that a
+  loop branch "is reported once", while #1566 held the defect and #1570 contradicted the claim, both
+  citing #1086; construct searches found them only with their words (#1669).
+- **Probe.** Also run `gh pr list --state open --limit 1000 --search "#<N> in:body"`
+  (`references/claims-and-process.md#open-prs-citing-the-change`), listing each number, open hit and
+  resolution.
+
+## Also search open PRs that cite the PR or its closing issues
+`open-prs-citing-the-change`
+
+- **Rule.** For each closing issue and the PR's own number, run both
+  `gh issue list --state all --limit 1000 --search "#<N> in:body"` and
+  `gh pr list --state open --limit 1000 --search "#<N> in:body"`. Read each open PR's sentence about
+  the change; where it states an interaction, rerun the change's stated measurements on the tree
+  merged with that PR, and rank a contradiction an `issue:` naming what each merge order owes.
+- **Why.** #2277 recorded that `gh issue list` returned `[2276,2172]` while `gh pr list` returned
+  `[2182,2204,2187]`, missing an open PR whose body stated a contradiction without a text conflict.
+- **Probe.** Both commands for each number, with each open PR's interaction sentence beside its
+  merged-tree check.
 
 ## Check a choice resting on an open issue against the open PRs settling it
 `open-issue-against-open-prs`
@@ -169,6 +182,19 @@ The matrix is each claim class with the members checked, and each closed issue w
   #1351 closed #429 with the rule that such a rename moves the version, and the two merged without
   a conflict (#1327, #1351).
 - **Probe.** The search above, for each issue the change cites as open.
+
+## Remove added complexity in the change or name what blocks its removal
+`added-complexity-removed-or-blocked`
+
+- **Rule.** A copy, wrapper, seam or other complexity a change adds is removed in that change. A
+  follow-up issue justifies keeping it only by naming what blocks removal now (an open issue, a
+  report no code returns yet), and the PR body names that blocker beside the issue; a follow-up
+  naming none is ranked an `issue:`.
+- **Why.** #1996 added `ownHomes`, `nodeTypes` and `restKinds` and #2083 recorded them without a
+  blocker; #2132 removed `nodeTypes`, replaced `restKinds` with extracted `ownKinds` and named #2133
+  as the blocker for `ownHomes` (#2281).
+- **Probe.** Inspect `git diff "$main"...HEAD` for added helpers mirroring another phase's decision,
+  each beside the body's blocker.
 
 ## A gate sentence at a head with no CI run is unverified
 `gate-claim-without-a-run`

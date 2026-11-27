@@ -62,8 +62,10 @@ throughout these documents.
    milliseconds on every target ([what a layer
    writes](../contract/runtime-policy.md#what-a-layer-writes)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
-    trace (guards implicit inter-step coupling), Go's ending in casing and then the escaping and
-    collision steps twice ([the refiner contract](../refine/pipeline.md)).
+    trace (guards implicit inter-step coupling), the one `refine.RunSteps` returns, Go's ending in
+    casing and then the escaping and collision steps twice; and the runner refuses a step with no
+    name or no function, and stops between two steps at a done context ([the refiner
+    contract](../refine/pipeline.md)).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
     alone, the elected media type among them, diffed against the generated SDK under HTTP
@@ -87,11 +89,18 @@ throughout these documents.
     by reflection and fails on one [annotations](../../ir/annotations.md#decorators) has not
     classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
-    every `PrimitiveKind` `ir` declares, read through `internal/decls`; a user row replaces the
-    built-in row under its key whole; an encoding with no row is typed as its value travels and
-    reported once (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does
-    not use, or a Go `Codec` is an options error; and two rows that spell one name for two packages
-    generate code that compiles in a file using both ([type table](../contract/type-table.md)).
+    every `PrimitiveKind` `ir` declares, read through `internal/decls`, so `typemap.Missing` lists
+    none; a user row replaces the built-in row under its key whole, one stating a type alone
+    keeping neither the built-in row's codec nor its imports; a configuration behind the current
+    options version reports each built-in row a later version changed, added or removed and its
+    own table does not replace, and none it does; an encoding with no row is typed as its value
+    travels and reported once (T-51), the lookup saying which of its three ways found the row; a
+    table holding an unknown or repeated member, a `null`, a row's `dependency` written `null`
+    included, a kind `ir` does not declare, an empty type or half a dependency is refused by
+    `typemap.Decode`, and a row naming an import `Imports` does not bind, an `Imports` key it does
+    not use, or a Go `Codec` by its target, each an options error; one golden per options version
+    pins the built-in table; and two rows that spell one name for two packages generate code that
+    compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
@@ -135,17 +144,27 @@ throughout these documents.
     template's declared names held to what it binds, on Go the table of predeclared identifiers to
     `go/types.Universe.Names()` of the Go release the options version reads, and on Kotlin the table
     of default-imported classes to each name that resolves, on each platform the target builds for,
-    in a file importing nothing. Every name that meets a reserved one, or folds as one where its
+    in a file importing nothing. Bar an import's name and the Swift name of a method or an entry in
+    an Objective-C method family, every name that meets a reserved one, or folds as one where its
     scope compares folded, is its own name with the target's escape, whatever reserved it, and none
     is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
-    that keeps its name, in both declaration orders, and two types that meet one reserved name are
-    the escaped name and that name with a suffix. On Go a caller's package importing every unit
-    under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a method taking
-    a parameter `time2`, in a file importing the standard library's `time` and a unit `time`,
-    compiles its body's use of each. On Go `go list` lists every file the target writes among a
-    package's `GoFiles`, none among the files it ignores or builds for tests alone, on each port `go
-    tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and import path
-    is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
+    that keeps its name, in both declaration orders, two types that meet one reserved name are the
+    escaped name and that name with a suffix, and a scope reserving both a name and its escaped form
+    appends the escape until the result is not reserved. A name a target quotes is quoted last,
+    around the symbol its scope gave, so of two Kotlin properties rendering `class` the second is
+    `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
+    whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
+    a comparison outside the vocabulary, an empty escape or an empty reserved name, a non-empty
+    prefix that fails its role's `Start`, the empty prefix admitted, and a role whose convention
+    leaves a break unmarked or whose leading word, cased as its first word, fails its `Start`,
+    where version 1's `field` cased `Field` is admitted on a Go field. On Go a caller's
+    package importing every unit under its own name compiles its uses of `error`, `string`, `len`
+    and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
+    `time` and a unit `time`, compiles its body's use of each. On Go `go list` lists every file the
+    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
+    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
+    every file and import path is one the module proxy takes
+    ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
@@ -153,22 +172,22 @@ throughout these documents.
     whose constructor takes a string, a `clean` and a `wrapper` at the build's root leave every
     module's sources, no path the build writes, an artifact's or a class file's, has a Windows
     device name for a segment, and the Multiplatform framework links, its header holding none of
-    what only generated code calls and giving each declaration the Swift name the naming policy
-    chose, none of them a type Swift's standard library or Foundation declares, a module's name or a
-    name the export declares for a class of its own or for a class, object or interface of the
-    standard library, so a Swift file that imports the framework and Foundation compiles its uses of
-    both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
-    either module; of the two types `Duration` the one whose ID sorts first exports as `Duration__`
-    and the other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under
-    both orders of their units' packages. The fixture also names a property, a parameterless method,
-    a `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
+    what only generated code calls and giving each declaration the Swift name the target chose, none
+    of them a type Swift's standard library or Foundation declares, a module's name or a name the
+    export declares for a class of its own or for a class, object or interface of the standard
+    library, so a Swift file that imports the framework and Foundation compiles its uses of both,
+    `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by either
+    module; of the two types `Duration` the one whose ID sorts first exports as `Duration__` and the
+    other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under both
+    orders of their units' packages. The fixture also names a property, a parameterless method, a
+    `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
     `zone`, `hash`, `self`, `load`, `copy`, AppKit's `accessibilityIsIgnored` and UIKit's
     `accessibilityLabel` among them, a method of one parameter after each of its one-parameter
     selectors (`responds(toSelector:)`), a method and an entry after a name of each method family,
     and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion object: the header
     builds a module, a Swift caller importing the platform's UI framework reads each property's own
     value into a binding that states no type, calls each method and reaches each entry, of an enum
-    lowered with `OpenEnums` off so that it is an `enum class`, by the name the policy chose, which
+    lowered with `OpenEnums` off so that it is an `enum class`, by the name the target chose, which
     is the name the header gives it, a property `value`, one `version`, a method `hashValue()` and
     an entry `HASH_VALUE` keep their names, `hash`, `copy()` and `responds(to:)` on a model still
     answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion` as its own, and
@@ -235,16 +254,27 @@ throughout these documents.
     enum value, description and example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and
     compiles. Each function map is held to a literal list, and the lint refuses `call`. One worker
     and many give identical artifacts, and so do two runs under different `LC_ALL`, over a fixture
-    whose sort order a collation would change. Two artifacts on one path, and two whose paths fold
-    alike, each draw the error, and a segment of 86 three-byte characters, 258 bytes, where one of
-    85 draws nothing, each Windows device name the rule lists, `conin$` and `com¹` among them,
-    before a first dot in two letter cases and before the first of two (`aux.v1.go`), each character
-    Windows refuses, U+001F among them, and a trailing dot or space each draw
-    `engine/artifact-path-unportable`, where a space inside a segment draws nothing. A template that
-    fails the formatter draws a located error and no artifact, and a build with and without
-    `-trimpath` give identical artifacts. A `Scope` matching nothing and a document with nothing to
-    emit each draw `no-artifacts`. `..`, an absolute path, a sibling sharing the root's prefix and a
-    symlink leaving the root are each refused.
+    whose sort order a collation would change. A generation breaking a path rule is refused by the
+    checked call as a breach of the contract, an error that is `emitters.ErrContract`, names the
+    target and draws no diagnostic, at any threshold and under any triage rule: artifacts out of
+    path order; two on one path, and two whose paths fold alike; a path that is a directory of
+    another, `a` beside `a/b` and `Models` beside `models/x.go`; two that spell one directory two
+    ways, `Models/a.go` beside `models/b.go` and beside `models/sub/b.go`; one that is the
+    manifest's own, its pending twin's or that one's temporary file's, or lies under any of them, in
+    any letter case; a segment of 86 three-byte characters, 258 bytes, where one of 85 is admitted;
+    each Windows device name the rule lists, `conin$` and `com¹` among them, before a first dot in
+    two letter cases, before the first of two (`aux.v1.go`) and before spaces and a dot
+    (`nul .txt`); each character Windows refuses, U+001F among them; a trailing dot or space, where
+    a space inside a segment is admitted; a file's name of 236 bytes, where one of 235 is admitted;
+    an empty path, an absolute one, one holding `\`, a `.` or `..` segment or an empty one (`a//b`,
+    `a/./b`); a header line that lacks the marker where `Header` says it stands, and a placement
+    outside the three; and no artifact with neither an error diagnostic nor a `no-artifacts` warning
+    (where a generation carrying an error diagnostic alone is admitted). The checks' work grows as
+    the artifacts do, over paths nested three directories deep. A template that fails the formatter
+    draws a located error and no artifact, and a build with and without `-trimpath` give identical
+    artifacts. A `Scope` matching nothing and a document with nothing to emit each draw
+    `no-artifacts`. A path reaching a sibling that shares the root's prefix does so through `..`,
+    the breach above, and a symlink in the tree that leaves the root is refused by the writer.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
@@ -492,25 +522,85 @@ throughout these documents.
     `_`, as a schema `10_gbps_to_100_gbps` renders `Type10GbpsTo100Gbps`, and on Multiplatform the
     entries of `1.0` and `10` export to Swift as `value1_0` and `value10`, while of `V12` and `v12`,
     one name, the second takes its suffix after `_` (Go's `V12_2`); names of different words that
-    render alike, `iOSVersion` beside `IOSVersion` under a policy reading spellings, `user_id`
+    render alike, `iOSVersion` beside `IOSVersion` under a convention reading spellings, `user_id`
     beside `user_i_d` under an acronym `ID`, `ıd` beside `id`, a property `1000` beside one spelled
     `field_1000`, on Go a decomposed `café` beside a property spelled `cafeu0301`, two names with no
     words, `=` beside `==`, and in a scope compared folded two that render apart, types `Straße` and
     `Strasse` on Kotlin, each draw one `emitters/naming/collision` on a target that gives one a
-    suffix, naming both and what each was given, two of one neutral name drawing none; and on
-    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
-    Objective-C name as it shipped
+    suffix, naming both and what each was given, two of one neutral name drawing none; members
+    are named by rank and then ID whatever order they arrive in, so a type `UserCreate` keeps its
+    name beside the declaration a type `User`'s create shape takes, whose key sorts first and which
+    is `UserCreate2`; a thousand names rendering alike in one scope resolve in work that grows as
+    their count does, the search for a suffix never starting again from `2`; and on Multiplatform a
+    type added in another unit, its ID sorting first, leaves an incumbent's Objective-C name as it
+    shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
-40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
-    spec reformatted, one drawing a warning among them, is the same generation; a generated file
-    edited outside its regions is reported and neither overwritten nor pruned, by the next
-    generation too, an entity a rename moves out of it written in its new place and its regions left
-    in the kept file, written once, while one edited only inside a region, or checked out with other
-    line endings, is not an edit; a region follows its entity into the file a rename moves it to,
-    one the declaration enclosed still inside it, and one whose entity is gone is reported and its
-    file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
-    entity a correlation key carried across a renamed path variable; a file written once is never
+40. **T-40 · Manifest and integration** — a first generation writes every file and its manifest and
+    reports `engine/first-generation`, into a root that does not exist yet too, and prunes nothing
+    but what a pending manifest lists and a file of the generation's under another spelling of a
+    path it holds; a regeneration whose inputs all match writes nothing and leaves every
+    modification time; a file the generation drops is pruned by its digest, a marked one and one
+    that can hold no comment alike, with each directory that leaves empty; a file at a path no
+    manifest lists is rewritten where it carries the marker and is `engine/artifact-would-overwrite`
+    where it does not, nothing written; with the manifest deleted a file this generation drops
+    stays; a file renamed in letter case alone is pruned and written, its content changed or not,
+    and is `engine/artifact-would-overwrite` where its owner edited the old spelling, on a volume
+    that ignores case and one that does not, and where that rename was cut short and the next
+    generation drops the file or renames it again, a file both spellings name is pruned once and
+    none is reported edited; a file standing under another spelling of a held path that nothing
+    lists, of its name or of a directory it passes through, `readme.md` where a generation adds
+    `README.md` and `Models/user.go` where it holds `models/user.go`, is pruned and the held
+    spelling written where its digest is fresh or it carries the marker, its bytes changed or not,
+    and is `engine/artifact-would-overwrite` where its bytes are its owner's, alike on both volumes;
+    a file and a directory trade places both ways, a directory left empty in the way removed, and a
+    file that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory
+    under a directory a write replaces, or a kept edited listed path whose folded path is a
+    directory prefix of a held path or vice versa (`Models` beside `models/user.go`,
+    `Models/user.go` beside `models`), on a volume that ignores case and one that does not, is
+    `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
+    of a directory a held path passes through, an unchanged file's too, is the same error unless the
+    run's prunes and directory removals remove it first, and so is a file standing there, `Models`
+    beside `models/user.go`, on either volume, one a volume lists decomposed being the same name on
+    a volume that joins the two and another spelling on one that does not; a directory at a dropped
+    listed spelling of a held path, `Setup.kt/notes.txt` beside `SetUp.kt`, is the same error where
+    it holds anything; an empty directory at a listed path the generation drops, or under another
+    spelling of a path held or listed or of a directory one of them passes through, is removed with
+    each directory above it that leaves empty; a symbolic link at a held path or above one is the
+    same error, and one at or above a dropped listed path is kept and reported `engine/file-edited`,
+    nothing written or pruned through it; a manifest or a pending manifest that is no manifest, or a
+    directory or a link at its path, is `engine/manifest-unreadable` with nothing written; a write
+    cut between its temporary file and the rename leaves that file beside its destination, under the
+    name the pending manifest records, and the next run removes it, one the pending manifest's own
+    write left being written over, while a file standing at the name a write would take gives that
+    write's temporary file another; a root holding another target's manifest, or its pending
+    manifest alone, is `engine/manifest-foreign`, and nothing there is pruned; two targets whose
+    roots are one directory, or one inside the other, by the path fold, are refused before any
+    target runs; of two targets one of which would overwrite a file, neither is written, in either
+    order they are named, and at the `none` threshold, or under a triage rule accepting the code,
+    the other is written and that root left as it was; a root changed between its plan and its
+    writes, a file edited or a second plan applied, is refused with nothing written, and a file
+    added under a directory a write replaces is refused when that write meets it, the next run
+    finding it in the write's way; a write cut after any single operation on the disk, a temporary
+    file made, a file removed, a directory removed, the lower of two that one pruned file leaves
+    empty among them, or a file written, heals over any root when the same generation or a later one
+    runs next, itself cut at any operation and run again, the tree then an uninterrupted run's, with
+    no empty directory the root did not hold, no temporary file, no pending manifest and no file
+    reported as edited or in the way, and the run after it doing nothing, a run cut before its
+    pending manifest landed being one that never ran but for the temporary file the next run writes
+    over; so does a first generation over marked files no manifest lists, cut before it replaced
+    them, a run cut before it replaced an empty directory with a file whose path the next generation
+    drops, and a run cut once it replaced a directory `a/b` with a file `a/b`, whose next run
+    removes nothing above the dropped `a/b/x.go`; a pending manifest records no new digest at a path
+    kept as its owner's, so a save of exactly those bytes after a cut run stays the owner's; a spec
+    reformatted, one drawing a warning among them, is the same generation; a generated file edited
+    outside its regions is reported `engine/file-edited` and neither overwritten nor pruned, by the
+    next generation too, an entity a rename moves out of it written in its new place and its regions
+    left in the kept file, written once, while one edited only inside a region, or checked out with
+    other line endings, is not an edit; a region follows its entity into the file a rename moves it
+    to, one the declaration enclosed still inside it, and one whose entity is gone is reported and
+    its file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists
+    no entity a correlation key carried across a renamed path variable; a file written once is never
     written again, even after its user deletes it, nor reported when its user edits it, and one
     marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
     runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
@@ -520,8 +610,9 @@ throughout these documents.
     and draws a warning, a block new to the generation lands beside its neighbours in the generated
     order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
     frozen before its entity's path variable is renamed gains no twin, and its table of contents
-    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
-    refused with nothing written ([write / integrate](../write-integrate.md)).
+    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer, or a
+    pending manifest of a newer, refused as `engine/manifest-newer` with nothing written ([write /
+    integrate](../write-integrate.md)).
 41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
     `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
     places it, and every content, the primary response and the elected content first; a table for
@@ -607,16 +698,18 @@ throughout these documents.
     Windows refuses, as a `:` is, or ending in a dot or a space, and two of 255 bytes that fold
     alike, the second's directory passing the limit, each drawing `engine/snapshot-label-invalid`
     before any target runs, naming the label and the rule it breaks, a label with `#` or `%`
-    percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
-    document writing the one snapshot T-69 says, run for samples alone on each other, and the last
+    percent-encoded in links, a target that is not cross-version named for its artifacts on a
+    sliced document writing the one snapshot T-69 says, run for samples alone on each other, and the
+    last
     label's run taking a prior's `""` entry when the document gains versions; only the run of the
     last label `Routes` keys writes the site-scope `llms.txt`, at the output root, one routed under
     a label's directory refused as a collision, neither pruned nor taken for an edit when another
     label becomes last, the generation's manifest a `Generations`, and the `""` snapshot's run
-    writes one index for its site and version; a target gaining `CrossVersion` reads its prior
-    `Manifest` as the `""` entry and one losing it reads the entry holding the spanning files; a run
-    whose context is done after `Router` returns fails; and the registry refuses a target setting
-    `CrossVersion` without implementing `Router`. A CLI's help keeps a placeholder, a comment and a
+    writes one index for its site and version; a target that becomes cross-version reads its prior
+    `Manifest` as the `""` entry and one that stops being so reads the entry holding the spanning
+    files; a run whose context is done after `Router` returns fails; and a target is cross-version
+    exactly where its generator implements `Router`, no flag saying so. A CLI's help keeps a
+    placeholder, a comment and a
     link's URL as text, keeps line feeds and tabs and drops every other control character. A body
     narrowing a union gives the flags of each of its entries, those of two entries excluding each
     other, and never echoes one whose member an entry's `Redacted` lists. A nested group's route
@@ -642,8 +735,8 @@ throughout these documents.
     says, one with no configuration refused; an operation with no success scenario has no sample,
     drawing no diagnostic where `Assemble` off chose that and `sample-unrendered` where a required
     input held no example; a named target the registry lacks, without `WritesSamples` or that reads
-    samples, and a `ReadsSamples` target whose options do not implement `SampleReader`, are
-    `engine/sample-target-invalid`; and a docs generation whose samples, routes or snapshot label
+    samples itself, its generator implementing `SampleReader`, is `engine/sample-target-invalid`;
+    and a docs generation whose samples, routes or snapshot label
     changed, its own inputs unchanged, is a new generation ([docs and mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored,
     one holding only an `ExternalURL` shown as a link and held by no set, and one its type and
@@ -992,14 +1085,17 @@ throughout these documents.
     reserved name or each other (`…Kt`, two variants folding alike, two operations folding alike
     that end in a digit), generates code that compiles on every target: each identifier of a role
     written into a path within the cap but for its escape and its suffix, a shortened one keeping
-    its leading words and its hash word and drawing one `emitters/<target>/name-shortened`, two that
-    share their first 110 bytes apart, among them two names with no words (twelve and thirteen `_`),
-    two types named from hints and one long type's create and patch declarations, the property's
-    name whole, and no segment of a path the build writes past 255 bytes, every class file kotlinc
-    writes among them, each counted as if every name at the cap it holds had taken the 8 bytes the
-    naming steps may add, so a variant's serializer is at most 255 bytes and a class written for a
-    method's body adds at most 12 after the method's name, none of them named for an inline function
-    ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+    its leading words and its hash word, the hash cased and set off as a word is, a name written
+    as a path segment, a Go package's, a Go file's and a Kotlin unit's, keeping its first 102 bytes
+    and the hash's eight digits, each once any character is written by its name, so 30 Cyrillic
+    letters, 150 bytes so written, are 110, and each drawing one `emitters/<target>/name-shortened`,
+    two that share their first 110 bytes apart, among them two names with no words (twelve and
+    thirteen `_`), two types named from hints and one long type's create and patch declarations, the
+    property's name whole, and no segment of a path the build writes past 255 bytes, every class
+    file kotlinc writes among them, each counted as if every name at the cap it holds had taken the
+    8 bytes the naming steps may add, so a variant's serializer is at most 255 bytes and a class
+    written for a method's body adds at most 12 after the method's name, none of them named for an
+    inline function ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
     does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark
@@ -1009,22 +1105,25 @@ throughout these documents.
     spelled with a Kelvin sign beside `User` and its alias, which folds as a name ending in `Kt` and
     on Kotlin is `UserKt_` with the sign kept, generates code that compiles on every target: on Go
     each character a role cannot hold written by its name once the identifier is cased, its `u` in
-    lower case and its hex four digits at least (`Cafeu0301`, `Field_u0301x`, `u11046`), and every
-    import path in ASCII; on Kotlin each such identifier in backticks with the spec's characters (a
+    lower case and its hex four digits at least (`Cafeu0301`, `Field_u0301x`, `u11046`), a group
+    beginning with U+0301 and `x` led before writing by name (`pkgu0301x`), and every import path in
+    ASCII; on Kotlin each such identifier in backticks with the spec's characters (a
     type `Ɤx`, a property of `field_`, U+0301 and `x`), a collision's suffix inside them, built for
     the JVM, JS, Wasm and a framework, under the serialization plugin, every KDoc link to one
-    resolving, and every module published to a Maven repository; and the policy's casing of every
-    code point equal to a golden held to the options version, so a Go release moving its Unicode
-    tables fails the suite and renames nothing. A caller in another unit, a Go package or a Kotlin
+    resolving, and every module published to a Maven repository; and the casing of every code
+    point, read from the case tables of the Unicode version the options version names, equal to a
+    golden held to that version, so a Go release moving its Unicode tables renames nothing, the
+    tables equal to the building release's own for every code point where it holds that version. A
+    caller in another unit, a Go package or a Kotlin
     module, and a Java caller, sets and reads each property and calls each operation by its rendered
     name; a name holding U+2E2F links into a Multiplatform framework whose header clang compiles,
     and a Swift file importing the framework reaches each class, property and entry by the Swift
-    name the policy chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a
+    name the target chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a
     framework `Probe` and `ProbeA日本Builder` for the builder it nests, or an explicit name in ASCII
     where it takes one, as enum entries `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both
     declaration orders, and each method whose name or a parameter's is past ASCII, an ASCII
     `fetch(id:名前:)` and a `listBy(id:名前:)` among them, by the name read from the built module, its
-    selector the policy's
+    selector the target's
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
     [leading
     words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
@@ -1124,7 +1223,7 @@ throughout these documents.
     decorator not at all; a Kotlin unit holding types `UserKt` and `UserCreateKt` beside `User` and
     its alias declares them `UserKt_` and `UserCreateKt_` and builds on the JVM and as a framework
     whose header names no class for the alias's file, and two units each holding a literal `Kind`
-    give each constant, in both orders of the units' packages, the Swift name the policy chose,
+    give each constant, in both orders of the units' packages, the Swift name the target chose,
     `Kind.shared.VALUE` and the other's under its object's suffix, no file holding the spec's
     declarations declaring a function or a property at its top level; a model only a `PUT` writes,
     with a `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`,
@@ -1371,7 +1470,7 @@ throughout these documents.
     the registry refuses `rpc` without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol
     outside the vocabulary ([bindings](../plan/bindings.md),
     [capabilities](../contract/registry.md#capabilities)).
-69. **T-69 · One snapshot for a target without `CrossVersion`** — on a document sliced into three
+69. **T-69 · One snapshot for a target that is not cross-version** — on a document sliced into three
     versions, the Go, Kotlin and mock-server targets each write the snapshot `RunOptions.Version`
     names at the output root, its `Snapshot` that label, the first and the last alike; a run naming
     none is `engine/target-unversioned` before any run, its message naming the three labels, and
@@ -1465,14 +1564,17 @@ throughout these documents.
     tests under its declared checks on the gate's host, its samples compiled among its test sources
     and never run; a planted compile error inside a method of a client is reported at the operation
     whose declaration holds it, through `Artifact.Spans`, with a kept region restored above it or
-    inside it as without, one on an import line, in a file its owner edited or in one a merge
-    adapter wrote at its file, and a message with no position at the target; the same error is
-    reported once, the checks after the failing one not run; a toolchain missing, older than its
-    minimum or newer than its maximum, and a `Setup` check that fails, each skip the checks
-    depending on it under `check-skipped`, never reading as a pass; a check running past its
-    `Timeout` is ended with the processes it started and has failed; a failing check leaves the
-    written files in place and fails the run; and a run that does not ask for the check starts no
-    process ([verification](../verification.md#the-output-builds)).
+    inside it as without, and likewise in a file a second run finds as generated and does not write,
+    one on an import line, in a file its owner edited, kept at a path the generation holds or at one
+    it dropped, or in one a merge adapter wrote at its file, and a message with no position at the
+    target; the same error is reported once, the checks after the failing one not run; a toolchain
+    missing, older than its minimum or newer than its maximum, and a `Setup` check that fails, each
+    skip the checks depending on it under `check-skipped`, never reading as a pass; a check running
+    past its `Timeout` is ended with the processes it started and has failed; a failing check leaves
+    the written files in place, and one reported under `check-failed` fails the run at the default
+    threshold; and a run that does not ask for the check, or that failed before it, starts no
+    process, and a run that stands starts none in a root whose plan drew an error
+    ([verification](../verification.md#the-output-builds)).
 74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
     naming no entity of the document, a declaration written under an `Origin` with no entry, a
     shape's declaration among them, an entry naming no declaration, and two entries of one scope
@@ -1503,3 +1605,24 @@ throughout these documents.
     parameters validates, one setting two variants' fails naming the choice, and one setting none
     fails only where the choice is required ([choices among
     parameters](../../ir/operations.md#choices-among-parameters)).
+77. **T-77 · Configuration** — `options.Decode` refuses an unknown member, a repeated one, a missing
+    version, a version past the last and a `null` at a string, a map, a list and a nested member,
+    and admits one at a pointer; it fills what a configuration leaves unset from its stated
+    version's defaults, a map merged key by key, and at a version behind the current one reports
+    each unset setting and each map entry whose default moved, under the code it is given, sorted
+    by path and alike on two runs. `options.DecodeLayer` refuses a `null` at a pointer too.
+    `options.Canonical` sorts members at every depth and keeps `9007199254740993` exact, and two
+    options structs declaring their fields in two orders give one digest. `emitters.Configure`
+    refuses as a breach each thing [the checked calls](../contract/emitter.md#the-checked-calls)
+    list, a `Canonical` holding whitespace, members out of order or a name twice among them, and
+    passes a target's own refusal on with no `Bound`. `TargetKey.Validate`, and so `Register` and
+    `project.Validate`, refuses an empty key, `a//b`, `-go`, `go/-x`, an upper-case letter and a
+    first segment naming each kernel package, and admits `go`, `kotlin-jvm` and `mock/go`.
+    `project.Decode` refuses a file stating no version, an unknown member, an empty `output`, absent
+    options or options that are no object, two roots one inside the other by the fold, `sdk/nul`
+    and `C:\sdk\go`, admits `{}` as a target's options, which that target's `Configure` then
+    refuses, and resolves `./sdk/go`, `a/..`, `..` and `../../sdk/go` against the file's
+    directory. A run whose target's options `Configure` refuses fails before its spec is read.
+    `engine/target-experimental` and `engine/target-sunset`, naming the successor, are each
+    reported once in a run over three snapshots ([target options](../contract/options.md), [the
+    project](../contract/project.md), [the registry](../contract/registry.md)).

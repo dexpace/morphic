@@ -85,17 +85,18 @@ func PreserveSchemaKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, ke
 // keyword: it keeps the keyword under ReasonValidationOnly, at its own node,
 // which is what a validation emitter reports against, and announces it at
 // pointer, the schema that wrote it. What PreserveSchemaKeyword keeps nothing
-// of, it announces nothing of. A validation-only entry combining several
-// keywords has no such node and is not kept here but by Read, which attributes
-// it by the keywords it holds (GitHub #534).
+// of, it announces nothing of, reporting whether the entry was written. A
+// validation-only entry combining several keywords has no such node and is not
+// kept here but by Read, which attributes it by the keywords it holds
+// (GitHub #534).
 func PreserveValidationOnlyKeyword(unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string,
 	pointer jsontext.Pointer, doc provenance.Doc,
-) []ir.Diagnostic {
+) (bool, []ir.Diagnostic) {
 	kept, diags := PreserveSchemaKeyword(unmodeled, schema, keyword, ir.ReasonValidationOnly, pointer, doc)
 	if !kept {
-		return diags
+		return false, diags
 	}
-	return append(diags, validationOnlyNote(doc.At(pointer), keyword))
+	return true, append(diags, validationOnlyNote(doc.At(pointer), keyword))
 }
 
 // unpreservableDiag reports a construct the compiler could neither model nor
@@ -163,6 +164,7 @@ func CopyEntriesInto(unmodeled *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic 
 			continue
 		}
 		entry.Value = entry.Value.Clone()
+		entry.Targets = maps.Clone(entry.Targets)
 		(*unmodeled)[key] = entry
 	}
 	slices.Sort(taken)

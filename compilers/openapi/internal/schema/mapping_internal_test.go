@@ -51,7 +51,7 @@ func TestChainOf_EndsWhereTheValueNames(t *testing.T) {
 		"#/components/schemas/Cat": ids.DocumentIDNamespace{}.NamedType("/components/schemas/Cat"),
 		"Dog":                      ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "Dog")),
 		"A/B":                      ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "A/B")),
-		"":                         ids.DocumentIDNamespace{}.AnonymousType(ids.Ptr("components", "schemas", "")),
+		"":                         ids.DocumentIDNamespace{}.NamedType(ids.Ptr("components", "schemas", "")),
 	} {
 		chain, ok := chainOf(lowerer.Ctx, discriminator, value)
 		require.True(t, ok, value)

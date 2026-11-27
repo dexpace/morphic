@@ -2142,3 +2142,18 @@ components:
 			"%s: one info and one warning, in the document writing the entry", tc.operation)
 	}
 }
+
+// TestPartEncodings_KeptWholeAtSettlementDiscardsHeaderTypesAndUnmodeled pins
+// that when partKeys.Settle keeps an encoding entry whole instead of keying it
+// on Content.Encoding, any lowered header schema type and Unmodeled provenance
+// dropped with the entry is recorded for post-settlement pruning.
+func TestPartEncodings_KeptWholeAtSettlementDiscardsHeaderTypesAndUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, formDoc("", multipartForm,
+		"{type: string, properties: {part: {type: string}}}",
+		"{part: {headers: {X-Meta: {x-note: 1, schema: {type: object, properties: {k: {type: string}}}}}}}", ""))
+	openapitest.RequireNoErrorDiags(t, diags)
+	content := formContent(t, svc, false)
+	assert.Empty(t, content.Encoding)
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/part")
+}
