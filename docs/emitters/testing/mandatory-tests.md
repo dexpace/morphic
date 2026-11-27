@@ -155,7 +155,8 @@ throughout these documents.
     `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
     whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
     a comparison outside the vocabulary, an empty escape or an empty reserved name, and a role whose
-    convention leaves a break unmarked or whose leading word, cased as its first word, fails its
+    convention leaves a break unmarked, whose prefix fails its `Start`, or whose leading word, cased
+    as its first word, fails its
     `Start`, where version 1's `field` cased `Field` is admitted on a Go field. On Go a caller's
     package importing every unit under its own name compiles its uses of `error`, `string`, `len`
     and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
@@ -562,8 +563,10 @@ throughout these documents.
     it holds anything, and an empty one is removed before the write; a symbolic link at a held path
     or above one is the same error, and one at or above a dropped listed path is kept and reported
     `engine/file-edited`, nothing written or pruned through it; a manifest or a pending manifest
-    that is no manifest, or a directory at its path, is `engine/manifest-unreadable` with nothing
-    written; a root holding another target's manifest, or its pending manifest alone, is
+    that is no manifest, or a directory or a link at its path, is `engine/manifest-unreadable` with
+    nothing written; a write cut between its temporary file and the rename leaves that file beside
+    its destination, in the destination's own directory and never at the root's top; a root
+    holding another target's manifest, or its pending manifest alone, is
     `engine/manifest-foreign`, and nothing there is pruned; two targets whose roots are one
     directory, or one inside the other, by the path fold, are refused before any target runs; of two
     targets one of which would overwrite a file, neither is written, in either order they are named,
@@ -574,10 +577,13 @@ throughout these documents.
     write cut after any single operation on the disk, a file removed, a directory removed, the lower
     of two that one pruned file leaves empty among them, or a file written, heals when the same
     generation or a later one runs next, itself cut at any operation and run again, the tree then an
-    uninterrupted run's, with no empty directory, no pending manifest and no file reported as edited
-    or in the way, and the run after it doing nothing, as does a first generation over marked files
-    no manifest lists, cut before it replaced them, and a run cut once it replaced a directory `a/b`
-    with a file `a/b`, whose next run removes nothing above the dropped `a/b/x.go`; a pending
+    uninterrupted run's, with no empty directory the root did not hold, no pending manifest and no
+    file reported as edited or in the way, and the run after it doing nothing, as does a first
+    generation over marked files no manifest lists, cut before it replaced them, and a run cut once
+    it replaced a directory `a/b` with a file `a/b`, whose next run removes nothing above the dropped
+    `a/b/x.go`; the one way such a tree may differ from an uninterrupted run's is an empty
+    directory where a generation writes a file, which an uninterrupted run removes and which stands
+    after a run cut before that write when the generation that finishes no longer writes there; a pending
     manifest records no new digest at a path kept as its owner's, so a save of exactly those bytes
     after a cut run stays the owner's; a spec reformatted, one drawing a warning among them, is the
     same generation; a generated file edited outside its regions is reported `engine/file-edited`
@@ -1606,7 +1612,8 @@ throughout these documents.
     first segment naming each kernel package, and admits `go`, `kotlin-jvm` and `mock/go`.
     `project.Decode` refuses a file stating no version, an unknown member, an empty `output`, absent
     options or options that are no object, two roots one inside the other by the fold, `sdk/nul`
-    and `C:\sdk\go`, and resolves `./sdk/go`, `a/..`, `..` and `../../sdk/go` against the file's
+    and `C:\sdk\go`, admits `{}` as a target's options, which that target's `Configure` then
+    refuses, and resolves `./sdk/go`, `a/..`, `..` and `../../sdk/go` against the file's
     directory. A run whose target's options `Configure` refuses fails before its spec is read.
     `engine/target-experimental` and `engine/target-sunset`, naming the successor, are each
     reported once in a run over three snapshots ([target options](../contract/options.md), [the

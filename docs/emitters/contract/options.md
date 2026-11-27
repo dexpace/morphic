@@ -89,14 +89,15 @@ func Canonical[T any](value T) ([]byte, error)
   version, `Configuration.Version`.
 - **One canonical form.** `Configuration.Canonical` ([the
   contract](emitter.md#a-target-is-configured-once)) is the decoded value as `Canonical` writes it:
-  RFC 8785's form with each integer kept as written, which is what
-  `jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` leaves unchanged — members
-  sorted by name, no whitespace, each string in its shortest escaping, valid UTF-8 and no name
-  twice. RFC 8785 alone writes every number as a double, and `Canonicalize` wrote
-  `9007199254740993` as `9007199254740992` (Go 1.27.3), so two configurations would digest alike.
-  The IR's encoding, `json.Deterministic`, keeps a struct's members in the order Go declares them,
-  which nothing reading the bytes alone can confirm. This form can be: `emitters.Configure` refuses
-  bytes that call would change, and a target reordering its options struct moves no digest.
+  RFC 8785's form with each integer's digits kept as written, which is the bytes
+  `jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` accepts without an error and
+  leaves unchanged — members sorted by name, no whitespace, each string in its shortest escaping,
+  and `-0` written `0` — since it refuses invalid UTF-8 and a name twice. RFC 8785 alone writes
+  every number as a double, and `Canonicalize` wrote `9007199254740993` as `9007199254740992` (Go
+  1.27.3), so two configurations would digest alike. The IR's encoding, `json.Deterministic`, keeps
+  a struct's members in the order Go declares them, which nothing reading the bytes alone can
+  confirm. This form can be confirmed from the bytes: `emitters.Configure` refuses bytes that call
+  refuses or would change, and a target reordering its options struct moves no digest.
 
 T-77 holds these rules.
 

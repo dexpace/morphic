@@ -250,9 +250,9 @@ diagnostic coded outside the target's own namespace ([below](#the-codes-a-target
 diagnostic whose severity the IR does not declare or whose provenance names a source (anything other
 than `ir.NoSource`, since `Configure` reads no document), and a `Configuration` stating a version
 below 1 or carrying a `Canonical` that is not a JSON object, or that
-`jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` would change, the one form a
-configuration is digested in ([target options](options.md)). A configuration the target itself
-refuses is the target's error, passed on as it is, with no `Bound` and no diagnostics.
+`jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` refuses or would change, the one
+form a configuration is digested in ([target options](options.md)). A configuration the target
+itself refuses is the target's error, passed on as it is, with no `Bound` and no diagnostics.
 
 `Generate` holds a generation to these duties:
 

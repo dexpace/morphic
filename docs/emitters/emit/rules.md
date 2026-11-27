@@ -131,11 +131,11 @@ the tree the rule exists to prevent.
   `emitters/<target>/no-artifacts` naming the cause, such as a `Scope` that matches nothing or a
   document with no type or operation, so an empty directory never reads as success. A generation
   holding no artifact, no error diagnostic and no `no-artifacts` warning is a breach.
-- **Contained writes.** Every `Path` is forward-slashed, clean (`path.Clean` leaves it as it is, so
-  no segment is empty, `.` or `..`), local (`filepath.IsLocal` once converted) and names a file, or
-  the generation is a breach and nothing of the run is written. `filepath.IsLocal` alone admits
-  `a//b` and `a/./b` (Go 1.27.3), each a second spelling of `a/b` that the fold, which compares
-  strings, does not join with it. The engine
-  then reads and writes through an `os.Root` opened at the target's output root, which refuses what
-  only the disk shows: a symlink in the tree that leaves it. A string prefix is no check, as
-  `out-evil` starts with `out`, and a lexical check alone passes the symlink.
+- **Contained writes.** Every `Path` is forward-slashed, clean (`path.Clean` leaves it as it is),
+  local (`filepath.IsLocal` once converted) and names a file, which together leave no segment empty,
+  `.` or `..`, or the generation is a breach and nothing of the run is written. `filepath.IsLocal`
+  alone admits `a//b` and `a/./b` (Go 1.27.3), each a second spelling of `a/b` that the fold, which
+  compares strings, does not join with it. The engine then reads and writes through an `os.Root`
+  opened at the target's output root, which refuses what only the disk shows: a symlink in the tree
+  that leaves it. A string prefix is no check, as `out-evil` starts with `out`, and a lexical check
+  alone passes the symlink.

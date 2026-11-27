@@ -114,11 +114,12 @@ func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[stri
   two words unmarked, one joining them with `""` whose `Rest` is not `Capital` or whose `First` is
   `Upper` (`ABC` and `Def` make `ABCDef`), empty words, an uninitialized `CaseTables`, a
   `Role.LeadingWord` that is empty or, cased as the role's first word, fails `Start` (or, for
-  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a comparison outside
-  the two, an empty reserved name, or an empty `escapeSuffix` — and `Resolve` for a list it cannot
-  name: one ID twice, or an empty rendered name. The leading word is checked as it is written, so
-  version 1's `field` passes as Go's `Field`, and a role whose `First` is `Lower` beside a `Start`
-  of `UpperCaseLetterOnly`, which no leading word could satisfy, is refused.
+  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a `prefix` that fails
+  `Start`, being an identifier its owner's role rendered, which takes no leading word, a comparison
+  outside the two, an empty reserved name, or an empty `escapeSuffix` — and `Resolve` for a list it
+  cannot name: one ID twice, or an empty rendered name. The leading word is checked as it is
+  written, so version 1's `field` passes as Go's `Field`, and a role whose `First` is `Lower` beside
+  a `Start` of `UpperCaseLetterOnly`, which no leading word could satisfy, is refused.
 - **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
   of one Unicode version, read from data in the package and never from the `unicode` package of
   the Go release that builds Morphic
@@ -478,21 +479,23 @@ package read none of the fields `名前`, `ʰx`, `ßx`, `ᾼx` and, past the BMP
 unexported field 名前`), and read `Ꭰx`, `𝐀x` and `ℤx`, which begin with upper-case letters.
 
 Where the identifier a role composes would begin with a character the role cannot begin with,
-`RenderCasing` puts the role's leading word before its words, as their first word and cased so,
-ahead of a prefix where the role composes one, and the node it names carries `Inferred` provenance,
-`leading-word` (INV6). That is a digit or a mark in every role, and on Go, in a role it exports, a
-type, a field, a method or a constant, any character but an upper-case letter (category `Lu`). The
-test reads the identifier once cased and before any character is written by its name
+`RenderCasing` puts the role's leading word before its words, as their first word and cased so, and
+the node it names carries `Inferred` provenance, `leading-word` (INV6). That is a digit or a mark in
+every role, and on Go, in a role it exports, a type, a field, a method or a constant, any character
+but an upper-case letter (category `Lu`). The test reads the identifier once cased and before any
+character is written by its name
 ([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a word beginning with a
 mark takes the word on every target, where Go's would else begin with the `u` of the mark's name.
 The test reads the composed identifier, not the name: a Go enum constant begins with its enum's name
 ([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make `Code1000` and need no word,
-where a Kotlin entry is the member's name alone and takes one. A hint is held to the same test. A
-parameter and a package, which Go leaves unexported, and every Kotlin role, which takes `名前` as it
-is, take a word before a digit or a mark alone. Leaving such a Go name unexported was not taken,
-since a caller outside its package could neither set nor read it, nor was writing Kotlin's in
-backticks as it stands, a name javac cannot write and the Objective-C export renames or, before a
-mark, cannot write.
+where a Kotlin entry is the member's name alone and takes one. A prefix never takes the word: it is
+an identifier its owner's role already rendered, and `Render` refuses one that fails the role's
+`Start` (above), so a composed identifier begins either with a prefix that passes or with the name's
+own words. A hint is held to the same test. A parameter and a package, which Go leaves unexported,
+and every Kotlin role, which takes `名前` as it is, take a word before a digit or a mark alone.
+Leaving such a Go name unexported was not taken, since a caller outside its package could neither
+set nor read it, nor was writing Kotlin's in backticks as it stands, a name javac cannot write and
+the Objective-C export renames or, before a mark, cannot write.
 
 The words are a naming table too, one per role, and like the character names a default of the
 target's options version ([target options](../contract/options.md)). Version 1's are `type` for a
