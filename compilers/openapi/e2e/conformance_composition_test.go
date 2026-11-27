@@ -676,9 +676,10 @@ func assertDiscriminatorAliasMapping(t *testing.T, doc *ir.Document, diags []ir.
 
 // assertDiscriminatorDefaultMapping pins Discriminator.Default, whose only source
 // is the 3.2 discriminator.defaultMapping — and with it that a 3.2-only schema
-// keyword compiles without an error diagnostic (GitHub #146). The library checks
-// every schema object against the 3.1 meta-schema whatever the document says, so
-// before this the spec below failed to compile and the field had no witness.
+// keyword compiles without an error diagnostic (GitHub #146). The library then
+// checked every schema object against the 3.1 meta-schema whatever the document
+// said, so before that fix the spec below failed to compile and the field had no
+// witness.
 func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, diagsAt(diags, "openapi/validation/validation-invalid-schema",
 		"/components/schemas/Pet/discriminator/defaultMapping"),

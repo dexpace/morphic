@@ -83,7 +83,7 @@ var validationReasons = map[string]string{
 		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
 		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
-		"3.2; a cookie parameter's style: cookie before 3.2; a discriminator's defaultMapping before 3.2, which its " +
+		"3.2; a cookie parameter's style: cookie before 3.2; a discriminator's defaultMapping in 3.1, which its " +
 		"3.1 meta-schema closes; an xml nodeType before 3.2, which its 3.0 and 3.1 meta-schemas close); the table " +
 		"reports it as the later-version-construct warning, since only a later minor defines it, and lowers it as " +
 		"that minor",
@@ -143,8 +143,8 @@ var validationReasons = map[string]string{
 		"warns of each other key, at the key, wherever its object is written",
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
-		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
-		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
+		"MUST include either a content field or a schema field, but not both'), a Header Object writes no in " +
+		"(3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
 		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
