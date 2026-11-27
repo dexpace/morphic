@@ -64,7 +64,8 @@ var validationReasons = map[string]string{
 		"character (3.2.0 §Server Variable Object: 'server-url-template = 1*( literals / server-variable )'); a " +
 		"Parameter Object in, which must be one of its listed values (3.2.0 §Parameter Object: 'Possible values " +
 		"are'); a path parameter name, which must match a template expression (3.2.0 §Parameter Object: 'the name " +
-		"field MUST correspond to a single template expression')",
+		"field MUST correspond to a single template expression'); a header name, a parameter's or an API key's, " +
+		"which must be a token of one character or more (RFC 9110 §5.6.2: 'token = 1*tchar')",
 	"relaxed-requirement": "the library requires a field the declared minor made optional, an Operation's responses " +
 		"from 3.1 and a Response's description from 3.2; 3.0.4 §Operation " +
 		"Object marks responses REQUIRED and 3.1.2 does not, 3.1.2 §Response Object marks description REQUIRED and " +
@@ -149,7 +150,8 @@ var validationReasons = map[string]string{
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
 		"insensitive'), and so is a headers map's key, two of which naming one header in different case name it " +
-		"twice (3.1.2 §Response Object: 'Maps a header name to its definition')",
+		"twice (3.1.2 §Response Object: 'Maps a header name to its definition'), and no two tags share a name " +
+		"(3.1.2 §OpenAPI Object: 'Each tag name in the list MUST be unique')",
 	"querystring-keywords": "the library accepts explode and allowReserved at in: querystring, which 3.2 bars " +
 		"there as it bars style (3.2.0 §Parameter Object: 'These fields MUST NOT be used with in: \"querystring\"'); " +
 		"the table warns of each as invalid-location-keyword: the content says what the parameter means, and the " +
