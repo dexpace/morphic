@@ -320,6 +320,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   `barrier.Catch` alone did (#1130).
 - **Probe.** List the domain types each new declaration names; one naming none is a candidate.
 
+## Order a struct's fields for the size `fieldalignment` reports as optimal
+`fields-in-optimal-size-order`
+
+- **Rule.** A struct a change adds or grows orders its fields to the size `fieldalignment` reports as
+  optimal, `ir` structs included, and keeps that order over the one a document lists. JSON v2
+  encodes members in declaration order, which the shape pin ignores, so goldens move and `IRVersion`
+  does not. No lint holds it until #2300 lands.
+- **Why.** #1388 packed `ir.HTTPBinding` and `ir.PartEncoding`; a revert to the order `docs/ir`
+  lists was undone at the maintainer's request, and the packing moved 50 goldens in member order
+  alone (#1388).
+- **Probe.** Over each package the change touches,
+  `go run golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment ./<package> 2>&1 | grep 'optimal size'`
+  names no struct the change adds or grows.
+
 ## Keep build constraints out of production files
 `no-build-constrained-production-file`
 
