@@ -6733,8 +6733,8 @@ is reported once. The table runs before any lowering decides what becomes of the
 operation may lower it, an operation's own parameter may override it ([`parameters`](#parameters)),
 and it may be kept verbatim, as a component nothing references is
 ([`unreferenced-components`](#unreferenced-components)) and a path item mounting no operation keeps
-its parameters ([`parameters`](#parameters)). So the message states the reservation and that the
-compiler leaves it to the emitter, and claims nothing of the definition's fate.
+its parameters ([`parameters`](#parameters)). So the message states the reservation and stops: it
+claims nothing of the definition's fate, nor that a later stage applies the rule.
 
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,

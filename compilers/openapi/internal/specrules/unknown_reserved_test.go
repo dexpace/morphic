@@ -221,11 +221,11 @@ func TestCheck_TheTableWordsAndGradesWhatItReports(t *testing.T) {
 	assert.Equal(t, diag.ReservedHeaderName, reserved[0].Code)
 	assert.Equal(t, ir.SeverityWarning, reserved[0].Severity)
 	assert.Equal(t, `header parameter "content-type" is reserved: OpenAPI says a definition for Content-Type `+
-		"SHALL be ignored, a rule the compiler leaves to the emitter", reserved[0].Message)
+		"SHALL be ignored", reserved[0].Message)
 
 	entry := run(t, "3.1.0", specrules.Response, `{description: ok, headers: {content-type: {schema: {type: string}}}}`)
 	require.Len(t, entry, 1)
 	assert.Equal(t, diag.ReservedHeaderName, entry[0].Code)
 	assert.Equal(t, `header "content-type" is reserved: OpenAPI says a Content-Type entry in a headers map `+
-		"SHALL be ignored, a rule the compiler leaves to the emitter", entry[0].Message)
+		"SHALL be ignored", entry[0].Message)
 }
