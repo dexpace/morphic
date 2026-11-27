@@ -308,9 +308,9 @@ it.
 ## Assert on a cyclic fixture through scalars and pointer identity
 `cyclic-fixture-asserts-scalars`
 
-- **Rule.** In a test whose fixture holds a cycle, never hand testify the cyclic value: it formats
-  a value on failure, and on one cyclic through a slice or map recurses until the stack overflows
-  and kills the test binary. Compare strings, lengths and pointer identity, or use `cmp.Diff` once a
+- **Rule.** In a test whose fixture holds a cycle, never hand testify a value cyclic through a slice
+  or map: on failure it formats the value and recurses until the stack overflows, killing the test
+  binary. Compare strings, lengths and pointer identity, or use `cmp.Diff` once a
   planted failure shows it reports on that fixture, and see the test report rather than crash.
 - **Why.** A failing assertion on a group slice holding itself overflowed the stack and took the
   whole `ir` test binary down, its trace pointing at another test (#1145).

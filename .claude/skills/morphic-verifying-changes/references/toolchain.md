@@ -191,7 +191,8 @@
   `references/mutation.md#stop-a-plant-run`.
 - **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
   machine and may have stopped another run's plants (#1938).
-- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant.
+- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant;
+  after `kill` of `sh -c 'sleep 30 & wait'`, `ps -o ppid= -p <the sleep>` prints 1.
 
 ## Spell a class in `git grep -E` the POSIX way, and control every zero
 `git-grep-posix-classes`
@@ -226,11 +227,10 @@
   the `Makefile`'s list. A bump made by hand takes only the indirect moves a direct module's own
   `go.mod` requires, as Dependabot does, and runs `go build ./...` before any test.
 - **Why.** A refresh beside #804's library bump moved a transitive YAML iterator to a release taking
-  another YAML package's nodes, which broke the build while `go mod tidy` passed, though the
-  library's `go.mod` required none of those moves; #394 took only what its library required (#804,
-  #394).
-- **Probe.** For each module but the bumped one that `git diff go.mod` moves,
-  `go mod graph | grep -x '<bumped>@<new> <module>@<version it moves to>'` prints its line, and
+  another YAML package's nodes, breaking the build while `go mod tidy` passed, though the library's
+  `go.mod` required no such move; #394 took only what its library required (#804, #394).
+- **Probe.** For each module but the bumped ones that `git diff go.mod` moves,
+  `go mod graph | grep -x '<a bumped one>@<new> <module>@<its new version>'` prints a line, and
   `go build ./...` exits 0.
 
 ## Probe build-cache reuse from one checkout path
@@ -244,7 +244,7 @@
   change rebuilding everything, though CI checks out to one path (#755).
 - **Probe.** Under `GOFLAGS=` and then under `GOFLAGS=-trimpath`, each time after
   `go build ./ir/irfacts` in one worktree, `go build -x ./ir/irfacts 2>&1 | grep -c '/compile '` in
-  a second at that commit prints a count, then 0.
+  a new second worktree at that commit prints a count, then 0.
 
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`
