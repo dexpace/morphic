@@ -36,6 +36,19 @@ round runs and when the loop ends.
   the merged `HEAD`, a stacked PR's list held `main`'s files (#1614).
 - **Probe.** The reader's brief lists those cells; the report runs or settles each.
 
+## Question whether text an earlier fix added is needed before repairing it
+`question-the-fixed-text-first`
+
+- **Rule.** From the third round on, answer a finding against text an earlier fix added by asking
+  first whether that text is needed. Candidates start with removing it and narrowing it to what was
+  measured, stating the limit where the rule lives; choose a new mechanism only where a consumer
+  gets a wrong result without one.
+- **Why.** #1783 (`0cd087ff6`) holds the version-stamp, event/URL and reserved-names rewrites #1790
+  describes, where rounds 3 to 5 repeatedly repaired text earlier fixes had added until candidates
+  started with removal and narrowing (#1790).
+- **Probe.** For each fix, `git log -S'<sentence fixed>' --format='%h %s'` names the adding commit,
+  and the report states whether that commit was a fix.
+
 ## Narrow the round after a nit-only round to its fixes
 `nit-round-checks-its-fixes`
 

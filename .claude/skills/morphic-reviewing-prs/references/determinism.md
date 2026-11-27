@@ -21,6 +21,9 @@ and machine, with IDs from source pointers and never from names or order (`CLAUD
    reruns, the JSON round trip, pass idempotence and both orders, and its summary names each oracle
    that declined the spec, which asked it nothing
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#order-oracle-errors`).
+6. Where the change orders, dedupes or breaks a tie by a pointer, or folds what a `$ref` brings,
+   compose two files at the same pointers in both orders
+   (`references/determinism.md#orders-across-two-documents`).
 
 The matrix is each construct and fact by order and limit, with the diff each produced.
 
@@ -29,11 +32,39 @@ The matrix is each construct and fact by order and limit, with the diff each pro
 
 - **Rule.** Where a verdict turns on a limit, a count or an exemption for whichever comes first,
   compile both declaration orders at each limit from below the document's cost to above it, and
-  diff the verdicts and diagnostics. The order oracle compiles at the default limits alone, so it
-  passes such a verdict on any document whose cost is far from them.
+  diff the verdicts and diagnostics (`references/determinism.md#charged-walk-sorts-its-map`). The
+  order oracle compiles at the default limits alone, so it passes such a verdict on any document
+  whose cost is far from them.
 - **Why.** A 3.2 path item's first `additionalOperations` entry went uncharged, so the order of two
   entries decided the total, and the oracle passed it on every committed spec (#1470, #1519).
 - **Probe.** Plant a first-is-free exemption, and confirm the sweep reports the two orders apart.
+
+## Sort any map that a budget-charged walk ranges over
+`charged-walk-sorts-its-map`
+
+- **Rule.** Where a change charges a budget inside a loop, each enclosing `range` over a map sorts
+  its keys before spending (for example `slices.Sorted(maps.Keys(m))`), so where the budget cuts
+  cannot vary from run to run.
+- **Why.** On #1977 (`f44092a41`), a settlement charged ownership walks inside a map range over
+  `byWire`, changing which member a model declared across runs at the cut until
+  `compilers/openapi/internal/merge/members.go` sorted its keys (#2285).
+- **Probe.** Compile at a limit cutting between two items at least 128 times
+  (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#repeats-need-many-runs`:
+  in 20,000 trials at go1.27.3, 30 runs agreed in 374, 64 in 2 and 128 in 0). Remove the sort: the
+  repeated run differs.
+
+## Diff both orders across two documents sharing pointers
+`orders-across-two-documents`
+
+- **Rule.** For a change that orders, dedupes or breaks a tie by a pointer, or folds what a `$ref`
+  brings, compose two files each holding one schema at the same pointers in both orders, and diff
+  the whole `types` registry and diagnostics. Where a harness summary declines an oracle with
+  "reads another file", mark that cell unreached rather than clean.
+- **Why.** On #1977 (`138893f76`), two files declaring `/properties/id` gave `x-order` provenance
+  `source` 1 in one order and 2 in the other while `sequence-order-invariance` declined the input
+  (fixed at `148e7c720`, #1982).
+- **Probe.** Compile both file orders with `morphic compile --verify` and diff the JSON `types` and
+  `diagnostics`.
 
 ## Give a sequence the change builds two elements in a two-order fixture
 `ordered-result-needs-two-elements`
