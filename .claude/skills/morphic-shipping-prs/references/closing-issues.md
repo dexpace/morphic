@@ -6,7 +6,8 @@ Which issues a pull request closes, and how to show each is finished before a re
 `closing-keywords`
 
 - **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
-  case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
+  case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body
+  (`references/closing-issues.md#negated-keyword-still-closes`), and a
   keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
   narrate other work with other verbs ("landed"), and give a stack landing through one PR every
   child's `Closes #N`: a keyword links only in a PR based on `main`. A sidebar link closes one too
@@ -15,6 +16,16 @@ Which issues a pull request closes, and how to show each is finished before a re
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
 - **Probe.** Read each (`references/closing-issues.md#closing-issue-read-whole`), and compare the
   numbers by `references/closing-issues.md#closing-sidebar-link`.
+
+## A negated closing keyword still closes the issue
+`negated-keyword-still-closes`
+
+- **Rule.** A closing keyword closes `#N` however the sentence around it reads: a negation such as
+  "not closed: #N" or "not fixed by this: #N" still closes `#N`. Name an issue left open with
+  another word ("left open", "related").
+- **Why.** #1900's first body wrote `closed: #1368` inside a negation (`38:closed: #1368`, #1902).
+- **Probe.** Run `references/closing-issues.md#closing-sidebar-link`'s regex on the body and verify
+  `gh pr view <N> --json closingIssuesReferences` lists no unintended issue.
 
 ## Unlink from the sidebar an issue the PR does not finish
 `closing-sidebar-link`
@@ -31,18 +42,30 @@ Which issues a pull request closes, and how to show each is finished before a re
 ## Read each issue a PR closes whole, and again before saying it closes
 `closing-issue-read-whole`
 
-- **Rule.** For each issue the PR closes, by keyword or sidebar link
-  (`references/closing-issues.md#closing-keywords`), read
+- **Rule.** For each closing issue (keyword or sidebar link,
+  `references/closing-issues.md#closing-keywords`), read
   `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
-  and again before a report says the PR closes it. A closed issue's closing comment is a recorded
-  decision, its reference leaving the body; a comment or body edit is part of the ask; each
-  `## Out of scope` item or deferred alternative naming pending work goes to an open issue, stated
-  where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
-- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight of
-  its issues' comments or later edits; closing #1433 would have stated an out-of-scope case nowhere
+  and again before a report says it closes. A closed issue's closing comment is a recorded decision,
+  its reference leaving the body; a comment or body edit is part of the ask; each `## Out of scope`
+  item, deferred alternative (`references/closing-issues.md#closing-issue-open-questions`) naming
+  pending work goes to an open issue, stated where
+  `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
+- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight
+  issues' comments or later edits; closing #1433 would have stated an out-of-scope case nowhere
   (#1210, #1435).
 - **Probe.** The report gives each closing issue's `updatedAt` as last read, none newer, then
   `references/closing-issues.md#closing-issue-met-at-its-site`.
+
+## Carry every question a closing issue leaves for its own decision
+`closing-issue-open-questions`
+
+- **Rule.** A question a closing issue leaves for a decision of its own is carried like an
+  `## Out of scope` item, to an open issue or the PR's own text, stated where
+  `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
+- **Why.** #1714 closed #1699 while dropping #1699's open question ("wants its own decision"),
+  which round 2 caught and #1716 now holds (#1717).
+- **Probe.** `gh issue view <N> --json body,comments --jq '.body, .comments[].body' | grep -niE 'decision|decide|own issue|left open|later|separately'`,
+  each hit matched to an open issue or the PR text.
 
 ## Hold a closing issue's title and Direction to the head
 `closing-issue-met-at-its-site`
@@ -83,4 +106,17 @@ Which issues a pull request closes, and how to show each is finished before a re
   merged `"$main"`, which read as meeting #1590's title, while its first merge still read
   `origin/$base`, `origin/main` itself for a PR on `main`, and #1590's reproduction failed that
   merge as it failed `main`'s (#1627).
-- **Probe.** The report quotes each reproduction's output on the base and on the head.
+- **Probe.** The report quotes each reproduction's output on the base and on the head
+  (`references/closing-issues.md#closing-issue-fixed-upstream`).
+
+## Close an issue only when this PR's own diff holds the fix
+`closing-issue-fixed-upstream`
+
+- **Rule.** Where a merge into the base, or a stacked base, already fixed an issue listed to close,
+  the PR closes it only if its own diff holds the fix. Otherwise drop its `Closes` line, close the
+  issue citing the PR that fixed it, and name that PR in the body; the base's reproduction then
+  shows the fix, and the report says so.
+- **Why.** #2098 carried `Closes` lines for #2011, #2017 and #1856's body case after upstream PRs
+  had already landed those fixes (#2129).
+- **Probe.** Run the issue's reproduction on the base; if the defect is already gone on the base,
+  check `git log` for the commit that fixed it.

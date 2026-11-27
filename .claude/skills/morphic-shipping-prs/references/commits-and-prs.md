@@ -53,6 +53,18 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   from `gh run view <run> --json jobs --jq '.jobs[]|select(.name|test("coverage"))|.databaseId'`;
   a count the body keeps names its run.
 
+## Lint what a Go-changing branch adds before pushing
+`lint-the-touched-packages`
+
+- **Rule.** Before a push that changes Go code, run the pinned linter over what the branch adds,
+  `make check-lint-version && golangci-lint run --new-from-merge-base=origin/<base> ./...`, gated by
+  exit status in the push block before `skills_lint.py`. `make check-lint-version` warns on mismatch
+  rather than failing; CI's pinned run stays the gate.
+- **Why.** #1977's push `162ef1822` failed CI's lint job on three findings (`embedlit` and
+  `testifylint`) in newly added tests, and rounds 4 and 12 lost runs the same way (#2013).
+- **Probe.** Plant a `testifylint` finding in a test file on a throwaway branch: the command reports
+  it and exits non-zero; on a branch changing no Go file it reports nothing.
+
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
 

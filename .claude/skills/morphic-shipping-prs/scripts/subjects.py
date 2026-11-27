@@ -30,6 +30,7 @@ import traceback
 
 CAP = 72
 BASE = "origin/main"
+NO_ORIGIN_RULE = ".claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin"
 PUSHED = "pushed commit"
 FORM = re.compile(r"(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: [^ ]")
 
@@ -113,6 +114,15 @@ def parse(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse(sys.argv[1:] if argv is None else argv)
     try:
+        base_ok = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{BASE}^{{commit}}"],
+                                 capture_output=True, text=True)
+        if base_ok.returncode != 0:
+            if base_ok.stderr.strip():
+                print(f"subjects: {base_ok.stderr.strip()}", file=sys.stderr)
+            else:
+                print(f"subjects: {BASE} does not resolve; fetch main as {BASE} ({NO_ORIGIN_RULE})",
+                      file=sys.stderr)
+            return 2
         commits = branch_commits(args.base)
         pushed = pushed_hashes(args.pushed, args.base)
     except (OSError, subprocess.CalledProcessError) as e:
