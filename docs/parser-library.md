@@ -45,16 +45,22 @@ read them all:
 
 To bump the library:
 
-1. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
+1. Diff the old and new library trees from the module cache with tests left out,
+   `diff -ru -x '*_test.go' <old> <new>`, each directory from
+   `go mod download -json github.com/speakeasy-api/openapi@<version>`. A test below sees only the
+   changes an input it reads reaches, so for each change reaching a call the compiler or an oracle
+   makes, probe it against both versions, and where no committed input shows the difference, add
+   one a test reads: a canary's input or a document in the validation oracle's corpus.
+2. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
    changed, and its message says what the library did instead. A red test beside a reading the
    compiler reproduces names a reading that changed, the binding oracle names a `$ref` whose
    resolution moved, the resolver oracle a reference shape whose outcome moved, and the resolution
    pins in `internal/archtest` name a change to what in the library resolves a reference.
-2. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
+3. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
    code it names still needs: a guard against a defect the library fixed can go, and code relying on
    a behaviour the library dropped has to change. Settle each other red test where it stands: an
    oracle's golden or list of disagreements is regenerated with `-update` once each is read again.
-3. Set every entry's **Verified at** to the new version.
+4. Set every entry's **Verified at** to the new version.
 
 ## Resolution
 
@@ -78,7 +84,7 @@ components:
     B: {$ref: '#/components/schemas/A'}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
   - `load.bindTable` binds every `$ref` in the compiler, never through the resolver.
@@ -98,7 +104,7 @@ components:
     H: {$defs: {A: {type: string}}, properties: {p: {$ref: '#/$defs/A'}}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/defs-order`
 - Code:
   - `reftable.definitions.definition` finds the definition from the reference's own position.
@@ -121,7 +127,7 @@ x-lib:
   b: {$ref: '#/x-lib/a'}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
   - `reftable.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
@@ -145,7 +151,7 @@ components:
     B: {$ref: '#/components/parameters/A'}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
   - `load.bindTable` binds every reference object in the compiler, never through the resolver.
@@ -169,7 +175,7 @@ x-params:
   q: {name: q, in: query}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
   - `load.bindTable` binds every reference object in the compiler, never through the resolver.
@@ -192,7 +198,7 @@ x-params:
   <<: [*b]
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/merge-list-pointer`
 - Code:
   - `reftable.objects.readRef` reads a reference object's pointer as the decoder reads a mapping.
@@ -212,7 +218,7 @@ x-params:
   "😀": {name: q, in: query}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/pointer-token-range`
 - Code:
   - `reftable.objects.readRef` admits any character in a token.
@@ -242,7 +248,7 @@ components:
     M: {schema: {type: string}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/media-type-references`
 - Code:
   - `componentlookup.ReferencedMediaType` names the reference the library names no alias for.
@@ -278,7 +284,7 @@ components:
     C: {$ref: '#/components/schemas/B'}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
   - `reftable.definitions.definition` reads the pointer from the document's root first, raw YAML
@@ -303,7 +309,7 @@ components:
     A: &s {type: object, properties: {p: *s}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/alias-cycle`
 - Code:
   - `scan.anchorCycle` refuses a recursive anchor before the document is decoded.
@@ -325,7 +331,7 @@ components:
     L2: &l2 {allOf: [*l1, *l1]}   # ... each level doubling the last
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/alias-expansion`
 - Code:
   - `scan.aliasAmplification` refuses a document whose aliases expand past a multiple of its own
@@ -347,7 +353,7 @@ components:
     A: {type: array, items: {type: array, items: {type: string}}}   # ... nested d levels deep
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/nesting-cost`
 - Code:
   - `scan.MaxNesting` bounds how deeply a document may nest.
@@ -370,7 +376,7 @@ components:
     S1: {}   # ... one goroutine each, and one for each key inside
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/goroutine-per-node`
 - Code:
   - `annotation.census` sorts the unknown keys it records.
@@ -390,7 +396,7 @@ components:
     A: !thing {description: d}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/tagged-mapping-panic`
 - Code:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
@@ -413,7 +419,7 @@ components:
 B: {$ref}   # decoded as a response, which A names
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
   - `load.runRecovered` turns a panic in decoding an object a reference lands on, in a walk, or in
@@ -439,7 +445,7 @@ paths:
       PURGE: ~           # so does this entry, in a 3.2 document
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/nil-populate-panic`
 - Code:
   - `load.setAside` sets each such shape the source writes aside for the model's builds, and each
@@ -460,7 +466,7 @@ n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null", Alias: writ
 // decodes as nil, encodes as null
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/alias-field-on-scalar`
 - Code:
   - `nodeview.Unread` keeps the node as written there.
@@ -479,7 +485,7 @@ paths:
     get: {responses: {'200': {description: ok}}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/anchored-entry-dropped`
 - Code:
   - `load.readyForModel` clears every anchor's name before a document is decoded.
@@ -497,7 +503,7 @@ paths:
     other: {responses: {'200': {description: ok}}}   # an operation named other
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/embedded-map-keys`
 - Code:
   - `annotation.UnknownKeysNamed` grades keys the caller found itself, for a path item.
@@ -520,7 +526,7 @@ security:
   - key: [read, 2021-01-01]  # the same
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/requirement-scopes`
 - Code:
   - `auth.Registry.requirement` reads an option's names and scopes from the core.
@@ -544,7 +550,7 @@ components:
     A: {type: integer}   # the model's A
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/duplicate-key`
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
@@ -573,7 +579,7 @@ components:
       properties: {<<: 5, q: {type: string}}                            # q alone
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/merge-keys`
 - Code:
   - `nodeview.IsMergeKey` writes that predicate out, so the tree readers need no parser library.
@@ -600,7 +606,7 @@ components:
     : {description: x}   # read as the response keyed ""
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/non-scalar-key`
 - Code:
   - `nodeview.KeyOf` names no key for it, so every reader of the compiler leaves the entry out.
@@ -631,7 +637,7 @@ components:
         e: {type: string, default: 2021-01-01}   # a timestamp to the parser, a string to the compiler
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/scalar-resolution`
 - Code:
   - `doctree.resolve` tags a plain scalar as the core schema reads it.
@@ -661,7 +667,7 @@ same text ([`scalar-resolution`](#scalar-resolution) gives a scalar its tag, and
 [`duplicate-key`](#duplicate-key) leaves a name written twice in the tree), and leaves any other
 text to the parser.
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/json-as-yaml`
 - Code:
   - `doctree.readJSON` reads a JSON text into the parser's tree, and refuses half of a pair with the
@@ -692,7 +698,7 @@ The compiler writes each line-break character, each escaped slash and each pair 
 surrogate pair as private-use characters the text spells nowhere, one character for one, writes a later minor's directive as `1.1` padded to its
 width, and reads back what it wrote by each scalar's style, so the tree is YAML 1.2's.
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/yaml11-lexing`
 - Code:
   - `doctree.respell` writes what the parser lexes as YAML 1.1 as text it lexes alike.
@@ -724,7 +730,7 @@ components:
     s: {$ref: 2021-01-01}    # IsReference is false, and the core holds the node
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/undecoded-scalar`
 - Code:
   - `doctree.resolve` tags a plain date or `<<` value a string.
@@ -746,7 +752,7 @@ parameters:
   - {name: r, in: query, explode: "true"}      # Explode is false, not nil
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/string-as-boolean`
 - Code:
   - `specrules.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports
@@ -767,7 +773,7 @@ components:
     A: {$dynamicAnchor: n, $comment: c}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
   - `reftable.identifiers` holds every `$dynamicAnchor`, read from the raw tree.
@@ -794,7 +800,7 @@ components:
     D: hello      # false as well
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
   - `statement.truthOf` reads such a value as `Unwritten` by its node.
@@ -817,7 +823,7 @@ components:
     N: {not: {required: [a], not: 5}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/failure-beneath-itself`
 - Code:
   - `reftable/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends`
@@ -838,7 +844,7 @@ components:
     B: {type: [string, null]}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/null-type-is-empty`
 - Code:
   - `schema.writesType` and `schema.effectiveTypes` pass over the `""`, so no reader takes it for a
@@ -862,7 +868,7 @@ components:
     A: {type: object, properties: {p: {type: string}}}
 ```
 
-- Verified at: v1.26.3
+- Verified at: v1.28.1
 - Pinned by: `TestLibraryBehaviour/context-unread`
 - Code:
   - `load.walk` asks the context before each item of a walk of a model, and every walk the load
