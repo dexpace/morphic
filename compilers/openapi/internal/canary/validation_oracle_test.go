@@ -107,9 +107,11 @@ var validationReasons = map[string]string{
 		"schema's exclusiveMinimum or exclusiveMaximum written as a number, which the library calls a type " +
 		"mismatch and the table an invalid exclusive bound, as the lowering drops it " +
 		"(draft-wright-json-schema-validation-00 §5.5: 'The value of \"exclusiveMinimum\" MUST be a boolean'; " +
-		"docs/compilers/openapi.md#constraints); and a 3.0 schema's type naming \"null\", which the library calls an " +
+		"docs/compilers/openapi.md#constraints); a 3.0 schema's type naming \"null\", which the library calls an " +
 		"invalid schema and the table a value outside the six 3.0 allows (3.0.4 §Data Types: 'based on the " +
-		"non-null types')",
+		"non-null types'); and a 3.0 schema's empty required, which the library calls an invalid schema and the " +
+		"table an entry count (draft-wright-json-schema-validation-00 §5.15: 'This array MUST have at least one " +
+		"element')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table judges a bound as the schema lowering reads it, the literal exactly, and reports one " +

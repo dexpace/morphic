@@ -338,10 +338,10 @@ func TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot(t *testing.T) {
 }
 
 // TestCheck_KeywordsHoldWhatJSONSchemaRequires pins what JSON Schema requires of
-// a keyword's value beyond its shape: a list of schemas holds an entry, the
-// names required lists and the types a list gives differ, dependentRequired
-// lists strings once each, $vocabulary maps URIs to booleans, and a $id carries
-// no fragment but an empty one.
+// a keyword's value beyond its shape: a list of schemas, and in 3.0 required,
+// holds an entry, the names required lists and the types a list gives differ,
+// dependentRequired lists strings once each, $vocabulary maps URIs to booleans,
+// and a $id carries no fragment but an empty one.
 func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 	verify(t, []scenario{
 		{"empty lists of schemas", "3.1.0", specrules.Schema, `{allOf: [], anyOf: [], oneOf: []}`,
@@ -351,6 +351,8 @@ func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 			[]finding{findingAtPointer(entries, "/prefixItems"), findingAtPointer(entries, "/type")}},
 		{"a list of schemas of another shape", "3.1.0", specrules.Schema, `{allOf: {}}`, []finding{findingAtPointer(mismatch, "/allOf")}},
 		{"a type that is no list", "3.1.0", specrules.Schema, `{type: string}`, nil},
+		{"an empty required in 3.0", "3.0.3", specrules.Schema, `{required: []}`, []finding{findingAtPointer(entries, "/required")}},
+		{"an empty required in 3.1", "3.1.0", specrules.Schema, `{required: []}`, nil},
 		{"a required name twice", "3.0.3", specrules.Schema, `{required: [a, b, a]}`, []finding{findingAtPointer(duplicate, "/required/2")}},
 		{"a type twice", "3.1.0", specrules.Schema, `{type: [string, string]}`, []finding{findingAtPointer(duplicate, "/type/1")}},
 		{"dependentRequired", "3.1.0", specrules.Schema, `{dependentRequired: {a: [b, b], c: x, d: [e]}}`,
