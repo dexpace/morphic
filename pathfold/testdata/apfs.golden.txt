@@ -1,0 +1,5 @@
+# which names APFS made one file, for TestFold_JoinsWhatAPFSJoins; rewritten on macOS by -update
+tables unicode=17.0.0 norm=17.0.0 cases=17.0.0
+sweep characters names=173237 files=158204 partition=sha256:f616b017bf24a76b1f943624a83504aac18e46265cb945832683855f5a7a3a65
+sweep sequences names=93823 files=38588 partition=sha256:a1dcb75a3bb091d468e3400a3a120afa8ae6019434498ebff61f71c38531e0c4
+apart characters "aI" "ai" | "a\u0131"

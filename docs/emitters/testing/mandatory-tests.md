@@ -1064,8 +1064,9 @@ throughout these documents.
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two
     reversed, and a Cherokee letter in each case; and on a case-insensitive APFS volume, both sweeps
-    the rule names, every spelling of each assigned character behind an `a` and names of one to four
-    characters, each written to one empty directory, leave no two names of one file in two folds,
+    the rule names, every spelling of each assigned character but a private-use one behind an `a`
+    and names of one to four characters, each written to one empty directory, leave no two names of
+    one file in two folds,
     where the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
     upper-casing before it and under a fold of ASCII letters alone each do. The other direction is
     held too: the names of two files that the fold joins in those sweeps equal a golden list, `aı`

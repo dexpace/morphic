@@ -65,21 +65,23 @@ the tree the rule exists to prevent.
   canonical decomposition (NFD) with each character upper-cased by its simple mapping, then folded
   by `golang.org/x/text/cases.Fold`, Unicode's full case folding. It is to join every pair a file
   system Morphic writes to makes one path, and each step is there for a measurement, on APFS (macOS
-  26.5.2, Go 1.27.3, `golang.org/x/text` 0.43.0, Unicode 17.0.0), of every spelling of each assigned
-  character (the character, its NFC, NFD, NFKC, NFKD, upper, lower, title and folded forms) behind
-  an `a`, 173,237 names that APFS made 158,204 files, and of 209,214 names of one to four characters
-  drawn from those that case folding, composition or mark order acts on, which it made 183,414. The
-  fold parted no two names APFS made one file in either, while joining some it kept apart, such as
-  `aı` and `ai`, which costs a name a suffix where folding less would lose a file. Decomposing the
-  whole name comes first because APFS joins a composed `é` with a decomposed one, and two marks in
-  either order: decomposing each character alone, which reorders no marks, split the names of one
-  file 832 times, `q` with U+0323 and U+0307 against them reversed among them. Upper-casing comes
-  before folding because `cases.Fold` alone, Unicode's canonical caseless match over these tables,
-  split them 86 times in the first and 687 in the second, each Cherokee letter against its other
-  case among them, as that function maps each to the other, and a letter newer than its tables; Go's
-  own tables upper-case both alike first. A final NFD, as the canonical caseless match ends with,
-  changed no answer in either, so it is not taken, and a fold of ASCII letters alone split them
-  14,692 and 23,554 times. `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from
+  26.5.2, Go 1.27.4, `golang.org/x/text` 0.44.0, Unicode 17.0.0), of every spelling of each assigned
+  character but a private-use one (the character, its NFC, NFD, NFKC, NFKD, full upper, lower and
+  title, and folded forms) behind an `a`, 173,237 names that APFS made 158,204 files, and of the
+  spellings of 40,000 names of one to four characters a seeded generator draws from the 15,446 that
+  case folding, composition or mark order acts on (each name, its NFC, NFD, full upper, lower and
+  folded forms, its marks reversed and each character decomposed alone), 93,823 names, which it made
+  38,588. The fold parted no two names APFS made one file in either, while joining one pair it kept
+  apart, `aı` and `ai`, which costs a name a suffix where folding less would lose a file.
+  Decomposing the whole name comes first because APFS joins a composed `é` with a decomposed one,
+  and two marks in either order: decomposing each character alone, which reorders no marks, split
+  the names of one file 1,293 times in the second, as it parts `q` with U+0323 and U+0307 from the
+  two reversed. Upper-casing comes before folding because `cases.Fold` alone, Unicode's canonical
+  caseless match over these tables, split them 86 times in the first and 1,252 in the second, each
+  Cherokee letter against its other case among them, as that function maps each to the other, and a
+  letter newer than its tables; Go's own tables upper-case both alike first. A final NFD, as the
+  canonical caseless match ends with, changed no answer in either, so it is not taken, and a fold of
+  ASCII letters alone split them 14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from
   a decomposed one, which APFS makes one path (#1729). That the fold joins every pair NTFS makes one
   path is an assumption, not a measurement: NTFS compares names through an upper-case table each
   volume stores, which no run here read, and the same two sweeps on an NTFS volume would settle it.

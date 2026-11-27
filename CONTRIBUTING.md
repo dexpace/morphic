@@ -504,10 +504,14 @@ and does not wait. Nothing proposes a Go or golangci-lint release: the `Makefile
    of `callShapeBaseline` with no change to the module's code. Read the calls the failure lists for
    each pair it names, set the count on the same branch, and say why in the commit.
    *Fails if missed:* `TestCallShape_HeldToTheBaseline`.
-4. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
+4. **Rewrite the path fold's records on macOS** when an update moves `golang.org/x/text`, or Go
+   moves Unicode, and the tables change: run `go test ./pathfold -update` on an APFS volume and push
+   the updated records onto the update's branch.
+   *Fails if missed:* `TestFold_JoinsWhatAPFSJoins` and `TestFold_EveryCharacterEqualsItsGolden`.
+5. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
    `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.
    Nothing checks this.
-5. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
+6. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
    repository squashes a one-commit pull request under that commit's subject rather than the pull
    request's title, so retitling the pull request changes nothing. A subject naming one module
    often passes the 72-character cap once the number is appended; shorten it in the merge dialog,
