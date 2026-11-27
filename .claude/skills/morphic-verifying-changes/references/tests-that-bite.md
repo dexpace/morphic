@@ -113,6 +113,17 @@ is not behaviour held.
 - **Probe.** Run each expected-clean fixture under time and memory caps, feed expected output to the
   next parser, and grep the input for what the expected output omits.
 
+## Hash what is derived in a pin, never a list another test grows
+`pin-hashes-what-is-derived`
+
+- **Rule.** A pin hashes what is derived (every rune of a range, the classes the tables tell
+  apart), never a list another test grows. Where its input can legitimately grow, the failure text
+  says what growth means.
+- **Why.** On #1219 (`11739f18a`), `describeNames` hashed every `canonicalCases` row into
+  `TestIRVersion_PinsTheNames`, so adding a correct conformance row falsely asked for a breaking
+  bump (#2287).
+- **Probe.** Add a correct row to the other test's list; the pin stays green.
+
 ## Check that the assertion itself can fail
 `assertion-must-be-able-to-fail`
 

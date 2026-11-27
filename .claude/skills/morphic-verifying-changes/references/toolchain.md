@@ -31,6 +31,20 @@
   planted race in every run (#1271).
 - **Probe.** `go test -race -count=1 ./<pkg>` per touched package, or `make race` for the suite.
 
+## Run long commands in the background with output in a file
+`run-long-commands-in-the-background`
+
+- **Rule.** Start any command that may run long in the background with output in a file, and read
+  it once. Where a bound is wanted, use the tool's own flag (`go test -timeout` or a limit flag),
+  never a hand-rolled wrapper. Never run a golden-spec compile beside the harness on the same
+  cores. Report an unfinished run by
+  `.claude/skills/morphic-reviewing-prs/references/rounds.md#unfinished-run-leaves-its-cell-unreached`.
+- **Why.** #2201 (`a22fdf935`) waited 47 minutes and five hours in a loop while the harness wrote
+  nothing (`timeout 600` exited 124 empty), and a golden-spec compile beside the harness passed
+  120 s vs 10 s alone; #2292 rules out hand-rolled wrappers.
+- **Probe.** Each long command names an output file and runs in the background or under its own
+  flag; `grep -nE 'until |while .*sleep|perl -e'` over the round's commands is empty.
+
 ## A re-exec'd child writes coverage only when it exits through os.Exit
 `child-coverage`
 

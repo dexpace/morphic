@@ -27,15 +27,15 @@ goes to the type that owns the broken state
 | the fixture reaches the check | confirm where it lands: `morphic-harness` names what each oracle declined |
 | a bound of N holds | lower it by one at each site; a test at N and N+1 notices |
 | this test reaches no network | `references/claims.md#no-network-through-a-logging-proxy` |
-| lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
+| lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#compile-and-read-every-finding`) |
 | a count, size or cost | derive it with a command and name the revision; a cost by `morphic-measuring-performance` |
 
 ## Habits
 
 - Before trusting "identical" or "none found", print what ran
   (`references/differentials.md#validate-the-instrument-first`).
-- Read every result line: a mutant that did not compile, a test that never ran and another
-  test's panic look like verdicts.
+- Read every result line: an uncompiled mutant, an unrun test and another test's panic look like
+  verdicts.
 - Iterate with `go test` on the packages you touched, and before calling it done take `make gate`
   or CI's run on the final head: `go test` passing is not the coverage gate
   (`references/toolchain.md#coverage-per-package`), and the gate races nothing

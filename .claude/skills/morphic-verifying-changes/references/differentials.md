@@ -40,6 +40,27 @@ whether the answer means anything.
   Grids writing no plain date left two defects for a later probe (#1226).
 - **Probe.** Count the positions passed and the answers given, not only the inputs.
 
+## Nest a feedback construct at least two levels in its generator
+`generator-nests-a-feedback`
+
+- **Rule.** For a change whose output is again its input (a fold reading folded members, a pass
+  reading a pass's output), the generator nests the construct at least two levels. Hold the result
+  to an answer computed outside the code where the domain has one, such as an intersection of value
+  sets.
+- **Why.** 14 rounds of pair generators missed two defects in a fold of a fold on #1977; a nested
+  generator found both on its first run (842 against 5 mismatches over 400 seeds) (#2014).
+- **Probe.** Plant a defect in the second level alone; the generator reports it.
+
+## Try an oracle change on a generator someone else wrote
+`oracle-change-meets-another-generator`
+
+- **Rule.** A change to what an oracle forgives is tried on inputs from a generator its author did
+  not write: a generator written beside the oracle shares the author's model of what should be
+  forgiven.
+- **Why.** In #2098, the sequence-order oracle passed its own tests and generators while a second
+  generator found two false findings on valid documents (#2129).
+- **Probe.** Name the second generator and its findings in the report.
+
 ## Hold each shape a generator leaves out to what admits the input
 `generator-exclusions-are-claims`
 
@@ -51,6 +72,17 @@ whether the answer means anything.
 - **Probe.** The report lists each shape left out beside the grammar or parser behaviour that rules
   it out.
 
+## Judge a rewrite's output by its consumer's reader
+`judge-a-rewrite-by-its-consumer`
+
+- **Rule.** Judge a rewrite's output by its consumer's reader, never only by parsing with the
+  library that wrote it: for the harness's re-encoding, compile the rewritten output and compare it
+  against compiling the source.
+- **Why.** Sweeping 673,680 re-encodings with yaml.v3 missed a literal block scalar ending in
+  raw U+2029, causing 192 false order findings at `4c3574d8` merged with `cfb36631` (#2279).
+- **Probe.** Plant a value the writer's library and consumer read differently (a literal block
+  scalar ending in raw U+2029); the check reports it.
+
 ## Probe the join, not only the output
 `invariant-probe`
 
@@ -59,6 +91,17 @@ whether the answer means anything.
 - **Why.** A corpus differential was identical on 2,460 runs while a join probe found a reference
   end the binder could not place (#1016; `TestBindAll_BindsEveryRefInTheCorpus`
   is the kept probe).
+
+## Plant every field a structured comparison key leaves out
+`structured-key-plants-every-field`
+
+- **Rule.** A structured key built from chosen fields replacing a whole-value comparison drops
+  every field it does not name. Plant a difference in each field the replaced comparison read and
+  confirm the comparison fails for each.
+- **Why.** In #2098, the sequence-order oracle keyed conflict reports on member and lost place
+  alone, passing a planted report whose severity differed between orders (#2129).
+- **Probe.** List each field the old comparison read, plant a mismatch in each alone, and watch
+  the test fail.
 
 ## Use a transform differential for spelling and equivalence claims
 `transform-differential`
@@ -128,9 +171,13 @@ whether the answer means anything.
 `cmp-diff-random`
 
 - **Rule.** Compare outcomes (exit codes, the verdict word of a harness line), never `cmp.Diff`
-  output, which go-cmp randomizes on purpose. Repeat a flagged difference before calling it one.
-- **Why.** A sweep flagged a spec whose oracle printed a diff that split two ways on both builds
-  (#934).
+  output, which go-cmp randomizes on purpose. go-cmp v0.7.0 (pinned in `go.mod`) seeds its choices
+  from `time.Now().Unix()` at process start, so repeats within one second agree: repeat at least a
+  second apart, and treat a clean repeat of difference text as no evidence.
+- **Why.** A sweep flagged a spec whose oracle printed a diff splitting two ways on both builds
+  (#934); six immediate repeats of `cmp.Diff` agreed while runs a second apart split (#2079).
+- **Probe.** Run #2079's `cmp.Diff` binary in a loop once a second and hash each output: hashes
+  diverge across seconds while immediate repeats agree.
 
 ## Re-run I/O against a server whose answers change
 `flaky-io`

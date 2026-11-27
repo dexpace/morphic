@@ -7,11 +7,15 @@ at the commit the setup below pins, by `git show "$main":<path>` or
 `git archive "$main" .claude/skills | tar -x -C <dir>`, whatever the head holds, unless the change
 under review edits them, when its copy is what is reviewed.
 
-Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
-`references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
-branch (`references/rounds.md#branch-held-elsewhere`); and where the PR's stacked base has landed,
-as `gh pr view <base PR> --json state,mergedAt` shows while a `baseRefName` read before the
-retarget still names the deleted branch, take
+Before any fetch: take the round's number from the rounds and heads kept in
+`"$(git rev-parse --path-format=absolute --git-common-dir)/morphic-review/<N>.md"`, which the main
+session reads. Where it runs a second round's angles itself, which must stay unanchored, it reads
+only each round's first line until they finish, and a delegated reader gets only what
+`references/readers.md#fresh-reader-for-the-second-round` allows. With no `origin`, or in a
+repository that must stay unwritten, take `references/rounds.md#review-without-origin`; check that
+no other checkout holds work on the PR's branch (`references/rounds.md#branch-held-elsewhere`); and
+where the PR's stacked base has landed, as `gh pr view <base PR> --json state,mergedAt` shows while
+a `baseRefName` read before the retarget still names the deleted branch, take
 `.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
 Before the PR exists, as before a branch's first push, the base is the branch it will target, `$h`
 the branch, the worktree is added at the branch's head, and `<N>` is the number the push checklist
@@ -126,13 +130,14 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 ## Read the gate from CI, and run locally only what CI cannot
 `ci-is-the-gate`
 
-- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit by
-  `references/rounds.md#gate-run-by-workflow`. Never rerun it locally, suites included, nor re-check
-  by eye what it enforces. For a head behind `main`, list `main`'s commits touching its files, run
-  `go build ./...` on the merged tree, and name merging `main` the next step. Locally, run only what
-  CI cannot: probes, mutants, differentials, measurements, and the skills lint and scripts' tests. A
-  run still going is reported running, never waited on; a conflicting PR has none, nor an unpushed
-  branch (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
+- **Rule.** The gate is CI's `.github/workflows/gate.yml` run, read at its commit by
+  `references/rounds.md#gate-run-by-workflow`. Never rerun it, suites included, nor re-check by eye
+  what it enforces. For a head behind `main`, list `main`'s commits touching its files
+  (`references/rounds.md#recheck-reads-mains-added-lines`), run `go build ./...` on the merged tree,
+  and name merging `main` next. Locally, run only what CI cannot: probes, mutants, differentials,
+  measurements, and the skills lint and scripts' tests. Report a running gate, never wait on it; a
+  conflicting PR or unpushed branch has none
+  (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#read-a-ci-jobs-log`.
 - **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then stalled in
   coverage (#1286); a conflicting PR's empty check list read as pending (#1285).
@@ -141,15 +146,29 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 ## Read the gate's run by its workflow, not the PR's checks
 `gate-run-by-workflow`
 
-- **Rule.** Read whether the gate ran at a commit from its workflow's runs,
-  `gh run list --commit <head> --workflow gate.yml --json status,conclusion`, which prints `[]`
-  where none has started: a PR's checks hold other workflows, such as CodeQL. A push can get its
-  gate run minutes late or never, so `[]` is reported as no run yet, with the time it was read.
+- **Rule.** Read a commit's gate run from its workflow,
+  `gh run list --commit "$(git rev-parse <head>)" --workflow gate.yml --event pull_request --json databaseId,status,conclusion`,
+  which prints `[]` where none has started: a PR's checks hold other workflows, such as CodeQL. A
+  gate run can start minutes late or never, so report `[]` as no run yet with the time read
+  (`references/rounds.md#gate-run-needs-a-full-sha`).
 - **Why.** At #1619's 483aae831 the PR's checks held CodeQL's alone, read as the gate still running,
-  while that command printed `[]`, and the commits on either side each had a run. At a70daa173 it
-  printed `[]` until the gate run started, nearly three minutes after CodeQL's, and a review had
-  already called the run missing.
+  while this command printed `[]`, though both neighbouring commits had runs. At a70daa173 it
+  printed `[]` until the gate started, nearly three minutes after CodeQL, after a review called the
+  run missing.
 - **Probe.** The command at the head, beside `gh pr view <N> --json headRefOid,statusCheckRollup`.
+
+## Pass a full SHA and `--event pull_request`
+`gate-run-needs-a-full-sha`
+
+- **Rule.** `gh run list --commit` matches full SHAs only: pass `"$(git rev-parse <head>)"` and
+  `--event pull_request` (without `--event`, `main` commits list nightly `schedule` runs too).
+  `[]` means no run only for a full SHA. Apply equally to
+  `references/claims-and-process.md#gate-claim-without-a-run`.
+- **Why.** #1740's short SHAs printed `[]` while runs existed (#1761); at `cfb366317` without
+  `--event`: `schedule success`, `schedule failure`, `push success`.
+- **Probe.** `gh run list --commit <short> --workflow gate.yml --event pull_request --json databaseId,status,conclusion`
+  beside `"$(git rev-parse <short>)"` on a PR head (or omit `--event` on `main` to see `schedule`
+  beside `push`).
 
 ## Decide nothing on an assumption
 `decide-on-evidence`
@@ -311,16 +330,27 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 
 - **Rule.** After review fixes land, short of
   `references/later-rounds.md#nit-round-checks-its-fixes`, or `main` or the base is merged in,
-  review the branch as it will merge: rerun the probes the body and comments cite and every sweep
-  the branch relies on over the merged tree, re-diff each change `main` made to files the branch
-  touches, and look for helpers `main` renamed, features on both sides that interact, and normative
-  text `main` moved.
+  review the tree as it will merge: rerun every probe the body or comments cite and every sweep the
+  branch relies on, re-diff `main`'s changes to touched files
+  (`references/rounds.md#recheck-reads-mains-added-lines`), and look for helpers `main` renamed,
+  features interacting across both sides, and normative text `main` moved.
 - **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
-  `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382); a
-  merge base read after the merge was `main` itself (#1613).
+  `main` changed, and left PR bodies stating facts a later commit falsified (#837, #382); a merge
+  base read after the merge was `main` itself (#1613).
 - **Probe.** `git diff "$(git merge-base <merge>^1 "$main")" "$main" -- <files the branch touches>`,
-  `<merge>` the merge of `main`: each hunk survives; rerun each command the body quotes,
-  diffing its output.
+  `<merge>` the merge of `main`: each hunk survives; rerun each command the body quotes, diffing its
+  output.
+
+## Grep main's added lines for a changed meaning
+`recheck-reads-mains-added-lines`
+
+- **Rule.** Where a branch changes a meaning (an IR field's, a lowering's, a code's), also grep
+  `main`'s added lines since the merge base for the field and its old values:
+  `git diff "$(git merge-base <head> "$main")" "$main" | grep -E '^\+' | grep -nE '<field>|<old value>'`.
+  Read each hit against the new meaning.
+- **Why.** #1784 touched none of #1783's files (0, 0) while `main`'s added lines held 41
+  `Explode`/`explode` hits, including `docs/emitters/refine/text.md` (`0cd087ff6`, #1794).
+- **Probe.** Run the command beside the touched-files diff and classify each hit.
 
 ## Find everything in the first round, and confirm the fixes in the second
 `first-round-finds-everything`
@@ -342,14 +372,29 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 
 - **Rule.** A cell a round's budget leaves is named unreached, never reported clean. The review
   ends on a round with no `issue:` or `nit:` and no cell unreached or reopened
-  (`references/readers.md#audit-what-a-reader-cleared`); after any other, the next round runs from
-  the setup, and from the third round reads what
+  (`references/readers.md#audit-what-a-reader-cleared`,
+  `references/rounds.md#unfinished-run-leaves-its-cell-unreached`); after any other, the next round
+  runs from the setup, and from the third round reads what
   `references/later-rounds.md#later-rounds-read-what-moved` or
   `references/later-rounds.md#nit-round-checks-its-fixes` says.
 - **Why.** A round of #1522 listed beside its findings the prescribed commands it had not run;
   under a bar of no `issue:` or `nit:` alone, that list beside no findings would have ended the
   review (#1522).
 - **Probe.** The last round's report names no cell unreached or reopened.
+
+## Unfinished gate or local runs leave their cell unreached
+`unfinished-run-leaves-its-cell-unreached`
+
+- **Rule.** The head's gate run is a cell; an unfinished CI or local run
+  (`.claude/skills/morphic-verifying-changes/references/toolchain.md#run-long-commands-in-the-background`)
+  leaves its cell unreached, so the review has not ended. Read once at setup or hand-off with
+  `--event pull_request`, never polling or waiting (`gh run watch`, `gh event listen`). Red is an
+  `issue:`. Hand off running as `gate cell unreached: run <id> in progress` (local: unfinished, how
+  far it got).
+- **Why.** #1977 (`138893f76`, run `43842281184`) failed coverage while handed off running (#1981);
+  #2201 stalled on local waits.
+- **Probe.** `gh run list --commit "$(git rev-parse <head>)" --workflow gate.yml --event pull_request --json databaseId,status,conclusion`
+  in the report.
 
 ## Post a finding so that acting on it is safe
 `posted-findings`

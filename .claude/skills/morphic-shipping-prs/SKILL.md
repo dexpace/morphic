@@ -23,10 +23,12 @@ never rewritten.
 
 ## Before each push
 
-After `git fetch origin main <base>`, run this from the repository root. N is the PR's number, or
-before it exists one past
-`gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. `<base>` is the
-branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`).
+After `git fetch origin main <base>` (with no `origin`, take
+`.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin`), run this from
+the repository root. N is the PR's number, or before it exists one past
+`gh api 'repos/dexpace/morphic/issues?state=all&per_page=1' --jq '.[0].number'`. `<base>` is the
+branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`). Measure any side branch
+before merging it (`references/merging-main.md#measure-a-side-branch-before-merging-it`).
 
 ```bash
 pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep'
@@ -42,14 +44,16 @@ grep -niE "${pat:?}" "$o"; grep -nE "${cs:?}" "$o"
 `git status` is empty, as the push carries HEAD; judge each hit. Grep the PR's text the same way
 (`gh pr view N --json title,body --jq '.title, .body'`), and an edited body before its send.
 
-Once every hit is fixed or justified, push behind the lint and the subject check
+Once every hit is fixed or justified, push behind the linter
+(`references/commits-and-prs.md#lint-the-touched-packages`), the skills lint and the subject check
 (`references/commits-and-prs.md#pushed-subject-is-disclosed`), which gate it by exit status. `<title>`
 serves until the PR opens.
 
 ```bash
 t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
 h=$(gh pr view N --json headRefName --jq .headRefName 2>/dev/null) || h=$(git branch --show-current)
-python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
+cd -P . && make check-lint-version && golangci-lint run --new-from-merge-base="origin/<base>" ./... &&
+  python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
   python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py --base "origin/<base>" --pushed "origin/$h" N "$t" &&
   git push origin "HEAD:refs/heads/${h:?name the branch}"
 ```
@@ -67,18 +71,16 @@ bump's version.
 ## Before the first push
 
 Give the branch the review's first round yourself, every angle in full (`morphic-reviewing-prs`);
-the opened PR's review is its second. Its claim sweep finds false sentences, not missing ones: also
-find each limitation the body states where the rule places it
-(`references/commits-and-prs.md#limitation-stated-where-it-lives`).
+the opened PR's review is its second. Also check
+`references/commits-and-prs.md#limitation-stated-where-it-lives`.
 
 ## PR text
 
-A Summary and a Test plan stating the head (`references/commits-and-prs.md#body-states-the-head`),
-and a Breaking section when the title carries `!`; no labels
-(`references/commits-and-prs.md#pr-takes-no-labels`). Every sentence stating behaviour is executed
-on the final tree first
-(`.claude/skills/morphic-verifying-changes/references/claims.md#pr-claims-match-evidence`). Edit a
-posted body from its live copy (`references/commits-and-prs.md#edit-pr-body-from-live-copy`).
+Summary, Test plan (`references/commits-and-prs.md#body-states-the-head`), Breaking when the title
+carries `!`; no labels (`references/commits-and-prs.md#pr-takes-no-labels`). Execute behavioural
+claims on the final tree
+(`.claude/skills/morphic-verifying-changes/references/claims.md#pr-claims-match-evidence`), and edit
+from the live copy (`references/commits-and-prs.md#edit-pr-body-from-live-copy`).
 
 ## References
 
