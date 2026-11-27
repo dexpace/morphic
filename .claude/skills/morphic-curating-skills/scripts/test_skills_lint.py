@@ -5,6 +5,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-curating-skills/s
 import contextlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -76,6 +77,8 @@ class LintTest(unittest.TestCase):
         self.root = Path(self.dir.name) / "repo"
         # Files on disk that git ignores, which the tree a clone holds leaves out.
         self.ignored: set[str] = set()
+        self.toolchain = Path(self.dir.name) / "empty-goroot" / "src"
+        self.toolchain.mkdir(parents=True)
         fixture(self.root)
 
     def tearDown(self):
@@ -87,7 +90,7 @@ class LintTest(unittest.TestCase):
         tests = {"TestKnown", "TestKnown_Case"}
         on_disk = {p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()}
         lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files,
-                                  toolchain)
+                                  self.toolchain if toolchain is None else toolchain)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -256,13 +259,12 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(gone))
-        # Where go cannot say, the toolchain's paths are held to the tree, as any other.
+        # Against an empty toolchain src, $GOROOT/src exists and every path inside it is missing.
         held = [f"{skill}:{n}: internal/runtime/maps does not exist",
                 f"{skill}:{n}: internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
                 f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 2}: $GOROOT/src does not exist",
                 f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
@@ -716,10 +718,42 @@ class GoSourcesTest(unittest.TestCase):
             with mock.patch.object(skills_lint, "go_sources", lambda at: asked.append(at) or src):
                 self.assertEqual(skills_lint.findings(root), (1, []))
             self.assertEqual(asked, [root], "go is asked once, at the root")
-            n = GOOD_SKILL.count("\n") + 1
-            with mock.patch.object(skills_lint, "go_sources", lambda at: None):
-                self.assertEqual(skills_lint.findings(root),
-                                 (1, [f"{skill}:{n}: internal/runtime/maps does not exist"]))
+            with mock.patch.object(skills_lint, "go_sources", lambda at: None), \
+                    self.assertRaisesRegex(
+                        RuntimeError,
+                        "cannot locate the Go toolchain's sources; standard-library paths not "
+                        "checked",
+                    ):
+                skills_lint.findings(root)
+
+    def test_missing_go_stops_with_one_line_and_no_path_findings(self):
+        git = shutil.which("git")
+        self.assertIsNotNone(git, "git must be on PATH")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "repo"
+            fixture(root)
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestKnown_Case(t *testing.T) {}\n")
+            skill = ".claude/skills/good-skill/SKILL.md"
+            write(root, skill, GOOD_SKILL + "Read `encoding/json/v2` and `internal/runtime/maps`.\n")
+            subprocess.run([git, "-C", str(root), "init", "-q"], check=True)
+            subprocess.run([git, "-C", str(root), "add", "-A"], check=True)
+            only_git = Path(d) / "bin"
+            only_git.mkdir()
+            (only_git / "git").symlink_to(git)
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            run = subprocess.run(
+                ["env", f"PATH={only_git}", sys.executable, str(HERE / "skills_lint.py")],
+                cwd=root, capture_output=True, text=True, env=env,
+            )
+        self.assertEqual(run.returncode, 2, run.stdout + run.stderr)
+        self.assertEqual(run.stdout, "")
+        self.assertEqual(
+            run.stderr,
+            "skills_lint: cannot locate the Go toolchain's sources; standard-library paths not "
+            "checked\n",
+        )
+        self.assertNotIn("encoding/json/v2", run.stdout + run.stderr)
+        self.assertNotIn("internal/runtime/maps", run.stdout + run.stderr)
 
 
 class MainTest(unittest.TestCase):

@@ -12,7 +12,7 @@ summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run or finds n
 Each rule in a reference is held to the format morphic-curating-skills gives. Scripts are executable
 Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
 and a test_<name>.py beside each. A path the tree lacks may name the Go toolchain's sources, which
-`go env GOROOT` locates; where go cannot say, every path is held to the tree. A Go name spelled
+`go env GOROOT` locates; where go cannot say, the lint stops and says so. A Go name spelled
 `Name` in `path/to/file.go` on one line is held to what that file declares. A SKILL.md body spells
 no $ before a digit, which the skill loader replaces with an argument.
 """
@@ -163,7 +163,7 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
 
 def go_sources(root: Path) -> Path | None:
     """Return the src directory of the Go toolchain that builds the module at root, or None where
-    go cannot say, when every path is held to the tree alone."""
+    go cannot say."""
     try:
         done = subprocess.run(["go", "env", "GOROOT"], cwd=root, check=True, capture_output=True,
                               text=True, errors="replace")
@@ -245,10 +245,9 @@ def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
 
 class Linter:
     def __init__(self, root: Path, top_level: set[str], tests: set[str], known: set[str],
-                 files: list[Path], toolchain: Path | None = None):
+                 files: list[Path], toolchain: Path):
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
-        # The Go toolchain's src, which a path the tree lacks may name, or None to hold every
-        # path to the tree.
+        # The Go toolchain's src, which a path the tree lacks may name.
         self.toolchain = toolchain
         # The tree a clone holds, as load_tree lists it, with each directory above a file: a path
         # on disk that git ignores, such as a local plan or a built binary, is in no clone.
@@ -527,8 +526,6 @@ class Linter:
         """Report whether rel names a file or directory of the Go toolchain's sources, by its
         import path or its path below $GOROOT/src, never one beside or above them. A path gone
         from the tree therefore passes where the toolchain holds the same one, such as cmd/vet."""
-        if self.toolchain is None:
-            return False
         rel = GOROOT_SRC.sub("", rel)
         return ".." not in rel.split("/") and (self.toolchain / rel).exists()
 
@@ -639,8 +636,12 @@ def findings(root: Path) -> tuple[int, list[str]]:
     if not skills.is_dir() or not any(d.is_dir() for d in skills.iterdir()):
         raise RuntimeError(f"found no skill under {skills}, so nothing was checked")
     top_level, tests, known = load_tree(root)
+    toolchain = go_sources(root)
+    if toolchain is None:
+        raise RuntimeError(
+            "cannot locate the Go toolchain's sources; standard-library paths not checked")
     files = [root / f for f in sorted(known) if f.startswith(".claude/skills/")]
-    lint = Linter(root, top_level, tests, known, files, go_sources(root))
+    lint = Linter(root, top_level, tests, known, files, toolchain)
     return lint.run(), lint.findings
 
 
