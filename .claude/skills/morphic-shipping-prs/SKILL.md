@@ -26,7 +26,7 @@ never rewritten.
 After `git fetch origin main <base>` (with no `origin`, take
 `.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin`), run this from
 the repository root. N is the PR's number, or before it exists one past
-`gh api '/repos/dexpace/morphic/issues?state=all&per_page=1' --jq '.[0].number'`. `<base>` is the
+`gh api 'repos/dexpace/morphic/issues?state=all&per_page=1' --jq '.[0].number'`. `<base>` is the
 branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`). Measure any side branch
 before merging it (`references/merging-main.md#measure-a-side-branch-before-merging-it`).
 

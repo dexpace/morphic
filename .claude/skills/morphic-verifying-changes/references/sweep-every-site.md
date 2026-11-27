@@ -61,7 +61,7 @@ it.
 - **Rule.** A move a design document states counts as a move though the diff removes no name. List
   each moved declaration's spellings in other units — qualified by the unit it left
   (`git grep -nE '(^|[^A-Za-z0-9_])<old unit>\.(<names>)'`) and unqualified in another unit's sample
-  or signature (`git grep -nE '([(*\[ ])(<names>)[\[(,)]' -- docs`) — and read each hit against the
+  or signature (`git grep -nE '[(*\[ ](<names>)[\[(,)]' -- docs`) — and read each hit against the
   new placement.
 - **Why.** #1737 moved runtime types to `<root>/runtime` while `docs/` kept 9 `sdk.*` spellings at
   `c463b8253` and 4 unqualified signatures (`*RawBody`, `*Response[...]`) at `55d067d21`, with 0

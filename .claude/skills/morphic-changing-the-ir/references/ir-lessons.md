@@ -105,7 +105,7 @@ design rules.
   `ir/ids.go`, held by `checkUnresolvedSchemes` in `ir/irverify/unresolved.go`) takes no document
   qualifier. Mint a node of that kind in the reserved space whatever document declares it.
 - **Why.** Minting an unresolved auth scheme in a qualified space (`unresolved@other.yaml`) passed
-  every hand list and failed `morphic compile --verify` with `unresolved-auth-space` (#1937,
+  every hand list and failed `morphic compile --verify` with `ir/unresolved-auth-space` (#1937,
   #1962).
 - **Probe.** `go run ./cmd/morphic compile --verify` on a two-document input declaring the node in
   the second document.
@@ -131,8 +131,8 @@ design rules.
   beside `composed`), at each nesting position, and with targets that differ so `irverify`'s
   fingerprint cannot excuse the repeat.
 - **Why.** On #1977 at `162f83147`, a `composed` model and the inline `anon` model at one pointer
-  minted the same settled property ID, failing `morphic compile --verify` with
-  `duplicate-prop-id` (exit 2) past four review rounds (#1980).
+  minted the same settled property ID, failing `morphic compile --verify` with a duplicate
+  property ID (`ir/duplicate-property-id`, exit 2) past four review rounds (#1980).
 - **Probe.** `go run ./cmd/morphic compile --verify` on #1980's two-owner spec (exit 2 at
   `162f83147`, exit 0 at `main`).
 

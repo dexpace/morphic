@@ -86,7 +86,7 @@ class LintTest(unittest.TestCase):
 
     def lint(self, toolchain: Path | None = None):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
-        top_level = {"docs", "ir", "cmd", "internal", ".claude"}
+        top_level = {"docs", "ir", "pass", "cmd", "internal", ".claude"}
         tests = {"TestKnown", "TestKnown_Case"}
         on_disk = {p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()}
         lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files,
@@ -196,6 +196,78 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL + elsewhere + held)
         n = GOOD_SKILL.count("\n") + 2
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_markdown_link_inside_inline_code_is_not_checked(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        line = (r"Run `git grep -nE '[(*\[ ](<names>)[\[(,)]' -- docs` and see "
+                "[`ir/a.go`](references/r.md), [`code`](references/missing.md) and "
+                "[broken](references/none.md).\n")
+        write(self.root, skill, GOOD_SKILL + line)
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n}: link target references/missing.md does not exist",
+                f"{skill}:{n}: link target references/none.md does not exist"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_github_api_repos_path_in_a_span_is_not_a_tree_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        line = ("Run `gh api 'repos/dexpace/morphic/issues?state=all&per_page=1'` and "
+                "`repos/dexpace/morphic/pulls/1`, not `gone/a.go`.\n")
+        write(self.root, skill, GOOD_SKILL + line)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go does not exist"])
+
+    def test_declared_ir_and_pass_diagnostic_codes_pass_while_undeclared_ones_fail(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, "ir/ids.go",
+              "package ir\n\ntype PropertyID string\ntype TypeID string\n")
+        write(self.root, "ir/sub/sub.go", "package sub\n\ntype SubID string\n")
+        write(self.root, "ir/irverify/check.go",
+              'package irverify\n\nfunc check(noun string) {\n'
+              '\t_ = "ir/unresolved-auth-space"\n'
+              '\t_ = "ir/duplicate-" + noun + "-id"\n'
+              '\t_ = "ir/" + noun + "-id-mismatch"\n'
+              '}\n')
+        write(self.root, "pass/validate.go",
+              'package pass\n\ntype PassID string\n\nfunc check(noun string) {\n'
+              '\t_ = "pass/example-outside-type"\n'
+              '\t_ = "ir/dangling-"+noun+"-ref"\n'
+              '}\n')
+        write(self.root, "ir/testdata/note.txt", '"ir/only-in-non-go"\n')
+        write(self.root, "ir/irverify/check_test.go",
+              'package irverify\n\nfunc TestX() { _ = "ir/only-in-test" }\n')
+        write(self.root, "ir/ignored.go",
+              'package ir\n\nfunc f() { _ = "ir/only-in-ignored" }\n')
+        self.ignored.add("ir/ignored.go")
+        good = ("Codes `ir/unresolved-auth-space`, `ir/duplicate-property-id`, "
+                "`ir/type-id-mismatch`, `ir/dangling-property-ref`, `pass/example-outside-type`,\n"
+                "command `grep ir/unresolved-auth-space ir/a.go`, prose ir/unresolved-auth-space, "
+                "pass/example-outside-type.\n")
+        bad = ("Stale `ir/duplicate-prop-id`, invented `ir/bogus-code`, `pass/bogus-code`,\n"
+               "excluded `ir/only-in-test`, `ir/only-in-ignored`, `ir/only-in-non-go`, "
+               "`ir/duplicate-sub-id`, `ir/duplicate-pass-id`, `ir/duplicate-`,\n"
+               "decorated `./ir/unresolved-auth-space`, `ir/unresolved-auth-space:1`, "
+               "[x](ir/unresolved-auth-space),\n"
+               "missing `ir/nope.go`, `pass/gone.go` and prose pass/bogus-prose.\n")
+        write(self.root, skill, GOOD_SKILL + good + bad)
+        n = GOOD_SKILL.count("\n") + 3
+        want = [
+            f"{skill}:{n}: ir/duplicate-prop-id does not exist",
+            f"{skill}:{n}: ir/bogus-code does not exist",
+            f"{skill}:{n}: pass/bogus-code does not exist",
+            f"{skill}:{n + 1}: ir/only-in-test does not exist",
+            f"{skill}:{n + 1}: ir/only-in-ignored does not exist",
+            f"{skill}:{n + 1}: ir/only-in-non-go does not exist",
+            f"{skill}:{n + 1}: ir/duplicate-sub-id does not exist",
+            f"{skill}:{n + 1}: ir/duplicate-pass-id does not exist",
+            f"{skill}:{n + 1}: ir/duplicate- does not exist",
+            f"{skill}:{n + 2}: ./ir/unresolved-auth-space does not exist",
+            f"{skill}:{n + 2}: ir/unresolved-auth-space:1 does not exist",
+            f"{skill}:{n + 2}: link target ir/unresolved-auth-space does not exist",
+            f"{skill}:{n + 3}: ir/nope.go does not exist",
+            f"{skill}:{n + 3}: pass/gone.go does not exist",
+            f"{skill}:{n + 3}: pass/bogus-prose does not exist",
+        ]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_a_pattern_or_a_ref_in_a_span_names_no_path(self):
