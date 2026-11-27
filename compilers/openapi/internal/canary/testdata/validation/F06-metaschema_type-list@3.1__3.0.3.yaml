@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {type: [string, 'null']}
+    B: {type: object, properties: {p: {type: [string, integer]}}}

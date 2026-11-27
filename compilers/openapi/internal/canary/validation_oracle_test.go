@@ -79,8 +79,9 @@ var validationReasons = map[string]string{
 	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
 		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
 		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
-		"schema's keywords, so the table warns of each, as later-version-construct, and the lowering applies it " +
-		"as 3.1 does, reading it as 3.0 defines it; JSON Schema drafts 4, 6 and 7 ignore them too " +
+		"schema's keywords, so the table warns of each, as later-version-construct, checks its value as 3.0 " +
+		"defines the keyword, and the lowering applies it as 3.1 does, reading it as 3.0 defines it; JSON Schema " +
+		"drafts 4, 6 and 7 ignore them too " +
 		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
 		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
@@ -96,12 +97,19 @@ var validationReasons = map[string]string{
 		"(docs/compilers/openapi.md#null-keywords)",
 	"duplicate-report": "the library reports one defect more than once, from its model and again from its " +
 		"meta-schema or a second check of the same field: a Discriminator Object without propertyName, a Parameter " +
-		"Object without in, a $ref where a schema belongs; the table reports it once",
+		"Object without in, a $ref where a schema belongs, a 3.0 schema's nullable that is no boolean; the table " +
+		"reports it once",
 	"position": "both sides report the defect and place it differently: the library on the key of the entry (the " +
 		"additionalOperations method, the repeated key), the table on the entry's value, the node its pointer names",
 	"rule-name": "both sides report the defect at one node, under different rules: a Parameter Object's content " +
 		"holding several entries, which the library calls an allowed value and the table an entry count, as the " +
-		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
+		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry'); a 3.0 " +
+		"schema's exclusiveMinimum or exclusiveMaximum written as a number, which the library calls a type " +
+		"mismatch and the table an invalid exclusive bound, as the lowering drops it " +
+		"(draft-wright-json-schema-validation-00 §5.5: 'The value of \"exclusiveMinimum\" MUST be a boolean'; " +
+		"docs/compilers/openapi.md#constraints); and a 3.0 schema's type naming \"null\", which the library calls an " +
+		"invalid schema and the table a value outside the six 3.0 allows (3.0.4 §Data Types: 'based on the " +
+		"non-null types')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table judges a bound as the schema lowering reads it, the literal exactly, and reports one " +
@@ -117,10 +125,12 @@ var validationReasons = map[string]string{
 		"$schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 §Schema Object: 'if present " +
 		"MUST be used to determine which dialect should be used when processing the schema'), and the compiler " +
 		"reads each in it (docs/compilers/openapi.md#dialect-keywords)",
-	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
-		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
-		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
-		"under Unmodeled and says so",
+	"over-strict": "the library warns of or refuses what the specification allows: a field written beside a type " +
+		"it does not apply to, where the specification's 'Applies To' column says where a field has meaning and " +
+		"bars it nowhere (3.2.0 §Security Scheme Object: bearerFormat applies to http), so the table accepts it, " +
+		"and the security scheme lowering keeps the field under Unmodeled and says so; and a 3.0 schema's empty " +
+		"enum, which its draft only advises against (draft-wright-json-schema-validation-00 §5.20: 'This array " +
+		"SHOULD have at least one element'), so the table accepts it",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
 		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +

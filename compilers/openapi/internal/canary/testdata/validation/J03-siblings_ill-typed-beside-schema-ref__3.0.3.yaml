@@ -1,0 +1,8 @@
+openapi: 3.0.3
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {type: string}
+    B: {$ref: '#/components/schemas/A', type: 5}
+    C: {$ref: '#/components/schemas/A', description: 5}
