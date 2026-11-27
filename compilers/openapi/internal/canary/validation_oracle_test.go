@@ -70,7 +70,8 @@ var validationReasons = map[string]string{
 		"from 3.1 and a Response's description from 3.2; 3.0.4 §Operation " +
 		"Object marks responses REQUIRED and 3.1.2 does not, 3.1.2 §Response Object marks description REQUIRED and " +
 		"3.2.0 does not",
-	"version-gate": "the library does not gate a field or value by the declared minor; the table warns, as " +
+	"version-gate": "the library accepts a field or value only a later minor defines, as it gates few by the " +
+		"declared minor (later-refused names those it does); the table warns, as " +
 		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
 		"name (3.2.0 §Server Object), or a keyword JSON Schema 2020-12 added in a 3.0 schema (3.0.4 §Schema " +
