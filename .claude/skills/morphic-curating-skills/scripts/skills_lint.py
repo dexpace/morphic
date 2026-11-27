@@ -125,7 +125,7 @@ ELSEWHERE = {
 }
 # A diagnostic code under ir/ or pass/, such as ir/duplicate-property-id: lowercase words joined by
 # hyphens. No directory there holds a hyphen, so the shape names no path, and, as with an openapi/
-# code, the code itself is not looked up.
+# code, the code itself is not looked up: an invented code in that shape passes (#2296).
 DIAGNOSTIC_CODE = re.compile(r"(?:ir|pass)/[a-z0-9]+(?:-[a-z0-9]+)+")
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")

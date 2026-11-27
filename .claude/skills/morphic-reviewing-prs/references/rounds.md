@@ -8,13 +8,14 @@ at the commit the setup below pins, by `git show "$main":<path>` or
 under review edits them, when its copy is what is reviewed.
 
 Before any fetch: take the round's number from the rounds and heads kept in
-`"$(git rev-parse --path-format=absolute --git-common-dir)/morphic-review/<N>.md"`, where a second
-round's reader, which must stay unanchored, reads only each round's first line until its angles
-finish; with no `origin`, or in a repository that must stay unwritten, take
-`references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
-branch (`references/rounds.md#branch-held-elsewhere`); and where the PR's stacked base has landed,
-as `gh pr view <base PR> --json state,mergedAt` shows while a `baseRefName` read before the
-retarget still names the deleted branch, take
+`"$(git rev-parse --path-format=absolute --git-common-dir)/morphic-review/<N>.md"`, which the main
+session reads. Where it runs a second round's angles itself, which must stay unanchored, it reads
+only each round's first line until they finish, and a delegated reader gets only what
+`references/readers.md#fresh-reader-for-the-second-round` allows. With no `origin`, or in a
+repository that must stay unwritten, take `references/rounds.md#review-without-origin`; check that
+no other checkout holds work on the PR's branch (`references/rounds.md#branch-held-elsewhere`); and
+where the PR's stacked base has landed, as `gh pr view <base PR> --json state,mergedAt` shows while
+a `baseRefName` read before the retarget still names the deleted branch, take
 `.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
 Before the PR exists, as before a branch's first push, the base is the branch it will target, `$h`
 the branch, the worktree is added at the branch's head, and `<N>` is the number the push checklist

@@ -255,17 +255,19 @@ it.
 - **Probe.** Plant a comparator returning 0 and a dropped tiebreak, run the test with -count=50, and
   confirm every run fails; plant a uniformly wrong result and confirm the two-order test fails.
 
-## A run-against-itself map-order test needs at least 128 repeats
+## A run-against-itself test over a small map needs at least 128 repeats
 `repeats-need-many-runs`
 
 - **Rule.** Repeating a run against itself is the weaker form of
-  `references/assertions-and-reach.md#ordering-tests-pin-the-order`; where it is used, repeat at
-  least 128 times. Go ranges a small map from a random start in a fixed slot order, so a few
-  repeats over two keys often agree. Name the Go release measured, as the runtime may change it.
+  `references/assertions-and-reach.md#ordering-tests-pin-the-order`; use it only over a map of at
+  most eight entries, repeated at least 128 times. Go ranges a small map from a random start in a
+  fixed slot order, so fewer repeats often agree, and past eight entries even 128 sometimes agree:
+  pin the order there. Name the Go release, as the runtime may change it.
 - **Why.** Over 20,000 trials on `go1.27.3`, two keys agreed in 6,907 trials at 8 runs, 2,353 at
-  16 and 0 at 128 (#1948, #1546).
-- **Probe.** Run #1948's map-range trial program at the repository's Go release; 128 repeats agree
-  in 0 trials.
+  16 and 0 at 128 (#1948, #1546); at 128 runs the same program agreed in 4 trials over nine
+  entries, 423 over 64.
+- **Probe.** Run #1948's trial program at the repository's Go release: at 128 repeats, two and
+  eight entries agree in 0 trials, nine in some.
 
 ## Name fixtures so the right answer sorts last
 `sort-order-fixture`
