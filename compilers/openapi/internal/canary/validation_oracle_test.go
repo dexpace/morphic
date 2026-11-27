@@ -83,12 +83,12 @@ var validationReasons = map[string]string{
 		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
 		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
-		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
-		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
-		"it as the later-version-construct warning, since only a later minor defines it, and lowers it as that minor",
-	"old-grammar": "the library checks a 3.2 document against the 3.1 grammar, a schema's own Validate discarding " +
-		"the version it is handed, and refuses what 3.2 added: style: cookie on a cookie parameter (3.2.0 §Parameter Object), a discriminator's " +
-		"defaultMapping (3.2.0 §Discriminator Object), an xml nodeType (3.2.0 §XML Object)",
+		"3.2; a cookie parameter's style: cookie before 3.2; a discriminator's defaultMapping before 3.2, which its " +
+		"3.1 meta-schema closes; an xml nodeType before 3.2, which its 3.0 and 3.1 meta-schemas close); the table " +
+		"reports it as the later-version-construct warning, since only a later minor defines it, and lowers it as " +
+		"that minor",
+	"old-grammar": "the library holds a 3.2 document's cookie parameter to the one style 3.1 allows there, form, " +
+		"and refuses style: cookie, which 3.2 added (3.2.0 §Parameter Object)",
 	"null-keyword": "the library refuses a null for a few Schema Object keywords (type, enum, discriminator) as a " +
 		"value of the wrong type, and says nothing of the same null for most others; the table warns of each " +
 		"alike, since the schema lowering reads every one as the keyword left out " +
