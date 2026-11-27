@@ -14,7 +14,19 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Why.** Root-stamped notices for several unmounted items deduplicated into one naming none, and
   chained `$ref` findings sent readers to a line in the wrong file (#382, #565).
 - **Probe.** Resolve every emitted pointer through the parsed source in a test; compile two sibling
-  instances and assert two diagnostics; try a chained `$ref` and an overlay graft.
+  instances and assert two diagnostics; try a chained `$ref` and an overlay graft
+  (`references/lossless-and-diagnostics.md#message-pointer-names-its-document`).
+
+## Name the document for any pointer a diagnostic message quotes
+`message-pointer-names-its-document`
+
+- **Rule.** Hold a pointer a diagnostic's message names like a provenance pointer: name its
+  document wherever that is not the report's, as `buildFailure` and `spellLoop` in
+  `compilers/openapi/internal/load/bindings.go` do ("`<pointer> in <document>`").
+- **Why.** On #1977, a fold message named `/components/schemas/Base/properties/p` from `other.yaml`
+  without its file, mispointing to `root.yaml`'s own `Base` while provenance checks passed (#1979).
+- **Probe.** Compile a construct whose message names a declaration read through a `$ref` into
+  another file, and read the message against both files.
 
 ## Make each diagnostic's message, code and severity match the case that fired
 `diagnostic-text-names-what-fired`
@@ -27,6 +39,21 @@ and every diagnostic is true, located, and decided from what actually happened.
   (#92, #332).
 - **Probe.** Trigger every branch and severity of the diagnostic, including zero-valued inputs and
   both directions of a symmetric check, and read each rendered message against the fixture.
+
+## Compile and read every finding without shell truncation
+`compile-and-read-every-finding`
+
+- **Rule.** Pass `--diagnostics-per-code-limit 0` to `compile` and `validate`, keeping diagnostics
+  beside the IR with `2>"$file"` or reading them alone via `validate --verify`, or count from
+  `compile`'s JSON (`jq '.diagnostics | length'`). Never `2>&1 >/dev/null | grep` (zsh `MULTIOS`
+  sends the IR into the pipe too, doubling counts). Write options out or hold them in a zsh array
+  (`opts=(--opt a=b)`), as zsh passes a string variable as one argument; a bad flag exits 2 like a
+  `--verify` failure, so read stderr's first line.
+- **Why.** Default limits hid 3 of 7 findings (#1964), 2 of 5 (#2045) and 10 of 18 added warnings
+  on #1977's sweep; a zsh string variable exited 2 (#2044).
+- **Probe.** `go run ./cmd/morphic validate testdata/conformance/openapi/extension-promotion.yaml 2>&1 | tail -1`
+  beside `--diagnostics-per-code-limit 0` piped to `grep -c -E '^(error|warning|info) '` (4 of 7
+  against 7).
 
 ## Prove each keyword the reader accepts changes the output
 `twin-diff-every-accepted-keyword`
@@ -105,6 +132,18 @@ and every diagnostic is true, located, and decided from what actually happened.
   #463 read a `*string`.
 - **Probe.** Compile the key with the value `null`, and read the field and the diagnostics.
 
+## Design a promotion target from a keeping node that can record it
+`promotion-target-can-record`
+
+- **Rule.** Design a new promotion target from the node keeping its key. Where that node declares
+  neither `Provenance` nor `Inferred`, adding the marker is an IR change that lands first, and the
+  target's row goes in `docs/ir/unmodeled.md#what-a-promotion-can-fill`.
+- **Why.** At `c8fb18b6b`, `x-terminator` lived on `Content`, which then had no marker (added in
+  #1937); no skill named the rule before `TestPromotionTable_EveryNodeCanRecord` refused it
+  (#1930).
+- **Probe.** Add a row for a node lacking both markers (such as `EnumMember`) in a throwaway tree
+  and run `go test ./ir -run TestPromotionTable`: `TestPromotionTable_EveryNodeCanRecord` fails.
+
 ## Own every refusal and bound; never borrow one from a dependency
 `explicit-guard-not-incidental`
 
@@ -138,7 +177,21 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Why.** `itemEncoding` was kept raw beside a typed field, `$dynamicRef` lowered silently to any,
   and an open tuple was tagged `no_ir_home` (#119, #149).
 - **Probe.** Grep `ir/` for a field holding each kept keyword, and assert the promised IR kind and
-  `UnmodeledReason` for each case the design names.
+  `UnmodeledReason` for each case the design names
+  (`references/lossless-and-diagnostics.md#kept-reason-keeps-its-promise`).
+
+## Hold each kept entry's reason to its promise and nearest sibling
+`kept-reason-keeps-its-promise`
+
+- **Rule.** Hold each kept entry's reason to the promise `docs/ir/unmodeled.md#what-a-key-promises`
+  gives it, and to the reason the compiler gives the nearest construct of the same kind
+  (`git grep -n 'ir.Reason' -- compilers/`; `keyClass` in
+  `compilers/openapi/internal/annotation/unknown.go`). A tracker Direction is no precedent.
+- **Why.** #1498 kept unmapped encoding entries under `no_ir_home` beside `out_of_scope` for
+  undefined keys, following a Direction while saying the entries stay (#1791, #1792).
+- **Probe.** Compile #1791's reproduction spec and run
+  `jq -c '[.. | objects | select(has("mediaType")) | (.unmodeled // {}) | to_entries[] | {key, reason: .value.reason}]'`,
+  reading each reason against its promise and the nearest construct's reason.
 
 ## Produce exactly one finding per defect
 `one-defect-one-finding`
@@ -149,7 +202,19 @@ and every diagnostic is true, located, and decided from what actually happened.
   probe whether load already reports every instance.
 - **Why.** A bad numeric bound and an ill-formed string each drew two reports, and per-reader
   reports of a `null` schema missed positions load already reported (#539, #23, #1066).
-- **Probe.** Plant each defect the overlapping checks cover and assert exactly one entry for it.
+- **Probe.** Plant each defect the overlapping checks cover and assert exactly one entry for it
+  (`references/lossless-and-diagnostics.md#exactly-one-before-the-dedup`).
+
+## Assert a single finding before `compile.Diags` deduplicates
+`exactly-one-before-the-dedup`
+
+- **Rule.** Assert "exactly one" where the reports are returned, before `Append` in
+  `compilers/compile/diags.go` drops an identical duplicate, or plant a duplicate differing in
+  message or pointer so it survives deduplication.
+- **Why.** Duplicating `routeEntry`'s report in `compilers/openapi/internal/schema/mapping.go`
+  passed compile-level tests (`ok`) and failed only the unit test (`FAIL`) (#1879).
+- **Probe.** Plant a second identical diagnostic in the returning function and confirm a unit test
+  fails before the slice reaches `compile.Diags`.
 
 ## Prove every return path and caller delivers its diagnostics
 `every-return-path-delivers-diagnostics`
@@ -189,7 +254,19 @@ and every diagnostic is true, located, and decided from what actually happened.
   forbade (#267).
 - **Probe.** Compile {type:[string,null], enum:[null,a]}, the same with null last, and
   {type:[string,null], enum:[a,b]}; assert an Enum kind, correct nullability per reference, and no
-  degradation diagnostic.
+  degradation diagnostic (`references/lossless-and-diagnostics.md#null-alone-keeps-its-type-set`).
+
+## Keep `null` in the type set a value is judged against
+`null-alone-keeps-its-type-set`
+
+- **Rule.** The type set a value (`enum`, `const`) is judged against keeps its `null`: taking
+  `null` out of a type set of `null` alone reads as no type at all and accepts non-null values no
+  instance can carry.
+- **Why.** Dropping `null` from the checked type set lowered `{type: "null", enum: [a, null]}`,
+  `{type: ["null"], enum: [1, 2]}` and `{type: "null", const: 5}` with no report and dropped `type`
+  (#1833, #1858).
+- **Probe.** Compile `{type: "null", enum: [a, null]}`, `{type: ["null"], enum: [1, 2]}` and
+  `{type: "null", const: 5}`, asserting each is reported with its `type` kept.
 
 ## Land a keyword in one IR place whichever path lowers it
 `keyword-placement-path-independent`
@@ -215,6 +292,17 @@ and every diagnostic is true, located, and decided from what actually happened.
   #185).
 - **Probe.** Build a table of equivalent spellings and assert identical IR and diagnostic codes
   across it.
+
+## Search a target spelling's open defects before converging onto it
+`converging-spelling-imports-defects`
+
+- **Rule.** Before making spelling B lower as spelling A does, run
+  `gh issue list --state open --limit 1000 --search "<A>"`. Compile each defect's reproduction with
+  B on `main` and the branch. Keep B's `main` behaviour where the branch is worse, or name the
+  defect in the rule's Status and on the issue.
+- **Why.** Converging `base64url`, `http-date` and `unixtime` onto `format: byte` imported #1851
+  (bounds on decoded scalars) and #1214 (multipart filename on `bytes`) (#1893, #1898).
+- **Probe.** Quote the `gh issue list` hits beside both builds' outputs for each reproduction.
 
 ## Fixture every version, location and override level a rule depends on
 `cover-every-version-location-and-level`

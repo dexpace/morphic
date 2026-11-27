@@ -8,7 +8,8 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
 1. Read the diff before the PR body (`references/correctness.md#code-before-claims`).
 2. For each output the change alters, state the result a consumer should get on real input, then
    compile a minimal spec on `$main` and in the worktree and read the IR and every diagnostic
-   (`.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
+   (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#compile-and-read-every-finding`,
+   `.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
    golden spec where it holds the construct, fetched as `CLAUDE.md`'s "Priority" section shows.
    Where they differ, take `references/correctness.md#better-than-main`.
 3. Probe each `CLAUDE.md` invariant the diff could reach, rather than reading for it. Fidelity,

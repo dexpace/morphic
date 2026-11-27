@@ -390,6 +390,9 @@ needless; a verified run catches one.
    it reports there fails the sweep, as it fails `morphic compile`, and the idempotence oracle runs
    it again over what that run returned, failing a transform whose second run changes the document,
    and over what the whole list returned, failing one placed before a pass whose output it acts on.
+   A fixture added anywhere under `testdata/` is also read by the validation oracle: run
+   `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`
+   when a new fixture adds a library disagreement.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.
