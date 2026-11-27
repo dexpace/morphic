@@ -165,9 +165,9 @@ The matrix is each claim class with the members checked, and each closed issue w
   `gh pr list --state open --limit 1000 --search "#<N> in:body"`. Read each open PR's sentence about
   the change; where it states an interaction, rerun the change's stated measurements on the tree
   merged with that PR, and rank a contradiction an `issue:` naming what each merge order owes.
-- **Why.** For #2171 on 2026-11-27, `gh issue list` returned `[2276,2172]` while `gh pr list`
-  returned `[2182,2204,2187]`, where #2187's body contradicted #2171's `docs/ir/values.md` sentence
-  without a text conflict (#2277).
+- **Why.** #2277 recorded on 2026-11-27 that `gh issue list` returned `[2276,2172]` while
+  `gh pr list` returned `[2182,2204,2187]`, missing an open PR whose body stated a contradiction
+  without a text conflict.
 - **Probe.** Both commands for each number, with each open PR's interaction sentence beside its
   merged-tree check.
 

@@ -56,14 +56,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Lint what a Go-changing branch adds before pushing
 `lint-the-touched-packages`
 
-- **Rule.** Before a push that changes Go code, run the pinned linter over what the branch adds,
-  `make check-lint-version && golangci-lint run --new-from-merge-base=origin/<base> ./...`, gated by
-  exit status in the push block before `skills_lint.py`. `make check-lint-version` warns on mismatch
-  rather than failing; CI's pinned run stays the gate.
+- **Rule.** Before a push that changes Go code, run the pinned linter from a physical path over what
+  the branch adds:
+  `cd -P . && make check-lint-version && golangci-lint run --new-from-merge-base=origin/<base> ./...`,
+  gated by exit status before `skills_lint.py`. Resolving symlinks matters on macOS: under `/tmp` or
+  `/var`, `--new-from-merge-base` filters out every finding silently. `make check-lint-version`
+  warns on mismatch; CI's pinned run stays the gate.
 - **Why.** #1977's push `162ef1822` failed CI's lint job on three findings (`embedlit` and
   `testifylint`) in newly added tests, and rounds 4 and 12 lost runs the same way (#2013).
-- **Probe.** Plant a `testifylint` finding in a test file on a throwaway branch: the command reports
-  it and exits non-zero; on a branch changing no Go file it reports nothing.
+- **Probe.** On a throwaway branch entered via `cd -P`, plant `assert.True(t, x > 0)` in a test: the
+  command reports `testifylint` and exits 1; on a non-Go branch it prints nothing.
 
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`

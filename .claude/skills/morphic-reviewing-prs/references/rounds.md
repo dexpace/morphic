@@ -164,8 +164,9 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
   `references/claims-and-process.md#gate-claim-without-a-run`.
 - **Why.** #1740's short SHAs printed `[]` while runs existed (#1761); at `cfb366317` without
   `--event`: `schedule success`, `schedule failure`, `push success`.
-- **Probe.** `gh run list --commit <short> --workflow gate.yml --json status,conclusion` beside the
-  same call with `"$(git rev-parse <short>)"`.
+- **Probe.** `gh run list --commit <short> --workflow gate.yml --event pull_request --json databaseId,status,conclusion`
+  beside `"$(git rev-parse <short>)"` on a PR head (or omit `--event` on `main` to see `schedule`
+  beside `push`).
 
 ## Decide nothing on an assumption
 `decide-on-evidence`

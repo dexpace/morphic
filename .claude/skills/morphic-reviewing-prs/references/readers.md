@@ -61,8 +61,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Why.** #1532's readers started without effort set ran at the session's (#1532, #1542); #2272
   showed the old Probe read an 83-call Antigravity reader as 0.
 - **Probe.** Run the host's effort query from `references/readers.md#transcript-probes-per-host` on
-  the starting session's transcript: it prints `xhigh` or `inherit` per reader, and empty output on
-  a supported host marks the cell unreached.
+  the starting session's transcript (a reader's own records only the effort it ran at): it prints
+  `xhigh` or `inherit` per reader, and empty output on a supported host marks the cell unreached.
 
 ## Brief a reader to batch its calls
 `reader-batches-its-calls`

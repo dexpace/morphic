@@ -8,8 +8,8 @@ to read — and to execute outside the case its author measured.
 
 - **Rule.** Before a comment, assertion, doc, test name or PR body states an absolute (never,
   always, only, every, no, read by nothing, validated once), enumerate each caller, return path,
-  producer, position, route and input class it covers; otherwise scope the claim or name
-  exceptions. A field's doc describes every writer, and a set-increment claim takes
+  producer, position, route and input class it covers and check each; else scope it or name
+  exceptions. A field's doc describes every writer; set increments take
   `references/claims.md#set-claims-diff-the-set`.
 - **Why.** "Read by nothing" was written while `constraints.go` read the field, and "never reports a
   spec-level problem" over paths that do (#111, #190). A body's "a change that adds one now fails a

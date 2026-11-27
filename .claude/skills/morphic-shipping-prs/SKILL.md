@@ -52,7 +52,7 @@ serves until the PR opens.
 ```bash
 t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
 h=$(gh pr view N --json headRefName --jq .headRefName 2>/dev/null) || h=$(git branch --show-current)
-make check-lint-version && golangci-lint run --new-from-merge-base="origin/<base>" ./... &&
+cd -P . && make check-lint-version && golangci-lint run --new-from-merge-base="origin/<base>" ./... &&
   python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
   python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py --base "origin/<base>" --pushed "origin/$h" N "$t" &&
   git push origin "HEAD:refs/heads/${h:?name the branch}"

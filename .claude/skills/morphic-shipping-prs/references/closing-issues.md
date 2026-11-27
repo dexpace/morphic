@@ -47,7 +47,7 @@ Which issues a pull request closes, and how to show each is finished before a re
   `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
   and again before a report says it closes. A closed issue's closing comment is a recorded decision,
   its reference leaving the body; a comment or body edit is part of the ask; each `## Out of scope`
-  item, deferred alternative (`references/closing-issues.md#closing-issue-open-questions`) naming
+  item or deferred alternative (`references/closing-issues.md#closing-issue-open-questions`) naming
   pending work goes to an open issue, stated where
   `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
 - **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight
