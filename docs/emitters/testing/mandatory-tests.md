@@ -148,20 +148,22 @@ throughout these documents.
     an Objective-C method family, every name that meets a reserved one, or folds as one where its
     scope compares folded, is its own name with the target's escape, whatever reserved it, and none
     is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
-    that keeps its name, in both declaration orders, two types that meet one reserved name are
-    the escaped name and that name with a suffix, and a scope reserving both a name and its escaped
-    form appends the escape until the result is not reserved. A name a target quotes is quoted last,
+    that keeps its name, in both declaration orders, two types that meet one reserved name are the
+    escaped name and that name with a suffix, and a scope reserving both a name and its escaped form
+    appends the escape until the result is not reserved. A name a target quotes is quoted last,
     around the symbol its scope gave, so of two Kotlin properties rendering `class` the second is
     `class2` and no symbol holds a quote; an import that yields takes the collision's suffix
     whatever it met, its scope built to suffix what it reserves; and a scope is refused that states
-    a comparison outside the vocabulary, an escape that is empty or folds empty, or an empty
-    reserved name. On Go a caller's package importing
-    every unit under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a
-    method taking a parameter `time2`, in a file importing the standard library's `time` and a unit
-    `time`, compiles its body's use of each. On Go `go list` lists every file the target writes
-    among a package's `GoFiles`, none among the files it ignores or builds for tests alone, on each
-    port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and
-    import path is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
+    a comparison outside the vocabulary, an empty escape or an empty reserved name, and a role whose
+    convention leaves a break unmarked or whose leading word, cased as its first word, fails its
+    `Start`, where version 1's `field` cased `Field` is admitted on a Go field. On Go a caller's
+    package importing every unit under its own name compiles its uses of `error`, `string`, `len`
+    and `nil`, and a method taking a parameter `time2`, in a file importing the standard library's
+    `time` and a unit `time`, compiles its body's use of each. On Go `go list` lists every file the
+    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
+    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
+    every file and import path is one the module proxy takes
+    ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
@@ -169,15 +171,15 @@ throughout these documents.
     whose constructor takes a string, a `clean` and a `wrapper` at the build's root leave every
     module's sources, no path the build writes, an artifact's or a class file's, has a Windows
     device name for a segment, and the Multiplatform framework links, its header holding none of
-    what only generated code calls and giving each declaration the Swift name the target chose,
-    none of them a type Swift's standard library or Foundation declares, a module's name or a
-    name the export declares for a class of its own or for a class, object or interface of the
-    standard library, so a Swift file that imports the framework and Foundation compiles its uses of
-    both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
-    either module; of the two types `Duration` the one whose ID sorts first exports as `Duration__`
-    and the other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under
-    both orders of their units' packages. The fixture also names a property, a parameterless method,
-    a `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
+    what only generated code calls and giving each declaration the Swift name the target chose, none
+    of them a type Swift's standard library or Foundation declares, a module's name or a name the
+    export declares for a class of its own or for a class, object or interface of the standard
+    library, so a Swift file that imports the framework and Foundation compiles its uses of both,
+    `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by either
+    module; of the two types `Duration` the one whose ID sorts first exports as `Duration__` and the
+    other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under both
+    orders of their units' packages. The fixture also names a property, a parameterless method, a
+    `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
     `zone`, `hash`, `self`, `load`, `copy`, AppKit's `accessibilityIsIgnored` and UIKit's
     `accessibilityLabel` among them, a method of one parameter after each of its one-parameter
     selectors (`responds(toSelector:)`), a method and an entry after a name of each method family,
@@ -263,15 +265,15 @@ throughout these documents.
     of two (`aux.v1.go`) and before spaces and a dot (`nul .txt`); each character Windows refuses,
     U+001F among them; a trailing dot or space, where a space inside a segment is admitted; a file's
     name of 236 bytes, where one of 235 is admitted; an empty path, an absolute one, one holding
-    `\`, `..` or an empty segment; a header line that lacks the marker where `Header` says it
-    stands, and a placement outside the three; and no artifact with neither an error diagnostic nor
-    a `no-artifacts` warning (where a generation carrying an error diagnostic alone is admitted).
-    The checks' work grows as the artifacts do, over paths nested three directories deep. A template
-    that fails the formatter draws a located error and no artifact, and a build with and without
-    `-trimpath` give identical artifacts. A `Scope` matching nothing and a document with nothing to
-    emit each draw `no-artifacts`. A path reaching a sibling that shares the root's prefix does so
-    through `..`, the breach above, and a symlink in the tree that leaves the root is refused by the
-    writer.
+    `\`, a `.` or `..` segment or an empty one (`a//b`, `a/./b`); a header line that lacks the
+    marker where `Header` says it stands, and a placement outside the three; and no artifact with
+    neither an error diagnostic nor a `no-artifacts` warning (where a generation carrying an error
+    diagnostic alone is admitted). The checks' work grows as the artifacts do, over paths nested
+    three directories deep. A template that fails the formatter draws a located error and no
+    artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
+    nothing and a document with nothing to emit each draw `no-artifacts`. A path reaching a sibling
+    that shares the root's prefix does so through `..`, the breach above, and a symlink in the tree
+    that leaves the root is refused by the writer.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
@@ -544,38 +546,47 @@ throughout these documents.
     its content changed or not, and is `engine/artifact-would-overwrite` where its owner edited the
     old spelling, on a volume that ignores case and one that does not, each judged from what such a
     volume answers, and where that rename was cut short and the next generation drops the file or
-    renames it again, a file both spellings name is pruned once and none is reported edited; a
-    file and a directory trade places both ways, a directory left empty in the way removed, and a
-    file that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory
-    under a directory a write replaces, or a kept edited listed path whose folded path is a
-    directory prefix of a held path or vice versa (`Models` beside `models/user.go`, `Models/user.go`
-    beside `models`), on a volume that ignores case and one that does not, is
+    renames it again, a file both spellings name is pruned once and none is reported edited; a file
+    and a directory trade places both ways, a directory left empty in the way removed, and a file
+    that stays in a write's way, its owner's or an edited one, an unlisted empty subdirectory under
+    a directory a write replaces, or a kept edited listed path whose folded path is a directory
+    prefix of a held path or vice versa (`Models` beside `models/user.go`, `Models/user.go` beside
+    `models`), on a volume that ignores case and one that does not, is
     `engine/artifact-would-overwrite` before any write; a directory standing under another spelling
     of a write's segment is the same error unless the run's prunes and dropped-path directory
     removals remove it first, including a nested directory left empty above dropped listed paths,
-    one a volume lists decomposed being the same name; a root holding another target's manifest, or
-    its pending manifest alone, is
+    and so is a file standing under another spelling of a write's segment, `Models` beside
+    `models/user.go`, on either volume, one a volume lists decomposed being the same name on a
+    volume that joins the two and another spelling on one that does not; a directory at a dropped
+    listed spelling of a held path, `Setup.kt/notes.txt` beside `SetUp.kt`, is the same error where
+    it holds anything, and an empty one is removed before the write; a symbolic link at a held path
+    or above one is the same error, and one at or above a dropped listed path is kept and reported
+    `engine/file-edited`, nothing written or pruned through it; a manifest or a pending manifest
+    that is no manifest, or a directory at its path, is `engine/manifest-unreadable` with nothing
+    written; a root holding another target's manifest, or its pending manifest alone, is
     `engine/manifest-foreign`, and nothing there is pruned; two targets whose roots are one
-    directory, or one inside the other, by the path fold, are refused before any target runs; of
-    two targets one of which would overwrite a file, neither is written,
-    in either order they are named, and at the `none` threshold, or under a triage rule accepting
-    the code, the other is written and that root left as it was; a root changed between its plan and
-    its writes, a file edited or a second plan applied, is refused with nothing written, and a file
-    added under a directory a write replaces is refused when that write meets it, the next run
-    finding it in the write's way; a write cut after any single operation on the disk, a file
-    removed, a directory removed, the lower of two that one pruned file leaves empty among them, or
-    a file written, heals when the same generation or a later one runs next, itself cut at any
-    operation and run again, the tree then an uninterrupted run's, with no empty directory, no
-    pending manifest and no file reported as edited or in the way, and the run after it doing
-    nothing, as does a first generation over marked files no manifest lists, cut before it
-    replaced them; a spec reformatted, one drawing a warning among them, is the same
-    generation; a generated file edited outside its regions is reported `engine/file-edited` and
-    neither overwritten nor pruned, by the next generation too, an entity a rename moves out of it
-    written in its new place and its regions left in the kept file, written once, while one edited
-    only inside a region, or checked out with other line endings, is not an edit; a region follows
-    its entity into the file a rename moves it to, one the declaration enclosed still inside it, and
-    one whose entity is gone is reported and its file kept; a scoped run's manifest keeps every
-    entry it left out; the staleness check lists no entity a correlation key carried across a
+    directory, or one inside the other, by the path fold, are refused before any target runs; of two
+    targets one of which would overwrite a file, neither is written, in either order they are named,
+    and at the `none` threshold, or under a triage rule accepting the code, the other is written and
+    that root left as it was; a root changed between its plan and its writes, a file edited or a
+    second plan applied, is refused with nothing written, and a file added under a directory a write
+    replaces is refused when that write meets it, the next run finding it in the write's way; a
+    write cut after any single operation on the disk, a file removed, a directory removed, the lower
+    of two that one pruned file leaves empty among them, or a file written, heals when the same
+    generation or a later one runs next, itself cut at any operation and run again, the tree then an
+    uninterrupted run's, with no empty directory, no pending manifest and no file reported as edited
+    or in the way, and the run after it doing nothing, as does a first generation over marked files
+    no manifest lists, cut before it replaced them, and a run cut once it replaced a directory `a/b`
+    with a file `a/b`, whose next run removes nothing above the dropped `a/b/x.go`; a pending
+    manifest records no new digest at a path kept as its owner's, so a save of exactly those bytes
+    after a cut run stays the owner's; a spec reformatted, one drawing a warning among them, is the
+    same generation; a generated file edited outside its regions is reported `engine/file-edited`
+    and neither overwritten nor pruned, by the next generation too, an entity a rename moves out of
+    it written in its new place and its regions left in the kept file, written once, while one
+    edited only inside a region, or checked out with other line endings, is not an edit; a region
+    follows its entity into the file a rename moves it to, one the declaration enclosed still inside
+    it, and one whose entity is gone is reported and its file kept; a scoped run's manifest keeps
+    every entry it left out; the staleness check lists no entity a correlation key carried across a
     renamed path variable; a file written once is never written again, even after its user deletes
     it, nor reported when its user edits it, and one marked `@morphic:ignore-file` is never written,
     pruned or reported; a hint's key, a runtime-policy key, an envelope's `Except` entry and a
@@ -1580,3 +1591,23 @@ throughout these documents.
     parameters validates, one setting two variants' fails naming the choice, and one setting none
     fails only where the choice is required ([choices among
     parameters](../../ir/operations.md#choices-among-parameters)).
+77. **T-77 · Configuration** — `options.Decode` refuses an unknown member, a repeated one, a missing
+    version, a version past the last and a `null` at a string, a map, a list and a nested member,
+    and admits one at a pointer; it fills what a configuration leaves unset from its stated
+    version's defaults, a map merged key by key, and at a version behind the current one reports
+    each unset setting and each map entry whose default moved, under the code it is given, sorted
+    by path and alike on two runs. `options.DecodeLayer` refuses a `null` at a pointer too.
+    `options.Canonical` sorts members at every depth and keeps `9007199254740993` exact, and two
+    options structs declaring their fields in two orders give one digest. `emitters.Configure`
+    refuses as a breach each thing [the checked calls](../contract/emitter.md#the-checked-calls)
+    list, a `Canonical` holding whitespace, members out of order or a name twice among them, and
+    passes a target's own refusal on with no `Bound`. `TargetKey.Validate`, and so `Register` and
+    `project.Validate`, refuses an empty key, `a//b`, `-go`, `go/-x`, an upper-case letter and a
+    first segment naming each kernel package, and admits `go`, `kotlin-jvm` and `mock/go`.
+    `project.Decode` refuses a file stating no version, an unknown member, an empty `output`, absent
+    options or options that are no object, two roots one inside the other by the fold, `sdk/nul`
+    and `C:\sdk\go`, and resolves `./sdk/go`, `a/..`, `..` and `../../sdk/go` against the file's
+    directory. A run whose target's options `Configure` refuses fails before its spec is read.
+    `engine/target-experimental` and `engine/target-sunset`, naming the successor, are each
+    reported once in a run over three snapshots ([target options](../contract/options.md), [the
+    project](../contract/project.md), [the registry](../contract/registry.md)).

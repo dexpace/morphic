@@ -69,7 +69,8 @@ The procedure decided every existing field:
    pointer, a class reference — is the target's ([recursive
    references](../refine/models.md#recursive-references)).
 
-What holds the line beyond review: `emitters/plan` imports only `ir` and `ir/irfacts`, so it cannot
-read a naming or runtime policy or a target ([package layout](../packages.md)); the plan is
+What holds the line beyond review: `emitters/plan` imports only `ir`, `ir/irfacts` and
+`emitters/options`, which decodes a configuration and holds none, so it cannot read a target's
+naming data, a runtime policy or a target ([package layout](../packages.md)); the plan is
 golden-tested once, with no target in the loop; and a plan field's doc comment names what it derives
 and which artifacts expose it, which a reviewer checks against the third test.

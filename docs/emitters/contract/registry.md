@@ -17,6 +17,10 @@ func (r *Registry) Register(emitter Emitter) error       // what it refuses is b
 func (r *Registry) Lookup(key TargetKey) (Emitter, bool) // a hidden target among them
 func (r *Registry) Targets() []TargetKey                 // sorted — determinism (INV7); a hidden
                                                          // target left out
+
+// Validate returns a plain error naming the rule key breaks of the two below, its characters and
+// its first segment. Register and project.Validate each call it, so a key is held to one rule.
+func (key TargetKey) Validate() error
 ```
 
 `Register` reads an emitter's key and capabilities once, behind `barrier.Catch`, as
@@ -27,15 +31,23 @@ emitter's:
 
 - a nil emitter, and a key already registered (plain errors);
 - a key that is not one or more segments joined by `/`, each of lowercase ASCII letters, digits and
-  `-` and none empty, as `go`, `kotlin-jvm` and `mock/go` are. A key is written into a diagnostic
-  code, a manifest and a command line, so it holds what each takes as it stands;
-- a key whose first segment is one a shared package reports its codes under, `plan`, `naming`,
-  `policy` or `embed`: a target so keyed would report under `emitters/plan/…`, and a reader of a
-  code could not tell the plan's finding from the target's
-  ([codes](emitter.md#the-codes-a-target-reports));
+  `-`, beginning with a letter or a digit, as `go`, `kotlin-jvm` and `mock/go` are. A key is
+  written into a diagnostic code, a manifest and a command line, so it holds what each takes as it
+  stands: a command line reads a word beginning with `-` as a flag (`morphic validate -go` is
+  refused as the unknown flag `-g`, morphic @cfb366317), and a segment that is empty cannot be told
+  from a separator;
+- a key whose first segment names a kernel package (the last element of its path, [package
+  layout](../packages.md#the-layers)): a shared package reports its codes under
+  `emitters/<package>/…`, as `plan`, `naming`, `policy` and `embed` do today, so a target keyed
+  `plan` would report under `emitters/plan/…`, and a reader of a code could not tell the plan's
+  finding from the target's ([codes](emitter.md#the-codes-a-target-reports)). The packages that
+  report no code yet are reserved too: a key is a durable public name, and a package that starts
+  reporting must not refuse a key a project already names;
 - capabilities that state no lifecycle, or one outside the four; a `Successor` on a target that is
   not `sunset`; `rpc` listed with no system, or a system with no `rpc`; a protocol outside the
   vocabulary; and a declared build check on an emitter that does not implement `Checker`.
+
+T-77 holds the key's rules and the lifecycle's warnings.
 
 The engine is the only caller of `Lookup`, and the only thing that touches the filesystem, prunes,
 and renders diagnostics. It configures, inspects and runs targets through the contract's checked
@@ -44,12 +56,15 @@ Emitters are I/O-free. Reading, rendering and
 writing the IR document have homes already: `engine/reader` reads what a run's references name,
 `engine/report` renders, and `engine/output` writes, replacing a file through the atomic replace in
 `engine/internal/atomicfile`. Writing artifacts and pruning are [write /
-integrate](../write-integrate.md)'s, under the [emit rules](../emit/rules.md). The engine configures
-and generates only where the findings the passes leave have not failed the run (architecture.md §4):
-at the default threshold a document carrying a finding rated an error that no rule accepted reaches
-no emitter, and a caller that wants one built from it anyway says so with the `none` threshold or a
-rule accepting the finding. A run naming a target the registry lacks, or one the project does not
-configure ([the project](project.md)), is refused before the spec is read.
+integrate](../write-integrate.md)'s, under the [emit rules](../emit/rules.md). A run naming a target
+the registry lacks, or one the project does not configure ([the project](project.md)), is refused
+before the spec is read, and so is one whose targets' options a `Configure` refuses: the engine
+configures every target the run needs then, since `Configure` reads nothing but its options, so a
+configuration's fault is reported by the first run whatever the spec holds, and never only by the
+run after the one a spec error failed. The engine generates only where the findings the passes
+leave have not failed the run (architecture.md §4): at the default threshold a document carrying a
+finding rated an error that no rule accepted reaches no emitter, and a caller that wants one built
+from it anyway says so with the `none` threshold or a rule accepting the finding.
 
 ## Capabilities
 

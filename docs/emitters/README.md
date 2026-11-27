@@ -125,16 +125,16 @@ The engine (Layer 3) runs the compiler, then the passes, then — **once per doc
 derived-fact index and the shared plan, and finally each requested emitter, with the targets a docs
 target names for its samples. It then plans every target's writes, takes the run's one verdict, and
 writes only for a run that has not failed ([write /
-integrate](write-integrate.md#every-write-is-planned-before-the-verdict)). Generation is not built
-for Windows ([where generation runs](write-integrate.md#where-generation-runs)). The passes designed
-are `link · dedup · filter · version-slice ·
-overlay · const-unions · names · validate`, and `const-unions`, `names` and `validate` are built
-(architecture.md §2.2). An emitter never sees a source spec, a compiler, the engine (INV1) or
-another emitter's code, only what the engine hands it of another's output: a docs target's samples
-and a cross-version target's route tables ([docs and mocks](docs-and-mock.md)). Its only structural
-input is an `ir.Document`; everything else it needs is either derived from the IR in the plan/refine
-stages or supplied as a separate, non-IR input (runtime policy, shaping hints, the target's own
-options, and for a docs target the snapshot's label, its samples and its routes).
+integrate](write-integrate.md#every-write-is-planned-before-the-verdict)). Morphic is not built for
+Windows, generation included ([where generation runs](write-integrate.md#where-generation-runs)).
+The passes designed are `link · dedup · filter · version-slice · overlay · const-unions · names ·
+validate`, and `const-unions`, `names` and `validate` are built (architecture.md §2.2). An emitter
+never sees a source spec, a compiler, the engine (INV1) or another emitter's code, only what the
+engine hands it of another's output: a docs target's samples and a cross-version target's route
+tables ([docs and mocks](docs-and-mock.md)). Its only structural input is an `ir.Document`;
+everything else it needs is either derived from the IR in the plan/refine stages or supplied as a
+separate, non-IR input (runtime policy, shaping hints, the target's own options, and for a docs
+target the snapshot's label, its samples and its routes).
 
 ## The architecture, and why this synthesis
 

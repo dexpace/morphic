@@ -10,8 +10,9 @@ package typemap
 
 // Table maps the IR's leaf types to one target's types. A composite key is a map in a map (../plan/overview.md).
 type Table struct {
-    Prims     map[ir.PrimitiveKind]map[string]Row // by primitive, then encoding name; "" = the default
-    Externals map[string]Row                      // by ir.External.Identity
+    Primitives map[ir.PrimitiveKind]map[string]Row // by primitive, then encoding name; "" = the
+                                                   // default
+    Externals  map[string]Row                      // by ir.External.Identity
 }
 
 type Row struct {
@@ -29,7 +30,7 @@ type Dependency struct {
     MinVersion string      // the lowest version the SDK is generated against
 }
 
-func Decode(raw []byte) (Table, error)            // strict, by the rules every target shares
+func Decode(raw []byte) (Table, error)            // strict, by options.DecodeLayer (options.md)
 func Merge(builtIn, user Table) Table             // a user row replaces the built-in row whole
 func Moved(stated, current, user Table) MovedRows // the built-in rows differing between two
                                                   // versions that user does not replace
@@ -37,11 +38,11 @@ func Missing(table Table) []ir.PrimitiveKind      // the kinds with no default r
 
 // MovedRows is what Moved found, each list sorted.
 type MovedRows struct {
-    Prims     []PrimKey // by primitive, then encoding name
-    Externals []string  // identities
+    Primitives []PrimitiveKey // by primitive, then encoding name
+    Externals  []string       // identities
 }
 
-type PrimKey struct {
+type PrimitiveKey struct {
     Primitive ir.PrimitiveKind
     Encoding  string // "" is the primitive's default row, as the table's own key spells it
 }
@@ -53,18 +54,19 @@ type Encoding struct {
     WireType ir.PrimitiveKind
 }
 
-// Found says how Lookup found its row: under the key's own entry, under the default row of the
-// primitive the value travels as, or under the primitive's own default row.
+// Found says how Lookup found its row: under the key's own entry (Exact), under the default row of
+// the primitive the value travels as where that is another primitive (TravelsAs), or under the
+// primitive's own default row (Primitive).
 type Found uint8 // Exact | TravelsAs | Primitive
 
 func Lookup(table Table, primitive ir.PrimitiveKind, encoding Encoding) (Row, Found, bool)
 func LookupExternal(table Table, identity string) (Row, bool)
 ```
 
-The package is functions over a table a target hands it, and holds no target's rows. A table's
-JSON form names each field in lower camel case, as a hint's does (`prims`, `minVersion`). It reads
-no plan: resolving a reference to its key through the plan's scalar chain is a refine helper's
-([the refine layer](../refine/pipeline.md)), so a table is tested with no plan and no target.
+The package is functions over a table a target hands it, and holds no target's rows. A table's JSON
+form names each field in lower camel case, as a hint's does (`primitives`, `minVersion`). It reads
+no plan: resolving a reference to its key through the plan's scalar chain is a refine helper's ([the
+refine layer](../refine/pipeline.md)), so a table is tested with no plan and no target.
 
 - **The key is the IR's, never a source format's.** A reference resolves to a key through the plan's
   scalar chain ([TypePlan](../plan/types.md)): the primitive at its root, and the name of the
@@ -78,17 +80,19 @@ no plan: resolving a reference to its key through the plan's scalar chain is a r
   resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
   to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
   by the declaration its reference names.
-- **Lookup.** `{prim, encoding}`, then the default row of the primitive the value travels as: the
-  one its encoding's `WireType` names, else `string` where `primitiveKind` is a string-spelled kind
-  ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else
-  `primitiveKind` itself. `Lookup` says which of the three it found, `Exact`, `TravelsAs` or
-  `Primitive`, and finds none only in a table missing a primitive's default row, which no built-in
-  table is (T-17). So an encoding with no row of its own stays in the IR and the SDK types
-  the value as the wire carries it, never writing it in a spelling the encoding did not name ([a row
-  keyed by an encoding](#a-row-keyed-by-an-encoding)). It is reported once per key as
-  `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning where
-  that primitive is not `primitiveKind` and an info where it is. An `External` with no row takes the
-  opaque strategy of [external types](../refine/scalars.md), with a warning.
+- **Lookup.** `{primitive, encoding}`, then the default row of the primitive the value travels as:
+  the one its encoding's `WireType` names, else `string` where `primitiveKind` is a string-spelled
+  kind ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else
+  `primitiveKind` itself. `Lookup` says which it found: `Exact`, `TravelsAs` where the primitive the
+  value travels as is another than `primitiveKind`, or `Primitive` where it is `primitiveKind`, so
+  `Found` alone tells the warning below from the info. It finds none only in a table missing a
+  primitive's default row, which no built-in table is (T-17). So an encoding with no row of its own
+  stays in the IR and the SDK types the value as the wire carries it, never writing it in a spelling
+  the encoding did not name ([a row keyed by an encoding](#a-row-keyed-by-an-encoding)). It is
+  reported once per key as `emitters/<target>/unmapped-encoding` at the first type in ID order that
+  uses it, a warning where that primitive is not `primitiveKind` and an info where it is. An
+  `External` with no row takes the opaque strategy of [external types](../refine/scalars.md), with a
+  warning.
 - **Built-in rows are defaults of an options version.** Every target's built-in table has a row for
   every `PrimitiveKind` at every options version, so the fallback always lands, and for every key [a
   row keyed by an encoding](#a-row-keyed-by-an-encoding) lists; T-17 holds each table to the kinds

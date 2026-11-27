@@ -38,7 +38,8 @@ type Generator interface {
 // (../write-integrate.md#what-the-manifest-records).
 type Configuration struct {
     Version   int    // the options version the configuration stated, 1 or later
-    Canonical []byte // the decoded options, in the current shape, as canonical JSON
+    Canonical []byte // the decoded options, in the current shape, as options.Canonical writes
+                     // them (options.md)
 }
 
 // Router is implemented by the generator of a cross-version target. The engine calls it on every
@@ -236,29 +237,30 @@ var ErrContract = errors.New("emitter broke its contract")
 ```
 
 A breach is a Go error wrapping `ErrContract` and naming the target: a bug in the target, never a
-finding about the user's document, as a compiler's breach is an error and no diagnostic. So it
-takes no code, no triage rule accepts it, and it fails the run at any threshold. A caller's own
-mistake, a nil emitter, a zero `Bound`, a nil document or a nil context, is an error that does not
-wrap it, since no target did anything wrong, as the compilers' registry returns a plain error for a
-nil compiler. Every checked call runs the target behind `barrier.Catch`, so a panic in one is a
-breach too.
+finding about the user's document, as a compiler's breach is an error and no diagnostic. So it takes
+no code, no triage rule accepts it, and it fails the run at any threshold. A caller's own mistake, a
+nil emitter, a zero `Bound`, an input whose document, facts or plan is nil, or a nil context, is an
+error that does not wrap it, since no target did anything wrong and the engine computes each of the
+three before any target runs, as the compilers' registry returns a plain error for a nil compiler.
+Every checked call runs the target behind `barrier.Catch`, so a panic in one is a breach too.
 
-`Configure` checks the emitter's key and capabilities by the same rules as `Registry.Register`
-([the registry](registry.md#the-registry)), and refuses a nil generator returned with no error, a
+`Configure` checks the emitter's key and capabilities by the same rules as `Registry.Register` ([the
+registry](registry.md#the-registry)), and refuses a nil generator returned with no error, a
 diagnostic coded outside the target's own namespace ([below](#the-codes-a-target-reports)), a
-diagnostic whose severity the IR does not declare or whose provenance names a source (anything
-other than `ir.NoSource`, since `Configure` reads no document), and a `Configuration` stating a
-version below 1 or carrying a `Canonical` that is not a valid canonical JSON object. A
-configuration the target itself refuses is the target's error, passed on as it is, with no `Bound`
-and no diagnostics.
+diagnostic whose severity the IR does not declare or whose provenance names a source (anything other
+than `ir.NoSource`, since `Configure` reads no document), and a `Configuration` stating a version
+below 1 or carrying a `Canonical` that is not a JSON object, or that
+`jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` would change, the one form a
+configuration is digested in ([target options](options.md)). A configuration the target itself
+refuses is the target's error, passed on as it is, with no `Bound` and no diagnostics.
 
 `Generate` holds a generation to these duties:
 
 - **Paths**, each a rule of the [emit rules](../emit/rules.md): the artifacts sorted by `Path`; each
-  path forward-slashed, local and naming a file; no two equal under the path fold; none a directory
-  of another under the fold, and no directory spelled two ways under it; none the manifest's own or
-  under it; each segment one every file system writes, and a file's own name short enough for the
-  writer.
+  path forward-slashed, clean, local and naming a file; no two equal under the path fold; none a
+  directory of another under the fold, and no directory spelled two ways under it; none the
+  manifest's own or under it; each segment one every file system writes, and a file's own name short
+  enough for the writer.
 - **The header.** The generated-by line stands where `Header` says
   ([below](#the-generated-by-line)).
 - **Diagnostics.** Each code is in a namespace the target may report, each severity is one the IR
@@ -374,7 +376,11 @@ the document, which determines it.
   on a file system that ignores case, as macOS's and Windows' do by default. So each label, in
   `Document.Versions` order, names its directory where that folds as no directory an earlier label
   took, and otherwise the label followed by `-` and the lowest number, `2` up, that does not: `v1`,
-  `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. Every run reads `Document.Versions` whole,
+  `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. The manifest's two names are taken before
+  the first label, so a label `morphic.manifest.json` writes under `morphic.manifest.json-2`: an
+  artifact at either name, or under one, is a breach of its target's ([emit
+  rules](../emit/rules.md)), and the label, which the document chose and no target, would else fail
+  every valid run that writes it. Every run reads `Document.Versions` whole,
   so each derives the same directories; a version added after the others moves none, and one removed
   can return a later label to its own name. A set of the folded directories taken, each base holding
   the next number to try, keeps this linear in the labels. Each directory so named, its suffix

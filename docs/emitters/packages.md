@@ -39,7 +39,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `emitters/options` | versioned, strict configuration decoding ([target options](contract/options.md)) | `ir` |
 | `emitters/plan` | the shared plan, its policy decoding, and under `plantest` its goldens ([the plan](plan/overview.md)) | `ir`, `ir/irfacts`, `emitters/options` |
 | `emitters/naming` | words, casing primitives, scopes, collisions ([naming](refine/naming.md)) | `ir`, `pathfold` |
-| `emitters/typemap` | the type table: shape, merge, lookup ([type table](contract/type-table.md)) | `ir` |
+| `emitters/typemap` | the type table: shape, merge, lookup ([type table](contract/type-table.md)) | `ir`, `emitters/options` |
 | `emitters/policy` | runtime policy: vocabulary, layers, resolve ([runtime policy](contract/runtime-policy.md)) | `ir`, `emitters/options` |
 | `emitters/hints` | shaping hints: vocabulary, layers, resolve ([shaping hints](contract/shaping-hints.md)) | `ir`, `emitters/options` |
 | `emitters/embed` | the policy and hints a document embeds ([embedded policy](contract/embedded-policy.md)) | `ir`, `emitters/policy`, `emitters/hints` |
@@ -50,7 +50,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `emitters/verify` | the neutral surface, the differ, the severity type ([surface verification](surface-verification.md)) | `emitters/symbol` |
 | `emitters` | the contract, the registry, the checked calls ([the contract](contract/emitter.md)) | `ir`, `ir/irfacts`, `barrier`, `pathfold`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/symbol`, `emitters/manifest`, `emitters/verify` |
 | `emitters/emittertest` | the fake target, the golden tree, the oracles every target is held to | `ir`, `ir/irfacts`, `ir/irtest`, `emitters`, the kernel, go-cmp |
-| `emitters/<target>` | one target | `ir`, `ir/irfacts`, `emitters`, any kernel package, its own packages; `emitters/golang` also `github.com/dave/dst` |
+| `emitters/<target>` | one target | `ir`, `ir/irfacts`, `emitters`, any kernel package, its own packages; `emitters/golang` also `github.com/dave/dst` and `golang.org/x/mod` |
 | `engine/project` | the project configuration, decoded ([the project](contract/project.md)) | `ir`, `pathfold`, `emitters`, `emitters/options`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed` |
 | `engine/emit` | the emit stage, with no I/O | `ir`, `ir/irfacts`, `pathfold`, `emitters`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed`, `engine/project` |
 | `engine/artifacts` | planning and applying a generation's writes under its root ([write / integrate](write-integrate.md)) | `ir`, `pathfold`, `emitters`, `emitters/manifest`, `engine/internal/atomicfile` |
@@ -123,8 +123,11 @@ first package is audited from its first import. Each package under `emitters/` a
 engine's carries an entry of its own, as a compiler's packages do, and none may be exempt, which
 only tooling under `internal/` is. A target's entry asserts: it may import `emitters`, any kernel
 package, `ir` and `ir/irfacts`; it may not import `compilers/*`, `engine`, or another target.
-`emitters/golang` may also import `github.com/dave/dst`, for its merge adapter, and no other
-package may ([merging](targets/go/overview.md#merging-and-surface-extraction)).
+`emitters/golang` may also import `github.com/dave/dst`, for its merge adapter
+([merging](targets/go/overview.md#merging-and-surface-extraction)), and `golang.org/x/mod`, whose
+`module.CheckPath` its options decoding calls ([package
+directories](targets/go/naming.md#package-directories)), and no other package may import either.
+Its severity test's oracle, `golang.org/x/exp/apidiff` (T-75), is a test's import alone.
 **Switch-completeness tests** live beside `goast` and `ktast` (over each one's `NodeKind`) and
 beside every refiner (over every `ir.TypeKind`): adding an IR kind fails the test of every dispatch
 that must handle it (the `assertNever` obligation).

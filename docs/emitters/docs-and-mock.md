@@ -308,7 +308,12 @@ a way to show one entity across API versions. Each is decided by data, never by 
   alike ([the path fold](emit/rules.md)), are an error `emitters/docs/route-collision` naming both,
   never a page that overwrites another and never a page dropped. The check runs on the URLs the
   templates produce, over every route a run plans, its table's and its agent documents' together, so
-  no template can reintroduce a collision the catalog did not have.
+  no template can reintroduce a collision the catalog did not have. A route whose page would stand
+  at the manifest's own path, `morphic.manifest.json` or `morphic.manifest.pending.json` at the
+  output root, or under either, compared by the fold, is the same error, naming the entity and the
+  manifest: a template routing a page there is the options' fault, which the check of a
+  generation's paths would otherwise report as a breach of the target's, after every target ran
+  ([emit rules](emit/rules.md)).
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's

@@ -50,11 +50,15 @@ the tree the rule exists to prevent.
   volume can. A directory standing on disk under another spelling is the writer's to refuse,
   where a write passes through it
   ([write / integrate](../write-integrate.md#a-file-is-judged-by-its-digest)).
-- **No path is the manifest's own.** The engine keeps the generation's manifest at the output
-  root, as `morphic.manifest.json`, and while it writes, `morphic.manifest.pending.json` beside it
-  ([write / integrate](../write-integrate.md#what-the-manifest-records)). An artifact at either
-  path, or under one as a directory, compared by the fold, is a breach: the manifest's own write
-  would find a directory in its place, after the run's verdict.
+- **No path is the manifest's own.** The engine keeps the generation's manifest at the output root,
+  as `morphic.manifest.json`, and while it writes, `morphic.manifest.pending.json` beside it ([write
+  / integrate](../write-integrate.md#what-the-manifest-records)). An artifact at either path, or
+  under one as a directory, compared by the fold, is a breach: the manifest's own write would find a
+  directory in its place, after the run's verdict. No valid document leads a target there: a
+  snapshot label takes a directory other than either name ([contract
+  rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and the docs
+  route plan refuses a page routed there as its own finding
+  ([docs](../docs-and-mock.md#routes-and-links)).
 - **The path fold.** Two paths are one where their folds are equal, and a string's fold
   (`pathfold.Fold`, the one implementation the engine, the contract and naming compare by) is its
   canonical decomposition (NFD) with each character upper-cased by its simple mapping, then folded
@@ -90,21 +94,20 @@ the tree the rule exists to prevent.
   left unassigned was no letter to the word grammar either, so a name holding one changes its words
   with the release whatever the fold reads. T-52 holds it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
-  directory among them, is one `pathfold.Portable` admits. It is at most 255 bytes of UTF-8, the
-  least any file system takes: ext4 documents 255 bytes, and APFS, as NTFS documents, 255 UTF-16
-  units, which on macOS 26.5.2 took 255 `日`, 765 bytes, and refused 256 `a`. No segment is a
+  directory among them, is one `pathfold.Portable` admits. It is not empty, and at most 255 bytes of
+  UTF-8, the least any file system takes: ext4 documents 255 bytes, and APFS, as NTFS documents, 255
+  UTF-16 units, which on macOS 26.5.2 took 255 `日`, 765 bytes, and refused 256 `a`. No segment is a
   Windows device name up to its first dot, trailing spaces dropped, in any letter case: `con`,
   `prn`, `aux`, `nul`, `conin$`, `conout$`, or `com` or `lpt` followed by a digit or by `¹`, `²` or
   `³`, which covers what Windows documents and what Go refuses, so `aux.v1.go` and `nul .txt` are
-  each one. `go build`
-  builds a module holding `aux.go`, but `golang.org/x/mod` 0.42.0 refused to zip it (`malformed file
-  path "aux.go": "aux" disallowed as path element component on Windows`), and a module the proxy
-  cannot zip is one no caller downloads. No segment holds a character Windows refuses in a name,
-  `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a space. A path
-  breaking one is a breach. This is a backstop as well: each target renders the names it writes as
-  paths so that no spec name reaches it, and a snapshot label, which the engine takes as the
-  document writes it, is held to these rules before any run that writes it as a directory, where
-  breaking one is a finding about the document, `engine/snapshot-label-invalid` ([contract
+  each one. `go build` builds a module holding `aux.go`, but `golang.org/x/mod` 0.42.0 refused to
+  zip it (`malformed file path "aux.go": "aux" disallowed as path element component on Windows`),
+  and a module the proxy cannot zip is one no caller downloads. No segment holds a character Windows
+  refuses in a name, `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a
+  space. A path breaking one is a breach. This is a backstop as well: each target renders the names
+  it writes as paths so that no spec name reaches it, and a snapshot label, which the engine takes
+  as the document writes it, is held to these rules before any run that writes it as a directory,
+  where breaking one is a finding about the document, `engine/snapshot-label-invalid` ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
   [naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
   [Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
@@ -128,8 +131,11 @@ the tree the rule exists to prevent.
   `emitters/<target>/no-artifacts` naming the cause, such as a `Scope` that matches nothing or a
   document with no type or operation, so an empty directory never reads as success. A generation
   holding no artifact, no error diagnostic and no `no-artifacts` warning is a breach.
-- **Contained writes.** Every `Path` is forward-slashed, local (`filepath.IsLocal` once converted)
-  and names a file, or the generation is a breach and nothing of the run is written. The engine
+- **Contained writes.** Every `Path` is forward-slashed, clean (`path.Clean` leaves it as it is, so
+  no segment is empty, `.` or `..`), local (`filepath.IsLocal` once converted) and names a file, or
+  the generation is a breach and nothing of the run is written. `filepath.IsLocal` alone admits
+  `a//b` and `a/./b` (Go 1.27.3), each a second spelling of `a/b` that the fold, which compares
+  strings, does not join with it. The engine
   then reads and writes through an `os.Root` opened at the target's output root, which refuses what
   only the disk shows: a symlink in the tree that leaves it. A string prefix is no check, as
   `out-evil` starts with `out`, and a lexical check alone passes the symlink.

@@ -69,7 +69,8 @@ type Rendered struct {
 // the boundary between prefix and the first word follows the same join and break rules.
 func Compose(prefix string, words []Word, convention Convention, tables Tables) (string, error)
 
-// Render composes, leads, writes by name and shortens, in that order.
+// Render composes, leads, writes by name and shortens, in that order, and then reads whether the
+// identifier it returns holds a character the role cannot.
 func Render(prefix string, words []Word, role Role, tables Tables) (Rendered, error)
 
 // PathName renders words as a path segment names them (below). The zero Cap is uncapped.
@@ -109,11 +110,15 @@ func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[stri
   target implemented, which stood here before, left the rules two targets must agree on to code
   each wrote.
 - **Nothing is accepted in silence.** `Compose`, `Render`, `PathName` and the scope constructors
-  return an error for a value outside their vocabulary — a convention that marks no break at all,
-  empty words, an uninitialized `CaseTables`, a `Role.LeadingWord` that is empty or fails `Start`
-  (or, for `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), or an
-  `escapeSuffix` that is empty or folds empty — and `Resolve` for a list it cannot name: one ID
-  twice, or an empty rendered name.
+  return an error for a value outside their vocabulary — a convention that leaves a break between
+  two words unmarked, one joining them with `""` whose `Rest` is not `Capital` or whose `First` is
+  `Upper` (`ABC` and `Def` make `ABCDef`), empty words, an uninitialized `CaseTables`, a
+  `Role.LeadingWord` that is empty or, cased as the role's first word, fails `Start` (or, for
+  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a comparison outside
+  the two, an empty reserved name, or an empty `escapeSuffix` — and `Resolve` for a list it cannot
+  name: one ID twice, or an empty rendered name. The leading word is checked as it is written, so
+  version 1's `field` passes as Go's `Field`, and a role whose `First` is `Lower` beside a `Start`
+  of `UpperCaseLetterOnly`, which no leading word could satisfy, is refused.
 - **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
   of one Unicode version, read from data in the package and never from the `unicode` package of
   the Go release that builds Morphic
@@ -396,9 +401,10 @@ the grammar's words beside their spellings and the tables, the role's convention
 identifier, and the leading word and the underscore below are decided on that identifier, which
 still holds the name's own characters. Only then does `Render` act on a character the role cannot
 hold as it stands — before the length cap ([below](#a-name-too-long-for-a-path-is-shortened)), so
-it changes nothing those read — by rewriting it on Go or marking `Rendered.HoldsUnwritable` on
-Kotlin, where quoting waits until collisions are resolved
-([above](#a-name-is-rendered-bare-and-quoted-last)):
+it changes nothing those read — by rewriting it on Go or keeping it on Kotlin, where quoting waits
+until collisions are resolved ([above](#a-name-is-rendered-bare-and-quoted-last)).
+`Rendered.HoldsUnwritable` is read last, off the identifier `Render` returns, since the cap can drop
+every such character with the words it cuts:
 
 - **Go** sets `Role.WrittenByName` and writes each such character where it stands in its word, as
   the character-name table writes a character it does not hold: `u`, in lower case wherever it
@@ -407,21 +413,21 @@ Kotlin, where quoting waits until collisions are resolved
   `Field_नu093eम` (below), a property of U+0301 and `x`, whose word begins with the mark,
   `Field_u0301x`, and a group `名前` the package `u540du524d`. The node carries `Inferred` provenance,
   `character-names`, as a name with no words does.
-- **Kotlin** leaves `Role.WrittenByName` false so `Render` keeps every character bare, sets
-  `Rendered.HoldsUnwritable`, and shortens under the bare identifier; after `ResolveCollisions`, the
-  target wraps the final symbol in backticks: a property `` `café` ``, a class `` `नाम` ``, and for
-  a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name, in a class file or in the
-  header, so the node is marked nothing, a caller writes them where its own compiler needs them, and
-  quoting last puts a reserved name's underscore and a collision's suffix inside them, since neither
-  adds such a character nor removes one. A KDoc link writes them too, around each such segment:
-  Dokka 2.3.0 linked ``[`नाम`.`café`]`` and left `[नाम]` plain text. What backticks cannot hold is
-  ASCII punctuation, a backtick and a line break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`,
-  `:` and `\` on the JVM and a further thirteen on Native), none of which an identifier holds: a word
-  is letters, marks and digits, and a name with none is named in ASCII (above). A Java caller writes
-  such a name where its JDK's tables hold each character, as javac 25 did `नाम` and the decomposed
-  `café`; Java 25's lack 4,709 of the code points above. A unit's name, a package segment and a
-  module's directory too, is rendered as the target's naming document says
-  ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+- **Kotlin** leaves `Role.WrittenByName` false so `Render` keeps every character bare and shortens
+  under the bare identifier, which sets `Rendered.HoldsUnwritable` where one such character is left;
+  after `ResolveCollisions`, the target wraps the final symbol in backticks: a property
+  `` `café` ``, a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no
+  part of a name, in a class file or in the header, so the node is marked nothing, a caller writes
+  them where its own compiler needs them, and quoting last puts a reserved name's underscore and a
+  collision's suffix inside them, since neither adds such a character nor removes one. A KDoc link
+  writes them too, around each such segment: Dokka 2.3.0 linked ``[`नाम`.`café`]`` and left `[नाम]`
+  plain text. What backticks cannot hold is ASCII punctuation, a backtick and a line break (kotlinc
+  refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:` and `\` on the JVM and a further thirteen on
+  Native), none of which an identifier holds: a word is letters, marks and digits, and a name with
+  none is named in ASCII (above). A Java caller writes such a name where its JDK's tables hold each
+  character, as javac 25 did `नाम` and the decomposed `café`; Java 25's lack 4,709 of the code
+  points above. A unit's name, a package segment and a module's directory too, is rendered as the
+  target's naming document says ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 Which characters a role cannot hold as they stand is a table of the target's options version, read
 from its toolchain and no configuration's to replace: on Go a toolchain that learns a mark would
@@ -472,20 +478,21 @@ package read none of the fields `名前`, `ʰx`, `ßx`, `ᾼx` and, past the BMP
 unexported field 名前`), and read `Ꭰx`, `𝐀x` and `ℤx`, which begin with upper-case letters.
 
 Where the identifier a role composes would begin with a character the role cannot begin with,
-`RenderCasing` puts the role's leading word before its words, and the node it names
-carries `Inferred` provenance, `leading-word` (INV6). That is a digit or a mark in every role, and
-on Go, in a role it exports, a type, a field, a method or a constant, any character but an
-upper-case letter (category `Lu`). The test reads the identifier once cased and before any character
-is written by its name ([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a
-word beginning with a mark takes the word on every target, where Go's would else begin with the `u`
-of the mark's name. The test reads the composed identifier, not the name: a Go enum constant begins
-with its enum's name ([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make
-`Code1000` and need no word, where a Kotlin entry is the member's name alone and takes one. A hint
-is held to the same test. A parameter and a package, which Go leaves unexported, and every Kotlin
-role, which takes `名前` as it is, take a word before a digit or a mark alone. Leaving such a Go name
-unexported was not taken, since a caller outside its package could neither set nor read it, nor was
-writing Kotlin's in backticks as it stands, a name javac cannot write and the Objective-C export
-renames or, before a mark, cannot write.
+`RenderCasing` puts the role's leading word before its words, as their first word and cased so,
+ahead of a prefix where the role composes one, and the node it names carries `Inferred` provenance,
+`leading-word` (INV6). That is a digit or a mark in every role, and on Go, in a role it exports, a
+type, a field, a method or a constant, any character but an upper-case letter (category `Lu`). The
+test reads the identifier once cased and before any character is written by its name
+([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a word beginning with a
+mark takes the word on every target, where Go's would else begin with the `u` of the mark's name.
+The test reads the composed identifier, not the name: a Go enum constant begins with its enum's name
+([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make `Code1000` and need no word,
+where a Kotlin entry is the member's name alone and takes one. A hint is held to the same test. A
+parameter and a package, which Go leaves unexported, and every Kotlin role, which takes `名前` as it
+is, take a word before a digit or a mark alone. Leaving such a Go name unexported was not taken,
+since a caller outside its package could neither set nor read it, nor was writing Kotlin's in
+backticks as it stands, a name javac cannot write and the Objective-C export renames or, before a
+mark, cannot write.
 
 The words are a naming table too, one per role, and like the character names a default of the
 target's options version ([target options](../contract/options.md)). Version 1's are `type` for a
@@ -565,8 +572,8 @@ other, cased by the role's convention and set off by `_` where a break needs one
 ending in a digit. The shortened name reads nothing but the name, so it moves only with it, and two
 names that keep the same words still differ in their last.
 
-The cap measures the identifier as it is written, backticks aside, so shortening is the last thing
-`Render` does: it composes, leads, writes a character by its name where the role does, and only
+The cap measures the identifier as it is written, backticks aside, so shortening is the last change
+`Render` makes: it composes, leads, writes a character by its name where the role does, and only
 then shortens. A character's name is longer than the character, so an identifier shortened before
 it was written so could pass its cap. The hash reads that identifier whole, as it would be written
 unshortened, rather than `Naming.Canonical`, which a name with no words and a type named from a

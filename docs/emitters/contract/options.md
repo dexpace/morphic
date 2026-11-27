@@ -12,10 +12,12 @@ Every versioned configuration is decoded by one function, in `emitters/options`:
 options, the project's configuration and the plan's policy ([plan
 policy](../plan/policy.md#the-policy-is-data)). A configuration differs from another in its type
 and its versions, which are data, and never in how `Decode` reads a version, a default or a
-`null`. A runtime-policy layer and a hint layer state no version of their own and follow the same
-strict rules, over the version the project's configuration states, refusing every `null` because a
-layer leaves out any member it does not set ([delivery](runtime-policy.md#delivery), [shaping
-hints](shaping-hints.md)).
+`null`. A runtime-policy layer, a hint layer and a user's type table state no version of their
+own, and `DecodeLayer` reads each by the same strict rules, over the defaults its caller hands it,
+refusing every `null` because a layer leaves out any member it does not set: a runtime-policy
+layer's are those of the version the project's configuration states, and a hint layer and a type
+table have none ([delivery](runtime-policy.md#delivery), [shaping hints](shaping-hints.md), [type
+table](type-table.md)).
 
 ```go
 package options
@@ -33,6 +35,13 @@ type Version[T any] struct {
 // Decode reads raw, a JSON object stating "version", and returns the value in the current shape,
 // the version it stated, and the upgrade report under behindCode.
 func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, stated int, diagnostics []ir.Diagnostic, err error)
+
+// DecodeLayer reads raw, a JSON object stating no version, over a copy of defaults, by Decode's
+// rules but that it refuses every null.
+func DecodeLayer[T any](defaults T, raw []byte) (T, error)
+
+// Canonical returns value in the one form a configuration is digested in (below).
+func Canonical[T any](value T) ([]byte, error)
 ```
 
 - **Strict.** An unknown key, a repeated key, a missing required field and an invalid value are an
@@ -74,8 +83,22 @@ func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, st
   shape gives it, so an owner sees exactly what moving changes. For a map setting merged key by key
   (such as a naming table), the report diffs entries key by key and reports each default entry
   added, changed or removed between those versions that the configuration does not set, as
-  `typemap.Moved` does for a type table. The manifest ([write / integrate](../write-integrate.md))
-  records the stated version, `Configuration.Version`.
+  `typemap.Moved` does for a type table. The report is sorted by each setting's path in the current
+  shape, a map's entries by key, so it reads alike on every run (INV7) though Go ranges over a map
+  in no fixed order. The manifest ([write / integrate](../write-integrate.md)) records the stated
+  version, `Configuration.Version`.
+- **One canonical form.** `Configuration.Canonical` ([the
+  contract](emitter.md#a-target-is-configured-once)) is the decoded value as `Canonical` writes it:
+  RFC 8785's form with each integer kept as written, which is what
+  `jsontext.Value.Canonicalize(jsontext.CanonicalizeRawInts(false))` leaves unchanged — members
+  sorted by name, no whitespace, each string in its shortest escaping, valid UTF-8 and no name
+  twice. RFC 8785 alone writes every number as a double, and `Canonicalize` wrote
+  `9007199254740993` as `9007199254740992` (Go 1.27.3), so two configurations would digest alike.
+  The IR's encoding, `json.Deterministic`, keeps a struct's members in the order Go declares them,
+  which nothing reading the bytes alone can confirm. This form can be: `emitters.Configure` refuses
+  bytes that call would change, and a target reordering its options struct moves no digest.
+
+T-77 holds these rules.
 
 ## Three kinds of versioned data
 
