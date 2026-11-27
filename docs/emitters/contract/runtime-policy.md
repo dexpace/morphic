@@ -260,7 +260,8 @@ configuration writes is read as a target's options are ([target options](options
 JSON naming each field in lower camel case (`retry.maxAttempts`), and over the defaults of the
 version the project's configuration states, so a default that changes is a new version and an
 existing configuration keeps generating what it did. Policy is delivered resolved, per operation, in
-`EmitterInput.Policy`; refiners read it via `Ctx.Policy`, and it shapes only the generated *runtime
+`EmitterInput.Policy`; a target's refine steps read it there, and it shapes only the generated
+*runtime
 binding* (the retry loop, transport config, user-agent string, telemetry headers, pagination pacing)
 behind the `Transport`/`Serializer` abstraction. It never enters the typed structural model
 ([runtime abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). The
