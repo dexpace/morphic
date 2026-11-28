@@ -478,10 +478,8 @@ func parseApartLine(t *testing.T, recordPath string, lineNumber int, rest string
 
 func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, record sweepRecord, apartClasses [][][]string) [][]int {
 	t.Helper()
-	// The count alone, since require.Len would print every generated name.
-	generated := len(sweep.names)
-	require.Equal(t, record.names, generated,
-		"sweep %s generated %d names, record expects %d", sweep.name, generated, record.names)
+	require.Len(t, sweep.names, record.names,
+		"sweep %s generated %d names, record expects %d", sweep.name, len(sweep.names), record.names)
 
 	indexByName := make(map[string]int, len(sweep.names))
 	byFold := make(map[string][]int, record.files)
