@@ -29,6 +29,7 @@ func fullTable(t *testing.T) typemap.Table {
 		{Primitive: ir.PrimitiveBytes, Encoding: "base64url"},
 		{Primitive: ir.PrimitiveBytes, Encoding: "base64"},
 		{Primitive: ir.PrimitiveDatetimeOffset, Encoding: "http-date"},
+		{Primitive: ir.PrimitiveInt64, Encoding: "decimal"},
 		{Primitive: ir.PrimitiveString, Encoding: "base64"},
 		{Primitive: ir.PrimitiveString, Encoding: "base32"},
 		{Primitive: ir.PrimitiveString, Encoding: "A.B.C.D/N"},
@@ -88,9 +89,9 @@ func TestKey_ChangesThePrimitiveOnlyForTextToEncode(t *testing.T) {
 	}
 }
 
-// lookupCase is one row of TestLookup_FindsTheRowAndSaysHowItWasFound: a
-// value's primitive and encoding, the Type of the row Lookup must find, and
-// how.
+// lookupCase is one row of TestLookup_FindsTheRowAndSaysHowItWasFound and of
+// TestLookup_ValidatesNoKind: a value's primitive and encoding, the Type of
+// the row Lookup must find, and how.
 type lookupCase struct {
 	name      string
 	table     func(t *testing.T) typemap.Table
@@ -166,12 +167,54 @@ func lookupCases() []lookupCase {
 		{"22 no meaning: a string under another wire type", fullTable, ir.PrimitiveString, encoding("base32", ir.PrimitiveInt64), "string/base32", exact, true},
 		{"23 an undeclared kind under a name", fullTable, "int65", encoding("x", ""), "", none, false},
 		{"23 an undeclared kind under a name the table holds a default row for", undeclaredKindRow, "int65", encoding("x", ""), "I", primitive, true},
+		{"24 a keyed row of a kind travelling as itself", fullTable, ir.PrimitiveInt64, encoding("decimal", ""), "int64/decimal", exact, true},
+		{"24 a keyed row of a kind travelling as itself, before its wire type", fullTable, ir.PrimitiveInt64, encoding("decimal", ir.PrimitiveString), "int64/decimal", exact, true},
 	}
 }
 
-func TestLookup_StringSpelledKindsTravelAsText(t *testing.T) {
+// TestLookup_ValidatesNoKind holds Lookup to finding what the table holds for
+// a kind ir does not declare, at either probe and in either argument: each
+// lookup case, with every kind no rule of Lookup's names respelt as one ir
+// does not declare, in the table and the arguments alike, finds what the case
+// finds.
+func TestLookup_ValidatesNoKind(t *testing.T) {
 	t.Parallel()
-	stringSpelled := map[ir.PrimitiveKind]bool{
+	stringSpelled := stringSpelledKinds()
+	respell := func(kind ir.PrimitiveKind) ir.PrimitiveKind {
+		if !kind.Valid() || kind == ir.PrimitiveString || kind == ir.PrimitiveBytes || stringSpelled[kind] {
+			return kind
+		}
+		return kind + "-undeclared"
+	}
+	respelt := 0
+	for _, kind := range declaredKinds(t) {
+		if respell(kind) != kind {
+			require.False(t, respell(kind).Valid(), "%s is respelt as a kind ir declares", kind)
+			respelt++
+		}
+	}
+	require.NotZero(t, respelt, "no kind is respelt, so the cases ask what they ask already")
+
+	for _, tc := range lookupCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			table := typemap.Table{Primitives: map[ir.PrimitiveKind]map[string]typemap.Row{}}
+			for kind, rows := range tc.table(t).Primitives {
+				table.Primitives[respell(kind)] = rows
+			}
+			row, found, ok := typemap.Lookup(table, respell(tc.primitive),
+				encoding(tc.encoding.Name, respell(tc.encoding.WireType)))
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.wantFound, found)
+			assert.Empty(t, cmp.Diff(typemap.Row{Type: tc.wantType}, row))
+		})
+	}
+}
+
+// stringSpelledKinds classifies every kind ir declares by whether a value of
+// it travels as a JSON string in its own spelling.
+func stringSpelledKinds() map[ir.PrimitiveKind]bool {
+	return map[ir.PrimitiveKind]bool{
 		ir.PrimitiveURL: true, ir.PrimitiveBytes: true, ir.PrimitiveUUID: true, ir.PrimitiveDate: true,
 		ir.PrimitiveTime: true, ir.PrimitiveDatetime: true, ir.PrimitiveDatetimeOffset: true,
 		ir.PrimitiveDuration: true,
@@ -182,6 +225,11 @@ func TestLookup_StringSpelledKindsTravelAsText(t *testing.T) {
 		ir.PrimitiveFloat: false, ir.PrimitiveNumber: false, ir.PrimitiveDecimal: false,
 		ir.PrimitiveDecimal128: false,
 	}
+}
+
+func TestLookup_StringSpelledKindsTravelAsText(t *testing.T) {
+	t.Parallel()
+	stringSpelled := stringSpelledKinds()
 	kinds := declaredKinds(t)
 	require.Equal(t, kinds, slices.Sorted(maps.Keys(stringSpelled)), "classify every kind ir declares")
 
