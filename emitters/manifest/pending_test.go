@@ -321,6 +321,14 @@ func TestDecodePending_Refuses(t *testing.T) {
 		{name: "temporary file ending below a digit beside a known path", raw: withChange(t, func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{".x.go-"}
 		})},
+		{
+			name: "temporary file not clean beside a known path",
+			raw: withChange(t, func(value *manifest.Pending) {
+				value.Known = map[string][]string{"x": {digestAlpha}}
+				value.TemporaryFiles = []string{"./.x1"}
+			}),
+			wantContains: "is not clean",
+		},
 	}
 
 	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
