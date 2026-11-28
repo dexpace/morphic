@@ -129,6 +129,12 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 			Locator: plan.DiscrimPropertyName, WireKey: "kind", Envelope: "object", EnvelopeValueName: "data",
 			Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
+		{"a value property named with no envelope, which names nothing", &ir.Union{
+			Variants:      variantsOf("type/cat"),
+			Discriminator: &ir.Discriminator{PropertyName: "kind", EnvelopeValueName: "data"},
+		}, &plan.DiscrimFacts{
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

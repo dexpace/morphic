@@ -4,6 +4,7 @@
 package plan
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -155,20 +156,20 @@ func locate(set []DiscrimLocator, union bool) (DiscrimLocator, bool) {
 }
 
 // newDiscrim returns the facts of discriminator, located by locator, with
-// every field set but its routes and a property's wire key.
+// every field set but its routes and a property's wire key, and an
+// envelope's value name only where an object envelope is.
 func newDiscrim(discriminator *ir.Discriminator, locator DiscrimLocator) *DiscrimFacts {
 	built := &DiscrimFacts{
 		Locator:           locator,
 		TupleElementIndex: discriminator.TupleElementIndex,
 		Default:           discriminator.Default,
 		Envelope:          discriminator.Envelope,
-		EnvelopeValueName: discriminator.EnvelopeValueName,
 	}
 	if locator == DiscrimPropertyName {
 		built.WireKey = discriminator.PropertyName
 	}
-	if built.Envelope == envelopeObject && built.EnvelopeValueName == "" {
-		built.EnvelopeValueName = defaultEnvelopeValueName
+	if built.Envelope == envelopeObject {
+		built.EnvelopeValueName = cmp.Or(discriminator.EnvelopeValueName, defaultEnvelopeValueName)
 	}
 	return built
 }
