@@ -18,8 +18,8 @@ var ErrNullMember = errors.New("member written null; a member meaning the defaul
 // merges key by key, a struct member by member. A member that form omits, as
 // one tagged "-", is not copied; defaults it cannot carry are an error. It
 // refuses an unknown or repeated member, a name in another case, invalid UTF-8
-// and each null json decodes, a pointer's or a jsontext.Value member's own, by
-// an error wrapping ErrNullMember naming its JSON pointer; a null inside a
+// and each null json decodes, a pointer's or a jsontext.Value member's own. A
+// null's error wraps ErrNullMember and names its JSON pointer; a null inside a
 // jsontext.Value is kept. Any error returns the zero T.
 func DecodeLayer[T any](defaults T, raw []byte) (T, error) {
 	var zero T
