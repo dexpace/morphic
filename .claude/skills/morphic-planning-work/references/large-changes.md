@@ -167,18 +167,18 @@ ones.
 `review-together-what-touches-one-fact`
 
 - **Rule.** Pull requests that read or write one fact are reviewed on their trial merge before
-  either lands, or become one pull request: reviewed apart, a defect only their merged build shows
-  passes both.
-- **Why.** A review of eleven open pull requests found defects only their merged build showed, which
-  no test catches if they merge in another order (#1809, #1810, #1813), and the merge train found
-  more (#1840 with #1819, #1846 with #1833).
+  either lands, or become one: reviewed apart, a defect only their merged build shows passes both.
+- **Why.** A review of eleven open pull requests found defects only their merged build showed, silent
+  in another merge order (#1809, #1810, #1813), and the merge train found more (#1840 with #1819,
+  #1846 with #1833).
 - **Probe.** For each pair of the plan's open pull requests reading or writing one fact, the
   angles run on a worktree of their trial merge, built by
   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree` and
   confirmed by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
   A pair that conflicts takes `main` into each first
   (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-main-first`); one still
-  conflicting is resolved in the trial's worktree and reviewed there, or becomes one pull request.
+  conflicting is merged by `git worktree add --detach <dir> <head> && git -C <dir> merge <other>`,
+  resolved and reviewed there, or becomes one pull request.
 
 ## Assign no version ahead of the merge
 `no-version-ahead-of-the-merge`
