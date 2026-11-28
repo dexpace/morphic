@@ -367,9 +367,10 @@ func TestBuild_ProtocolEffectsOffLeavesEveryUndeclaredOperationNeither(t *testin
 	}
 }
 
-// registryRows returns the rows of the plan's copy of the IANA HTTP Method
-// Registry, below the header it holds them to.
-func registryRows(t *testing.T) [][]string {
+// registryEffects returns the plan's copy of the IANA HTTP Method Registry
+// as the effects each of its rows records, by method, below the header it
+// holds them to.
+func registryEffects(t *testing.T) map[string]plan.Effects {
 	t.Helper()
 	file, err := os.Open("testdata/http-methods.csv")
 	require.NoError(t, err)
@@ -378,53 +379,66 @@ func registryRows(t *testing.T) [][]string {
 	require.NoError(t, err)
 	require.Equal(t, []string{"Method Name", "Safe", "Idempotent", "Reference"}, rows[0])
 	require.NotEmpty(t, rows[1:], "the registry lists methods")
-	return rows[1:]
-}
-
-// TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt holds the plan's
-// copy of the IANA HTTP Method Registry to the registry's own CSV, row by row.
-func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
-	t.Parallel()
-	rows := registryRows(t)
 
 	yes := map[string]bool{"yes": true, "no": false}
-	cases := make([]effectsCase, 0, len(rows))
-	for _, row := range rows {
+	recorded := make(map[string]plan.Effects, len(rows)-1)
+	for _, row := range rows[1:] {
 		safe, safeRead := yes[row[1]]
 		idempotent, idempotentRead := yes[row[2]]
 		require.True(t, safeRead && idempotentRead, "row %v", row)
-		assert.True(t, idempotent || !safe, "%s: the registry records every safe method idempotent", row[0])
+		require.True(t, idempotent || !safe, "%s: the registry records every safe method idempotent", row[0])
+		require.NotContains(t, recorded, row[0], "the registry lists each method once")
+		recorded[row[0]] = plan.Effects{Safe: safe, Idempotent: idempotent}
+	}
+	return recorded
+}
+
+// TestMethodRegistry_HoldsTheRegistrysRowsAndNoOther holds the plan's table
+// of methods to the registry's CSV both ways: each row is an entry recording
+// what the row does, and the table holds no method the registry does not list.
+func TestMethodRegistry_HoldsTheRegistrysRowsAndNoOther(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, cmp.Diff(registryEffects(t), plan.MethodRegistry()), "methods (-registry +table)")
+}
+
+// TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt holds
+// ProtocolEffects to giving an operation bound to each method of the IANA
+// HTTP Method Registry the effects the registry's CSV records for it.
+func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
+	t.Parallel()
+	recorded := registryEffects(t)
+	cases := make([]effectsCase, 0, len(recorded))
+	for _, method := range slices.Sorted(maps.Keys(recorded)) {
 		cases = append(cases, effectsCase{
-			id: ir.OperationID("operation/" + row[0]), bind: over(row[0]),
-			effect: plan.Effects{Safe: safe, Idempotent: idempotent},
+			id: ir.OperationID("operation/" + method), bind: over(method), effect: recorded[method],
 		})
 	}
 
 	built := build(t, bindingDoc(cases), plan.Policy{ProtocolEffects: true})
 
+	require.Len(t, built.Ops, len(cases))
 	for _, tc := range cases {
 		assert.Equal(t, tc.effect, built.Ops[tc.id].Effects, "%s", tc.id)
 	}
 }
 
 // TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither holds ProtocolEffects
-// to reading as neither each method the registry does not list: those the IR
-// goldens under testdata spelt when it was written, a list a golden added
-// since does not extend, and each registered name in lower case, since a
-// method is compared with case (RFC 9110 §9.1).
+// to reading as neither a method the registry does not list and each
+// registered name in lower case, since a method is compared with case (RFC
+// 9110 §9.1).
 func TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither(t *testing.T) {
 	t.Parallel()
-	registered := map[string]bool{}
-	unlisted := []string{"FLUSH", "PURGE", "mIxEdCase", "mSearch"}
-	for _, row := range registryRows(t) {
-		registered[row[0]] = true
-		if lower := strings.ToLower(row[0]); lower != row[0] {
+	recorded := registryEffects(t)
+	unlisted := []string{"PURGE"}
+	for _, method := range slices.Sorted(maps.Keys(recorded)) {
+		if lower := strings.ToLower(method); lower != method {
 			unlisted = append(unlisted, lower)
 		}
 	}
 	cases := make([]effectsCase, 0, len(unlisted))
 	for _, method := range unlisted {
-		require.False(t, registered[method], "%s: the registry lists it", method)
+		require.NotContains(t, recorded, method, "the registry lists it")
 		cases = append(cases, effectsCase{id: ir.OperationID("operation/" + method), bind: over(method)})
 	}
 

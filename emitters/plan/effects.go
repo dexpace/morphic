@@ -28,15 +28,16 @@ const (
 // decided them. A declared Idempotency decides, unmarked even where a compiler
 // inferred it, its operation's own provenance naming the heuristic (GitHub
 // #2314). Where it declares none, ProtocolEffects takes what every binding
-// defines, marked whatever it gives, and with it off the operation is neither.
-func effectsOf(operation ir.Operation, policy Policy) (effects Effects, inferred bool) {
+// defines, reading an HTTP method in methodEffects, marked whatever it gives,
+// and with it off the operation is neither.
+func effectsOf(operation ir.Operation, policy Policy, methodEffects map[string]Effects) (effects Effects, inferred bool) {
 	if declared, ok := declaredEffects(operation.Idempotency.Kind); ok {
 		return declared, false
 	}
 	if !policy.ProtocolEffects {
 		return Effects{}, false
 	}
-	return bindingEffects(operation.Bindings), true
+	return bindingEffects(operation.Bindings, methodEffects), true
 }
 
 // declaredEffects returns the effects kind declares, and false for a kind
@@ -58,9 +59,10 @@ func declaredEffects(kind ir.IdempotencyKind) (Effects, bool) {
 }
 
 // bindingEffects returns what every one of bindings defines: the effects each
-// states, and no more. An RPC, message or OTP binding defines neither, as
-// does an operation with no binding at all.
-func bindingEffects(bindings ir.OperationBindings) Effects {
+// states, and no more, an HTTP binding stating methodEffects' entry for its
+// method and one it holds no entry for neither. An RPC, message or OTP binding
+// defines neither, as does an operation with no binding at all.
+func bindingEffects(bindings ir.OperationBindings, methodEffects map[string]Effects) Effects {
 	if bindings.RPC != nil || bindings.Message != nil || bindings.OTP != nil {
 		return Effects{}
 	}
@@ -69,7 +71,7 @@ func bindingEffects(bindings ir.OperationBindings) Effects {
 	}
 	met := Effects{Safe: true, Idempotent: true}
 	for _, binding := range bindings.HTTP {
-		met = met.and(methodEffects(binding.Method))
+		met = met.and(methodEffects[binding.Method])
 	}
 	if bindings.GraphQL != nil {
 		met = met.and(graphQLEffects(bindings.GraphQL.Kind))
@@ -91,22 +93,26 @@ func graphQLEffects(kind string) Effects {
 	return Effects{}
 }
 
-// methodEffects returns what the IANA HTTP Method Registry, updated
-// 2026-06-17 (https://www.iana.org/assignments/http-methods), records for
-// method, compared with case as HTTP compares a method (RFC 9110 §9.1). Each
-// of its rows has an arm, and a method it does not list is neither.
-func methodEffects(method string) Effects {
-	switch method {
-	case "GET", "HEAD", "OPTIONS", "PRI", "PROPFIND", "QUERY", "REPORT", "SEARCH", "TRACE":
-		return Effects{Safe: true, Idempotent: true}
-	case "ACL", "BASELINE-CONTROL", "BIND", "CHECKIN", "CHECKOUT", "COPY", "DELETE", "LABEL", "LINK",
-		"MERGE", "MKACTIVITY", "MKCALENDAR", "MKCOL", "MKREDIRECTREF", "MKWORKSPACE", "MOVE",
-		"ORDERPATCH", "PROPPATCH", "PUT", "REBIND", "UNBIND", "UNCHECKOUT", "UNLINK", "UNLOCK", "UPDATE",
-		"UPDATEREDIRECTREF", "VERSION-CONTROL":
-		return Effects{Idempotent: true}
-	case "CONNECT", "LOCK", "PATCH", "POST", "*":
-		return Effects{}
-	default:
-		return Effects{}
+// methodRegistry returns what the IANA HTTP Method Registry, updated
+// 2026-06-17 (https://www.iana.org/assignments/http-methods), records for each
+// method it lists, keyed by the method's name as the registry writes it, since
+// HTTP compares a method with case (RFC 9110 §9.1). It holds every row and no
+// other method, so a method it holds no entry for is one the registry does not
+// list.
+func methodRegistry() map[string]Effects {
+	safe, idempotent, neither := Effects{Safe: true, Idempotent: true}, Effects{Idempotent: true}, Effects{}
+	return map[string]Effects{
+		"GET": safe, "HEAD": safe, "OPTIONS": safe, "PRI": safe, "PROPFIND": safe, "QUERY": safe,
+		"REPORT": safe, "SEARCH": safe, "TRACE": safe,
+
+		"ACL": idempotent, "BASELINE-CONTROL": idempotent, "BIND": idempotent, "CHECKIN": idempotent,
+		"CHECKOUT": idempotent, "COPY": idempotent, "DELETE": idempotent, "LABEL": idempotent,
+		"LINK": idempotent, "MERGE": idempotent, "MKACTIVITY": idempotent, "MKCALENDAR": idempotent,
+		"MKCOL": idempotent, "MKREDIRECTREF": idempotent, "MKWORKSPACE": idempotent, "MOVE": idempotent,
+		"ORDERPATCH": idempotent, "PROPPATCH": idempotent, "PUT": idempotent, "REBIND": idempotent,
+		"UNBIND": idempotent, "UNCHECKOUT": idempotent, "UNLINK": idempotent, "UNLOCK": idempotent,
+		"UPDATE": idempotent, "UPDATEREDIRECTREF": idempotent, "VERSION-CONTROL": idempotent,
+
+		"CONNECT": neither, "LOCK": neither, "PATCH": neither, "POST": neither, "*": neither,
 	}
 }

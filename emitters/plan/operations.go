@@ -43,12 +43,13 @@ type AuthOption struct {
 }
 
 // operationWalk is one walk of a document's operations: the plans recorded so
-// far, the groups the tier scans have read, and the policy the walk plans
-// under.
+// far, the effects of each method [methodRegistry] holds, the groups the tier
+// scans have read, and the policy the walk plans under.
 type operationWalk struct {
-	plans  map[ir.OperationID]OpPlan
-	steps  int
-	policy Policy
+	plans         map[ir.OperationID]OpPlan
+	methodEffects map[string]Effects
+	steps         int
+	policy        Policy
 }
 
 // operationPlans returns the plan of every operation [ir.ForEachOperationAt]
@@ -56,7 +57,7 @@ type operationWalk struct {
 // cut leaves out what it did not reach, which pass.Validate reports as
 // ir/walk-truncated, so the plan reports nothing of its own.
 func operationPlans(doc *ir.Document, policy Policy) map[ir.OperationID]OpPlan {
-	walk := operationWalk{policy: policy}
+	walk := operationWalk{methodEffects: methodRegistry(), policy: policy}
 	ir.ForEachOperationAt(doc, walk.plan)
 	return walk.plans
 }
@@ -72,7 +73,7 @@ func (w *operationWalk) plan(operation ir.Operation, place ir.OperationPlace) {
 		Stability: w.stability(operation, place.Groups),
 		Auth:      authOptions(operation, place.Service),
 	}
-	effects, inferred := effectsOf(operation, w.policy)
+	effects, inferred := effectsOf(operation, w.policy, w.methodEffects)
 	operationPlan.Effects = effects
 	if inferred {
 		marked := operation.Provenance
