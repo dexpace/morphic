@@ -28,9 +28,10 @@ type valueSite struct {
 	// as text, so a scalar example of one of them may be that value written
 	// out.
 	writtenShapes shapeSet
-	// typeLevel says the value is an example of the type itself, for which
-	// null stands for an example that is absent and is never judged.
-	typeLevel bool
+	// nullAbsent says a null value stands for an example that is absent and
+	// is never judged: an example of the type itself, and one of a parameter
+	// or a header that is not required, the value left out.
+	nullAbsent bool
 }
 
 // checkValues reports each default and each example whose value its type does
@@ -43,7 +44,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range live {
 		typeCommon := doc.Types[id].Common()
-		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
+		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, nullAbsent: true}
 		diags = site.appendExamples(diags, typeCommon.Examples)
 	}
 	var scratch positionScratch
@@ -54,7 +55,7 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		}
 		// The examples alone: a default is a value of the type.
 		site.encoded = site.encoded || positionValue.mediaTyped
-		site.writtenShapes = positionValue.writtenShapes
+		site.writtenShapes, site.nullAbsent = positionValue.writtenShapes, positionValue.nullExampleLeftOut
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
@@ -149,11 +150,11 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
-// type nothing declares, one holding anything, a union or an external type, the
-// kind, whole numbers and bounds of a value written in an encoding, whose enum
-// membership, literal value and null are judged all the same, and a scalar that
-// may be a list or an object written out in the site's style, as writtenOut
-// says.
+// type nothing declares, one holding anything, a union or an external type, a
+// null the site reads as absent (nullAbsent), the kind, whole numbers and
+// bounds of a value written in an encoding, whose enum membership, literal
+// value and any other null are judged, and a scalar that may be a list or an
+// object written out in the site's style, as writtenOut says.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -165,7 +166,7 @@ func (s *valueSite) fits(value *ir.Value) string {
 		return ""
 	}
 	target := s.ref.Target
-	nullOK := s.ref.Nullable || s.typeLevel
+	nullOK := s.ref.Nullable || s.nullAbsent
 	switch t := td.(type) {
 	case *ir.Union, *ir.External:
 		return ""

@@ -33,8 +33,15 @@ type position struct {
 	// which form it is in, so a string written as the value's data goes
 	// unjudged (docs/ir/values.md#values-held-to-their-type).
 	writtenShapes shapeSet
-	def           *ir.Value
-	examples      []ir.Example
+	// nullExampleLeftOut says the position is a parameter or a header that is
+	// not required and that HTTP alone writes in a style, which has no null to
+	// write, so a null example is the value left out, not a null sent. A media
+	// type, the body and another protocol may write a null, so it is judged
+	// there, every media type alike. Its default is a value of the type all the
+	// same (docs/ir/values.md#values-held-to-their-type).
+	nullExampleLeftOut bool
+	def                *ir.Value
+	examples           []ir.Example
 }
 
 // positionScratch is what eachPosition reads a document through, emptied
@@ -46,11 +53,12 @@ type positionScratch struct {
 }
 
 // wholeWriting is how an operation's HTTP bindings write one parameter whole:
-// the structured shapes their styles can write as text, and whether a content
-// type serializes it.
+// the structured shapes their styles can write as text, whether a content
+// type serializes it, and whether a binding writes it into the body.
 type wholeWriting struct {
 	shapes     shapeSet
 	mediaTyped bool
+	inBody     bool
 }
 
 // eachPosition calls visit with each property of a live model, in liveTypeIDs
@@ -117,6 +125,7 @@ func headerPositions(positionValue *position, headers []ir.Header, owner string,
 			style = "simple"
 		}
 		positionValue.writtenShapes = shapesWritten(style, header.Explode)
+		positionValue.nullExampleLeftOut = !header.Required && !positionValue.mediaTyped
 		visit(positionValue)
 	}
 }
@@ -166,7 +175,7 @@ func shapesWritten(style string, explode *bool) shapeSet {
 // wholeParameters returns how the HTTP bindings of operation write each
 // parameter a binding writes whole, rather than a member of, in the emptied map
 // whole holds. What any binding writes counts: the shapes of every style, and a
-// content type whichever binding states it.
+// content type or the body whichever binding states it.
 func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.ParameterID, wholeWriting]) map[ir.ParameterID]wholeWriting {
 	written := whole.Emptied()
 	for i := range operation.Bindings.HTTP {
@@ -178,6 +187,7 @@ func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.Paramet
 			writing := written[pb.Param]
 			writing.shapes |= shapesWritten(pb.Style, pb.Explode)
 			writing.mediaTyped = writing.mediaTyped || pb.ContentType != ""
+			writing.inBody = writing.inBody || pb.Location == ir.HTTPLocationBody || pb.Location == ir.HTTPLocationBodyProperty
 			written[pb.Param] = writing
 		}
 	}
@@ -190,15 +200,20 @@ func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.Paramet
 // Its own Encoding naming anything else leaves its values judged as an
 // unencoded parameter's are, until #2178 decides which checks an encoding
 // excuses (docs/ir/values.md#values-held-to-their-type).
+// A binding of another protocol than HTTP may write a null, so it keeps a null
+// example of a parameter judged.
 func operationPositions(positionValue *position, operation *ir.Operation, scratch *positionScratch, visit func(*position)) {
 	whole := wholeParameters(operation, &scratch.whole)
+	httpAlone := operation.Bindings.RPC == nil && operation.Bindings.Message == nil &&
+		operation.Bindings.GraphQL == nil && operation.Bindings.OTP == nil
 	for i := range operation.Params {
 		pm := &operation.Params[i]
 		writing := whole[pm.ID]
+		mediaTyped := mediaTypeAlone(pm.Encoding) || writing.mediaTyped
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			mediaTyped:    mediaTypeAlone(pm.Encoding) || writing.mediaTyped,
-			writtenShapes: writing.shapes, def: pm.Default, examples: pm.Examples,
+			mediaTyped: mediaTyped, writtenShapes: writing.shapes, def: pm.Default, examples: pm.Examples,
+			nullExampleLeftOut: !pm.Required && !mediaTyped && !writing.inBody && httpAlone,
 		}
 		visit(positionValue)
 	}

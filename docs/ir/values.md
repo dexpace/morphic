@@ -75,6 +75,28 @@ says the example is absent and is not judged), and in an operation's examples ea
 against the type and bounds of the parameter it names, though not its own `Encoding`, and the error
 content against the error's type.
 
+A null example of a parameter or a header that is not `Required` stands for the value left out, as a
+source writes one to show that it may be omitted, and is not judged, whatever its type, where HTTP
+alone writes it in a style, as a query, path, cookie or header field, its own `Encoding` naming no
+media type included: such a field has no null to write, so absent is all a null there can mean.
+Where a media type writes it instead, through its own `Encoding` naming one alone, as a header
+declared by `content` has, or a binding's `ContentType`, or a binding writes the parameter into the
+body, or the operation has an RPC, message, GraphQL or OTP binding, its null example is judged as a
+property's is: the body, RPC, a message and GraphQL can each write a null, and so can a media type
+such as JSON. One that cannot, such as `application/x-www-form-urlencoded`, is judged all the same,
+since the check reads no media type's grammar, and OTP has no compiler yet to say whether its terms
+can. Still judged: a null example of a required one, whatever writes it; a null default, which is
+written into code; a property's null example, since an object can hold a member whose value is null,
+a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and a
+scenario's null input, since a scenario leaves a parameter out by not naming it. A Schema Object's
+null example is read two ways by where the OpenAPI compiler places it
+([`schema-examples`](../compilers/openapi.md#schema-examples)): left on a type, as an enum's or a
+named schema's is, it says the example is absent, while one moved onto a required parameter or a
+property, as a string schema's is, is judged as the position's own. One reading for it wherever it
+lands is a decision of its own (#2312). The emitter contract still holds a null example of a
+parameter or a header that is not required to its type ([one set of
+examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to change.
+
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value
 written out where the position is written in a style that can write its shape: a parameter an HTTP

@@ -70,9 +70,10 @@ func ofType(typ ir.TypeRef, value *ir.Value) func(*ir.Parameter) {
 // written out where an HTTP binding writes the whole parameter in a style that
 // can write that shape, as OpenAPI reads a parameter's example, or a content
 // type serializes it, and to be judged everywhere else: under no binding, a
-// style that writes no such shape or a binding of a member, as null, bytes, a
-// symbol or the other structured shape, for a type of neither shape, as an
-// example the type gives and as a scenario's input.
+// style that writes no such shape or a binding of a member, as null of a
+// required parameter, bytes, a symbol or the other structured shape, for a
+// type of neither shape, as an example the type gives and as a scenario's
+// input.
 func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *testing.T) {
 	t.Parallel()
 	asString := "example 0 is a string, and type/l holds a list"
@@ -116,7 +117,9 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 			parameter.Examples = []ir.Example{{Value: list}}
 			parameter.Constraints = &ir.Constraints{MaxItems: new(int64(1))}
 		}, bindsQ(styled("form", nil))), []finding{{"parameter/x/q", "example 0 lies outside the bounds declared for it"}}},
-		{"null under form", parameterOperation(withExample(null()), bindsQ(styled("form", nil))),
+		{"null of a required parameter under form", parameterOperation(func(parameter *ir.Parameter) {
+			parameter.Required, parameter.Examples = true, []ir.Example{{Value: null()}}
+		}, bindsQ(styled("form", nil))),
 			[]finding{{"parameter/x/q", "example 0 is null, and type/l is not nullable here"}}},
 		{"a string the parameter's list type gives under form", func() *ir.Document {
 			doc := parameterOperation(func(*ir.Parameter) {}, bindsQ(styled("form", nil)))
@@ -373,7 +376,9 @@ func TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 // encoding, by a header's own Encoding, a media type alone or a content type
 // writing the parameter whole, to be judged for an enum's members, a literal's
 // value and null all the same, its default and its examples alike: an encoding
-// excuses only the kind, whole numbers and bounds, until #2178 decides.
+// excuses only the kind, whole numbers and bounds, until #2178 decides. Each
+// position is required, since a null example of one left out stands for its
+// absence.
 func TestValidate_AnEncodingExcusesNoMemberAndNoNull(t *testing.T) {
 	t.Parallel()
 	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
@@ -382,7 +387,7 @@ func TestValidate_AnEncodingExcusesNoMemberAndNoNull(t *testing.T) {
 		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
 			return parameterOperation(func(parameter *ir.Parameter) {
 				parameter.Type, parameter.Encoding, parameter.Default = typ, encoding, value
-				parameter.Examples = []ir.Example{{Value: value}}
+				parameter.Required, parameter.Examples = true, []ir.Example{{Value: value}}
 			}, bindings...)
 		}
 	}
@@ -390,7 +395,7 @@ func TestValidate_AnEncodingExcusesNoMemberAndNoNull(t *testing.T) {
 		return func(typ ir.TypeRef, value *ir.Value) *ir.Document {
 			return headerOperation(func(header *ir.Header) {
 				header.Type, header.Encoding, header.Default = typ, encoding, value
-				header.Examples = []ir.Example{{Value: value}}
+				header.Required, header.Examples = true, []ir.Example{{Value: value}}
 			})
 		}
 	}

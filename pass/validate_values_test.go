@@ -148,9 +148,13 @@ func TestValidate_AParametersDefaultIsHeldToItsType(t *testing.T) {
 // TestValidate_AnExampleItsTypeDoesNotAdmitIsReported holds each example of a
 // position, of a type and of an operation's scenario to what a default is held
 // to, once for each example that fails and labelled by its name where it has
-// one and its index where not, and leaves alone what is not a value of the
-// type: a null example of a type, which says the example is absent, and the
-// examples of a content, which are in a media type's format.
+// one and its index where not. It leaves alone a type's null example, an absent
+// one, and a content's examples, in a media type's format. A position's example
+// is held apart from its default where it may be the value written in a style
+// or a media type, or a null for the value left out, as
+// TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted,
+// TestValidate_AParameterWrittenInAnEncodingHasNoKindJudged and
+// TestValidate_ANullExampleOfAParameterLeftOutIsNotReported hold.
 func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	t.Parallel()
 	typeExamples := func(vs ...*ir.Value) *ir.Document {
