@@ -145,18 +145,22 @@ type Entry struct {
   the spec's bytes and where its reports point, and leaves the rest of the IR whole, so it is no new
   generation.
 - **A file as written.** `Digest` covers the bytes after formatting, each keep region's text left
-  out and its markers kept, with a byte-order mark stripped, line endings made `\n` and trailing
-  newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
-  checkout that converts line endings are not mistaken for an edit. A file the manifest lists whose
-  bytes on disk, normalized alike, match neither a digest recorded for it nor what this run
-  generates was edited outside its regions. The writer leaves it as it is, neither overwriting nor
-  pruning it, reports it as a warning `engine/file-edited`, since nothing is lost, and keeps an
-  entry for it in the new manifest ([below](#a-file-is-judged-by-its-digest)), so the next
-  generation reports it again. An entity a rename moves out of it is written in its new place as any
-  other, since its callers name it there, and its regions stay in the kept file, which still holds
-  them, rather than being written twice. A file marked `@morphic:ignore-file` is its user's whole,
-  as a file written once is, so it is never written, pruned or checked for an edit, and a file
-  integrated as blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
+  out and its markers kept, with one leading UTF-8 byte-order mark stripped, every carriage return
+  in a run that ends at a `\n` dropped, and trailing `\n` then dropped, so an edit inside a region,
+  a run of the formatter the generator ran and a checkout that converts line endings, once or again,
+  are not mistaken for an edit. A carriage return no `\n` ends the run of, and a second byte-order
+  mark, are content: no checkout adds or removes either, and a file taken for unedited is
+  overwritten. Every later release compares a recorded digest, so this reading changes only with
+  `Schema`. A file the manifest lists whose bytes on disk, normalized alike, match neither a digest
+  recorded for it nor what this run generates was edited outside its regions. The writer leaves it
+  as it is, neither overwriting nor pruning it, reports it as a warning `engine/file-edited`, since
+  nothing is lost, and keeps an entry for it in the new manifest
+  ([below](#a-file-is-judged-by-its-digest)), so the next generation reports it again. An entity a
+  rename moves out of it is written in its new place as any other, since its callers name it there,
+  and its regions stay in the kept file, which still holds them, rather than being written twice. A
+  file marked `@morphic:ignore-file` is its user's whole, as a file written once is, so it is never
+  written, pruned or checked for an edit, and a file integrated as blocks is checked by its blocks
+  alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** A file whose bytes on disk are what this run generated is not written, and
   where no file is written or pruned, no pending manifest stands and the manifest the run would
   write is the one the root holds, its `Options` and every `Inputs` field included, nothing is

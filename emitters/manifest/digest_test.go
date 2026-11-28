@@ -4,6 +4,8 @@
 package manifest_test
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +37,9 @@ func TestDigest_IsBlindToWhatACheckoutChanges(t *testing.T) {
 		{name: "single CRLF", content: "\r\n", want: wantEmpty},
 		{name: "BOM only", content: "\ufeff", want: wantEmpty},
 		{name: "BOM and LF", content: "\ufeff\n", want: wantEmpty},
+		{name: "CR before CRLF", content: "a\r\r\nb", want: wantLines},
+		{name: "CRs before CRLF and a trailing CR before CRLF", content: "a\r\r\r\nb\r\r\n", want: wantLines},
+		{name: "LF and a trailing CR before CRLF", content: "a\nb\r\r\n", want: wantLines},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -46,10 +51,10 @@ func TestDigest_IsBlindToWhatACheckoutChanges(t *testing.T) {
 
 func TestDigest_SeesWhatAnEditChanges(t *testing.T) {
 	t.Parallel()
-	base := manifest.Digest([]byte("a\nb"))
 	rows := []struct {
-		name    string
-		content string
+		name     string
+		content  string
+		unedited string
 	}{
 		{name: "added leading space on second line", content: "a\n b"},
 		{name: "lone CR", content: "a\rb"},
@@ -57,12 +62,67 @@ func TestDigest_SeesWhatAnEditChanges(t *testing.T) {
 		{name: "interior blank line", content: "a\n\nb"},
 		{name: "leading space", content: " a\nb"},
 		{name: "trailing space", content: "a\nb "},
-		{name: "CR before CRLF", content: "a\r\r\nb"},
+		{name: "trailing CR", content: "a\nb\r"},
+		{name: "trailing CR alone", content: "a\r", unedited: "a"},
+		{name: "CR after LF", content: "a\n\rb"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotEqual(t, base, manifest.Digest([]byte(row.content)), "content %q", row.content)
+			unedited := row.unedited
+			if unedited == "" {
+				unedited = "a\nb"
+			}
+			assert.NotEqual(t, manifest.Digest([]byte(unedited)), manifest.Digest([]byte(row.content)),
+				"content %q against %q", row.content, unedited)
 		})
+	}
+}
+
+// TestDigest_IsBlindToEveryCheckoutOfShortContent holds every string of up to
+// seven bytes of a, CR and LF to digesting as its canonical spelling does, and
+// as itself with a CR inserted before, or removed from before, any LF.
+func TestDigest_IsBlindToEveryCheckoutOfShortContent(t *testing.T) {
+	t.Parallel()
+	const maxLength = 7
+	alphabet := []byte("a\r\n")
+	carriageReturnsBeforeLineFeed := regexp.MustCompile("\r+\n")
+	canonical := func(content string) string {
+		return strings.TrimRight(carriageReturnsBeforeLineFeed.ReplaceAllString(content, "\n"), "\n")
+	}
+
+	checked := 0
+	for length := 0; length <= maxLength; length++ {
+		combinations := 1
+		for range length {
+			combinations *= len(alphabet)
+		}
+		for combination := range combinations {
+			content := make([]byte, length)
+			for position, remaining := 0, combination; position < length; position++ {
+				content[position] = alphabet[remaining%len(alphabet)]
+				remaining /= len(alphabet)
+			}
+			checked++
+			checkCheckoutBlindness(t, string(content), canonical(string(content)))
+		}
+	}
+	assert.Equal(t, 3280, checked, "strings of up to %d bytes of a, CR and LF", maxLength)
+}
+
+func checkCheckoutBlindness(t *testing.T, content, canonical string) {
+	t.Helper()
+	want := manifest.Digest([]byte(content))
+	assert.Equal(t, want, manifest.Digest([]byte(canonical)), "%q against its canonical spelling %q", content, canonical)
+	for position := range len(content) {
+		if content[position] != '\n' {
+			continue
+		}
+		inserted := content[:position] + "\r" + content[position:]
+		assert.Equal(t, want, manifest.Digest([]byte(inserted)), "%q against %q", content, inserted)
+		if position > 0 && content[position-1] == '\r' {
+			removed := content[:position-1] + content[position:]
+			assert.Equal(t, want, manifest.Digest([]byte(removed)), "%q against %q", content, removed)
+		}
 	}
 }
