@@ -72,6 +72,26 @@ jobs:
           version: ${{ steps.lint-version.outputs.version }}
       - name: lint rules draw their planted findings
         run: make lint-planted
+      # Node.js and TypeScript at the releases the Makefile pins. The planted
+      # files are then built with the toolchain required, so a compiler that is
+      # absent or at another release fails here rather than being skipped.
+      - name: typescript toolchain pin
+        id: typescript
+        run: |
+          {
+            echo "node=$(make -s print-node-version)"
+            echo "typescript=$(make -s print-typescript-version)"
+          } >>"$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ steps.typescript.outputs.node }}
+          package-manager-cache: false
+      - name: typescript
+        env:
+          TYPESCRIPT_VERSION: ${{ steps.typescript.outputs.typescript }}
+        run: npm install --global --ignore-scripts "typescript@$TYPESCRIPT_VERSION"
+      - name: tsc draws its planted findings
+        run: make ts-planted TS_TOOLCHAIN=required
       - name: fuzz
         id: fuzz
         run: make fuzz

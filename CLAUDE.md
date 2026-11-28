@@ -531,7 +531,9 @@ make gate
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI are the same commands; CI splits them across two jobs that run
-side by side. The race detector and every schema case are outside it: a nightly job runs
+side by side. One step differs by a variable: CI runs `make ts-planted` with the TypeScript
+toolchain required, where a machine without it skips that step and says so. The race detector and
+every schema case are outside it: a nightly job runs
 `make race`, then `make cases`, on `main`, and opens an issue when either fails. Read the `Makefile`
 for the step list rather than restating it here; `make coverage`, `make race`, `make cases`,
 `make fuzz`, `make bench` and the rest are individually runnable while iterating.
