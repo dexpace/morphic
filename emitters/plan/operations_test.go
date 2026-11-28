@@ -101,7 +101,7 @@ func TestBuild_KeepsTheFirstOperationOfAnID(t *testing.T) {
 
 	require.Len(t, built.Ops, 1)
 	want := []plan.AuthOption{{Schemes: key[0].Schemes}}
-	assert.Empty(t, cmp.Diff(want, built.Ops["operation/twice"].Auth))
+	assert.Empty(t, cmp.Diff(want, built.Ops["operation/twice"].Auth), "auth (-want +got)")
 }
 
 // TestBuild_ResolvesAnOperationsTier holds Stability to the operation's own
@@ -215,7 +215,7 @@ func TestBuild_ResolvesAnOperationsAuth(t *testing.T) {
 		got[id] = operationPlan.Auth
 	}
 	// cmp tells a nil list from an empty one, which this test is about.
-	assert.Empty(t, cmp.Diff(want, got))
+	assert.Empty(t, cmp.Diff(want, got), "auth (-want +got)")
 }
 
 // TestBuild_ADeclaredIdempotencyDecidesTheEffects holds a declared kind to
@@ -243,15 +243,15 @@ func TestBuild_ADeclaredIdempotencyDecidesTheEffects(t *testing.T) {
 		"operation/unknown-kind-get": {},
 	}
 
-	for _, pp := range []plan.Policy{{}, {ProtocolEffects: true}} {
-		built := build(t, doc, pp)
+	for _, policy := range []plan.Policy{{}, {ProtocolEffects: true}} {
+		built := build(t, doc, policy)
 
 		got := map[ir.OperationID]plan.Effects{}
 		for id, operationPlan := range built.Ops {
 			got[id] = operationPlan.Effects
-			assert.Nil(t, operationPlan.Inferred, "%s under %+v: a declared fact is not inferred", id, pp)
+			assert.Nil(t, operationPlan.Inferred, "%s under %+v: a declared fact is not inferred", id, policy)
 		}
-		assert.Equal(t, want, got, "under %+v", pp)
+		assert.Equal(t, want, got, "under %+v", policy)
 	}
 }
 
@@ -391,12 +391,12 @@ func TestPolicy_ProtocolEffectsMovesTheVersion(t *testing.T) {
 	off, on := plan.Policy{}, plan.Policy{ProtocolEffects: true}
 
 	assert.NotEqual(t, build(t, widgetDoc(), off).Version, build(t, widgetDoc(), on).Version)
-	for _, pp := range []plan.Policy{off, on} {
-		raw, err := json.Marshal(pp, ir.CanonicalOptions())
+	for _, policy := range []plan.Policy{off, on} {
+		raw, err := json.Marshal(policy, ir.CanonicalOptions())
 		require.NoError(t, err)
 		var decoded plan.Policy
 		require.NoError(t, json.Unmarshal(raw, &decoded))
-		assert.Equal(t, pp, decoded, "%s", raw)
+		assert.Equal(t, policy, decoded, "%s", raw)
 	}
 }
 
@@ -432,5 +432,5 @@ func TestPlan_EncodesItsOperationsAsOneDocument(t *testing.T) {
 	var decoded plan.Plan
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 
-	assert.Empty(t, cmp.Diff(built, &decoded))
+	assert.Empty(t, cmp.Diff(built, &decoded), "the plan decodes to what encoded it (-encoded +decoded)")
 }

@@ -46,10 +46,10 @@ func eachCorpusDocument(t *testing.T, check func(t *testing.T, doc *ir.Document)
 	}
 }
 
-// buildUnder plans doc under pp and requires that it reported nothing.
-func buildUnder(t *testing.T, doc *ir.Document, pp plan.Policy) *plan.Plan {
+// buildUnder plans doc under policy and requires that it reported nothing.
+func buildUnder(t *testing.T, doc *ir.Document, policy plan.Policy) *plan.Plan {
 	t.Helper()
-	built, diags := plan.Build(doc, irfacts.New(doc), pp)
+	built, diags := plan.Build(doc, irfacts.New(doc), policy)
 	require.Empty(t, diags)
 	return built
 }
@@ -78,7 +78,7 @@ func TestGolden_ProtocolEffectsMovesOnlyWhatItMarks(t *testing.T) {
 		off := buildUnder(t, doc, plan.Policy{})
 		on := buildUnder(t, doc, plan.Policy{ProtocolEffects: true})
 
-		assert.Empty(t, cmp.Diff(off.Types, on.Types), "the types plan alike")
+		assert.Empty(t, cmp.Diff(off.Types, on.Types), "the types plan alike (-off +on)")
 		require.Len(t, on.Ops, len(off.Ops))
 		for id, operation := range firstOperations(doc) {
 			offPlan, onPlan := off.Ops[id], on.Ops[id]
@@ -90,7 +90,7 @@ func TestGolden_ProtocolEffectsMovesOnlyWhatItMarks(t *testing.T) {
 			if marked {
 				onPlan.Effects, onPlan.Inferred = offPlan.Effects, nil
 			}
-			assert.Empty(t, cmp.Diff(offPlan, onPlan), "%s: the switch moves only what it marks", id)
+			assert.Empty(t, cmp.Diff(offPlan, onPlan), "%s: the switch moves only what it marks (-off +on)", id)
 		}
 	})
 }

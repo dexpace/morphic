@@ -24,15 +24,15 @@ const (
 	inferredProtocolEffects ir.Inferred = "protocol-effects"
 )
 
-// effectsOf returns operation's effects under pp, and whether a heuristic
+// effectsOf returns operation's effects under policy, and whether a heuristic
 // decided them. A declared Idempotency decides, unmarked. Where it declares
 // none, ProtocolEffects takes what every binding defines, marked whatever it
-// gives, and without the policy the operation is neither.
-func effectsOf(operation ir.Operation, pp Policy) (effects Effects, inferred bool) {
+// gives, and with it off the operation is neither.
+func effectsOf(operation ir.Operation, policy Policy) (effects Effects, inferred bool) {
 	if declared, ok := declaredEffects(operation.Idempotency.Kind); ok {
 		return declared, false
 	}
-	if !pp.ProtocolEffects {
+	if !policy.ProtocolEffects {
 		return Effects{}, false
 	}
 	return bindingEffects(operation.Bindings), true

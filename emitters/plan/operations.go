@@ -46,17 +46,17 @@ type AuthOption struct {
 // far, the groups the tier scans have read, and the policy the walk plans
 // under.
 type operationWalk struct {
-	plans map[ir.OperationID]OpPlan
-	steps int
-	pp    Policy
+	plans  map[ir.OperationID]OpPlan
+	steps  int
+	policy Policy
 }
 
 // operationPlans returns the plan of every operation [ir.ForEachOperationAt]
-// reaches in doc under pp, or nil where it reaches none. A walk the bounds
+// reaches in doc under policy, or nil where it reaches none. A walk the bounds
 // cut leaves out what it did not reach, which pass.Validate reports as
 // ir/walk-truncated, so the plan reports nothing of its own.
-func operationPlans(doc *ir.Document, pp Policy) map[ir.OperationID]OpPlan {
-	walk := operationWalk{pp: pp}
+func operationPlans(doc *ir.Document, policy Policy) map[ir.OperationID]OpPlan {
+	walk := operationWalk{policy: policy}
 	ir.ForEachOperationAt(doc, walk.plan)
 	return walk.plans
 }
@@ -72,7 +72,7 @@ func (w *operationWalk) plan(operation ir.Operation, place ir.OperationPlace) {
 		Stability: w.stability(operation, place.Groups),
 		Auth:      authOptions(operation, place.Service),
 	}
-	effects, inferred := effectsOf(operation, w.pp)
+	effects, inferred := effectsOf(operation, w.policy)
 	operationPlan.Effects = effects
 	if inferred {
 		marked := operation.Provenance
