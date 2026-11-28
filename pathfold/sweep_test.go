@@ -56,6 +56,7 @@ type sweepRecord struct {
 // code points APFS refused and the runs of class zero it wrote. The record at
 // testdata/apfs.golden.txt is rewritten only on macOS with -update.
 func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
+	t.Parallel()
 	sweeps := []sweepInput{
 		{name: "characters", names: generateCharacterSweep()},
 		{name: "sequences", names: generateSequenceSweep()},
@@ -99,11 +100,12 @@ func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 		}
 	}
 
-	if allSweepsPassed {
-		t.Run("weaker folds", func(t *testing.T) {
-			checkWeakerFoldsSplitFiles(t, sweeps, partitions)
-		})
-	}
+	t.Run("weaker folds", func(t *testing.T) {
+		if !allSweepsPassed || len(partitions) != len(sweeps) {
+			t.Skip("needs every sweep's partition, which a failed or filtered-out sweep does not give")
+		}
+		checkWeakerFoldsSplitFiles(t, sweeps, partitions)
+	})
 
 	t.Run("runs of class zero", func(t *testing.T) {
 		require.Empty(t, cmp.Diff(classZeroRuns(), record.wrote), "names APFS wrote (-want +got)")
@@ -273,9 +275,8 @@ func generateMarkRunSweep() []string {
 	return slices.Compact(out)
 }
 
-// classZeroRuns are names holding long runs of characters of class zero that
-// norm.NFD counts as non-starters, which APFS writes at every length a segment
-// holds.
+// classZeroRuns are names APFS wrote holding long runs norm.NFD counts as
+// non-starters, characters of class zero among them.
 func classZeroRuns() []string {
 	return []string{
 		strings.Repeat("\u1161", 85),
@@ -293,7 +294,7 @@ func writtenOnAPFS(t *testing.T, names []string) []string {
 	dir := t.TempDir()
 	lines := make([]string, 0, len(names))
 	for _, name := range names {
-		require.LessOrEqual(t, longestMarkRun(name), maxMarksInARow, "%+q holds more marks in a row than APFS writes", name)
+		require.LessOrEqual(t, marksInARowBeforeWriting(name), maxMarksInARow, "%+q holds more marks in a row than APFS writes", name)
 		target := filepath.Join(dir, name)
 		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		require.NoError(t, err, "create %+q", name)
@@ -303,10 +304,11 @@ func writtenOnAPFS(t *testing.T, names []string) []string {
 	return lines
 }
 
-// longestMarkRun counts the longest run of marks in name's decomposition, each
-// character decomposed alone, which orders no mark and so moves none across a
-// starter.
-func longestMarkRun(name string) int {
+// marksInARowBeforeWriting counts the longest run of marks in name's
+// decomposition, each character decomposed alone, which orders no mark and so
+// moves none across a starter. It is counted apart from Portable's count, so a
+// defect there cannot let a sweep write a name the volume hangs on.
+func marksInARowBeforeWriting(name string) int {
 	longest, current := 0, 0
 	for _, character := range decomposeEachRuneAlone(name) {
 		if norm.NFD.PropertiesString(string(character)).CCC() == 0 {
@@ -349,7 +351,7 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	t.Helper()
 	for _, sweep := range sweeps {
 		for _, name := range sweep.names {
-			require.LessOrEqual(t, longestMarkRun(name), maxMarksInARow,
+			require.LessOrEqual(t, marksInARowBeforeWriting(name), maxMarksInARow,
 				"sweep %s: %+q holds more marks in a row than APFS writes", sweep.name, name)
 		}
 	}
