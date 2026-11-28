@@ -262,8 +262,10 @@ throughout these documents.
     ways, `Models/a.go` beside `models/b.go` and beside `models/sub/b.go`; one that is the
     manifest's own, its pending twin's or that one's temporary file's, or lies under any of them, in
     any letter case; a segment of 86 three-byte characters, 258 bytes, where one of 85 is admitted;
-    each Windows device name the rule lists, `conin$` and `com¹` among them, before a first dot in
-    two letter cases, before the first of two (`aux.v1.go`) and before spaces and a dot
+    a segment holding an unassigned code point or a noncharacter, where a private-use one is
+    admitted; one of 31 marks in a row, where 30 is admitted, and 85 conjoining vowels, of class
+    zero, are; each Windows device name the rule lists, `conin$` and `com¹` among them, before a
+    first dot in two letter cases, before the first of two (`aux.v1.go`) and before spaces and a dot
     (`nul .txt`); each character Windows refuses, U+001F among them; a trailing dot or space, where
     a space inside a segment is admitted; a file's name of 236 bytes, where one of 235 is admitted;
     an empty path, an absolute one, one holding `\`, a `.` or `..` segment or an empty one (`a//b`,
@@ -1063,20 +1065,25 @@ throughout these documents.
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two
-    reversed, and a Cherokee letter in each case; and on a case-insensitive APFS volume, both sweeps
-    the rule names, every spelling of each assigned character behind an `a` and names of one to four
-    characters, each written to one empty directory, leave no two names of one file in two folds,
-    where the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
-    upper-casing before it and under a fold of ASCII letters alone each do. The other direction is
-    held too: the names of two files that the fold joins in those sweeps equal a golden list, `aı`
-    and `ai` among them, and the fold keeps apart each pair of a second table, `ℌx` and `hx`, `café`
-    and `cafe`, `नाम` and `नम`, and `x` U+200D `y` and `xy`, so a fold joining more, by a
-    compatibility decomposition, by dropping marks or by dropping a format character, fails as one
-    joining less does; and the fold of every character the tables hold equals a golden, which a Go
-    release moving them may extend and must not otherwise change ([the path
+    reversed, a Cherokee letter in each case, and `b` with a dot below after 29, 30, 31 and 100
+    acute accents and before them; and on a case-insensitive APFS volume, the sweeps the rule names,
+    every spelling of each assigned character but a private-use one behind an `a`, names of one to
+    four characters and names of 28 to 31 marks in a row each beside its swaps of two neighbouring
+    marks, each written to one empty directory, leave no two names of one file in two folds, where
+    the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
+    upper-casing before it, under a fold of ASCII letters alone and under `norm.NFD` alone each do.
+    The other direction is held too: the names of two files that the fold joins in those sweeps
+    equal a golden list, `aı` and `ai` among them, and the fold keeps apart each pair of a second
+    table, `ℌx` and `hx`, `café` and `cafe`, `नाम` and `नम`, `x` U+200D `y` and `xy`, and two marks
+    of one class swapped at the 31st mark in a row, so a fold joining more, by a compatibility
+    decomposition, by dropping marks, by dropping a format character or by ordering marks of one
+    class, fails as one joining less does; and the fold of every character the tables hold equals a
+    golden, which a Go release moving them may extend and must not otherwise change ([the path
     fold](../emit/rules.md)). The gate's runners have no APFS volume, so the sweeps run on macOS
-    whenever a golden here is rewritten, recording which of their names APFS made one file, and on
-    every host the fold of those names is held to that record and to the golden list.
+    whenever a golden here is rewritten, recording which of their names APFS made one file and which
+    code points behind an `a` it refused, and on every host the fold of those names is held to that
+    record and to the golden list, and `pathfold.Portable` to refusing those code points and no
+    other.
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
     characters of two, three and four bytes, the operation in the client of the group at the cap

@@ -19,10 +19,10 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// build plans doc under pp and requires that it reported nothing.
-func build(t *testing.T, doc *ir.Document, pp plan.Policy) *plan.Plan {
+// build plans doc under policy and requires that it reported nothing.
+func build(t *testing.T, doc *ir.Document, policy plan.Policy) *plan.Plan {
 	t.Helper()
-	built, diags := plan.Build(doc, irfacts.New(doc), pp)
+	built, diags := plan.Build(doc, irfacts.New(doc), policy)
 	require.Empty(t, diags)
 	require.NotNil(t, built)
 	return built
@@ -84,11 +84,12 @@ func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 		Deprecated:  map[ir.PropertyID]*ir.Deprecation{"type/widget/id": useUID},
 		Unflattened: []ir.TypeID{"type/tags"},
 	}
-	assert.Empty(t, cmp.Diff(want, built.Types[widget.ID]))
+	assert.Empty(t, cmp.Diff(want, built.Types[widget.ID]), "(-want +got)")
 	assert.Same(t, useUID, built.Types[widget.ID].Deprecated["type/widget/id"],
 		"the plan points into the document and copies none of it")
-	assert.Empty(t, cmp.Diff(plan.TypePlan{Flattened: []ir.PropertyID{"type/mixin/note"}}, built.Types[mixin.ID]))
-	assert.Empty(t, cmp.Diff(plan.TypePlan{}, built.Types[tags.ID]), "a list composes no member")
+	assert.Empty(t, cmp.Diff(plan.TypePlan{Flattened: []ir.PropertyID{"type/mixin/note"}}, built.Types[mixin.ID]),
+		"(-want +got)")
+	assert.Empty(t, cmp.Diff(plan.TypePlan{}, built.Types[tags.ID]), "a list composes no member (-want +got)")
 }
 
 func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
@@ -119,10 +120,10 @@ func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 
 			lenient := build(t, doc, plan.Policy{}).Types[union.ID]
 			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want}, lenient),
-				"with StrictExclusive off no union is strict")
+				"with StrictExclusive off no union is strict (-want +got)")
 
 			strict := build(t, doc, plan.Policy{StrictExclusive: true}).Types[union.ID]
-			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Strict: tt.wantStrict}, strict))
+			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Strict: tt.wantStrict}, strict), "(-want +got)")
 		})
 	}
 }
@@ -169,7 +170,7 @@ func TestBuild_EveryKindHasAPlan(t *testing.T) {
 
 			got, planned := built.Types[td.Common().ID]
 			require.True(t, planned, "every registry type has an entry")
-			assert.Empty(t, cmp.Diff(want, got))
+			assert.Empty(t, cmp.Diff(want, got), "(-want +got)")
 		})
 	}
 }
@@ -186,7 +187,7 @@ func TestBuild_ANilEntryPlansAsTheZeroTypePlan(t *testing.T) {
 	built := build(t, doc, plan.Policy{StrictExclusive: true})
 
 	want := map[ir.TypeID]plan.TypePlan{"type/untyped": {}, "type/model": {}, "type/union": {}, "type/scalar": {}}
-	assert.Empty(t, cmp.Diff(want, built.Types))
+	assert.Empty(t, cmp.Diff(want, built.Types), "(-want +got)")
 }
 
 // TestBuild_ReadsSensitiveAlongTheBaseChain plans, in one registry, a type of
@@ -249,7 +250,7 @@ func TestBuild_ReadsSensitiveAlongTheBaseChain(t *testing.T) {
 	for id, typePlan := range built.Types {
 		got[id] = typePlan.Sensitive
 	}
-	assert.Empty(t, cmp.Diff(want, got))
+	assert.Empty(t, cmp.Diff(want, got), "(-want +got)")
 	members := ir.FlattenedProperties(doc.Types, holder.ID).Properties
 	require.Len(t, members, len(holder.Properties))
 	for _, member := range members {
@@ -314,5 +315,5 @@ func TestBuild_ResolvesADecoratorToItsChainsEnd(t *testing.T) {
 	for id, typePlan := range built.Types {
 		got[id] = typePlan.Alias
 	}
-	assert.Empty(t, cmp.Diff(want, got))
+	assert.Empty(t, cmp.Diff(want, got), "(-want +got)")
 }
