@@ -222,7 +222,8 @@ func TestPlan_EncodesAsOneDocument(t *testing.T) {
 
 	var members map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal(raw, &members))
-	assert.Equal(t, `{"type/base":`, string(members["types"][:13]), "the types are written in sorted-key order")
+	assert.True(t, strings.HasPrefix(string(members["types"]), `{"type/base":`),
+		"the types are written in sorted-key order: %s", members["types"])
 }
 
 func TestPlan_RefusesToEncodeAStringThatIsNotUTF8(t *testing.T) {
