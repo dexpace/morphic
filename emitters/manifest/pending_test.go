@@ -102,6 +102,25 @@ func TestPending_RoundTrips(t *testing.T) {
 			},
 		},
 		{
+			// A pending manifest holds each temporary file's name "with those
+			// any earlier pending manifest records", while a later generation
+			// may hold .a1 as a file of its own (docs/emitters/write-integrate.md,
+			// apply step 2), so a temporary file that is a known path stands.
+			name: "admits a temporary file that is a known path",
+			input: manifest.Pending{
+				Schema:         manifest.Schema,
+				Target:         "go",
+				Known:          map[string][]string{"a": {digestAlpha}, ".a1": {digestBeta}},
+				TemporaryFiles: []string{".a1"},
+			},
+			want: manifest.Pending{
+				Schema:         manifest.Schema,
+				Target:         "go",
+				Known:          map[string][]string{"a": {digestAlpha}, ".a1": {digestBeta}},
+				TemporaryFiles: []string{".a1"},
+			},
+		},
+		{
 			name: "omits empty known and temporaryFiles",
 			input: manifest.Pending{
 				Schema:         manifest.Schema,
