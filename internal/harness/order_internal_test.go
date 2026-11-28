@@ -1002,8 +1002,9 @@ func TestReencodeMappings_EncodeFailureIsRefused(t *testing.T) {
 
 // TestReverseMappings_APermutationThatDoesNotParseIsDeclined drives the check
 // that holds the rewrite to writing YAML. Moving each anchor ahead of its
-// aliases leaves no ordering rule a permutation can break, so the seam writes
-// text that does not parse.
+// aliases leaves no ordering rule a permutation can break, and writing each
+// block scalar double-quoted leaves the encoder none to misplace
+// (restyleScalars), so the seam writes text that does not parse.
 func TestReverseMappings_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 	orig := encodeYAML
 	t.Cleanup(func() { encodeYAML = orig })
