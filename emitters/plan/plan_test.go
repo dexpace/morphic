@@ -45,6 +45,7 @@ func TestBuild_ANilDocumentPlansAsAnEmptyOne(t *testing.T) {
 
 	fromNil, diags := plan.Build(nil, nil, plan.Policy{})
 	require.Empty(t, diags)
+	require.NotNil(t, fromNil, "a nil document has a plan")
 	fromEmpty := build(t, &ir.Document{}, plan.Policy{})
 
 	assert.Empty(t, cmp.Diff(fromEmpty, fromNil), "(-empty +nil)")
@@ -213,7 +214,8 @@ func TestPlan_EncodesAsOneDocument(t *testing.T) {
 
 	var members map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal(raw, &members))
-	assert.Equal(t, `{"type/base":`, string(members["types"][:13]), "the types are written in sorted-key order")
+	assert.True(t, strings.HasPrefix(string(members["types"]), `{"type/base":`),
+		"the types are written in sorted-key order: %s", members["types"])
 }
 
 func TestPlan_RefusesToEncodeAStringThatIsNotUTF8(t *testing.T) {

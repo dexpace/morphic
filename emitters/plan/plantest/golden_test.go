@@ -91,6 +91,7 @@ func TestGolden_PlanOfEveryCorpusDocument(t *testing.T) {
 
 				built, diags := plan.Build(doc, irfacts.New(doc), plan.Policy{})
 				require.Empty(t, diags)
+				require.NotNil(t, built)
 				require.NotEmpty(t, built.Version)
 				require.Len(t, built.Types, len(doc.Types), "one entry for each registry type")
 				built.Version = ""

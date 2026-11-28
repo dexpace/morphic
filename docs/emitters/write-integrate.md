@@ -347,6 +347,12 @@ neither is written, whichever order they are named in. That order decides nothin
 run's targets have their findings reported, and their writes planned and applied, in the byte order
 of their keys.
 
+Planning reads a generation's artifacts, what it was built from (`Inputs`) and its output root,
+never the target, its AST or its printer, since `engine/artifacts` knows nothing of how a
+generation was made ([package layout](packages.md)). So files a renderer outside Morphic printed
+would be planned and applied by these same rules, under the same manifest ([the
+README](README.md#a-renderer-outside-morphic)).
+
 A plan that draws an error holds no write and no prune, so applying it changes nothing, whatever the
 verdict. Where the `none` threshold or a triage rule lets such a run stand, the other targets' roots
 are written and that one is left as it was: no rating writes over a file its owner wrote, or into a
