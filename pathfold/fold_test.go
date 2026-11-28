@@ -44,6 +44,11 @@ func TestFold_JoinsWhatAFileSystemMakesOnePath(t *testing.T) {
 		{name: "mark order at 31 marks", first: markOrder(30, true), second: markOrder(30, false)},
 		{name: "mark order at 32 marks", first: markOrder(31, true), second: markOrder(31, false)},
 		{name: "mark order at 101 marks", first: markOrder(100, true), second: markOrder(100, false)},
+		{
+			name:   "mark order past a U+034F the name already holds",
+			first:  "\u034fb" + strings.Repeat("\u0301", 31) + "\u0323",
+			second: "\u034f\u1e05" + strings.Repeat("\u0301", 31),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -111,12 +116,41 @@ func TestFold_ReadsAByteThatIsNotUTF8AsAReplacementCharacter(t *testing.T) {
 		{name: "lone invalid byte", input: "\xff", want: "\ufffd"},
 		{name: "invalid byte inside ASCII", input: "a\xfeb", want: "a\ufffdb"},
 		{name: "two adjacent invalid bytes", input: "\xff\xfe", want: "\ufffd\ufffd"},
+		{name: "truncated four-byte lead F0 before a composed letter", input: "\xf0\u00e9", want: "\ufffd\u00e9"},
+		{name: "truncated four-byte lead F1 before a composed letter", input: "\xf1\u00e9", want: "\ufffd\u00e9"},
+		{name: "truncated four-byte lead F3 before a composed letter", input: "\xf3\u00e9", want: "\ufffd\u00e9"},
+		{name: "truncated four-byte lead F4 before a composed letter", input: "\xf4\u00e9", want: "\ufffd\u00e9"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, pathfold.Fold(row.want), pathfold.Fold(row.input), "%q", row.input)
 		})
+	}
+}
+
+// TestFold_ReadsEveryInvalidSpellingAsRangingReadsIt holds the fold of seeded
+// strings mixing bytes that are not UTF-8, truncated sequences and letters
+// that decompose to the fold of the same strings read a rune at a time, each
+// byte that is not UTF-8 as one U+FFFD.
+func TestFold_ReadsEveryInvalidSpellingAsRangingReadsIt(t *testing.T) {
+	t.Parallel()
+	pieces := []string{
+		"\xf0", "\xf1", "\xf3", "\xf4", "\xff", "\xc3", "\xe2\x82", "\xf0\x9f\x98", "\x80",
+		"\u00e9", "\u1e05", "\u00c5", "\uac01", "\u0301", "\u0323", "a", "Q",
+	}
+	const draws = 20_000
+	source := rand.NewPCG(2223, 8)
+	var builder strings.Builder
+	for range draws {
+		builder.Reset()
+		for range 1 + source.Uint64()%8 {
+			builder.WriteString(pieces[source.Uint64()%uint64(len(pieces))])
+		}
+		drawn := builder.String()
+		if read := string([]rune(drawn)); pathfold.Fold(drawn) != pathfold.Fold(read) {
+			t.Fatalf("Fold(%+q) = %+q, but Fold(%+q) = %+q", drawn, pathfold.Fold(drawn), read, pathfold.Fold(read))
+		}
 	}
 }
 

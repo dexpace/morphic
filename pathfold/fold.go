@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
@@ -50,6 +51,12 @@ func decomposeStreamSafe(name string) (decomposed string, cut bool) {
 // decompose returns name's canonical decomposition, whole: a name norm.NFD
 // cuts is decomposed again with no cut, since APFS orders a run of 31 marks.
 func decompose(name string) string {
+	if !utf8.ValidString(name) {
+		// norm.NFD copies a truncated sequence through and leaves the character
+		// after it undecomposed, so each byte that is not UTF-8 is first read as
+		// U+FFFD, one per byte, as ranging over name reads it.
+		name = string([]rune(name))
+	}
 	decomposed, cut := decomposeStreamSafe(name)
 	if !cut {
 		return decomposed
