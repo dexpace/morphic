@@ -55,10 +55,13 @@ type Encoding struct {
 }
 
 // Found says how Lookup found its row: under the key's own entry (Exact), under the default row of
-// the primitive the value travels as where that is another primitive (TravelsAs), or under the
-// primitive's own default row (Primitive).
+// the primitive the value travels as where that is not the key's primitive (TravelsAs), or under
+// the key primitive's own default row (Primitive). The zero Found is none, which a miss returns.
 type Found uint8 // Exact | TravelsAs | Primitive
 
+// Key is the key a value of primitive is typed by under encoding: a string whose encoding has a
+// name and a WireType of string is text to encode, keyed as bytes under that name.
+func Key(primitive ir.PrimitiveKind, encoding Encoding) PrimitiveKey
 func Lookup(table Table, primitive ir.PrimitiveKind, encoding Encoding) (Row, Found, bool)
 func LookupExternal(table Table, identity string) (Row, bool)
 ```
@@ -75,24 +78,23 @@ refine layer](../refine/pipeline.md)), so a table is tested with no plan and no 
   none is. A compiler already gives every format it recognizes a primitive of its own — OpenAPI's
   `date-time` is `datetime_offset` — so a key spells only what the IR does not, such as
   `{string, "email"}` or `{bytes, "base64"}`, compared exactly as written, and a `string` whose
-  encoding names a `WireType`, text to encode, is keyed as `bytes`
-  ([below](#a-row-keyed-by-an-encoding)). An enum's `ValueType`
-  resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
-  to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
-  by the declaration its reference names.
-- **Lookup.** `{primitive, encoding}`, then the default row of the primitive the value travels as:
-  the one its encoding's `WireType` names, else `string` where `primitiveKind` is a string-spelled
-  kind ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else
-  `primitiveKind` itself. `Lookup` says which it found: `Exact`, `TravelsAs` where the primitive the
-  value travels as is another than `primitiveKind`, or `Primitive` where it is `primitiveKind`, so
-  `Found` alone tells the warning below from the info. It finds none only in a table missing a
-  primitive's default row, which no built-in table is (T-17). So an encoding with no row of its own
-  stays in the IR and the SDK types the value as the wire carries it, never writing it in a spelling
-  the encoding did not name ([a row keyed by an encoding](#a-row-keyed-by-an-encoding)). It is
-  reported once per key as `emitters/<target>/unmapped-encoding` at the first type in ID order that
-  uses it, a warning where that primitive is not `primitiveKind` and an info where it is. An
-  `External` with no row takes the opaque strategy of [external types](../refine/scalars.md), with a
-  warning.
+  encoding has a name and a `WireType` of `string`, text to encode, is keyed as `bytes` by `Key`
+  ([below](#a-row-keyed-by-an-encoding)). An enum's `ValueType` resolves to its primitive's default
+  row, an `Any` node to the `any` primitive's, and an `External` to its `Identity`. A property whose
+  own encoding changes the key is typed by that key's row, not by the declaration its reference
+  names.
+- **Lookup.** The key `Key` gives, then the default row of the primitive the value travels as: the
+  one its encoding's `WireType` names, else `string` where the key's primitive is a string-spelled
+  kind ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else the
+  key's primitive itself. `Lookup` says which it found: `Exact`, `TravelsAs` where the primitive the
+  value travels as is another than the key's, or `Primitive` where it is the key's, so `Found` alone
+  tells the warning below from the info. It finds none only in a table missing a primitive's default
+  row, which no built-in table is (T-17). So an encoding with no row of its own stays in the IR and
+  the SDK types the value as the wire carries it, never writing it in a spelling the encoding did
+  not name ([a row keyed by an encoding](#a-row-keyed-by-an-encoding)). It is reported once per key
+  as `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning
+  where that primitive is not the key's and an info where it is. An `External` with no row takes the
+  opaque strategy of [external types](../refine/scalars.md), with a warning.
 - **Built-in rows are defaults of an options version.** Every target's built-in table has a row for
   every `PrimitiveKind` at every options version, so the fallback always lands, and for every key [a
   row keyed by an encoding](#a-row-keyed-by-an-encoding) lists; T-17 holds each table to the kinds
@@ -319,10 +321,13 @@ value as its primitive's default row does unless the target's lowering table say
   ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so its key's row never
   encodes it. One whose encoding names a `WireType` of `string` is text to encode, as Smithy has a
   `@mediaType` string in a header ([encodings](../../ir/constraints.md#encodings)), and is keyed as
-  `bytes` under the same name: the row writes the text's UTF-8 octets as that encoding writes
-  octets, and reads it back as text, refusing octets that are no UTF-8, so `hi` under `base64` is
-  `aGk=`. Read under `{string, name}`, one key would mean both, and a row encoding it would encode
-  OpenAPI's text twice.
+  `bytes` under the same name, the key `Key` makes: the row writes the text's UTF-8 octets as that
+  encoding writes octets, and reads it back as text, refusing octets that are no UTF-8, so `hi`
+  under `base64` is `aGk=`. A target tells such a value by `Key`'s primitive differing from the
+  value's: where `Lookup` finds that key's own row, its `Type` names the bytes type the value's
+  octets are written as, while the value is text; with none, the value is typed as its `WireType`'s
+  row types it, as any encoding with no row of its own is. Read under `{string, name}`, one key
+  would mean both, and a row encoding it would encode OpenAPI's text twice.
 
 Each target's lowering table names the type and the codec of each ([Go](../targets/go/lowering.md),
 [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows and the lookup. The designs it was
