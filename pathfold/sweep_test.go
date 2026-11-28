@@ -334,6 +334,8 @@ func TestLongestMarkRunEachCharacterAlone_CountsMarksInTheDecomposition(t *testi
 		{name: "a composed sign and 30 marks", text: "\u0385" + strings.Repeat("\u0316", 30), want: 31},
 		{name: "16 vowel signs of two marks each", text: strings.Repeat("\u0f73", 16), want: 32},
 		{name: "a letter alone", text: "a", want: 0},
+		{name: "32 overlays of class 1", text: "a" + strings.Repeat("\u0334", 32), want: 32},
+		{name: "two runs of 20 either side of a letter", text: strings.Repeat("\u0301", 20) + "a" + strings.Repeat("\u0301", 20), want: 20},
 	}
 	for _, row := range rows {
 		assert.Equal(t, row.want, longestMarkRunEachCharacterAlone(row.text), row.name)

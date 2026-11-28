@@ -145,11 +145,16 @@ func TestFold_ReadsEveryInvalidSpellingAsRangingReadsIt(t *testing.T) {
 	for range draws {
 		builder.Reset()
 		for range 1 + source.Uint64()%8 {
+			if source.Uint64()%4 == 0 {
+				builder.WriteByte(byte(0x80 + source.Uint64()%0x80))
+				continue
+			}
 			builder.WriteString(pieces[source.Uint64()%uint64(len(pieces))])
 		}
 		drawn := builder.String()
-		if read := string([]rune(drawn)); pathfold.Fold(drawn) != pathfold.Fold(read) {
-			t.Fatalf("Fold(%+q) = %+q, but Fold(%+q) = %+q", drawn, pathfold.Fold(drawn), read, pathfold.Fold(read))
+		if readAsRunes := string([]rune(drawn)); pathfold.Fold(drawn) != pathfold.Fold(readAsRunes) {
+			t.Fatalf("Fold(%+q) = %+q, but Fold(%+q) = %+q",
+				drawn, pathfold.Fold(drawn), readAsRunes, pathfold.Fold(readAsRunes))
 		}
 	}
 }
