@@ -259,21 +259,21 @@ func TestForEachOperationAt_WalksAsForEachOperationDoes(t *testing.T) {
 	}}
 	// One step for each of the four groups and each of the five operations.
 	const mixedSteps = 9
-	one := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "self"}}}}
-	one[0].Groups = one
+	selfContaining := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "self"}}}}
+	selfContaining[0].Groups = selfContaining
 
-	type walked struct {
+	type walkCase struct {
 		doc   *ir.Document
 		limit int
 	}
-	cases := make([]walked, 0, mixedSteps+5)
+	cases := make([]walkCase, 0, mixedSteps+5)
 	for limit := range mixedSteps + 2 {
-		cases = append(cases, walked{mixed, limit})
+		cases = append(cases, walkCase{mixed, limit})
 	}
 	cases = append(cases,
-		walked{groupChain(ir.MaxGroupDepth), ir.MaxWalkSteps},
-		walked{groupChain(ir.MaxGroupDepth + 1), ir.MaxWalkSteps},
-		walked{&ir.Document{Services: []ir.Service{{Groups: one}}}, ir.MaxWalkSteps},
+		walkCase{groupChain(ir.MaxGroupDepth), ir.MaxWalkSteps},
+		walkCase{groupChain(ir.MaxGroupDepth + 1), ir.MaxWalkSteps},
+		walkCase{&ir.Document{Services: []ir.Service{{Groups: selfContaining}}}, ir.MaxWalkSteps},
 	)
 	for i, tc := range cases {
 		var want []ir.OperationID
@@ -308,8 +308,8 @@ func TestForEachOperationAt_NilDocument(t *testing.T) {
 // AllocsPerRun measures the process.
 func TestForEachOperation_CopiesNoPlace(t *testing.T) {
 	doc := groupChain(ir.MaxGroupDepth)
-	withPlace := testing.AllocsPerRun(10, func() { ir.ForEachOperationAt(doc, func(ir.Operation, ir.OperationPlace) {}) })
+	allocsWithPlace := testing.AllocsPerRun(10, func() { ir.ForEachOperationAt(doc, func(ir.Operation, ir.OperationPlace) {}) })
 
-	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachGroup(doc, func(ir.OperationGroup) {}) }), withPlace)
-	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachOperation(doc, func(ir.Operation) {}) }), withPlace)
+	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachGroup(doc, func(ir.OperationGroup) {}) }), allocsWithPlace)
+	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachOperation(doc, func(ir.Operation) {}) }), allocsWithPlace)
 }

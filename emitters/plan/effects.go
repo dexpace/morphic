@@ -69,14 +69,14 @@ func bindingEffects(bindings ir.OperationBindings, methodEffects map[string]Effe
 	if len(bindings.HTTP) == 0 && bindings.GraphQL == nil {
 		return Effects{}
 	}
-	met := Effects{Safe: true, Idempotent: true}
+	stated := Effects{Safe: true, Idempotent: true}
 	for _, binding := range bindings.HTTP {
-		met = met.and(methodEffects[binding.Method])
+		stated = stated.and(methodEffects[binding.Method])
 	}
 	if bindings.GraphQL != nil {
-		met = met.and(graphQLEffects(bindings.GraphQL.Kind))
+		stated = stated.and(graphQLEffects(bindings.GraphQL.Kind))
 	}
-	return met
+	return stated
 }
 
 // and returns what e and other both state.

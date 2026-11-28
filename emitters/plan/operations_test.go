@@ -32,8 +32,8 @@ func operation(id ir.OperationID, mutate func(*ir.Operation)) ir.Operation {
 	return declared
 }
 
-// over binds an operation to HTTP under each of methods, in order.
-func over(methods ...string) func(*ir.Operation) {
+// bindHTTP binds an operation to HTTP under each of methods, in order.
+func bindHTTP(methods ...string) func(*ir.Operation) {
 	return func(o *ir.Operation) {
 		for _, method := range methods {
 			o.Bindings.HTTP = append(o.Bindings.HTTP, ir.HTTPBinding{Method: method, URITemplate: "/x"})
@@ -111,23 +111,23 @@ func TestBuild_KeepsTheFirstOperationOfAnID(t *testing.T) {
 // encloses them, and a tier outside the vocabulary is taken as stated.
 func TestBuild_ResolvesAnOperationsTier(t *testing.T) {
 	t.Parallel()
-	own := func(tier ir.Stability) func(*ir.Operation) { return func(o *ir.Operation) { o.Stability = tier } }
+	statesTier := func(tier ir.Stability) func(*ir.Operation) { return func(o *ir.Operation) { o.Stability = tier } }
 	doc := documentOf(
 		ir.Service{ID: "service/one", Groups: []ir.OperationGroup{
 			group("group/outer", ir.StabilityBeta, []ir.Operation{
-				operation("operation/own-over-group", own(ir.StabilityAlpha)),
+				operation("operation/own-over-group", statesTier(ir.StabilityAlpha)),
 				operation("operation/group-only", nil),
 			},
 				group("group/outer/states-alpha", ir.StabilityAlpha, []ir.Operation{operation("operation/inner-tier", nil)}),
 				group("group/outer/states-none", "", []ir.Operation{
 					operation("operation/outer-tier", nil),
-					operation("operation/own-stable", own(ir.StabilityStable)),
+					operation("operation/own-stable", statesTier(ir.StabilityStable)),
 				}),
 			),
 			group("group/none", "", []ir.Operation{operation("operation/no-tier", nil)}),
 			group("group/unknown", "experimental", []ir.Operation{
 				operation("operation/unknown-group-tier", nil),
-				operation("operation/unknown-own-tier", own("preview")),
+				operation("operation/unknown-own-tier", statesTier("preview")),
 			}),
 		}},
 		ir.Service{ID: "service/two", Groups: []ir.OperationGroup{
@@ -239,7 +239,7 @@ func TestBuild_ADeclaredIdempotencyDecidesTheEffects(t *testing.T) {
 	declares := func(kind ir.IdempotencyKind, method string) func(*ir.Operation) {
 		return func(o *ir.Operation) {
 			o.Idempotency.Kind = kind
-			over(method)(o)
+			bindHTTP(method)(o)
 		}
 	}
 	doc := documentOf(ir.Service{ID: "service/one", Groups: []ir.OperationGroup{group("group/a", "", []ir.Operation{
@@ -280,40 +280,40 @@ type effectsCase struct {
 // together, two HTTP ones in either order, with the effects each takes under
 // the policy.
 func bindingCases() []effectsCase {
-	both, idempotent := plan.Effects{Safe: true, Idempotent: true}, plan.Effects{Idempotent: true}
-	graphQL := func(kind string) func(*ir.Operation) {
+	safe, idempotent := plan.Effects{Safe: true, Idempotent: true}, plan.Effects{Idempotent: true}
+	bindGraphQL := func(kind string) func(*ir.Operation) {
 		return func(o *ir.Operation) { o.Bindings.GraphQL = &ir.GraphQLBinding{Kind: kind} }
 	}
-	rpc := func(o *ir.Operation) { o.Bindings.RPC = &ir.RPCBinding{FullMethod: "/pkg.Svc/Do"} }
+	bindRPC := func(o *ir.Operation) { o.Bindings.RPC = &ir.RPCBinding{FullMethod: "/pkg.Svc/Do"} }
 	return []effectsCase{
-		{"operation/get", over("GET"), both},
-		{"operation/head", over("HEAD"), both},
-		{"operation/options", over("OPTIONS"), both},
-		{"operation/trace", over("TRACE"), both},
-		{"operation/query", over("QUERY"), both},
-		{"operation/put", over("PUT"), idempotent},
-		{"operation/delete", over("DELETE"), idempotent},
-		{"operation/post", over("POST"), plan.Effects{}},
-		{"operation/patch", over("PATCH"), plan.Effects{}},
-		{"operation/lower-case-get", over("get"), plan.Effects{}},
-		{"operation/unlisted", over("PURGE"), plan.Effects{}},
-		{"operation/graphql-query", graphQL("query"), both},
-		{"operation/graphql-mutation", graphQL("mutation"), plan.Effects{}},
-		{"operation/graphql-subscription", graphQL("subscription"), plan.Effects{}},
-		{"operation/rpc", rpc, plan.Effects{}},
+		{"operation/get", bindHTTP("GET"), safe},
+		{"operation/head", bindHTTP("HEAD"), safe},
+		{"operation/options", bindHTTP("OPTIONS"), safe},
+		{"operation/trace", bindHTTP("TRACE"), safe},
+		{"operation/query", bindHTTP("QUERY"), safe},
+		{"operation/put", bindHTTP("PUT"), idempotent},
+		{"operation/delete", bindHTTP("DELETE"), idempotent},
+		{"operation/post", bindHTTP("POST"), plan.Effects{}},
+		{"operation/patch", bindHTTP("PATCH"), plan.Effects{}},
+		{"operation/lower-case-get", bindHTTP("get"), plan.Effects{}},
+		{"operation/unlisted", bindHTTP("PURGE"), plan.Effects{}},
+		{"operation/graphql-query", bindGraphQL("query"), safe},
+		{"operation/graphql-mutation", bindGraphQL("mutation"), plan.Effects{}},
+		{"operation/graphql-subscription", bindGraphQL("subscription"), plan.Effects{}},
+		{"operation/rpc", bindRPC, plan.Effects{}},
 		{"operation/message", func(o *ir.Operation) { o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
 		{"operation/otp", func(o *ir.Operation) { o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
 		{"operation/unbound", nil, plan.Effects{}},
-		{"operation/get-and-put", over("GET", "PUT"), idempotent},
-		{"operation/put-and-get", over("PUT", "GET"), idempotent},
-		{"operation/get-and-rpc", func(o *ir.Operation) { over("GET")(o); rpc(o) }, plan.Effects{}},
-		{"operation/get-and-message", func(o *ir.Operation) { over("GET")(o); o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
-		{"operation/get-and-otp", func(o *ir.Operation) { over("GET")(o); o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
-		{"operation/graphql-query-and-get", func(o *ir.Operation) { graphQL("query")(o); over("GET")(o) }, both},
+		{"operation/get-and-put", bindHTTP("GET", "PUT"), idempotent},
+		{"operation/put-and-get", bindHTTP("PUT", "GET"), idempotent},
+		{"operation/get-and-rpc", func(o *ir.Operation) { bindHTTP("GET")(o); bindRPC(o) }, plan.Effects{}},
+		{"operation/get-and-message", func(o *ir.Operation) { bindHTTP("GET")(o); o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
+		{"operation/get-and-otp", func(o *ir.Operation) { bindHTTP("GET")(o); o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
+		{"operation/graphql-query-and-get", func(o *ir.Operation) { bindGraphQL("query")(o); bindHTTP("GET")(o) }, safe},
 		{"operation/marked-already", func(o *ir.Operation) {
-			over("GET")(o)
+			bindHTTP("GET")(o)
 			o.Provenance.Inferred = "group-path-prefix"
-		}, both},
+		}, safe},
 	}
 }
 
@@ -380,11 +380,11 @@ func registryEffects(t *testing.T) map[string]plan.Effects {
 	require.Equal(t, []string{"Method Name", "Safe", "Idempotent", "Reference"}, rows[0])
 	require.NotEmpty(t, rows[1:], "the registry lists methods")
 
-	yes := map[string]bool{"yes": true, "no": false}
+	registryFlag := map[string]bool{"yes": true, "no": false}
 	recorded := make(map[string]plan.Effects, len(rows)-1)
 	for _, row := range rows[1:] {
-		safe, safeRead := yes[row[1]]
-		idempotent, idempotentRead := yes[row[2]]
+		safe, safeRead := registryFlag[row[1]]
+		idempotent, idempotentRead := registryFlag[row[2]]
 		require.True(t, safeRead && idempotentRead, "row %v", row)
 		require.True(t, idempotent || !safe, "%s: the registry records every safe method idempotent", row[0])
 		require.NotContains(t, recorded, row[0], "the registry lists each method once")
@@ -411,7 +411,7 @@ func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
 	cases := make([]effectsCase, 0, len(recorded))
 	for _, method := range slices.Sorted(maps.Keys(recorded)) {
 		cases = append(cases, effectsCase{
-			id: ir.OperationID("operation/" + method), bind: over(method), effect: recorded[method],
+			id: ir.OperationID("operation/" + method), bind: bindHTTP(method), effect: recorded[method],
 		})
 	}
 
@@ -439,7 +439,7 @@ func TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither(t *testing.T) {
 	cases := make([]effectsCase, 0, len(unlisted))
 	for _, method := range unlisted {
 		require.NotContains(t, recorded, method, "the registry lists it")
-		cases = append(cases, effectsCase{id: ir.OperationID("operation/" + method), bind: over(method)})
+		cases = append(cases, effectsCase{id: ir.OperationID("operation/" + method), bind: bindHTTP(method)})
 	}
 
 	built := build(t, bindingDoc(cases), plan.Policy{ProtocolEffects: true})
