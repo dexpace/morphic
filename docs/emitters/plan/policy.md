@@ -202,19 +202,19 @@ T-59 holds this section.
 `OpPlan.Effects` ([OpPlan](operations.md)) says whether calling an operation is safe and whether it
 is idempotent. A declared `Operation.Idempotency` decides, its token kind counting as idempotent
 since a retry sends the token it first sent. Where the IR states none, `ProtocolEffects` takes them
-from what the operation's binding defines, marked `Inferred`. A GraphQL binding's `query` is safe
-and idempotent, since GraphQL defines a query as a read-only fetch (GraphQL §2.3), and a `mutation`
-or `subscription` is neither. An HTTP binding's method counts as RFC 9110 §9.2 defines it: `GET`,
-`HEAD`, `OPTIONS` and `TRACE` are safe, and those with `PUT` and `DELETE` are idempotent, while
-`POST` and `PATCH` state neither. `QUERY`, which OpenAPI 3.2 names, is safe and idempotent, as the
-HTTP QUERY method's specification defines it. Any other method a document declares, as OpenAPI 3.2's
-`additionalOperations` can, takes what the IANA HTTP Method Registry (RFC 9110 §16.1) records for
-it, its name compared with case as HTTP compares a method (RFC 9110 §9.1); the plan package holds
-the registry as data, so a change to it ships in a new build. A method the registry does not list,
-and an operation whose bindings define neither, as a message or an OTP binding does, take neither,
-and one several bindings carry takes only what every one of them states. An RPC system's own level,
-such as gRPC's `idempotency_level`, reaches `Operation.Idempotency` ([the
-matrix](../../ir-spec-matrix.md)), the declared fact above.
+from what the operation's binding defines, marked `Inferred` as `protocol-effects`. A GraphQL
+binding's `query` is safe and idempotent, since GraphQL defines a query as a read-only fetch
+(GraphQL §2.3), and a `mutation` or `subscription` is neither. An HTTP binding's method counts as
+RFC 9110 §9.2 defines it: `GET`, `HEAD`, `OPTIONS` and `TRACE` are safe, and those with `PUT` and
+`DELETE` are idempotent, while `POST` and `PATCH` state neither. `QUERY`, which OpenAPI 3.2 names,
+is safe and idempotent, as the HTTP QUERY method's specification defines it. Any other method a
+document declares, as OpenAPI 3.2's `additionalOperations` can, takes what the IANA HTTP Method
+Registry (RFC 9110 §16.1) records for it, its name compared with case as HTTP compares a method (RFC
+9110 §9.1); the plan package holds the registry as data, so a change to it ships in a new build. A
+method the registry does not list, and an operation whose bindings define neither, as a message or
+an OTP binding does, take neither, and one several bindings carry takes only what every one of them
+states. An RPC system's own level, such as gRPC's `idempotency_level`, reaches
+`Operation.Idempotency` ([the matrix](../../ir-spec-matrix.md)), the declared fact above.
 
 A method says nothing of whether an operation destroys something: `DELETE` and `PUT` are
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden
