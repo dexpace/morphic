@@ -298,3 +298,16 @@ func TestForEachOperationAt_NilDocument(t *testing.T) {
 	assert.False(t, truncated)
 	assert.False(t, called)
 }
+
+// TestForEachOperation_CopiesNoPlace holds the walks that hand no place to
+// copying none: over a chain of groups at the depth cap, ForEachGroup and
+// ForEachOperation each allocate less than ForEachOperationAt, which copies
+// every enclosing group into the place it hands. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestForEachOperation_CopiesNoPlace(t *testing.T) {
+	doc := groupChain(ir.MaxGroupDepth)
+	withPlace := testing.AllocsPerRun(10, func() { ir.ForEachOperationAt(doc, func(ir.Operation, ir.OperationPlace) {}) })
+
+	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachGroup(doc, func(ir.OperationGroup) {}) }), withPlace)
+	assert.Less(t, testing.AllocsPerRun(10, func() { ir.ForEachOperation(doc, func(ir.Operation) {}) }), withPlace)
+}

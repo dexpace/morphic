@@ -44,7 +44,14 @@ func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 
 // forEachOperation is ForEachOperation within limit steps.
 func forEachOperation(limit int, doc *Document, fn func(Operation)) bool {
-	return forEachOperationAt(limit, doc, func(operation Operation, _ OperationPlace) { fn(operation) })
+	return groupsWithin(limit, doc, nil, func(operationGroup OperationGroup, steps *stepLimit) {
+		for _, operation := range operationGroup.Operations {
+			if !steps.take() {
+				return
+			}
+			fn(operation)
+		}
+	})
 }
 
 // OperationPlace is where [ForEachOperationAt] finds an operation. Service is
@@ -65,10 +72,12 @@ func ForEachOperationAt(doc *Document, fn func(Operation, OperationPlace)) (trun
 	return forEachOperationAt(MaxWalkSteps, doc, fn)
 }
 
-// forEachOperationAt is ForEachOperationAt within limit steps.
+// forEachOperationAt is ForEachOperationAt within limit steps. It takes a step
+// for each operation as forEachOperation does, which a test holds the two to.
 func forEachOperationAt(limit int, doc *Document, fn func(Operation, OperationPlace)) bool {
-	return groupsWithin(limit, doc, func(place *OperationPlace, steps *stepLimit) {
-		for _, operation := range place.Groups[len(place.Groups)-1].Operations {
+	place := &OperationPlace{}
+	return groupsWithin(limit, doc, place, func(operationGroup OperationGroup, steps *stepLimit) {
+		for _, operation := range operationGroup.Operations {
 			if !steps.take() {
 				return
 			}
@@ -93,39 +102,40 @@ func ForEachGroup(doc *Document, fn func(OperationGroup)) (truncated bool) {
 
 // forEachGroup is ForEachGroup within limit steps.
 func forEachGroup(limit int, doc *Document, fn func(OperationGroup)) bool {
-	return groupsWithin(limit, doc, func(place *OperationPlace, _ *stepLimit) {
-		fn(place.Groups[len(place.Groups)-1])
-	})
+	return groupsWithin(limit, doc, nil, func(operationGroup OperationGroup, _ *stepLimit) { fn(operationGroup) })
 }
 
 // groupsWithin calls fn for every group of doc ForEachGroup reaches within
-// limit steps, handing it the group's place, the group last among its Groups,
-// and the steps left for what fn reads of the group, and reports whether a
-// bound cut the walk short.
-func groupsWithin(limit int, doc *Document, fn func(*OperationPlace, *stepLimit)) bool {
+// limit steps, handing it the steps left for what fn reads of the group, and
+// reports whether a bound cut the walk short. Where place is not nil, the walk
+// keeps it current while fn reads a group: the service walked, and the groups
+// enclosing that group, the group itself last. ForEachGroup and
+// ForEachOperation pass nil, so they copy no place.
+func groupsWithin(limit int, doc *Document, place *OperationPlace, fn func(OperationGroup, *stepLimit)) bool {
 	if doc == nil {
 		return false
 	}
-	groupWalkValue := groupWalk{steps: stepLimit{left: limit}, fn: fn}
-	for _, svc := range doc.Services {
-		groupWalkValue.place = OperationPlace{Service: svc, Groups: groupWalkValue.place.Groups[:0]}
-		groupWalkValue.groups(svc.Groups, 0)
+	groupWalkValue := groupWalk{place: place, fn: fn, steps: stepLimit{left: limit}}
+	for i := range doc.Services {
+		if place != nil {
+			*place = OperationPlace{Service: doc.Services[i], Groups: place.Groups[:0]}
+		}
+		groupWalkValue.groups(doc.Services[i].Groups, 0)
 	}
 	return groupWalkValue.steps.cut
 }
 
-// groupWalk is one walk of a document's groups: the place it is at, the steps
-// it may still take, the group slices it is inside, and what it does with each
-// group.
+// groupWalk is one walk of a document's groups: the place it keeps, if any,
+// what it does with each group, the group slices it is inside, and the steps
+// it may still take.
 type groupWalk struct {
-	place OperationPlace
-	fn    func(*OperationPlace, *stepLimit)
+	place *OperationPlace
+	fn    func(OperationGroup, *stepLimit)
 	path  descent
 	steps stepLimit
 }
 
-// groups walks groups depth-first, taking a step per group and calling fn
-// with the group last in the walk's place.
+// groups walks groups depth-first, taking a step and calling fn per group.
 func (w *groupWalk) groups(groups []OperationGroup, depth int) {
 	// Every leaf recurses once into its own empty Groups, which has nothing to
 	// skip. Checking for it first keeps the cap from claiming truncation for a
@@ -140,14 +150,18 @@ func (w *groupWalk) groups(groups []OperationGroup, depth int) {
 	if !w.path.enter(&groups[0], len(groups)) {
 		return
 	}
-	for i := range groups {
+	for _, operationGroup := range groups {
 		if !w.steps.take() {
 			break
 		}
-		w.place.Groups = append(w.place.Groups, groups[i])
-		w.fn(&w.place, &w.steps)
-		w.groups(groups[i].Groups, depth+1)
-		w.place.Groups = w.place.Groups[:len(w.place.Groups)-1]
+		if w.place != nil {
+			w.place.Groups = append(w.place.Groups, operationGroup)
+		}
+		w.fn(operationGroup, &w.steps)
+		w.groups(operationGroup.Groups, depth+1)
+		if w.place != nil {
+			w.place.Groups = w.place.Groups[:len(w.place.Groups)-1]
+		}
 	}
 	w.path.leave()
 }
