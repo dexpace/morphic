@@ -661,8 +661,8 @@ Dependency rules, enforced by an architecture test as in oagen:
   between collections, one type rather than a copy in each, and no morphic concept, so it sits below
   `ir`.
 - `pathfold` imports `golang.org/x/text` alone: the fold a file system compares paths by and the
-  rules of a portable segment, no morphic concept, so it sits beside `barrier`, below the engine and
-  `emitters/naming`, which both compare by it.
+  rules of a portable segment, no morphic concept, so it sits beside `barrier`, below the engine,
+  `emitters/naming` and `emitters/manifest`, which compare by it.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` and `scratchstate` — never each other, never `emitters` or `engine`. A compiler also

@@ -5,6 +5,7 @@ package manifest_test
 
 import (
 	"encoding/json/v2"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/emitters/manifest"
+	"github.com/dexpace/morphic/pathfold"
 )
 
 const (
@@ -112,6 +114,29 @@ func TestManifest_RoundTrips(t *testing.T) {
 					{Path: "docs/" + manifest.PendingTemporaryName, Digest: digestAlpha},
 					{Path: "docs/" + manifest.FileName, Digest: digestAlpha},
 					{Path: "docs/" + manifest.PendingName, Digest: digestBeta},
+				},
+			},
+		},
+		{
+			name: "admits a name beginning with a reserved one and one below the root",
+			input: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "sub/" + manifest.FileName, Digest: digestBeta},
+					{Path: manifest.FileName + ".bak", Digest: digestAlpha},
+				},
+			},
+			want: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: manifest.FileName + ".bak", Digest: digestAlpha},
+					{Path: "sub/" + manifest.FileName, Digest: digestBeta},
 				},
 			},
 		},
@@ -285,7 +310,7 @@ func TestDecode_Refuses(t *testing.T) {
 		})},
 	}
 
-	badPaths := badManifestPaths()
+	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
 	badDigests := badManifestDigests()
 	rows := make([]decodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
 	rows = append(rows, baseRows...)
@@ -370,7 +395,7 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 		})},
 	}
 
-	badPaths := badManifestPaths()
+	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
 	badDigests := badManifestDigests()
 	rows := make([]encodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
 	rows = append(rows, baseRows...)
@@ -447,6 +472,26 @@ func badManifestPaths() []namedString {
 		{name: "trailing slash", value: "a/"},
 		{name: "single dot", value: "."},
 		{name: "leading dot slash", value: "./a"},
+	}
+}
+
+// reservedSpellings spells the reserved names as a file system that folds
+// case and normalization reads them alike.
+func reservedSpellings() []namedString {
+	return []namedString{
+		{name: "manifest in capitals", value: "MORPHIC.MANIFEST.JSON"},
+		{name: "under the pending manifest in title case", value: "Morphic.Manifest.Pending.json/x"},
+		{name: "pending temporary file in capitals", value: ".MORPHIC.MANIFEST.PENDING.JSON.TMP"},
+		{name: "manifest with a long s", value: "morphic.manife\u017ft.json"},
+	}
+}
+
+// TestReservedNames_AreTheirOwnFolds pins that each reserved name is its own
+// fold, which comparing a path's fold to the name alone relies on.
+func TestReservedNames_AreTheirOwnFolds(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{manifest.FileName, manifest.PendingName, manifest.PendingTemporaryName} {
+		assert.Equal(t, name, pathfold.Fold(name))
 	}
 }
 

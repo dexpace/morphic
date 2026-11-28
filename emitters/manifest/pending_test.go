@@ -5,6 +5,7 @@ package manifest_test
 
 import (
 	"encoding/json/v2"
+	"slices"
 	"strings"
 	"testing"
 
@@ -65,6 +66,25 @@ func TestPending_RoundTrips(t *testing.T) {
 					".x.go" + nineteenDigits,
 					"a/.4041",
 					"a/.x.go123",
+				},
+			},
+		},
+		{
+			name: "admits a name beginning with a reserved one and one below the root",
+			input: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known: map[string][]string{
+					manifest.FileName + ".bak": {digestAlpha},
+					"sub/" + manifest.FileName: {digestBeta},
+				},
+			},
+			want: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known: map[string][]string{
+					manifest.FileName + ".bak": {digestAlpha},
+					"sub/" + manifest.FileName: {digestBeta},
 				},
 			},
 		},
@@ -273,7 +293,7 @@ func TestDecodePending_Refuses(t *testing.T) {
 		},
 	}
 
-	badPaths := badManifestPaths()
+	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
 	badDigests := badManifestDigests()
 	rows := make([]pendingDecodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
 	rows = append(rows, baseRows...)
@@ -388,7 +408,7 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 		})},
 	}
 
-	badPaths := badManifestPaths()
+	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
 	badDigests := badManifestDigests()
 	rows := make([]pendingEncodeRow, 0, len(baseRows)+len(badPaths)+len(badDigests))
 	rows = append(rows, baseRows...)

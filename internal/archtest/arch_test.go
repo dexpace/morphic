@@ -48,8 +48,8 @@ var rules = map[string][]string{
 	// knows no morphic concept, so both checkers share it from below ir.
 	"scratchstate": {},
 	// The path fold and a portable segment, which name no morphic concept, so
-	// it sits beside barrier and below the engine and naming, which compare by
-	// it.
+	// it sits beside barrier and below the engine, naming and the manifest,
+	// which compare by it.
 	"pathfold":    {"golang.org/x/text/cases", "golang.org/x/text/unicode/norm"},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
@@ -576,9 +576,10 @@ var rules = map[string][]string{
 	// (ownEntryRequired), and none goes in exempt (mayBeExempt).
 	"emitters": {module + "/ir"},
 	// The manifest as data, its codec and its digest rule; no I/O, which the
-	// engine owns; nothing beyond the standard library until it holds entities,
-	// whose symbols it takes from emitters/symbol (docs/emitters/packages.md).
-	"emitters/manifest": {},
+	// engine owns. It tells its reserved names by the path fold, and takes
+	// nothing else until it holds entities, whose symbols it takes from
+	// emitters/symbol (docs/emitters/packages.md).
+	"emitters/manifest": {module + "/pathfold"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is

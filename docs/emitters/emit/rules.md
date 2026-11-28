@@ -55,8 +55,9 @@ the tree the rule exists to prevent.
   through `.morphic.manifest.pending.json.tmp` ([write
   / integrate](../write-integrate.md#every-write-is-planned-before-the-verdict)). An artifact at any
   of the three paths, or under one as a directory, compared by the fold, is a breach: the manifest's
-  own writes would meet it, after the run's verdict. No valid document leads a target there: a
-  snapshot label takes a directory other than any of the three names ([contract
+  own writes would meet it, after the run's verdict. A manifest or pending manifest listing such a
+  path is refused as it is decoded, by the same comparison. No valid document leads a target there:
+  a snapshot label takes a directory other than any of the three names ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and the docs
   route plan refuses a page routed there as its own finding
   ([docs](../docs-and-mock.md#routes-and-links)).

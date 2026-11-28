@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/dexpace/morphic/pathfold"
 )
 
 const (
@@ -165,7 +167,8 @@ func checkLocalPath(listed string) error {
 
 func isReservedPath(listed string) bool {
 	first, _, _ := strings.Cut(listed, "/")
-	return first == FileName || first == PendingName || first == PendingTemporaryName
+	folded := pathfold.Fold(first)
+	return folded == FileName || folded == PendingName || folded == PendingTemporaryName
 }
 
 func checkDigest(listed, digest string) error {

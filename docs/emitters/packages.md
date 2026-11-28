@@ -46,7 +46,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `emitters/refine` | the step runner and the lowering helpers targets share, never a plan fact ([the refine layer](refine/pipeline.md)) | `ir`, `ir/irfacts`, `emitters/plan`, `emitters/typemap` |
 | `emitters/placement` | which output unit a declaration lands in ([output units](refine/output-units.md)) | `ir`, `emitters/plan`, `emitters/hints` |
 | `emitters/prose` | documentation text holding its references by ID | `ir`, `emitters/symbol` |
-| `emitters/manifest` | the generation manifest as data, and its migrations ([write / integrate](write-integrate.md)) | `emitters/symbol`, once it holds entities |
+| `emitters/manifest` | the generation manifest as data, and its migrations ([write / integrate](write-integrate.md)) | `pathfold`; `emitters/symbol`, once it holds entities |
 | `emitters/verify` | the neutral surface, the differ, the severity type ([surface verification](surface-verification.md)) | `emitters/symbol` |
 | `emitters` | the contract, the registry, the checked calls ([the contract](contract/emitter.md)) | `ir`, `ir/irfacts`, `barrier`, `pathfold`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/symbol`, `emitters/manifest`, `emitters/verify` |
 | `emitters/emittertest` | the fake target, the golden tree, the oracles every target is held to | `ir`, `ir/irfacts`, `ir/irtest`, `emitters`, the kernel, go-cmp |
@@ -67,8 +67,8 @@ The kernel is tiers 0 to 2. What the table implies:
   second no knowledge of how a generation was made.
 - **`ShapeHint` is `emitters/hints`'s**, not the contract's, so `embed` reads it without importing
   the contract, and policy and hints are two packages of one shape.
-- **`pathfold` is top-level**, beside `barrier`, since the engine and `naming` both compare by it
-  and it names no Morphic concept.
+- **`pathfold` is top-level**, beside `barrier`, since the engine, `naming` and `manifest` compare
+  by it and it names no Morphic concept.
 
 A package's entry in `internal/archtest` holds what its files import at the time, so it grows to
 its row here with the code that needs each import, and never past it.
