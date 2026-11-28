@@ -32,24 +32,39 @@ var ErrNewerSchema = errors.New("manifest is of a newer schema")
 // Manifest records the inputs and files of one completed generation at a
 // target's output root (docs/emitters/write-integrate.md).
 type Manifest struct {
-	Schema  int    `json:"schema"`
-	Target  string `json:"target"`
-	Options int    `json:"options"`
-	Inputs  Inputs `json:"inputs"`
-	Files   []File `json:"files,omitempty"`
+	// Schema is this format's version.
+	Schema int `json:"schema"`
+	// Target is the emitter's TargetKey.
+	Target string `json:"target"`
+	// Options is Configuration.Version, the behavior pinned for this SDK.
+	Options int `json:"options"`
+	// Inputs is what the generation was built from.
+	Inputs Inputs `json:"inputs"`
+	// Files is every file of the SDK, sorted by path, written by this run or
+	// kept from the prior manifest.
+	Files []File `json:"files,omitempty"`
 }
 
 // Inputs records the digests and build identity a generation was produced from.
 type Inputs struct {
-	Doc     string `json:"doc"`
-	Plan    string `json:"plan"`
+	// Doc is the document's digest, which Plan.Version takes.
+	Doc string `json:"doc"`
+	// Plan is Plan.Version.
+	Plan string `json:"plan"`
+	// Emitter is the Morphic version and the Go release that built it, from its
+	// build information.
 	Emitter string `json:"emitter"`
-	Config  string `json:"config"`
+	// Config is the SHA-256 of the decoded options (Configuration.Canonical),
+	// which takes in resolved policy and hints once they are resolved.
+	Config string `json:"config"`
 }
 
 // File records one generated file's root-relative path and normalized digest.
 type File struct {
-	Path   string `json:"path"`
+	// Path is the file's path relative to the target's output root.
+	Path string `json:"path"`
+	// Digest is the SHA-256 over the bytes written, normalized, as "sha256:"
+	// and its lowercase hex, which [Digest] returns.
 	Digest string `json:"digest"`
 }
 

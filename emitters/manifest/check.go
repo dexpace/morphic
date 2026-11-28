@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	digestPrefix       = "sha256:"
 	sha256HexLength    = 64
 	maxTemporaryDigits = 19
 )
 
+// schemaHeader reads the schema alone; a pointer tells an absent or null
+// schema from a present one.
 type schemaHeader struct {
-	Schema int `json:"schema"`
+	Schema *int `json:"schema"`
 }
 
 func checkSchema(raw []byte, kind string) error {
@@ -29,12 +30,16 @@ func checkSchema(raw []byte, kind string) error {
 	if err := json.Unmarshal(raw, &header); err != nil {
 		return fmt.Errorf("decode %s: %w", kind, err)
 	}
-	if header.Schema > Schema {
-		return fmt.Errorf("decode %s: schema %d exceeds supported schema %d: %w",
-			kind, header.Schema, Schema, ErrNewerSchema)
+	if header.Schema == nil {
+		return fmt.Errorf("decode %s: schema is missing", kind)
 	}
-	if header.Schema < 1 {
-		return fmt.Errorf("decode %s: schema %d must be at least 1", kind, header.Schema)
+	schema := *header.Schema
+	if schema > Schema {
+		return fmt.Errorf("decode %s: schema %d exceeds supported schema %d: %w",
+			kind, schema, Schema, ErrNewerSchema)
+	}
+	if schema < 1 {
+		return fmt.Errorf("decode %s: schema %d must be at least 1", kind, schema)
 	}
 	return nil
 }
@@ -55,7 +60,7 @@ func checkManifest(manifest Manifest) error {
 			return err
 		}
 		if seen[entry.Path] {
-			return fmt.Errorf("duplicate path %q", entry.Path)
+			return fmt.Errorf("duplicate path %.64q", entry.Path)
 		}
 		seen[entry.Path] = true
 		if err := checkDigest(entry.Path, entry.Digest); err != nil {
@@ -98,7 +103,7 @@ func checkPendingKnown(known map[string][]string) error {
 		}
 		digests := known[listed]
 		if len(digests) == 0 {
-			return fmt.Errorf("path %q has no digest", listed)
+			return fmt.Errorf("path %.64q has no digest", listed)
 		}
 		seenDigests := make(map[string]bool, len(digests))
 		for _, digest := range digests {
@@ -106,7 +111,7 @@ func checkPendingKnown(known map[string][]string) error {
 				return err
 			}
 			if seenDigests[digest] {
-				return fmt.Errorf("path %q repeats digest %q", listed, digest)
+				return fmt.Errorf("path %.64q repeats digest %.64q", listed, digest)
 			}
 			seenDigests[digest] = true
 		}
@@ -115,15 +120,16 @@ func checkPendingKnown(known map[string][]string) error {
 }
 
 func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]string) error {
-	seenTemp := make(map[string]bool, len(temporaryFiles))
+	seenTemporaryFiles := make(map[string]bool, len(temporaryFiles))
 	for _, listed := range temporaryFiles {
+		// Kept for its clearer message: checkTemporaryFile admits only a name beside a held path.
 		if err := checkLocalPath(listed); err != nil {
 			return err
 		}
-		if seenTemp[listed] {
-			return fmt.Errorf("duplicate temporary file %q", listed)
+		if seenTemporaryFiles[listed] {
+			return fmt.Errorf("duplicate temporary file %.64q", listed)
 		}
-		seenTemp[listed] = true
+		seenTemporaryFiles[listed] = true
 		if err := checkTemporaryFile(listed, known); err != nil {
 			return err
 		}
@@ -136,23 +142,23 @@ func checkFilePath(listed string) error {
 		return err
 	}
 	if isReservedPath(listed) {
-		return fmt.Errorf("path %q uses a reserved manifest name", listed)
+		return fmt.Errorf("path %.64q uses a reserved manifest name", listed)
 	}
 	return nil
 }
 
 func checkLocalPath(listed string) error {
 	if strings.ContainsRune(listed, '\\') {
-		return fmt.Errorf("path %q contains a backslash", listed)
+		return fmt.Errorf("path %.64q contains a backslash", listed)
 	}
 	if path.Clean(listed) != listed {
-		return fmt.Errorf("path %q is not clean", listed)
+		return fmt.Errorf("path %.64q is not clean", listed)
 	}
 	if listed == "." {
-		return fmt.Errorf("path %q does not name a file", listed)
+		return fmt.Errorf("path %.64q does not name a file", listed)
 	}
 	if !filepath.IsLocal(filepath.FromSlash(listed)) {
-		return fmt.Errorf("path %q is not local", listed)
+		return fmt.Errorf("path %.64q is not local", listed)
 	}
 	return nil
 }
@@ -163,14 +169,14 @@ func isReservedPath(listed string) bool {
 }
 
 func checkDigest(listed, digest string) error {
-	hexPart, ok := strings.CutPrefix(digest, digestPrefix)
-	if !ok || len(hexPart) != sha256HexLength {
-		return fmt.Errorf("path %q has invalid digest %q", listed, digest)
+	hexDigits, ok := strings.CutPrefix(digest, digestPrefix)
+	if !ok || len(hexDigits) != sha256HexLength {
+		return fmt.Errorf("path %.64q has invalid digest %.64q", listed, digest)
 	}
-	for i := range len(hexPart) {
-		ch := hexPart[i]
-		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
-			return fmt.Errorf("path %q has invalid digest %q", listed, digest)
+	for i := range len(hexDigits) {
+		character := hexDigits[i]
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return fmt.Errorf("path %.64q has invalid digest %.64q", listed, digest)
 		}
 	}
 	return nil
@@ -179,15 +185,15 @@ func checkDigest(listed, digest string) error {
 func checkTemporaryFile(listed string, known map[string][]string) error {
 	dir, base := path.Split(listed)
 	if !strings.HasPrefix(base, ".") {
-		return fmt.Errorf("temporary file %q must start with a dot in its base name", listed)
+		return fmt.Errorf("temporary file %.64q must start with a dot in its base name", listed)
 	}
 	rest := base[1:]
 	for digits := 1; digits <= maxTemporaryDigits && digits < len(rest); digits++ {
-		digitPos := len(rest) - digits
-		if rest[digitPos] < '0' || rest[digitPos] > '9' {
+		digitStart := len(rest) - digits
+		if rest[digitStart] < '0' || rest[digitStart] > '9' {
 			break
 		}
-		targetName := rest[:digitPos]
+		targetName := rest[:digitStart]
 		if dir == "" && targetName == FileName {
 			return nil
 		}
@@ -195,5 +201,5 @@ func checkTemporaryFile(listed string, known map[string][]string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("temporary file %q matches no known path or %s", listed, FileName)
+	return fmt.Errorf("temporary file %.64q matches no known path or %s", listed, FileName)
 }

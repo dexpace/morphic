@@ -18,6 +18,9 @@ import (
 const (
 	digestAlpha = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	digestBeta  = "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+	// escapablePath holds what an HTML- or JavaScript-safe encoder would escape,
+	// so a canonical form written raw pins that no such escaping is applied.
+	escapablePath = "a&b<c>\u2028\u00e9.go"
 )
 
 func validManifest() manifest.Manifest {
@@ -88,6 +91,31 @@ func TestManifest_RoundTrips(t *testing.T) {
 			},
 		},
 		{
+			name: "admits a reserved name below the root",
+			input: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "docs/" + manifest.PendingTemporaryName, Digest: digestAlpha},
+					{Path: "docs/" + manifest.FileName, Digest: digestAlpha},
+					{Path: "docs/" + manifest.PendingName, Digest: digestBeta},
+				},
+			},
+			want: manifest.Manifest{
+				Schema:  manifest.Schema,
+				Target:  "go",
+				Options: 1,
+				Inputs:  validManifest().Inputs,
+				Files: []manifest.File{
+					{Path: "docs/" + manifest.PendingTemporaryName, Digest: digestAlpha},
+					{Path: "docs/" + manifest.FileName, Digest: digestAlpha},
+					{Path: "docs/" + manifest.PendingName, Digest: digestBeta},
+				},
+			},
+		},
+		{
 			name: "omits empty files and decodes to nil",
 			input: manifest.Manifest{
 				Schema:  manifest.Schema,
@@ -146,6 +174,7 @@ func TestDecode_SortsUnorderedFiles(t *testing.T) {
 func TestEncode_WritesTheCanonicalForm(t *testing.T) {
 	t.Parallel()
 	valid := validManifest()
+	valid.Files = append(valid.Files, manifest.File{Path: escapablePath, Digest: digestBeta})
 	first, err := manifest.Encode(valid)
 	require.NoError(t, err)
 	second, err := manifest.Encode(valid)
@@ -163,6 +192,10 @@ func TestEncode_WritesTheCanonicalForm(t *testing.T) {
     "config": "sha256:config"
   },
   "files": [
+    {
+      "path": "` + escapablePath + `",
+      "digest": "` + digestBeta + `"
+    },
     {
       "path": "client.go",
       "digest": "` + digestAlpha + `"
@@ -208,15 +241,19 @@ func TestDecode_Refuses(t *testing.T) {
 	}
 
 	type decodeRow struct {
-		name      string
-		raw       []byte
-		wantNewer bool
+		name         string
+		raw          []byte
+		wantNewer    bool
+		wantContains string
 	}
 
 	baseRows := []decodeRow{
 		{name: "not json", raw: []byte("not json")},
-		{name: "empty object", raw: []byte("{}")},
+		{name: "null", raw: []byte("null"), wantContains: "schema is missing"},
+		{name: "empty object", raw: []byte("{}"), wantContains: "schema is missing"},
+		{name: "null schema", raw: []byte(`{"schema":null,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"}}`), wantContains: "schema is missing"},
 		{name: "schema 0", raw: withChange(t, func(value *manifest.Manifest) { value.Schema = 0 })},
+		{name: "schema -1", raw: withChange(t, func(value *manifest.Manifest) { value.Schema = -1 })},
 		{name: "schema string", raw: []byte(`{"schema":"1","target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"}}`)},
 		{name: "schema 2 with unknown member", raw: []byte(`{"schema":2,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"entities":{}}`), wantNewer: true},
 		{name: "schema 1 with unknown member", raw: []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"entities":{}}`)},
@@ -225,6 +262,7 @@ func TestDecode_Refuses(t *testing.T) {
 		{name: "invalid UTF-8 in target", raw: []byte("{\"schema\":1,\"target\":\"go\xff\",\"options\":1,\"inputs\":{\"doc\":\"d\",\"plan\":\"p\",\"emitter\":\"e\",\"config\":\"c\"}}")},
 		{name: "empty target", raw: withChange(t, func(value *manifest.Manifest) { value.Target = "" })},
 		{name: "options 0", raw: withChange(t, func(value *manifest.Manifest) { value.Options = 0 })},
+		{name: "options -1", raw: withChange(t, func(value *manifest.Manifest) { value.Options = -1 })},
 		{name: "empty inputs.doc", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Doc = "" })},
 		{name: "empty inputs.plan", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Plan = "" })},
 		{name: "empty inputs.emitter", raw: withChange(t, func(value *manifest.Manifest) { value.Inputs.Emitter = "" })},
@@ -278,6 +316,9 @@ func TestDecode_Refuses(t *testing.T) {
 			} else {
 				assert.NotErrorIs(t, err, manifest.ErrNewerSchema)
 			}
+			if row.wantContains != "" {
+				assert.ErrorContains(t, err, row.wantContains)
+			}
 		})
 	}
 }
@@ -297,9 +338,11 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 
 	baseRows := []encodeRow{
 		{name: "schema 0", value: withChange(func(value *manifest.Manifest) { value.Schema = 0 })},
+		{name: "schema -1", value: withChange(func(value *manifest.Manifest) { value.Schema = -1 })},
 		{name: "schema 2", value: withChange(func(value *manifest.Manifest) { value.Schema = 2 })},
 		{name: "empty target", value: withChange(func(value *manifest.Manifest) { value.Target = "" })},
 		{name: "options 0", value: withChange(func(value *manifest.Manifest) { value.Options = 0 })},
+		{name: "options -1", value: withChange(func(value *manifest.Manifest) { value.Options = -1 })},
 		{name: "empty inputs.doc", value: withChange(func(value *manifest.Manifest) { value.Inputs.Doc = "" })},
 		{name: "empty inputs.plan", value: withChange(func(value *manifest.Manifest) { value.Inputs.Plan = "" })},
 		{name: "empty inputs.emitter", value: withChange(func(value *manifest.Manifest) { value.Inputs.Emitter = "" })},
@@ -357,6 +400,36 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 	}
 }
 
+// TestEncode_QuotesABoundedPrefixOfWhatItRefuses holds an error to a bounded
+// prefix of the string it refuses, so an oversized path, digest or temporary
+// file cannot size the message.
+func TestEncode_QuotesABoundedPrefixOfWhatItRefuses(t *testing.T) {
+	t.Parallel()
+	const maxMessageBytes = 256
+	oversized := strings.Repeat("a", 1<<16)
+	longPath := validManifest()
+	longPath.Files[0].Path = oversized + "/"
+	longDigest := validManifest()
+	longDigest.Files[0].Digest = oversized
+	longTemporaryFile := validPending()
+	longTemporaryFile.TemporaryFiles = []string{"." + oversized}
+
+	_, pathErr := manifest.Encode(longPath)
+	_, digestErr := manifest.Encode(longDigest)
+	_, temporaryFileErr := manifest.EncodePending(longTemporaryFile)
+	for _, row := range []struct {
+		name string
+		err  error
+	}{
+		{name: "path", err: pathErr},
+		{name: "digest", err: digestErr},
+		{name: "temporary file", err: temporaryFileErr},
+	} {
+		require.Error(t, row.err, row.name)
+		assert.Less(t, len(row.err.Error()), maxMessageBytes, row.name)
+	}
+}
+
 type namedString struct {
 	name  string
 	value string
@@ -382,6 +455,8 @@ func badManifestDigests() []namedString {
 		{name: "empty", value: ""},
 		{name: "prefix only", value: "sha256:"},
 		{name: "63 hex chars", value: "sha256:" + strings.Repeat("a", 63)},
+		{name: "65 hex chars", value: "sha256:" + strings.Repeat("a", 65)},
+		{name: "64 chars holding a lowercase non-hex letter", value: "sha256:" + strings.Repeat("a", 63) + "g"},
 		{name: "64 uppercase hex chars", value: "sha256:" + strings.Repeat("A", 64)},
 		{name: "sha1 algorithm", value: "sha1:" + strings.Repeat("a", 40)},
 		{name: "missing algorithm prefix", value: strings.Repeat("a", 64)},

@@ -9,7 +9,10 @@ import (
 	"fmt"
 )
 
-const utf8BOM = "\xef\xbb\xbf"
+const (
+	utf8BOM      = "\xef\xbb\xbf"
+	digestPrefix = "sha256:"
+)
 
 // Digest returns "sha256:" followed by the lowercase hex SHA-256 of content
 // after stripping at most one leading UTF-8 byte-order mark, converting CRLF

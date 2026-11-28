@@ -130,10 +130,11 @@ func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
 		Schema: manifest.Schema,
 		Target: "go",
 		Known: map[string][]string{
-			"z.go": {digestBeta, digestAlpha},
-			"a.go": {digestAlpha},
+			"z.go":        {digestBeta, digestAlpha},
+			"a.go":        {digestAlpha},
+			escapablePath: {digestBeta},
 		},
-		TemporaryFiles: []string{".z.go2", ".a.go1"},
+		TemporaryFiles: []string{".z.go2", ".a.go1", "." + escapablePath + "3"},
 	}
 	first, err := manifest.EncodePending(valid)
 	require.NoError(t, err)
@@ -145,6 +146,9 @@ func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
   "schema": 1,
   "target": "go",
   "known": {
+    "` + escapablePath + `": [
+      "` + digestBeta + `"
+    ],
     "a.go": [
       "` + digestAlpha + `"
     ],
@@ -154,6 +158,7 @@ func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
     ]
   },
   "temporaryFiles": [
+    ".` + escapablePath + `3",
     ".a.go1",
     ".z.go2"
   ]
@@ -202,8 +207,11 @@ func TestDecodePending_Refuses(t *testing.T) {
 
 	baseRows := []pendingDecodeRow{
 		{name: "not json", raw: []byte("not json")},
-		{name: "empty object", raw: []byte("{}")},
+		{name: "null", raw: []byte("null"), wantContains: "schema is missing"},
+		{name: "empty object", raw: []byte("{}"), wantContains: "schema is missing"},
+		{name: "null schema", raw: []byte(`{"schema":null,"target":"go"}`), wantContains: "schema is missing"},
 		{name: "schema 0", raw: withChange(t, func(value *manifest.Pending) { value.Schema = 0 })},
+		{name: "schema -1", raw: withChange(t, func(value *manifest.Pending) { value.Schema = -1 })},
 		{name: "schema string", raw: []byte(`{"schema":"1","target":"go"}`)},
 		{name: "schema 2 with unknown member", raw: []byte(`{"schema":2,"target":"go","entities":{}}`), wantNewer: true},
 		{name: "schema 1 with unknown member", raw: []byte(`{"schema":1,"target":"go","entities":{}}`)},
@@ -319,6 +327,7 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 
 	baseRows := []pendingEncodeRow{
 		{name: "schema 0", value: withChange(func(value *manifest.Pending) { value.Schema = 0 })},
+		{name: "schema -1", value: withChange(func(value *manifest.Pending) { value.Schema = -1 })},
 		{name: "schema 2", value: withChange(func(value *manifest.Pending) { value.Schema = 2 })},
 		{name: "empty target", value: withChange(func(value *manifest.Pending) { value.Target = "" })},
 		{name: "known path with no digest", value: withChange(func(value *manifest.Pending) {

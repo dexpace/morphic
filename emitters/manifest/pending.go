@@ -15,10 +15,15 @@ import (
 // in-flight generation so an interrupted write heals on the next run
 // (docs/emitters/write-integrate.md).
 type Pending struct {
-	Schema         int                 `json:"schema"`
-	Target         string              `json:"target"`
-	Known          map[string][]string `json:"known,omitempty"`
-	TemporaryFiles []string            `json:"temporaryFiles,omitempty"`
+	// Schema is the schema the manifest will state.
+	Schema int `json:"schema"`
+	// Target is the target the manifest will state.
+	Target string `json:"target"`
+	// Known holds, for each path, every digest known to be the generation's.
+	Known map[string][]string `json:"known,omitempty"`
+	// TemporaryFiles names each temporary file the plan's writes make, the
+	// manifest's among them, with those any earlier pending manifest records.
+	TemporaryFiles []string `json:"temporaryFiles,omitempty"`
 }
 
 // DecodePending reads a JSON pending manifest, checking [Schema] before strict
@@ -35,8 +40,8 @@ func DecodePending(raw []byte) (Pending, error) {
 	if err := checkPending(decoded); err != nil {
 		return Pending{}, fmt.Errorf("decode pending manifest: %w", err)
 	}
-	for _, listed := range slices.Sorted(maps.Keys(decoded.Known)) {
-		slices.Sort(decoded.Known[listed])
+	for _, digests := range decoded.Known {
+		slices.Sort(digests)
 	}
 	slices.Sort(decoded.TemporaryFiles)
 	return decoded, nil
