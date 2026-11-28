@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -366,18 +367,25 @@ func TestBuild_ProtocolEffectsOffLeavesEveryUndeclaredOperationNeither(t *testin
 	}
 }
 
-// TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt holds the plan's
-// copy of the IANA HTTP Method Registry to the registry's own CSV, row by row.
-func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
-	t.Parallel()
+// registryRows returns the rows of the plan's copy of the IANA HTTP Method
+// Registry, below the header it holds them to.
+func registryRows(t *testing.T) [][]string {
+	t.Helper()
 	file, err := os.Open("testdata/http-methods.csv")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, file.Close()) })
 	rows, err := csv.NewReader(file).ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []string{"Method Name", "Safe", "Idempotent", "Reference"}, rows[0])
-	rows = rows[1:]
-	require.NotEmpty(t, rows, "the registry lists methods")
+	require.NotEmpty(t, rows[1:], "the registry lists methods")
+	return rows[1:]
+}
+
+// TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt holds the plan's
+// copy of the IANA HTTP Method Registry to the registry's own CSV, row by row.
+func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
+	t.Parallel()
+	rows := registryRows(t)
 
 	yes := map[string]bool{"yes": true, "no": false}
 	cases := make([]effectsCase, 0, len(rows))
@@ -396,6 +404,34 @@ func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
 
 	for _, tc := range cases {
 		assert.Equal(t, tc.effect, built.Ops[tc.id].Effects, "%s", tc.id)
+	}
+}
+
+// TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither holds ProtocolEffects
+// to reading as neither each method the registry does not list: every one the
+// IR goldens under testdata spell, and each registered name in lower case,
+// since a method is compared with case (RFC 9110 §9.1).
+func TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither(t *testing.T) {
+	t.Parallel()
+	registered := map[string]bool{}
+	unlisted := []string{"FLUSH", "PURGE", "mIxEdCase", "mSearch"}
+	for _, row := range registryRows(t) {
+		registered[row[0]] = true
+		if lower := strings.ToLower(row[0]); lower != row[0] {
+			unlisted = append(unlisted, lower)
+		}
+	}
+	cases := make([]effectsCase, 0, len(unlisted))
+	for _, method := range unlisted {
+		require.False(t, registered[method], "%s: the registry lists it", method)
+		cases = append(cases, effectsCase{id: ir.OperationID("operation/" + method), bind: over(method)})
+	}
+
+	built := build(t, bindingDoc(cases), plan.Policy{ProtocolEffects: true})
+
+	require.Len(t, built.Ops, len(cases))
+	for _, tc := range cases {
+		assert.Equal(t, plan.Effects{}, built.Ops[tc.id].Effects, "%s", tc.id)
 	}
 }
 
