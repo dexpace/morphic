@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/pathfold"
 )
@@ -22,6 +23,12 @@ const (
 	// file's name is a dot, its file's name and a number of up to 19 digits.
 	maxTemporaryDigits = 19
 )
+
+// maxReservedSpellingBytes bounds a spelling of a reserved name: a fold holds
+// no fewer characters than what it folds, and a character is at most
+// utf8.UTFMax bytes.
+const maxReservedSpellingBytes = utf8.UTFMax *
+	max(len(FileName), len(PendingName), len(PendingTemporaryName))
 
 // schemaHeader reads the schema alone; a pointer tells an absent or null
 // schema from a present one.
@@ -161,6 +168,7 @@ func checkLocalPath(listedPath string) error {
 	if listedPath == "." {
 		return fmt.Errorf("path %.64q does not name a file", listedPath)
 	}
+	// The verdict is the host's: local is a property of its path syntax.
 	if !filepath.IsLocal(filepath.FromSlash(listedPath)) {
 		return fmt.Errorf("path %.64q is not local", listedPath)
 	}
@@ -169,7 +177,11 @@ func checkLocalPath(listedPath string) error {
 
 func isReservedPath(listedPath string) bool {
 	first, _, _ := strings.Cut(listedPath, "/")
-	// The names are their own folds (TestFold_LeavesEachReservedNameAsWritten): fold first alone.
+	if len(first) > maxReservedSpellingBytes {
+		return false
+	}
+	// The names are their own folds (TestFold_LeavesEachReservedNameAsWritten),
+	// so only the listed segment is folded.
 	folded := pathfold.Fold(first)
 	return folded == FileName || folded == PendingName || folded == PendingTemporaryName
 }

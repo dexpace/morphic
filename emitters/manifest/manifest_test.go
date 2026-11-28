@@ -5,6 +5,8 @@ package manifest_test
 
 import (
 	"encoding/json/v2"
+	"math"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -501,7 +503,29 @@ func reservedSpellings() []namedString {
 		{name: "under the pending manifest in title case", value: "Morphic.Manifest.Pending.json/x"},
 		{name: "pending temporary file in capitals", value: ".MORPHIC.MANIFEST.PENDING.JSON.TMP"},
 		{name: "manifest with a long s", value: "morphic.manife\u017ft.json"},
+		{name: "pending temporary file with two long s", value: ".morphic.manife\u017ft.pending.j\u017fon.tmp"},
 	}
+}
+
+// TestDecode_AllocatesAtMostTwiceALongFirstSegment decodes a manifest whose
+// one path is 1 MiB of combining marks, which the reserved-name check would
+// fold were its length not bounded, and holds what the decode allocates to
+// twice the input, the fewest of three runs. It does not run in parallel,
+// since the count is process-wide.
+func TestDecode_AllocatesAtMostTwiceALongFirstSegment(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	raw := []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},` +
+		`"files":[{"path":"` + strings.Repeat("\u0301", 1<<19) + `","digest":"` + digestAlpha + `"}]}`)
+	fewest := uint64(math.MaxUint64)
+	for range 3 {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_, err := manifest.Decode(raw)
+		runtime.ReadMemStats(&after)
+		require.NoError(t, err)
+		fewest = min(fewest, after.TotalAlloc-before.TotalAlloc)
+	}
+	assert.LessOrEqual(t, fewest, uint64(2*len(raw)), "bytes allocated decoding %d bytes", len(raw))
 }
 
 // TestFold_LeavesEachReservedNameAsWritten pins that each reserved name is its

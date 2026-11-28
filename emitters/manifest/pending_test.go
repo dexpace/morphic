@@ -89,6 +89,19 @@ func TestPending_RoundTrips(t *testing.T) {
 			},
 		},
 		{
+			name: "admits a known path past the bound on a reserved name's spelling",
+			input: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known:  map[string][]string{strings.Repeat("\u2c65", 126) + ".kt": {digestAlpha}},
+			},
+			want: manifest.Pending{
+				Schema: manifest.Schema,
+				Target: "go",
+				Known:  map[string][]string{strings.Repeat("\u2c65", 126) + ".kt": {digestAlpha}},
+			},
+		},
+		{
 			name: "omits empty known and temporaryFiles",
 			input: manifest.Pending{
 				Schema:         manifest.Schema,
