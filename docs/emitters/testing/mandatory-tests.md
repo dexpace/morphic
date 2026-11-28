@@ -1176,7 +1176,7 @@ throughout these documents.
     `plan.Shown` fills, one whose member's set lists another variant's tag first among them
     included, carries one of that variant's own tags and decodes as the variant it was made from
     unless a variant that tag also routes to admits it first in recognition order, and a declared
-    example that no variant its tag routes to admits is `emitters/plan/example-refused`
+    example whose tag routes to variants none of which admits it is `emitters/plan/example-refused`
     ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 57. **T-57 · What a mock accepts** — the mock accepts every example the plan holds for a request,
     shown in the shape its operation sends, and refuses a body narrowing a discriminated union that

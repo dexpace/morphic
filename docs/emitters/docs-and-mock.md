@@ -465,8 +465,9 @@ member, operation and message:
   member's set holding a value and no `Strict` union left ambiguous by the shape, no shape is left
   without one. `Build` refuses a union value several variants admit where the union is
   `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
-  discriminated union that no variant its tag routes to admits, whichever other variant does, since
-  decoding reads it by its tag ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and
+  discriminated union whose tag routes to variants none of which admits it, whichever other variant
+  does, since decoding reads it by its tag
+  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and
   `Shown` shows such a value elsewhere through all of them, keeping each member one of them holds in
   the shape, since an inclusive value may be several variants at once. A shape can make a value two
   variants of a `Strict` union admit, by dropping the member that kept one of them out, so `Shown`
