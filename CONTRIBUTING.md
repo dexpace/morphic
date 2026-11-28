@@ -507,8 +507,11 @@ and does not wait. Nothing proposes a Go or golangci-lint release: the `Makefile
 4. **Rewrite the path fold's records on macOS** when an update moves `golang.org/x/text`, or Go
    moves Unicode, and the tables change: run `go test ./pathfold -update` with `$TMPDIR` on a
    case-insensitive APFS volume, since the sweeps write their files under `t.TempDir()` and refuse a
-   volume where `Probe` and `PROBE`, or a composed and a decomposed `é`, make two files. The run
-   takes about two minutes. Push the updated records onto the update's branch.
+   volume where `Probe` and `PROBE`, or a composed and a decomposed `é`, make two files. It needs a
+   macOS whose APFS assigns the characters the build's tables do: the character sweep writes every
+   character the build assigns, APFS refuses one it does not know (`EILSEQ`), and the sweep takes no
+   refusal, so `-update` fails until the two agree. The run takes about two minutes. Push the
+   updated records onto the update's branch.
    *Fails if missed:* `TestFold_JoinsWhatAPFSJoins` and `TestFold_EveryCharacterEqualsItsGolden`.
 5. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
    `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.

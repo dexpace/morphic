@@ -53,7 +53,7 @@ Inside Layer 2 the packages form tiers, and no import points up.
 | `emitters/<target>` | one target | `ir`, `ir/irfacts`, `emitters`, any kernel package, its own packages; `emitters/golang` also `github.com/dave/dst` and `golang.org/x/mod` |
 | `engine/project` | the project configuration, decoded ([the project](contract/project.md)) | `ir`, `pathfold`, `emitters`, `emitters/options`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed` |
 | `engine/emit` | the emit stage, with no I/O | `ir`, `ir/irfacts`, `pathfold`, `emitters`, `emitters/plan`, `emitters/policy`, `emitters/hints`, `emitters/embed`, `engine/project` |
-| `engine/artifacts` | planning and applying a generation's writes under its root ([write / integrate](write-integrate.md)) | `ir`, `pathfold`, `emitters`, `emitters/manifest`, `engine/internal/atomicfile` |
+| `engine/artifacts` | planning and applying a generation's writes under its root ([write / integrate](write-integrate.md)) | `ir`, `barrier`, `pathfold`, `emitters`, `emitters/manifest`, `engine/internal/atomicfile` |
 
 The kernel is tiers 0 to 2. What the table implies:
 

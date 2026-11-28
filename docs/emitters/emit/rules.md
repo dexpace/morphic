@@ -57,9 +57,9 @@ the tree the rule exists to prevent.
   of the three paths, or under one as a directory, compared by the fold, is a breach: the manifest's
   own writes would meet it, after the run's verdict. A manifest or pending manifest listing such a
   path is refused as it is decoded, by the same comparison. A listed path is held to no other
-  segment rule: a manifest lists what stood on disk under another spelling of a held path, which may
-  be longer than a segment the engine writes. No valid document leads a target there: a snapshot
-  label takes a directory other than any of the three names ([contract
+  segment rule: a pending manifest lists what stood on disk under another spelling of a held path,
+  which may be longer than a segment the engine writes. No valid document leads a target there: a
+  snapshot label takes a directory other than any of the three names ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and the docs
   route plan refuses a page routed there as its own finding
   ([docs](../docs-and-mock.md#routes-and-links)).
@@ -122,16 +122,17 @@ the tree the rule exists to prevent.
   them), or more than 30 combining marks in a row, a mark being a character of non-zero canonical
   combining class and the count taken in the canonical decomposition, so a letter composed with a
   mark adds one. APFS (macOS 26.5.2) refused each of the 814,730 unassigned code points behind an
-  `a` and wrote every other, and refused 32 marks in a row where it wrote 31, so the rule refuses
-  one length APFS writes; a run of characters of class zero it wrote at every length a segment
-  holds, 85 conjoining vowels (U+1161) among them, and the rule admits it. It reads the building
-  release's tables, as the fold does: a character newer than the tables of the system written to is
-  admitted and fails there at its write, and one newer than Morphic's is refused until a release
-  holds it. A path breaking one is a breach. This is a backstop as well: each target renders the
-  names it writes as paths so that no spec name reaches it, and a snapshot label, which the engine
-  takes as the document writes it, is held to these rules before any run that writes it as a
-  directory, where breaking one is a finding about the document, `engine/snapshot-label-invalid`
-  ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
+  `a` and wrote every other from U+0080, and refused 32 marks in a row where it wrote 31, so the
+  rule refuses one length APFS writes; a run of characters of class zero it wrote at every length a
+  segment holds, 85 conjoining vowels (U+1161) among them, and the rule admits it. It reads the
+  building release's tables, as the fold does: a character newer than the tables of the system
+  written to is admitted and fails there at its write, and one newer than Morphic's is refused until
+  a release holds it. A path breaking one is a breach. This is a backstop as well: each target
+  renders the names it writes as paths so that no spec name reaches it, and a snapshot label, which
+  the engine takes as the document writes it, is held to these rules before any run that writes it
+  as a directory, where breaking one is a finding about the document,
+  `engine/snapshot-label-invalid` ([contract
+  rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
   [naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
   [Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
   [docs](../docs-and-mock.md#routes-and-links)). T-25 holds it.
