@@ -197,10 +197,11 @@ func (s *valueSite) fits(value *ir.Value) string {
 
 // writtenOut reports whether value may be td, of shape sh, written out in a
 // style the site writes sh in, b holding td's bounds, where td holds leaves
-// alone, as arranged says: a string as its text, and a number or a bool,
-// holding no delimiter, only as the one item of a list whose item counts admit
-// one and whose element type holds that item, as oneItem judges it. So neither
-// is an object's or a tuple's text (docs/ir/values.md#values-held-to-their-type).
+// alone, as arranged says: a string as its text, never split, so its items and
+// count go unjudged and nothing tells it from the value's data; and a number or
+// a bool, holding no delimiter, only as the one item of a list whose counts
+// admit one and whose element holds it, as oneItem judges
+// (docs/ir/values.md#values-held-to-their-type).
 func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef, b *bounds) bool {
 	if !s.writtenShapes.has(sh) || !arranged(s.doc, td) {
 		return false
