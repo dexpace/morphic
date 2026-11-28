@@ -702,7 +702,7 @@ var exempt = map[string]string{
 // packages that carry their own rules, as emitters holds emitters/typemap.
 // Such a rule audits nothing, and so does a misspelt one, so
 // TestImportGraph_LayeringHolds skips only these, and
-// TestUnbuilt_NamesOnlyMissingRuledDirectories fails on one whose package has
+// TestUnbuilt_NamesOnlyRulesWithNoFileToAudit fails on one whose package has
 // landed until it is dropped here.
 var unbuilt = map[string]string{
 	"emitters": "the emitter contract, ruled before its package so that package is audited from " +
@@ -750,12 +750,12 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 // other error as the walk gave it.
 func audits(dir, base string) error {
 	found := false
-	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(base, func(entryPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			return skipIfRuled(dir, base, p)
+			return skipIfRuled(dir, base, entryPath)
 		}
 		if isProductionGoFile(d.Name()) {
 			found = true
@@ -793,20 +793,27 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 
 	writeImporter(t, filepath.Join(base, "contract.go"), "fmt")
 	require.NoError(t, audits("emitters", base), "a Go file of its own")
+
+	regularFile := filepath.Join(t.TempDir(), "regular")
+	require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
+	beneathAFile := audits("emitters", filepath.Join(regularFile, "emitters"))
+	require.Error(t, beneathAFile, "a base beneath a regular file")
+	assert.NotErrorIs(t, beneathAFile, fs.ErrNotExist, "a walk error other than a missing file passes through")
 }
 
-// unbuiltSkip decides a ruled directory that audits answered statErr for:
-// skipped when its rule audits no file and unbuilt names it, audited when it
-// has one, and refused otherwise, since a misspelt entry would audit nothing.
-func unbuiltSkip(dir string, statErr error) (bool, error) {
-	if statErr == nil {
+// unbuiltSkip decides a ruled directory from auditErr, what audits answered
+// for it: skipped when its rule audits no file and unbuilt names it, audited
+// when it has one, and refused otherwise, since a misspelt entry would audit
+// nothing.
+func unbuiltSkip(dir string, auditErr error) (bool, error) {
+	if auditErr == nil {
 		return false, nil
 	}
-	if _, planned := unbuilt[dir]; planned && errors.Is(statErr, fs.ErrNotExist) {
+	if _, planned := unbuilt[dir]; planned && errors.Is(auditErr, fs.ErrNotExist) {
 		return true, nil
 	}
 	return false, fmt.Errorf("rules names %s, which cannot be audited; fix the entry, "+
-		"or name a package not yet built in unbuilt: %w", dir, statErr)
+		"or name a package not yet built in unbuilt: %w", dir, auditErr)
 }
 
 // TestUnbuiltSkip_SkipsOnlyARuleWithNoFileUnbuiltNames pins the decision: a
@@ -818,7 +825,7 @@ func TestUnbuiltSkip_SkipsOnlyARuleWithNoFileUnbuiltNames(t *testing.T) {
 	denied := &fs.PathError{Op: "stat", Path: "emitters", Err: fs.ErrPermission}
 	for _, tc := range []struct {
 		name, dir string
-		statErr   error
+		auditErr  error
 		skip      bool
 		wantIs    error
 	}{
@@ -831,7 +838,7 @@ func TestUnbuiltSkip_SkipsOnlyARuleWithNoFileUnbuiltNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			skip, err := unbuiltSkip(tc.dir, tc.statErr)
+			skip, err := unbuiltSkip(tc.dir, tc.auditErr)
 
 			assert.Equal(t, tc.skip, skip)
 			if tc.wantIs == nil {
@@ -995,11 +1002,10 @@ func mayBeExempt(dir string) bool {
 	return strings.HasPrefix(dir, "internal/")
 }
 
-// TestUnbuilt_NamesOnlyMissingRuledDirectories holds unbuilt to what it is
-// for: each entry names a rules entry whose package does not exist yet. One
-// whose package has landed is audited, so its entry would only hide a later
-// removal.
-func TestUnbuilt_NamesOnlyMissingRuledDirectories(t *testing.T) {
+// TestUnbuilt_NamesOnlyRulesWithNoFileToAudit holds unbuilt to what it is for:
+// each entry names a rules entry with no Go file to audit yet. One whose
+// package has landed is audited, so its entry would only hide a later removal.
+func TestUnbuilt_NamesOnlyRulesWithNoFileToAudit(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
 	for dir := range unbuilt {
