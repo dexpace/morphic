@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/many": {},
+    "type/openapi/components/schemas/BareColor": {},
+    "type/openapi/components/schemas/Color": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/one",
+        "property/openapi/components/schemas/Holder/properties/many",
+        "property/openapi/components/schemas/Holder/properties/bare",
+        "property/openapi/components/schemas/Holder/properties/narrowed"
+      ]
+    },
+    "type/openapi/components/schemas/NarrowedColor": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

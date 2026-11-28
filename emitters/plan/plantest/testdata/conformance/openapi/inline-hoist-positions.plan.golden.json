@@ -1,0 +1,48 @@
+{
+  "types": {
+    "type/anonymous/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema/properties/v"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/parameters/0/schema": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/parameters/0/schema/properties/v"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping/properties/v"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt/properties/v"
+      ]
+    },
+    "type/anonymous/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema": {
+      "flattened": [
+        "property/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema/properties/v"
+      ]
+    },
+    "type/anonymous/webhooks/onShipped/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/webhooks/onShipped/post/requestBody/content/application~1json/schema/properties/v"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

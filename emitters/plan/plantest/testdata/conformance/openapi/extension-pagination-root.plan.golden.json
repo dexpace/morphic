@@ -1,0 +1,15 @@
+{
+  "types": {
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/data",
+        "property/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/next_page_token"
+      ]
+    },
+    "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema/properties/data": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

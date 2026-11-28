@@ -612,7 +612,7 @@ morphic/
 │   │                       #             five layers (below): `git ls-files` lists them.
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
-├── emitters/               # Layer 2 — manifest/, options/, typemap/; contract, plan layer, registry (future).
+├── emitters/               # Layer 2 — manifest/, options/, plan/, typemap/; contract, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.

@@ -1,0 +1,25 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/colour": {},
+    "type/openapi/components/schemas/Bare": {},
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/y"
+      ]
+    },
+    "type/openapi/components/schemas/BesideAllOf": {},
+    "type/openapi/components/schemas/BesideProperties": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/nothing",
+        "property/openapi/components/schemas/Holder/properties/bare",
+        "property/openapi/components/schemas/Holder/properties/colour"
+      ]
+    },
+    "type/openapi/components/schemas/Nothing": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

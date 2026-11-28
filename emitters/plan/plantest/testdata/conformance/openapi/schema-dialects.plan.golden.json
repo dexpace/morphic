@@ -1,0 +1,21 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Bounded": {},
+    "type/openapi/components/schemas/Custom": {},
+    "type/openapi/components/schemas/Embedding": {
+      "flattened": [
+        "property/openapi/components/schemas/Embedding/properties/inner"
+      ]
+    },
+    "type/openapi/components/schemas/Legacy": {
+      "flattened": [
+        "property/openapi/components/schemas/Legacy/properties/count"
+      ]
+    },
+    "type/openapi/components/schemas/Positive": {},
+    "type/primitive/integer": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

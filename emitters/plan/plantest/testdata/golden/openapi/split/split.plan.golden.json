@@ -1,0 +1,52 @@
+{
+  "types": {
+    "type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema": {},
+    "type/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status": {},
+    "type/openapi/components/schemas/NewPet": {
+      "flattened": [
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/tag",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/status"
+      ],
+      "required": [
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name"
+      ]
+    },
+    "type/openapi@common.yaml/components/schemas/Error": {
+      "flattened": [
+        "property/openapi@common.yaml/components/schemas/Error/properties/code",
+        "property/openapi@common.yaml/components/schemas/Error/properties/message"
+      ],
+      "required": [
+        "property/openapi@common.yaml/components/schemas/Error/properties/code",
+        "property/openapi@common.yaml/components/schemas/Error/properties/message"
+      ]
+    },
+    "type/openapi@schemas~1pet.yaml/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/tag",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/status"
+      ],
+      "required": [
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/id",
+        "property/openapi@schemas~1pet.yaml/components/schemas/Pet/properties/name"
+      ]
+    },
+    "type/openapi@schemas~1pet.yaml/components/schemas/Tag": {
+      "flattened": [
+        "property/openapi@schemas~1pet.yaml/components/schemas/Tag/properties/label"
+      ]
+    },
+    "type/primitive/int32": {},
+    "type/primitive/int64": {},
+    "type/primitive/string": {},
+    "type/primitive/uuid": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

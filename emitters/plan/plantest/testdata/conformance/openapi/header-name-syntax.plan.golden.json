@@ -1,0 +1,48 @@
+{
+  "types": {
+    "type/anonymous/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items": {
+      "flattened": [
+        "property/openapi/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items/properties/n"
+      ]
+    },
+    "type/anonymous/components/responses/Carried/headers//content/application~1json/schema/items": {
+      "flattened": [
+        "property/openapi/components/responses/Carried/headers//content/application~1json/schema/items/properties/i"
+      ]
+    },
+    "type/anonymous/components/responses/Framed/headers//content/application~1jsonl/itemSchema": {
+      "flattened": [
+        "property/openapi/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f"
+      ]
+    },
+    "type/anonymous/components/responses/Listed/headers//schema/items": {
+      "flattened": [
+        "property/openapi/components/responses/Listed/headers//schema/items/properties/h"
+      ]
+    },
+    "type/openapi/components/schemas/Frame": {
+      "flattened": [
+        "property/openapi/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f"
+      ]
+    },
+    "type/openapi/components/schemas/HeaderContentItem": {
+      "flattened": [
+        "property/openapi/components/responses/Carried/headers//content/application~1json/schema/items/properties/i"
+      ]
+    },
+    "type/openapi/components/schemas/HeaderItem": {
+      "flattened": [
+        "property/openapi/components/responses/Listed/headers//schema/items/properties/h"
+      ]
+    },
+    "type/openapi/components/schemas/NestedItem": {
+      "flattened": [
+        "property/openapi/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items/properties/n"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

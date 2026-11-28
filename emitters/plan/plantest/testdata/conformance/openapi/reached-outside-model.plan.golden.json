@@ -1,0 +1,35 @@
+{
+  "types": {
+    "type/anonymous/x-lib/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/kind"
+      ]
+    },
+    "type/anonymous/x-lib/Owner": {
+      "flattened": [
+        "property/openapi/x-lib/Owner/properties/name"
+      ]
+    },
+    "type/anonymous/x-lib/Pet": {
+      "flattened": [
+        "property/openapi/x-lib/Pet/properties/name",
+        "property/openapi/x-lib/Pet/properties/owner"
+      ]
+    },
+    "type/openapi/components/schemas/Kennel": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/x-lib/Pet/properties/name",
+        "property/openapi/x-lib/Pet/properties/owner"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

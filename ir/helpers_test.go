@@ -149,7 +149,7 @@ const determinismTries = 20
 // json.Deterministic(true) is passed explicitly: unlike v1, v2 sorts map keys
 // only on request, and most of v's fields are plain structs with no
 // MarshalJSONTo of their own to pin it for them. A *Document argument ignores
-// this option — MarshalJSONTo pins canonicalOptions() regardless of what the
+// this option — MarshalJSONTo pins CanonicalOptions() regardless of what the
 // caller passes — so passing it here is harmless for that case and required
 // for every other.
 func assertDeterministicMarshal(t *testing.T, v any) string {

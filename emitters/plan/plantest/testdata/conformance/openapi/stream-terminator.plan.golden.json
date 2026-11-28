@@ -1,0 +1,25 @@
+{
+  "types": {
+    "type/anonymous/paths/~1chat/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/stream",
+        "property/openapi/paths/~1chat/post/requestBody/content/application~1json/schema/properties/prompt"
+      ]
+    },
+    "type/anonymous/paths/~1chat/post/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1chat/post/responses/200/content/application~1json/schema/properties/text"
+      ]
+    },
+    "type/anonymous/paths/~1chat/post/responses/200/content/text~1event-stream/schema": {
+      "flattened": [
+        "property/openapi/paths/~1chat/post/responses/200/content/text~1event-stream/schema/properties/delta"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

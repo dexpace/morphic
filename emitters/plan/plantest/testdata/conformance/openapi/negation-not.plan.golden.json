@@ -1,0 +1,13 @@
+{
+  "types": {
+    "type/openapi/components/schemas/NotFoo": {
+      "flattened": [
+        "property/openapi/components/schemas/NotFoo/properties/a"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

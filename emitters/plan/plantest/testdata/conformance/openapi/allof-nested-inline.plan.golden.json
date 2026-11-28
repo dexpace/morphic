@@ -1,0 +1,79 @@
+{
+  "types": {
+    "type/composed/components/schemas/U/oneOf/0": {
+      "flattened": [
+        "property/composed/components/schemas/U/oneOf/0/allOf/allOf/properties/a",
+        "property/openapi/components/schemas/P/properties/p"
+      ],
+      "required": [
+        "property/composed/components/schemas/U/oneOf/0/allOf/allOf/properties/a"
+      ]
+    },
+    "type/composed/components/schemas/U/oneOf/1": {
+      "flattened": [
+        "property/composed/components/schemas/U/oneOf/1/allOf/allOf/properties/a",
+        "property/openapi/components/schemas/Q/properties/q"
+      ],
+      "required": [
+        "property/composed/components/schemas/U/oneOf/1/allOf/allOf/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/A": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/B": {
+      "flattened": [
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Closed": {},
+    "type/openapi/components/schemas/Described": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/M": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Mixed": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/B/properties/b",
+        "property/openapi/components/schemas/Mixed/allOf/0/allOf/1/properties/c",
+        "property/openapi/components/schemas/Mixed/allOf/0/properties/w"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Mixed/allOf/0/allOf/1/properties/c"
+      ]
+    },
+    "type/openapi/components/schemas/Nested2": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/Nested2/allOf/0/allOf/1/properties/c"
+      ]
+    },
+    "type/openapi/components/schemas/P": {
+      "flattened": [
+        "property/openapi/components/schemas/P/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/Q": {
+      "flattened": [
+        "property/openapi/components/schemas/Q/properties/q"
+      ]
+    },
+    "type/openapi/components/schemas/U": {
+      "union": "one_of"
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

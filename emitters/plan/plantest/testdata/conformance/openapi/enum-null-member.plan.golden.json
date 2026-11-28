@@ -1,0 +1,33 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Mixed/enum/0": {},
+    "type/anonymous/components/schemas/Mixed/enum/1": {},
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+        "property/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone"
+      ],
+      "required": [
+        "property/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result"
+      ]
+    },
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone": {},
+    "type/anonymous/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/mixed",
+        "property/openapi/components/schemas/Holder/properties/narrowed",
+        "property/openapi/components/schemas/Holder/properties/orNull"
+      ]
+    },
+    "type/openapi/components/schemas/Mixed": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Narrowed": {},
+    "type/openapi/components/schemas/OrNull": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

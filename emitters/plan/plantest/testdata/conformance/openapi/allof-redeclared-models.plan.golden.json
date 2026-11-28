@@ -1,0 +1,427 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
+      ]
+    },
+    "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data": {},
+    "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data": {},
+    "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Owner/properties/address": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/address/properties/street"
+      ]
+    },
+    "type/anonymous/components/schemas/RefFirst/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/RefFirst/allOf/1/properties/data/properties/ai"
+      ]
+    },
+    "type/anonymous/components/schemas/RefIntoBranch/allOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/RefIntoBranch/allOf/0/properties/data"
+      ]
+    },
+    "type/anonymous/components/schemas/RefIntoBranch/allOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/RefIntoBranch/allOf/1/properties/data"
+      ]
+    },
+    "type/anonymous/components/schemas/SharedFirst/allOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/SharedFirst/allOf/0/allOf/0/properties/data"
+      ]
+    },
+    "type/anonymous/components/schemas/SharedLast/allOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/SharedLast/allOf/1/allOf/0/properties/data"
+      ]
+    },
+    "type/anonymous/components/schemas/TitledAndModel/allOf/0/properties/data": {},
+    "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name"
+      ]
+    },
+    "type/anonymous/components/schemas/TwoInline/allOf/0/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoInline/allOf/0/properties/data/properties/first"
+      ]
+    },
+    "type/anonymous/components/schemas/TwoInline/allOf/2/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoInline/allOf/2/properties/data/properties/second"
+      ]
+    },
+    "type/anonymous/components/schemas/UnionThenModel/allOf/0/properties/data": {
+      "union": "one_of"
+    },
+    "type/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/InlineFirst/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
+      ]
+    },
+    "type/composed/components/schemas/KeptDefault/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data": {},
+    "type/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ],
+      "unflattened": [
+        "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data"
+      ]
+    },
+    "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data": {},
+    "type/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/ModelThenMap/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ],
+      "unflattened": [
+        "type/anonymous/components/schemas/ModelThenMap/allOf/1/properties/data"
+      ]
+    },
+    "type/composed/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ],
+      "unflattened": [
+        "type/anonymous/components/schemas/ModelThenUnion/allOf/1/properties/data"
+      ]
+    },
+    "type/composed/components/schemas/RefFirst/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/RefFirst/allOf/1/properties/data/properties/ai"
+      ]
+    },
+    "type/composed/components/schemas/RefIntoBranch/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/SharedFirst/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/TitledAndModel/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/TopAliasFirst/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/TopAliasLast/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data": {},
+    "type/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id",
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/composed/components/schemas/TwoInline/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoInline/allOf/0/properties/data/properties/first",
+        "property/openapi/components/schemas/TwoInline/allOf/2/properties/data/properties/second"
+      ]
+    },
+    "type/composed/components/schemas/UnionThenModel/allOf/1/properties/data": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ],
+      "unflattened": [
+        "type/anonymous/components/schemas/UnionThenModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/AliasAndModel": {
+      "flattened": [
+        "property/openapi/components/schemas/AliasAndModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/AnyObject": {},
+    "type/openapi/components/schemas/Anything": {},
+    "type/openapi/components/schemas/AtLeastTwoMembers": {},
+    "type/openapi/components/schemas/BareAndModel": {
+      "flattened": [
+        "property/openapi/components/schemas/BareAndModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/BranchUser": {
+      "flattened": [
+        "property/openapi/components/schemas/BranchUser/properties/branch",
+        "property/openapi/components/schemas/BranchUser/properties/other"
+      ]
+    },
+    "type/openapi/components/schemas/ConstrainedAliasAndBare": {
+      "flattened": [
+        "property/openapi/components/schemas/ConstrainedAliasAndBare/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/ConstrainedAliasAndModel": {
+      "flattened": [
+        "property/openapi/components/schemas/ConstrainedAliasAndModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/CopyThenOwner": {
+      "flattened": [
+        "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner"
+      ]
+    },
+    "type/openapi/components/schemas/DiscriminatedBase": {
+      "flattened": [
+        "property/openapi/components/schemas/DiscriminatedBase/allOf/0/properties/pet"
+      ]
+    },
+    "type/openapi/components/schemas/DiscriminatedFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/DiscriminatedFirst/allOf/0/properties/pet"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/Dog/allOf/1/properties/barks"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/FirstWrapperUser": {
+      "flattened": [
+        "property/openapi/components/schemas/FirstWrapperUser/properties/wrapper"
+      ]
+    },
+    "type/openapi/components/schemas/InlineFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/InlineFirst/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/KeptDefault": {
+      "flattened": [
+        "property/openapi/components/schemas/KeptDefault/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/LastWrapperUser": {
+      "flattened": [
+        "property/openapi/components/schemas/LastWrapperUser/properties/wrapper"
+      ]
+    },
+    "type/openapi/components/schemas/ListsOfModels": {
+      "flattened": [
+        "property/openapi/components/schemas/ListsOfModels/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/MapThenModel": {
+      "flattened": [
+        "property/openapi/components/schemas/MapThenModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/MapsOfModels": {
+      "flattened": [
+        "property/openapi/components/schemas/MapsOfModels/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/Meeting": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/MeetingAlias": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/ModelThenMap": {
+      "flattened": [
+        "property/openapi/components/schemas/ModelThenMap/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/ModelThenUnion": {
+      "flattened": [
+        "property/openapi/components/schemas/ModelThenUnion/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/Owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/name",
+        "property/openapi/components/schemas/Owner/properties/address"
+      ]
+    },
+    "type/openapi/components/schemas/OwnerThenCopy": {
+      "flattened": [
+        "property/openapi/components/schemas/OwnerThenCopy/allOf/0/properties/owner"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Recording": {
+      "flattened": [
+        "property/openapi/components/schemas/Recording/properties/url"
+      ]
+    },
+    "type/openapi/components/schemas/RefFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/RefFirst/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/RefIntoBranch": {
+      "flattened": [
+        "property/composed/components/schemas/RefIntoBranch/allOf/1/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/SharedFirst": {
+      "flattened": [
+        "property/composed/components/schemas/SharedFirst/allOf/1/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/SharedLast": {
+      "flattened": [
+        "property/openapi/components/schemas/SharedLast/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/SubtypeAndBase": {
+      "flattened": [
+        "property/openapi/components/schemas/SubtypeAndBase/allOf/0/properties/pet"
+      ]
+    },
+    "type/openapi/components/schemas/TitledAndModel": {
+      "flattened": [
+        "property/openapi/components/schemas/TitledAndModel/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/TopAliasFirst": {
+      "flattened": [
+        "property/openapi/components/schemas/TopAliasFirst/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/TopAliasLast": {
+      "flattened": [
+        "property/openapi/components/schemas/TopAliasLast/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/TuplesOfModels": {
+      "flattened": [
+        "property/openapi/components/schemas/TuplesOfModels/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/TwoComponents": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoComponents/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/TwoCopies": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoCopies/allOf/0/properties/owner"
+      ]
+    },
+    "type/openapi/components/schemas/TwoInline": {
+      "flattened": [
+        "property/openapi/components/schemas/TwoInline/allOf/0/properties/data"
+      ]
+    },
+    "type/openapi/components/schemas/UnionThenModel": {
+      "flattened": [
+        "property/openapi/components/schemas/UnionThenModel/allOf/0/properties/data"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

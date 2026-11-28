@@ -1,0 +1,33 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/S/properties/id": {},
+    "type/anonymous/components/schemas/S/properties/list": {},
+    "type/anonymous/components/schemas/S/properties/meta": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/meta/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/S/properties/tags": {},
+    "type/openapi/components/schemas/Bounded": {},
+    "type/openapi/components/schemas/HugeCount": {},
+    "type/openapi/components/schemas/Port": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/ratio",
+        "property/openapi/components/schemas/S/properties/atLeastTen",
+        "property/openapi/components/schemas/S/properties/underTen",
+        "property/openapi/components/schemas/S/properties/label",
+        "property/openapi/components/schemas/S/properties/id",
+        "property/openapi/components/schemas/S/properties/meta",
+        "property/openapi/components/schemas/S/properties/list",
+        "property/openapi/components/schemas/S/properties/tags"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/number": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

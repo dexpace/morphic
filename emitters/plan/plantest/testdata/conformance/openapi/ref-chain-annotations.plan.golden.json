@@ -1,0 +1,20 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Bare": {},
+    "type/openapi/components/schemas/Docs": {},
+    "type/openapi/components/schemas/Fine": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/f",
+        "property/openapi/components/schemas/Holder/properties/b",
+        "property/openapi/components/schemas/Holder/properties/d",
+        "property/openapi/components/schemas/Holder/properties/own"
+      ]
+    },
+    "type/openapi/components/schemas/Leaf": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

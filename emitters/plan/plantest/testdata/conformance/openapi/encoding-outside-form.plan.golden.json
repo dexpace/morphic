@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/anonymous/paths/~1json/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1json/post/requestBody/content/application~1json/schema/properties/f"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

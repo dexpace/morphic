@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/openapi/components/schemas/DeclaredReadOnly": {},
+    "type/openapi/components/schemas/DeclaredWriteOnly": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/r",
+        "property/openapi/components/schemas/S/properties/w",
+        "property/openapi/components/schemas/S/properties/viaRef",
+        "property/openapi/components/schemas/S/properties/both",
+        "property/openapi/components/schemas/S/properties/bothViaRef"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

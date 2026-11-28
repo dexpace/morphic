@@ -1,0 +1,37 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Pet/properties/keepers": {},
+    "type/anonymous/components/schemas/Pet/properties/keepers/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Person/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Person"
+    },
+    "type/anonymous/components/schemas/Pet/properties/owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Person/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Person"
+    },
+    "type/openapi/components/schemas/Owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Person/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Person": {
+      "flattened": [
+        "property/openapi/components/schemas/Person/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/owner",
+        "property/openapi/components/schemas/Pet/properties/keepers"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

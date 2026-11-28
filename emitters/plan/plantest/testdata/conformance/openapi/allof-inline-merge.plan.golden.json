@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Merged": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Merged/allOf/1/properties/name"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

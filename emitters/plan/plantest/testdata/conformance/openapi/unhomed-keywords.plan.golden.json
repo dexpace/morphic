@@ -1,0 +1,74 @@
+{
+  "types": {
+    "type/openapi/components/schemas/AllOfWithObjectType": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/AllOfWithScalarType": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/ConstWithBound": {},
+    "type/openapi/components/schemas/ConstWithFormat": {},
+    "type/openapi/components/schemas/EnumWithProperties": {},
+    "type/openapi/components/schemas/ItemsBoundOnArray": {},
+    "type/openapi/components/schemas/ItemsBoundOnObject": {
+      "flattened": [
+        "property/openapi/components/schemas/ItemsBoundOnObject/properties/f"
+      ]
+    },
+    "type/openapi/components/schemas/ItemsBoundOnTuple": {},
+    "type/openapi/components/schemas/ObjectWithItems": {
+      "flattened": [
+        "property/openapi/components/schemas/ObjectWithItems/properties/h"
+      ]
+    },
+    "type/openapi/components/schemas/RefAdditionalProperties": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/RefCarrier": {
+      "flattened": [
+        "property/openapi/components/schemas/RefCarrier/properties/p"
+      ]
+    },
+    "type/openapi/components/schemas/RefConst": {},
+    "type/openapi/components/schemas/RefConstrained": {},
+    "type/openapi/components/schemas/RefDiscriminator": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/RefEnum": {},
+    "type/openapi/components/schemas/RefFormat": {},
+    "type/openapi/components/schemas/RefRequired": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ],
+      "required": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/RefTargetObj": {
+      "flattened": [
+        "property/openapi/components/schemas/RefTargetObj/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/RefTargetStr": {},
+    "type/openapi/components/schemas/ScalarWithProperties": {},
+    "type/openapi/components/schemas/UnionWithItems": {},
+    "type/openapi/components/schemas/UntypedDiscriminator": {},
+    "type/openapi/components/schemas/UntypedFormat": {},
+    "type/openapi/components/schemas/UntypedItems": {},
+    "type/openapi/components/schemas/UntypedPrefixItems": {},
+    "type/openapi/components/schemas/UntypedRequired": {},
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

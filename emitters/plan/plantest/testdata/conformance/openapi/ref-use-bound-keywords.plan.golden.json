@@ -1,0 +1,26 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Filter": {
+      "flattened": [
+        "property/openapi/components/schemas/Filter/properties/open"
+      ]
+    },
+    "type/openapi/components/schemas/Meeting": {
+      "flattened": [
+        "property/openapi/components/schemas/Meeting/properties/owner",
+        "property/openapi/components/schemas/Meeting/properties/draft",
+        "property/openapi/components/schemas/Meeting/properties/parent",
+        "property/openapi/components/schemas/Meeting/properties/audit"
+      ]
+    },
+    "type/openapi/components/schemas/ReadOnlyFilter": {
+      "flattened": [
+        "property/openapi/components/schemas/Filter/properties/open"
+      ]
+    },
+    "type/primitive/bool": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

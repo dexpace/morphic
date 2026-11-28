@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "flattened": [
+        "property/openapi/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema/properties/id"
+      ]
+    },
+    "type/anonymous/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "flattened": [
+        "property/openapi/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema/properties/body"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

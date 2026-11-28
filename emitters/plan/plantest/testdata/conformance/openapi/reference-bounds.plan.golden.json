@@ -1,0 +1,39 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Failure/properties/composed": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/properties/id"
+      ]
+    },
+    "type/anonymous/components/schemas/Failure/properties/inline": {},
+    "type/openapi/components/schemas/Aliased": {},
+    "type/openapi/components/schemas/Envelope": {
+      "flattened": [
+        "property/openapi/components/schemas/Envelope/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Failure": {
+      "flattened": [
+        "property/openapi/components/schemas/Failure/properties/refined",
+        "property/openapi/components/schemas/Failure/properties/site",
+        "property/openapi/components/schemas/Failure/properties/nullable",
+        "property/openapi/components/schemas/Failure/properties/voiced",
+        "property/openapi/components/schemas/Failure/properties/chained",
+        "property/openapi/components/schemas/Failure/properties/inline",
+        "property/openapi/components/schemas/Failure/properties/composed",
+        "property/openapi/components/schemas/Failure/properties/counted",
+        "property/openapi/components/schemas/Failure/properties/taken",
+        "property/openapi/components/schemas/Failure/properties/open"
+      ]
+    },
+    "type/openapi/components/schemas/Name": {},
+    "type/openapi/components/schemas/Open": {},
+    "type/openapi/components/schemas/Tags": {},
+    "type/openapi/components/schemas/TagsAlias": {},
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

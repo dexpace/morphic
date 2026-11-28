@@ -37,6 +37,10 @@ const (
 	factAPI      = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
 	typeTableAPI = "the type table every target decodes, merges and looks up (docs/emitters/contract/type-table.md), " +
 		"which the first target's types slice calls (GitHub #2141)"
+	planAPI = "the plan docs/emitters/plan/overview.md derives for every emitter, which the engine " +
+		"builds once a run hands a document to one (GitHub #2138)"
+	planCodecAPI = "how a plan encodes for the plan cache docs/emitters/plan/overview.md#the-plans-version " +
+		"keys on its Version, which is not built yet"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -81,6 +85,8 @@ var apiRoots = map[string]string{
 	"emitters/manifest.DecodePending":      manifestAPI,
 	"emitters/manifest.EncodePending":      manifestAPI,
 	"emitters/manifest.Digest":             manifestAPI,
+	"emitters/plan.Build":                  planAPI,
+	"emitters/plan.Plan.MarshalJSONTo":     planCodecAPI,
 	"emitters/typemap.Decode":              typeTableAPI,
 	"emitters/typemap.Merge":               typeTableAPI,
 	"emitters/typemap.Moved":               typeTableAPI,

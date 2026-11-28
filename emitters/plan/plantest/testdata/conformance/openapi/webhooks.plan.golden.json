@@ -1,0 +1,8 @@
+{
+  "types": {
+    "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "types": {
+    "type/anonymous/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema": {},
+    "type/anonymous/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema": {
+      "flattened": [
+        "property/openapi/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema/properties/row"
+      ]
+    },
+    "type/anonymous/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema": {
+      "flattened": [
+        "property/openapi/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema/properties/ack"
+      ]
+    },
+    "type/anonymous/paths/~1mixed/get/responses/200/content/application~1jsonl/schema": {
+      "flattened": [
+        "property/openapi/paths/~1mixed/get/responses/200/content/application~1jsonl/schema/properties/line"
+      ]
+    },
+    "type/anonymous/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema": {
+      "flattened": [
+        "property/openapi/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema/properties/row"
+      ]
+    },
+    "type/openapi/components/schemas/Frame": {
+      "flattened": [
+        "property/openapi/components/schemas/Frame/properties/seq"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

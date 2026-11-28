@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/MaybeCat": {},
+    "type/openapi/components/schemas/Owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/pet"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

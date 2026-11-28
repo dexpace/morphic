@@ -580,6 +580,11 @@ var rules = map[string][]string{
 	// nothing else until it holds entities, whose symbols it takes from
 	// emitters/symbol (docs/emitters/packages.md).
 	"emitters/manifest": {module + "/pathfold"},
+	// The plan every emitter reads, derived once for all of them. It reaches ir
+	// and the facts derived from it and nothing else yet, so it cannot read a
+	// target's naming data, a runtime policy or a target
+	// (docs/emitters/plan/plan-or-refine.md).
+	"emitters/plan": {module + "/ir", module + "/ir/irfacts"},
 	// The strict reading every configuration shares
 	// (docs/emitters/contract/options.md). It reaches the standard library
 	// alone until the versioned Decode adds ir (GitHub #2242).

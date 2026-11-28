@@ -1,0 +1,28 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/S/properties/choice": {},
+    "type/anonymous/components/schemas/S/properties/mode": {},
+    "type/anonymous/components/schemas/S/properties/pinned": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/bounded",
+        "property/openapi/components/schemas/S/properties/exclusive",
+        "property/openapi/components/schemas/S/properties/withDefault",
+        "property/openapi/components/schemas/S/properties/pinned",
+        "property/openapi/components/schemas/S/properties/choice",
+        "property/openapi/components/schemas/S/properties/sampled",
+        "property/openapi/components/schemas/S/properties/mode",
+        "property/openapi/components/schemas/S/properties/bounds",
+        "property/openapi/components/schemas/S/properties/counted",
+        "property/openapi/components/schemas/S/properties/loose",
+        "property/openapi/components/schemas/S/properties/vast",
+        "property/openapi/components/schemas/S/properties/preserved"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/number": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

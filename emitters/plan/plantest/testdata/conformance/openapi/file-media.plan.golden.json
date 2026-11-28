@@ -1,0 +1,34 @@
+{
+  "types": {
+    "type/anonymous/paths/~1render/post/responses/200/content/image~1png/schema": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/files",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/attachments",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/pair",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fileOrFiles",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/profileImage",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/avatar"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/attachments": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/avatar": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fileOrFiles": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fileOrFiles/oneOf/1": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/files": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/pair": {},
+    "type/anonymous/paths/~1value/put/requestBody/content/application~1octet-stream/schema": {
+      "union": "any_of"
+    },
+    "type/primitive/any": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

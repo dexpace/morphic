@@ -1,0 +1,15 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/blob": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/blob"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

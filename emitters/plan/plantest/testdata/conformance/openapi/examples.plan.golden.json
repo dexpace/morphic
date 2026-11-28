@@ -1,0 +1,21 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/S/properties/inner": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/inner/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/C": {},
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/n",
+        "property/openapi/components/schemas/S/properties/inner"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

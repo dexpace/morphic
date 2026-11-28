@@ -1,0 +1,10 @@
+{
+  "types": {
+    "type/anonymous/paths/~1reports/get/responses/200/headers/X-Report-List/schema": {},
+    "type/openapi/components/schemas/ReportID": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Event": {
+      "flattened": [
+        "property/openapi/components/schemas/Event/properties/id"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

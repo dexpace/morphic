@@ -1,0 +1,10 @@
+{
+  "types": {
+    "type/openapi/components/schemas/BigCodes": {},
+    "type/openapi/components/schemas/OversizedCodes": {},
+    "type/openapi/components/schemas/SizedCodes": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

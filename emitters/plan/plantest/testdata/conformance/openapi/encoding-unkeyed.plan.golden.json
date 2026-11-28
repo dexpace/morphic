@@ -1,0 +1,24 @@
+{
+  "types": {
+    "type/anonymous/paths/~1assets/post/requestBody/content/multipart~1form-data/schema": {},
+    "type/anonymous/paths/~1assets/post/requestBody/content/multipart~1form-data/schema/additionalProperties": {
+      "alias": "type/primitive/string"
+    },
+    "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/a"
+      ]
+    },
+    "type/anonymous/paths/~1ghost/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1ghost/post/requestBody/content/multipart~1form-data/schema/properties/meta"
+      ]
+    },
+    "type/anonymous/paths/~1literal/post/requestBody/content/multipart~1form-data/schema": {},
+    "type/primitive/bytes": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

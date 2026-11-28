@@ -1,0 +1,70 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Port80/allOf/1": {},
+    "type/anonymous/components/schemas/Scores/items": {
+      "alias": "type/openapi/components/schemas/Port"
+    },
+    "type/anonymous/components/schemas/Variants/oneOf/1": {
+      "alias": "type/openapi/components/schemas/Port"
+    },
+    "type/anonymous/components/schemas/Zone/properties/level": {},
+    "type/anonymous/components/schemas/Zone/properties/mode": {},
+    "type/anonymous/components/schemas/Zone/properties/owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/id"
+      ],
+      "alias": "type/openapi/components/schemas/Owner"
+    },
+    "type/anonymous/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema": {
+      "alias": "type/openapi/components/schemas/Blob"
+    },
+    "type/anonymous/paths/~1zones~1{zone_id}/post/responses/200/content/application~1json/schema": {
+      "alias": "type/openapi/components/schemas/Identifier"
+    },
+    "type/openapi/components/schemas/Blob": {},
+    "type/openapi/components/schemas/Bounded": {},
+    "type/openapi/components/schemas/BoundedList": {},
+    "type/openapi/components/schemas/Disjoint": {},
+    "type/openapi/components/schemas/Identifier": {},
+    "type/openapi/components/schemas/Level": {},
+    "type/openapi/components/schemas/Mode": {},
+    "type/openapi/components/schemas/Needle": {},
+    "type/openapi/components/schemas/NeedleBeside": {},
+    "type/openapi/components/schemas/Owner": {
+      "flattened": [
+        "property/openapi/components/schemas/Owner/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Port": {},
+    "type/openapi/components/schemas/Port80": {},
+    "type/openapi/components/schemas/Prim": {},
+    "type/openapi/components/schemas/PrimSwapped": {},
+    "type/openapi/components/schemas/Raw80": {},
+    "type/openapi/components/schemas/ScanID": {},
+    "type/openapi/components/schemas/Scores": {},
+    "type/openapi/components/schemas/Tags": {},
+    "type/openapi/components/schemas/Variants": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Zone": {
+      "flattened": [
+        "property/openapi/components/schemas/Zone/properties/owner",
+        "property/openapi/components/schemas/Zone/properties/zone_id",
+        "property/openapi/components/schemas/Zone/properties/port",
+        "property/openapi/components/schemas/Zone/properties/typed",
+        "property/openapi/components/schemas/Zone/properties/mode",
+        "property/openapi/components/schemas/Zone/properties/width",
+        "property/openapi/components/schemas/Zone/properties/scan",
+        "property/openapi/components/schemas/Zone/properties/tags",
+        "property/openapi/components/schemas/Zone/properties/level"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/int32": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

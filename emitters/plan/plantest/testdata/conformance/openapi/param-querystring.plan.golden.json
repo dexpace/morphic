@@ -1,0 +1,16 @@
+{
+  "types": {
+    "type/anonymous/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "flattened": [
+        "property/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/since",
+        "property/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/status"
+      ]
+    },
+    "type/anonymous/paths/~1reports~1raw/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {},
+    "type/primitive/date": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

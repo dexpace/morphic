@@ -1,0 +1,257 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/App/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id"
+      ]
+    },
+    "type/anonymous/components/schemas/App/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id"
+      ]
+    },
+    "type/anonymous/components/schemas/AppRequest/allOf/0/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id"
+      ]
+    },
+    "type/anonymous/components/schemas/AppRequest/allOf/0/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id"
+      ]
+    },
+    "type/anonymous/components/schemas/Kennel/properties/resident": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/WithoutData/properties/data": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file": {},
+    "type/composed/components/schemas/App/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id",
+        "property/openapi/components/schemas/App/allOf/0/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id",
+        "property/openapi/components/schemas/App/allOf/0/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/App/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id",
+        "property/openapi/components/schemas/App/allOf/0/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id",
+        "property/openapi/components/schemas/App/allOf/0/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/AppRequest/allOf/0/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id",
+        "property/openapi/components/schemas/AppRequest/allOf/2/properties/breakout",
+        "property/openapi/components/schemas/AppRequest/allOf/2/properties/priority"
+      ],
+      "required": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id"
+      ]
+    },
+    "type/composed/components/schemas/AppRequest/allOf/0/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id",
+        "property/openapi/components/schemas/AppRequest/allOf/2/properties/breakout",
+        "property/openapi/components/schemas/AppRequest/allOf/2/properties/priority"
+      ],
+      "required": [
+        "property/openapi/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id"
+      ]
+    },
+    "type/composed/components/schemas/Dog/allOf/1/oneOf": {
+      "union": "one_of"
+    },
+    "type/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/WithoutData/properties/data"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind",
+        "property/openapi/components/schemas/WithData/properties/content"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/Payment/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4",
+        "property/openapi/components/schemas/Payment/allOf/0/properties/amount"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method"
+      ]
+    },
+    "type/composed/components/schemas/Payment/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban",
+        "property/openapi/components/schemas/Payment/allOf/0/properties/amount"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method"
+      ]
+    },
+    "type/composed/components/schemas/Record/allOf/0/anyOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/WithoutData/properties/data",
+        "property/openapi/components/schemas/Record/allOf/1/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Record/allOf/1/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/Record/allOf/0/anyOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/WithData/properties/content",
+        "property/openapi/components/schemas/Record/allOf/1/properties/id"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Record/allOf/1/properties/id"
+      ]
+    },
+    "type/composed/components/schemas/Refund/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4",
+        "property/openapi/components/schemas/Refund/allOf/0/properties/reason"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method"
+      ]
+    },
+    "type/composed/components/schemas/Refund/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban",
+        "property/openapi/components/schemas/Refund/allOf/0/properties/reason"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method"
+      ]
+    },
+    "type/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/WithoutData/properties/data",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note"
+      ]
+    },
+    "type/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/WithData/properties/content",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note"
+      ]
+    },
+    "type/openapi/components/schemas/App": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/AppRequest": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Bank": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method"
+      ]
+    },
+    "type/openapi/components/schemas/Card": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ],
+      "unflattened": [
+        "type/composed/components/schemas/Dog/allOf/1/oneOf"
+      ]
+    },
+    "type/openapi/components/schemas/Kennel": {
+      "flattened": [
+        "property/openapi/components/schemas/Kennel/properties/resident"
+      ]
+    },
+    "type/openapi/components/schemas/Message": {
+      "flattened": [
+        "property/openapi/components/schemas/Message/properties/to",
+        "property/openapi/components/schemas/Message/properties/cc",
+        "property/openapi/components/schemas/Message/properties/text",
+        "property/openapi/components/schemas/Message/properties/html"
+      ]
+    },
+    "type/openapi/components/schemas/Payment": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Record": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Refund": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/WithData": {
+      "flattened": [
+        "property/openapi/components/schemas/WithData/properties/content"
+      ]
+    },
+    "type/openapi/components/schemas/WithoutData": {
+      "flattened": [
+        "property/openapi/components/schemas/WithoutData/properties/data"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

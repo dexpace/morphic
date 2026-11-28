@@ -1,0 +1,75 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Collection/properties/errors": {},
+    "type/anonymous/components/schemas/Collection/properties/messages": {},
+    "type/anonymous/components/schemas/Collection/properties/result": {},
+    "type/anonymous/components/schemas/JobPage/properties/result": {
+      "flattened": [
+        "property/openapi/components/schemas/JobPage/properties/result/properties/jobs",
+        "property/openapi/components/schemas/JobPage/properties/result/properties/pageToken",
+        "property/openapi/components/schemas/JobPage/properties/result/properties/nextPageToken"
+      ]
+    },
+    "type/anonymous/components/schemas/JobPage/properties/result/properties/jobs": {},
+    "type/anonymous/paths/~1keys/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/result",
+        "property/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/result_info"
+      ]
+    },
+    "type/anonymous/paths/~1keys/get/responses/200/content/application~1json/schema/properties/result": {},
+    "type/anonymous/paths/~1logs/get/responses/200/content/application~1json/schema": {},
+    "type/anonymous/paths/~1zones/get/responses/200/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/schemas/Collection/properties/success",
+        "property/openapi/components/schemas/Collection/properties/errors",
+        "property/openapi/components/schemas/Collection/properties/messages",
+        "property/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result",
+        "property/openapi/components/schemas/Collection/properties/result_info"
+      ]
+    },
+    "type/anonymous/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result": {},
+    "type/openapi/components/schemas/Collection": {
+      "flattened": [
+        "property/openapi/components/schemas/Collection/properties/success",
+        "property/openapi/components/schemas/Collection/properties/errors",
+        "property/openapi/components/schemas/Collection/properties/messages",
+        "property/openapi/components/schemas/Collection/properties/result",
+        "property/openapi/components/schemas/Collection/properties/result_info"
+      ]
+    },
+    "type/openapi/components/schemas/CursorInfo": {
+      "flattened": [
+        "property/openapi/components/schemas/CursorInfo/properties/count",
+        "property/openapi/components/schemas/CursorInfo/properties/cursor"
+      ]
+    },
+    "type/openapi/components/schemas/JobPage": {
+      "flattened": [
+        "property/openapi/components/schemas/JobPage/properties/result"
+      ]
+    },
+    "type/openapi/components/schemas/ResultInfo": {
+      "flattened": [
+        "property/openapi/components/schemas/ResultInfo/properties/page",
+        "property/openapi/components/schemas/ResultInfo/properties/per_page",
+        "property/openapi/components/schemas/ResultInfo/properties/count",
+        "property/openapi/components/schemas/ResultInfo/properties/total_count",
+        "property/openapi/components/schemas/ResultInfo/properties/total_pages"
+      ]
+    },
+    "type/openapi/components/schemas/Zone": {
+      "flattened": [
+        "property/openapi/components/schemas/Zone/properties/id"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/bool": {},
+    "type/primitive/int32": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

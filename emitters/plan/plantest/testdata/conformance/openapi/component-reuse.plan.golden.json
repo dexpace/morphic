@@ -1,0 +1,26 @@
+{
+  "types": {
+    "type/anonymous/components/headers/RateUnit/schema": {},
+    "type/anonymous/components/parameters/Sort/schema": {},
+    "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku"
+      ]
+    },
+    "type/anonymous/components/responses/Failure/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/responses/Failure/content/application~1json/schema/properties/message"
+      ]
+    },
+    "type/anonymous/components/responses/Listed/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/responses/Listed/content/application~1json/schema/properties/items"
+      ]
+    },
+    "type/anonymous/components/responses/Listed/content/application~1json/schema/properties/items": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

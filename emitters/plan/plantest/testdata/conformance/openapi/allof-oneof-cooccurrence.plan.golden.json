@@ -1,0 +1,82 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Combo/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a"
+      ],
+      "alias": "type/openapi/components/schemas/A"
+    },
+    "type/anonymous/components/schemas/InlineHost/oneOf/0": {
+      "alias": "type/primitive/integer"
+    },
+    "type/anonymous/components/schemas/MixedKinds/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/MixedKinds/oneOf/1/properties/i"
+      ]
+    },
+    "type/composed/components/schemas/Combo/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/A/properties/a"
+      ]
+    },
+    "type/composed/components/schemas/Combo/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/composed/components/schemas/MixedKinds/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a",
+        "property/openapi/components/schemas/MixedKinds/properties/kind"
+      ]
+    },
+    "type/composed/components/schemas/MixedKinds/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/MixedKinds/oneOf/1/properties/i",
+        "property/openapi/components/schemas/MixedKinds/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/A": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/B": {
+      "flattened": [
+        "property/openapi/components/schemas/B/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/BoundedKinds": {},
+    "type/openapi/components/schemas/Combo": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/InlineHost": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/InlineOutsider": {
+      "flattened": [
+        "property/openapi/components/schemas/InlineOutsider/properties/branch"
+      ]
+    },
+    "type/openapi/components/schemas/MixedKinds": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Outsider": {
+      "flattened": [
+        "property/openapi/components/schemas/Outsider/properties/branch"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

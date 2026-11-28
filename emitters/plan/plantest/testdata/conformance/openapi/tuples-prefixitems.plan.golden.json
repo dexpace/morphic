@@ -1,0 +1,25 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/PairWithRest/items": {
+      "flattened": [
+        "property/openapi/components/schemas/PairWithRest/items/properties/flag"
+      ]
+    },
+    "type/openapi/components/schemas/BoundedClosedPair": {},
+    "type/openapi/components/schemas/ClosedPair": {},
+    "type/openapi/components/schemas/ExactPair": {},
+    "type/openapi/components/schemas/InertList": {},
+    "type/openapi/components/schemas/InertPair": {},
+    "type/openapi/components/schemas/LiveList": {},
+    "type/openapi/components/schemas/LivePair": {},
+    "type/openapi/components/schemas/Pair": {},
+    "type/openapi/components/schemas/PairWithRest": {},
+    "type/primitive/any": {},
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

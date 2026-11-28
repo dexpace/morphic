@@ -1,0 +1,75 @@
+{
+  "types": {
+    "type/composed/components/schemas/Payment/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4",
+        "property/openapi/components/schemas/Payment/properties/amount"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Payment/properties/amount"
+      ]
+    },
+    "type/composed/components/schemas/Payment/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban",
+        "property/openapi/components/schemas/Payment/properties/amount"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Payment/properties/amount"
+      ]
+    },
+    "type/composed/components/schemas/Refund/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4",
+        "property/openapi/components/schemas/Refund/properties/reason"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method"
+      ]
+    },
+    "type/composed/components/schemas/Refund/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban",
+        "property/openapi/components/schemas/Refund/properties/reason"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method"
+      ]
+    },
+    "type/openapi/components/schemas/Bank": {
+      "flattened": [
+        "property/openapi/components/schemas/Bank/properties/method",
+        "property/openapi/components/schemas/Bank/properties/iban"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Bank/properties/method"
+      ]
+    },
+    "type/openapi/components/schemas/Card": {
+      "flattened": [
+        "property/openapi/components/schemas/Card/properties/method",
+        "property/openapi/components/schemas/Card/properties/last4"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Card/properties/method"
+      ]
+    },
+    "type/openapi/components/schemas/Payment": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/Refund": {
+      "union": "discriminated"
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

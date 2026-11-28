@@ -31,7 +31,7 @@ var (
 	ErrVersionIncompatible = errors.New("incompatible irVersion")
 )
 
-// MarshalJSONTo encodes the Document under canonicalOptions, whatever options
+// MarshalJSONTo encodes the Document under CanonicalOptions, whatever options
 // the caller passed, though a marshaler the caller registers for Document runs
 // in its place. Only whitespace, such as indentation, stays the caller's.
 // The Document is the unit this holds for (invariant 7): a sub-structure encoded
@@ -39,19 +39,19 @@ var (
 // json.Deterministic(true).
 func (d *Document) MarshalJSONTo(enc *jsontext.Encoder) error {
 	type alias Document
-	err := json.MarshalEncode(enc, (*alias)(d), canonicalOptions())
+	err := json.MarshalEncode(enc, (*alias)(d), CanonicalOptions())
 	return named[Document](err, reflect.TypeFor[alias]())
 }
 
-// canonicalOptions fixes every choice but whitespace that decides a document's
-// bytes (invariant 7): map entries sorted by key, the minimal string escaping of RFC 8785, and a
-// refusal to write a string that is not UTF-8 or an object that repeats a name,
-// where the alternatives are a silent U+FFFD and an ambiguous document. The rest
-// pin v2's defaults, so once MarshalJSONTo runs no caller option can stringify a
-// number, drop a zero struct, respell or reorder a raw value, substitute a
-// marshaler, or write null for a nil list or map held as a map's value, which is
-// [] or {}.
-func canonicalOptions() json.Options {
+// CanonicalOptions fixes every choice but whitespace that decides a document's
+// bytes (invariant 7), and a plan's: map entries sorted by key, RFC 8785's
+// minimal string escaping, and a refusal to write a string that is not UTF-8
+// or an object that repeats a name, not a silent U+FFFD or an ambiguous
+// document. The rest pin v2's defaults, so joined last, as MarshalJSONTo joins
+// them, no caller option can stringify a number, drop a zero struct, respell
+// or reorder a raw value, substitute a marshaler, or write null for a nil list
+// or map held as a map's value.
+func CanonicalOptions() json.Options {
 	return json.JoinOptions(
 		json.Deterministic(true),
 		json.FormatNilSliceAsNull(false),

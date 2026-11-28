@@ -1,0 +1,66 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Dog/properties/bark"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Plant": {
+      "flattened": [
+        "property/openapi/components/schemas/Plant/properties/stem"
+      ]
+    },
+    "type/openapi/components/schemas/Puppy": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Dog/properties/bark",
+        "property/openapi/components/schemas/Puppy/properties/weeks"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Sapling": {
+      "flattened": [
+        "property/openapi/components/schemas/Plant/properties/stem",
+        "property/openapi/components/schemas/Shrub/properties/twigs",
+        "property/openapi/components/schemas/Sapling/properties/rings"
+      ]
+    },
+    "type/openapi/components/schemas/Shrub": {
+      "flattened": [
+        "property/openapi/components/schemas/Plant/properties/stem",
+        "property/openapi/components/schemas/Shrub/properties/twigs"
+      ]
+    },
+    "type/openapi/components/schemas/Whelp": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Dog/properties/bark",
+        "property/openapi/components/schemas/Puppy/properties/weeks",
+        "property/openapi/components/schemas/Whelp/properties/days"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/primitive/bool": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

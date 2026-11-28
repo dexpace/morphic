@@ -1,0 +1,31 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Address/$defs/zip": {},
+    "type/openapi/components/schemas/Address": {
+      "flattened": [
+        "property/openapi/components/schemas/Address/properties/street",
+        "property/openapi/components/schemas/Address/properties/country",
+        "property/openapi/components/schemas/Address/properties/next",
+        "property/openapi/components/schemas/Address/properties/zip"
+      ]
+    },
+    "type/openapi/components/schemas/Country": {},
+    "type/openapi/components/schemas/Person": {
+      "flattened": [
+        "property/openapi/components/schemas/Person/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/owner",
+        "property/openapi/components/schemas/Pet/properties/tag",
+        "property/openapi/components/schemas/Pet/properties/address"
+      ]
+    },
+    "type/openapi/components/schemas/Tag": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

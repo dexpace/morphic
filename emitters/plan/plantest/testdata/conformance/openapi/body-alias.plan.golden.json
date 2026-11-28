@@ -1,0 +1,27 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Page/properties/result": {},
+    "type/openapi/components/schemas/Dogs": {
+      "flattened": [
+        "property/openapi/components/schemas/Page/properties/result",
+        "property/openapi/components/schemas/Page/properties/next_cursor"
+      ]
+    },
+    "type/openapi/components/schemas/Page": {
+      "flattened": [
+        "property/openapi/components/schemas/Page/properties/result",
+        "property/openapi/components/schemas/Page/properties/next_cursor"
+      ]
+    },
+    "type/openapi/components/schemas/Pets": {
+      "flattened": [
+        "property/openapi/components/schemas/Page/properties/result",
+        "property/openapi/components/schemas/Page/properties/next_cursor"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

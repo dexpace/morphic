@@ -1,0 +1,95 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/$defs/Local": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/$defs/Local/properties/c"
+      ]
+    },
+    "type/anonymous/components/schemas/Holder/properties/address": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/address/properties/lines"
+      ]
+    },
+    "type/anonymous/components/schemas/Holder/properties/address/properties/lines": {},
+    "type/anonymous/components/schemas/Holder/properties/address/properties/lines/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/address/properties/lines/items/properties/line"
+      ]
+    },
+    "type/anonymous/components/schemas/Holder/properties/points": {},
+    "type/anonymous/components/schemas/Holder/properties/points/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/points/items/properties/x"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/0/properties/name",
+        "property/openapi/components/schemas/Lookup/oneOf/0/properties/tags"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/0/properties/tags": {},
+    "type/anonymous/components/schemas/Lookup/oneOf/0/properties/tags/items": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/0/properties/tags/items/properties/tag"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/1/properties/id"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/2": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/2/properties/kind"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/3": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/3/properties/a"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/4": {
+      "flattened": [
+        "property/openapi/components/schemas/Lookup/oneOf/4/properties/b"
+      ]
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/5": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Pet"
+    },
+    "type/anonymous/components/schemas/Lookup/oneOf/6": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name",
+        "property/openapi/components/schemas/Lookup/oneOf/6/allOf/1/properties/tier"
+      ]
+    },
+    "type/anonymous/paths/~1lookups/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1lookups/post/requestBody/content/application~1json/schema/properties/query"
+      ]
+    },
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/address",
+        "property/openapi/components/schemas/Holder/properties/points",
+        "property/openapi/components/schemas/Holder/properties/local"
+      ]
+    },
+    "type/openapi/components/schemas/Lookup": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

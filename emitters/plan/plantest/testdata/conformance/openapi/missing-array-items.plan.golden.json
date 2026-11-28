@@ -1,0 +1,31 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Choice/enum/0": {},
+    "type/anonymous/components/schemas/Choice/enum/1": {},
+    "type/anonymous/components/schemas/Holder/properties/empty": {},
+    "type/anonymous/components/schemas/Holder/properties/tags": {},
+    "type/anonymous/components/schemas/Holder/properties/typed": {},
+    "type/anonymous/paths/~1things/get/parameters/0/schema": {},
+    "type/openapi/components/schemas/Bare": {},
+    "type/openapi/components/schemas/Choice": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Copy": {
+      "flattened": [
+        "property/openapi/components/schemas/Copy/properties/tags"
+      ]
+    },
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/tags",
+        "property/openapi/components/schemas/Holder/properties/typed",
+        "property/openapi/components/schemas/Holder/properties/empty"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

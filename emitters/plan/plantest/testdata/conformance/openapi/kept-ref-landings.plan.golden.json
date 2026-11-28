@@ -1,0 +1,32 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Kept/$defs/Sub": {
+      "flattened": [
+        "property/openapi/components/schemas/Kept/$defs/Sub/properties/kept"
+      ]
+    },
+    "type/anonymous/components/schemas/Through/$defs/End": {
+      "alias": "type/primitive/integer"
+    },
+    "type/anonymous/components/schemas/Through/$defs/Mid": {
+      "alias": "type/primitive/integer"
+    },
+    "type/anonymous/components/schemas/Typed/$defs/Sub": {
+      "flattened": [
+        "property/openapi/components/schemas/Typed/$defs/Sub/properties/typed"
+      ]
+    },
+    "type/openapi/components/schemas/Kept": {},
+    "type/openapi/components/schemas/Through": {},
+    "type/openapi/components/schemas/Typed": {
+      "flattened": [
+        "property/openapi/components/schemas/Typed/properties/a"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

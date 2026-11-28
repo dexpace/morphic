@@ -1,0 +1,13 @@
+{
+  "types": {
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/U/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ],
+      "alias": "type/openapi/components/schemas/Pet"
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/U": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/User": {
+      "flattened": [
+        "property/openapi/components/schemas/User/properties/id"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

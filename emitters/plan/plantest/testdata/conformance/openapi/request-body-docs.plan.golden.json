@@ -1,0 +1,18 @@
+{
+  "types": {
+    "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku"
+      ]
+    },
+    "type/anonymous/paths/~1drafts/post/requestBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1drafts/post/requestBody/content/application~1json/schema/properties/sku"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

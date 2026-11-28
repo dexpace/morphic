@@ -1,0 +1,47 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Annotated": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a",
+        "property/openapi/components/schemas/Annotated/properties/c"
+      ]
+    },
+    "type/openapi/components/schemas/Bare": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/Extra": {
+      "flattened": [
+        "property/openapi/components/schemas/Extra/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/Mixed": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a",
+        "property/openapi/components/schemas/Extra/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/NestedAllOfBranch": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a",
+        "property/openapi/components/schemas/NestedAllOfBranch/properties/e"
+      ]
+    },
+    "type/openapi/components/schemas/UnionBranch": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/a",
+        "property/openapi/components/schemas/UnionBranch/properties/d"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

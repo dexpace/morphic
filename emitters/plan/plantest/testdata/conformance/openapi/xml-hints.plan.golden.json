@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Book/properties/authors": {},
+    "type/anonymous/components/schemas/Book/properties/authors/items": {},
+    "type/openapi/components/schemas/Book": {
+      "flattened": [
+        "property/openapi/components/schemas/Book/properties/isbn",
+        "property/openapi/components/schemas/Book/properties/lang",
+        "property/openapi/components/schemas/Book/properties/title",
+        "property/openapi/components/schemas/Book/properties/authors"
+      ]
+    },
+    "type/openapi/components/schemas/Lang": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

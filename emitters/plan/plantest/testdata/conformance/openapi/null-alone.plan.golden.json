@@ -1,0 +1,54 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Holder/properties/constNull": {},
+    "type/anonymous/components/schemas/Holder/properties/enumNull": {},
+    "type/anonymous/components/schemas/Holder/properties/listed": {},
+    "type/anonymous/components/schemas/Holder/properties/many": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Holder/properties/nullUnion": {},
+    "type/anonymous/components/schemas/Holder/properties/onlyNull": {},
+    "type/anonymous/components/schemas/Holder/properties/refNull": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Holder/properties/withProps": {},
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/onlyNull",
+        "property/openapi/components/schemas/Holder/properties/listed",
+        "property/openapi/components/schemas/Holder/properties/enumNull",
+        "property/openapi/components/schemas/Holder/properties/constNull",
+        "property/openapi/components/schemas/Holder/properties/nullUnion",
+        "property/openapi/components/schemas/Holder/properties/nil",
+        "property/openapi/components/schemas/Holder/properties/anything",
+        "property/openapi/components/schemas/Holder/properties/withProps",
+        "property/openapi/components/schemas/Holder/properties/typed",
+        "property/openapi/components/schemas/Holder/properties/enumed",
+        "property/openapi/components/schemas/Holder/properties/constant",
+        "property/openapi/components/schemas/Holder/properties/described",
+        "property/openapi/components/schemas/Holder/properties/many",
+        "property/openapi/components/schemas/Holder/properties/refNull"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Holder/properties/onlyNull"
+      ]
+    },
+    "type/openapi/components/schemas/Nil": {},
+    "type/openapi/components/schemas/X": {
+      "flattened": [
+        "property/openapi/components/schemas/X/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Y": {
+      "flattened": [
+        "property/openapi/components/schemas/Y/properties/n"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Node": {
+      "flattened": [
+        "property/openapi/components/schemas/Node/properties/value",
+        "property/openapi/components/schemas/Node/properties/next"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

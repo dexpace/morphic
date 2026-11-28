@@ -1,0 +1,26 @@
+{
+  "types": {
+    "type/anonymous/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f"
+      ]
+    },
+    "type/openapi/components/schemas/A": {
+      "flattened": [
+        "property/openapi/components/schemas/A/properties/k"
+      ]
+    },
+    "type/openapi/components/schemas/D": {
+      "union": "discriminated"
+    },
+    "type/openapi/components/schemas/S": {
+      "flattened": [
+        "property/openapi/components/schemas/S/properties/a"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

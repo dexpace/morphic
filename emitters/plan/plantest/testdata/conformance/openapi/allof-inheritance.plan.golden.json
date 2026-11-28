@@ -1,0 +1,40 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Base": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id"
+      ]
+    },
+    "type/openapi/components/schemas/Derived": {
+      "flattened": [
+        "property/openapi/components/schemas/Base/properties/id",
+        "property/openapi/components/schemas/Derived/properties/extra"
+      ]
+    },
+    "type/openapi/components/schemas/Leaf": {
+      "flattened": [
+        "property/openapi/components/schemas/Root/properties/kind",
+        "property/openapi/components/schemas/Other/properties/x"
+      ]
+    },
+    "type/openapi/components/schemas/Mid": {
+      "flattened": [
+        "property/openapi/components/schemas/Root/properties/kind"
+      ]
+    },
+    "type/openapi/components/schemas/Other": {
+      "flattened": [
+        "property/openapi/components/schemas/Other/properties/x"
+      ]
+    },
+    "type/openapi/components/schemas/Root": {
+      "flattened": [
+        "property/openapi/components/schemas/Root/properties/kind"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

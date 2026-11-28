@@ -1,0 +1,26 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/0": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/1": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/2": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/3": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/4": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/5": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/6": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/7": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/8": {},
+    "type/anonymous/components/schemas/Many/allOf/0/oneOf/9": {},
+    "type/anonymous/components/schemas/Shared/allOf/0/anyOf/0": {},
+    "type/anonymous/components/schemas/Shared/allOf/0/anyOf/1": {},
+    "type/openapi/components/schemas/Many": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Nested": {},
+    "type/openapi/components/schemas/Shared": {
+      "union": "any_of"
+    }
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

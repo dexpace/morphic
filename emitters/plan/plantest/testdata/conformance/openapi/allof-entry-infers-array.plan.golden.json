@@ -1,0 +1,25 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Tagged/properties/entry": {},
+    "type/anonymous/components/schemas/Tagged/properties/flat": {},
+    "type/anonymous/paths/~1tags/get/parameters/0/schema": {},
+    "type/openapi/components/schemas/Names": {},
+    "type/openapi/components/schemas/NamesBounded": {},
+    "type/openapi/components/schemas/NamesEntry": {},
+    "type/openapi/components/schemas/Pair": {},
+    "type/openapi/components/schemas/PairEntry": {},
+    "type/openapi/components/schemas/Tagged": {
+      "flattened": [
+        "property/openapi/components/schemas/Tagged/properties/flat",
+        "property/openapi/components/schemas/Tagged/properties/entry",
+        "property/openapi/components/schemas/Tagged/properties/bounded"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

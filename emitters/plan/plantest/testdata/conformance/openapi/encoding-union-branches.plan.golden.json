@@ -1,0 +1,117 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Either/anyOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Either/anyOf/0/properties/file"
+      ]
+    },
+    "type/anonymous/components/schemas/Either/anyOf/1": {
+      "union": "one_of"
+    },
+    "type/anonymous/components/schemas/Either/anyOf/1/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Either/anyOf/1/oneOf/0/properties/url"
+      ]
+    },
+    "type/anonymous/components/schemas/Either/anyOf/1/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Either/anyOf/1/oneOf/1/properties/id"
+      ]
+    },
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
+      "flattened": [
+        "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl"
+      ]
+    },
+    "type/anonymous/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
+      "flattened": [
+        "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile"
+      ]
+    },
+    "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1": {
+      "flattened": [
+        "property/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file"
+      ]
+    },
+    "type/anonymous/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1narrowed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note"
+      ],
+      "unflattened": [
+        "type/openapi/components/schemas/Upload"
+      ]
+    },
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
+      "flattened": [
+        "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file"
+      ]
+    },
+    "type/anonymous/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
+      "flattened": [
+        "property/openapi/paths/~1one-of/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url"
+      ]
+    },
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema": {
+      "union": "one_of"
+    },
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
+      "flattened": [
+        "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/doc"
+      ]
+    },
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
+      "flattened": [
+        "property/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc"
+      ]
+    },
+    "type/anonymous/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {},
+    "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/Common/properties/name",
+        "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0/properties/targetUrl"
+      ]
+    },
+    "type/composed/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/Common/properties/name",
+        "property/openapi/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1/properties/torrentfile"
+      ]
+    },
+    "type/openapi/components/schemas/Common": {
+      "flattened": [
+        "property/openapi/components/schemas/Common/properties/name"
+      ]
+    },
+    "type/openapi/components/schemas/Either": {
+      "union": "any_of"
+    },
+    "type/openapi/components/schemas/Upload": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/UploadFile": {
+      "flattened": [
+        "property/openapi/components/schemas/UploadFile/properties/file"
+      ]
+    },
+    "type/openapi/components/schemas/UploadLink": {
+      "flattened": [
+        "property/openapi/components/schemas/UploadLink/properties/link"
+      ]
+    },
+    "type/primitive/bytes": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

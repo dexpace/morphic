@@ -276,6 +276,11 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Golden IR snapshots**: `spec → IR → JSON`, compared via `ir/irtest` (`-update` rewrites).
   Corpus under `testdata/golden/`. A golden stores no `irVersion`: the helper asserts the stamp and
   leaves it out, so a version bump rewrites no golden.
+- **Plan goldens**: `emitters/plan/plantest` builds the plan of every IR golden under `testdata/`,
+  with no compiler in the loop, and holds each to a golden of its own; `-update` rewrites them and
+  removes one whose document is gone. A plan golden leaves the plan's `Version` out, as an IR
+  golden leaves out the `irVersion` it hashes; `TestBuild_VersionIsPinned` holds the version of one
+  document. A change that moves or adds an IR golden runs the update.
 - **IR shape pin**: `TestIRVersion_PinsTheEncodedShape` describes every type `ir.Document` reaches,
   through `internal/jsonshape`, and holds `ir.IRVersion` to the description's hash in the
   `generations` table beside it. A shape change without a bump fails, and so does a bump without

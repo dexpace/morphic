@@ -1,0 +1,18 @@
+{
+  "types": {
+    "type/anonymous/components/responses/Envelope/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/responses/Envelope/content/application~1json/schema/properties/message"
+      ]
+    },
+    "type/anonymous/paths/~1widgets/post/responses/201/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1widgets/post/responses/201/content/application~1json/schema/properties/id"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

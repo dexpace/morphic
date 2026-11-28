@@ -1,0 +1,61 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Bird": {
+      "flattened": [
+        "property/openapi/components/schemas/Bird/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Cat/properties/meow"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/CatAlias": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Cat/properties/meow"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/CatNote": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Cat/properties/meow"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Dog": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType",
+        "property/openapi/components/schemas/Dog/properties/bark"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Pets": {
+      "union": "discriminated"
+    },
+    "type/primitive/bool": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

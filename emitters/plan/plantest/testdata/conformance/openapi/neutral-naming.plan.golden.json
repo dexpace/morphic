@@ -1,0 +1,17 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/com.example.Widget/properties/rollout.state": {},
+    "type/openapi/components/schemas/com.example.Widget": {
+      "flattened": [
+        "property/openapi/components/schemas/com.example.Widget/properties/widget.name",
+        "property/openapi/components/schemas/com.example.Widget/properties/api.version.v2",
+        "property/openapi/components/schemas/com.example.Widget/properties/rollout.state"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

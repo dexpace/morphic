@@ -1,0 +1,10 @@
+{
+  "types": {
+    "type/anonymous/paths/~1status/get/responses/200/content/application~1json/schema": {},
+    "type/openapi/components/schemas/E": {},
+    "type/openapi/components/schemas/N": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

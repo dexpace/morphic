@@ -1,0 +1,54 @@
+{
+  "types": {
+    "type/composed/components/schemas/DistributedUnion/oneOf/0": {
+      "flattened": [
+        "property/openapi/components/schemas/NullableModel/properties/a",
+        "property/openapi/components/schemas/DistributedUnion/properties/z"
+      ]
+    },
+    "type/composed/components/schemas/DistributedUnion/oneOf/1": {
+      "flattened": [
+        "property/openapi/components/schemas/PlainModel/properties/b",
+        "property/openapi/components/schemas/DistributedUnion/properties/z"
+      ]
+    },
+    "type/openapi/components/schemas/DistributedUnion": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/Holder": {
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/direct",
+        "property/openapi/components/schemas/Holder/properties/viaAllOf",
+        "property/openapi/components/schemas/Holder/properties/directModel",
+        "property/openapi/components/schemas/Holder/properties/viaAllOfModel",
+        "property/openapi/components/schemas/Holder/properties/viaAllOfBoth"
+      ]
+    },
+    "type/openapi/components/schemas/NullableModel": {
+      "flattened": [
+        "property/openapi/components/schemas/NullableModel/properties/a"
+      ]
+    },
+    "type/openapi/components/schemas/NullableScalar": {},
+    "type/openapi/components/schemas/PlainModel": {
+      "flattened": [
+        "property/openapi/components/schemas/PlainModel/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/PlainUnion": {
+      "union": "one_of"
+    },
+    "type/openapi/components/schemas/WrapBoth": {
+      "flattened": [
+        "property/openapi/components/schemas/NullableModel/properties/a",
+        "property/openapi/components/schemas/PlainModel/properties/b"
+      ]
+    },
+    "type/openapi/components/schemas/WrapNullableModel": {},
+    "type/openapi/components/schemas/WrapNullableScalar": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

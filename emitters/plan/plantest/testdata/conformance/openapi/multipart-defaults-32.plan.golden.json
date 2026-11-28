@@ -1,0 +1,28 @@
+{
+  "types": {
+    "type/anonymous/paths/~1stream/post/requestBody/content/multipart~1mixed/itemSchema": {
+      "flattened": [
+        "property/openapi/paths/~1stream/post/requestBody/content/multipart~1mixed/itemSchema/properties/id"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix",
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/meta"
+      ]
+    },
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items": {},
+    "type/anonymous/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/meta": {
+      "flattened": [
+        "property/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/meta/properties/a"
+      ]
+    },
+    "type/primitive/any": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

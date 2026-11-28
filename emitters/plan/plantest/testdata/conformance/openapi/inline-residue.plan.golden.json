@@ -1,0 +1,22 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Batch/items": {
+      "alias": "type/primitive/integer"
+    },
+    "type/anonymous/components/schemas/Carried/properties/p": {},
+    "type/anonymous/paths/~1thing/get/responses/200/content/application~1json/schema": {
+      "alias": "type/primitive/string"
+    },
+    "type/openapi/components/schemas/Batch": {},
+    "type/openapi/components/schemas/Carried": {
+      "flattened": [
+        "property/openapi/components/schemas/Carried/properties/p"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

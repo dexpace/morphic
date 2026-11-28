@@ -1,0 +1,20 @@
+{
+  "types": {
+    "type/anonymous/components/requestBodies/WidgetBody/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/requestBodies/WidgetBody/content/application~1json/schema/properties/sku"
+      ]
+    },
+    "type/anonymous/components/responses/Listing/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/components/responses/Listing/content/application~1json/schema/properties/items"
+      ]
+    },
+    "type/anonymous/components/responses/Listing/content/application~1json/schema/properties/items": {},
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

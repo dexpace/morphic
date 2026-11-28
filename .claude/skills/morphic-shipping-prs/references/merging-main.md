@@ -243,9 +243,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** On each merged tree `references/merging-main.md#trial-merge-happened` confirms, build
   and run there, never a binary built from another tree: `git grep` each removed name; for goldens,
-  `go test ./compilers/openapi/e2e ./cmd/morphic-census`; for an added package or archtest rule,
-  `go test ./internal/archtest`; for an analyzer, `go vet -vettool=<tool> <changed packages>`; for
-  a skill edit, `references/merging-main.md#trial-merge-lints-the-skills`.
+  `go test ./compilers/openapi/e2e ./cmd/morphic-census ./emitters/plan/plantest`; for an added
+  package or archtest rule, `go test ./internal/archtest`; for an analyzer,
+  `go vet -vettool=<tool> <changed packages>`; for a skill edit,
+  `references/merging-main.md#trial-merge-lints-the-skills`.
 - **Why.** A test binary built from one head flagged three open PRs for a package one of them
   exempts, and rebuilt in that PR's merged tree its test passed (#1311, #1556).
 - **Probe.** Each result names the merged commit and the command run in it.

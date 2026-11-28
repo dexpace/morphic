@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/anonymous/paths/~1search/get/parameters/0/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1search/get/parameters/0/content/application~1json/schema/properties/kind"
+      ]
+    },
+    "type/anonymous/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema": {
+      "flattened": [
+        "property/openapi/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema/properties/hits"
+      ]
+    },
+    "type/primitive/integer": {},
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}

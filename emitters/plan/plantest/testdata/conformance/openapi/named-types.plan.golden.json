@@ -1,0 +1,19 @@
+{
+  "types": {
+    "type/openapi/components/schemas/Address": {
+      "flattened": [
+        "property/openapi/components/schemas/Address/properties/city"
+      ]
+    },
+    "type/openapi/components/schemas/User": {
+      "flattened": [
+        "property/openapi/components/schemas/User/properties/name",
+        "property/openapi/components/schemas/User/properties/address"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "strictExclusive": false
+  }
+}
