@@ -17,6 +17,13 @@
       ]
     },
     "type/openapi/components/schemas/Kennel": {
+      "discrim": {
+        "mapping": {
+          "cat": "type/anonymous/x-lib/Cat"
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Kennel/properties/kind"
       ]

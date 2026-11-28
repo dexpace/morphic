@@ -42,6 +42,17 @@
       ]
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "CatNote": "type/openapi/components/schemas/CatNote",
+          "alpha": "type/openapi/components/schemas/Dog",
+          "cat": "type/openapi/components/schemas/Cat",
+          "kitten": "type/openapi/components/schemas/Cat",
+          "zulu": "type/openapi/components/schemas/Dog"
+        },
+        "locator": "property",
+        "wireKey": "petType"
+      },
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/petType"
       ],
@@ -50,6 +61,15 @@
       ]
     },
     "type/openapi/components/schemas/Pets": {
+      "discrim": {
+        "mapping": {
+          "bird": "type/openapi/components/schemas/Bird",
+          "cat": "type/openapi/components/schemas/Cat",
+          "kitten": "type/openapi/components/schemas/Cat"
+        },
+        "locator": "property_name",
+        "wireKey": "petType"
+      },
       "union": "discriminated"
     },
     "type/primitive/bool": {},

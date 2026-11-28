@@ -10,6 +10,15 @@
       ]
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "Whelp": "type/openapi/components/schemas/Whelp",
+          "dog": "type/openapi/components/schemas/Dog",
+          "puppy": "type/openapi/components/schemas/Puppy"
+        },
+        "locator": "property",
+        "wireKey": "petType"
+      },
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/petType"
       ],

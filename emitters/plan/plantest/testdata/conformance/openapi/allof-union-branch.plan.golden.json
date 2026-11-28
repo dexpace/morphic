@@ -222,9 +222,24 @@
       ]
     },
     "type/openapi/components/schemas/Payment": {
+      "discrim": {
+        "mapping": {
+          "Bank": "type/composed/components/schemas/Payment/allOf/1/oneOf/1",
+          "Card": "type/composed/components/schemas/Payment/allOf/1/oneOf/0"
+        },
+        "locator": "property_name",
+        "wireKey": "method"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "dog": "type/openapi/components/schemas/Dog"
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/kind"
       ],
@@ -236,6 +251,14 @@
       "union": "any_of"
     },
     "type/openapi/components/schemas/Refund": {
+      "discrim": {
+        "mapping": {
+          "Bank": "type/composed/components/schemas/Refund/allOf/1/oneOf/1",
+          "Card": "type/composed/components/schemas/Refund/allOf/1/oneOf/0"
+        },
+        "locator": "property_name",
+        "wireKey": "method"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/WithData": {

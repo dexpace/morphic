@@ -11,6 +11,13 @@
       ]
     },
     "type/openapi/components/schemas/D": {
+      "discrim": {
+        "mapping": {
+          "A": "type/openapi/components/schemas/A"
+        },
+        "locator": "property_name",
+        "wireKey": "k"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/S": {

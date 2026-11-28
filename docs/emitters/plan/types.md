@@ -104,6 +104,26 @@ to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref:
 not hold what it admits, so each refiner lowers it or degrades with a code of its own; the three
 targets lower a union there as [inheritance](../refine/models.md#inheritance) says.
 
+## A discriminator's routes
+
+`Discrim` is set on a discriminated union and on the model holding a discriminator, a polymorphic
+base, and on no other type: a subtype carries its tag in `DiscriminatorValue`, and the plan of each
+base above it routes that tag. A union's routes are the entries of its `Mapping`, or, where that
+holds none, each variant under the source name of its type
+([the tag a variant's value carries](../refine/unions.md#the-tag-a-variants-value-carries)). A
+base's are the entries of its `Mapping` and each subtype's `DiscriminatorValue`, its subtypes being
+those `irfacts` derives, through `Base` and `Implements` at any depth and never through `Mixins`
+([discriminator](../../ir/models.md#discriminator)). `WireKey` is `PropertyName`, or the wire name
+of the flattened member one of whose declarations is `Property`.
+
+The IR may route one tag to two types, as two subtypes carrying one value do
+([discriminator](../../ir/models.md#discriminator)), and `Mapping` keys one type per tag. The plan
+leaves such a tag out of `Mapping` and reports a warning `emitters/plan/discriminator-shared-tag`
+naming the tag and its types, at the type holding the discriminator. A discriminator that does not
+set exactly one locator, or a union's set only by `Property`, routes nothing: `Discrim` is nil, and
+the plan reports an error `emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is `"value"`
+where an `object` envelope names no value property, as the IR's default is.
+
 ## A model narrowing a union
 
 A model narrows a union its composition reaches at any distance that does not list it, as

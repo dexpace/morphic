@@ -3,7 +3,13 @@
 
 package plan
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"maps"
+	"slices"
+
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irfacts"
+)
 
 // TypePlan holds what the plan derives of one type
 // (docs/emitters/plan/types.md). It picks no target type and cases nothing,
@@ -15,6 +21,10 @@ type TypePlan struct {
 	// declaration it takes, to that deprecation: an overridden declaration's
 	// where the taken one states none.
 	Deprecated map[ir.PropertyID]*ir.Deprecation `json:"deprecated,omitempty"`
+	// Discrim is the discriminator of a discriminated union or of the model
+	// holding one, every route written out as a type ID; nil for any other
+	// type, a subtype among them.
+	Discrim *DiscrimFacts `json:"discrim,omitzero"`
 	// Union is a union's wire shape, read off its Exclusive, WireTagged and
 	// Discriminator together; "" = not a union.
 	Union UnionShape `json:"union,omitempty"`
@@ -73,37 +83,51 @@ const (
 	UnionKeyTagged UnionShape = "key_tagged"
 )
 
-// typePlans returns the plan of every type in types under pp. An entry that
-// holds no type, a nil one, plans as the zero TypePlan. No flattening is
-// bounded: each model holds its own, so the plan grows with the square of a
-// composition's depth (GitHub #2206).
-func typePlans(types ir.TypeRegistry, pp Policy) map[ir.TypeID]TypePlan {
+// typePlans returns the plan of every type in types under pp, facts being
+// their document's, and the findings planning them reports, in type-ID order.
+// An entry that holds no type, a nil one, plans as the zero TypePlan. No
+// flattening is bounded: each model holds its own, so the plan grows with the
+// square of a composition's depth, and so do the routes of bases nested along
+// it (GitHub #2206).
+func typePlans(
+	types ir.TypeRegistry, facts *irfacts.DocumentFacts, pp Policy,
+) (map[ir.TypeID]TypePlan, []ir.Diagnostic) {
 	if len(types) == 0 {
-		return nil
+		return nil, nil
 	}
 	plans := make(map[ir.TypeID]TypePlan, len(types))
 	chains := newBaseChains(types)
-	for id, td := range types {
-		plans[id] = planType(types, chains, id, td, pp)
+	var diags []ir.Diagnostic
+	for _, id := range slices.Sorted(maps.Keys(types)) {
+		typePlan, found := planType(types, facts, chains, id, pp)
+		plans[id] = typePlan
+		diags = append(diags, found...)
 	}
-	return plans
+	return plans, diags
 }
 
-// planType returns the plan of td, the type types holds at id, under pp: the
-// zero TypePlan for a nil one.
-func planType(types ir.TypeRegistry, chains *baseChains, id ir.TypeID, td ir.TypeDef, pp Policy) TypePlan {
+// planType returns the plan of the type types holds at id under pp, the zero
+// TypePlan for a nil one, and what planning it finds.
+func planType(
+	types ir.TypeRegistry, facts *irfacts.DocumentFacts, chains *baseChains, id ir.TypeID, pp Policy,
+) (TypePlan, []ir.Diagnostic) {
+	td := types[id]
 	if ir.IsNilTypeDef(td) {
-		return TypePlan{}
+		return TypePlan{}, nil
 	}
 	typePlan := TypePlan{Sensitive: chains.sensitive(id), Alias: chains.alias(id)}
+	var diags []ir.Diagnostic
 	switch t := td.(type) {
 	case *ir.Model:
-		typePlan.flatten(ir.FlattenedProperties(types, id))
+		flat := ir.FlattenedProperties(types, id)
+		typePlan.flatten(flat)
+		typePlan.Discrim, diags = hierarchyDiscrim(types, facts, t, flat)
 		// A model narrowing a union is open where its union is: not read yet,
 		// landing with Composed.
 		typePlan.Open = baseOpen(t, pp)
 	case *ir.Union:
 		typePlan.Union = unionShape(t)
+		typePlan.Discrim, diags = unionDiscrim(types, t)
 		typePlan.Open = unionOpen(t, pp)
 		typePlan.Strict = typePlan.Union == UnionOneOf && pp.StrictExclusive
 	case *ir.Enum:
@@ -112,7 +136,7 @@ func planType(types ir.TypeRegistry, chains *baseChains, id ir.TypeID, td ir.Typ
 		// No other kind composes members, has a wire shape to classify or
 		// keeps a value it does not list.
 	}
-	return typePlan
+	return typePlan, diags
 }
 
 // flatten fills the fields read off flat, the flattening of p's model: its

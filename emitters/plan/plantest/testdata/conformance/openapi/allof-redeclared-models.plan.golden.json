@@ -340,6 +340,13 @@
       ]
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "Dog": "type/openapi/components/schemas/Dog"
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/kind"
       ],

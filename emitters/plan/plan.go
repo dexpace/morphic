@@ -51,21 +51,24 @@ func (p *Plan) MarshalJSONTo(enc *jsontext.Encoder) error {
 // plans as an empty one. The findings are the plan's own, coded
 // emitters/plan/…, and the document's are left where they are.
 //
-// facts are doc's derived facts. No field built so far reads them: the
-// shapes a document exercises a type in and the groups reaching it, which
-// follow, do.
-func Build(doc *ir.Document, _ *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.Diagnostic) {
+// facts are doc's derived facts, which give a polymorphic base's
+// discriminator its subtypes; a nil facts is derived from doc.
+func Build(doc *ir.Document, facts *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.Diagnostic) {
 	if doc == nil {
 		doc = &ir.Document{}
 	}
-	built := &Plan{Types: typePlans(doc.Types, pp), Policy: pp}
+	if facts == nil {
+		facts = irfacts.New(doc)
+	}
+	types, diags := typePlans(doc.Types, facts, pp)
+	built := &Plan{Types: types, Policy: pp}
 
 	version, err := versionOf(doc, pp)
 	if err != nil {
-		return built, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, codeUnencodable,
+		return built, append(diags, ir.NewDiagnostic(ir.SeverityError, codeUnencodable,
 			fmt.Sprintf("the document has no canonical JSON, so its plan has no version: %v", err),
-			ir.Provenance{Source: ir.NoSource})}
+			ir.Provenance{Source: ir.NoSource}))
 	}
 	built.Version = version
-	return built, nil
+	return built, diags
 }

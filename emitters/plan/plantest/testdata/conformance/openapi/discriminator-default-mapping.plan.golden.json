@@ -19,6 +19,15 @@
       ]
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "Dog": "type/openapi/components/schemas/Dog",
+          "cat": "type/openapi/components/schemas/Cat"
+        },
+        "locator": "property",
+        "wireKey": "petType",
+        "default": "type/openapi/components/schemas/Dog"
+      },
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/petType"
       ],

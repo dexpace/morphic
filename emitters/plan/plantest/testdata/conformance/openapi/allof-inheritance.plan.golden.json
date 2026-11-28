@@ -28,6 +28,14 @@
       ]
     },
     "type/openapi/components/schemas/Root": {
+      "discrim": {
+        "mapping": {
+          "Leaf": "type/openapi/components/schemas/Leaf",
+          "Mid": "type/openapi/components/schemas/Mid"
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Root/properties/kind"
       ]

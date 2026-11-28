@@ -94,21 +94,26 @@ func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 	t.Parallel()
 	discriminator := &ir.Discriminator{PropertyName: "kind"}
+	// routed is what the plan reads off discriminator over no variant.
+	routed := &plan.DiscrimFacts{Locator: plan.DiscrimPropertyName, WireKey: "kind"}
 	tests := []struct {
-		name       string
-		union      ir.Union
-		want       plan.UnionShape
-		wantStrict bool
+		name        string
+		union       ir.Union
+		want        plan.UnionShape
+		wantDiscrim *plan.DiscrimFacts
+		wantStrict  bool
 	}{
-		{"exactly one variant holds a value", ir.Union{Exclusive: true}, plan.UnionOneOf, true},
-		{"one or more variants hold a value", ir.Union{}, plan.UnionAnyOf, false},
+		{"exactly one variant holds a value", ir.Union{Exclusive: true}, plan.UnionOneOf, nil, true},
+		{"one or more variants hold a value", ir.Union{}, plan.UnionAnyOf, nil, false},
 		{"a tag the discriminator locates", ir.Union{WireTagged: true, Discriminator: discriminator},
-			plan.UnionDiscriminated, false},
+			plan.UnionDiscriminated, routed, false},
 		{"a tag on an exclusive union", ir.Union{WireTagged: true, Exclusive: true, Discriminator: discriminator},
-			plan.UnionDiscriminated, false},
-		{"the one key of an object", ir.Union{WireTagged: true}, plan.UnionKeyTagged, false},
-		{"an exclusive union tagged by its key", ir.Union{WireTagged: true, Exclusive: true}, plan.UnionKeyTagged, false},
-		{"a discriminator on a payload naming no variant", ir.Union{Discriminator: discriminator}, plan.UnionAnyOf, false},
+			plan.UnionDiscriminated, routed, false},
+		{"the one key of an object", ir.Union{WireTagged: true}, plan.UnionKeyTagged, nil, false},
+		{"an exclusive union tagged by its key", ir.Union{WireTagged: true, Exclusive: true},
+			plan.UnionKeyTagged, nil, false},
+		{"a discriminator on a payload naming no variant", ir.Union{Discriminator: discriminator},
+			plan.UnionAnyOf, nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -119,11 +124,12 @@ func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 			doc := irtest.DocOf(&union)
 
 			lenient := build(t, doc, plan.Policy{}).Types[union.ID]
-			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want}, lenient),
+			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Discrim: tt.wantDiscrim}, lenient),
 				"with StrictExclusive off no union is strict")
 
 			strict := build(t, doc, plan.Policy{StrictExclusive: true}).Types[union.ID]
-			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Strict: tt.wantStrict}, strict))
+			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Discrim: tt.wantDiscrim, Strict: tt.wantStrict},
+				strict))
 		})
 	}
 }

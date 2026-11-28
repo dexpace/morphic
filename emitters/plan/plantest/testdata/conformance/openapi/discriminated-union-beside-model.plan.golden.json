@@ -8,7 +8,15 @@
     "type/composed/components/schemas/Bird/oneOf": {
       "union": "one_of"
     },
-    "type/openapi/components/schemas/Animal": {},
+    "type/openapi/components/schemas/Animal": {
+      "discrim": {
+        "mapping": {
+          "bird": "type/openapi/components/schemas/Bird"
+        },
+        "locator": "property_name",
+        "wireKey": "kind"
+      }
+    },
     "type/openapi/components/schemas/Bird": {
       "unflattened": [
         "type/composed/components/schemas/Bird/oneOf"
@@ -53,9 +61,26 @@
     },
     "type/openapi/components/schemas/Mixed": {},
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "Dog": "type/openapi/components/schemas/Dog",
+          "cat": "type/openapi/components/schemas/Cat"
+        },
+        "locator": "property_name",
+        "wireKey": "kind"
+      },
       "union": "discriminated"
     },
-    "type/openapi/components/schemas/Shape": {},
+    "type/openapi/components/schemas/Shape": {
+      "discrim": {
+        "mapping": {
+          "Square": "type/openapi/components/schemas/Square",
+          "circle": "type/openapi/components/schemas/Circle"
+        },
+        "locator": "property_name",
+        "wireKey": "kind"
+      }
+    },
     "type/openapi/components/schemas/Square": {
       "flattened": [
         "property/openapi/components/schemas/Square/allOf/1/properties/side"
