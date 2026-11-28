@@ -211,6 +211,20 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `gh issue list --state all --limit 1000 --search "<file, symbol or construct>"`; the
   PR body cites each hit.
 
+## Keep in the change a reversal its own new check forces
+`forced-reversal-stays-in-the-change`
+
+- **Rule.** When a change's own new check or invariant forces a recorded decision to flip, and the
+  record asks for no change of its own, the reversal stays in that change, not in a prerequisite
+  PR, cited at the line it changes, in the PR body and, for the IR, in its version-history entry,
+  each with a reason that stands on its own. Any other departure takes
+  `references/commits-and-prs.md#follow-recorded-decisions`.
+- **Why.** #2149's new reachability check forced it to move a schema keyed `""` out of the anonymous
+  namespace #405 had recorded; a review asked for that reversal as a prerequisite PR, and the
+  maintainer kept it in #2149 (#2149).
+- **Probe.** `gh pr view <N> --json body --jq .body | grep -n '#<decision>'` and
+  `git grep -n '#<decision>'` each print the cited reversal.
+
 ## Commit only the files you meant to
 `commit-only-what-you-meant`
 

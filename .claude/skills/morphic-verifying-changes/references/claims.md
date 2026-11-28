@@ -26,7 +26,8 @@ to read — and to execute outside the case its author measured.
 - **Why.** At #1502's `a73e1f6a7`, "grows by `KotlinEnum`" passed round 1 because `KotlinEnum`
   appeared, while diffing headers showed five added names: `KotlinEnum`, `KotlinEnumCompanion`,
   `KotlinComparable`, `KotlinArray` and `KotlinIterator` (#1773).
-- **Probe.** `comm -13` over the sorted sets before and after; every printed line matches the
+- **Probe.** `LC_ALL=C comm -13` over the sets before and after, each sorted by `LC_ALL=C sort`
+  (`references/toolchain.md#one-collation-for-sort-and-comm`); every printed line matches the
   claim.
 
 ## Run the input a comment describes before saying what it does
@@ -223,11 +224,12 @@ to read — and to execute outside the case its author measured.
 `figure-names-its-conditions`
 
 - **Rule.** A figure a PR body or commit quotes from a measurement names its budget and method,
-  such as a fuzz time, a minimization bound or a profile's window, and a wall-clock figure also its
-  machine, core count and load, so a later check can agree or disagree with it.
+  such as a fuzz time, a minimization bound or a profile's window, the revision each side of it was
+  measured at, and a wall-clock figure also its machine, core count and load, so a later check can
+  agree or disagree with it.
 - **Why.** A body gave a fuzz search's minutes with no machine or load, and another a share of time
   spent minimizing that read 77%, 90% and 84% at budgets of 5, 45 and 90 seconds (#1382, #1385,
-  #1607).
+  #1607); #1940's body mixed figures measured against different bases (#1918, #1940).
 - **Probe.** Each figure in the body names those beside it; `uptime` and `nproc`, or
   `sysctl -n hw.ncpu`, give the last two.
 

@@ -46,12 +46,14 @@ merge or a sweep takes a worktree or copy of its own, and nothing writes to the 
 from. Every later read of `main` is `$main`, and of the base `$b`
 (`references/rounds.md#pin-main-for-the-round`). A
 round's report names what it reviewed, the merged commit among it, each delegated reader's minutes
-and tool calls from its hand-back, each angle's matrix, then the findings ranked, and is kept by
-`references/later-rounds.md#keep-each-rounds-report`:
+and tool calls from its hand-back, each reader's skills
+(`references/readers.md#round-names-loaded-skills`), each angle's matrix, then the findings ranked,
+and is kept by `references/later-rounds.md#keep-each-rounds-report`:
 
 ```text
 Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
 reader <minutes> minutes, <tool calls> tool calls
+skills <reader>: <each skill it loaded>
 <angle>: <cells run> run, <cells settled> settled (<reason each>), findings <refs>
 unreached <cells>; reopened <cells>, each with what its clearance lacked
 narrowed: <round before>, <its findings>, <each commit since, its finding, why it acts as before>

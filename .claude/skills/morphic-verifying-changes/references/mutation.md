@@ -337,3 +337,14 @@ yourself. These rules are the ways that reading still lies.
   exactly that case.
 - **Why.** An entry can be guarded only by accident: an unrelated fixture that happened to fail.
   Tidying the fixture removes the guard without any test noticing (#544).
+
+## Plant a mismatched pair where one value widens to a set
+`mismatched-pair-after-widening`
+
+- **Rule.** When a change widens one value to a set, such as a parameter to the parameters, list
+  the checks that read the old value, plant an input where they now read different members, and run
+  it on `main` and the head: two checks that compared one value need no longer agree.
+- **Why.** #1199 widened an archtest check from a helper's first parameter to all of them, and
+  `a.Helper(); t.Fatal(1)` passed on the head where `main` reported it, while all 75 plants, each a
+  matched pair, reddened (#1199).
+- **Probe.** The mismatched input's verdict on both builds, side by side.

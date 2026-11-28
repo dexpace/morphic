@@ -58,5 +58,5 @@ the options.
 - `references/checkers.md`: scanners, lint and archtest rules that reach what they claim.
 - `references/mutation.md`: planting defects without fooling yourself.
 - `references/differentials.md`: controls, corpus sweeps and generated inputs.
-- `references/toolchain.md`: Go versions, caching, coverage, test output and port behaviour that
+- `references/toolchain.md`: Go versions, caching, coverage, test output, ports and shell tools that
   mislead probes.
