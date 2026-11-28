@@ -213,7 +213,8 @@ that none of them admits. The fallback is one more variant, `Unknown`, holding t
 target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
 [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its
 members in order and each number's text intact. It has no factory, since only a response produces
-one, and one a caller sends back goes out as it came. A closed union declares none.
+one, and one a caller sends back goes out as it came. A closed union declares none. T-22 holds
+this section.
 
 ## Discriminators
 

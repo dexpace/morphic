@@ -205,11 +205,13 @@ throughout these documents.
 22. **T-22 · Unknown variants** — on each wire shape and on a polymorphic base, a value no variant
     recognizes decodes to the fallback on an open union and re-encodes as the same JSON value, its
     members in order and each number's text intact; `Default` takes it first; a closed union refuses
-    it with a coded error, and a known tag over a body that does not match is an error on both;
-    turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
-    answer, once the IR has one, wins; a closed union only requests carry is `Open` as one a
-    response carries is, and a union, a polymorphic base and a narrowing model the IR marks
-    `InputOnly` each stay closed ([plan policy](../plan/policy.md), [unions](../refine/unions.md)).
+    it with a coded error, and a known tag over a body that does not match is an error on both; a
+    tag two subtypes carry, as `Kitten` composing a `Cat` that pins it, decodes as the one
+    recognition finds among them, and a value neither admits is a coded decode error; turning
+    `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared answer, once
+    the IR has one, wins; a closed union only requests carry is `Open` as one a response carries is,
+    and a union, a polymorphic base and a narrowing model the IR marks `InputOnly` each stay closed
+    ([plan policy](../plan/policy.md), [unions](../refine/unions.md)).
 23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
     model with a member named `error`, a union, a list and a primitive, beside a case with no body,
     a `4XX` range and a `default` beside a success, generates no error type and code that compiles
