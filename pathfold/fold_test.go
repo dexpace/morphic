@@ -174,6 +174,28 @@ func generateMarkHeavyStrings() []string {
 	return out
 }
 
+// TestDecomposeUncut_KeepsMarksOfOneClassInTheirOrder holds the order of marks
+// of one class past norm.NFD's cut: twenty above, each another rune, between
+// twelve below, which canonical order moves before them all.
+func TestDecomposeUncut_KeepsMarksOfOneClassInTheirOrder(t *testing.T) {
+	t.Parallel()
+	const above, below = 230, 220
+	aboveMarks := []rune("\u0300\u0301\u0302\u0303\u0304\u0305\u0306\u0307\u0308\u0309" +
+		"\u030a\u030b\u030c\u030d\u030e\u030f\u0310\u0311\u0312\u0313")
+	belowMarks := []rune("\u0316\u0317\u0318\u0319\u031c\u031d\u031e\u031f\u0320\u0323\u0324\u0325")
+	written := []rune{'b'}
+	for index, mark := range aboveMarks {
+		require.EqualValues(t, above, norm.NFD.PropertiesString(string(mark)).CCC(), "%U", mark)
+		written = append(written, mark)
+		if index < len(belowMarks) {
+			require.EqualValues(t, below, norm.NFD.PropertiesString(string(belowMarks[index])).CCC(), "%U", belowMarks[index])
+			written = append(written, belowMarks[index])
+		}
+	}
+	want := "b" + string(belowMarks) + string(aboveMarks)
+	assert.Equal(t, want, pathfold.DecomposeUncut(string(written)))
+}
+
 // TestFold_IsIdempotent holds Fold(Fold(r)) == Fold(r) for every valid Unicode
 // scalar value.
 func TestFold_IsIdempotent(t *testing.T) {
@@ -191,19 +213,24 @@ func TestFold_IsIdempotent(t *testing.T) {
 
 // TestFold_EveryCharacterEqualsItsGolden pins the fold of every assigned code
 // point against testdata/fold.golden.txt. Every committed entry must continue
-// to hold under -update, so a toolchain or x/text release may only extend the
-// golden with newly assigned code points.
+// to hold and to be rendered under -update, which otherwise leaves the file as
+// committed, so a toolchain or x/text release may only extend the golden with
+// newly assigned code points.
 func TestFold_EveryCharacterEqualsItsGolden(t *testing.T) {
 	t.Parallel()
 	goldenPath := filepath.Join("testdata", "fold.golden.txt")
-	checkCommittedFoldGolden(t, goldenPath)
-	irtest.CompareBytes(t, goldenPath, renderFoldGolden())
+	rendered := renderFoldGolden()
+	checkCommittedFoldGolden(t, goldenPath, rendered)
+	if t.Failed() {
+		t.Fatalf("leaving %s as committed", goldenPath)
+	}
+	irtest.CompareBytes(t, goldenPath, rendered)
 }
 
-// checkCommittedFoldGolden verifies that every line already committed in
-// goldenPath still holds under pathfold.Fold before CompareBytes compares or
-// rewrites the file.
-func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
+// checkCommittedFoldGolden verifies that every code point already committed in
+// goldenPath is in rendered and still folds as committed, before CompareBytes
+// compares or rewrites the file.
+func checkCommittedFoldGolden(t *testing.T, goldenPath string, rendered []byte) {
 	t.Helper()
 	raw, err := os.ReadFile(goldenPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -211,15 +238,34 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 	}
 	require.NoError(t, err)
 
+	renderedCodePoints := make([]bool, unicode.MaxRune+1)
+	readFoldGolden(t, "the rendered golden", rendered, func(r rune, _ string) { renderedCodePoints[r] = true })
+
 	const maxReported = 10
 	mismatches := 0
-	report := func(r rune, want, got string) {
+	report := func(format string, arguments ...any) {
 		mismatches++
 		if mismatches <= maxReported {
-			t.Errorf("committed fold for %04X changed: golden %q, got %q", r, want, got)
+			t.Errorf(format, arguments...)
 		}
 	}
+	readFoldGolden(t, goldenPath, raw, func(r rune, want string) {
+		if !renderedCodePoints[r] {
+			report("committed fold for %04X is no longer rendered", r)
+		}
+		if got := pathfold.Fold(string(r)); got != want {
+			report("committed fold for %04X changed: golden %q, got %q", r, want, got)
+		}
+	})
+	if mismatches > 0 {
+		t.Errorf("%d committed fold entries no longer hold in %s", mismatches, goldenPath)
+	}
+}
 
+// readFoldGolden calls visit with each code point the fold golden raw covers
+// and the fold it records for it; goldenPath names raw in messages.
+func readFoldGolden(t *testing.T, goldenPath string, raw []byte, visit func(r rune, want string)) {
+	t.Helper()
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
 	for lineNumber, line := range lines {
 		if lineNumber == 0 && strings.HasPrefix(line, "# ") {
@@ -233,10 +279,7 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 			endRune := parseHexRune(t, goldenPath, lineNumber+1, endText)
 			require.LessOrEqual(t, startRune, endRune, "%s:%d: inverted range %q", goldenPath, lineNumber+1, line)
 			for r := startRune; r <= endRune; r++ {
-				want := string(r)
-				if got := pathfold.Fold(want); got != want {
-					report(r, want, got)
-				}
+				visit(r, string(r))
 			}
 			continue
 		}
@@ -247,13 +290,7 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 		for _, field := range fields[1:] {
 			wantBuilder.WriteRune(parseHexRune(t, goldenPath, lineNumber+1, field))
 		}
-		want := wantBuilder.String()
-		if got := pathfold.Fold(string(inputRune)); got != want {
-			report(inputRune, want, got)
-		}
-	}
-	if mismatches > 0 {
-		t.Errorf("%d committed fold entries no longer hold in %s", mismatches, goldenPath)
+		visit(inputRune, wantBuilder.String())
 	}
 }
 
