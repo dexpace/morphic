@@ -94,13 +94,13 @@ func dependencyIn(members string) string {
 
 func TestDecode_Refuses(t *testing.T) {
 	t.Parallel()
-	whole := `"module":"m","minVersion":"1"`
+	fullDependency := `"module":"m","minVersion":"1"`
 	rows := slices.Concat([]refusal{
 		{name: "an unknown member at the top", raw: `{"rows":{}}`, twin: `{}`, want: json.ErrUnknownName},
 		{name: "an unknown member in a row", raw: rowIn(`"type":"s","kind":"x"`), twin: rowIn(`"type":"s"`),
 			want: json.ErrUnknownName},
-		{name: "an unknown member in a dependency", raw: dependencyIn(whole + `,"scope":"x"`),
-			twin: dependencyIn(whole), want: json.ErrUnknownName},
+		{name: "an unknown member in a dependency", raw: dependencyIn(fullDependency + `,"scope":"x"`),
+			twin: dependencyIn(fullDependency), want: json.ErrUnknownName},
 		{name: "a member name in another case", raw: `{"Primitives":{}}`, twin: `{"primitives":{}}`,
 			want: json.ErrUnknownName},
 		{name: "a row member in another case", raw: rowIn(`"Type":"s"`), twin: rowIn(`"type":"s"`),
@@ -132,9 +132,9 @@ func TestDecode_Refuses(t *testing.T) {
 		{name: "a null dependency", raw: `{"primitives":{"decimal":{"":{"type":"d","dependency":null}}}}`,
 			twin: `{"primitives":{"decimal":{"":{"type":"d"}}}}`,
 			want: options.ErrNullMember, contains: nullAt("/primitives/decimal//dependency")},
-		{name: "a null module", raw: dependencyIn(`"module":null,"minVersion":"1"`), twin: dependencyIn(whole),
+		{name: "a null module", raw: dependencyIn(`"module":null,"minVersion":"1"`), twin: dependencyIn(fullDependency),
 			want: options.ErrNullMember, contains: nullAt("/primitives/decimal//dependency/module")},
-	}, ownRefusals(whole), malformedTables())
+	}, ownRefusals(fullDependency), malformedTables())
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -158,7 +158,7 @@ func TestDecode_Refuses(t *testing.T) {
 
 // ownRefusals are the rows typemap refuses by its own rules rather than by
 // options.DecodeLayer's.
-func ownRefusals(whole string) []refusal {
+func ownRefusals(fullDependency string) []refusal {
 	fault := typemap.ErrInvalidTable
 	return []refusal{
 		{name: "an undeclared kind", raw: `{"primitives":{"int65":{"":{"type":"x"}}}}`,
@@ -179,16 +179,16 @@ func ownRefusals(whole string) []refusal {
 		{name: "a slash in an encoding name", raw: `{"primitives":{"string":{"A.B.C.D/N":{"type":""}}}}`,
 			twin: `{"primitives":{"string":{"A.B.C.D/N":{"type":"netip.Prefix"}}}}`, want: fault,
 			contains: faultAt("/primitives/string/A.B.C.D~1N/type")},
-		{name: "a dependency with no minimum version", raw: dependencyIn(`"module":"m"`), twin: dependencyIn(whole),
+		{name: "a dependency with no minimum version", raw: dependencyIn(`"module":"m"`), twin: dependencyIn(fullDependency),
 			want: fault, contains: faultAt("/primitives/decimal//dependency")},
-		{name: "a dependency with no module", raw: dependencyIn(`"minVersion":"1"`), twin: dependencyIn(whole),
+		{name: "a dependency with no module", raw: dependencyIn(`"minVersion":"1"`), twin: dependencyIn(fullDependency),
 			want: fault, contains: faultAt("/primitives/decimal//dependency")},
 		{name: "a dependency with an empty module", raw: dependencyIn(`"module":"","minVersion":"1"`),
-			twin: dependencyIn(whole), want: fault, contains: faultAt("/primitives/decimal//dependency")},
-		{name: "an empty dependency", raw: dependencyIn(``), twin: dependencyIn(whole),
+			twin: dependencyIn(fullDependency), want: fault, contains: faultAt("/primitives/decimal//dependency")},
+		{name: "an empty dependency", raw: dependencyIn(``), twin: dependencyIn(fullDependency),
 			want: fault, contains: faultAt("/primitives/decimal//dependency")},
 		{name: "an external's half dependency", raw: `{"externals":{"x":{"type":"X","dependency":{"module":"m"}}}}`,
-			twin: `{"externals":{"x":{"type":"X","dependency":{` + whole + `}}}}`, want: fault,
+			twin: `{"externals":{"x":{"type":"X","dependency":{` + fullDependency + `}}}}`, want: fault,
 			contains: faultAt("/externals/x/dependency")},
 	}
 }
@@ -201,7 +201,8 @@ func malformedTables() []refusal {
 		{name: "an array", raw: `[]`, twin: `{}`},
 		{name: "a string", raw: `"x"`, twin: `{}`},
 		{name: "trailing data", raw: `{} {}`, twin: `{}`},
-		{name: "a key holding invalid UTF-8", raw: "{\"primitives\":{\"\xff\":{}}}", twin: `{"primitives":{"string":{}}}`},
+		{name: "an encoding name holding invalid UTF-8", raw: "{\"primitives\":{\"string\":{\"\xff\":{\"type\":\"s\"}}}}",
+			twin: `{"primitives":{"string":{"x":{"type":"s"}}}}`},
 		{name: "a type that is a number", raw: rowIn(`"type":1`), twin: rowIn(`"type":"s"`)},
 		{name: "imports that are an array", raw: rowIn(`"type":"s","imports":[]`), twin: rowIn(`"type":"s","imports":{}`)},
 	}

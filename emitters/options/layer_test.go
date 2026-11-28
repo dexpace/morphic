@@ -180,14 +180,14 @@ func (*undecodable) UnmarshalJSON([]byte) error { return errUndecodable }
 func TestDecodeLayer_RefusesDefaultsItCannotCopy(t *testing.T) {
 	t.Parallel()
 
-	encoded, err := options.DecodeLayer(unencodable{}, []byte(`{}`))
+	nilChannel, err := options.DecodeLayer(unencodable{}, []byte(`{}`))
 	require.NoError(t, err, "a nil channel is omitted and copies")
-	assert.Nil(t, encoded.Channel)
+	assert.Nil(t, nilChannel.Channel)
 
-	unencoded, err := options.DecodeLayer(unencodable{Channel: make(chan int)}, []byte(`{}`))
+	openChannel, err := options.DecodeLayer(unencodable{Channel: make(chan int)}, []byte(`{}`))
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "copy defaults")
-	assert.Nil(t, unencoded.Channel)
+	assert.Nil(t, openChannel.Channel)
 
 	_, err = options.DecodeLayer(undecodable{}, []byte(`{}`))
 	require.ErrorIs(t, err, errUndecodable)
