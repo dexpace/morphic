@@ -13,12 +13,13 @@ type Encoding struct {
 	WireType ir.PrimitiveKind
 }
 
-// Found says how Lookup found its row.
+// Found says how Lookup found its row. The zero Found is none, which a miss
+// returns.
 type Found uint8
 
 const (
 	// Exact is the key's own row.
-	Exact Found = iota
+	Exact Found = iota + 1
 	// TravelsAs is the default row of the primitive the value travels as, where
 	// that is not the key's primitive.
 	TravelsAs
@@ -55,7 +56,7 @@ func Lookup(table Table, primitive ir.PrimitiveKind, encoding Encoding) (Row, Fo
 	travelsAs := travelsAsPrimitive(key.Primitive, encoding)
 	row, ok := table.Primitives[travelsAs][""]
 	if !ok {
-		return Row{}, Exact, false
+		return Row{}, 0, false
 	}
 	if travelsAs != key.Primitive {
 		return copyRow(row), TravelsAs, true

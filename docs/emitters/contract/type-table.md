@@ -56,7 +56,7 @@ type Encoding struct {
 
 // Found says how Lookup found its row: under the key's own entry (Exact), under the default row of
 // the primitive the value travels as where that is not the key's primitive (TravelsAs), or under
-// the key primitive's own default row (Primitive).
+// the key primitive's own default row (Primitive). The zero Found is none, which a miss returns.
 type Found uint8 // Exact | TravelsAs | Primitive
 
 // Key is the key a value of primitive is typed by under encoding: a string whose encoding has a

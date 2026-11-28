@@ -109,6 +109,7 @@ func TestLookup_FindsTheRowAndSaysHowItWasFound(t *testing.T) {
 			row, found, ok := typemap.Lookup(tc.table(t), tc.primitive, tc.encoding)
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.wantFound, found)
+			assert.Equal(t, tc.wantOK, found != 0, "the zero Found is none, which only a miss returns")
 			assert.Empty(t, cmp.Diff(typemap.Row{Type: tc.wantType}, row))
 		})
 	}
@@ -118,7 +119,7 @@ func TestLookup_FindsTheRowAndSaysHowItWasFound(t *testing.T) {
 // the IR gives no meaning, which pin that Lookup answers them, not that the
 // answer is right.
 func lookupCases() []lookupCase {
-	exact, travelsAs, primitive := typemap.Exact, typemap.TravelsAs, typemap.Primitive
+	exact, travelsAs, primitive, none := typemap.Exact, typemap.TravelsAs, typemap.Primitive, typemap.Found(0)
 	uuidDefaultOnly := func(*testing.T) typemap.Table {
 		return typemap.Table{Primitives: map[ir.PrimitiveKind]map[string]typemap.Row{ir.PrimitiveUUID: {"": {Type: "U"}}}}
 	}
@@ -149,16 +150,16 @@ func lookupCases() []lookupCase {
 		{"14 no meaning: a wire type equal to the primitive", fullTable, ir.PrimitiveBytes, encoding("weird", ir.PrimitiveBytes), "default bytes", primitive, true},
 		{"15 no meaning: an int64 under a string wire type with no name", fullTable, ir.PrimitiveInt64, encoding("", ir.PrimitiveString), "default int64", exact, true},
 		{"15 no meaning: a string wire type with no name", fullTable, ir.PrimitiveString, encoding("", ir.PrimitiveString), "default string", exact, true},
-		{"16 no third probe", uuidDefaultOnly, ir.PrimitiveUUID, encoding("hex", ""), "", exact, false},
+		{"16 no third probe", uuidDefaultOnly, ir.PrimitiveUUID, encoding("hex", ""), "", none, false},
 		{"17 a keyed row alone", uuidHexOnly, ir.PrimitiveUUID, encoding("hex", ""), "H", exact, true},
-		{"18 an undeclared kind", fullTable, "int65", typemap.Encoding{}, "", exact, false},
-		{"18 an undeclared wire type", fullTable, ir.PrimitiveUUID, encoding("x", "int65"), "", exact, false},
+		{"18 an undeclared kind", fullTable, "int65", typemap.Encoding{}, "", none, false},
+		{"18 an undeclared wire type", fullTable, ir.PrimitiveUUID, encoding("x", "int65"), "", none, false},
 		{"19 keys compare exactly, as text", fullTable, ir.PrimitiveBytes, encoding("Base64URL", ir.PrimitiveString), "default string", travelsAs, true},
 		{"19 keys compare exactly", fullTable, ir.PrimitiveBytes, encoding("Base64URL", ""), "default string", travelsAs, true},
 		{"20 a slash in an encoding name", fullTable, ir.PrimitiveString, encoding("A.B.C.D/N", ""), "string/A.B.C.D/N", exact, true},
-		{"21 an empty table", empty, ir.PrimitiveInt64, typemap.Encoding{}, "", exact, false},
+		{"21 an empty table", empty, ir.PrimitiveInt64, typemap.Encoding{}, "", none, false},
 		{"22 no meaning: a string under another wire type", fullTable, ir.PrimitiveString, encoding("base32", ir.PrimitiveInt64), "string/base32", exact, true},
-		{"23 an undeclared kind under a name", fullTable, "int65", encoding("x", ""), "", exact, false},
+		{"23 an undeclared kind under a name", fullTable, "int65", encoding("x", ""), "", none, false},
 	}
 }
 
