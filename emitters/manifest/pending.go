@@ -27,7 +27,8 @@ type Pending struct {
 
 // DecodePending reads a JSON pending manifest, checking [Schema] before strict
 // decoding so a newer pending manifest returns [ErrNewerSchema] even with
-// unknown members. Returned digests and TemporaryFiles are sorted.
+// unknown members. Returned digests and TemporaryFiles are sorted. A JSON
+// error is returned whole; a caller quoting it bounds it (barrier.Line).
 func DecodePending(raw []byte) (Pending, error) {
 	if err := checkSchema(raw, "pending manifest"); err != nil {
 		return Pending{}, err

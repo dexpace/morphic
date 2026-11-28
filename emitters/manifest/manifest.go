@@ -70,7 +70,8 @@ type File struct {
 
 // Decode reads a canonical or unordered JSON manifest, checking [Schema] before
 // strict decoding so a newer manifest returns [ErrNewerSchema] even when it
-// carries unknown members. Returned Files are sorted by Path.
+// carries unknown members. Returned Files are sorted by Path. A JSON error is
+// returned whole; a caller quoting it bounds it (barrier.Line).
 func Decode(raw []byte) (Manifest, error) {
 	if err := checkSchema(raw, "manifest"); err != nil {
 		return Manifest{}, err

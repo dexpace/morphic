@@ -211,12 +211,12 @@ type Entry struct {
   shipped. A manifest whose `Target` is another target's is an error `engine/manifest-foreign`,
   and nothing is written: the root is another generation's. A manifest whose bytes are no manifest
   of any `Schema`, or a directory or a link at its path, is an error `engine/manifest-unreadable`
-  naming the path, and nothing is written, since what it held cannot be read and a generation run
-  without it would treat the root as a first one; a read the disk fails is a Go error, as any I/O
-  is. A pending manifest states its `Schema` and `Target` as the manifest does
-  ([below](#every-write-is-planned-before-the-verdict)) and is refused by each rule the same way,
-  so a root where another target's first generation was cut short is refused, and none of that
-  target's files is pruned.
+  naming the path and quoting why on one bounded line (`barrier.Line`), and nothing is written,
+  since what it held cannot be read and a generation run without it would treat the root as a first
+  one; a read the disk fails is a Go error, as any I/O is. A pending manifest states its `Schema`
+  and `Target` as the manifest does ([below](#every-write-is-planned-before-the-verdict)) and is
+  refused by each rule the same way, so a root where another target's first generation was cut short
+  is refused, and none of that target's files is pruned.
 
 ## A file is judged by its digest
 
