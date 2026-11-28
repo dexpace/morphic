@@ -22,7 +22,9 @@ type TypePlan struct {
 	Deprecated map[ir.PropertyID]*ir.Deprecation `json:"deprecated,omitempty"`
 	// Discrim is the discriminator of a discriminated union or of the model
 	// holding one, every route the IR gives it written out as type IDs; nil
-	// for any other type, a subtype holding none among them.
+	// for any other type, a subtype holding none among them, and where no one
+	// locator places the tag, which the plan reports as
+	// emitters/plan/discriminator-unlocated.
 	Discrim *DiscrimFacts `json:"discrim,omitzero"`
 	// Union is a union's wire shape, read off its Exclusive, WireTagged and
 	// Discriminator together; "" = not a union.

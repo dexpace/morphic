@@ -68,8 +68,9 @@ const (
 )
 
 // unionDiscrim returns the discriminator facts of union, nil unless its
-// shape is discriminated: its routes are the entries of the IR's Mapping, or,
-// where that holds none, each variant under the source name of its type
+// shape is discriminated and one locator places its tag: its routes are the
+// entries of the IR's Mapping, or, where that holds none, each variant under
+// the source name of its type
 // (docs/emitters/refine/unions.md#the-tag-a-variants-value-carries), and
 // what it finds.
 func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.Diagnostic) {
@@ -104,8 +105,9 @@ func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.D
 }
 
 // hierarchyDiscrim returns the discriminator facts of model, whose flattening
-// is flat, nil unless it holds a discriminator: its routes are its Mapping's
-// entries and values, those its subtypes' DiscriminatorValue gives it
+// is flat, nil unless it holds a discriminator one locator places: its routes
+// are its Mapping's entries and values, those its subtypes'
+// DiscriminatorValue gives it
 // (docs/emitters/plan/types.md#a-discriminators-routes), and what it finds.
 func hierarchyDiscrim(model *ir.Model, flat ir.Flattening, values []valueRoute) (*DiscrimFacts, []ir.Diagnostic) {
 	discriminator := model.Discriminator
