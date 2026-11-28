@@ -82,19 +82,19 @@ func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 	})
 
 	partitions := make(map[string][][]int, len(sweeps))
-	allSweepsOK := true
+	allSweepsPassed := true
 	for _, sweep := range sweeps {
 		passed := t.Run(sweep.name, func(t *testing.T) {
-			rec, found := record.sweeps[sweep.name]
+			recordedSweep, found := record.sweeps[sweep.name]
 			require.True(t, found, "APFS record %s lacks sweep %q", recordPath, sweep.name)
-			partitions[sweep.name] = verifySweepAgainstRecord(t, sweep, rec, record.apart[sweep.name])
+			partitions[sweep.name] = verifySweepAgainstRecord(t, sweep, recordedSweep, record.apart[sweep.name])
 		})
 		if !passed {
-			allSweepsOK = false
+			allSweepsPassed = false
 		}
 	}
 
-	if allSweepsOK {
+	if allSweepsPassed {
 		t.Run("weaker folds", func(t *testing.T) {
 			checkWeakerFoldsSplitFiles(t, sweeps, partitions)
 		})
@@ -127,17 +127,17 @@ func generateCharacterSweep() []string {
 		if !utf8.ValidRune(r) || r == '/' || unicode.Is(unicode.Cn, r) || unicode.Is(unicode.Co, r) {
 			continue
 		}
-		ch := string(r)
+		character := string(r)
 		forms := [9]string{
-			ch,
-			norm.NFC.String(ch),
-			norm.NFD.String(ch),
-			norm.NFKC.String(ch),
-			norm.NFKD.String(ch),
-			upperCaser.String(ch),
-			lowerCaser.String(ch),
-			titleCaser.String(ch),
-			foldCaser.String(ch),
+			character,
+			norm.NFC.String(character),
+			norm.NFD.String(character),
+			norm.NFKC.String(character),
+			norm.NFKD.String(character),
+			upperCaser.String(character),
+			lowerCaser.String(character),
+			titleCaser.String(character),
+			foldCaser.String(character),
 		}
 		for _, form := range forms {
 			if strings.ContainsAny(form, "/\x00") {
@@ -160,11 +160,11 @@ func generateSequenceSweep() []string {
 		if !utf8.ValidRune(r) || r == '/' || unicode.Is(unicode.Cn, r) || unicode.Is(unicode.Co, r) {
 			continue
 		}
-		ch := string(r)
-		if foldCaser.String(ch) != ch ||
-			norm.NFD.String(ch) != ch ||
-			norm.NFC.String(ch) != ch ||
-			norm.NFD.PropertiesString(ch).CCC() != 0 {
+		character := string(r)
+		if foldCaser.String(character) != character ||
+			norm.NFD.String(character) != character ||
+			norm.NFC.String(character) != character ||
+			norm.NFD.PropertiesString(character).CCC() != 0 {
 			alphabet = append(alphabet, r)
 		}
 	}
@@ -174,26 +174,26 @@ func generateSequenceSweep() []string {
 		maxBytes = 255
 	)
 	source := rand.NewPCG(2223, 52)
-	alphaLen := uint64(len(alphabet))
+	alphabetLength := uint64(len(alphabet))
 	out := make([]string, 0, 100_000)
 
-	var baseBuf strings.Builder
+	var baseBuilder strings.Builder
 	for range draws {
 		length := 1 + source.Uint64()%4
-		baseBuf.Reset()
+		baseBuilder.Reset()
 		for range length {
-			baseBuf.WriteRune(alphabet[source.Uint64()%alphaLen])
+			baseBuilder.WriteRune(alphabet[source.Uint64()%alphabetLength])
 		}
-		base := baseBuf.String()
-		nfdBase := norm.NFD.String(base)
+		base := baseBuilder.String()
+		decomposedBase := norm.NFD.String(base)
 		forms := [9]string{
 			base,
 			norm.NFC.String(base),
-			nfdBase,
+			decomposedBase,
 			upperCaser.String(base),
 			lowerCaser.String(base),
 			foldCaser.String(base),
-			reverseMarks(nfdBase),
+			reverseMarks(decomposedBase),
 			reverseMarks(base),
 			decomposeEachRuneAlone(base),
 		}
@@ -242,7 +242,7 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	out.WriteString("# which names APFS made one file, for TestFold_JoinsWhatAPFSJoins; rewritten on macOS by -update\n")
 	fmt.Fprintf(&out, "tables %s\n", currentTablesLine())
 
-	var apartBuf bytes.Buffer
+	var apartBuffer bytes.Buffer
 	for _, sweep := range sweeps {
 		partition := sweepOnAPFS(t, sweep.names)
 		checkFoldNeverSplitsAPFSFiles(t, sweep.name, sweep.names, partition)
@@ -250,11 +250,11 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 		fmt.Fprintf(&out, "sweep %s names=%d files=%d partition=%s\n",
 			sweep.name, len(sweep.names), len(partition), digest)
 		for _, line := range buildApartLines(sweep.name, sweep.names, partition) {
-			apartBuf.WriteString(line)
-			apartBuf.WriteByte('\n')
+			apartBuffer.WriteString(line)
+			apartBuffer.WriteByte('\n')
 		}
 	}
-	out.Write(apartBuf.Bytes())
+	out.Write(apartBuffer.Bytes())
 	return out.Bytes()
 }
 
@@ -274,7 +274,7 @@ func assertCaseAndNormInsensitiveVolume(t *testing.T) {
 		secondPath := filepath.Join(dir, pair[1])
 		other, err := os.OpenFile(secondPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err == nil {
-			_ = other.Close()
+			require.NoError(t, other.Close())
 			t.Fatalf("APFS sweeps require a case- and normalization-insensitive volume: %q and %q created two files",
 				pair[0], pair[1])
 		}
@@ -288,16 +288,16 @@ func sweepOnAPFS(t *testing.T, names []string) [][]int {
 	groups := make(map[int][]int, len(names))
 	order := make([]int, 0, len(names))
 
-	for idx, name := range names {
+	for index, name := range names {
 		target := filepath.Join(dir, name)
 		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err == nil {
-			_, writeErr := file.WriteString(strconv.Itoa(idx))
+			_, writeErr := file.WriteString(strconv.Itoa(index))
 			closeErr := file.Close()
 			require.NoError(t, writeErr, "write index for %q", name)
 			require.NoError(t, closeErr, "close %q", name)
-			groups[idx] = []int{idx}
-			order = append(order, idx)
+			groups[index] = []int{index}
+			order = append(order, index)
 			continue
 		}
 		require.ErrorIs(t, err, fs.ErrExist, "create %q", name)
@@ -305,7 +305,7 @@ func sweepOnAPFS(t *testing.T, names []string) [][]int {
 		require.NoError(t, readErr, "read existing owner of %q", name)
 		owner, parseErr := strconv.Atoi(string(content))
 		require.NoError(t, parseErr, "parse owner index %q of %q", string(content), name)
-		groups[owner] = append(groups[owner], idx)
+		groups[owner] = append(groups[owner], index)
 	}
 
 	partition := make([][]int, 0, len(order))
@@ -321,12 +321,12 @@ func checkFoldNeverSplitsAPFSFiles(t *testing.T, sweepName string, names []strin
 	splits := 0
 	for _, group := range partition {
 		firstFold := pathfold.Fold(names[group[0]])
-		for _, idx := range group[1:] {
-			if gotFold := pathfold.Fold(names[idx]); gotFold != firstFold {
+		for _, index := range group[1:] {
+			if gotFold := pathfold.Fold(names[index]); gotFold != firstFold {
 				splits++
 				if splits <= maxReported {
 					t.Errorf("sweep %s: Fold splits APFS file %q (%q) from %q (%q)",
-						sweepName, names[group[0]], firstFold, names[idx], gotFold)
+						sweepName, names[group[0]], firstFold, names[index], gotFold)
 				}
 			}
 		}
@@ -340,8 +340,8 @@ func buildApartLines(sweepName string, names []string, partition [][]int) []stri
 	byFold := make(map[string][][]string, len(partition))
 	for _, group := range partition {
 		fileNames := make([]string, len(group))
-		for i, idx := range group {
-			fileNames[i] = names[idx]
+		for i, index := range group {
+			fileNames[i] = names[index]
 		}
 		folded := pathfold.Fold(fileNames[0])
 		byFold[folded] = append(byFold[folded], fileNames)
@@ -361,8 +361,8 @@ func buildApartLines(sweepName string, names []string, partition [][]int) []stri
 		})
 		var line strings.Builder
 		fmt.Fprintf(&line, "apart %s", sweepName)
-		for fileIdx, fileNames := range files {
-			if fileIdx > 0 {
+		for fileIndex, fileNames := range files {
+			if fileIndex > 0 {
 				line.WriteString(" |")
 			}
 			for _, name := range fileNames {
@@ -384,109 +384,111 @@ func buildApartLines(sweepName string, names []string, partition [][]int) []stri
 
 func partitionDigest(partition [][]int) string {
 	hasher := sha256.New()
-	var lineBuf []byte
+	var lineBuffer []byte
 	for _, group := range partition {
-		lineBuf = lineBuf[:0]
-		for i, idx := range group {
+		lineBuffer = lineBuffer[:0]
+		for i, index := range group {
 			if i > 0 {
-				lineBuf = append(lineBuf, ' ')
+				lineBuffer = append(lineBuffer, ' ')
 			}
-			lineBuf = strconv.AppendInt(lineBuf, int64(idx), 10)
+			lineBuffer = strconv.AppendInt(lineBuffer, int64(index), 10)
 		}
-		lineBuf = append(lineBuf, '\n')
-		_, _ = hasher.Write(lineBuf)
+		lineBuffer = append(lineBuffer, '\n')
+		hasher.Write(lineBuffer)
 	}
 	return fmt.Sprintf("sha256:%x", hasher.Sum(nil))
 }
 
 func parseAPFSRecord(t *testing.T, recordPath string, raw []byte) apfsRecord {
 	t.Helper()
-	rec := apfsRecord{
+	record := apfsRecord{
 		sweeps: make(map[string]sweepRecord),
 		apart:  make(map[string][][][]string),
 	}
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	for lineNo, line := range lines {
+	for lineNumber, line := range lines {
 		if line == "" || strings.HasPrefix(line, "# ") {
 			continue
 		}
 		kind, rest, ok := strings.Cut(line, " ")
-		require.True(t, ok, "%s:%d: malformed line %q", recordPath, lineNo+1, line)
+		require.True(t, ok, "%s:%d: malformed line %q", recordPath, lineNumber+1, line)
 		switch kind {
 		case "tables":
-			rec.tables = rest
+			record.tables = rest
 		case "sweep":
-			name, entry := parseSweepLine(t, recordPath, lineNo+1, rest)
-			rec.sweeps[name] = entry
+			name, entry := parseSweepLine(t, recordPath, lineNumber+1, rest)
+			record.sweeps[name] = entry
 		case "apart":
-			name, groups := parseApartLine(t, recordPath, lineNo+1, rest)
-			rec.apart[name] = append(rec.apart[name], groups)
+			name, groups := parseApartLine(t, recordPath, lineNumber+1, rest)
+			record.apart[name] = append(record.apart[name], groups)
 		default:
-			t.Fatalf("%s:%d: unknown record kind %q", recordPath, lineNo+1, kind)
+			t.Fatalf("%s:%d: unknown record kind %q", recordPath, lineNumber+1, kind)
 		}
 	}
-	return rec
+	return record
 }
 
-func parseSweepLine(t *testing.T, recordPath string, lineNo int, rest string) (string, sweepRecord) {
+func parseSweepLine(t *testing.T, recordPath string, lineNumber int, rest string) (string, sweepRecord) {
 	t.Helper()
 	fields := strings.Fields(rest)
-	require.Len(t, fields, 4, "%s:%d: malformed sweep line %q", recordPath, lineNo, rest)
+	require.Len(t, fields, 4, "%s:%d: malformed sweep line %q", recordPath, lineNumber, rest)
 	sweepName := fields[0]
 	namesText, hasNames := strings.CutPrefix(fields[1], "names=")
 	filesText, hasFiles := strings.CutPrefix(fields[2], "files=")
-	partText, hasPart := strings.CutPrefix(fields[3], "partition=")
-	require.True(t, hasNames && hasFiles && hasPart, "%s:%d: malformed sweep fields %q", recordPath, lineNo, rest)
+	partitionText, hasPartition := strings.CutPrefix(fields[3], "partition=")
+	require.True(t, hasNames && hasFiles && hasPartition, "%s:%d: malformed sweep fields %q", recordPath, lineNumber, rest)
 
 	nameCount, err := strconv.Atoi(namesText)
-	require.NoError(t, err, "%s:%d: invalid names count %q", recordPath, lineNo, namesText)
+	require.NoError(t, err, "%s:%d: invalid names count %q", recordPath, lineNumber, namesText)
 	fileCount, err := strconv.Atoi(filesText)
-	require.NoError(t, err, "%s:%d: invalid files count %q", recordPath, lineNo, filesText)
-	return sweepName, sweepRecord{names: nameCount, files: fileCount, partition: partText}
+	require.NoError(t, err, "%s:%d: invalid files count %q", recordPath, lineNumber, filesText)
+	return sweepName, sweepRecord{names: nameCount, files: fileCount, partition: partitionText}
 }
 
-func parseApartLine(t *testing.T, recordPath string, lineNo int, rest string) (string, [][]string) {
+func parseApartLine(t *testing.T, recordPath string, lineNumber int, rest string) (string, [][]string) {
 	t.Helper()
 	sweepName, body, ok := strings.Cut(rest, " ")
-	require.True(t, ok, "%s:%d: malformed apart line %q", recordPath, lineNo, rest)
+	require.True(t, ok, "%s:%d: malformed apart line %q", recordPath, lineNumber, rest)
 
 	var groups [][]string
 	var current []string
 	body = strings.TrimLeft(body, " ")
 	for body != "" {
 		if body[0] == '|' {
-			require.NotEmpty(t, current, "%s:%d: empty file group in apart line", recordPath, lineNo)
+			require.NotEmpty(t, current, "%s:%d: empty file group in apart line", recordPath, lineNumber)
 			groups = append(groups, current)
 			current = nil
 			body = strings.TrimLeft(body[1:], " ")
 			continue
 		}
 		quoted, err := strconv.QuotedPrefix(body)
-		require.NoError(t, err, "%s:%d: malformed quoted name in %q", recordPath, lineNo, body)
+		require.NoError(t, err, "%s:%d: malformed quoted name in %q", recordPath, lineNumber, body)
 		unquoted, err := strconv.Unquote(quoted)
-		require.NoError(t, err, "%s:%d: unquote %s", recordPath, lineNo, quoted)
+		require.NoError(t, err, "%s:%d: unquote %s", recordPath, lineNumber, quoted)
 		current = append(current, unquoted)
 		body = body[len(quoted):]
-		require.True(t, body == "" || body[0] == ' ', "%s:%d: expected space after %s", recordPath, lineNo, quoted)
+		require.True(t, body == "" || body[0] == ' ', "%s:%d: expected space after %s", recordPath, lineNumber, quoted)
 		body = strings.TrimLeft(body, " ")
 	}
-	require.NotEmpty(t, current, "%s:%d: trailing separator in apart line", recordPath, lineNo)
+	require.NotEmpty(t, current, "%s:%d: trailing separator in apart line", recordPath, lineNumber)
 	groups = append(groups, current)
-	require.GreaterOrEqual(t, len(groups), 2, "%s:%d: apart line names fewer than two files", recordPath, lineNo)
+	require.GreaterOrEqual(t, len(groups), 2, "%s:%d: apart line names fewer than two files", recordPath, lineNumber)
 	return sweepName, groups
 }
 
-func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, apartClasses [][][]string) [][]int {
+func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, record sweepRecord, apartClasses [][][]string) [][]int {
 	t.Helper()
-	require.Len(t, sweep.names, rec.names,
-		"sweep %s generated %d names, record expects %d", sweep.name, len(sweep.names), rec.names)
+	// The count alone, since require.Len would print every generated name.
+	generated := len(sweep.names)
+	require.Equal(t, record.names, generated,
+		"sweep %s generated %d names, record expects %d", sweep.name, generated, record.names)
 
 	indexByName := make(map[string]int, len(sweep.names))
-	byFold := make(map[string][]int, rec.files)
-	for idx, name := range sweep.names {
-		indexByName[name] = idx
+	byFold := make(map[string][]int, record.files)
+	for index, name := range sweep.names {
+		indexByName[name] = index
 		folded := pathfold.Fold(name)
-		byFold[folded] = append(byFold[folded], idx)
+		byFold[folded] = append(byFold[folded], index)
 	}
 
 	splitByFold := make(map[string][][]int, len(apartClasses))
@@ -498,10 +500,10 @@ func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, a
 		for _, fileNames := range groups {
 			fileIndexes := make([]int, 0, len(fileNames))
 			for _, name := range fileNames {
-				idx, exists := indexByName[name]
+				index, exists := indexByName[name]
 				require.True(t, exists, "sweep %s: apart name %q is not in generated sweep", sweep.name, name)
-				require.False(t, seen[idx], "sweep %s: apart name %q listed twice", sweep.name, name)
-				seen[idx] = true
+				require.False(t, seen[index], "sweep %s: apart name %q listed twice", sweep.name, name)
+				seen[index] = true
 				folded := pathfold.Fold(name)
 				if classFold == "" {
 					classFold = folded
@@ -509,7 +511,7 @@ func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, a
 					require.Equal(t, classFold, folded,
 						"sweep %s: apart line mixes fold classes (%q vs %q for %q)", sweep.name, classFold, folded, name)
 				}
-				fileIndexes = append(fileIndexes, idx)
+				fileIndexes = append(fileIndexes, index)
 				listedCount++
 			}
 			slices.Sort(fileIndexes)
@@ -523,7 +525,7 @@ func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, a
 		splitByFold[classFold] = splitGroups
 	}
 
-	partition := make([][]int, 0, rec.files)
+	partition := make([][]int, 0, record.files)
 	for folded, members := range byFold {
 		if splitGroups, isSplit := splitByFold[folded]; isSplit {
 			partition = append(partition, splitGroups...)
@@ -536,17 +538,17 @@ func verifySweepAgainstRecord(t *testing.T, sweep sweepInput, rec sweepRecord, a
 	})
 
 	gotDigest := partitionDigest(partition)
-	if len(partition) != rec.files || gotDigest != rec.partition {
+	if len(partition) != record.files || gotDigest != record.partition {
 		switch {
-		case len(partition) > rec.files:
+		case len(partition) > record.files:
 			t.Errorf("sweep %s: Fold produced %d classes, APFS has %d (Fold parts names APFS joins); digest %s vs %s",
-				sweep.name, len(partition), rec.files, gotDigest, rec.partition)
-		case len(partition) < rec.files:
+				sweep.name, len(partition), record.files, gotDigest, record.partition)
+		case len(partition) < record.files:
 			t.Errorf("sweep %s: Fold produced %d classes, APFS has %d (Fold joins files APFS keeps apart); digest %s vs %s",
-				sweep.name, len(partition), rec.files, gotDigest, rec.partition)
+				sweep.name, len(partition), record.files, gotDigest, record.partition)
 		default:
 			t.Errorf("sweep %s: Fold produced %d classes matching APFS count, but grouped names otherwise; digest %s vs %s",
-				sweep.name, len(partition), gotDigest, rec.partition)
+				sweep.name, len(partition), gotDigest, record.partition)
 		}
 	}
 	return partition
@@ -573,12 +575,12 @@ func checkWeakerFoldsSplitFiles(t *testing.T, sweeps []sweepInput, partitions ma
 	}
 }
 
-func countSplitNames(names []string, partition [][]int, foldFn func(string) string) int {
+func countSplitNames(names []string, partition [][]int, fold func(string) string) int {
 	splits := 0
 	for _, group := range partition {
-		firstFold := foldFn(names[group[0]])
-		for _, idx := range group[1:] {
-			if foldFn(names[idx]) != firstFold {
+		firstFold := fold(names[group[0]])
+		for _, index := range group[1:] {
+			if fold(names[index]) != firstFold {
 				splits++
 			}
 		}
@@ -598,11 +600,11 @@ func foldASCIILettersAlone(name string) string {
 	var out strings.Builder
 	out.Grow(len(name))
 	for i := range len(name) {
-		ch := name[i]
-		if ch >= 'A' && ch <= 'Z' {
-			ch += 'a' - 'A'
+		character := name[i]
+		if character >= 'A' && character <= 'Z' {
+			character += 'a' - 'A'
 		}
-		out.WriteByte(ch)
+		out.WriteByte(character)
 	}
 	return out.String()
 }

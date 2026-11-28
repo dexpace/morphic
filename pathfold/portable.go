@@ -15,8 +15,8 @@ import (
 var ErrNotPortable = errors.New("path segment is not portable")
 
 const (
-	maxSegmentBytes       = 255
-	windowsForbiddenChars = "<>:\"/\\|?*"
+	maxSegmentBytes            = 255
+	windowsForbiddenCharacters = "<>:\"/\\|?*"
 )
 
 // Portable reports whether segment can be written on every target file system,
@@ -37,7 +37,7 @@ func Portable(segment string) error {
 		return fmt.Errorf("segment %.64q is longer than %d bytes: %w", segment, maxSegmentBytes, ErrNotPortable)
 	}
 	for _, r := range segment {
-		if r < 0x20 || strings.ContainsRune(windowsForbiddenChars, r) {
+		if r < 0x20 || strings.ContainsRune(windowsForbiddenCharacters, r) {
 			return fmt.Errorf("segment %.64q holds %q, which Windows refuses in a name: %w", segment, r, ErrNotPortable)
 		}
 	}
@@ -64,15 +64,15 @@ func windowsDeviceName(segment string) (string, bool) {
 		return "", false
 	}
 
-	var buf [maxDeviceBytes]byte
+	var loweredBytes [maxDeviceBytes]byte
 	for i := range len(stem) {
-		ch := stem[i]
-		if ch >= 'A' && ch <= 'Z' {
-			ch += 'a' - 'A'
+		character := stem[i]
+		if character >= 'A' && character <= 'Z' {
+			character += 'a' - 'A'
 		}
-		buf[i] = ch
+		loweredBytes[i] = character
 	}
-	lowered := string(buf[:len(stem)])
+	lowered := string(loweredBytes[:len(stem)])
 
 	switch lowered {
 	case "con", "prn", "aux", "nul", "conin$", "conout$":

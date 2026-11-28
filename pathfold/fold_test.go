@@ -85,6 +85,7 @@ func TestFold_ReadsAByteThatIsNotUTF8AsAReplacementCharacter(t *testing.T) {
 	}{
 		{name: "lone invalid byte", input: "\xff", want: "\ufffd"},
 		{name: "invalid byte inside ASCII", input: "a\xfeb", want: "a\ufffdb"},
+		{name: "two adjacent invalid bytes", input: "\xff\xfe", want: "\ufffd\ufffd"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -141,17 +142,17 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 	}
 
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	for lineNo, line := range lines {
-		if lineNo == 0 && strings.HasPrefix(line, "# ") {
+	for lineNumber, line := range lines {
+		if lineNumber == 0 && strings.HasPrefix(line, "# ") {
 			continue
 		}
 		if line == "" {
 			continue
 		}
 		if startText, endText, isRange := strings.Cut(line, ".."); isRange {
-			startRune := parseHexRune(t, goldenPath, lineNo+1, startText)
-			endRune := parseHexRune(t, goldenPath, lineNo+1, endText)
-			require.LessOrEqual(t, startRune, endRune, "%s:%d: inverted range %q", goldenPath, lineNo+1, line)
+			startRune := parseHexRune(t, goldenPath, lineNumber+1, startText)
+			endRune := parseHexRune(t, goldenPath, lineNumber+1, endText)
+			require.LessOrEqual(t, startRune, endRune, "%s:%d: inverted range %q", goldenPath, lineNumber+1, line)
 			for r := startRune; r <= endRune; r++ {
 				want := string(r)
 				if got := pathfold.Fold(want); got != want {
@@ -161,13 +162,13 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 			continue
 		}
 		fields := strings.Fields(line)
-		require.GreaterOrEqual(t, len(fields), 2, "%s:%d: malformed fold line %q", goldenPath, lineNo+1, line)
-		inputRune := parseHexRune(t, goldenPath, lineNo+1, fields[0])
-		var wantBuf strings.Builder
+		require.GreaterOrEqual(t, len(fields), 2, "%s:%d: malformed fold line %q", goldenPath, lineNumber+1, line)
+		inputRune := parseHexRune(t, goldenPath, lineNumber+1, fields[0])
+		var wantBuilder strings.Builder
 		for _, field := range fields[1:] {
-			wantBuf.WriteRune(parseHexRune(t, goldenPath, lineNo+1, field))
+			wantBuilder.WriteRune(parseHexRune(t, goldenPath, lineNumber+1, field))
 		}
-		want := wantBuf.String()
+		want := wantBuilder.String()
 		if got := pathfold.Fold(string(inputRune)); got != want {
 			report(inputRune, want, got)
 		}
@@ -178,12 +179,12 @@ func checkCommittedFoldGolden(t *testing.T, goldenPath string) {
 }
 
 // parseHexRune decodes an uppercase hexadecimal code point from a golden line.
-func parseHexRune(t *testing.T, goldenPath string, lineNo int, raw string) rune {
+func parseHexRune(t *testing.T, goldenPath string, lineNumber int, raw string) rune {
 	t.Helper()
 	value, err := strconv.ParseUint(raw, 16, 32)
-	require.NoError(t, err, "%s:%d: invalid hex code point %q", goldenPath, lineNo, raw)
+	require.NoError(t, err, "%s:%d: invalid hex code point %q", goldenPath, lineNumber, raw)
 	r := rune(value)
-	require.True(t, utf8.ValidRune(r), "%s:%d: invalid rune %04X", goldenPath, lineNo, r)
+	require.True(t, utf8.ValidRune(r), "%s:%d: invalid rune %04X", goldenPath, lineNumber, r)
 	return r
 }
 
