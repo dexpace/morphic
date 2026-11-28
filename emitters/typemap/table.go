@@ -5,6 +5,7 @@ package typemap
 
 import (
 	"errors"
+	"maps"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -42,6 +43,18 @@ type Dependency struct {
 	Module string `json:"module"`
 	// MinVersion is the lowest version the SDK is generated against.
 	MinVersion string `json:"minVersion"`
+}
+
+// copyRow returns row sharing nothing with it: its Imports cloned, nil staying
+// nil, and its Dependency pointing at a copy.
+func copyRow(row Row) Row {
+	copied := row
+	copied.Imports = maps.Clone(row.Imports)
+	if row.Dependency != nil {
+		dependency := *row.Dependency
+		copied.Dependency = &dependency
+	}
+	return copied
 }
 
 // PrimitiveKey is the key of a primitive's row.

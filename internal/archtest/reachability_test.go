@@ -72,6 +72,9 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Correlation": factAPI,
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
 	"emitters/typemap.Decode":              typeTableAPI,
+	"emitters/typemap.Merge":               typeTableAPI,
+	"emitters/typemap.Moved":               typeTableAPI,
+	"emitters/typemap.Missing":             typeTableAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with
