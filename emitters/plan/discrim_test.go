@@ -236,8 +236,8 @@ func discriminated(id ir.TypeID, key string) *ir.Model {
 // TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf holds a subtype below
 // several discriminated bases: its DiscriminatorValue routes from the base
 // whose Mapping keys it to the subtype, by that entry, and otherwise, a
-// union's Mapping keying it too, from the nearest, level by level, Base
-// before Implements, and from no other
+// union's Mapping keying it too, from the nearest but itself, level by level,
+// Base before Implements, and from no other
 // (docs/emitters/plan/types.md#a-discriminators-routes). want holds each
 // holder's Mapping.
 func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
@@ -303,11 +303,17 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 			return irtest.DocOf(discriminated("type/x", "x"),
 				subtypeModel("type/y", "Y", "type/z", "type/x"), subtypeModel("type/z", "Z", "type/y"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/x": {"Y": {"type/y"}, "Z": {"type/z"}}}},
-		{"a cycle of bases through the base, its own nearest", func() *ir.Document {
+		{"a cycle of bases through the base, never its own nearest", func() *ir.Document {
 			base := subtypeModel("type/a", "A", "type/b")
 			base.Discriminator = &ir.Discriminator{PropertyName: "a"}
-			return irtest.DocOf(base, subtypeModel("type/b", "", "type/a"))
-		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"A": {"type/a"}}}},
+			unrelated := &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString}
+			return irtest.DocOf(base, subtypeModel("type/b", "", "type/a"), unrelated)
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil}},
+		{"a chain discriminated at both ends, which takes every turn", func() *ir.Document {
+			last := subtypeModel("type/c", "C", "type/b")
+			last.Discriminator = &ir.Discriminator{PropertyName: "c"}
+			return irtest.DocOf(discriminated("type/a", "a"), subtypeModel("type/b", "", "type/a"), last)
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"C": {"type/c"}}, "type/c": nil}},
 		{"a base named through an alias", func() *ir.Document {
 			alias := &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/a"}}
 			return irtest.DocOf(discriminated("type/a", "a"), alias, subtypeModel("type/leaf", "Leaf", "type/alias"))

@@ -116,9 +116,10 @@ its `Mapping` and the `DiscriminatorValue` of each subtype whose value is its ta
 ([discriminator](../../ir/models.md#discriminator)). A value a hierarchy's `Mapping` keys to the
 subtype carrying it is that discriminator's tag, which the entry routes. Any other, a name the
 source routes the subtype by or a tag a heuristic read off it, is taken as the tag of the subtype's
-nearest ancestor holding a discriminator: read level by level up `Base` and `Implements`, never
-`Mixins`, the one fewest hops away and, of those as near, the one reached through the earlier
-supertype, `Base` before `Implements`, as the OpenAPI compiler reads a subtype's ancestors
+nearest ancestor holding a discriminator, never the subtype itself: read level by level up `Base`
+and `Implements`, never `Mixins`, the one fewest hops away and, of those as near, the one reached
+through the earlier supertype, `Base` before `Implements`, as the OpenAPI compiler reads a subtype's
+ancestors, no schema its own ancestor
 ([`discriminator-value`](../../compilers/openapi.md#discriminator-value)). So `Pet`, tagging
 `petType`, routes no `Labrador` that `Dog` composing `Pet` tags by `breed`, `lab: Labrador`, nor one
 `Dog` tags at `petType` itself: `lab` is `Dog`'s tag, not `Pet`'s. `WireKey` is `PropertyName`, or
@@ -129,9 +130,13 @@ for each subtype, so the nearest is the plan's reading, the one the OpenAPI comp
 inferred tag against. Where a second discriminator above the subtype routes it too, the plan gives
 that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
 every schema building on a parent, or a nearer one where a farther `Mapping` keys the value
-(GitHub #2313). Routing the value from every base above it, the design this replaces, gave `Pet` the
-route `petType: lab` that neither the document nor the IR states, which an encoder writing a
-`Labrador` through `Pet` would have sent.
+(GitHub #2313). Through a cycle of bases a farther holder gets no route either: where `A`,
+holding a discriminator, has the `Base` `B`, whose `Base` is `A` and which implements a
+discriminated `F`, `A` is `B`'s nearest and never its own, so no discriminator routes `A`'s value,
+though `F` is its nearest by the rule the compiler reads ancestors with. Routing the value from
+every base above it, the design this replaces, gave `Pet` the route `petType: lab` that neither
+the document nor the IR states, which an encoder writing a `Labrador` through `Pet` would have
+sent.
 
 The IR may route one tag to several types, as two subtypes carrying one value do
 ([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`

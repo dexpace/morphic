@@ -67,10 +67,11 @@ func mappedRoutes(types ir.TypeRegistry) map[valueRoute]bool {
 }
 
 // nearestBases holds, for each model a discriminated ancestor is above, the
-// nearest of them, level by level up ir.Supertypes, Base before Implements:
-// the one fewest hops away and, of those as near, the one reached through the
-// earlier supertype. It descends a level at a time from every model holding a
-// discriminator, so a cycle of bases ends and a model is settled once.
+// nearest of them but itself, level by level up ir.Supertypes, Base before
+// Implements: the one fewest hops away and, of those as near, the one reached
+// through the earlier supertype. It descends a level at a time from every
+// model holding a discriminator, so a cycle of bases ends and a model is
+// settled once.
 type nearestBases struct {
 	nearest map[ir.TypeID]ir.TypeID
 	// steps counts the models, supertype edges and subtype reads the descent
@@ -103,9 +104,11 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 	}
 	// A model enters a level once: the first if it holds a discriminator, or
 	// the one after it is settled if it holds none. So no level is empty and
-	// none shares a model, and there are at most as many as ids names, the
-	// bound the loop holds them to.
-	for turn := 0; len(level) > 0 && turn < len(ids); turn++ {
+	// none shares a model. Only a first level of one discriminated model,
+	// every other model entering a later one, fills as many levels as ids
+	// names, and the last of those could settle only that model, which is
+	// never its own base: so the loop is held to one turn fewer.
+	for turn := 0; len(level) > 0 && turn < len(ids)-1; turn++ {
 		level = bases.descend(doc.Types, subtypes, level)
 	}
 	return bases
@@ -114,7 +117,11 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 // descend settles each model a supertype in level names that no nearer level
 // settled, and returns the next level: those of them holding no
 // discriminator. Each takes the base through the supertype it names first,
-// that supertype itself where it holds a discriminator.
+// that supertype itself where it holds a discriminator, and never itself, as
+// the OpenAPI compiler reads no schema its own ancestor. So a holder in a
+// cycle of bases that the cycle's other models take as their nearest gets
+// none, though a holder above the cycle they compose is the compiler's
+// reading (GitHub #2313).
 func (b *nearestBases) descend(types ir.TypeRegistry, subtypes map[ir.TypeID][]subtypeAt, level []ir.TypeID) []ir.TypeID {
 	type candidate struct {
 		base     ir.TypeID
@@ -128,7 +135,7 @@ func (b *nearestBases) descend(types ir.TypeRegistry, subtypes map[ir.TypeID][]s
 		}
 		for _, subtype := range subtypes[super] {
 			b.steps++
-			if _, settled := b.nearest[subtype.id]; settled {
+			if _, settled := b.nearest[subtype.id]; settled || subtype.id == base {
 				continue
 			}
 			if best, seen := reached[subtype.id]; seen && best.position <= subtype.position {
