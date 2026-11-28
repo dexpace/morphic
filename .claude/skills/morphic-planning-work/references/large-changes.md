@@ -175,9 +175,10 @@ ones.
 - **Probe.** For each pair of the plan's open pull requests reading or writing one fact, the
   angles run on a worktree of their trial merge, built by
   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree` and
-  confirmed by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`;
-  a pair that conflicts takes
-  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-reads-what-the-head-adds`.
+  confirmed by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
+  A pair that conflicts takes `main` into each first
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-main-first`); one still
+  conflicting is resolved in the trial's worktree and reviewed there, or becomes one pull request.
 
 ## Assign no version ahead of the merge
 `no-version-ahead-of-the-merge`
