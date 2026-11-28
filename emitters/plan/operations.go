@@ -11,8 +11,9 @@ import (
 
 // OpPlan holds what the plan derives of one operation
 // (docs/emitters/plan/operations.md). It holds the fields built so far: each
-// other field of that document lands with the change deriving it, so a field
-// missing here is one not built, never an operation's lack of it.
+// other field of that document lands with the change deriving it (GitHub
+// #2136), so a field missing here is one not built, never an operation's lack
+// of it.
 type OpPlan struct {
 	// Inferred maps each field a heuristic of the plan decided, by its path,
 	// "Effects" so far, to the operation's provenance marked with that

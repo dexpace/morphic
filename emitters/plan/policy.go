@@ -8,8 +8,11 @@ package plan
 // vocabulary, never a function, so a policy encodes, compares and hashes as
 // what it says, and [Plan.Version] hashes it.
 //
-// The zero Policy turns every switch off. It holds the switches [Build] reads
-// so far: each other one lands with the plan field that reads it.
+// The zero Policy turns every switch off, ProtocolEffects among them, which
+// docs/emitters/plan/policy.md turns on by default: the defaults land with
+// DefaultPolicy (GitHub #2215), and until then a caller sets each switch. It
+// holds the switches [Build] reads so far: each other one lands with the plan
+// field that reads it.
 type Policy struct {
 	// StrictExclusive makes every one_of union [TypePlan.Strict]: it refuses a
 	// value two of its variants admit unless its constraints single one out.

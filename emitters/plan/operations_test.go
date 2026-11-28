@@ -309,7 +309,8 @@ func bindingCases() []effectsCase {
 		{"operation/get-and-rpc", func(o *ir.Operation) { bindHTTP("GET")(o); bindRPC(o) }, plan.Effects{}},
 		{"operation/get-and-message", func(o *ir.Operation) { bindHTTP("GET")(o); o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
 		{"operation/get-and-otp", func(o *ir.Operation) { bindHTTP("GET")(o); o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
-		{"operation/graphql-query-and-get", func(o *ir.Operation) { bindGraphQL("query")(o); bindHTTP("GET")(o) }, safe},
+		{"operation/graphql-mutation-and-get", func(o *ir.Operation) { bindGraphQL("mutation")(o); bindHTTP("GET")(o) }, plan.Effects{}},
+		{"operation/graphql-query-and-put", func(o *ir.Operation) { bindGraphQL("query")(o); bindHTTP("PUT")(o) }, idempotent},
 		{"operation/marked-already", func(o *ir.Operation) {
 			bindHTTP("GET")(o)
 			o.Provenance.Inferred = "group-path-prefix"
