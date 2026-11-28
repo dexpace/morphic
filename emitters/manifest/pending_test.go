@@ -321,6 +321,10 @@ func TestDecodePending_Refuses(t *testing.T) {
 		{name: "temporary file ending below a digit beside a known path", raw: withChange(t, func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{".x.go-"}
 		})},
+		{name: "temporary file with a letter among its digits", raw: withChange(t, func(value *manifest.Pending) {
+			value.Known = map[string][]string{"x": {digestAlpha}}
+			value.TemporaryFiles = []string{".x1a1"}
+		})},
 		{
 			name: "temporary file not clean beside a known path",
 			raw: withChange(t, func(value *manifest.Pending) {
@@ -478,6 +482,10 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 		})},
 		{name: "temporary file ending below a digit beside a known path", value: withChange(func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{".x.go-"}
+		})},
+		{name: "temporary file with a letter among its digits", value: withChange(func(value *manifest.Pending) {
+			value.Known = map[string][]string{"x": {digestAlpha}}
+			value.TemporaryFiles = []string{".x1a1"}
 		})},
 		{name: "pending manifest temporary file listed", value: withChange(func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{manifest.PendingTemporaryName}
