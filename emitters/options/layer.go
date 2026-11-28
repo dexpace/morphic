@@ -55,8 +55,9 @@ func copyThroughJSON[T any](value T) (T, error) {
 	return copied, nil
 }
 
-// refuseNull refuses a null token wherever the decoder meets one and leaves
-// every other token to json's own decoding.
+// refuseNull refuses a null wherever json decodes a value, which it does not
+// inside a jsontext.Value, and leaves every other token to json's own
+// decoding.
 func refuseNull(decoder *jsontext.Decoder, _ any) error {
 	if decoder.PeekKind() == 'n' {
 		return ErrNullMember
