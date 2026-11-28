@@ -45,6 +45,7 @@ func TestBuild_ANilDocumentPlansAsAnEmptyOne(t *testing.T) {
 
 	fromNil, diags := plan.Build(nil, nil, plan.Policy{})
 	require.Empty(t, diags)
+	require.NotNil(t, fromNil, "a nil document has a plan")
 	fromEmpty := build(t, &ir.Document{}, plan.Policy{})
 
 	assert.Empty(t, cmp.Diff(fromEmpty, fromNil), "(-empty +nil)")
