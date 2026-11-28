@@ -30,6 +30,6 @@ func TestRoutesOf_AddingToATagLeavesTheOthers(t *testing.T) {
 
 		want := map[string][]ir.TypeID{"cat": {"type/cat"}, "dog": {"type/dog"}, "eel": {"type/eel"}}
 		want[tag] = append(want[tag], "type/added")
-		assert.Empty(t, cmp.Diff(want, map[string][]ir.TypeID(routes)), "adding to %s", tag)
+		assert.Empty(t, cmp.Diff(want, map[string][]ir.TypeID(routes)), "adding to %s (-want +got)", tag)
 	}
 }

@@ -47,7 +47,7 @@ func TestBuild_ANilDocumentPlansAsAnEmptyOne(t *testing.T) {
 	require.Empty(t, diags)
 	fromEmpty := build(t, &ir.Document{}, plan.Policy{})
 
-	assert.Empty(t, cmp.Diff(fromEmpty, fromNil))
+	assert.Empty(t, cmp.Diff(fromEmpty, fromNil), "(-empty +nil)")
 	assert.Empty(t, fromNil.Types)
 	assert.NotEmpty(t, fromNil.Version, "an empty document has a digest as any other has")
 }
@@ -64,11 +64,11 @@ func TestBuild_LeavesTheDocumentAsItFoundIt(t *testing.T) {
 
 func TestBuild_RecordsThePolicyItRanUnder(t *testing.T) {
 	t.Parallel()
-	pp := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
+	policy := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
 
-	built := build(t, widgetDoc(), pp)
+	built := build(t, widgetDoc(), policy)
 
-	assert.Equal(t, pp, built.Policy)
+	assert.Equal(t, policy, built.Policy)
 }
 
 // TestBuild_VersionNamesTheDocumentAndThePolicy holds the plan's identity
@@ -77,12 +77,12 @@ func TestBuild_RecordsThePolicyItRanUnder(t *testing.T) {
 // diagnostics, which Build never reads, do not.
 func TestBuild_VersionNamesTheDocumentAndThePolicy(t *testing.T) {
 	t.Parallel()
-	version := func(mutate func(*ir.Document), pp plan.Policy) string {
+	version := func(mutate func(*ir.Document), policy plan.Policy) string {
 		doc := widgetDoc()
 		if mutate != nil {
 			mutate(doc)
 		}
-		built := build(t, doc, pp)
+		built := build(t, doc, policy)
 		require.Len(t, built.Version, 64, "a SHA-256 in hexadecimal")
 		return built.Version
 	}
@@ -129,7 +129,7 @@ func TestBuild_VersionNamesTheDocumentAndThePolicy(t *testing.T) {
 // diagnostics left out, then the policy's canonical JSON.
 func TestBuild_VersionHashesTheDigestThenThePolicy(t *testing.T) {
 	t.Parallel()
-	pp := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
+	policy := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
 	doc := widgetDoc()
 
 	stripped := widgetDoc()
@@ -139,11 +139,11 @@ func TestBuild_VersionHashesTheDigestThenThePolicy(t *testing.T) {
 	require.NotContains(t, string(document), `"sources"`)
 	require.NotContains(t, string(document), `"diagnostics"`)
 	digest := sha256.Sum256(document)
-	policy, err := json.Marshal(pp, ir.CanonicalOptions())
+	policyJSON, err := json.Marshal(policy, ir.CanonicalOptions())
 	require.NoError(t, err)
-	want := sha256.Sum256(append(digest[:], policy...))
+	want := sha256.Sum256(append(digest[:], policyJSON...))
 
-	assert.Equal(t, hex.EncodeToString(want[:]), build(t, doc, pp).Version)
+	assert.Equal(t, hex.EncodeToString(want[:]), build(t, doc, policy).Version)
 }
 
 // singleSwitchPolicies returns the zero policy and one turning on each switch
@@ -168,10 +168,10 @@ func TestBuild_VersionIsPinned(t *testing.T) {
 	doc := widgetDoc()
 	doc.IRVersion = "0.0.0"
 	var pinned strings.Builder
-	for _, pp := range singleSwitchPolicies() {
-		raw, err := json.Marshal(pp, ir.CanonicalOptions())
+	for _, policy := range singleSwitchPolicies() {
+		raw, err := json.Marshal(policy, ir.CanonicalOptions())
 		require.NoError(t, err)
-		fmt.Fprintf(&pinned, "%s %s\n", build(t, doc, pp).Version, raw)
+		fmt.Fprintf(&pinned, "%s %s\n", build(t, doc, policy).Version, raw)
 	}
 
 	irtest.CompareBytes(t, versionGolden, []byte(pinned.String()))
@@ -206,14 +206,14 @@ func TestPlan_EncodesAsOneDocument(t *testing.T) {
 	require.NoError(t, err)
 	var decoded plan.Plan
 	require.NoError(t, json.Unmarshal(raw, &decoded))
-	assert.Empty(t, cmp.Diff(built, &decoded))
+	assert.Empty(t, cmp.Diff(built, &decoded), "(-built +decoded)")
 
 	empty := build(t, &ir.Document{}, plan.Policy{})
 	rawEmpty, err := json.Marshal(empty)
 	require.NoError(t, err)
 	var decodedEmpty plan.Plan
 	require.NoError(t, json.Unmarshal(rawEmpty, &decodedEmpty))
-	assert.Empty(t, cmp.Diff(empty, &decodedEmpty), "a plan of no type decodes to what encoded it")
+	assert.Empty(t, cmp.Diff(empty, &decodedEmpty), "a plan of no type decodes to what encoded it (-built +decoded)")
 
 	again, err := json.Marshal(built, json.Deterministic(false), jsontext.EscapeForHTML(true))
 	require.NoError(t, err)
@@ -238,11 +238,11 @@ func TestPlan_RefusesToEncodeAStringThatIsNotUTF8(t *testing.T) {
 // decodes back to the value it encoded from.
 func TestPolicy_RoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
-	for _, pp := range singleSwitchPolicies() {
-		raw, err := json.Marshal(pp, ir.CanonicalOptions())
+	for _, policy := range singleSwitchPolicies() {
+		raw, err := json.Marshal(policy, ir.CanonicalOptions())
 		require.NoError(t, err)
 		var decoded plan.Policy
 		require.NoError(t, json.Unmarshal(raw, &decoded))
-		assert.Equal(t, pp, decoded, "%s", raw)
+		assert.Equal(t, policy, decoded, "%s", raw)
 	}
 }

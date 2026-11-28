@@ -137,7 +137,7 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 
 			got := build(t, doc, plan.Policy{}).Types["type/union"].Discrim
 
-			assert.Empty(t, cmp.Diff(tt.want, got))
+			assert.Empty(t, cmp.Diff(tt.want, got), "(-want +got)")
 			require.NotNil(t, got)
 			if tt.union.Discriminator.TupleElementIndex != nil {
 				assert.Same(t, tt.union.Discriminator.TupleElementIndex, got.TupleElementIndex,
@@ -201,7 +201,7 @@ func TestBuild_RoutesAHierarchysDiscriminator(t *testing.T) {
 			"Dog": {"type/dog"}, "Puppy": {"type/puppy"}, "Bird": {"type/bird"},
 		},
 	}
-	assert.Empty(t, cmp.Diff(want, built.Types["type/pet"].Discrim))
+	assert.Empty(t, cmp.Diff(want, built.Types["type/pet"].Discrim), "(-want +got)")
 	for id, typePlan := range built.Types {
 		if id != "type/pet" {
 			assert.Nil(t, typePlan.Discrim, "%s holds no discriminator", id)
@@ -303,7 +303,7 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 
 			for holder, want := range tt.want {
 				require.NotNil(t, built.Types[holder].Discrim, holder)
-				assert.Empty(t, cmp.Diff(want, built.Types[holder].Discrim.Mapping), holder)
+				assert.Empty(t, cmp.Diff(want, built.Types[holder].Discrim.Mapping), "%s (-want +got)", holder)
 			}
 		})
 	}
@@ -400,7 +400,7 @@ func TestBuild_RoutesATagToEveryTypeItNames(t *testing.T) {
 			built := build(t, tt.doc(), plan.Policy{})
 
 			require.NotNil(t, built.Types[tt.holder].Discrim)
-			assert.Empty(t, cmp.Diff(tt.want, built.Types[tt.holder].Discrim.Mapping))
+			assert.Empty(t, cmp.Diff(tt.want, built.Types[tt.holder].Discrim.Mapping), "(-want +got)")
 		})
 	}
 }

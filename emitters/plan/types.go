@@ -82,12 +82,12 @@ const (
 	UnionKeyTagged UnionShape = "key_tagged"
 )
 
-// typePlans returns the plan of every type in doc's registry under pp, and
+// typePlans returns the plan of every type in doc's registry under policy, and
 // the findings planning them reports, in type-ID order. An entry that holds no
 // type, a nil one, plans as the zero TypePlan. No flattening is bounded: each
 // model holds its own, so the plan grows with the square of a composition's
 // depth (GitHub #2206).
-func typePlans(doc *ir.Document, pp Policy) (map[ir.TypeID]TypePlan, []ir.Diagnostic) {
+func typePlans(doc *ir.Document, policy Policy) (map[ir.TypeID]TypePlan, []ir.Diagnostic) {
 	types := doc.Types
 	if len(types) == 0 {
 		return nil, nil
@@ -98,18 +98,19 @@ func typePlans(doc *ir.Document, pp Policy) (map[ir.TypeID]TypePlan, []ir.Diagno
 	values := valueRoutes(doc, ids)
 	var diags []ir.Diagnostic
 	for _, id := range ids {
-		typePlan, found := planType(types, values, chains, id, pp)
+		typePlan, found := planType(types, values, chains, id, policy)
 		plans[id] = typePlan
 		diags = append(diags, found...)
 	}
 	return plans, diags
 }
 
-// planType returns the plan of the type types holds at id under pp, the zero
-// TypePlan for a nil one, and what planning it finds. values are the routes
-// the DiscriminatorValue of each subtype gives, by the model they route from.
+// planType returns the plan of the type types holds at id under policy, the
+// zero TypePlan for a nil one, and what planning it finds. values are the
+// routes the DiscriminatorValue of each subtype gives, by the model they route
+// from.
 func planType(
-	types ir.TypeRegistry, values map[ir.TypeID][]valueRoute, chains *baseChains, id ir.TypeID, pp Policy,
+	types ir.TypeRegistry, values map[ir.TypeID][]valueRoute, chains *baseChains, id ir.TypeID, policy Policy,
 ) (TypePlan, []ir.Diagnostic) {
 	td := types[id]
 	if ir.IsNilTypeDef(td) {
@@ -124,14 +125,14 @@ func planType(
 		typePlan.Discrim, diags = hierarchyDiscrim(t, flat, values[id])
 		// A model narrowing a union is open where its union is: not read yet,
 		// landing with Composed.
-		typePlan.Open = baseOpen(t, pp)
+		typePlan.Open = baseOpen(t, policy)
 	case *ir.Union:
 		typePlan.Union = unionShape(t)
 		typePlan.Discrim, diags = unionDiscrim(types, t)
-		typePlan.Open = unionOpen(t, pp)
-		typePlan.Strict = typePlan.Union == UnionOneOf && pp.StrictExclusive
+		typePlan.Open = unionOpen(t, policy)
+		typePlan.Strict = typePlan.Union == UnionOneOf && policy.StrictExclusive
 	case *ir.Enum:
-		typePlan.Open = enumOpen(t, pp)
+		typePlan.Open = enumOpen(t, policy)
 	default:
 		// No other kind composes members, has a wire shape to classify or
 		// keeps a value it does not list.
@@ -185,17 +186,17 @@ func unionShape(union *ir.Union) UnionShape {
 // (docs/emitters/plan/policy.md#a-union-keeps-a-variant-it-does-not-know):
 // where the IR declares it open, and under OpenUnions where no request alone
 // carries it.
-func unionOpen(union *ir.Union, pp Policy) bool {
-	return !union.Closed || pp.OpenUnions && !union.InputOnly
+func unionOpen(union *ir.Union, policy Policy) bool {
+	return !union.Closed || policy.OpenUnions && !union.InputOnly
 }
 
 // baseOpen reports whether model, a polymorphic base where it holds a
 // Discriminator or is Abstract, keeps a subtype it does not know: only under
 // OpenUnions, where no request alone carries it, since the IR declares no base
 // open (docs/emitters/plan/policy.md#a-union-keeps-a-variant-it-does-not-know).
-func baseOpen(model *ir.Model, pp Policy) bool {
+func baseOpen(model *ir.Model, policy Policy) bool {
 	polymorphic := model.Discriminator != nil || model.Abstract
-	return polymorphic && pp.OpenUnions && !model.InputOnly
+	return polymorphic && policy.OpenUnions && !model.InputOnly
 }
 
 // enumOpen reports whether enum keeps a value it does not list
@@ -203,6 +204,6 @@ func baseOpen(model *ir.Model, pp Policy) bool {
 // the IR declares it open, and under OpenEnums unless it declares what such a
 // value decodes to, a FallbackMember, or lists no member, admitting no value
 // (docs/emitters/refine/enums.md#an-enum-with-no-members).
-func enumOpen(enum *ir.Enum, pp Policy) bool {
-	return !enum.Closed || pp.OpenEnums && enum.FallbackMember == "" && len(enum.Members) > 0
+func enumOpen(enum *ir.Enum, policy Policy) bool {
+	return !enum.Closed || policy.OpenEnums && enum.FallbackMember == "" && len(enum.Members) > 0
 }
