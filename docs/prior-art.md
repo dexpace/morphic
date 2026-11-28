@@ -46,7 +46,9 @@ and the differ/compat/verify subsystems added since the original survey).
   rests on: a manifest (spec/emitter/config hashes, sorted file list, operation → generated
   symbol map), file-header provenance that gates pruning (never delete a file lacking the
   generated-by header), ignore-region markers for hand-written islands, and additive-only
-  AST merges. Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
+  AST merges. Morphic takes the manifest and gates a prune on the digests it records instead of
+  the header ([write / integrate](./emitters/write-integrate.md#a-file-is-judged-by-its-digest)).
+  Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
   on path renames. So do pointer-derived IDs, and an ID through an array index can name another
   entity in the next revision, which is why a [correlation
   key](./ir/derived-facts.md#correlation-keys) is derived beside them.

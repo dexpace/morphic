@@ -42,7 +42,11 @@ func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, so
 	key := losingDeclarationKey + string(pointer)
 	raw, err := render(source)
 	if err != nil {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnpreservableConstruct, g.Doc.At(pointer),
+		at := g.Doc.At(pointer)
+		if g.DiscardedSites != nil {
+			*g.DiscardedSites = append(*g.DiscardedSites, at)
+		}
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnpreservableConstruct, at,
 			"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
 				"in no form at all: %s", key, err.Error())}
 	}

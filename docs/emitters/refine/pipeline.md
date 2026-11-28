@@ -9,51 +9,49 @@ shared cross-language tree.
 
 Following Kiota's concrete contract — an ordered list of small, named, idempotent steps, each valid
 only because the un-lowered fact it needs is still present (prior-art.md §2) — but each step
-is a **pure function `IR+Plan → nodes`**, not an in-place edit:
+is a **pure function `IR+Plan → nodes`**, not an in-place edit. What every target shares of it is
+the runner, in `emitters/refine`, and nothing else:
 
 ```go
 package refine
 
-type Refiner interface {
-    Target() emitter.TargetKey
-    Steps()  []Step             // ORDERED — composition order is part of the contract
+// Step is one named lowering over a target's own state.
+type Step[State any] struct {
+    Name  string // stable, for diagnostics and the golden step trace
+    Apply func(ctx context.Context, state *State) []ir.Diagnostic // appends typed nodes to the
+                                                                  // AST under construction;
+                                                                  // idempotent
 }
 
-type Step interface {
-    Name() string               // stable, for diagnostics + golden step-trace tests
-    Apply(*Ctx) []ir.Diagnostic // appends typed nodes to the target AST under construction; idempotent
-}
-
-type Ctx struct {
-    Doc     *ir.Document        // read-only source of un-lowered facts
-    Facts   *irfacts.DocumentFacts      // read-only derived facts, the engine's one index (../contract/emitter.md)
-    Plan    *plan.Plan          // read-only shared decisions
-    Types   typemap.Table       // the merged type table (../contract/type-table.md), built from Options
-    Policy  policy.Resolved      // read-only SDK runtime policy, resolved per operation
-                                 // (../contract/runtime-policy.md#layers-and-operations)
-    Naming  naming.Policy        // the target's casing engine over its options' naming tables
-                                 // (INV4; naming.md)
-    Hints   map[emitter.EntityID]emitter.ShapeHint
-    Prior   *emitter.PriorState  // read-only prior generation, whose shipped names naming keeps
-                                 // (naming.md); nil on a first run
-    Snapshot string              // read-only: the version label of the snapshot Doc is;
-                                 // "" = unsliced
-    Samples map[emitter.TargetKey]map[ir.OperationID][]emitter.Sample // read-only, a docs target's: the
-                                 // samples of the targets its options name (../docs-and-mock.md)
-    Routes  map[string]emitter.RouteTable // read-only, a cross-version target's: every
-                                 // snapshot's routes (../docs-and-mock.md#routes-and-links)
-    Options emitter.TargetOptions // decoded options (../contract/options.md); a step asserts its own target's type
-    Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
-    Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity
-}
-
-func Run(r Refiner, c *Ctx) []ir.Diagnostic  // runs Steps in order
-
-// TargetAST is the per-language AST root marker; each target supplies a concrete type
-// (e.g. *goast.Module). It is an interface here only so the shared refiner contract is language-
-// neutral; every real step type-asserts to its own AST and appends typed nodes.
-type TargetAST interface{ targetAST() }
+// RunSteps applies steps in order, asks the context between them, and returns the names of the
+// steps it ran, which a golden trace pins.
+func RunSteps[State any](ctx context.Context, state *State, steps []Step[State]) (trace []string, diagnostics []ir.Diagnostic, err error)
 ```
+
+- **`State` is the target's own**, a struct it declares: what it reads, the fields of its
+  `EmitterInput` ([the contract](../contract/emitter.md)) and its decoded options with the merged
+  type table and the naming tables they give ([type table](../contract/type-table.md),
+  [naming](naming.md)), and what it builds, its AST root, such as `*goast.Module`, and the symbols
+  it resolves. Every member has the target's own type, so a step asserts nothing.
+- **The step list is the target's**, a value its generator builds: the order is part of the
+  target's contract, and T-10 pins it.
+- **`RunSteps` refuses** a step with no name, since the trace names each, or no `Apply`, and stops
+  between two steps at a done context with the context's error. A list may hold one name more than
+  once, as Go's does (below): the trace is in order, so each is pinned by its place.
+
+A shared `Refiner` interface, a context struct `Ctx` every target's steps read, and a marker
+interface `TargetAST` over the AST roots stood here before. A context struct every target shares
+grows a member for each target's need, its options reached a step as a value of a shared interface
+the step asserted back to its own type, and the marker typed nothing: every step asserted the root
+to its own AST. A step over the target's own state needs neither assertion. The runner is generic,
+so it lands with the first target's pipeline, its first caller that is not.
+
+The helpers more than one target's steps call are functions of `emitters/refine` too, each of the
+values it reads: the decorator fold ([decorators](decorators.md)), the cycle finder over
+`Facts.Component` ([recursive references](models.md#recursive-references)), untagged-union
+recognition ([unions](unions.md)), and the resolution of a reference to its type-table key through
+the plan's scalar chain ([type table](../contract/type-table.md)). Each lands with its first
+caller in a target.
 
 **This ordered, named step list IS the IR acceptance test.** Each step of [the list](steps.md) is
 only implementable because a specific un-lowered IR fact reached it; a missing IR capability shows
@@ -69,5 +67,5 @@ exists. On Go a function's scope reserves the names its file's imports are given
 the escaping and collision steps twice after casing, and its step trace shows both pairs: the first
 settles the units' names and, after them, the name each file gives its imports, and the second every
 other scope. One run of each could not, since the escaping of a function's scope reads a name the
-collision step gave an import. Because each step is idempotent and reads only its `Ctx`, a
+collision step gave an import. Because each step is idempotent and reads only its state, a
 step-trace snapshot pins the whole lowering deterministically.

@@ -240,8 +240,20 @@ class ScriptTest(unittest.TestCase):
 
     def test_cannot_run_exits_two(self):
         self.assertEqual(self.run_script("x", TITLE).returncode, 2)
+
+    def test_missing_origin_main_names_the_ref_and_rule(self):
+        self.commit("test: add a case")
         self.git("update-ref", "-d", "refs/remotes/origin/main")
-        self.assertEqual(self.run_script("1", TITLE).returncode, 2)
+        r = self.run_script("1", TITLE)
+        self.assertEqual(
+            (r.returncode, r.stdout, r.stderr),
+            (
+                2,
+                "",
+                "subjects: origin/main does not resolve; fetch main as origin/main "
+                "(.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin)\n",
+            ),
+        )
 
 
 if __name__ == "__main__":

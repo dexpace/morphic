@@ -8,12 +8,15 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
 )
 
 // reservedNamesBody writes each spelling of a reserved header name beside the
@@ -101,4 +104,92 @@ func TestReservedHeaderNames_ReportedOnceWhereverWritten(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReservedHeaderNames_MessageHoldsWhereNothingLowers holds that the
+// finding at a header parameter named Accept reads alike at three fates: a
+// component an operation lowers, one nothing references, kept verbatim under
+// Unmodeled, and a path item's inline parameter its operation overrides, kept
+// nowhere in the document. A headers map's Content-Type entry reads alike in a
+// response an operation lowers and in one nothing references. The table
+// reports before any lowering decides a fate; specrules pins the words.
+func TestReservedHeaderNames_MessageHoldsWhereNothingLowers(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{name: Accept, in: header, description: path-level, schema: {type: string}}]
+    get:
+      operationId: g
+      parameters: [{$ref: '#/components/parameters/Used'}]
+      responses: {"204": {description: ok, headers: {Content-Type: {schema: {type: string}}}}}
+components:
+  parameters:
+    Used: {name: Accept, in: header, description: used, schema: {type: string}}
+    Unused: {name: Accept, in: header, schema: {type: string}}
+  responses:
+    Unused: {description: ok, headers: {Content-Type: {schema: {type: string}}}}
+`)
+	requireNoErrorDiagnostics(t, diags)
+
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/Used", "an operation lowers it")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/parameters/Unused", "nothing lowers it")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/Unused", "nothing lowers it")
+	operation := operationByID(t, doc, "operation/openapi/paths/~1a/get")
+	require.Len(t, operation.Params, 1, "the operation's Accept overrides its path item's")
+	assert.Equal(t, "used", operation.Params[0].Docs.Description)
+	require.Len(t, operation.Responses, 1)
+	require.Len(t, operation.Responses[0].Headers, 1, "an operation lowers the entry")
+	assert.Equal(t, "Content-Type", operation.Responses[0].Headers[0].EffectiveWireName())
+	encoded, err := json.Marshal(doc)
+	require.NoError(t, err)
+	// Whether a definition every operation overrides is kept is open (#2176);
+	// this assertion goes with whatever that decides.
+	assert.NotContains(t, string(encoded), "path-level", "the overridden definition is kept nowhere")
+
+	lowered := messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/Used/name")
+	for _, pointer := range []string{"/components/parameters/Unused/name", "/paths/~1a/parameters/0/name"} {
+		assert.Equal(t, lowered, messageAt(t, diags, diag.ReservedHeaderName, pointer), pointer)
+	}
+	assert.Equal(t, messageAt(t, diags, diag.ReservedHeaderName, "/paths/~1a/get/responses/204/headers/Content-Type"),
+		messageAt(t, diags, diag.ReservedHeaderName, "/components/responses/Unused/headers/Content-Type"))
+}
+
+// TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept writes
+// the overridden path-item parameter by $ref. The override drops the
+// reference, so no lowering reaches the component, which is kept verbatim
+// under Unmodeled like any other nothing references, and the finding at its
+// name reads as the one at the operation's own parameter, which lowers.
+func TestReservedHeaderNames_MessageHoldsWhereAnOverriddenReferenceIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "reserved", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{$ref: '#/components/parameters/PathAccept'}]
+    get:
+      operationId: g
+      parameters: [{name: Accept, in: header, description: op-level, schema: {type: string}}]
+      responses: {"204": {description: ok}}
+components:
+  parameters:
+    PathAccept: {name: Accept, in: header, description: path-level, schema: {type: string}}
+`)
+	requireNoErrorDiagnostics(t, diags)
+
+	params := operationByID(t, doc, "operation/openapi/paths/~1a/get").Params
+	require.Len(t, params, 1, "the operation's Accept overrides its path item's")
+	assert.Equal(t, "op-level", params[0].Docs.Description)
+	kept, ok := doc.Unmodeled["openapi:components/parameters/PathAccept"]
+	require.True(t, ok, "the overridden component is kept: %v", doc.Unmodeled)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.Contains(t, string(kept.Value), "path-level")
+
+	assert.Equal(t, messageAt(t, diags, diag.ReservedHeaderName, "/paths/~1a/get/parameters/0/name"),
+		messageAt(t, diags, diag.ReservedHeaderName, "/components/parameters/PathAccept/name"))
+	assert.Equal(t, []string{
+		"warning " + diag.ReservedHeaderName + " /components/parameters/PathAccept/name",
+		"warning " + diag.ReservedHeaderName + " /paths/~1a/get/parameters/0/name",
+	}, findingsOf(diags, diag.ReservedHeaderName), "once at the component, not again at the $ref")
 }

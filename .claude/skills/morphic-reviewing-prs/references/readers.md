@@ -51,16 +51,18 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Probe.** The reader's brief names each cell with its share and the budget as the shares' sum,
   and the report runs each cell or quotes why it could not.
 
-## Start every delegated reader at effort `xhigh`
+## Start every delegated reader at effort `xhigh`, never on a smaller model
 `start-readers-at-xhigh`
 
-- **Rule.** Start each delegated reader at effort `xhigh`, whatever the session runs at, setting it
-  on the call that starts the reader rather than in its brief.
-- **Why.** #1532's readers, started with no effort set, ran at the session's, so a session lowered
-  for its mechanical work could lower what they catch (#1532, #1542).
-- **Probe.** On the starting session's transcript,
-  `jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Agent") | .input.effort // "unset"' <transcript>`
-  prints `xhigh` for each reader, while a reader's own transcript records only the effort it ran at.
+- **Rule.** Start each delegated reader at effort `xhigh` where the host has an effort setting, and
+  never on a smaller model than the session's, set on the call that starts the reader rather than in
+  its brief: `effort: "xhigh"` on Claude Code's `Agent` tool, or `Model: "inherit"` where the host
+  exposes model choice without an `effort` parameter.
+- **Why.** #1532's readers started without effort set ran at the session's (#1532, #1542); #2272
+  showed the old Probe read an 83-call Antigravity reader as 0.
+- **Probe.** Run the host's effort query from `references/readers.md#transcript-probes-per-host` on
+  the starting session's transcript (a reader's own records only the effort it ran at): it prints
+  `xhigh` or `inherit` per reader, and empty output on a supported host marks the cell unreached.
 
 ## Brief a reader to batch its calls
 `reader-batches-its-calls`
@@ -68,10 +70,27 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Rule.** A delegated reader's brief asks it to send independent reads and commands in one turn,
   and to write bulky output to a file in its directory and read it in parts with `grep` or `head`.
 - **Why.** Each API call re-reads the whole context, yet #1532's readers of rounds 2 to 7 batched at
-  most 4 of their 40 to 67 (#1532, #1542).
-- **Probe.** The reader's brief asks both, and
-  `jq -r 'select(.type=="assistant") | "\(.message.id) \([.message.content[]? | select(.type=="tool_use")] | length)"' <transcript> | awk '{n[$1]+=$2} END {for (i in n) {c++; b+=n[i]>1}; print c, b}'`
-  prints the reader's API calls, one per `message.id`, and how many batched.
+  most 4 of their 40 to 67 (#1532, #1542); #2272 showed the single-schema Probe read an 83-call
+  Antigravity reader as blank.
+- **Probe.** The reader's brief asks both, and the host's batching query in
+  `references/readers.md#transcript-probes-per-host` prints its turns and batched turns; empty
+  output on a supported host marks the cell unreached.
+
+## Match each transcript probe to the host's schema
+`transcript-probes-per-host`
+
+- **Rule.** On the host's transcript, run the queries for that host's schema; empty output on a
+  supported host marks the cell unreached, never clean.
+  - Claude Code: effort
+    `jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Agent") | .input.effort // "unset"'`;
+    batching
+    `jq -r 'select(.type=="assistant") | "\(.message.id) \([.message.content[]? | select(.type=="tool_use")] | length)"' | awk '{n[$1]+=$2} END {for (i in n) {c++; b+=n[i]>1}; print c, b}'`.
+  - Antigravity: effort
+    `jq -r '.tool_calls[]? | select(.name=="invoke_subagent") | .args.Model // "unset"'`; batching
+    `jq -r 'select(.tool_calls? != null) | (.tool_calls | length)' | awk '{c++; b+=$1>1} END {print c, b}'`.
+- **Why.** Claude Code's `.message.content[]` queries returned `0` and blank on an 83-call
+  Antigravity transcript with 29 turns and 23 batched (#2272).
+- **Probe.** Run the host's queries on a recorded transcript and confirm non-zero turns.
 
 ## Brief a reader to bound its commands
 `reader-bounds-its-commands`
@@ -132,6 +151,18 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Why.** On #1532, a reader holding both files found a departure disagreeing with the sweep rule
   it cites (#1532).
 - **Probe.** No two briefs of one round each name part of the files it reads.
+
+## Name the skills each reader loaded, and leave an angle without its skills unreached
+`round-names-loaded-skills`
+
+- **Rule.** A round's report names the skills each of its readers loaded, the main session's
+  included. An angle run without the skills `SKILL.md`'s table names for it leaves its cells
+  unreached, whatever it found.
+- **Why.** Four rounds of #1937, #1938 and #1940 left angles' skills unloaded, three loading the
+  review skill alone, while #1940's first round, asked to name what it loaded, loaded every angle's
+  (#1937, #1938, #1940).
+- **Probe.** The report's `skills` line names, for each reader, every skill the table lists for the
+  angles it ran.
 
 ## Read each cell a reader settled against what its rule asks
 `audit-what-a-reader-cleared`

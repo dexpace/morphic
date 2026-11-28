@@ -1,7 +1,7 @@
 # Later rounds
 
-What a round reads from the third on, when it narrows to the fixes, and when a miss sends it over
-the whole change again, each from the reports
+What a round reads from the third on, when it narrows to the fixes, when a miss sends it over the
+whole change again, and when a mechanism found twice is settled by a sweep, each from the reports
 `references/later-rounds.md#keep-each-rounds-report` keeps. `references/rounds.md` says how a
 round runs and when the loop ends.
 
@@ -35,6 +35,19 @@ round runs and when the loop ends.
   to 5 sat in what moved, the body, a refused clearance or an unlisted member (#1522, #1530); from
   the merged `HEAD`, a stacked PR's list held `main`'s files (#1614).
 - **Probe.** The reader's brief lists those cells; the report runs or settles each.
+
+## Question whether text an earlier fix added is needed before repairing it
+`question-the-fixed-text-first`
+
+- **Rule.** From the third round on, answer a finding against text an earlier fix added by asking
+  first whether that text is needed. Candidates start with removing it and narrowing it to what was
+  measured, stating the limit where the rule lives; choose a new mechanism only where a consumer
+  gets a wrong result without one.
+- **Why.** #1783 (`0cd087ff6`) holds the version-stamp, event/URL and reserved-names rewrites #1790
+  describes, where rounds 3 to 5 repeatedly repaired text earlier fixes had added until candidates
+  started with removal and narrowing (#1790).
+- **Probe.** For each fix, `git log -S'<sentence fixed>' --format='%h %s'` names the adding commit,
+  and the report states whether that commit was a fix.
 
 ## Narrow the round after a nit-only round to its fixes
 `nit-round-checks-its-fixes`
@@ -92,3 +105,18 @@ round runs and when the loop ends.
   contrived (#1563).
 - **Probe.** For such a finding, the main session says from earlier reports and `git log` whether
   its cell was filled and unchanged; a body sentence needs no date (#1588).
+
+## Settle a mechanism found in two rounds with a derived sweep
+`mechanism-found-twice-gets-a-sweep`
+
+- **Rule.** Once one mechanism has drawn findings in two rounds, the next round settles it with a
+  sweep test in the tree, written where the review fixes and else asked for in an `issue:`, not by
+  reading for its next site: rows derived from what the code declares (every registry, keyword or
+  route) or from the specification, and a control, the fix reverted, reddening rows
+  (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`).
+- **Why.** Five mechanisms drew findings round after round until a sweep settled them: unbudgeted
+  read paths (#1927), nondeterministic verdicts (#1926), readers of a registry key as an ID (#1938),
+  overlays erasing a source's errors, and the YAML 1.1 number comparison, swept against both YAML
+  specifications (#1940).
+- **Probe.** The report names the sweep test, its rows' source and the rows the control reddens, or
+  the `issue:` asking for it.

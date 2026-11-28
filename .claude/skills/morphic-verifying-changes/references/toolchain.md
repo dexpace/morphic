@@ -31,6 +31,20 @@
   planted race in every run (#1271).
 - **Probe.** `go test -race -count=1 ./<pkg>` per touched package, or `make race` for the suite.
 
+## Run long commands in the background with output in a file
+`run-long-commands-in-the-background`
+
+- **Rule.** Start any command that may run long in the background with output in a file, and read
+  it once. Where a bound is wanted, use the tool's own flag (`go test -timeout` or a limit flag),
+  never a hand-rolled wrapper. Never run a golden-spec compile beside the harness on the same
+  cores. Report an unfinished run by
+  `.claude/skills/morphic-reviewing-prs/references/rounds.md#unfinished-run-leaves-its-cell-unreached`.
+- **Why.** #2201 (`a22fdf935`) waited 47 minutes and five hours in a loop while the harness wrote
+  nothing (`timeout 600` exited 124 empty), and a golden-spec compile beside the harness passed
+  120 s vs 10 s alone; #2292 rules out hand-rolled wrappers.
+- **Probe.** Each long command names an output file and runs in the background or under its own
+  flag; `grep -nE 'until |while .*sleep|perl -e'` over the round's commands is empty.
+
 ## A re-exec'd child writes coverage only when it exits through os.Exit
 `child-coverage`
 
@@ -166,6 +180,71 @@
 - **Why.** Seven branches' gates failed repeatedly on timeouts side by side, and all seven exited 0
   run one at a time from one clean checkout sharing one private `GOCACHE` (#1248, #1347).
 - **Probe.** `sh -c 'sleep 3; : make gate' & pgrep -lf 'make gate'` lists a shell running no gate.
+
+## Stop a process by its own pid, never by a pattern
+`stop-by-pid-not-pattern`
+
+- **Rule.** Stop a process only by the pid it was started under (`$!`, or one the run printed),
+  never by a pattern: `pkill -f` and `kill` over `pgrep -f` match every process whose command line
+  holds the words, and `killall` every one of that name, other sessions' runs among them. A killed
+  shell's children live on, so stop each by its own pid, and a plant run by
+  `references/mutation.md#stop-a-plant-run`.
+- **Why.** During #1938's verification, a `pkill -f plant.py` matched every plant runner on the
+  machine and may have stopped another run's plants (#1938).
+- **Probe.** `sh -c 'sleep 3; : plant.py' & pgrep -lf plant.py` lists a shell running no plant;
+  after `kill` of `sh -c 'sleep 30 & wait'`, `ps -o ppid= -p <the sleep>` prints 1.
+
+## Spell a class in `git grep -E` the POSIX way, and control every zero
+`git-grep-posix-classes`
+
+- **Rule.** `git grep -E` reads the platform's regular expressions, where on macOS `\s`, `\w` and
+  `\b` match nothing and raise no error, so a sweep built on them prints a clean zero. Spell a
+  class `[[:space:]]` or `[[:alnum:]_]`, a word boundary by `git grep -w`, or use `git grep -P`, and
+  read a zero only beside a control that must hit.
+- **Why.** A sweep for `.Properties` readers on #1181 printed nothing and read as clean, and sweeps
+  on #1145 reported no test named and an empty ID list, each from such a pattern (#1181, #1145).
+- **Probe.** On macOS, `git grep -cE '^\s+return' -- ir/document.go` prints nothing, and
+  `git grep -cE '^[[:space:]]+return' -- ir/document.go` prints a count.
+
+## Diff sorted sets in one collation
+`one-collation-for-sort-and-comm`
+
+- **Rule.** `comm` and `join` merge by the locale's collation, so input sorted otherwise, as Go's
+  `slices.Sort` and `git` sort by bytes, reads a line both sides hold as held by one. Sort both
+  inputs with `LC_ALL=C sort`, run `LC_ALL=C comm`, print each side's line count, and grep a
+  reported line in the other file before believing it.
+- **Why.** A diff of two call-graph dumps sorted by Go reported 31 edges removed on #826; under
+  `LC_ALL=C` none was, and 39 were added (#826).
+- **Probe.** Where `en_US.UTF-8` is installed,
+  `printf 'B\na\n' > x; printf 'a\n' > y; LC_ALL=en_US.UTF-8 comm -13 x y` prints `a`, and
+  `LC_ALL=C comm -13 x y` prints nothing.
+
+## Take into a hand-made bump only what its modules require
+`dependency-bump-takes-what-it-requires`
+
+- **Rule.** A dependency update follows `CONTRIBUTING.md`'s "Merge a dependency update", which sends
+  a parser-library bump through `docs/parser-library.md`'s tree diff and a toolchain move through
+  the `Makefile`'s list. A bump made by hand takes only the indirect moves a direct module's own
+  `go.mod` requires, as Dependabot does, and runs `go build ./...` before any test.
+- **Why.** A refresh beside #804's library bump moved a transitive YAML iterator to a release taking
+  another YAML package's nodes, breaking the build while `go mod tidy` passed, though the library's
+  `go.mod` required no such move; #394 took only what its library required (#804, #394).
+- **Probe.** For each module but the bumped ones that `git diff go.mod` moves,
+  `go mod graph | grep -x '<a bumped one>@<new> <module>@<its new version>'` prints a line, and
+  `go build ./...` exits 0.
+
+## Probe build-cache reuse from one checkout path
+`cache-reuse-from-one-path`
+
+- **Rule.** A probe of the Go build cache's reuse across commits builds from one checkout path,
+  switching commits in it, or under `-trimpath`: without it each compile's key holds the package's
+  absolute directory, so a second worktree misses on every package of the module and the probe
+  measures nothing. The `Makefile` adds `-trimpath`; a direct `go` command does not.
+- **Why.** A per-commit CI cache measured with one worktree per commit showed a documentation-only
+  change rebuilding everything, though CI checks out to one path (#755).
+- **Probe.** Under `GOFLAGS=` and then under `GOFLAGS=-trimpath`, each time after
+  `go build ./ir/irfacts` in one worktree, `go build -x ./ir/irfacts 2>&1 | grep -c '/compile '` in
+  a new second worktree at that commit prints a count, then 0.
 
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`

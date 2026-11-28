@@ -140,9 +140,10 @@ func TestSpelled_AKeptKeywordsNameRelocates(t *testing.T) {
 }
 
 func TestSpelled_TwoNamesRelocatedToOneDecline(t *testing.T) {
-	inline := `{properties: {q: {type: object, properties: {x: {type: string}}}}}`
+	first := `{properties: {q: {type: object, properties: {x: {type: string}}}}}`
+	second := `{properties: {q: {type: object, properties: {y: {type: string}}}}}`
 	verdict := spellingVerdict(t, spellingPair("3.1.0", `{allOf: [{$ref: '#/components/schemas/Obj'}]}`,
-		`{allOf: [{$ref: '#/components/schemas/Obj'}, `+inline+`, `+inline+`]}`, Equal{}))
+		`{allOf: [{$ref: '#/components/schemas/Obj'}, `+first+`, `+second+`]}`, Equal{}))
 	assert.Equal(t, declined(OracleSpelling, DeclineRelocationCollides), verdict)
 }
 

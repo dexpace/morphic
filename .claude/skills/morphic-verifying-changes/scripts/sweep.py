@@ -23,10 +23,11 @@ summary gives it once, and a spec differing in nothing else is "stamp" in result
 outputs. The .yaml, .yml and .json files CORPUS names, and those under its directories (default
 testdata), are read for OpenAPI and Swagger documents: a JSON one, even one saved as .yaml or .yml,
 by its top-level keys, minified or not, and a YAML one by a version key anywhere in it, so a file
-naming one in a comment or a nested mapping is compiled too, and fails alike on both sides. The
-sweep reports facts and judges none: specs that fail alike on both sides agree, so read the exit
-codes before taking agreement for a pass. Exit 0 when no spec differs but for its stamp, 1 when one
-does, 2 when the sweep cannot run.
+naming one in a comment or a nested mapping is compiled too, and fails alike on both sides. Each
+CORPUS argument is checked on its own, exiting 2 naming the first that yields no document, and the
+summary prints each argument's count beside the total. The sweep reports facts and judges none:
+specs that fail alike on both sides agree, so read the exit codes before taking agreement for a
+pass. Exit 0 when no spec differs but for its stamp, 1 when one does, 2 when the sweep cannot run.
 """
 
 import argparse
@@ -96,16 +97,26 @@ def is_spec(data: bytes) -> bool:
     return SPEC.search(data) is not None
 
 
+def find_specs_by_arg(corpus: list[Path]) -> list[tuple[Path, list[Path]]]:
+    """Return each corpus argument beside the OpenAPI and Swagger documents it names or holds;
+    raise ValueError for the first argument that yields none."""
+    groups = []
+    for d in corpus:
+        candidates = ([d] if d.is_file()
+                      else sorted(d.rglob("*")) if d.is_dir() else [])
+        found = [p.resolve() for p in candidates
+                 if p.suffix in (".yaml", ".yml", ".json") and p.is_file()
+                 and is_spec(p.read_bytes())]
+        if not found:
+            raise ValueError(f"no OpenAPI or Swagger documents under {d}")
+        groups.append((d, found))
+    return groups
+
+
 def find_specs(corpus: list[Path]) -> list[Path]:
     """Return the OpenAPI and Swagger documents among the .yaml, .yml and .json files corpus names
-    and those under its directories."""
-    out = []
-    for d in corpus:
-        for p in [d] if d.is_file() else sorted(d.rglob("*")):
-            if p.suffix in (".yaml", ".yml", ".json") and p.is_file() and \
-                    is_spec(p.read_bytes()):
-                out.append(p.resolve())
-    return out
+    and those under its directories; raise ValueError for any argument holding none."""
+    return [p for _, found in find_specs_by_arg(corpus) for p in found]
 
 
 def compile_one(binary: Path, spec: Path, flags: list[str], limit: int) -> Output:
@@ -185,11 +196,13 @@ def write_table(results: list[Result], table: Path, rel) -> str:
     return f"a row per spec in {table}"
 
 
-def report(results: list[Result], root: Path, out: Path) -> int:
+def report(results: list[Result], root: Path, out: Path,
+           counts: list[tuple[Path, int]] | None = None) -> int:
     def rel(p: Path) -> str:
         return p.relative_to(root).as_posix() if p.is_relative_to(root) else str(p)
 
-    print(f"sweep: {len(results)} specs; {write_table(results, out / 'results.tsv', rel)}")
+    per_arg = f" ({', '.join(f'{rel(p)}={n}' for p, n in counts)})" if counts else ""
+    print(f"sweep: {len(results)} specs{per_arg}; {write_table(results, out / 'results.tsv', rel)}")
     for i, side in enumerate(("base", "head")):
         dist = Counter(r.codes[i] for r in results)
         size = sum(r.sizes[i] for r in results)
@@ -238,27 +251,48 @@ def resolve_base(base: str) -> tuple[Path, str]:
     return root, git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
 
 
+def export_base(root: Path, sha: str, dest: Path) -> None:
+    """Export commit sha into dest without writing to root: git archive writes a tarball of its own
+    beside dest, which tar unpacks and which is removed afterwards. Each step raises
+    CalledProcessError with its own stderr, so a failure names the tool that failed."""
+    if dest.is_symlink() or dest.is_file():
+        dest.unlink()
+    else:
+        shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True)
+    # A new file of its own, named absolutely: git -C reads a relative --output against root, and
+    # a fixed name would follow a symlink or meet a directory already there.
+    fd, name = tempfile.mkstemp(suffix=".tar", dir=dest.parent.resolve())
+    os.close(fd)
+    tarball = Path(name)
+    try:
+        git(root, "archive", f"--output={tarball}", sha)
+        subprocess.run(["tar", "-x", "-f", str(tarball), "-C", str(dest)], check=True,
+                       capture_output=True, text=True, errors="replace")
+    finally:
+        tarball.unlink(missing_ok=True)
+
+
 def build_pair(root: Path, sha: str, out: Path) -> tuple[Path, Path]:
-    """Build cmd/morphic at commit sha and at the working tree, as out/base and out/head, the base
-    in a detached worktree removed afterwards; warn when HEAD does not hold sha."""
+    """Build cmd/morphic at commit sha and at the working tree, as out/base and out/head,
+    exporting the base through git archive into out/base-src removed afterwards; warn when HEAD
+    does not hold sha."""
     warning = unheld_base_warning(root, sha)
     if warning:
         print(warning, file=sys.stderr)
     src = out / "base-src"
-    remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
-    subprocess.run(remove, capture_output=True)  # a crashed run's worktree, if any
     try:
         build(root, "./cmd/morphic", out / "head")
-        git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
-        build(src, "./cmd/morphic", out / "base")
+        export_base(root, sha, src)
+        build(src, "./cmd/morphic", out / "base", buildvcs=False)
     finally:
-        subprocess.run(remove, capture_output=True)
+        shutil.rmtree(src, ignore_errors=True)
     return out / "base", out / "head"
 
 
-def build(src: Path, package: str, dest: Path) -> None:
-    subprocess.run(["go", "build", "-o", str(dest), package], cwd=src, check=True,
-                   capture_output=True, text=True, errors="replace")
+def build(src: Path, package: str, dest: Path, buildvcs: bool = True) -> None:
+    cmd = ["go", "build", *([] if buildvcs else ["-buildvcs=false"]), "-o", str(dest), package]
+    subprocess.run(cmd, cwd=src, check=True, capture_output=True, text=True, errors="replace")
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
@@ -297,11 +331,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sweep: {e}", file=sys.stderr)
         return 2
     corpus = [Path(c).resolve() for c in args.corpus] or [root / "testdata"]
-    specs = find_specs(corpus)
-    if not specs:
-        where = " ".join(map(str, corpus))
-        print(f"sweep: no OpenAPI or Swagger documents under {where}", file=sys.stderr)
+    try:
+        groups = find_specs_by_arg(corpus)
+    except ValueError as e:
+        print(f"sweep: {e}", file=sys.stderr)
         return 2
+    specs = [p for _, found in groups for p in found]
+    counts = [(d, len(found)) for d, found in groups]
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
     try:
         base, head = build_pair(root, sha, out)
@@ -309,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sweep: {(e.stderr or '').strip() or e}", file=sys.stderr)
         return 2
     results = compare(base, head, specs, out, args.flags, args.limit, args.jobs)
-    return report(results, root, out)
+    return report(results, root, out, counts)
 
 
 if __name__ == "__main__":

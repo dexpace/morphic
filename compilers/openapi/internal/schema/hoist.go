@@ -96,9 +96,15 @@ func commonFor(loweringContext lowering.Ctx, id ir.TypeID, pointer jsontext.Poin
 		ID:         id,
 		Provenance: loweringContext.Place().At(pointer),
 	}
-	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
+	switch name, state := ids.ComponentSchema(pointer); state {
+	case ids.NamedComponent:
 		common.Name = ir.NamingFor(name)
-	} else {
+	case ids.UnnamedComponent:
+		// A component schema keyed "" is a declared top-level component in
+		// OpenAPISpace (Anonymous: false), carrying a minted "empty" hint
+		// (departing from GitHub #405).
+		common.Name = compile.NamingHint(lowering.NameAt(loweringContext, pointer))
+	default:
 		common.Anonymous = true
 		common.Name = compile.NamingHint(lowering.NameAt(loweringContext, pointer))
 	}

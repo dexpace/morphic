@@ -84,7 +84,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     Kotlin, exports as `Duration__` ([Swift](swift.md)).
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
-    naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
+    naming tables are ([naming](../../refine/naming.md)), the target's own names included, so
     the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name the
     export declares for a class of its own or a public class, object or interface of the standard
     library, `Kotlin` before its name joined to its outer's (`KotlinInt`, `KotlinThrowable`,
@@ -147,24 +147,27 @@ file: measured with Kotlin 2.4.0 on a file system that ignores case, `NotFoundEx
 name whatever its letter case, on every target ([what a layer
 writes](../../contract/runtime-policy.md#what-a-layer-writes)).
 
-A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into paths,
-a method's in the class kotlinc writes for its body, so each is held to the length cap
+A type's name, a variant's and a method's are the roles Kotlin writes into paths, a method's in the
+class kotlinc writes for its body, so each is held to the length cap
 ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)); a source file is named
-for its class, so the cap holds it too, and a Gradle module's directory is its unit's name.
+for its class, so the cap holds it too. A unit's name, its package segment and its Gradle module's
+directory, is no role's identifier but a path name, which the same section holds to the cap as it
+does Go's package, cut by bytes and not at a word.
 
 A unit's name is its package segment, its module's project and artifact and that module's directory
 alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)): its words
-joined with no separator, folded by the path fold, each character outside `a`–`z` and `0`–`9`
-written as `u` and its hex code point, so `useraccounts`, `strasse` for `Straße` and `u65e5u672c`
-for `日本`; a partition's is the name the options give it. A Maven artifact's name takes ASCII
-letters, digits and `_-.` alone: Gradle 9.8.2 built a module `straße` and refused to publish it
-(`artifactId (straße) is not a valid Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once
-its artifact was `strasse`. Escaping only the artifact, which published too, was not taken, as it
-gives a unit two names, the package a caller imports and the artifact its build depends on. So two
-groups whose words break differently render alike and collide ([output
-units](../../refine/output-units.md)), as two that fold alike do; a name the options give a unit
-that this rendering would change, two partitions' names that fold alike among them, is an options
-error, and a group whose name folds as a partition's yields to it.
+joined with no separator and folded by the path fold, a name that would begin with a digit or a mark
+led by `pkg`, and then each character outside `a`–`z` and `0`–`9` written as `u` and its hex code
+point, so `useraccounts`, `strasse` for `Straße`, `pkg2fa` for `2fa`, `pkgu0301x` for U+0301 and
+`x`, and `u65e5u672c` for `日本`; a partition's is the
+name the options give it. A Maven artifact's name takes ASCII letters, digits and `_-.` alone:
+Gradle 9.8.2 built a module `straße` and refused to publish it (`artifactId (straße) is not a valid
+Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once its artifact was `strasse`. Escaping
+only the artifact, which published too, was not taken, as it gives a unit two names, the package a
+caller imports and the artifact its build depends on. So two groups whose words break differently
+render alike and collide ([output units](../../refine/output-units.md)), as two that fold alike do;
+a name the options give a unit that this rendering would change, two partitions' names that fold
+alike among them, is an options error, and a group whose name folds as a partition's yields to it.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
 takes the escape below, which kotlinc accepts in a `package` and an `import` alike: every hard

@@ -133,7 +133,7 @@ func fillComposedAdditional(loweringContext lowering.Ctx, ts *compile.Types, dep
 // where schema refuses an instance setting one the keyword does not admit. The
 // model stays open and the keyword is reported.
 func keepUnclosing(loweringContext lowering.Ctx, model *ir.Model, schema *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	kept, diags := annotation.PreserveSchemaKeyword(&model.Unmodeled, schema, "additionalProperties", ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, &model.Unmodeled, schema, "additionalProperties", ir.ReasonDegradedLowering, pointer)
 	if !kept {
 		return diags
 	}

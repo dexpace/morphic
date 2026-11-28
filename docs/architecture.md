@@ -469,15 +469,16 @@ Language-specific naming (casing, reserved words, import layout) lives here excl
 carries source names, wire names, and naming hints — never camelCase/PascalCase renderings.
 
 Two further emitter-side stages are named here so their obligations shape the contracts, even
-though both are post-milestone scope:
+though both are post-milestone scope, but for the file-level half of the first, which the first
+write needs ([write / integrate](./emitters/write-integrate.md)):
 
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
   deterministic file paths, a generation manifest (digests of the IR and of what else the generation
   read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
   survive a rename of what they are not built from, a [correlation
   key](./ir/derived-facts.md#correlation-keys) carrying one that keeps the name the key is built
-  from), file-header provenance that gates pruning (never delete a file
-  lacking the generated-by header), ignore-region markers for hand-written islands, and
+  from), provenance that gates pruning (never delete a file whose bytes are not ones a generation
+  wrote, which the manifest's digests say), ignore-region markers for hand-written islands, and
   additive-only merging. Additive-only writers also need a staleness check — (previous-revision
   entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
 - **Surface verification** — per-language extractors project existing SDK source into a
@@ -610,7 +611,7 @@ morphic/
 │   │                       #             five layers (below): `git ls-files` lists them.
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
-├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
+├── emitters/               # Layer 2 — options/, typemap/; contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
@@ -667,9 +668,11 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's. That is what keeps the ordering among them real: `diag` reaches only `ir` and
   `barrier`, and no lowering package may reach the compiler that calls it.
 - The OpenAPI compiler's own packages also sit in five layers, described below.
-- `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
-  The rule is in place before the first emitter package: `emitters` is ruled now, and each package
-  beneath it carries an entry of its own, as a compiler's packages do.
+- Each package under `emitters/` imports what [package layout](./emitters/packages.md) tables for
+  it — never a compiler, the engine or another target, and no package of that layout's kernel
+  imports the contract package `emitters`. The rule is in place before the contract package:
+  `emitters` is ruled now, and each package beneath it carries an entry of its own, as a compiler's
+  packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The import rules bound what a package names, not where control goes: a package can still call into
@@ -782,20 +785,28 @@ its JSON report writes every finding with the rule it met, under a schema versio
 the encoded shape.
 
 **What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
-taken once the passes have reported and the triage has rated their findings, and recorded as
-`Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read one rule rather
-than each reading the diagnostics its own way. `RunOptions.FailOn` sets the threshold. At `error`,
-the default, a finding rated an error fails the run; `warning` and `info` are stricter gates, each
-failing it on a finding rated at or above that severity, and no threshold fails it on a finding a
-rule accepted; `none` fails only a run that produced no document, which fails at every threshold. A
-diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
-with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
-through every gate. Failing withholds nothing: a failed run still returns its document and every
-diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a
-run that has not failed. The passes are not gated, since they run on every compiled document, errors
-reported or not (§2.2), and the verdict reads their findings too. Error is the default threshold
-because an error means the document may say something the spec does not: an SDK built on it is
-something a caller asks for with `none`, never a default.
+taken once every stage that runs before a write has reported and the triage has rated the findings,
+and recorded as `Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read
+one rule rather than each reading the diagnostics its own way. `RunOptions.FailOn` sets the
+threshold. At `error`, the default, a finding rated an error fails the run; `warning` and `info` are
+stricter gates, each failing it on a finding rated at or above that severity, and no threshold fails
+it on a finding a rule accepted; `none` fails only a run that produced no document, which fails at
+every threshold. A diagnostic of a severity the IR does not declare is a stage breaking its contract
+and fails the run with a Go error: no threshold can rank it, and ranking it below them all would let
+a misspelt error through every gate. Failing withholds nothing: a failed run still returns its
+document and every diagnostic, to inspect or persist. What it stops is the emitters, which the
+engine starts only where the findings the passes leave have not failed the run. A run that generates
+is then judged over the whole list, what its targets report and what planning their writes finds
+rated with the rest: one verdict for every target, which `Result.Failed` records and which is taken
+before anything is written, so a run it fails writes nothing ([write /
+integrate](./emitters/write-integrate.md#every-write-is-planned-before-the-verdict)). A build check
+the run asks for comes after it, on the written tree: what it reports is rated as any finding is,
+and a run it fails keeps the files as written
+([verification](./emitters/verification.md#the-output-builds)); where a driver reads that failure is
+the check's to state when it is built (#2260). The passes are not gated, since they run on every
+compiled document, errors reported or not (§2.2), and the verdict reads their findings too. Error is
+the default threshold because an error means the document may say something the spec does not: an
+SDK built on it is something a caller asks for with `none`, never a default.
 
 ## 5. Testing strategy
 

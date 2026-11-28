@@ -59,34 +59,6 @@
     }
   ],
   "types": {
-    "type/anonymous/components/schemas/": {
-      "kind": "scalar",
-      "id": "type/anonymous/components/schemas/",
-      "name": {
-        "hint": "empty"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "unmodeled": {
-        "openapi:$id": {
-          "reason": "out_of_scope",
-          "value": "https://example.com/empty",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas//$id"
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/"
-      },
-      "base": {
-        "target": "type/primitive/string",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/Holder/$defs/Deep": {
       "kind": "model",
       "id": "type/anonymous/components/schemas/Holder/$defs/Deep",
@@ -166,6 +138,34 @@
       },
       "base": {
         "target": "type/openapi/components/schemas/Recursive",
+        "nullable": false
+      }
+    },
+    "type/openapi/components/schemas/": {
+      "kind": "scalar",
+      "id": "type/openapi/components/schemas/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/empty",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas//$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/"
+      },
+      "base": {
+        "target": "type/primitive/string",
         "nullable": false
       }
     },

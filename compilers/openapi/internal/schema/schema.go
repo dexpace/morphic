@@ -126,6 +126,9 @@ func schemaRefHomed(loweringContext lowering.Ctx, ts *compile.Types, depth int, 
 		// a tuple's absent rest would otherwise draw.
 		return ts.PrimitiveRef(ir.PrimitiveAny), nil
 	}
+	if depth == TopLevelDepth {
+		recordReachedSchema(loweringContext, loweringContext.Position(pointer))
+	}
 	depth++
 	if depth > maxSchemaDepth {
 		return ts.PrimitiveRef(ir.PrimitiveAny), []ir.Diagnostic{loweringContext.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
@@ -776,8 +779,8 @@ func recordSkippedFamilies(loweringContext lowering.Ctx, td ir.TypeDef, schema *
 			written, named = append(written, conjuncts...), append(named, as...)
 			continue
 		}
-		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, schema, keyword,
-			ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+		stored, storedDiags := preserveSchemaKeyword(loweringContext, &common.Unmodeled, schema, keyword,
+			ir.ReasonDegradedLowering, pointer)
 		diags = append(diags, storedDiags...)
 		if stored {
 			written, named = append(written, keyword), append(named, keyword)
