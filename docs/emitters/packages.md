@@ -67,8 +67,8 @@ The kernel is tiers 0 to 2. What the table implies:
   second no knowledge of how a generation was made.
 - **`ShapeHint` is `emitters/hints`'s**, not the contract's, so `embed` reads it without importing
   the contract, and policy and hints are two packages of one shape.
-- **`pathfold` is top-level**, beside `barrier`, since the engine, `naming` and `manifest` compare
-  by it and it names no Morphic concept.
+- **`pathfold` is top-level**, beside `barrier`, since the engine, the contract, `naming` and
+  `manifest` compare by it and it names no Morphic concept.
 
 A package's entry in `internal/archtest` holds what its files import at the time, so it grows to
 its row here with the code that needs each import, and never past it.

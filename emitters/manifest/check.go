@@ -152,7 +152,8 @@ func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]stri
 	return nil
 }
 
-// checkFilePath holds a path to locality and reserved names alone (docs/emitters/emit/rules.md).
+// checkFilePath holds a path to the contained-writes rule and the reserved names, and to no
+// segment rule (docs/emitters/emit/rules.md).
 func checkFilePath(listedPath string) error {
 	if err := checkLocalPath(listedPath); err != nil {
 		return err

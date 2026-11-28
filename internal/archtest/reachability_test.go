@@ -29,9 +29,8 @@ const (
 		"rather than transcribing it, and the CLI sets options as text"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); the one that ships, " +
 		"const-unions, replaces and removes types and edits nothing else"
-	pathAPI = "the path fold and segment rules docs/emitters/emit/rules.md states, which the checked " +
-		"call (GitHub #2229), the project (GitHub #2242), naming (GitHub #2238, #2239) and the write plan " +
-		"(GitHub #2246) compare by"
+	segmentAPI = "the rules of a portable segment docs/emitters/emit/rules.md states, which the checked " +
+		"call (GitHub #2229) and the project (GitHub #2242) hold each segment to"
 	manifestAPI = "the manifest docs/emitters/write-integrate.md records, which the write plan " +
 		"reads (GitHub #2246) and the writer writes (GitHub #2247)"
 	relationAPI  = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
@@ -76,7 +75,7 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Component":   factAPI,
 	"ir/irfacts.DocumentFacts.Correlation": factAPI,
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
-	"pathfold.Portable":                    pathAPI,
+	"pathfold.Portable":                    segmentAPI,
 	"emitters/manifest.Decode":             manifestAPI,
 	"emitters/manifest.Encode":             manifestAPI,
 	"emitters/manifest.DecodePending":      manifestAPI,
