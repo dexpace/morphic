@@ -30,7 +30,7 @@ type position struct {
 	// as text, so a scalar example of one of them may be that value written
 	// out, as writtenOut judges.
 	// Its default is a value of the type all the same. An example does not say
-	// which form it is in, so a scalar written as the value's data goes
+	// which form it is in, so a string written as the value's data goes
 	// unjudged (docs/ir/values.md#values-held-to-their-type).
 	writtenShapes shapeSet
 	def           *ir.Value

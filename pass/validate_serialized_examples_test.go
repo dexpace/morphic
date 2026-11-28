@@ -141,6 +141,9 @@ func TestValidate_AParametersSerializedExampleOfAListOrAnObjectIsAccepted(t *tes
 		}(), []finding{{"operation/x", `scenario "s" parameter "parameter/x/q" is a string, and type/l holds a list`}}},
 		{"a string of an object under form", parameterOperation(ofType(objectT, text("R,100,G,200")), bindsQ(styled("form", off))), nil},
 		{"a string of an object under exploded form", parameterOperation(ofType(objectT, text("R=100&G=200")), bindsQ(styled("form", nil))), nil},
+		{"a string of an object under label", parameterOperation(ofType(objectT, text(".R,100")), bindsQ(styled("label", nil))), nil},
+		{"a string of an object under matrix", parameterOperation(ofType(objectT, text(";R=100")), bindsQ(styled("matrix", on))), nil},
+		{"a string of an object under cookie", parameterOperation(ofType(objectT, text("R,100")), bindsQ(styled("cookie", off))), nil},
 		{"a string of an object under deepObject", parameterOperation(ofType(objectT, text("q[R]=100")), bindsQ(styled("deepObject", on))), nil},
 		{"a string of an object under deepObject, not exploded", parameterOperation(ofType(objectT, text("q[R]=100")),
 			bindsQ(styled("deepObject", off))), nil},
@@ -192,9 +195,9 @@ func boundedItems(base ir.TypeRef, element, list *ir.Constraints, value *ir.Valu
 // example of a list a style writes to be its text only as its one item, since
 // it holds no delimiter: judged against the list's item counts and the element
 // type, whole numbers and bounds included, as text where the element is text,
-// and accepted where it holds anything. It is judged where the element is a
-// type the check reads no further, and for a tuple, whose items have no one
-// type. A string is accepted whatever leaf the element is, being text a style
+// not bytes, and accepted where it holds anything. It is judged where the
+// element is a type the check reads no further, and for a tuple, whose items
+// have no one type. A string is accepted for a list of leaves, as text a style
 // may split.
 func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 	t.Parallel()
@@ -211,6 +214,10 @@ func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 	five, two := ir.BigVal("5"), int64(2)
 	decimalT := ir.TypeRef{Target: ir.PrimitiveTypeID(ir.PrimitiveDecimal)}
 	enumT := ir.TypeRef{Target: "type/e"}
+	bytesItems := func(value *ir.Value) *ir.Document {
+		bytesID := ir.PrimitiveTypeID(ir.PrimitiveBytes)
+		return holding(itemOperation(ir.TypeRef{Target: bytesID}, value), &ir.Primitive{ID: bytesID, PrimitiveKind: ir.PrimitiveBytes})
+	}
 	tuple := itemOperation(intT, number("7"))
 	tuple.Types["type/i"] = &ir.Tuple{ID: "type/i", ElementTypes: []ir.TypeRef{intT}, Provenance: provAt("type/i")}
 	enum := itemOperation(enumT, number("8"))
@@ -225,6 +232,8 @@ func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 		{"a number of a list of integers", itemOperation(intT, number("7")), nil},
 		{"a number of a list of strings", itemOperation(stringT, number("7")), nil},
 		{"a number of a list of anything", itemOperation(anyT, number("7")), nil},
+		{"a number of a list of bytes", bytesItems(number("5")), asNumber},
+		{"a bool of a list of bytes", bytesItems(on), asBool},
 		{"a bool of a list of bools", itemOperation(boolT, on), nil},
 		{"a bool of a list of strings", itemOperation(stringT, on), nil},
 		{"a bool of a list of numbers", itemOperation(decimalT, on), asBool},
@@ -339,6 +348,8 @@ func TestValidate_AHeaderWrittenInAnEncodingHasNoKindJudged(t *testing.T) {
 	}{
 		{"a media type alone", &ir.Encoding{MediaType: "application/json"}, true},
 		{"a media type and a name", &ir.Encoding{MediaType: "application/json", Name: "base64"}, false},
+		{"a media type and a schema", &ir.Encoding{MediaType: "application/json", Schema: &stringT}, false},
+		{"a media type and a wire type", &ir.Encoding{MediaType: "application/json", WireType: &stringT}, false},
 		{"a name alone", &ir.Encoding{Name: "http-date"}, false},
 		{"nothing", &ir.Encoding{}, false},
 	} {
