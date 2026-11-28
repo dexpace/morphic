@@ -309,25 +309,30 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 	}
 }
 
-// TestBuild_ReadsAHierarchysTagKey holds WireKey to the flattened member one
-// of whose declarations the discriminator's Property names, and to
-// PropertyName where that locates the tag instead.
+// TestBuild_ReadsAHierarchysTagKey holds WireKey to the effective wire name of
+// the flattened member one of whose declarations the discriminator's Property
+// names, its source name where it declares no wire name, and to PropertyName
+// where that locates the tag instead.
 func TestBuild_ReadsAHierarchysTagKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string
 		discriminator ir.Discriminator
+		wireName      string
 		want          string
 	}{
-		{"the declaration the flattening takes", ir.Discriminator{Property: "type/kennel/kind"}, "kennel_kind"},
-		{"a declaration the flattening overrides", ir.Discriminator{Property: "type/shelter/kind"}, "kennel_kind"},
-		{"a declaration no member has", ir.Discriminator{Property: "type/kennel/missing"}, ""},
-		{"a wire name", ir.Discriminator{PropertyName: "tag"}, "tag"},
+		{"the declaration the flattening takes",
+			ir.Discriminator{Property: "type/kennel/kind"}, "kennel_kind", "kennel_kind"},
+		{"a declaration the flattening overrides",
+			ir.Discriminator{Property: "type/shelter/kind"}, "kennel_kind", "kennel_kind"},
+		{"a declaration naming no wire name", ir.Discriminator{Property: "type/kennel/kind"}, "", "kind"},
+		{"a declaration no member has", ir.Discriminator{Property: "type/kennel/missing"}, "kennel_kind", ""},
+		{"a wire name", ir.Discriminator{PropertyName: "tag"}, "kennel_kind", "tag"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			wireName := func(p *ir.Property) { p.WireName = "kennel_kind" }
+			wireName := func(p *ir.Property) { p.WireName = tt.wireName }
 			shelter := irtest.ModelOf("type/shelter", func(m *ir.Model) {
 				m.Properties = []ir.Property{property(m.ID, "kind", wireName)}
 			})
