@@ -4,6 +4,18 @@
 `print(target AST) → []byte`,
 then the language's native formatter canonicalises the result.
 
+## The printer reads the AST alone
+
+The printer takes the AST and nothing else: no IR document, plan, derived facts, options, policy or
+hints. Beyond the language's syntax and the [generated-by
+line](../contract/emitter.md#the-generated-by-line), whatever the text depends on is a node or a
+node's field, a declaration's documentation and an import's alias among them, and a reference by ID
+names a declaration of the same AST or carries the text refine resolved it to, a docs target's link
+through its route plan among them. A runtime template reads only the scalar policy values it
+interpolates ([structure and boilerplate](templates.md)). So a target's AST and those values are all
+a renderer outside Morphic would need to print what this printer prints ([the
+README](../README.md#a-renderer-outside-morphic)). T-79 holds this section.
+
 ## Typed AST → text → native formatter (the rationale)
 
 The Stainless model: the printer emits syntactically complete text and hands it to the language's
