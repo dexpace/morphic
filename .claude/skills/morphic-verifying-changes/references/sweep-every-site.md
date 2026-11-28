@@ -55,6 +55,18 @@ it.
   deletions is a finding. A design-stated move takes
   `references/sweep-every-site.md#sweep-a-design-stated-move`.
 
+## Sweep a moved import path in its escaped spelling too
+`moved-import-path-escaped`
+
+- **Rule.** When a change moves an import path, grep its regex-escaped spelling as well as the plain
+  one: `.golangci.yml` and other pattern lists write `go\.yaml\.in/yaml/v3`, which a substring grep
+  for the plain path misses.
+- **Why.** #1116 moved the YAML import path across the module, and lint then failed on `exhaustive`
+  because `ignore-enum-types` still named the old path escaped, until a third commit pointed it at
+  the new one (#1116).
+- **Probe.** `git grep -nF 'go\.yaml\.in' -- .golangci.yml` prints the `ignore-enum-types` line,
+  and `git grep -nF 'go.yaml.in' -- .golangci.yml` prints nothing.
+
 ## Sweep the spellings of a declaration a design document moves
 `sweep-a-design-stated-move`
 
@@ -86,13 +98,15 @@ it.
 `sweep-prose-a-meaning-change-falsifies`
 
 - **Rule.** A change to what a field or a value means falsifies sentences stating the old meaning,
-  in any package and in `docs/`, which need none of the words
-  `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for. Grep the
-  whole tree for the old meaning's words, the field's name among them, in the order a sentence
-  states them, and read each hit's sentence against the new meaning.
+  in any package and in `docs/`, the changed document's own code blocks included, which need none of
+  the words `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for.
+  Grep the whole tree for the old meaning's words, the field's name among them, in the order a
+  sentence states them, and read each hit's sentence against the new meaning.
 - **Why.** #1370 made `Provenance.Source` name the patched document rather than the overlay, and
   three sentences crediting the overlay outlived several review rounds, one in
-  `docs/architecture.md`, outside the touched packages (#1680).
+  `docs/architecture.md`, outside the touched packages (#1680). An amended lookup in
+  `docs/emitters/contract/type-table.md` kept its old comparison in its own Go block (#2241 at
+  095e4ba4f).
 - **Probe.** `git grep -nE '<pattern>' -- . ':!testdata'`, as
   `(credit|Source).*overlay|overlay.*(credit|Source|index)|fallback` hit all three at `f060e417a`.
 
@@ -121,3 +135,16 @@ it.
   (`1d5b2bd69`; the package comment sweep's 212 lines held none of them, #1764).
 - **Probe.** `git grep -nE 'any target may render alike' 1d5b2bd69 -- .` hits all three stale
   summaries.
+
+## Find the guards a removed state served by coverage, not by name
+`removed-state-guards-by-coverage`
+
+- **Rule.** When a change makes a value's zero or empty state invalid, convert the tests off it,
+  then profile every package whose tests built that state,
+  `go test -covermode=set -coverprofile=<f> <packages>`, and read each statement left uncovered: a
+  guard serving only the removed state is spelled on whatever name the value has where it is
+  checked, a helper's parameter in another package among them, which a grep for the field misses.
+- **Why.** #1646 made a lowering context's zero value invalid; a grep for its guards missed a
+  `doc == nil` check on a helper's parameter, found only when that package's own coverage fell
+  below full (#1646).
+- **Probe.** `go run ./cmd/morphic-covergate <f>` lists the statements left uncovered.

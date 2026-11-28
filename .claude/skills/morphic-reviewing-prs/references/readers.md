@@ -152,6 +152,18 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   it cites (#1532).
 - **Probe.** No two briefs of one round each name part of the files it reads.
 
+## Name the skills each reader loaded, and leave an angle without its skills unreached
+`round-names-loaded-skills`
+
+- **Rule.** A round's report names the skills each of its readers loaded, the main session's
+  included. An angle run without the skills `SKILL.md`'s table names for it leaves its cells
+  unreached, whatever it found.
+- **Why.** Four rounds of #1937, #1938 and #1940 left angles' skills unloaded, three loading the
+  review skill alone, while #1940's first round, asked to name what it loaded, loaded every angle's
+  (#1937, #1938, #1940).
+- **Probe.** The report's `skills` line names, for each reader, every skill the table lists for the
+  angles it ran.
+
 ## Read each cell a reader settled against what its rule asks
 `audit-what-a-reader-cleared`
 

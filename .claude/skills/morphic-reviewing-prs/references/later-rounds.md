@@ -1,7 +1,7 @@
 # Later rounds
 
-What a round reads from the third on, when it narrows to the fixes, and when a miss sends it over
-the whole change again, each from the reports
+What a round reads from the third on, when it narrows to the fixes, when a miss sends it over the
+whole change again, and when a mechanism found twice is settled by a sweep, each from the reports
 `references/later-rounds.md#keep-each-rounds-report` keeps. `references/rounds.md` says how a
 round runs and when the loop ends.
 
@@ -105,3 +105,18 @@ round runs and when the loop ends.
   contrived (#1563).
 - **Probe.** For such a finding, the main session says from earlier reports and `git log` whether
   its cell was filled and unchanged; a body sentence needs no date (#1588).
+
+## Settle a mechanism found in two rounds with a derived sweep
+`mechanism-found-twice-gets-a-sweep`
+
+- **Rule.** Once one mechanism has drawn findings in two rounds, the next round settles it with a
+  sweep test in the tree, written where the review fixes and else asked for in an `issue:`, not by
+  reading for its next site: rows derived from what the code declares (every registry, keyword or
+  route) or from the specification, and a control, the fix reverted, reddening rows
+  (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`).
+- **Why.** Five mechanisms drew findings round after round until a sweep settled them: unbudgeted
+  read paths (#1927), nondeterministic verdicts (#1926), readers of a registry key as an ID (#1938),
+  overlays erasing a source's errors, and the YAML 1.1 number comparison, swept against both YAML
+  specifications (#1940).
+- **Probe.** The report names the sweep test, its rows' source and the rows the control reddens, or
+  the `issue:` asking for it.

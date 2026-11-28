@@ -11,7 +11,9 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#compile-and-read-every-finding`,
    `.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
    golden spec where it holds the construct, fetched as `CLAUDE.md`'s "Priority" section shows.
-   Where they differ, take `references/correctness.md#better-than-main`.
+   Where they differ, take `references/correctness.md#better-than-main`. Code no compiler runs, such
+   as an emitter kernel package, is called on the values the committed IR goldens hold, each class
+   once.
 3. Probe each `CLAUDE.md` invariant the diff could reach, rather than reading for it. Fidelity,
    Determinism, Robustness and Contract take losslessness, order, bounds and what consumers read.
 4. Sweep every site of each changed mechanism

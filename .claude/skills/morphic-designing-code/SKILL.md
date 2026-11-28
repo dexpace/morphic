@@ -25,6 +25,7 @@ Each row names a rule and code to copy.
 | a name | `references/design-rules.md#name-what-it-holds` | `HasFilename` in `ir/operation.go` |
 | state every walk of a run must share | `references/design-rules.md#shared-run-state` | `readings` in `compilers/openapi/internal/lowering/lowering.go` |
 | a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run`, pruned by `references/design-rules.md#prune-a-visitor-to-its-carriers` | `checkInferred` in `ir/irverify/inferred.go` |
+| a struct, or a field on one | `references/design-rules.md#fields-in-optimal-size-order` | `HTTPBinding` in `ir/bindings.go` |
 | a value with a format, or a state meaning none | `references/design-rules.md#type-the-form` | `Limit` in `compilers/openapi/internal/budget/limit.go` |
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` | `Compiler` in `compilers/compilers.go` |
 | a wrapper, interface or option | `references/design-rules.md#no-forwarding-layer` | `DocumentReader` in `compilers/reader.go` |

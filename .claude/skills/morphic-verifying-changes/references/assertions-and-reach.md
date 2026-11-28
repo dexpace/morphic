@@ -304,3 +304,15 @@ it.
 - **Probe.** For each cmpopts option or ignored field in an oracle, remove it and rerun the corpus;
   then plant the flip the oracle guards (null vs [], a differing Hint) and confirm the oracle goes
   red with the option in place.
+
+## Assert on a cyclic fixture through scalars and pointer identity
+`cyclic-fixture-asserts-scalars`
+
+- **Rule.** In a test whose fixture holds a cycle, never hand testify a value cyclic through slices
+  or maps with no pointer on the cycle: on failure it formats the value and recurses until the
+  stack overflows, killing the test binary. Compare strings, lengths and pointer
+  identity, or use `cmp.Diff` once a planted failure shows it reports on that fixture, and see the
+  test report rather than crash.
+- **Why.** A failing assertion on a group slice holding itself overflowed the stack and took the
+  whole `ir` test binary down, its trace pointing at another test (#1145).
+- **Probe.** The planted failure prints the test's message and no `fatal error: stack overflow`.
