@@ -132,16 +132,16 @@ func checkPendingKnown(known map[string][]string) error {
 
 func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]string) error {
 	seenTemporaryFiles := make(map[string]bool, len(temporaryFiles))
-	for _, listedFile := range temporaryFiles {
+	for _, temporaryFile := range temporaryFiles {
 		// Kept for its clearer message: checkTemporaryFile admits only a name beside a held path.
-		if err := checkLocalPath(listedFile); err != nil {
+		if err := checkLocalPath(temporaryFile); err != nil {
 			return err
 		}
-		if seenTemporaryFiles[listedFile] {
-			return fmt.Errorf("duplicate temporary file %.64q", listedFile)
+		if seenTemporaryFiles[temporaryFile] {
+			return fmt.Errorf("duplicate temporary file %.64q", temporaryFile)
 		}
-		seenTemporaryFiles[listedFile] = true
-		if err := checkTemporaryFile(listedFile, known); err != nil {
+		seenTemporaryFiles[temporaryFile] = true
+		if err := checkTemporaryFile(temporaryFile, known); err != nil {
 			return err
 		}
 	}
@@ -168,7 +168,9 @@ func checkLocalPath(listedPath string) error {
 	if listedPath == "." {
 		return fmt.Errorf("path %.64q does not name a file", listedPath)
 	}
-	// The verdict is the host's: local is a property of its path syntax.
+	// filepath.IsLocal reads the host's path syntax, so a Windows host refuses
+	// paths another admits; generation is not built for Windows
+	// (docs/emitters/write-integrate.md#where-generation-runs).
 	if !filepath.IsLocal(filepath.FromSlash(listedPath)) {
 		return fmt.Errorf("path %.64q is not local", listedPath)
 	}
@@ -200,10 +202,10 @@ func checkDigest(listedPath, digest string) error {
 	return nil
 }
 
-func checkTemporaryFile(listedFile string, known map[string][]string) error {
-	dir, base := path.Split(listedFile)
+func checkTemporaryFile(temporaryFile string, known map[string][]string) error {
+	dir, base := path.Split(temporaryFile)
 	if !strings.HasPrefix(base, ".") {
-		return fmt.Errorf("temporary file %.64q must start with a dot in its base name", listedFile)
+		return fmt.Errorf("temporary file %.64q must start with a dot in its base name", temporaryFile)
 	}
 	rest := base[1:]
 	for digits := 1; digits <= maxTemporaryDigits && digits < len(rest); digits++ {
@@ -219,5 +221,5 @@ func checkTemporaryFile(listedFile string, known map[string][]string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("temporary file %.64q matches no known path or %s", listedFile, FileName)
+	return fmt.Errorf("temporary file %.64q matches no known path or %s", temporaryFile, FileName)
 }
