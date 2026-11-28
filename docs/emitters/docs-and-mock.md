@@ -236,14 +236,16 @@ A request carrying parameters of two variants of a choice, or none of a required
 as one failing validation is.
 
 - **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
-  a tag naming none taking the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives,
-  and an untagged one by the variants admitting the value, which is refused where two do and the
-  union is `Strict`, and held by each where the shape's `ModelShape.Inclusive` is set.
+  or, where it routes to several, by the one recognition finds among them, a tag naming none taking
+  the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives, and an untagged one by
+  the variants admitting the value, which is refused where two do and the union is `Strict`, and
+  held by each where the shape's `ModelShape.Inclusive` is set.
 - **A model narrowing a union** is read as that union, each entry of its `TypePlan.Composed` a
-  variant ([inheritance](refine/models.md#inheritance)). The tag routes to the entry over the
-  variant it names, through each union the entry's `Over` passes, and the body is held to the
-  members the entry's `Shapes` hold and require in the request's shape and to the constraints of
-  every declaration of each member its `Flattened` holds, taken and overridden. The model's own
+  variant ([inheritance](refine/models.md#inheritance)). The tag routes to the entry over each
+  variant it names, through each union the entry's `Over` passes, the body is read as the one
+  recognition finds among those entries where it names several, and it is held to the members that
+  entry's `Shapes` hold and require in the request's shape and to the constraints of every
+  declaration of each member its `Flattened` holds, taken and overridden. The model's own
   `Flattened` holds only what it adds, so a handler reading it alone accepts what the API refuses.
   The golden spec's `rulesets_Rule` request body adds `position` to a `oneOf` of 21 rules that
   `action` routes, and the rule `block` routes to bounds a response's `status_code` to 400 through
@@ -463,15 +465,14 @@ member, operation and message:
   member's set holding a value and no `Strict` union left ambiguous by the shape, no shape is left
   without one. `Build` refuses a union value several variants admit where the union is
   `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
-  discriminated union that the variant its tag routes to does not admit, whichever other variant
-  does, since decoding reads it by its tag
-  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows such a value
-  elsewhere through all of them, keeping each member one of them holds in the shape, since an
-  inclusive value may be several variants at once. A shape can make a value two variants of a
-  `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
-  admission again in the shape it shows and is false there, as for a member it cannot fill. A model
-  narrowing a union is checked and shown as that union, the entries of its `TypePlan.Composed` its
-  variants, each in its entry's shape and filled from what that entry requires there, strict and
+  discriminated union that no variant its tag routes to admits, whichever other variant does, since
+  decoding reads it by its tag ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and
+  `Shown` shows such a value elsewhere through all of them, keeping each member one of them holds in
+  the shape, since an inclusive value may be several variants at once. A shape can make a value two
+  variants of a `Strict` union admit, by dropping the member that kept one of them out, so `Shown`
+  checks admission again in the shape it shows and is false there, as for a member it cannot fill. A
+  model narrowing a union is checked and shown as that union, the entries of its `TypePlan.Composed`
+  its variants, each in its entry's shape and filled from what that entry requires there, strict and
   inclusive where the union is ([TypePlan](plan/types.md#a-model-narrowing-a-union)), so a value no
   entry admits is refused, and a model adding nothing to its union as that union. `plan.Shown` does
   this, the one projection every consumer reads an example through, reading `Assemble` from
