@@ -478,6 +478,31 @@ func TestBuild_ReportsADiscriminatorNoLocatorPlaces(t *testing.T) {
 	}
 }
 
+// TestBuild_TakesAnUnlocatedHolderAsTheNearest holds a subtype whose nearest
+// discriminated ancestor sets no locator: the subtype's value is a tag of that
+// discriminator, located or not, so the farther base routes none of it, and
+// the plan reports the unlocated discriminator alone.
+func TestBuild_TakesAnUnlocatedHolderAsTheNearest(t *testing.T) {
+	t.Parallel()
+	doc := petHierarchy()
+	dog := doc.Types["type/dog"].(*ir.Model)
+	dog.Discriminator = &ir.Discriminator{}
+	dog.Provenance = holderProvenance()
+
+	built, diags := plan.Build(doc, irfacts.New(doc), plan.Policy{})
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, "emitters/plan/discriminator-unlocated", diags[0].Code)
+	assert.Equal(t, holderProvenance(), diags[0].Provenance)
+	assert.Nil(t, built.Types["type/dog"].Discrim)
+	require.NotNil(t, built.Types["type/pet"].Discrim)
+	want := map[string][]ir.TypeID{
+		"cat": {"type/cat"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
+		"Dog": {"type/dog"}, "Bird": {"type/bird"},
+	}
+	assert.Empty(t, cmp.Diff(want, built.Types["type/pet"].Discrim.Mapping), "(-want +got)")
+}
+
 // TestBuild_ReportsInTypeOrder holds the plan's findings to one order, by the
 // ID of the type each is about, however the registry's map is ranged, and
 // ahead of the finding that the document does not encode.
