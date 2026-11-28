@@ -156,12 +156,6 @@ func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
 		},
 		TemporaryFiles: []string{".z.go2", ".a.go1", "." + escapablePath + "3"},
 	}
-	first, err := manifest.EncodePending(valid)
-	require.NoError(t, err)
-	second, err := manifest.EncodePending(valid)
-	require.NoError(t, err)
-	assert.Equal(t, first, second)
-
 	want := `{
   "schema": 1,
   "target": "go",
@@ -184,7 +178,14 @@ func TestEncodePending_WritesTheCanonicalForm(t *testing.T) {
   ]
 }
 `
-	assert.Equal(t, want, string(first))
+	// Each encoding walks the map afresh, so one in a fixed order could match
+	// by chance; enough of them cannot.
+	const encodings = 32
+	for range encodings {
+		got, err := manifest.EncodePending(valid)
+		require.NoError(t, err)
+		require.Equal(t, want, string(got))
+	}
 }
 
 func TestEncodePending_LeavesItsArgumentAsItWas(t *testing.T) {
@@ -282,15 +283,12 @@ func TestDecodePending_Refuses(t *testing.T) {
 		{name: "reserved pending temporary file in known", raw: withChange(t, func(value *manifest.Pending) {
 			value.Known[manifest.PendingTemporaryName] = []string{digestAlpha}
 		})},
-		{
-			name: "four bad paths in known reports first in byte order",
-			raw: []byte(`{"schema":1,"target":"go","known":{` +
-				`"z/../y":["` + digestAlpha + `"],` +
-				`"m/../n":["` + digestAlpha + `"],` +
-				`"a/../b":["` + digestAlpha + `"],` +
-				`"d/../e":["` + digestAlpha + `"]}}`),
-			wantContains: "a/../b",
-		},
+		{name: "temporary file ending in a letter beside a known path", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.gox"}
+		})},
+		{name: "temporary file ending below a digit beside a known path", raw: withChange(t, func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go-"}
+		})},
 	}
 
 	badPaths := slices.Concat(badManifestPaths(), reservedSpellings())
@@ -328,6 +326,61 @@ func TestDecodePending_Refuses(t *testing.T) {
 			if row.wantContains != "" {
 				assert.ErrorContains(t, err, row.wantContains)
 			}
+		})
+	}
+}
+
+// TestDecodePending_ReportsTheFirstBadKnownPathInByteOrder decodes four bad
+// known paths many times over, so a walk of them in map order cannot report
+// the first in byte order every time by chance.
+func TestDecodePending_ReportsTheFirstBadKnownPathInByteOrder(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"schema":1,"target":"go","known":{` +
+		`"z/../y":["` + digestAlpha + `"],` +
+		`"m/../n":["` + digestAlpha + `"],` +
+		`"a/../b":["` + digestAlpha + `"],` +
+		`"d/../e":["` + digestAlpha + `"]}}`)
+	const decodings = 32
+	for range decodings {
+		_, err := manifest.DecodePending(raw)
+		require.ErrorContains(t, err, `"a/../b"`)
+	}
+}
+
+// TestEncodePending_QuotesABoundedPrefixOfWhatItRefuses holds each message
+// quoting a known path or a temporary file to a bounded prefix of it, so an
+// oversized one cannot size the message.
+func TestEncodePending_QuotesABoundedPrefixOfWhatItRefuses(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name   string
+		mutate func(*manifest.Pending)
+	}{
+		{name: "known path with no digest", mutate: func(value *manifest.Pending) {
+			value.Known, value.TemporaryFiles = map[string][]string{oversized: nil}, nil
+		}},
+		{name: "known path repeating a digest", mutate: func(value *manifest.Pending) {
+			value.Known, value.TemporaryFiles = map[string][]string{oversized: {digestAlpha, digestAlpha}}, nil
+		}},
+		{name: "duplicate temporary file", mutate: func(value *manifest.Pending) {
+			value.Known = map[string][]string{oversized: {digestAlpha}}
+			value.TemporaryFiles = []string{"." + oversized + "1", "." + oversized + "1"}
+		}},
+		{name: "temporary file with no dot", mutate: func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{oversized}
+		}},
+		{name: "temporary file beside no known path", mutate: func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{"." + oversized}
+		}},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			value := validPending()
+			row.mutate(&value)
+			_, err := manifest.EncodePending(value)
+			require.Error(t, err)
+			assert.Less(t, len(err.Error()), maxMessageBytes)
 		})
 	}
 }
@@ -379,6 +432,12 @@ func TestEncodePending_RefusesWhatDecodePendingRefuses(t *testing.T) {
 		})},
 		{name: "temporary file with 20 digits", value: withChange(func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{".x.go" + strings.Repeat("1", 20)}
+		})},
+		{name: "temporary file ending in a letter beside a known path", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.gox"}
+		})},
+		{name: "temporary file ending below a digit beside a known path", value: withChange(func(value *manifest.Pending) {
+			value.TemporaryFiles = []string{".x.go-"}
 		})},
 		{name: "pending manifest temporary file listed", value: withChange(func(value *manifest.Pending) {
 			value.TemporaryFiles = []string{manifest.PendingTemporaryName}

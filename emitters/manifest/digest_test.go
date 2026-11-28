@@ -4,6 +4,8 @@
 package manifest_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"regexp"
 	"strings"
 	"testing"
@@ -65,6 +67,9 @@ func TestDigest_SeesWhatAnEditChanges(t *testing.T) {
 		{name: "trailing CR", content: "a\nb\r"},
 		{name: "trailing CR alone", content: "a\r", unedited: "a"},
 		{name: "CR after LF", content: "a\n\rb"},
+		{name: "leading LF", content: "\na\nb"},
+		{name: "space before LF", content: "a \nb"},
+		{name: "tab before LF", content: "a\t\nb"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -80,8 +85,9 @@ func TestDigest_SeesWhatAnEditChanges(t *testing.T) {
 }
 
 // TestDigest_IsBlindToEveryCheckoutOfShortContent holds every string of up to
-// seven bytes of a, CR and LF to digesting as its canonical spelling does, and
-// as itself with a CR inserted before, or removed from before, any LF.
+// seven bytes of a, CR and LF to the SHA-256 of its canonical spelling, to
+// digesting as that spelling does, and as itself with a CR inserted before, or
+// removed from before, any LF.
 func TestDigest_IsBlindToEveryCheckoutOfShortContent(t *testing.T) {
 	t.Parallel()
 	const maxLength = 7
@@ -113,6 +119,8 @@ func TestDigest_IsBlindToEveryCheckoutOfShortContent(t *testing.T) {
 func checkCheckoutBlindness(t *testing.T, content, canonical string) {
 	t.Helper()
 	want := manifest.Digest([]byte(content))
+	canonicalSum := sha256.Sum256([]byte(canonical))
+	assert.Equal(t, "sha256:"+hex.EncodeToString(canonicalSum[:]), want, "%q digested as %q", content, canonical)
 	assert.Equal(t, want, manifest.Digest([]byte(canonical)), "%q against its canonical spelling %q", content, canonical)
 	for position := range len(content) {
 		if content[position] != '\n' {

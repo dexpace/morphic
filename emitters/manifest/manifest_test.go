@@ -285,6 +285,7 @@ func TestDecode_Refuses(t *testing.T) {
 		{name: "file with unknown member", raw: []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},"files":[{"path":"a.go","digest":"` + digestAlpha + `","origins":["x"]}]}`)},
 		{name: "duplicate member name", raw: []byte(`{"schema":1,"target":"go","target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"}}`)},
 		{name: "invalid UTF-8 in target", raw: []byte("{\"schema\":1,\"target\":\"go\xff\",\"options\":1,\"inputs\":{\"doc\":\"d\",\"plan\":\"p\",\"emitter\":\"e\",\"config\":\"c\"}}")},
+		{name: "invalid UTF-8 in file path", raw: []byte("{\"schema\":1,\"target\":\"go\",\"options\":1,\"inputs\":{\"doc\":\"d\",\"plan\":\"p\",\"emitter\":\"e\",\"config\":\"c\"},\"files\":[{\"path\":\"a/\xff\",\"digest\":\"" + digestAlpha + "\"}]}")},
 		{name: "empty target", raw: withChange(t, func(value *manifest.Manifest) { value.Target = "" })},
 		{name: "options 0", raw: withChange(t, func(value *manifest.Manifest) { value.Options = 0 })},
 		{name: "options -1", raw: withChange(t, func(value *manifest.Manifest) { value.Options = -1 })},
@@ -425,33 +426,50 @@ func TestEncode_RefusesWhatDecodeRefuses(t *testing.T) {
 	}
 }
 
-// TestEncode_QuotesABoundedPrefixOfWhatItRefuses holds an error to a bounded
-// prefix of the string it refuses, so an oversized path, digest or temporary
-// file cannot size the message.
+// maxMessageBytes bounds a message quoting an oversized string: each quotes at
+// most 64 characters of it.
+const maxMessageBytes = 256
+
+// oversized is a string no message may quote whole.
+var oversized = strings.Repeat("a", 1<<16)
+
+// TestEncode_QuotesABoundedPrefixOfWhatItRefuses holds each message quoting a
+// manifest's path or digest to a bounded prefix of it, so an oversized one
+// cannot size the message.
 func TestEncode_QuotesABoundedPrefixOfWhatItRefuses(t *testing.T) {
 	t.Parallel()
-	const maxMessageBytes = 256
-	oversized := strings.Repeat("a", 1<<16)
-	longPath := validManifest()
-	longPath.Files[0].Path = oversized + "/"
-	longDigest := validManifest()
-	longDigest.Files[0].Digest = oversized
-	longTemporaryFile := validPending()
-	longTemporaryFile.TemporaryFiles = []string{"." + oversized}
-
-	_, pathErr := manifest.Encode(longPath)
-	_, digestErr := manifest.Encode(longDigest)
-	_, temporaryFileErr := manifest.EncodePending(longTemporaryFile)
-	for _, row := range []struct {
-		name string
-		err  error
+	rows := []struct {
+		name   string
+		mutate func(*manifest.Manifest)
 	}{
-		{name: "path", err: pathErr},
-		{name: "digest", err: digestErr},
-		{name: "temporary file", err: temporaryFileErr},
-	} {
-		require.Error(t, row.err, row.name)
-		assert.Less(t, len(row.err.Error()), maxMessageBytes, row.name)
+		{name: "path holding a backslash", mutate: func(value *manifest.Manifest) {
+			value.Files[0].Path = oversized + `\`
+		}},
+		{name: "path not clean", mutate: func(value *manifest.Manifest) { value.Files[0].Path = oversized + "/" }},
+		{name: "path not local", mutate: func(value *manifest.Manifest) { value.Files[0].Path = "/" + oversized }},
+		{name: "path under a reserved name", mutate: func(value *manifest.Manifest) {
+			value.Files[0].Path = manifest.FileName + "/" + oversized
+		}},
+		{name: "duplicate path", mutate: func(value *manifest.Manifest) {
+			value.Files = []manifest.File{{Path: oversized, Digest: digestAlpha}, {Path: oversized, Digest: digestBeta}}
+		}},
+		{name: "path with a short digest", mutate: func(value *manifest.Manifest) {
+			value.Files[0] = manifest.File{Path: oversized, Digest: "sha256:"}
+		}},
+		{name: "path with a digest holding a non-hex letter", mutate: func(value *manifest.Manifest) {
+			value.Files[0] = manifest.File{Path: oversized, Digest: "sha256:" + strings.Repeat("a", 63) + "g"}
+		}},
+		{name: "long digest", mutate: func(value *manifest.Manifest) { value.Files[0].Digest = "sha256:" + oversized }},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			value := validManifest()
+			row.mutate(&value)
+			_, err := manifest.Encode(value)
+			require.Error(t, err)
+			assert.Less(t, len(err.Error()), maxMessageBytes)
+		})
 	}
 }
 
@@ -486,9 +504,9 @@ func reservedSpellings() []namedString {
 	}
 }
 
-// TestReservedNames_AreTheirOwnFolds pins that each reserved name is its own
-// fold, which comparing a path's fold to the name alone relies on.
-func TestReservedNames_AreTheirOwnFolds(t *testing.T) {
+// TestFold_LeavesEachReservedNameAsWritten pins that each reserved name is its
+// own fold, which comparing a path's fold to the name alone relies on.
+func TestFold_LeavesEachReservedNameAsWritten(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{manifest.FileName, manifest.PendingName, manifest.PendingTemporaryName} {
 		assert.Equal(t, name, pathfold.Fold(name))
