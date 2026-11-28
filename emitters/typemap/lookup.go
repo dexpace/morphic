@@ -19,7 +19,8 @@ type Found uint8
 const (
 	// Exact is the key's own row.
 	Exact Found = iota
-	// TravelsAs is the default row of another primitive the value travels as.
+	// TravelsAs is the default row of the primitive the value travels as, where
+	// that is not the key's primitive.
 	TravelsAs
 	// Primitive is the key primitive's own default row.
 	Primitive
@@ -29,8 +30,9 @@ const (
 // string whose encoding has a name and a WireType of string is text to
 // encode, keyed as bytes under that name; any other value is keyed by its own
 // primitive and the encoding's name. So the key's primitive differs from
-// primitive only for text to encode, which a target types as text and writes
-// as its UTF-8 octets under the encoding.
+// primitive only for text to encode, which a target types as text and, where
+// Lookup finds the key's own row, writes as its UTF-8 octets under the
+// encoding.
 func Key(primitive ir.PrimitiveKind, encoding Encoding) PrimitiveKey {
 	if primitive == ir.PrimitiveString && encoding.Name != "" && encoding.WireType == ir.PrimitiveString {
 		return PrimitiveKey{Primitive: ir.PrimitiveBytes, Encoding: encoding.Name}

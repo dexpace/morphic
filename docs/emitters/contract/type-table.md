@@ -55,8 +55,8 @@ type Encoding struct {
 }
 
 // Found says how Lookup found its row: under the key's own entry (Exact), under the default row of
-// the primitive the value travels as where that is another primitive (TravelsAs), or under the
-// primitive's own default row (Primitive).
+// the primitive the value travels as where that is not the key's primitive (TravelsAs), or under
+// the key primitive's own default row (Primitive).
 type Found uint8 // Exact | TravelsAs | Primitive
 
 // Key is the key a value of primitive is typed by under encoding: a string whose encoding has a
@@ -324,9 +324,10 @@ value as its primitive's default row does unless the target's lowering table say
   `bytes` under the same name, the key `Key` makes: the row writes the text's UTF-8 octets as that
   encoding writes octets, and reads it back as text, refusing octets that are no UTF-8, so `hi`
   under `base64` is `aGk=`. A target tells such a value by `Key`'s primitive differing from the
-  value's: the row's `Type` names the bytes type the value's octets are written as, while the value
-  is text. Read under `{string, name}`, one key would mean both, and a row encoding it would encode
-  OpenAPI's text twice.
+  value's: where `Lookup` finds that key's own row, its `Type` names the bytes type the value's
+  octets are written as, while the value is text; with none, the value is typed as its `WireType`'s
+  row types it, as any encoding with no row of its own is. Read under `{string, name}`, one key
+  would mean both, and a row encoding it would encode OpenAPI's text twice.
 
 Each target's lowering table names the type and the codec of each ([Go](../targets/go/lowering.md),
 [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows and the lookup. The designs it was
