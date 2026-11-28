@@ -88,10 +88,14 @@ since the check reads no media type's grammar, and OTP has no compiler yet to sa
 can. Still judged: a null example of a required one, whatever writes it; a null default, which is
 written into code; a property's null example, since an object can hold a member whose value is null,
 a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and a
-scenario's null input, since a scenario leaves a parameter out by not naming it. The emitter
-contract still holds a null example of a parameter or a header that is not required to its type
-([one set of examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to
-change.
+scenario's null input, since a scenario leaves a parameter out by not naming it. A Schema Object's
+null example is read two ways by where the OpenAPI compiler places it
+([`schema-examples`](../compilers/openapi.md#schema-examples)): left on a type, as an enum's or a
+named schema's is, it says the example is absent, while one moved onto a required parameter or a
+property, as a string schema's is, is judged as the position's own. One reading for it wherever it
+lands is a decision of its own. The emitter contract still holds a null example of a parameter or a
+header that is not required to its type ([one set of
+examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to change.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value
