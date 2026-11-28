@@ -5,6 +5,6 @@
 // file system compares them and checks whether a path segment is portable
 // across target file systems (docs/emitters/emit/rules.md).
 //
-// It carries no Morphic concept, so the engine, the emitter contract and
-// naming share it from Layer 0.
+// It carries no Morphic concept, so the engine, the emitter contract, naming
+// and the manifest (emitters/manifest) share it from Layer 0.
 package pathfold

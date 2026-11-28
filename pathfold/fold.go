@@ -35,10 +35,14 @@ func Fold(name string) string {
 
 // decomposeStreamSafe returns name as norm.NFD decomposes it and whether that
 // cut a run of marks: norm.NFD writes Unicode's stream-safe form, a U+034F
-// after 30 marks in a row, and orders no mark across one.
+// after 30 marks in a row, and orders no mark across one. It removes none, so
+// a decomposition holding none cut nothing and name is not counted.
 func decomposeStreamSafe(name string) (decomposed string, cut bool) {
 	decomposed = norm.NFD.String(name)
 	written := strings.Count(decomposed, combiningGraphemeJoiner)
+	if written == 0 {
+		return decomposed, false
+	}
 	return decomposed, written != strings.Count(name, combiningGraphemeJoiner)
 }
 
