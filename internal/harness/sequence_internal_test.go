@@ -367,7 +367,7 @@ func TestReverseSequences_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 
 	got, _, why := reverseSequences([]byte("allOf: [a, b]\n"))
 
-	assert.Equal(t, DeclinePermutationUnparsable, why)
+	assert.Equal(t, DeclineReencodingUnparsable, why)
 	assert.Nil(t, got)
 }
 

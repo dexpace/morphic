@@ -137,9 +137,9 @@ const (
 	DeclineTooManyDocuments Decline = "too many documents"
 	// DeclineUnencodable: the parsed source does not encode again.
 	DeclineUnencodable Decline = "does not re-encode"
-	// DeclinePermutationUnparsable: the source re-encoded, permuted or as
+	// DeclineReencodingUnparsable: the source re-encoded, permuted or as
 	// written, does not parse again, which is the rewrite's own fault.
-	DeclinePermutationUnparsable Decline = "permutation does not parse"
+	DeclineReencodingUnparsable Decline = "re-encoding does not parse"
 	// DeclineReencodingReadsOtherwise: the source re-encoded, permuted or as
 	// written, parses again to other nodes or values, so the oracle would
 	// compile another spec.

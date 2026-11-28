@@ -419,7 +419,7 @@ func encodeFaithfully(docs []*yaml.Node) ([]byte, Decline) {
 	}
 	read, why := parseStream(out)
 	if why != "" {
-		return nil, DeclinePermutationUnparsable
+		return nil, DeclineReencodingUnparsable
 	}
 	if len(read) != len(docs) {
 		return nil, DeclineReencodingReadsOtherwise

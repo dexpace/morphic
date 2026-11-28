@@ -1010,7 +1010,7 @@ func TestReverseMappings_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 	encodeYAML = func([]*yaml.Node) ([]byte, error) { return []byte("a: [unclosed\n"), nil }
 
 	got, why := reverseMappings([]byte("a: 1\nb: 2\n"))
-	assert.Equal(t, DeclinePermutationUnparsable, why, "the rewrite's own fault is no finding about the compiler")
+	assert.Equal(t, DeclineReencodingUnparsable, why, "the rewrite's own fault is no finding about the compiler")
 	assert.Nil(t, got)
 }
 
