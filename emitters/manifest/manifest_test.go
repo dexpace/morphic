@@ -504,6 +504,8 @@ func reservedSpellings() []namedString {
 		{name: "pending temporary file in capitals", value: ".MORPHIC.MANIFEST.PENDING.JSON.TMP"},
 		{name: "manifest with a long s", value: "morphic.manife\u017ft.json"},
 		{name: "pending temporary file with two long s", value: ".morphic.manife\u017ft.pending.j\u017fon.tmp"},
+		{name: "manifest with an st ligature", value: "morphic.manife\ufb06.json"},
+		{name: "pending temporary file with dotless i and long s", value: ".morph\u0131c.man\u0131fe\u017ft.pend\u0131ng.j\u017fon.tmp"},
 	}
 }
 
@@ -513,7 +515,8 @@ func reservedSpellings() []namedString {
 // twice the input, the fewest of three runs. It does not run in parallel,
 // since the count is process-wide.
 func TestDecode_AllocatesAtMostTwiceALongFirstSegment(t *testing.T) {
-	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	previous := runtime.GOMAXPROCS(1)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
 	raw := []byte(`{"schema":1,"target":"go","options":1,"inputs":{"doc":"d","plan":"p","emitter":"e","config":"c"},` +
 		`"files":[{"path":"` + strings.Repeat("\u0301", 1<<19) + `","digest":"` + digestAlpha + `"}]}`)
 	fewest := uint64(math.MaxUint64)

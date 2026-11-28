@@ -70,6 +70,8 @@ func TestDigest_SeesWhatAnEditChanges(t *testing.T) {
 		{name: "leading LF", content: "\na\nb"},
 		{name: "space before LF", content: "a \nb"},
 		{name: "tab before LF", content: "a\t\nb"},
+		{name: "trailing BOM", content: "a\nb\ufeff"},
+		{name: "BOM inside content", content: "a\n\ufeffb"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

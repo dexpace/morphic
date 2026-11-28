@@ -89,7 +89,7 @@ func TestPending_RoundTrips(t *testing.T) {
 			},
 		},
 		{
-			name: "admits a known path past the bound on a reserved name's spelling",
+			name: "admits a known path longer than a segment the engine writes",
 			input: manifest.Pending{
 				Schema: manifest.Schema,
 				Target: "go",
