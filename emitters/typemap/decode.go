@@ -37,7 +37,7 @@ func checkTable(table Table) error {
 	for _, kind := range slices.Sorted(maps.Keys(table.Primitives)) {
 		kindPointer := primitives.AppendToken(string(kind))
 		if !kind.Valid() {
-			return invalid(kindPointer, "no primitive kind ir declares")
+			return invalidMember(kindPointer, "no primitive kind ir declares")
 		}
 		rows := table.Primitives[kind]
 		for _, encoding := range slices.Sorted(maps.Keys(rows)) {
@@ -59,15 +59,15 @@ func checkTable(table Table) error {
 // lacking either of its members.
 func checkRow(pointer jsontext.Pointer, row Row) error {
 	if row.Type == "" {
-		return invalid(pointer.AppendToken("type"), "empty type")
+		return invalidMember(pointer.AppendToken("type"), "empty type")
 	}
 	if dependency := row.Dependency; dependency != nil && (dependency.Module == "" || dependency.MinVersion == "") {
-		return invalid(pointer.AppendToken("dependency"), "a dependency needs both a module and a minimum version")
+		return invalidMember(pointer.AppendToken("dependency"), "a dependency needs both a module and a minimum version")
 	}
 	return nil
 }
 
-// invalid is the refusal of the member at pointer for the reason given.
-func invalid(pointer jsontext.Pointer, reason string) error {
+// invalidMember is the refusal of the member at pointer for the reason given.
+func invalidMember(pointer jsontext.Pointer, reason string) error {
 	return fmt.Errorf("type table %s: %s: %w", pointer, reason, ErrInvalidTable)
 }

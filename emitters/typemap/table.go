@@ -45,6 +45,15 @@ type Dependency struct {
 	MinVersion string `json:"minVersion"`
 }
 
+// PrimitiveKey is the key of a primitive's row.
+type PrimitiveKey struct {
+	// Primitive is the row's primitive.
+	Primitive ir.PrimitiveKind
+	// Encoding is the encoding name, "" for the primitive's default row, as
+	// the table's own key spells it.
+	Encoding string
+}
+
 // copyRow returns row sharing nothing with it: its Imports cloned, nil staying
 // nil, and its Dependency pointing at a copy.
 func copyRow(row Row) Row {
@@ -55,13 +64,4 @@ func copyRow(row Row) Row {
 		copied.Dependency = &dependency
 	}
 	return copied
-}
-
-// PrimitiveKey is the key of a primitive's row.
-type PrimitiveKey struct {
-	// Primitive is the row's primitive.
-	Primitive ir.PrimitiveKind
-	// Encoding is the encoding name, "" for the primitive's default row, as
-	// the table's own key spells it.
-	Encoding string
 }
