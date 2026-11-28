@@ -59,6 +59,10 @@ func walkedFor(tb testing.TB, doc *ir.Document) walked {
 // AppendTypeIDs is appendTypeIDs, for the external tests.
 var AppendTypeIDs = appendTypeIDs
 
+// MaxLeafReads is maxLeafReads, for the external tests that read a union to
+// the bound.
+const MaxLeafReads = maxLeafReads
+
 // ValidateWith is validate, walking the document with walk, for the external
 // tests that count the walks.
 var ValidateWith = validate

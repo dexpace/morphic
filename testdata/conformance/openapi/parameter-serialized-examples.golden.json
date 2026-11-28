@@ -1,0 +1,323 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "enum-member": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ],
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "parameter": [
+      "openapi"
+    ],
+    "property": [
+      "composed",
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Serialized parameter examples",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "service/openapi/0",
+      "name": {
+        "source": "Serialized parameter examples",
+        "canonical": "serialized_parameter_examples"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "operation-group/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "operation/openapi/paths/~1things/get",
+              "name": {
+                "source": "getThings",
+                "canonical": "get_things"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "parameter/openapi/paths/~1things/get/parameters/classes/query",
+                  "name": {
+                    "source": "classes",
+                    "canonical": "classes"
+                  },
+                  "type": {
+                    "target": "type/anonymous/paths/~1things/get/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "value": {
+                        "kind": "string",
+                        "string": "C,E"
+                      }
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1things/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "parameter/openapi/paths/~1things/get/parameters/amenity/query",
+                  "name": {
+                    "source": "amenity",
+                    "canonical": "amenity"
+                  },
+                  "type": {
+                    "target": "type/anonymous/paths/~1things/get/parameters/1/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "name": "Single",
+                      "value": {
+                        "kind": "string",
+                        "string": "pool"
+                      }
+                    },
+                    {
+                      "name": "Multiple",
+                      "value": {
+                        "kind": "list",
+                        "list": [
+                          {
+                            "kind": "string",
+                            "string": "pool"
+                          },
+                          {
+                            "kind": "string",
+                            "string": "spa"
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1things/get/parameters/1"
+                  }
+                },
+                {
+                  "id": "parameter/openapi/paths/~1things/get/parameters/X-Filter/header",
+                  "name": {
+                    "source": "X-Filter",
+                    "canonical": "x_filter"
+                  },
+                  "type": {
+                    "target": "type/anonymous/paths/~1things/get/parameters/2/content/application~1json/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "value": {
+                        "kind": "string",
+                        "string": "[\"a\",\"b\"]"
+                      }
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1things/get/parameters/2"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "none"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/things",
+                    "paramBindings": [
+                      {
+                        "param": "parameter/openapi/paths/~1things/get/parameters/classes/query",
+                        "location": "query",
+                        "wireName": "classes",
+                        "style": "form",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "parameter/openapi/paths/~1things/get/parameters/amenity/query",
+                        "location": "query",
+                        "wireName": "amenity",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "parameter/openapi/paths/~1things/get/parameters/X-Filter/header",
+                        "location": "header",
+                        "wireName": "X-Filter",
+                        "allowReserved": false,
+                        "allowEmptyValue": false,
+                        "contentType": "application/json"
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "type/anonymous/paths/~1things/get/parameters/0/schema": {
+      "kind": "list",
+      "id": "type/anonymous/paths/~1things/get/parameters/0/schema",
+      "name": {
+        "hint": "classes"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/0/schema"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
+    "type/anonymous/paths/~1things/get/parameters/1/schema": {
+      "kind": "list",
+      "id": "type/anonymous/paths/~1things/get/parameters/1/schema",
+      "name": {
+        "hint": "amenity"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/1/schema"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
+    "type/anonymous/paths/~1things/get/parameters/2/content/application~1json/schema": {
+      "kind": "list",
+      "id": "type/anonymous/paths/~1things/get/parameters/2/content/application~1json/schema",
+      "name": {
+        "hint": "x_filter"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/2/content/application~1json/schema"
+      },
+      "elementType": {
+        "target": "type/primitive/string",
+        "nullable": false
+      }
+    },
+    "type/primitive/string": {
+      "kind": "primitive",
+      "id": "type/primitive/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "primitiveKind": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "parameter-serialized-examples.yaml",
+      "hash": "404e2cc61cfbdf17b4d9b3544d1f3cefadc837c6ed6d23f48cc7b815af092fbc"
+    }
+  ]
+}

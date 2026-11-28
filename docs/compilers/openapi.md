@@ -6996,7 +6996,7 @@ as an info `openapi/degraded-construct`. No key of the Example Object can spell 
 one being escaped, so an undeclared `name` it writes keeps `openapi:name` beside it
 ([`unknown-keys`](#unknown-keys)). A schema's examples are [`schema-examples`](#schema-examples)'.
 
-- Cases: `examples-32`
+- Cases: `examples-32`, `parameter-serialized-examples`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestExamples_EmptyKeyIsKept`,
   `operation.TestExamples_AnEmptyKeyAndAWrittenNameAreKeptApart`,

@@ -213,7 +213,7 @@ witnessing it.
 
 ### `examples`
 
-- Witnesses: `examples`, `examples-32`
+- Witnesses: `examples`, `examples-32`, `parameter-serialized-examples`
 
 ### `docs-summary-description`
 

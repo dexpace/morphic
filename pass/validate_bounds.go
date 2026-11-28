@@ -264,8 +264,8 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 				string(id), td.Common().Provenance))
 		}
 	}
-	var keys []ir.PropertyID
-	eachPosition(doc, live, &keys, func(positionValue *position) {
+	var scratch positionScratch
+	eachPosition(doc, live, &scratch, func(positionValue *position) {
 		if why := unsatisfiable(doc, positionValue.own, positionValue.typ.Target, shapeNotChecked); why != "" {
 			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, positionValue.node, positionValue.from))
 		}

@@ -24,6 +24,10 @@ type valueSite struct {
 	// encoded says the value is written in an encoding, so its kind says
 	// nothing of what the type holds.
 	encoded bool
+	// writtenShapes are the structured shapes the position's style can write
+	// as text, so a scalar example of one of them may be that value written
+	// out.
+	writtenShapes shapeSet
 	// typeLevel says the value is an example of the type itself, for which
 	// null stands for an example that is absent and is never judged.
 	typeLevel bool
@@ -42,12 +46,15 @@ func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		site := valueSite{doc: doc, node: string(id), from: typeCommon.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
 		diags = site.appendExamples(diags, typeCommon.Examples)
 	}
-	var keys []ir.PropertyID
-	eachPosition(doc, live, &keys, func(positionValue *position) {
+	var scratch positionScratch
+	eachPosition(doc, live, &scratch, func(positionValue *position) {
 		site := valueSite{doc: doc, node: positionValue.node, from: positionValue.from, ref: positionValue.typ, own: positionValue.own, encoded: positionValue.encoded}
 		if why := site.fits(positionValue.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))
 		}
+		// The examples alone: a default is a value of the type.
+		site.encoded = site.encoded || positionValue.mediaTyped
+		site.writtenShapes = positionValue.writtenShapes
 		diags = site.appendExamples(diags, positionValue.examples)
 	})
 	var params []ir.ParameterID
@@ -142,8 +149,11 @@ func parameterOf(operation *ir.Operation, id ir.ParameterID) *ir.Parameter {
 
 // fits returns why value is no value of the site's type, or "" when it is one
 // or the check leaves it alone: a value that is a reference or a constructor, a
-// type nothing declares, one holding anything, a union or an external type, and
-// a value written in an encoding.
+// type nothing declares, one holding anything, a union or an external type, the
+// kind, whole numbers and bounds of a value written in an encoding, whose enum
+// membership, literal value and null are judged all the same, and a scalar that
+// may be a list or an object written out in the site's style, as writtenOut
+// says.
 func (s *valueSite) fits(value *ir.Value) string {
 	if value == nil || value.Kind == ir.ValueRefKind || value.Kind == ir.ValueConstructor {
 		return ""
@@ -179,10 +189,140 @@ func (s *valueSite) fits(value *ir.Value) string {
 		}
 		return "is null, and " + string(target) + " is not nullable here"
 	}
-	if s.encoded || enc || sh == shapeNotChecked {
+	if s.encoded || enc || sh == shapeNotChecked || s.writtenOut(value, sh, td, &b) {
 		return ""
 	}
 	return fitsShape(value, sh, target, &b)
+}
+
+// writtenOut reports whether value may be td, of shape sh, written out in a
+// style the site writes sh in, b holding td's bounds, where td holds leaves
+// alone, as arranged says: a string as its text, never split, so its items and
+// count go unjudged and nothing tells it from the value's data (#2311); and a
+// number or a bool, holding no delimiter, only as the one item of a list whose
+// counts admit one and whose element holds it, as oneItem judges
+// (docs/ir/values.md#values-held-to-their-type).
+func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef, b *bounds) bool {
+	if !s.writtenShapes.has(sh) || !arranged(s.doc, td) {
+		return false
+	}
+	if value.Kind == ir.ValueString {
+		return true
+	}
+	if value.Kind != ir.ValueNumber && value.Kind != ir.ValueBool {
+		return false
+	}
+	list, ok := td.(*ir.List)
+	if !ok || beyond(1, b.minItems, b.maxItems) {
+		return false
+	}
+	return oneItem(s.doc, value, list.ElementType.Target)
+}
+
+// oneItem reports whether value, a number or a bool, is a value of the element
+// type target, as fitsShape judges one, bounds included: as its text where the
+// element settles to text, and as itself otherwise, whatever encoding the
+// element names, so bytes hold neither. An element holding anything holds it,
+// and an enum, a literal, a union or another type the check reads no further
+// holds none, since the check judges no item against such a type.
+func oneItem(doc *ir.Document, value *ir.Value, target ir.TypeID) bool {
+	var elementBounds bounds
+	item, _, _ := settle(doc, target, &elementBounds)
+	switch item {
+	case shapeAnything:
+		return true
+	case shapeNotChecked:
+		return false
+	case shapeText:
+		written := ir.Value{Kind: ir.ValueString, String: string(value.Number)}
+		if value.Kind == ir.ValueBool {
+			written.String = strconv.FormatBool(value.Bool)
+		}
+		return fitsShape(&written, item, target, &elementBounds) == ""
+	default:
+		return fitsShape(value, item, target, &elementBounds) == ""
+	}
+}
+
+// arranged reports whether td, the list, tuple, map or model a value's shape
+// settles to, holds leaves alone, as a style needs to give it a text
+// (docs/emitters/refine/text.md#a-value-no-style-arranges): a list's element,
+// a tuple's elements and rest, a map's values, and a model's flattened members
+// and the values of each catch-all its flattening reads. A model composing an
+// entry that names no model holds what its consumer lowers, so not leaves alone.
+func arranged(doc *ir.Document, td ir.TypeDef) bool {
+	switch t := td.(type) {
+	case *ir.List:
+		return leaf(doc, t.ElementType.Target)
+	case *ir.Tuple:
+		return (t.Rest == nil || leaf(doc, t.Rest.Target)) &&
+			!slices.ContainsFunc(t.ElementTypes, func(element ir.TypeRef) bool { return !leaf(doc, element.Target) })
+	case *ir.MapT:
+		return leaf(doc, t.Value.Target)
+	default:
+		model, ok := td.(*ir.Model) // the one other type of a shape a style writes
+		return ok && modelOfLeaves(doc, model.ID)
+	}
+}
+
+// modelOfLeaves reports whether the flattened members of the model id, and the
+// values of each catch-all its flattening reads, are leaves.
+func modelOfLeaves(doc *ir.Document, id ir.TypeID) bool {
+	flattening := ir.FlattenedProperties(doc.Types, id)
+	if len(flattening.Unflattened) != 0 ||
+		slices.ContainsFunc(flattening.Properties, func(member ir.FlatProperty) bool { return !leaf(doc, member.Property.Type.Target) }) {
+		return false
+	}
+	for _, holder := range ir.CatchAllHolders(doc.Types, id) {
+		// A model's catch-alls are held by models alone.
+		if model, ok := doc.Types[holder].(*ir.Model); ok && !catchAllOfLeaves(doc, model.AdditionalProperties) {
+			return false
+		}
+	}
+	return true
+}
+
+// catchAllOfLeaves reports whether the values catchAll admits, under a key no
+// pattern matches and under each pattern, are leaves.
+func catchAllOfLeaves(doc *ir.Document, catchAll *ir.AdditionalProperties) bool {
+	return (catchAll.Value == nil || leaf(doc, catchAll.Value.Target)) &&
+		!slices.ContainsFunc(catchAll.Patterns, func(pattern ir.PatternProperties) bool { return !leaf(doc, pattern.Value.Target) })
+}
+
+// maxLeafReads bounds how many types leaf reads, the first and each variant of
+// a union it reaches counting once each, so a cycle of unions ends.
+const maxLeafReads = 256
+
+// leaf reports whether target is a leaf, a type whose value travels as one
+// string, number or boolean (docs/emitters/refine/text.md#a-value-no-style-arranges):
+// a type that settles to neither a list nor an object and is no union, and a
+// union whose variants are leaves. A union reaching more than maxLeafReads
+// types is read as no leaf.
+func leaf(doc *ir.Document, target ir.TypeID) bool {
+	var pending [maxLeafReads]ir.TypeID
+	pending[0] = target
+	read, count := 1, 1
+	for count > 0 {
+		count--
+		var b bounds
+		sh, td, _ := settle(doc, pending[count], &b)
+		if sh == shapeList || sh == shapeObject {
+			return false
+		}
+		union, ok := td.(*ir.Union)
+		if !ok {
+			continue
+		}
+		if read+len(union.Variants) > maxLeafReads {
+			return false
+		}
+		for i := range union.Variants {
+			pending[count] = union.Variants[i].Type.Target
+			count++
+		}
+		read += len(union.Variants)
+	}
+	return true
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the
