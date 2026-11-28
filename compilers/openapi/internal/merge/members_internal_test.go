@@ -852,3 +852,23 @@ func TestPropertyIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	assert.Equal(t, ir.PropertyID("property/M/allOf/1/properties/p"), model.Properties[0].ID)
 	assert.Equal(t, ir.TypeID("type/M"), table["p"].Owner)
 }
+
+// TestPropertyIndex_DiscardReportsDroppedTargets pins that Merger.Discarded
+// records every declaration target that the settled property did not adopt and
+// never the winning target.
+func TestPropertyIndex_DiscardReportsDroppedTargets(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	model := &ir.Model{ID: "type/M", Provenance: ptrAt("/M")}
+	reg["type/M"] = model
+	idx := NewModelPropertyDeclarations(model)
+	own("q", "type/primitive/string", "0")(idx)
+	own("q", "type/primitive/integer", "1")(idx)
+	stubbed, _ := stubMerger(reg)
+	dropped := map[ir.TypeID]bool{}
+	stubbed.Discarded = dropped
+
+	settleFlat(stubbed, idx, reg)
+
+	assert.Equal(t, map[ir.TypeID]bool{"type/primitive/string": true}, dropped)
+}

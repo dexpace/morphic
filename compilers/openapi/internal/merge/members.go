@@ -100,6 +100,7 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	}
 	if !slices.ContainsFunc(decls, isBrought) {
 		merged, diags := merger.fold(decls)
+		merger.discardDropped(decls, merged)
 		idx.place(pos, merged)
 		idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
 		return deciding(diags, merged.ID)
@@ -115,6 +116,7 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 		assembled = assembledFrom(decls)
 	}
 	merged, diags := merger.foldAt(decls, field, assembled)
+	merger.discardDropped(decls, merged)
 	inferred := merged.Provenance.Inferred
 	if kept {
 		merged.ID, merged.Provenance = own[0].property.ID, own[0].property.Provenance
@@ -129,6 +131,20 @@ func (idx *ModelPropertyDeclarations) settle(merger Merger, pos int, decls []dec
 	idx.place(pos, merged)
 	idx.typeAt[merged.WireName] = merger.typeSites(merged, decls)
 	return deciding(naming(diags, merged.ID), merged.ID)
+}
+
+// discardDropped records any TypeID a declaration in decls carried that merged
+// did not adopt, so post-settlement pruning can remove superseded anonymous
+// nodes (and their unreachable descendants) without hiding unrelated orphans.
+func (g *Merger) discardDropped(decls []declaration, merged ir.Property) {
+	if g.Discarded == nil {
+		return
+	}
+	for _, d := range decls {
+		if d.property.Type.Target != merged.Type.Target {
+			g.Discarded[d.property.Type.Target] = true
+		}
+	}
 }
 
 // maxTypeSites bounds the nodes a settled member reads of a type its fold

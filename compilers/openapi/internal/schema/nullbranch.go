@@ -161,7 +161,7 @@ func nullBranchKeeps(loweringContext lowering.Ctx, position, schema *statement.S
 func recordNullBranches(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, kept []keptNullBranch) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range kept {
-		stored, keptDiags := annotation.PreserveNodeInto(unmodeled, b.key, b.schema.Node, ir.ReasonNoIRHome, loweringContext.Place().At(b.at))
+		stored, keptDiags := preserveNode(loweringContext, unmodeled, b.key, b.schema.Node, ir.ReasonNoIRHome, b.at)
 		diags = append(diags, keptDiags...)
 		if stored {
 			diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.at,

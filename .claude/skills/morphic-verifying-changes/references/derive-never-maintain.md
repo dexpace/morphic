@@ -47,9 +47,10 @@ two together both ways.
 ## Make two implementations that must agree share one source
 `parallel-implementations-agree`
 
-- **Rule.** When a parser, derivation, seed list or validity rule exists twice (two tokenizers, a
-  writer and its verifier, a pre-scan and the resolver it stands in for), compute it once in a
-  shared helper, or run both over a shared edge-case table and assert identical results. When the
+- **Rule.** When a parser, derivation, seed list or validity rule exists twice, compute it once in
+  a shared helper; a second reading in production takes
+  `.claude/skills/morphic-designing-code/references/design-rules.md#decide-once`, and a checking
+  reading takes `references/derive-never-maintain.md#table-only-for-a-checking-reading`. When the
   writer starts refusing an input, the checker refuses it in the same change. A guard sharing a
   deliverer's predicate stays
   (`.claude/skills/morphic-reviewing-prs/references/testing.md#guard-no-input-observes`).
@@ -58,6 +59,18 @@ two together both ways.
   reference visitor, in step by hand (#1133).
 - **Probe.** Run both over empty, lone-separator, missing-leading-separator and length-bound inputs
   and diff; feed the writer's refused inputs to the checker.
+
+## Keep a shared test table only for a reading meant to check another
+`table-only-for-a-checking-reading`
+
+- **Rule.** A shared edge-case table is the remedy only for a reading meant to check another (a
+  verifier and its writer, an oracle and the code it judges). State that role in a comment at the
+  second reading. Any other second reading in production takes
+  `.claude/skills/morphic-designing-code/references/design-rules.md#decide-once`.
+- **Why.** Holding production copies to tests let them drift: #1016 deleted the cycle pre-scan,
+  #2132 deleted three schema predictions, and `declaresPositionScoped` drifted thrice (#138, #1053,
+  #2009) (#2280).
+- **Probe.** Check each second reading's comment names a checking role; remove any other copy.
 
 ## Point at the one definition instead of restating it
 `single-source-no-restatement`

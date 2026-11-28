@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -479,12 +478,13 @@ func (d besideUnionDiscriminator) Settle(_ context.Context, reg ir.TypeRegistry)
 		return nil
 	}
 	at := d.pointer + ids.Ptr("discriminator")
-	kept, diags := annotation.PreserveSchemaKeyword(&model.Unmodeled, d.s, "discriminator",
-		ir.ReasonDegradedLowering, d.pointer, d.c.Place())
+	kept, diags := preserveSchemaKeyword(d.c, &model.Unmodeled, d.s, "discriminator",
+		ir.ReasonDegradedLowering, d.pointer)
 	if !kept {
 		return diags
 	}
 	promotion.DropContained(d.c.Promoter(), &model.Unmodeled, "openapi:discriminator")
+	recordKeptDiscriminatorRoutes(d.c, at, d.s.Discriminator(), model.Discriminator.Mapping, model.Discriminator.Default)
 	model.Discriminator = nil
 	if mt, isMap := ir.AsMap(model); isMap {
 		reg[d.model] = mt

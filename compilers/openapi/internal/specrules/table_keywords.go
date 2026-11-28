@@ -188,10 +188,10 @@ func dialectAnnotations() []Field {
 }
 
 // keywordRules are what JSON Schema requires of keywords' values beyond their
-// shapes: a list of schemas, and from 3.1 prefixItems and a list of types,
-// holds an entry; the names required lists, and from 3.1 the types a list
-// gives, differ; and from 3.1 dependentRequired and $vocabulary hold what
-// their keywords define.
+// shapes: a list of schemas, in 3.0 required, whose draft Wright-00 requires
+// an entry, and from 3.1 prefixItems and a list of types, holds an entry; the
+// names required lists, and from 3.1 the types a list gives, differ; and from
+// 3.1 dependentRequired and $vocabulary hold what their keywords define.
 func keywordRules() []Rule {
 	c := sectioned("Schema Object")
 	composed := c(V30, "Inline or referenced schema MUST be of a [Schema Object](#schema-object) and not a standard JSON Schema.")
@@ -205,6 +205,7 @@ func keywordRules() []Rule {
 		rules = append(rules, count(From(V31), Must, name, 0, dialect))
 	}
 	return append(rules,
+		count(Only(V30), Must, "required", 0, direct),
 		distinct(Always(), "required", direct, dialect),
 		distinct(From(V31), "type", dialect),
 		code(From(V31), "dependent-required", "", dialect),

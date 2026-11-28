@@ -4,6 +4,7 @@
 package reftable
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"reflect"
 	"slices"
@@ -229,4 +230,53 @@ func TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw(t *testing.T) {
 	past := place{state: sDocument}.along(strings.Split(encoding+"encoding/g/headers/H", "/"))
 	fresh := place{state: past.state}.along([]string{"schema"})
 	assert.Equal(t, Schema, fresh.role(), "a read past a reference to the header reads its schema afresh")
+}
+
+// TestDefinitionsCeiling pins ReferenceTargetTable.DefinitionsCeiling across
+// nil tables, unrooted pointers, source OpenAPI roots, $defs/definitions
+// boundaries (including nested and escaped names), properties or components
+// literally named "$defs", draft 4-7 keywords (dependencies, additionalItems,
+// tuple items), raw landing roots, and external document roots.
+func TestDefinitionsCeiling(t *testing.T) {
+	t.Parallel()
+	var nilTable *ReferenceTargetTable
+	assert.Equal(t, jsontext.Pointer("/a/b"), DefinitionsCeiling(nilTable, DocumentPointer{Doc: Source, Pointer: "/a/b"}))
+
+	table := &ReferenceTargetTable{
+		roots: map[DocumentPointer]state{
+			{Doc: Source, Pointer: ""}:                sDocument,
+			{Doc: Source, Pointer: "/x-defs/Dead1"}:   sSchema,
+			{Doc: DocID(1), Pointer: "/Resp"}:         sResponse,
+			{Doc: DocID(1), Pointer: "/$defs/ExtSub"}: sSchema,
+			{Doc: DocID(2), Pointer: ""}:              sLoose,
+		},
+	}
+	cases := []struct {
+		at   DocumentPointer
+		want jsontext.Pointer
+	}{
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/$defs/Mid/not"}, "/components/schemas/Host/$defs/Mid"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/$defs/Mid/$defs/Inner/not"}, "/components/schemas/Host/$defs/Mid/$defs/Inner"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/$defs/a~1b/not"}, "/components/schemas/Host/$defs/a~1b"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/definitions/A"}, "/components/schemas/Host/definitions/A"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/$defs/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/properties/$defs/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Host/properties/properties/$defs/A"}, "/components/schemas/Host/properties/properties/$defs/A"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/headers/schema/schema/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/headers/schema/schema/$defs/A"}, "/components/headers/schema/schema/$defs/A"},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Draft7/dependencies/k/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Draft7/additionalItems/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Draft7/items/0/not"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/components/schemas/Draft7/items/0/$defs/A"}, "/components/schemas/Draft7/items/0/$defs/A"},
+		{DocumentPointer{Doc: Source, Pointer: "/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/H/schema"}, ""},
+		{DocumentPointer{Doc: Source, Pointer: "/x-defs/Dead1"}, "/x-defs/Dead1"},
+		{DocumentPointer{Doc: Source, Pointer: "/x-unrooted/Sub"}, "/x-unrooted/Sub"},
+		{DocumentPointer{Doc: DocID(1), Pointer: "/Resp/content/application~1json/schema/not"}, "/Resp"},
+		{DocumentPointer{Doc: DocID(1), Pointer: "/$defs/ExtSub/not"}, "/$defs/ExtSub"},
+		{DocumentPointer{Doc: DocID(2), Pointer: "/$defs/Sub/not"}, "/$defs/Sub"},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, DefinitionsCeiling(table, tc.at), "doc=%d ptr=%s", tc.at.Doc, tc.at.Pointer)
+	}
 }

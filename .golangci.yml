@@ -139,10 +139,10 @@ linters:
         # reference wrapper holds no resolution: what its resolution accessors
         # return is nothing, or an inline entry's own object, which
         # componentlookup.Object answers through the bindings' table, a $ref a `<<`
-        # merges in among what it reads as one. They are refused outside
-        # componentlookup and tests, which exclusions below excuse. A call through a
-        # type parameter is not matched, as its receiver's static type is the
-        # parameter; the plants show that miss.
+        # merges in among what it reads as one. They are refused outside tests,
+        # which an exclusion below excuses. componentlookup reads them through a
+        # type parameter, which is not matched, as its receiver's static type is
+        # the parameter; the plants show that miss.
         - pattern: ^openapi\.Reference\.(GetObject|GetResolvedObject|MustGetObject|GetObjectAny|GetReferenceResolutionInfo|IsResolved)$
           pkg: ^github\.com/speakeasy-api/openapi/openapi$
           msg: read what a reference stands for through componentlookup.Object, which asks the bindings
@@ -258,7 +258,7 @@ linters:
       # forbidigo's output rules are invariant 5's, which binds the pipeline's
       # stages: ir, compilers, pass, emitters and engine, beside the plants that
       # hold the rules, whose tooling package stands for one outside it. emitters
-      # is held before it has a package, so no plant can show it reaches there.
+      # is held from its first package on.
       # Those rules carry no msg, which forbidigo reports as "forbidden by
       # pattern", so the recover rule, which carries one, holds everywhere.
       - path-except: ^((ir|compilers|pass|emitters|engine)/|internal/lintrules/testdata/planted/[^/]+$)
@@ -286,12 +286,6 @@ linters:
         linters:
           - forbidigo
         text: not the version
-      # componentlookup is where a reference wrapper is read, through the bindings'
-      # table. The path is unanchored so the plants' look-alike is excused too.
-      - path: (^|/)compilers/openapi/internal/componentlookup/
-        linters:
-          - forbidigo
-        text: which asks the bindings
       - path: _test\.go
         linters:
           - forcetypeassert

@@ -1,9 +1,12 @@
 # Reserved names and collisions
 
-`Reserved()` holds the language's keywords and predeclared names, reserved everywhere. Generated
-code binds names of its own too, and a spec name rendered equal to one of them shadows it or fails
-to compile, so each scope reserves what the code generated into it binds as well, and the units'
-scope and a unit's what a unit or a top-level declaration cannot be named:
+Each scope a target resolves names in is a `naming.Scope` it builds ([naming](naming.md)): how the
+scope's names compare, the names it reserves, and what a reserved name takes. Every scope reserves
+the language's keywords and predeclared names, bar a keyword its target quotes and so keeps, as
+Kotlin does a hard keyword (below). Generated code binds names of its own too, and a
+spec name rendered equal to one of them shadows it or fails to compile, so each scope reserves what
+the code generated into it binds as well, and the units' scope and a unit's what a unit or a
+top-level declaration cannot be named:
 
 - **The units** ([output units](output-units.md)), whose names are a scope of their own: `shared`
   and `runtime`, the shared unit's and the runtime's, the names a target's toolchain, or a file
@@ -31,7 +34,11 @@ scope and a unit's what a unit or a top-level declaration cannot be named:
   from the code it describes.
 
 Each target's sets are in its naming document ([Go](../targets/go/naming.md#reserved-names),
-[Kotlin](../targets/kotlin/naming.md#reserved-names)).
+[Kotlin](../targets/kotlin/naming.md#reserved-names)). A `naming.Scope` reserves a fixed set of
+names, held as the scope compares them, so a scope compared folded reserves every name that folds
+as one of its set. A rule over a name's shape is no such set, as Kotlin's unit reserves every name
+ending in `Kt`: it joins the scope, asked only for a name the set does not hold, with the target
+that needs it.
 
 A spec name that meets a reserved one takes the target's escape
 ([Go](../targets/go/naming.md#the-escape), [Kotlin](../targets/kotlin/naming.md#the-escape)),
@@ -40,9 +47,11 @@ or declares in a type, one the runtime or a template declares in a unit, a class
 imports by default, a name a file system refuses, or a class the toolchain nests beside a union's
 variants. In a scope compared folded
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)) a name that folds as a reserved
-one meets it. The escape is a trailing underscore, and for a Kotlin keyword backticks, which keep
-the name. The numeric suffix of the collision rule tells two spec names apart and answers no
-reservation. The escape reads the name and the reserved set and nothing else its scope holds, and no
+one meets it. The escape is a trailing underscore, the suffix its scope was built with, and for a
+Kotlin keyword backticks, which keep the name and which the target writes as its last step, around
+the symbol the scope gave ([naming](naming.md#a-name-is-rendered-bare-and-quoted-last)). The
+numeric suffix of the collision rule tells two spec names apart and answers no reservation. The
+escape reads the name and the reserved set and nothing else its scope holds, and no
 identifier casing renders ends in an underscore, so an escaped name is one no other declaration of
 its scope renders to. A scope joining the names of several, as the Objective-C namespace every
 Kotlin unit's declarations share, holds each name as it exports, an explicit Swift name or the
@@ -50,14 +59,22 @@ Kotlin name after its own scope's escape, and reserves the target's names as the
 escaped in one scope can meet one escaped in another: it takes the escape again there, a type
 `Duration`, `Duration_` in Kotlin, exporting as `Duration__` beside the runtime's `Duration_`, and
 which unit's package sorts first decides nothing
-([Kotlin](../targets/kotlin/naming.md#reserved-names)). A suffix is one another can: a type `Error`
+([Kotlin](../targets/kotlin/naming.md#reserved-names)). Within a single scope that reserves both a
+name and its escaped form (as Multiplatform's Objective-C/Swift scope reserves both `Duration` and
+`Duration_`), `naming.Resolve` repeats `escapeSuffix` while the result is reserved, which terminates
+because `NewScope` refuses an empty `escapeSuffix` and the reserved set is finite: each repeat
+lengthens the name as the scope compares it, its fold included, since each step of the fold maps a
+character to one or more and none to nothing (every scalar value measured, Go 1.27.3); no symbol
+`Resolve` returns is ever reserved. A suffix is one another can: a type `Error`
 given `Error2` for a reserved `Error` would hold what a type `error_2` renders to, and their IDs
 would decide which kept it. Names that meet one reserved name are escaped and then told apart as any
 two are, `Result_` and `Result_2`, and a suffix that would make a reserved name is passed over, as
 `com2` is. Two reservations are answered otherwise. An import that yields (below) takes the
 collision rule's suffix whatever it met, `error2` or `Dog2`: it yields to its file's own
 declarations too, which only that rule compares, and its name is its file's alone, so nothing a
-caller writes turns on it. A Kotlin method or enum entry in an Objective-C method family takes its
+caller writes turns on it. Its scope is one built to suffix its reserved names
+(`naming.NewScopeSuffixingReserved`), where every other escapes them (`naming.NewScope`). A Kotlin
+method or enum entry in an Objective-C method family takes its
 role's leading word in its Swift name, since a trailing underscore leaves it in the family
 ([Swift](../targets/kotlin/swift.md)).
 
@@ -77,8 +94,8 @@ every declaration of its file, at any depth, and no scope reserves an import. An
 so which of two keeps a name is each target's to say from what they import. That is why
 `ComputeImports` runs before the naming steps ([the refiner contract](pipeline.md)): what a file
 imports is fixed by where declarations landed, and what the file calls each import is a name like
-any other. Names that collide once cased are `Ctx.Syms`'s on every target, and so, in a scope a
-target writes as paths, are names that fold alike
+any other. Names that collide once cased are `naming.Resolve`'s on every target, and so, in a scope
+a target writes as paths, are names that fold alike
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's set,
 the names with no words and the names that begin with a digit to code that compiles, and names that
 fold alike to paths that do not; T-54 holds names holding a character a target cannot write, or

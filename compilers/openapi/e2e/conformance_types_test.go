@@ -110,8 +110,9 @@ func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		assert.Equal(t, "empty", scheme.Name.Hint, "security scheme keyed \"\"")
 	}
 
-	blank, ok := doc.Types[ir.TypeID("type/anonymous/components/schemas/")]
-	require.True(t, ok, "a component schema keyed \"\" is hoisted at its own pointer")
+	blank, ok := doc.Types[ir.TypeID("type/openapi/components/schemas/")]
+	require.True(t, ok, "a component schema keyed \"\" stays in the declared component space")
+	assert.False(t, blank.Common().Anonymous, "component schema keyed \"\" is a declared component")
 	assert.Equal(t, "empty", blank.Common().Name.Hint, "component schema keyed \"\"")
 
 	assertEmptyEnumMember(t, doc)

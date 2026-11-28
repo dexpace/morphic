@@ -81,6 +81,7 @@ func keepItemEncoding(serviceContext service.Ctx, content *ir.Content, media *so
 	if !kept {
 		return diags
 	}
+	schema.RecordReached(serviceContext.Ctx, at)
 	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"itemEncoding belongs to a media type that is not multipart, where it has no effect, so Content.ItemEncoding "+
 			"has none; kept verbatim under Unmodeled"))
@@ -124,9 +125,13 @@ func positionalEncoding(serviceContext service.Ctx, content *ir.Content, media *
 	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
 		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(at))
-	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(mediaPtr+ids.Ptr("itemEncoding")))
+	itemAt := mediaPtr + ids.Ptr("itemEncoding")
+	itemKept, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
+		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, serviceContext.Place().At(itemAt))
 	diags = append(diags, itemDiags...)
+	if itemKept {
+		schema.RecordReached(serviceContext.Ctx, itemAt)
+	}
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
 		// this lowering runs — yet nothing of it was written. Unlike every other
@@ -136,6 +141,7 @@ func positionalEncoding(serviceContext service.Ctx, content *ir.Content, media *
 			"prefixEncoding is declared but its source node could not be read; it is "+
 				"represented in the IR in no form at all"))
 	}
+	schema.RecordReached(serviceContext.Ctx, at)
 	return append(diags, serviceContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
 }

@@ -33,7 +33,9 @@ finding breaks.
 - **Rule.** For a file split or a cross-package move, read each moved declaration's comment against
   its callers, and the `doc.go` of each package a declaration moves into against what arrives. Grep
   the whole repository for every moved name, and for the new package's name used as an ordinary
-  word. A divided document takes `references/developer-experience.md#moved-prose`.
+  word; in-package renames and deletions take
+  `references/consistency.md#renamed-names-leave-no-trace`. A divided document takes
+  `references/developer-experience.md#moved-prose`.
 - **Why.** Byte-identical moves shipped false comments: 8 in #1064, 4 in #1073, 22 in #1099. A
   cross-package move broke comments in files it never touched (#1104). A move of a function and a
   variable into `internal/testspec` left its `doc.go` saying it holds only constants (#1540).

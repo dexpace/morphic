@@ -35,11 +35,13 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 
 **What an emitter is given and returns**
 
-- [The emitter contract](contract/emitter.md): `Emitter`, its input and output, who computes the
-  plan, and the rules the contract holds to.
+- [The emitter contract](contract/emitter.md): `Emitter` and the `Generator` it configures, their
+  input and output, the checked calls, who computes the plan, and the rules the contract holds to.
 - [The registry and capabilities](contract/registry.md): how targets are composed and what the
   engine knows of one without running it.
-- [Target options](contract/options.md): strict, versioned, each default belonging to a version.
+- [Target options](contract/options.md): strict, versioned, each default belonging to a version,
+  and [the project configuration](contract/project.md) a run reads its targets, their options and
+  their output roots from.
 - [The type table](contract/type-table.md): which target type each IR leaf type becomes.
 - [Runtime policy](contract/runtime-policy.md) and [shaping hints](contract/shaping-hints.md): the
   two inputs that are not the IR, and [the policy a document embeds](contract/embedded-policy.md),
@@ -121,14 +123,18 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the
 derived-fact index and the shared plan, and finally each requested emitter, with the targets a docs
-target names for its samples. The passes designed are `link · dedup · filter · version-slice ·
-overlay · const-unions · names · validate`, and `const-unions`, `names` and `validate` are built
-(architecture.md §2.2). An emitter never sees a source spec, a compiler, the engine (INV1) or
-another emitter's code, only what the engine hands it of another's output: a docs target's samples
-and a cross-version target's route tables ([docs and mocks](docs-and-mock.md)). Its only structural
-input is an `ir.Document`; everything else it needs is either derived from the IR in the plan/refine
-stages or supplied as a separate, non-IR input (runtime policy, shaping hints, the target's own
-options, and for a docs target the snapshot's label, its samples and its routes).
+target names for its samples. It then plans every target's writes, takes the run's one verdict, and
+writes only for a run that has not failed ([write /
+integrate](write-integrate.md#every-write-is-planned-before-the-verdict)). Morphic is not built for
+Windows, generation included ([where generation runs](write-integrate.md#where-generation-runs)).
+The passes designed are `link · dedup · filter · version-slice · overlay · const-unions · names ·
+validate`, and `const-unions`, `names` and `validate` are built (architecture.md §2.2). An emitter
+never sees a source spec, a compiler, the engine (INV1) or another emitter's code, only what the
+engine hands it of another's output: a docs target's samples and a cross-version target's route
+tables ([docs and mocks](docs-and-mock.md)). Its only structural input is an `ir.Document`;
+everything else it needs is either derived from the IR in the plan/refine stages or supplied as a
+separate, non-IR input (runtime policy, shaping hints, the target's own options, and for a docs
+target the snapshot's label, its samples and its routes).
 
 ## The architecture, and why this synthesis
 
@@ -240,7 +246,7 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 
 | INV | Where satisfied |
 |---|---|
-| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target ([the contract](contract/emitter.md), [package layout](packages.md)) |
+| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; each package under `emitters/` imports what its row of the package layout lists, never `compiler`/`engine`/a sibling target ([the contract](contract/emitter.md), [package layout](packages.md)) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test ([refine](refine/pipeline.md), [operations](operations/returns.md)) |
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; a rename that keeps an entity's pointer is a lookup, and one that moves it the correlation key's where the key's own source holds, as an operation's route does when a path variable is renamed; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes ([the plan](plan/overview.md), [naming](refine/naming.md), [output units](refine/output-units.md), [write / integrate](write-integrate.md)) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel ([naming](refine/naming.md), [emit](emit/printing.md)) |

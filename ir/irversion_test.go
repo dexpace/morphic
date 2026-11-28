@@ -187,6 +187,8 @@ var generations = []generation{
 		names: "a90929fd9afefb04e3a5abb411c769929d1ca7d224cc0f57a724b02d44287fd7"},
 	{version: "0.72.0", format: 1, shape: "67bf6f6ddc1866e221ea539a05d8b25c7dc3b53e2e02672c0bd77966e64fc28b",
 		names: "5cb6b5124f5093bf15f2026e532b1bd8a469ca64b4dd5649af02999fbfa474fb"},
+	{version: "0.73.0", format: 1, shape: "d568f0c9e05d7537efea8bc519c912e2133c97607e263d9ff0480540ef07feff",
+		names: "03158da13271f5f4eec495eba7d55adc8443bb7824386df57fb00c9a200902cc"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

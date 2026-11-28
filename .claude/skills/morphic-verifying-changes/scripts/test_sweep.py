@@ -5,6 +5,8 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-verifying-changes
 import contextlib
 import io
 import os
+import shutil
+import re
 import subprocess
 import sys
 import tempfile
@@ -68,8 +70,16 @@ class SweepTest(unittest.TestCase):
                                  "same.yaml"])
 
     def test_a_corpus_file_is_read_as_one_document(self):
-        specs = [self.corpus / "same.yaml", self.corpus / "notes.txt", self.corpus / "golden.json"]
-        self.assertEqual(sweep.find_specs(specs), [specs[0].resolve()])
+        spec = self.corpus / "same.yaml"
+        self.assertEqual(sweep.find_specs([spec]), [spec.resolve()])
+        empty = self.root / "empty-dir"
+        empty.mkdir()
+        (empty / "readme.txt").write_text("not a spec\n")
+        for bad in (self.corpus / "notes.txt", self.corpus / "golden.json",
+                    self.root / "no/such/openapi.json", empty):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, re.escape(str(bad))):
+                    sweep.find_specs([spec, bad])
 
     def test_a_json_document_is_judged_by_its_top_level_keys(self):
         cases = {b'{"openapi":"3.0.3","info":{}}': True, b' {"swagger":"2.0"}': True,
@@ -438,12 +448,183 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn(f"HEAD does not hold {later[:12]}", out)
 
-    def test_both_sides_are_built_and_compared_and_the_base_worktree_removed(self):
+    def test_both_sides_are_built_and_compared_and_base_src_removed(self):
         code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs))
         self.assertEqual(code, 0, out)
         self.assertIn("sweep: no spec's exit code, IR or diagnostics differ", out)
-        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1,
-                         "the base worktree outlived the sweep")
+        self.assertFalse((Path(self.dir.name) / "out" / "base-src").exists(),
+                         "base-src outlived the sweep")
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def test_an_argument_yielding_no_spec_exits_2_even_beside_a_real_spec(self):
+        a_spec = self.specs / "a.yaml"
+        notes = self.root / "notes.txt"
+        notes.write_text("openapi: 3.1.0\n")
+        golden = self.root / "golden.json"
+        golden.write_text('{"irVersion": "0.1.0"}\n')
+        (self.empty / "readme.txt").write_text("not a spec\n")
+        missing = self.root / "no/such/openapi.json"
+        for label, bad in (("missing path", missing), ("non-spec .txt", notes),
+                           ("non-spec .json", golden), ("directory with no spec", self.empty)):
+            with self.subTest(label=label):
+                code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(a_spec), str(bad))
+                self.assertEqual(code, 2, out)
+                self.assertIn(str(bad.resolve()), out)
+
+    def test_each_arguments_count_is_printed_beside_the_total(self):
+        extra = self.root / "b.yaml"
+        extra.write_text("openapi: 3.1.0\n")
+        code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs), str(extra))
+        self.assertEqual(code, 0, out)
+        self.assertIn("sweep: 2 specs (", out)
+        self.assertIn(f"{self.specs.resolve()}=1", out)
+        self.assertIn("b.yaml=1", out)
+
+    def test_base_build_exports_without_a_worktree_and_passes_buildvcs_false(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        check_go = (
+            "#!/bin/sh\n"
+            f'if [ -e "{self.root}/.git/worktrees" ]; then\n'
+            '  echo "worktree directory created" >&2\n'
+            "  exit 1\n"
+            "fi\n"
+            'case "$PWD" in\n'
+            '  */base-src)\n'
+            '    if [ ! -f marker.txt ]; then echo "archived file missing" >&2; exit 1; fi\n'
+            '    found_vcs=0\n'
+            '    for arg in "$@"; do\n'
+            '      if [ "$arg" = "-buildvcs=false" ]; then found_vcs=1; fi\n'
+            '    done\n'
+            '    if [ "$found_vcs" -ne 1 ]; then echo "missing -buildvcs=false" >&2; exit 1; fi\n'
+            '    ;;\n'
+            'esac\n'
+            'while [ "$1" != "-o" ]; do shift; done\n'
+            "printf '#!/bin/sh\\necho {}\\n' > \"$2\"\n"
+            'chmod +x "$2"\n'
+        )
+        code, out = self.sweep(check_go, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((Path(self.dir.name) / "out" / "base-src").exists(),
+                         "base-src outlived the build")
+        self.assertFalse((self.root / ".git" / "worktrees").exists())
+
+    def test_base_build_clears_a_stale_base_src_before_unpacking(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        out_dir = Path(self.dir.name) / "out"
+        stale = out_dir / "base-src" / "stale.txt"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("from an earlier run\n")
+        check_go = (
+            "#!/bin/sh\n"
+            'case "$PWD" in\n'
+            '  */base-src)\n'
+            '    if [ -e stale.txt ]; then echo "stale file survived" >&2; exit 1; fi\n'
+            '    ;;\n'
+            'esac\n'
+            'while [ "$1" != "-o" ]; do shift; done\n'
+            "printf '#!/bin/sh\\necho {}\\n' > \"$2\"\n"
+            'chmod +x "$2"\n'
+        )
+        code, out = self.sweep(check_go, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((out_dir / "base-src").exists(), "base-src outlived the build")
+
+    def test_export_base_replaces_a_regular_file_at_base_src(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        dest.parent.mkdir(parents=True)
+        dest.write_text("not a directory\n")
+        sweep.export_base(self.root, "HEAD", dest)
+        self.assertTrue((dest / "marker.txt").is_file())
+
+    def test_export_base_unlinks_a_symlink_without_touching_its_target(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        target = Path(self.dir.name) / "target-dir"
+        target.mkdir()
+        (target / "keep.txt").write_text("do not delete\n")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        dest.parent.mkdir(parents=True)
+        dest.symlink_to(target)
+        sweep.export_base(self.root, "HEAD", dest)
+        self.assertFalse(dest.is_symlink())
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertTrue((target / "keep.txt").is_file())
+
+    def test_export_base_leaves_only_dest_beside_it_and_root_untouched(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        dest = Path(self.dir.name) / "out" / "base-src"
+        # tar runs between the archive and the removal, so it sees anything written into root.
+        check = (f'if [ -n "$(git -C \'{self.root}\' status --porcelain --ignored)" ]; then\n'
+                 '  echo "root written during the export" >&2\n  exit 1\nfi\n')
+        env = self.fake_tar("checking-tar-bin", check + f'exec \'{shutil.which("tar")}\' "$@"\n')
+        with unittest.mock.patch.dict(os.environ, env):
+            sweep.export_base(self.root, "HEAD", dest)
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertEqual(list(dest.parent.iterdir()), [dest], "a file outlived the export")
+        self.assertEqual(self.git("status", "--porcelain", "--ignored"), "")
+
+    def test_export_base_takes_a_relative_dest_against_the_working_directory(self):
+        (self.root / "marker.txt").write_text("at-head\n")
+        self.git("add", "marker.txt")
+        self.commit("add marker")
+        (self.root / "rel").mkdir()  # a relative --output read against root would land here
+        with contextlib.chdir(self.dir.name):
+            sweep.export_base(self.root, "HEAD", Path("rel") / "base-src")
+        dest = Path(self.dir.name) / "rel" / "base-src"
+        self.assertTrue((dest / "marker.txt").is_file())
+        self.assertEqual(list(dest.parent.iterdir()), [dest], "a file outlived the export")
+        self.assertEqual(list((self.root / "rel").iterdir()), [], "the export wrote into root")
+
+    def test_a_failed_unpack_is_reported_with_tars_own_message(self):
+        tar = Path(self.dir.name) / "bin" / "tar"
+        tar.parent.mkdir()
+        tar.write_text("#!/bin/sh\necho 'tar: disk full' >&2\nexit 2\n")
+        tar.chmod(0o755)
+        code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs))
+        self.assertEqual(code, 2, out)
+        self.assertIn("sweep: tar: disk full", out)
+
+    def fake_tar(self, name: str, script: str) -> dict[str, str]:
+        """Return an environment whose PATH finds a tar running script first."""
+        fake_bin = Path(self.dir.name) / name
+        fake_bin.mkdir()
+        tar = fake_bin / "tar"
+        tar.write_text(f"#!/bin/sh\n{script}")
+        tar.chmod(0o755)
+        return {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}"}
+
+    def test_export_base_reports_tars_own_error_and_leaves_no_tarball(self):
+        dest = Path(self.dir.name) / "out" / "base-src"
+        env = self.fake_tar("failing-tar-bin", "echo 'tar: disk full' >&2\nexit 2\n")
+        with unittest.mock.patch.dict(os.environ, env):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                sweep.export_base(self.root, "HEAD", dest)
+        self.assertEqual(caught.exception.cmd[0], "tar")
+        self.assertEqual(caught.exception.returncode, 2)
+        self.assertIn("tar: disk full", caught.exception.stderr)
+        self.assertEqual(sorted(dest.parent.glob("*.tar")), [], "the tarball outlived the export")
+
+    def test_export_base_reports_git_archives_error_and_runs_no_tar(self):
+        dest = Path(self.dir.name) / "out" / "base-src"
+        ran = Path(self.dir.name) / "tar-ran"
+        env = self.fake_tar("recording-tar-bin", f"touch '{ran}'\n")
+        with unittest.mock.patch.dict(os.environ, env):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                sweep.export_base(self.root, "0" * 40, dest)
+        self.assertEqual(caught.exception.cmd[0], "git")
+        self.assertIn("not a tree object", caught.exception.stderr)
+        self.assertFalse(ran.exists(), "tar ran after git archive failed")
+        self.assertEqual(sorted(dest.parent.glob("*.tar")), [], "the tarball outlived the export")
 
 
 class CrashTest(unittest.TestCase):

@@ -59,142 +59,6 @@
     }
   ],
   "types": {
-    "type/anonymous/components/schemas/BareAndModel/allOf/0/properties/data": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/BareAndModel/allOf/0/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/BareAndModel/allOf/0/properties/data"
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner",
-      "name": {
-        "hint": "owner"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
-          "name": {
-            "source": "name",
-            "canonical": "name"
-          },
-          "wireName": "name",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name"
-          }
-        },
-        {
-          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
-          "name": {
-            "source": "address",
-            "canonical": "address"
-          },
-          "wireName": "address",
-          "type": {
-            "target": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
-      "name": {
-        "hint": "address"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street",
-          "name": {
-            "source": "street",
-            "canonical": "street"
-          },
-          "wireName": "street",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "type/anonymous/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -241,42 +105,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/ListsOfModels/allOf/0/properties/data": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/ListsOfModels/allOf/0/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
-      },
-      "elementType": {
-        "target": "type/openapi/components/schemas/Meeting",
-        "nullable": false
-      }
-    },
-    "type/anonymous/components/schemas/ListsOfModels/allOf/1/properties/data": {
-      "kind": "list",
-      "id": "type/anonymous/components/schemas/ListsOfModels/allOf/1/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
-      },
-      "elementType": {
-        "target": "type/openapi/components/schemas/Recording",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data": {
       "kind": "map",
       "id": "type/anonymous/components/schemas/MapThenModel/allOf/0/properties/data",
@@ -292,42 +120,6 @@
       },
       "value": {
         "target": "type/primitive/string",
-        "nullable": false
-      }
-    },
-    "type/anonymous/components/schemas/MapsOfModels/allOf/0/properties/data": {
-      "kind": "map",
-      "id": "type/anonymous/components/schemas/MapsOfModels/allOf/0/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
-      },
-      "value": {
-        "target": "type/openapi/components/schemas/Meeting",
-        "nullable": false
-      }
-    },
-    "type/anonymous/components/schemas/MapsOfModels/allOf/1/properties/data": {
-      "kind": "map",
-      "id": "type/anonymous/components/schemas/MapsOfModels/allOf/1/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
-      },
-      "value": {
-        "target": "type/openapi/components/schemas/Recording",
         "nullable": false
       }
     },
@@ -428,125 +220,6 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Owner/properties/address/properties/street"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner",
-      "name": {
-        "hint": "owner"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
-          "name": {
-            "source": "name",
-            "canonical": "name"
-          },
-          "wireName": "name",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name"
-          }
-        },
-        {
-          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
-          "name": {
-            "source": "address",
-            "canonical": "address"
-          },
-          "wireName": "address",
-          "type": {
-            "target": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
-      "name": {
-        "hint": "address"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street",
-          "name": {
-            "source": "street",
-            "canonical": "street"
-          },
-          "wireName": "street",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street"
           }
         }
       ],
@@ -803,54 +476,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "type/anonymous/components/schemas/TuplesOfModels/allOf/0/properties/data": {
-      "kind": "tuple",
-      "id": "type/anonymous/components/schemas/TuplesOfModels/allOf/0/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
-      },
-      "elementTypes": [
-        {
-          "target": "type/openapi/components/schemas/Meeting",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "type/primitive/any",
-        "nullable": false
-      }
-    },
-    "type/anonymous/components/schemas/TuplesOfModels/allOf/1/properties/data": {
-      "kind": "tuple",
-      "id": "type/anonymous/components/schemas/TuplesOfModels/allOf/1/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
-      },
-      "elementTypes": [
-        {
-          "target": "type/openapi/components/schemas/Recording",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "type/primitive/any",
-        "nullable": false
-      }
-    },
     "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner": {
       "kind": "model",
       "id": "type/anonymous/components/schemas/TwoCopies/allOf/0/properties/owner",
@@ -890,52 +515,6 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "type/anonymous/components/schemas/TwoCopies/allOf/1/properties/owner": {
-      "kind": "model",
-      "id": "type/anonymous/components/schemas/TwoCopies/allOf/1/properties/owner",
-      "name": {
-        "hint": "owner"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner"
-      },
-      "properties": [
-        {
-          "id": "property/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name",
-          "name": {
-            "source": "name",
-            "canonical": "name"
-          },
-          "wireName": "name",
-          "type": {
-            "target": "type/primitive/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "invisibleInEveryLifecycle": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name"
           }
         }
       ],
@@ -2425,6 +2004,9 @@
                 "default": {
                   "id": "a"
                 }
+              },
+              "targets": {
+                "/$ref": "type/openapi/components/schemas/Meeting"
               },
               "provenance": {
                 "source": 0,

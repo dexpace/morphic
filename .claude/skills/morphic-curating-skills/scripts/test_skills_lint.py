@@ -5,6 +5,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-curating-skills/s
 import contextlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -76,6 +77,8 @@ class LintTest(unittest.TestCase):
         self.root = Path(self.dir.name) / "repo"
         # Files on disk that git ignores, which the tree a clone holds leaves out.
         self.ignored: set[str] = set()
+        self.toolchain = Path(self.dir.name) / "empty-goroot" / "src"
+        self.toolchain.mkdir(parents=True)
         fixture(self.root)
 
     def tearDown(self):
@@ -83,11 +86,11 @@ class LintTest(unittest.TestCase):
 
     def lint(self, toolchain: Path | None = None):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
-        top_level = {"docs", "ir", "cmd", "internal", ".claude"}
+        top_level = {"docs", "ir", "pass", "cmd", "internal", ".claude"}
         tests = {"TestKnown", "TestKnown_Case"}
         on_disk = {p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()}
         lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files,
-                                  toolchain)
+                                  self.toolchain if toolchain is None else toolchain)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -195,6 +198,56 @@ class LintTest(unittest.TestCase):
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
+    def test_a_markdown_link_inside_inline_code_is_not_checked(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        line = (r"Run `git grep -nE '[(*\[ ](<names>)[\[(,)]' -- docs` and see "
+                "[`ir/a.go`](references/r.md), [`code`](references/missing.md) and "
+                "[broken](references/none.md).\n")
+        write(self.root, skill, GOOD_SKILL + line)
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n}: link target references/missing.md does not exist",
+                f"{skill}:{n}: link target references/none.md does not exist"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_github_api_repos_path_in_a_span_is_not_a_tree_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        line = ("Run `gh api 'repos/dexpace/morphic/issues?state=all&per_page=1'` and "
+                "`repos/dexpace/morphic/pulls/1`, not `gone/a.go`.\n")
+        write(self.root, skill, GOOD_SKILL + line)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go does not exist"])
+
+    def test_a_span_shaped_as_an_ir_or_pass_code_names_no_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # ir and pass are tracked, as in the repository, and no Go file declares any code here.
+        write(self.root, "ir/a.go", "package ir\n")
+        write(self.root, "pass/p.go", "package pass\n")
+        good = ("Codes `ir/unresolved-auth-space`, `ir/duplicate-property-id`, "
+                "`pass/example-outside-type`, `ir/2-step`,\n"
+                "command `grep ir/unresolved-auth-space ir/a.go`, prose ir/unresolved-auth-space, "
+                "pass/example-outside-type.\n")
+        bad = ("Not codes: `ir/duplicate-`, `ir/nosuchpkg`, `ir/Bad-Code`, `ir/no-such/a.go`, "
+               "`ir/no/such-code`,\n"
+               "decorated `./ir/unresolved-auth-space`, `ir/unresolved-auth-space:1`, "
+               "[x](ir/unresolved-auth-space),\n"
+               "missing `ir/nope.go`, `pass/gone.go` and prose pass/nope.go.\n")
+        write(self.root, skill, GOOD_SKILL + good + bad)
+        n = GOOD_SKILL.count("\n") + 3
+        want = [
+            f"{skill}:{n}: ir/duplicate- does not exist",
+            f"{skill}:{n}: ir/nosuchpkg does not exist",
+            f"{skill}:{n}: ir/Bad-Code does not exist",
+            f"{skill}:{n}: ir/no-such/a.go does not exist",
+            f"{skill}:{n}: ir/no/such-code does not exist",
+            f"{skill}:{n + 1}: ./ir/unresolved-auth-space does not exist",
+            f"{skill}:{n + 1}: ir/unresolved-auth-space:1 does not exist",
+            f"{skill}:{n + 1}: link target ir/unresolved-auth-space does not exist",
+            f"{skill}:{n + 2}: ir/nope.go does not exist",
+            f"{skill}:{n + 2}: pass/gone.go does not exist",
+            f"{skill}:{n + 2}: pass/nope.go does not exist",
+        ]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
     def test_a_pattern_or_a_ref_in_a_span_names_no_path(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each holds a "/" in a form no repository path takes: a pattern, a ref or a refspec.
@@ -256,13 +309,12 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(gone))
-        # Where go cannot say, the toolchain's paths are held to the tree, as any other.
+        # Against an empty toolchain src, $GOROOT/src exists and every path inside it is missing.
         held = [f"{skill}:{n}: internal/runtime/maps does not exist",
                 f"{skill}:{n}: internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
                 f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 2}: $GOROOT/src does not exist",
                 f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
@@ -716,10 +768,42 @@ class GoSourcesTest(unittest.TestCase):
             with mock.patch.object(skills_lint, "go_sources", lambda at: asked.append(at) or src):
                 self.assertEqual(skills_lint.findings(root), (1, []))
             self.assertEqual(asked, [root], "go is asked once, at the root")
-            n = GOOD_SKILL.count("\n") + 1
-            with mock.patch.object(skills_lint, "go_sources", lambda at: None):
-                self.assertEqual(skills_lint.findings(root),
-                                 (1, [f"{skill}:{n}: internal/runtime/maps does not exist"]))
+            with mock.patch.object(skills_lint, "go_sources", lambda at: None), \
+                    self.assertRaisesRegex(
+                        RuntimeError,
+                        "cannot locate the Go toolchain's sources; standard-library paths not "
+                        "checked",
+                    ):
+                skills_lint.findings(root)
+
+    def test_missing_go_stops_with_one_line_and_no_path_findings(self):
+        git = shutil.which("git")
+        self.assertIsNotNone(git, "git must be on PATH")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "repo"
+            fixture(root)
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestKnown_Case(t *testing.T) {}\n")
+            skill = ".claude/skills/good-skill/SKILL.md"
+            write(root, skill, GOOD_SKILL + "Read `encoding/json/v2` and `internal/runtime/maps`.\n")
+            subprocess.run([git, "-C", str(root), "init", "-q"], check=True)
+            subprocess.run([git, "-C", str(root), "add", "-A"], check=True)
+            only_git = Path(d) / "bin"
+            only_git.mkdir()
+            (only_git / "git").symlink_to(git)
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            run = subprocess.run(
+                ["env", f"PATH={only_git}", sys.executable, str(HERE / "skills_lint.py")],
+                cwd=root, capture_output=True, text=True, env=env,
+            )
+        self.assertEqual(run.returncode, 2, run.stdout + run.stderr)
+        self.assertEqual(run.stdout, "")
+        self.assertEqual(
+            run.stderr,
+            "skills_lint: cannot locate the Go toolchain's sources; standard-library paths not "
+            "checked\n",
+        )
+        self.assertNotIn("encoding/json/v2", run.stdout + run.stderr)
+        self.assertNotIn("internal/runtime/maps", run.stdout + run.stderr)
 
 
 class MainTest(unittest.TestCase):

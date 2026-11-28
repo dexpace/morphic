@@ -64,12 +64,14 @@ var validationReasons = map[string]string{
 		"character (3.2.0 §Server Variable Object: 'server-url-template = 1*( literals / server-variable )'); a " +
 		"Parameter Object in, which must be one of its listed values (3.2.0 §Parameter Object: 'Possible values " +
 		"are'); a path parameter name, which must match a template expression (3.2.0 §Parameter Object: 'the name " +
-		"field MUST correspond to a single template expression')",
+		"field MUST correspond to a single template expression'); a header name, a parameter's or an API key's, " +
+		"which must be a token of one character or more (RFC 9110 §5.6.2: 'token = 1*tchar')",
 	"relaxed-requirement": "the library requires a field the declared minor made optional, an Operation's responses " +
 		"from 3.1 and a Response's description from 3.2; 3.0.4 §Operation " +
 		"Object marks responses REQUIRED and 3.1.2 does not, 3.1.2 §Response Object marks description REQUIRED and " +
 		"3.2.0 does not",
-	"version-gate": "the library does not gate a field or value by the declared minor; the table warns, as " +
+	"version-gate": "the library accepts a field or value only a later minor defines, as it gates few by the " +
+		"declared minor (later-refused names those it does); the table warns, as " +
 		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
 		"name (3.2.0 §Server Object), or a keyword JSON Schema 2020-12 added in a 3.0 schema (3.0.4 §Schema " +
@@ -78,29 +80,39 @@ var validationReasons = map[string]string{
 	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
 		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
 		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
-		"schema's keywords, so the table warns of each, as later-version-construct, and the lowering applies it " +
-		"as 3.1 does, reading it as 3.0 defines it; JSON Schema drafts 4, 6 and 7 ignore them too " +
+		"schema's keywords, so the table warns of each, as later-version-construct, checks its value as 3.0 " +
+		"defines the keyword, and the lowering applies it as 3.1 does, reading it as 3.0 defines it; JSON Schema " +
+		"drafts 4, 6 and 7 ignore them too " +
 		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
 		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
-		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
-		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
-		"it as the later-version-construct warning, since only a later minor defines it, and lowers it as that minor",
-	"old-grammar": "the library checks a 3.2 document against the 3.1 grammar, a schema's own Validate discarding " +
-		"the version it is handed, and refuses what 3.2 added: style: cookie on a cookie parameter (3.2.0 §Parameter Object), a discriminator's " +
-		"defaultMapping (3.2.0 §Discriminator Object), an xml nodeType (3.2.0 §XML Object)",
+		"3.2; a cookie parameter's style: cookie before 3.2; a discriminator's defaultMapping in 3.1, which its " +
+		"3.1 meta-schema closes; an xml nodeType before 3.2, which its 3.0 and 3.1 meta-schemas close); the table " +
+		"reports it as the later-version-construct warning, since only a later minor defines it, and lowers it as " +
+		"that minor",
+	"old-grammar": "the library holds a 3.2 document's cookie parameter to the one style 3.1 allows there, form, " +
+		"and refuses style: cookie, which 3.2 added (3.2.0 §Parameter Object)",
 	"null-keyword": "the library refuses a null for a few Schema Object keywords (type, enum, discriminator) as a " +
 		"value of the wrong type, and says nothing of the same null for most others; the table warns of each " +
 		"alike, since the schema lowering reads every one as the keyword left out " +
 		"(docs/compilers/openapi.md#null-keywords)",
 	"duplicate-report": "the library reports one defect more than once, from its model and again from its " +
 		"meta-schema or a second check of the same field: a Discriminator Object without propertyName, a Parameter " +
-		"Object without in, a $ref where a schema belongs; the table reports it once",
+		"Object without in, a $ref where a schema belongs, a 3.0 schema's nullable that is no boolean; the table " +
+		"reports it once",
 	"position": "both sides report the defect and place it differently: the library on the key of the entry (the " +
 		"additionalOperations method, the repeated key), the table on the entry's value, the node its pointer names",
 	"rule-name": "both sides report the defect at one node, under different rules: a Parameter Object's content " +
 		"holding several entries, which the library calls an allowed value and the table an entry count, as the " +
-		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
+		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry'); a 3.0 " +
+		"schema's exclusiveMinimum or exclusiveMaximum written as a number, which the library calls a type " +
+		"mismatch and the table an invalid exclusive bound, as the lowering drops it " +
+		"(draft-wright-json-schema-validation-00 §5.5: 'The value of \"exclusiveMinimum\" MUST be a boolean'; " +
+		"docs/compilers/openapi.md#constraints); a 3.0 schema's type naming \"null\", which the library calls an " +
+		"invalid schema and the table a value outside the six 3.0 allows (3.0.4 §Data Types: 'based on the " +
+		"non-null types'); and a 3.0 schema's empty required, which the library calls an invalid schema and the " +
+		"table an entry count (draft-wright-json-schema-validation-00 §5.15: 'This array MUST have at least one " +
+		"element')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table judges a bound as the schema lowering reads it, the literal exactly, and reports one " +
@@ -116,10 +128,12 @@ var validationReasons = map[string]string{
 		"$schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 §Schema Object: 'if present " +
 		"MUST be used to determine which dialect should be used when processing the schema'), and the compiler " +
 		"reads each in it (docs/compilers/openapi.md#dialect-keywords)",
-	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
-		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
-		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
-		"under Unmodeled and says so",
+	"over-strict": "the library warns of or refuses what the specification allows: a field written beside a type " +
+		"it does not apply to, where the specification's 'Applies To' column says where a field has meaning and " +
+		"bars it nowhere (3.2.0 §Security Scheme Object: bearerFormat applies to http), so the table accepts it, " +
+		"and the security scheme lowering keeps the field under Unmodeled and says so; and a 3.0 schema's empty " +
+		"enum, which its draft only advises against (draft-wright-json-schema-validation-00 §5.20: 'This array " +
+		"SHOULD have at least one element'), so the table accepts it",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
 		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +
@@ -143,13 +157,14 @@ var validationReasons = map[string]string{
 		"warns of each other key, at the key, wherever its object is written",
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
-		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
-		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
+		"MUST include either a content field or a schema field, but not both'), a Header Object writes no in " +
+		"(3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
 		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
 		"insensitive'), and so is a headers map's key, two of which naming one header in different case name it " +
-		"twice (3.1.2 §Response Object: 'Maps a header name to its definition')",
+		"twice (3.1.2 §Response Object: 'Maps a header name to its definition'), and no two tags share a name " +
+		"(3.1.2 §OpenAPI Object: 'Each tag name in the list MUST be unique')",
 	"querystring-keywords": "the library accepts explode and allowReserved at in: querystring, which 3.2 bars " +
 		"there as it bars style (3.2.0 §Parameter Object: 'These fields MUST NOT be used with in: \"querystring\"'); " +
 		"the table warns of each as invalid-location-keyword: the content says what the parameter means, and the " +

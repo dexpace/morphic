@@ -312,7 +312,7 @@ func recordUnexpandedDynamicRef(loweringContext lowering.Ctx, unmodeled *ir.Unmo
 	if expanded {
 		return nil
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, ref.keyword, ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, unmodeled, schema, ref.keyword, ir.ReasonDegradedLowering, pointer)
 	if kept {
 		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(ref.keyword),
 			"%s was not expanded because %s; it is kept verbatim under Unmodeled", ref.keyword, why))

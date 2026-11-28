@@ -120,7 +120,7 @@ func keepPrefixItems(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, sche
 	if !hasKey(schema, "prefixItems") {
 		return nil
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, "prefixItems", ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, unmodeled, schema, "prefixItems", ir.ReasonDegradedLowering, pointer)
 	if kept {
 		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
 			"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))

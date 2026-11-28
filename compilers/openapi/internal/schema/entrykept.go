@@ -549,7 +549,7 @@ func recordKeptEntry(loweringContext lowering.Ctx, ts *compile.Types, unmodeled 
 	}
 	schemaEntry := keptEntryValue.entry
 	if keptEntryValue.keptWhole() {
-		kept, diags := annotation.PreserveNodeInto(unmodeled, comp.entryKey(schemaEntry.pointer), schemaEntry.schema.Node, keptEntryValue.reason, loweringContext.Place().At(schemaEntry.pointer))
+		kept, diags := preserveNode(loweringContext, unmodeled, comp.entryKey(schemaEntry.pointer), schemaEntry.schema.Node, keptEntryValue.reason, schemaEntry.pointer)
 		if !kept {
 			return diags
 		}
@@ -652,14 +652,14 @@ func recordOwnKeywords(loweringContext lowering.Ctx, ts *compile.Types, unmodele
 			dialect := dialectIn(loweringContext.Rules().At(loweringContext.Position(at)), bs)
 			diags = append(diags, annotation.KeepDialectKeyword(unmodeled, bs, key, at, loweringContext.Place(), dialect)...)
 		case strings.HasPrefix(key, "x-"):
-			_, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, bs, key, ir.ReasonVendorExtension, at, loweringContext.Place())
+			_, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, bs, key, ir.ReasonVendorExtension, at)
 			diags = append(diags, keptDiags...)
 		case writesUnknown(loweringContext, bs, key, at):
 			unknown = append(unknown, key)
 		case slices.Contains(contentKeywords, key):
 			diags = append(diags, keepContentKeyword(loweringContext, unmodeled, bs, key, at, noEncodingField)...)
 		case slices.Contains(keptEntryValue.validation, key):
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(unmodeled, bs, key, at, loweringContext.Place())...)
+			diags = append(diags, preserveValidationOnlyKeyword(loweringContext, unmodeled, bs, key, at)...)
 		case key == "$dynamicRef" || key == "$recursiveRef":
 			diags = append(diags, keepEntryDynamicRef(loweringContext, unmodeled, bs, key, at)...)
 		default:
@@ -705,7 +705,7 @@ func namesOf(allOfEntryValue allOfEntry) entryNames {
 // no entry expands one, as it is a conjunct the IR cannot intersect with the
 // rest.
 func keepEntryDynamicRef(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bs *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
-	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, bs, keyword, ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, unmodeled, bs, keyword, ir.ReasonDegradedLowering, pointer)
 	if !kept {
 		return diags
 	}
@@ -728,7 +728,8 @@ func keepUnknownOf(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, bs *st
 		}
 	}
 	undefined := slices.DeleteFunc(undefinedKeywords(loweringContext, bs), func(key string) bool { return !slices.Contains(keys, key) })
-	diags := annotation.UnknownKeywordsIn(unmodeled, bs, pointer, loweringContext.Place(), others...)
+	unpreserved, diags := annotation.UnknownKeywordsIn(unmodeled, bs, pointer, loweringContext.Place(), others...)
+	recordDiscardedSites(loweringContext, unpreserved)
 	return append(diags, annotation.UndefinedKeywordsIn(unmodeled, bs, undefined, pointer, loweringContext.Place())...)
 }
 

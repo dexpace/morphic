@@ -9,7 +9,9 @@ or not at all. It loads `morphic-changing-the-ir` and `morphic-shipping-prs`.
    entry in `docs/ir/version-history.md`, to the version after its base's, the PR merging second
    moving to the next
    (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#version-collisions`). So
-   does a change to a name an emitter renders, which `TestIRVersion_PinsTheNames` holds.
+   does a change to a name an emitter renders, which `TestIRVersion_PinsTheNames` holds. A minted
+   ID's key is shown injective across its owners
+   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#minted-key-injective`).
 2. A field holding a new value, a new field, or one a lowering stops filling at a position, is read
    by each of its consumers
    (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#widened-field-values`,

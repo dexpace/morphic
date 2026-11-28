@@ -31,7 +31,8 @@ func TestUnknownKeywordsIn_KeepsWhatTheModelDoesNotName(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nx-ray: kept\nnotAKeyword: 7\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(3))
+	unpreserved, diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(3))
+	assert.Empty(t, unpreserved)
 
 	require.Len(t, got, 1, "the x-* is the extension reader's, not the census's; got %v", got)
 	entry := got["openapi:notAKeyword"]
@@ -89,7 +90,8 @@ func TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone(t *testing.T) {
 	s := schemaFromYAML(t, body.String())
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(0))
+	unpreserved, diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(0))
+	assert.Empty(t, unpreserved)
 
 	assert.Empty(t, got, "each is decided about elsewhere, so the census keeps none of them")
 	assert.Empty(t, diags)
@@ -110,7 +112,8 @@ func TestUnknownKeywordsIn_AlreadyRecordedKeyIsLeftAlone(t *testing.T) {
 	}
 	got := ir.Unmodeled{"openapi:dependentRequired": already}
 
-	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
+	unpreserved, diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
+	assert.Empty(t, unpreserved)
 
 	assert.Equal(t, ir.Unmodeled{"openapi:dependentRequired": already}, got)
 	assert.Empty(t, diags, "a keyword another reader already announced is not announced twice")
@@ -124,9 +127,10 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnotAKeyword: .nan\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
+	unpreserved, diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
 
 	assert.Empty(t, got)
+	assert.Equal(t, []ir.Provenance{{Source: 0, Pointer: "/A/notAKeyword"}}, unpreserved)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, "openapi/unpreservable-construct", diags[0].Code)
@@ -144,7 +148,8 @@ func TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable(t *testing.T)
 	require.False(t, listed, "the statement's keys stop at the bound")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, schema, "/A", sourced(0))
+	unpreserved, diags := UnknownKeywordsIn(&got, schema, "/A", sourced(0))
+	assert.Empty(t, unpreserved)
 
 	assert.Empty(t, got, "no node of it is reached")
 	require.Len(t, diags, 1)
@@ -544,7 +549,7 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 				return UnknownKeyword(standaloneSchema(s), key.Name)
 			}), "a keyword of it answers alike")
 			var kept ir.Unmodeled
-			UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))
+			_, _ = UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))
 			assert.Equal(t, tc.want, len(kept) > 0)
 		})
 	}

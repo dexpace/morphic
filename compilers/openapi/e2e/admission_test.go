@@ -499,18 +499,23 @@ func redeclaredField(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, id, 
 // refusing only strings through a not stays reported as before.
 func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *testing.T) {
 	t.Parallel()
+	const (
+		objDecl   = "Obj: {properties: {b: {type: string}}}"
+		fieldDecl = "{allOf: [{$ref: '#/components/schemas/Obj'}], properties: {a: {type: string}}}"
+	)
+	requireStructure(t, fieldDecl)
 	for _, swapped := range []bool{false, true} {
 		schemas := []string{
-			"Obj: {properties: {b: {type: string}}}",
+			objDecl,
 			"NotStr: {not: {type: string}}",
-			"U: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/Obj'}], properties: {a: {type: string}}}", swapped),
+			"U: " + redeclaredAsStructure(fieldDecl, swapped),
 			"T: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/NotStr'}], properties: {a: {type: string}}}", swapped),
 		}
 		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "redecl", admissionSpec("3.1.0", "", schemas...))
-				requireStructure(t, doc, "U", swapped)
+				assert.NotContains(t, doc.Types, redeclaredNode("U", swapped), "the superseded structure node is pruned")
 				target, conflicts := redeclaredField(t, doc, diags, "type/openapi/components/schemas/U", "f", "/components/schemas/U")
 				assert.Equal(t, ir.TypeID("type/primitive/integer"), target, "U's field takes the narrower, integer")
 				assert.Zero(t, conflicts, "no conflict is reported for U")
@@ -531,10 +536,17 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 // and integer is within one of its variants.
 func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *testing.T) {
 	t.Parallel()
+	const (
+		unionDecl = "ObjOrInt: {anyOf: [{type: object}, {type: integer}]}"
+		fieldDecl = "{allOf: [{$ref: '#/components/schemas/ObjOrInt'}], properties: {a: {type: string}}}"
+	)
+	probe, _ := compileAnnotationSpec(t, "probe", admissionSpec("3.1.0", "", unionDecl, "Probe: "+fieldDecl))
+	_, isModel := probe.Types["type/openapi/components/schemas/Probe"].(*ir.Model)
+	require.False(t, isModel, "the declaration is a use, not a structure")
 	for _, swapped := range []bool{false, true} {
 		schemas := []string{
-			"ObjOrInt: {anyOf: [{type: object}, {type: integer}]}",
-			"U: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/ObjOrInt'}], properties: {a: {type: string}}}", swapped),
+			unionDecl,
+			"U: " + redeclaredAsStructure(fieldDecl, swapped),
 		}
 		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
@@ -569,12 +581,14 @@ func redeclaredNode(name string, swapped bool) ir.TypeID {
 	return ir.TypeID("type/anonymous/components/schemas/" + name + "/allOf/" + entry + "/properties/f")
 }
 
-// requireStructure requires the declaration of f other than integer in the
-// component name to lower to a Model, the structure the exception reads.
-func requireStructure(t *testing.T, doc *ir.Document, name string, swapped bool) {
+// requireStructure requires declaration, lowered beside a plain Obj component,
+// to lower to a Model, the structure the exception reads.
+func requireStructure(t *testing.T, declaration string) {
 	t.Helper()
-	_, isModel := doc.Types[redeclaredNode(name, swapped)].(*ir.Model)
-	require.True(t, isModel, "the redeclaration of %s's f must be a structure", name)
+	const objDecl = "Obj: {properties: {b: {type: string}}}"
+	doc, _ := compileAnnotationSpec(t, "probe", admissionSpec("3.1.0", "", objDecl, "Probe: "+declaration))
+	_, isModel := doc.Types["type/openapi/components/schemas/Probe"].(*ir.Model)
+	require.True(t, isModel, "the redeclaration must lower to a structure")
 }
 
 // TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut holds that a field
@@ -584,16 +598,21 @@ func requireStructure(t *testing.T, doc *ir.Document, name string, swapped bool)
 // or warning is that one.
 func TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
+	const (
+		objDecl   = "Obj: {properties: {b: {type: string}}}"
+		fieldDecl = "{allOf: [{$ref: '#/components/schemas/Obj'}, {not: null}], properties: {a: {type: string}}}"
+	)
+	requireStructure(t, fieldDecl)
 	for _, swapped := range []bool{false, true} {
 		schemas := []string{
-			"Obj: {properties: {b: {type: string}}}",
-			"V: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/Obj'}, {not: null}], properties: {a: {type: string}}}", swapped),
+			objDecl,
+			"V: " + redeclaredAsStructure(fieldDecl, swapped),
 		}
 		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "nullnot", admissionSpec("3.1.0", "", schemas...))
-				requireStructure(t, doc, "V", swapped)
+				assert.NotContains(t, doc.Types, redeclaredNode("V", swapped), "the superseded structure node is pruned")
 				target, conflicts := redeclaredField(t, doc, diags, "type/openapi/components/schemas/V", "f", "/components/schemas/V")
 				assert.Equal(t, ir.TypeID("type/primitive/integer"), target)
 				assert.Zero(t, conflicts)

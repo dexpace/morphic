@@ -100,12 +100,27 @@ func (w *edgeWalk) def(td TypeDef) {
 	}
 }
 
-// common yields what every kind can hold: the availability timeline, examples
-// and the template instantiation.
+// common yields what every kind can hold: the availability timeline, examples,
+// the template instantiation and kept unmodeled targets.
 func (w *edgeWalk) common(typeCommon *TypeCommon) {
 	w.availability(typeCommon.Availability)
 	w.examples(typeCommon.Examples)
 	w.instantiation(typeCommon.Instantiation)
+	w.unmodeled(typeCommon.Unmodeled)
+}
+
+// unmodeled yields each entry's Targets in sorted key order, matching
+// WalkValues.
+func (w *edgeWalk) unmodeled(unmodeled Unmodeled) {
+	if len(unmodeled) == 0 {
+		return
+	}
+	for _, key := range slices.Sorted(maps.Keys(unmodeled)) {
+		targets := unmodeled[key].Targets
+		for _, ptr := range slices.Sorted(maps.Keys(targets)) {
+			w.id(targets[ptr])
+		}
+	}
 }
 
 // value yields the types value refers to, through every nested list, object
@@ -163,6 +178,7 @@ func (w *edgeWalk) examples(exs []Example) {
 			w.ref(&errorExample.Type)
 			w.value(&errorExample.Content, 0)
 		}
+		w.unmodeled(ex.Unmodeled)
 	}
 }
 
@@ -235,6 +251,7 @@ func (w *edgeWalk) property(property *Property) {
 	}
 	w.examples(property.Examples)
 	w.availability(property.Availability)
+	w.unmodeled(property.Unmodeled)
 }
 
 // parameter yields everything a field argument refers to.
@@ -247,6 +264,7 @@ func (w *edgeWalk) parameter(parameter *Parameter) {
 	}
 	w.availability(parameter.Availability)
 	w.examples(parameter.Examples)
+	w.unmodeled(parameter.Unmodeled)
 }
 
 // additional yields the catch-all value and key types and each pattern's value
@@ -281,16 +299,18 @@ func (w *edgeWalk) union(union *Union) {
 		w.ref(&variant.Type)
 		w.availability(variant.Availability)
 		w.examples(variant.Examples)
+		w.unmodeled(variant.Unmodeled)
 	}
 	w.discriminator(union.Discriminator)
 }
 
-// enum yields each member's value, availability and example references.
+// enum yields each member's value, availability, example and unmodeled references.
 func (w *edgeWalk) enum(enum *Enum) {
 	for i := range enum.Members {
 		enumMember := &enum.Members[i]
 		w.value(&enumMember.Value, 0)
 		w.availability(enumMember.Availability)
 		w.examples(enumMember.Examples)
+		w.unmodeled(enumMember.Unmodeled)
 	}
 }
