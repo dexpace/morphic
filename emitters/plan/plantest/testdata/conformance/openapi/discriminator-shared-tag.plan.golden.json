@@ -1,0 +1,45 @@
+{
+  "types": {
+    "type/anonymous/components/schemas/Cat/allOf/1/properties/petType": {},
+    "type/openapi/components/schemas/Cat": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/allOf/1/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Cat/allOf/1/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Kitten": {
+      "flattened": [
+        "property/openapi/components/schemas/Cat/allOf/1/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Cat/allOf/1/properties/petType"
+      ]
+    },
+    "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "cat": [
+            "type/openapi/components/schemas/Cat",
+            "type/openapi/components/schemas/Kitten"
+          ]
+        },
+        "locator": "property",
+        "wireKey": "petType"
+      },
+      "flattened": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ],
+      "required": [
+        "property/openapi/components/schemas/Pet/properties/petType"
+      ]
+    },
+    "type/primitive/string": {}
+  },
+  "policy": {
+    "openUnions": false,
+    "openEnums": false,
+    "strictExclusive": false
+  }
+}
