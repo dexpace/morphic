@@ -221,22 +221,31 @@ func TestLookup_ReturnsACopy(t *testing.T) {
 		primitive ir.PrimitiveKind
 		encoding  typemap.Encoding
 		wantFound typemap.Found
+		tableRow  ir.PrimitiveKind
 	}{
-		{"the key's own row", ir.PrimitiveDecimal, typemap.Encoding{}, typemap.Exact},
-		{"the row the value travels as", ir.PrimitiveUUID, encoding("hex", ""), typemap.TravelsAs},
-		{"the key primitive's own default row", ir.PrimitiveDecimal, encoding("x", ""), typemap.Primitive},
+		{"the key's own row", ir.PrimitiveDecimal, typemap.Encoding{}, typemap.Exact, ir.PrimitiveDecimal},
+		{"the row the value travels as", ir.PrimitiveUUID, encoding("hex", ""), typemap.TravelsAs, ir.PrimitiveString},
+		{"the key primitive's own default row", ir.PrimitiveDecimal, encoding("x", ""), typemap.Primitive,
+			ir.PrimitiveDecimal},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			table := rowsWithImports()
+			want := rowsWithImports().Primitives[tc.tableRow][""]
 			row, found, ok := typemap.Lookup(table, tc.primitive, tc.encoding)
 			require.True(t, ok)
 			require.Equal(t, tc.wantFound, found)
-			require.NotNil(t, row.Dependency)
+			require.Empty(t, cmp.Diff(want, row), "Lookup returns the table's row")
 
 			row.Imports["written"] = "written"
 			row.Dependency.MinVersion = "v9"
 			assert.Empty(t, cmp.Diff(rowsWithImports(), table), "writing the row Lookup returned wrote the table")
+
+			kept, _, _ := typemap.Lookup(table, tc.primitive, tc.encoding)
+			owned := table.Primitives[tc.tableRow][""]
+			owned.Imports["owner"] = "owner"
+			owned.Dependency.MinVersion = "v8"
+			assert.Empty(t, cmp.Diff(want, kept), "writing the table reached a row Lookup returned before")
 		})
 	}
 }
@@ -247,10 +256,16 @@ func TestLookupExternal_FindsAnIdentitysRow(t *testing.T) {
 
 	row, ok := typemap.LookupExternal(table, "erlang:pid")
 	require.True(t, ok)
-	assert.Empty(t, cmp.Diff(rowsWithImports().Externals["erlang:pid"], row))
+	require.Empty(t, cmp.Diff(rowsWithImports().Externals["erlang:pid"], row), "LookupExternal returns the table's row")
 	row.Imports["written"] = "written"
 	row.Dependency.MinVersion = "v9"
 	assert.Empty(t, cmp.Diff(rowsWithImports(), table), "writing the row LookupExternal returned wrote the table")
+
+	kept, _ := typemap.LookupExternal(table, "erlang:pid")
+	table.Externals["erlang:pid"].Imports["owner"] = "owner"
+	table.Externals["erlang:pid"].Dependency.MinVersion = "v8"
+	assert.Empty(t, cmp.Diff(rowsWithImports().Externals["erlang:pid"], kept),
+		"writing the table reached a row LookupExternal returned before")
 
 	for _, identity := range []string{"erlang:fun", ""} {
 		row, ok := typemap.LookupExternal(table, identity)

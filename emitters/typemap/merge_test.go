@@ -164,6 +164,10 @@ func TestMerge_WritesNeitherArgument(t *testing.T) {
 	t.Parallel()
 	builtIn, user := builtInTable(), userTable()
 	merged := typemap.Merge(builtIn, user)
+	want := builtInTable()
+	want.Primitives[ir.PrimitiveBytes]["base64url"] = userTable().Primitives[ir.PrimitiveBytes]["base64url"]
+	want.Externals["erlang:ref"] = userTable().Externals["erlang:ref"]
+	require.Empty(t, cmp.Diff(want, merged), "Merge lays the user's rows over the built-in ones")
 
 	merged.Primitives[ir.PrimitiveString]["x"] = typemap.Row{Type: "X"}
 	merged.Primitives[ir.PrimitiveDecimal][""].Imports["y"] = "y"
@@ -182,6 +186,12 @@ func TestMerge_WritesNeitherArgument(t *testing.T) {
 	user.Primitives[ir.PrimitiveBytes]["base64url"].Dependency.Module = "z"
 	user.Externals["erlang:ref"].Imports["z"] = "z"
 	assert.Empty(t, cmp.Diff(before, merged), "writing the user's table wrote the merged one")
+
+	builtIn.Primitives[ir.PrimitiveString]["z"] = typemap.Row{Type: "Z"}
+	builtIn.Primitives[ir.PrimitiveDecimal][""].Imports["z"] = "z"
+	builtIn.Primitives[ir.PrimitiveDecimal][""].Dependency.MinVersion = "v8"
+	builtIn.Externals["erlang:pid"].Imports["z"] = "z"
+	assert.Empty(t, cmp.Diff(before, merged), "writing the built-in table wrote the merged one")
 }
 
 func TestMoved_ListsABuiltInRowTheUserDoesNotReplace(t *testing.T) {

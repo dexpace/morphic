@@ -7,8 +7,12 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"net/netip"
+	"reflect"
 	"strconv"
 	"testing"
+	"time"
+	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -98,6 +102,14 @@ func TestDecodeLayer_WritesNotItsDefaults(t *testing.T) {
 	got.Rows["c"] = "3"
 	got.Pointer.Label = "written"
 	assert.Empty(t, cmp.Diff(freshDefaults(), defaults), "the result shares a map or a pointer with the defaults")
+
+	kept, err := options.DecodeLayer(defaults, []byte(`{"rows":{"b":"2"}}`))
+	require.NoError(t, err)
+	defaults.Rows["d"] = "4"
+	defaults.Pointer.Label = "owner"
+	want := freshDefaults()
+	want.Rows["b"] = "2"
+	assert.Empty(t, cmp.Diff(want, kept), "writing the defaults reached a layer decoded before")
 }
 
 func TestDecodeLayer_RefusesAMemberWrittenNull(t *testing.T) {
@@ -123,6 +135,110 @@ func TestDecodeLayer_RefusesAMemberWrittenNull(t *testing.T) {
 			assert.NotContains(t, err.Error(), "interface {}")
 			assert.Empty(t, cmp.Diff(layer{}, got))
 		})
+	}
+}
+
+// member is a layer holding one member, of type T.
+type member[T any] struct {
+	F T `json:"f"`
+}
+
+// selfDecoded decodes itself through its own UnmarshalJSON.
+type selfDecoded struct {
+	text string
+}
+
+// MarshalJSON writes the text selfDecoded holds as a JSON string.
+func (value selfDecoded) MarshalJSON() ([]byte, error) { return json.Marshal(value.text) }
+
+// UnmarshalJSON keeps any JSON value as its text, a null's included.
+func (value *selfDecoded) UnmarshalJSON(raw []byte) error {
+	value.text = string(raw)
+	return nil
+}
+
+// decodeLayerOf decodes raw as a layer of type T over T's zero value.
+func decodeLayerOf[T any](raw string) error {
+	var defaults T
+	_, err := options.DecodeLayer(defaults, []byte(raw))
+	return err
+}
+
+// nullPlace is one row of TestDecodeLayer_RefusesNullWhereverJSONDecodes: a
+// layer writing a null where json decodes a value of kind, and the pointer the
+// refusal names.
+type nullPlace struct {
+	name    string
+	kind    reflect.Kind
+	decode  func(raw string) error
+	raw     string
+	pointer string
+}
+
+// TestDecodeLayer_RefusesNullWhereverJSONDecodes holds the null refusal to
+// every kind of value json decodes, each kind reflect declares being a row's
+// or one json encodes no value of.
+func TestDecodeLayer_RefusesNullWhereverJSONDecodes(t *testing.T) {
+	t.Parallel()
+	places := []nullPlace{
+		{"a bool", reflect.Bool, decodeLayerOf[member[bool]], `{"f":null}`, "/f"},
+		{"an int", reflect.Int, decodeLayerOf[member[int]], `{"f":null}`, "/f"},
+		{"an int8", reflect.Int8, decodeLayerOf[member[int8]], `{"f":null}`, "/f"},
+		{"an int16", reflect.Int16, decodeLayerOf[member[int16]], `{"f":null}`, "/f"},
+		{"an int32", reflect.Int32, decodeLayerOf[member[int32]], `{"f":null}`, "/f"},
+		{"an int64", reflect.Int64, decodeLayerOf[member[int64]], `{"f":null}`, "/f"},
+		{"a uint", reflect.Uint, decodeLayerOf[member[uint]], `{"f":null}`, "/f"},
+		{"a uint8", reflect.Uint8, decodeLayerOf[member[uint8]], `{"f":null}`, "/f"},
+		{"a uint16", reflect.Uint16, decodeLayerOf[member[uint16]], `{"f":null}`, "/f"},
+		{"a uint32", reflect.Uint32, decodeLayerOf[member[uint32]], `{"f":null}`, "/f"},
+		{"a uint64", reflect.Uint64, decodeLayerOf[member[uint64]], `{"f":null}`, "/f"},
+		{"a uintptr", reflect.Uintptr, decodeLayerOf[member[uintptr]], `{"f":null}`, "/f"},
+		{"a float32", reflect.Float32, decodeLayerOf[member[float32]], `{"f":null}`, "/f"},
+		{"a float64", reflect.Float64, decodeLayerOf[member[float64]], `{"f":null}`, "/f"},
+		{"a string", reflect.String, decodeLayerOf[member[string]], `{"f":null}`, "/f"},
+		{"a slice", reflect.Slice, decodeLayerOf[member[[]string]], `{"f":null}`, "/f"},
+		{"a slice element", reflect.Slice, decodeLayerOf[member[[]string]], `{"f":["a",null]}`, "/f/1"},
+		{"an array", reflect.Array, decodeLayerOf[member[[2]string]], `{"f":null}`, "/f"},
+		{"an array element", reflect.Array, decodeLayerOf[member[[2]string]], `{"f":["a",null]}`, "/f/1"},
+		{"a map", reflect.Map, decodeLayerOf[member[map[string]string]], `{"f":null}`, "/f"},
+		{"a map value", reflect.Map, decodeLayerOf[member[map[string]string]], `{"f":{"a":null}}`, "/f/a"},
+		{"a struct", reflect.Struct, decodeLayerOf[member[member[string]]], `{"f":null}`, "/f"},
+		{"a struct member", reflect.Struct, decodeLayerOf[member[member[string]]], `{"f":{"f":null}}`, "/f/f"},
+		{"a pointer", reflect.Pointer, decodeLayerOf[member[*string]], `{"f":null}`, "/f"},
+		{"a pointer to a pointer", reflect.Pointer, decodeLayerOf[member[**string]], `{"f":null}`, "/f"},
+		{"an interface", reflect.Interface, decodeLayerOf[member[any]], `{"f":null}`, "/f"},
+		{"a value inside an interface", reflect.Interface, decodeLayerOf[member[any]], `{"f":[1,{"a":null}]}`, "/f/1/a"},
+		{"a raw value", reflect.Slice, decodeLayerOf[member[jsontext.Value]], `{"f":null}`, "/f"},
+		{"a type decoding itself", reflect.Struct, decodeLayerOf[member[selfDecoded]], `{"f":null}`, "/f"},
+		{"a type decoding itself from text", reflect.Struct, decodeLayerOf[member[netip.Addr]], `{"f":null}`, "/f"},
+		{"a time", reflect.Struct, decodeLayerOf[member[time.Time]], `{"f":null}`, "/f"},
+	}
+	for _, place := range places {
+		t.Run(place.name, func(t *testing.T) {
+			t.Parallel()
+			err := place.decode(place.raw)
+			require.ErrorIs(t, err, options.ErrNullMember)
+			assert.EqualError(t, err, strconv.Quote(place.pointer)+": member written null")
+		})
+	}
+
+	unencodable := map[reflect.Kind]any{
+		reflect.Complex64: complex64(1), reflect.Complex128: complex128(1), reflect.Chan: make(chan int),
+		reflect.Func: func() {}, reflect.UnsafePointer: unsafe.Pointer(nil),
+	}
+	covered := map[reflect.Kind]bool{}
+	for _, place := range places {
+		covered[place.kind] = true
+	}
+	for kind := reflect.Bool; kind <= reflect.UnsafePointer; kind++ {
+		sample, cannotEncode := unencodable[kind]
+		if covered[kind] {
+			assert.False(t, cannotEncode, "%s is both a row's kind and listed as one json cannot encode", kind)
+			continue
+		}
+		require.True(t, cannotEncode, "%s has no row: add one where json decodes it", kind)
+		_, err := json.Marshal(member[any]{F: sample})
+		assert.Error(t, err, "json encodes a %s, so it needs a row", kind)
 	}
 }
 
