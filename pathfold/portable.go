@@ -4,6 +4,7 @@
 package pathfold
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -83,22 +84,24 @@ func windowsDeviceName(segment string) (string, bool) {
 		}
 		loweredBytes[i] = character
 	}
-	lowered := string(loweredBytes[:len(stem)])
+	// The lowered stem stays a byte slice, and a string is made of it only to
+	// return a device name, so a segment naming none allocates nothing.
+	lowered := loweredBytes[:len(stem)]
 
-	switch lowered {
+	switch string(lowered) {
 	case "con", "prn", "aux", "nul", "conin$", "conout$":
-		return lowered, true
+		return string(lowered), true
 	}
-	if !strings.HasPrefix(lowered, "com") && !strings.HasPrefix(lowered, "lpt") {
+	if !bytes.HasPrefix(lowered, []byte("com")) && !bytes.HasPrefix(lowered, []byte("lpt")) {
 		return "", false
 	}
 	suffix := lowered[3:]
-	r, size := utf8.DecodeRuneInString(suffix)
+	r, size := utf8.DecodeRune(suffix)
 	if size == 0 || size != len(suffix) {
 		return "", false
 	}
 	if (r >= '0' && r <= '9') || r == '\u00b9' || r == '\u00b2' || r == '\u00b3' {
-		return lowered, true
+		return string(lowered), true
 	}
 	return "", false
 }
