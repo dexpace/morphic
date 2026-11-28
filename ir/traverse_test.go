@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -234,12 +235,13 @@ func TestForEachOperationAt_HandsEachOperationItsPlace(t *testing.T) {
 	got, truncated := operationsAt(ir.MaxWalkSteps, doc)
 
 	assert.False(t, truncated)
-	assert.Equal(t, []operationAt{
+	want := []operationAt{
 		{operation: "a", service: "service/one", groups: []ir.GroupID{"group/a"}},
 		{operation: "a1", service: "service/one", groups: []ir.GroupID{"group/a", "group/a/1"}},
 		{operation: "b", service: "service/one", groups: []ir.GroupID{"group/b"}},
 		{operation: "c", service: "service/two", groups: []ir.GroupID{"group/c"}},
-	}, got)
+	}
+	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(operationAt{})), "places (-want +got)")
 }
 
 // TestForEachOperationAt_WalksAsForEachOperationDoes holds the walk to the
