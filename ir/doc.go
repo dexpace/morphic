@@ -9,11 +9,11 @@
 // cross-referenced by ID, and a Document round-trips through JSON
 // deterministically. Passes edit documents with an [Editor].
 //
-// It also owns shared traversals and helpers: [WalkValues], the bounded,
+// It also owns traversals and helpers: [WalkValues], the bounded,
 // cycle-guarded, deterministic reflection walk; [IDReferences]; typed
-// [ForEachGroup], [ForEachOperation] and [TypeEdges]; [AliasBase],
-// [Supertypes], [IsSubtype], [ExposedProperties], [FlattenedProperties] and
-// [NarrowedShapes] over composition; [AsMap].
+// [ForEachGroup], [ForEachOperation], [ForEachOperationAt] and [TypeEdges];
+// [AliasBase], [Supertypes], [IsSubtype], [ExposedProperties],
+// [FlattenedProperties] and [NarrowedShapes] over composition; [AsMap].
 //
 // It imports only the standard library and does no I/O; its plain-data types
 // are safe for concurrent reads.

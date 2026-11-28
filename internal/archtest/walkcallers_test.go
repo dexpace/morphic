@@ -273,7 +273,7 @@ func TestWalks_EveryCallerAnswersForAStop(t *testing.T) {
 	require.NoError(t, err)
 	ir := irDecls(t, pkgs)
 	walks, queries := walkNames(ir), collectorQueries(ir)
-	require.Equal(t, []string{"ForEachGroup", "ForEachOperation", "TypeEdges", "WalkValues", "WalkValuesContext"}, walks,
+	require.Equal(t, []string{"ForEachGroup", "ForEachOperation", "ForEachOperationAt", "TypeEdges", "WalkValues", "WalkValuesContext"}, walks,
 		"the walks ir offers; a new one is held here once its callers are")
 	require.NotEmpty(t, queries, "ir's collectors answer questions")
 

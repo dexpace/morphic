@@ -133,6 +133,11 @@ func ForEachOperationWithin(limit int, doc *Document, fn func(Operation)) bool {
 	return forEachOperation(limit, doc, fn)
 }
 
+// ForEachOperationAtWithin is ForEachOperationAt within limit steps.
+func ForEachOperationAtWithin(limit int, doc *Document, fn func(Operation, OperationPlace)) bool {
+	return forEachOperationAt(limit, doc, fn)
+}
+
 // TypeEdgesWithin is TypeEdges entering at most limit values.
 func TypeEdgesWithin(limit int, td TypeDef) iter.Seq[TypeID] {
 	return typeEdges(limit, td)

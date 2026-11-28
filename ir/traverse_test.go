@@ -190,3 +190,111 @@ func TestForEachGroup_ReportsTheGroupsPastTheCap(t *testing.T) {
 	assert.True(t, truncated)
 	assert.Equal(t, ir.MaxGroupDepth+1, visited, "levels 0 to the cap, and not the one past it")
 }
+
+// operationAt is what ForEachOperationAt hands for one operation: its ID, the
+// service's and those of the groups enclosing it, outermost first.
+type operationAt struct {
+	operation ir.OperationID
+	service   ir.ServiceID
+	groups    []ir.GroupID
+}
+
+// operationsAt returns what ForEachOperationAt within limit hands for each
+// operation of doc, and whether it reported the walk cut.
+func operationsAt(limit int, doc *ir.Document) ([]operationAt, bool) {
+	var got []operationAt
+	truncated := ir.ForEachOperationAtWithin(limit, doc, func(operation ir.Operation, place ir.OperationPlace) {
+		at := operationAt{operation: operation.ID, service: place.Service.ID}
+		for _, operationGroup := range place.Groups {
+			at.groups = append(at.groups, operationGroup.ID)
+		}
+		got = append(got, at)
+	})
+	return got, truncated
+}
+
+// TestForEachOperationAt_HandsEachOperationItsPlace holds the walk to handing
+// each operation the service holding it and its enclosing groups, outermost
+// first. A sibling declared after a nested group follows it, so a path the walk
+// does not shorten on the way out names the nested group there, and a second
+// service follows the first, so a service not taken afresh names the first.
+func TestForEachOperationAt_HandsEachOperationItsPlace(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{
+		{ID: "service/one", Groups: []ir.OperationGroup{
+			{
+				ID: "group/a", Operations: []ir.Operation{{ID: "a"}},
+				Groups: []ir.OperationGroup{{ID: "group/a/1", Operations: []ir.Operation{{ID: "a1"}}}},
+			},
+			{ID: "group/b", Operations: []ir.Operation{{ID: "b"}}},
+		}},
+		{ID: "service/two", Groups: []ir.OperationGroup{{ID: "group/c", Operations: []ir.Operation{{ID: "c"}}}}},
+	}}
+
+	got, truncated := operationsAt(ir.MaxWalkSteps, doc)
+
+	assert.False(t, truncated)
+	assert.Equal(t, []operationAt{
+		{operation: "a", service: "service/one", groups: []ir.GroupID{"group/a"}},
+		{operation: "a1", service: "service/one", groups: []ir.GroupID{"group/a", "group/a/1"}},
+		{operation: "b", service: "service/one", groups: []ir.GroupID{"group/b"}},
+		{operation: "c", service: "service/two", groups: []ir.GroupID{"group/c"}},
+	}, got)
+}
+
+// TestForEachOperationAt_WalksAsForEachOperationDoes holds the walk to the
+// operations ForEachOperation visits, in its order and with its report, at
+// every limit a mixed document can be cut at, at the depth cap and past it,
+// and on group slices that contain themselves.
+func TestForEachOperationAt_WalksAsForEachOperationDoes(t *testing.T) {
+	t.Parallel()
+	mixed := &ir.Document{Services: []ir.Service{
+		{Groups: []ir.OperationGroup{
+			{Operations: []ir.Operation{{ID: "a"}, {ID: "b"}}, Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "c"}}}}},
+			{Operations: []ir.Operation{{ID: "d"}}},
+		}},
+		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "e"}}}}},
+	}}
+	// One step for each of the four groups and each of the five operations.
+	const mixedSteps = 9
+	one := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "self"}}}}
+	one[0].Groups = one
+
+	type walked struct {
+		doc   *ir.Document
+		limit int
+	}
+	cases := make([]walked, 0, mixedSteps+5)
+	for limit := range mixedSteps + 2 {
+		cases = append(cases, walked{mixed, limit})
+	}
+	cases = append(cases,
+		walked{groupChain(ir.MaxGroupDepth), ir.MaxWalkSteps},
+		walked{groupChain(ir.MaxGroupDepth + 1), ir.MaxWalkSteps},
+		walked{&ir.Document{Services: []ir.Service{{Groups: one}}}, ir.MaxWalkSteps},
+	)
+	for i, tc := range cases {
+		var want []ir.OperationID
+		wantCut := ir.ForEachOperationWithin(tc.limit, tc.doc, func(operation ir.Operation) { want = append(want, operation.ID) })
+		got, cut := operationsAt(tc.limit, tc.doc)
+
+		var gotIDs []ir.OperationID
+		for _, at := range got {
+			gotIDs = append(gotIDs, at.operation)
+		}
+		assert.Equal(t, want, gotIDs, "case %d, limit %d", i, tc.limit)
+		assert.Equal(t, wantCut, cut, "case %d, limit %d", i, tc.limit)
+	}
+
+	// The limits above reach both sides of the mixed document's end.
+	assert.False(t, ir.ForEachOperationWithin(mixedSteps, mixed, func(ir.Operation) {}))
+	assert.True(t, ir.ForEachOperationWithin(mixedSteps-1, mixed, func(ir.Operation) {}))
+}
+
+func TestForEachOperationAt_NilDocument(t *testing.T) {
+	t.Parallel()
+	called := false
+	truncated := ir.ForEachOperationAt(nil, func(ir.Operation, ir.OperationPlace) { called = true })
+	assert.False(t, truncated)
+	assert.False(t, called)
+}
