@@ -349,6 +349,8 @@ func TestBuild_ReadsAHierarchysTagKey(t *testing.T) {
 		{"a declaration the flattening overrides",
 			ir.Discriminator{Property: "type/shelter/kind"}, "kennel_kind", "kennel_kind"},
 		{"a declaration naming no wire name", ir.Discriminator{Property: "type/kennel/kind"}, "", "kind"},
+		{"an overridden declaration naming no wire name, nor the one taken",
+			ir.Discriminator{Property: "type/shelter/kind"}, "", "kind"},
 		{"a declaration no member has", ir.Discriminator{Property: "type/kennel/missing"}, "kennel_kind", ""},
 		{"a wire name", ir.Discriminator{PropertyName: "tag"}, "kennel_kind", "tag"},
 	}
