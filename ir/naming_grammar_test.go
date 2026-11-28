@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -241,5 +242,71 @@ func TestCanonicalWords_AllocatesOnlyItsResult(t *testing.T) {
 		assert.Equal(t, words, got)
 		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = ir.HasCanonicalWords(tc.name, words) }),
 			"HasCanonicalWords(%q)", tc.name)
+	}
+}
+
+func TestSourceWords_KeepsEachWordAsWritten(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{name: "iOSVersion", input: "iOSVersion", want: []string{"i", "OS", "Version"}},
+		{name: "HTTPServer2FA", input: "HTTPServer2FA", want: []string{"HTTP", "Server", "2", "FA"}},
+		{name: "Secondary DNS (ACL)", input: "Secondary DNS (ACL)", want: []string{"Secondary", "DNS", "ACL"}},
+		{name: "user_id", input: "user_id", want: []string{"user", "id"}},
+		{name: "non-ASCII casing preserved", input: "naïve_Ünïcode", want: []string{"naïve", "Ünïcode"}},
+		{name: "single acronym", input: "ID", want: []string{"ID"}},
+		{name: "no word runes", input: ">=", want: nil},
+		{name: "empty", input: "", want: nil},
+		{name: "decomposed combining mark", input: "cafe\u0301", want: []string{"cafe\u0301"}},
+		{name: "invalid UTF-8 byte separates", input: "a\xffb", want: []string{"a", "b"}},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			got := slices.Collect(ir.SourceWords(row.input))
+			assert.Equal(t, row.want, got, "SourceWords(%q)", row.input)
+		})
+	}
+}
+
+// TestSourceWords_YieldsSubstringsInOrder pins that every yielded word is a
+// non-empty substring of the input occurring in order without overlap.
+func TestSourceWords_YieldsSubstringsInOrder(t *testing.T) {
+	t.Parallel()
+	for _, row := range canonicalCases {
+		t.Run(row.rule, func(t *testing.T) {
+			t.Parallel()
+			offset := 0
+			for word := range ir.SourceWords(row.in) {
+				require.NotEmpty(t, word, "SourceWords(%q) yielded an empty word", row.in)
+				found := strings.Index(row.in[offset:], word)
+				require.GreaterOrEqual(t, found, 0, "word %q not found in %q from offset %d", word, row.in, offset)
+				start := offset + found
+				assert.Equal(t, word, row.in[start:start+len(word)])
+				offset = start + len(word)
+			}
+		})
+	}
+}
+
+func TestSourceWords_StopsWhenTheCallerStops(t *testing.T) {
+	t.Parallel()
+	rows := []string{
+		"a b c",
+		"aBcD",
+	}
+	for _, input := range rows {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+			seen := 0
+			for range ir.SourceWords(input) {
+				seen++
+				break
+			}
+			assert.Equal(t, 1, seen)
+		})
 	}
 }
