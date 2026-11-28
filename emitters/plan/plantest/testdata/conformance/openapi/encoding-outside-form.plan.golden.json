@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1bytes/post": {},
+    "operation/openapi/paths/~1json/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1json/post/requestBody/content/application~1json/schema": {
       "flattened": [
@@ -9,6 +13,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

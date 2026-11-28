@@ -1,8 +1,14 @@
 {
+  "ops": {
+    "operation/openapi/webhooks//post": {},
+    "operation/openapi/webhooks/newPet/post": {},
+    "operation/openapi/webhooks/{tenant}.created/post": {}
+  },
   "types": {
     "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

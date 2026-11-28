@@ -90,6 +90,8 @@ var walkCallers = map[string]walkCaller{
 	},
 	"engine/report.keptAtOrBelow": {answer: "reads the stop"},
 
+	"emitters/plan.operationPlans": {answer: validateReports},
+
 	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},

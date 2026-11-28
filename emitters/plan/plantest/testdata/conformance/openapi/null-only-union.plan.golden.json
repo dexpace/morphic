@@ -16,6 +16,7 @@
     "type/openapi/components/schemas/OtherSpellings": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

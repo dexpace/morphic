@@ -14,4 +14,8 @@ type Policy struct {
 	// StrictExclusive makes every one_of union [TypePlan.Strict]: it refuses a
 	// value two of its variants admit unless its constraints single one out.
 	StrictExclusive bool `json:"strictExclusive"`
+	// ProtocolEffects gives an operation that declares no Idempotency the
+	// effects every one of its bindings defines, marked Inferred
+	// (docs/emitters/plan/policy.md#an-operations-effects-come-from-its-binding).
+	ProtocolEffects bool `json:"protocolEffects"`
 }

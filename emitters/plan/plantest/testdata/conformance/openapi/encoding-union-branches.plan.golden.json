@@ -1,4 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1any-of/post": {},
+    "operation/openapi/paths/~1composed/post": {},
+    "operation/openapi/paths/~1multi-typed/post": {},
+    "operation/openapi/paths/~1narrowed/post": {},
+    "operation/openapi/paths/~1one-of/post": {},
+    "operation/openapi/paths/~1shared/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Either/anyOf/0": {
       "flattened": [
@@ -112,6 +120,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

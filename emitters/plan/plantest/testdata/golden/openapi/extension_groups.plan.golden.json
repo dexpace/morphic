@@ -1,8 +1,18 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1accounts/get": {},
+    "operation/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post": {},
+    "operation/openapi/paths/~1accounts~1{account_id}~1members/get": {},
+    "operation/openapi/paths/~1legacy/get": {},
+    "operation/openapi/paths/~1status/get": {},
+    "operation/openapi/paths/~1zero-trust~1devices~1policies/get": {},
+    "operation/openapi/webhooks/accountCreated/post": {}
+  },
   "types": {
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,39 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1gadgets/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/ApiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1sprockets/post": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/ApiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1widgets/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/ApiKey"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "types": {
     "type/anonymous/components/requestBodies/WidgetBody/content/application~1json/schema": {
       "flattened": [
@@ -15,6 +50,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

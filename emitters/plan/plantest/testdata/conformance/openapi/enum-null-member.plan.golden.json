@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1zones~1{id}/delete": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Mixed/enum/0": {},
     "type/anonymous/components/schemas/Mixed/enum/1": {},
@@ -28,6 +31,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,5 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1inline/post": {},
+    "operation/openapi/paths/~1shared/post": {},
+    "operation/openapi/paths/~1shared/put": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

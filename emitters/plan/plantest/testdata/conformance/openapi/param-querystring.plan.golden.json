@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1reports/get": {},
+    "operation/openapi/paths/~1reports~1raw/get": {},
+    "operation/openapi/paths/~1reports~1summary/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
       "flattened": [
@@ -11,6 +16,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

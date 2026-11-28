@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1items/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/D": {},
     "type/openapi/components/schemas/K": {},
@@ -11,6 +14,7 @@
     "type/primitive/date": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

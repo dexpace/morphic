@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1traces/get": {},
+    "operation/openapi/paths/~1traces/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1traces/post/requestBody/content/multipart~1form-data/schema": {
       "flattened": [
@@ -9,6 +13,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

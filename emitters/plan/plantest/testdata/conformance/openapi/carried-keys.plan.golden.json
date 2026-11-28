@@ -1,8 +1,17 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1a/get": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1a/put": {
+      "stability": "stable"
+    }
+  },
   "types": {
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

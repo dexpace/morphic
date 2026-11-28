@@ -1,4 +1,17 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pets/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/key"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "types": {
     "type/anonymous/x-lib/Cat": {
       "flattened": [
@@ -30,6 +43,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

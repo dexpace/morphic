@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1upload/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/App/allOf/1/oneOf/0": {
       "flattened": [
@@ -252,6 +255,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {},
+    "operation/openapi/paths/~1parts/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema": {
       "flattened": [
@@ -14,6 +18,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

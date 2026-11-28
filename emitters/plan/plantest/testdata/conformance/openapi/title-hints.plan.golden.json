@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1lookups/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Holder/$defs/Local": {
       "flattened": [
@@ -90,6 +93,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

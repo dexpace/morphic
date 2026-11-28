@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1traces/get": {}
+  },
   "types": {
     "type/anonymous/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items": {
       "flattened": [
@@ -43,6 +46,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

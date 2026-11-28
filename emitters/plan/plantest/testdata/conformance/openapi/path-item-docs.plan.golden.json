@@ -1,5 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pets/get": {},
+    "operation/openapi/paths/~1pets/post": {},
+    "operation/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post": {},
+    "operation/openapi/webhooks/petDeleted/post": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

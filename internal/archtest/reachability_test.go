@@ -69,7 +69,6 @@ var apiRoots = map[string]string{
 	"ir.Editor.UpdateAuthScheme":           transformAPI,
 	"ir.Editor.UpdateDocument":             transformAPI,
 	"ir.ExposedProperties":                 relationAPI,
-	"ir.ForEachOperationAt":                "the walk the plan's operations are built from (docs/emitters/plan/operations.md), which the plan calls once it builds them (GitHub #2136)",
 	"ir/irfacts.DocumentFacts.Subtypes":    factAPI,
 	"ir/irfacts.DocumentFacts.Usage":       factAPI,
 	"ir/irfacts.DocumentFacts.Recursive":   factAPI,

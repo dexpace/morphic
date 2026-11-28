@@ -1,5 +1,23 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pets/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/oauth",
+              "scopes": [
+                "read",
+                "write"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

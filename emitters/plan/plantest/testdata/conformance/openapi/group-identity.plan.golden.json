@@ -1,5 +1,15 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1declared/get": {},
+    "operation/openapi/paths/~1named-like-the-webhook-group/get": {},
+    "operation/openapi/paths/~1slash/get": {},
+    "operation/openapi/paths/~1tilde/get": {},
+    "operation/openapi/paths/~1undeclared/get": {},
+    "operation/openapi/paths/~1untagged/get": {},
+    "operation/openapi/webhooks/onEvent/post": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

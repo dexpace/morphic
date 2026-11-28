@@ -1,8 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1items~1{id}/get": {}
+  },
   "types": {
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

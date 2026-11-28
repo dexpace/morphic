@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pick/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Holder/properties/many": {},
     "type/openapi/components/schemas/BareColor": {},
@@ -14,6 +17,7 @@
     "type/openapi/components/schemas/NarrowedColor": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

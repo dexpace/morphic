@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pets/get": {},
+    "operation/openapi/paths/~1pets/post": {},
+    "operation/openapi/paths/~1pets~1{petId}/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1pets/get/responses/200/content/application~1json/schema": {},
     "type/anonymous@schemas~1pet.yaml/components/schemas/Pet/properties/status": {},
@@ -47,6 +52,7 @@
     "type/primitive/uuid": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

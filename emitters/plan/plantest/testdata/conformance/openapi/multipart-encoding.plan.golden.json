@@ -1,4 +1,10 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1submit/post": {},
+    "operation/openapi/paths/~1upload-composed/post": {},
+    "operation/openapi/paths/~1upload-redeclared/post": {},
+    "operation/openapi/paths/~1upload/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/FileList/properties/file": {},
     "type/anonymous/components/schemas/UploadForm/properties/tags": {},
@@ -50,6 +56,7 @@
     "type/primitive/uuid": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

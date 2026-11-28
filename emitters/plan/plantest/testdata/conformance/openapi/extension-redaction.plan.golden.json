@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1keys/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Bag/additionalProperties": {
       "sensitive": true
@@ -52,6 +55,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

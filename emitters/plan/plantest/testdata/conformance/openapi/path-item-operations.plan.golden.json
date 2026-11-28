@@ -1,4 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1index/additionalOperations/PURGE": {},
+    "operation/openapi/paths/~1index/additionalOperations/mIxEdCase": {},
+    "operation/openapi/paths/~1index/post": {},
+    "operation/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE": {},
+    "operation/openapi/paths/~1index/query": {},
+    "operation/openapi/webhooks/cacheFlushed/additionalOperations/FLUSH": {}
+  },
   "types": {
     "type/anonymous/paths/~1index/query/requestBody/content/application~1json/schema": {
       "flattened": [
@@ -8,6 +16,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

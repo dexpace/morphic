@@ -1,4 +1,39 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1pets/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/petstore_auth",
+              "scopes": [
+                "read:pets"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1pets/post": {
+      "auth": [
+        {}
+      ]
+    },
+    "operation/openapi/paths/~1pets~1{petId}/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/petstore_auth",
+              "scopes": [
+                "read:pets"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
   "types": {
     "type/anonymous/components/schemas/Pet/properties/meta": {
       "flattened": [
@@ -37,6 +72,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,23 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {},
+    "operation/openapi/paths/~1forms/post": {},
+    "operation/openapi/paths/~1pets/post": {},
+    "operation/openapi/paths/~1pets~1{petId}/get": {},
+    "operation/openapi/paths/~1shared/post": {},
+    "operation/openapi/paths/~1structures/additionalOperations/mSearch": {},
+    "operation/openapi/paths/~1structures/get": {},
+    "operation/openapi/paths/~1structures/post": {},
+    "operation/openapi/paths/~1structures/put": {},
+    "operation/openapi/paths/~1structures/query": {},
+    "operation/openapi/paths/~1subscriptions/post": {},
+    "operation/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post": {},
+    "operation/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post": {},
+    "operation/openapi/paths/~1uploads/post": {},
+    "operation/openapi/paths/~1uploads/put": {},
+    "operation/openapi/webhooks/ping/post": {},
+    "operation/openapi/webhooks/pong/post": {}
+  },
   "types": {
     "type/anonymous/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema": {
       "flattened": [
@@ -567,6 +586,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

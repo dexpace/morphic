@@ -1,5 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1absent/get": {},
+    "operation/openapi/paths/~1public/get": {
+      "auth": []
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

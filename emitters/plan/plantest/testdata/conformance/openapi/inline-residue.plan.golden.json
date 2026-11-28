@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1thing/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Batch/items": {
       "alias": "type/primitive/integer"
@@ -17,6 +20,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

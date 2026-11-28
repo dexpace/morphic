@@ -1,5 +1,131 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1both/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth",
+              "scopes": [
+                "read",
+                "write"
+              ]
+            },
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1broken-ref/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/brokenRefAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1inherits/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+            }
+          ]
+        },
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth",
+              "scopes": [
+                "read"
+              ]
+            }
+          ]
+        },
+        {}
+      ]
+    },
+    "operation/openapi/paths/~1no-mechanism/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/noMechanismAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1no-scopes/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+            },
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1public/get": {
+      "auth": []
+    },
+    "operation/openapi/paths/~1sole-again/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1sole/post": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/webhooks/created/post": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

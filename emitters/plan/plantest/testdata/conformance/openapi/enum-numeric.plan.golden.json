@@ -5,6 +5,7 @@
     "type/openapi/components/schemas/SizedCodes": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

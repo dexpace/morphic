@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1chat/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1chat/post/requestBody/content/application~1json/schema": {
       "flattened": [
@@ -20,6 +23,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

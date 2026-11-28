@@ -22,6 +22,9 @@ const codeUnencodable = "emitters/plan/unencodable"
 // it, so it describes that document as it stood. It is safe for concurrent
 // reads: nothing writes one once Build returns.
 type Plan struct {
+	// Ops holds one entry for each operation [ir.ForEachOperation] reaches,
+	// keyed by its ID; of two sharing an ID, the first.
+	Ops map[ir.OperationID]OpPlan `json:"ops,omitempty"`
 	// Types holds one entry for each type of the document's registry.
 	Types map[ir.TypeID]TypePlan `json:"types,omitempty"`
 	// Policy is the policy Build ran under.
@@ -58,7 +61,7 @@ func Build(doc *ir.Document, _ *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.D
 	if doc == nil {
 		doc = &ir.Document{}
 	}
-	built := &Plan{Types: typePlans(doc.Types, pp), Policy: pp}
+	built := &Plan{Ops: operationPlans(doc, pp), Types: typePlans(doc.Types, pp), Policy: pp}
 
 	version, err := versionOf(doc, pp)
 	if err != nil {

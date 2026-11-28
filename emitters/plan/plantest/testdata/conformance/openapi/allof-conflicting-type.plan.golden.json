@@ -27,6 +27,7 @@
     "type/primitive/url": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1tags/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Tagged/properties/entry": {},
     "type/anonymous/components/schemas/Tagged/properties/flat": {},
@@ -20,6 +23,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

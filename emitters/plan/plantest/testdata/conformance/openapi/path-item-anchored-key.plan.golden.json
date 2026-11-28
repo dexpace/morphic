@@ -1,5 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1x/get": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

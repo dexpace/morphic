@@ -1,5 +1,10 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1stream/get": {},
+    "operation/openapi/paths/~1stream/put": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

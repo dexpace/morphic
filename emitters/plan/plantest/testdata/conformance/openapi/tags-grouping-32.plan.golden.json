@@ -1,5 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1books/get": {},
+    "operation/openapi/paths/~1catalog/get": {},
+    "operation/openapi/paths/~1magazines/get": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

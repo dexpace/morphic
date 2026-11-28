@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1items/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/Cursor": {},
     "type/openapi/components/schemas/Holder": {
@@ -14,6 +17,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

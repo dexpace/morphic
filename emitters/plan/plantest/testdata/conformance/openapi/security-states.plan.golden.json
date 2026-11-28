@@ -1,5 +1,104 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1absent/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1mounted/delete": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1mounted/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1mounted/patch": {
+      "auth": [
+        {},
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1mounted/post": {
+      "auth": [
+        {}
+      ]
+    },
+    "operation/openapi/paths/~1mounted/put": {
+      "auth": []
+    },
+    "operation/openapi/paths/~1optional/get": {
+      "auth": [
+        {}
+      ]
+    },
+    "operation/openapi/paths/~1optionalOrKey/get": {
+      "auth": [
+        {},
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1public/get": {
+      "auth": []
+    },
+    "operation/openapi/paths/~1required/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/webhooks/hookAbsent/post": {},
+    "operation/openapi/webhooks/hookRequired/post": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

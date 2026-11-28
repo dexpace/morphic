@@ -1,9 +1,16 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1a/get": {},
+    "operation/openapi/paths/~1b/get": {},
+    "operation/openapi/paths/~1items~1{id}/get": {},
+    "operation/openapi/paths/~1items~1{id}/post": {}
+  },
   "types": {
     "type/primitive/integer": {},
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

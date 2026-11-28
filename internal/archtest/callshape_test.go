@@ -142,6 +142,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"compilers/openapi":                    2,
 		"compilers/openapi/internal/promotion": 1,
+		"emitters/plan":                        1,
 		"engine/report":                        1,
 		"internal/census":                      1,
 		"internal/harness":                     1,
