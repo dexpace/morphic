@@ -140,10 +140,10 @@ a value is among them by recognition ([a value no variant
 recognizes](../refine/unions.md#a-value-no-variant-recognizes)). A `Mapping` keying one type per
 tag, leaving a tag several carry out with a warning, was the design this replaces: it dropped the
 route the document declares, `cat: Cat`, and left `Cat` and `Kitten` each a tag nothing routes,
-which an encoder then writes, the failure the IR's reading names for declining. A discriminator that
-does not set exactly one locator, or a union's set only by `Property`, routes nothing: `Discrim` is
-nil, and the plan reports an error `emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is
-`"value"` where an `object` envelope names no value property, as the IR's default is.
+which an encoder then writes. A discriminator that does not set exactly one locator, or a union's
+set only by `Property`, routes nothing: `Discrim` is nil, and the plan reports an error
+`emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is `"value"` where an `object` envelope
+names no value property, as the IR's default is.
 
 ## A model narrowing a union
 
