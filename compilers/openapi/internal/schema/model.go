@@ -172,6 +172,21 @@ func (f modelFields) Admits(provenance ir.Provenance, kind merge.JSONInstanceKin
 	return want != 0 && kinds&want == want && partial&want == 0, true
 }
 
+// Written is merge.FieldDeclarationContext.Written: what the schema written
+// where property is declared writes itself (ownDetails). A site place does not
+// place, or one holding no schema object, cannot tell.
+func (f modelFields) Written(property ir.Property) (merge.Details, bool) {
+	at, placed := f.place(property.Provenance)
+	if !placed {
+		return 0, false
+	}
+	js := f.c.Statements().At(at)
+	if js.Truth != statement.Stated {
+		return 0, false
+	}
+	return ownDetails(f.c, js, property), true
+}
+
 // variantHolders returns st, written at at, and where st is an entry of a
 // oneOf or an anyOf, every schema an instance of that variant also meets: the
 // one writing the union, and each holding that one in turn as an entry of its

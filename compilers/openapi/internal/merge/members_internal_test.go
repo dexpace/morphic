@@ -309,7 +309,7 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	decls = append(decls, declaration{property: past, via: &composedEntry{target: "type/B", at: "/M/allOf/9"}})
 	stubbed, _ := stubMerger(membersRegistry())
 
-	got, diags := stubbed.foldAt(decls, "/M/allOf/properties/data", nil)
+	got, _, diags := stubbed.foldAt(decls, "/M/allOf/properties/data", nil)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -377,7 +377,7 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 		{property: declared("p", "type/primitive/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
 	}
 
-	_, diags := stubbed.foldAt(decls, "/M/allOf/1/properties/p", nil)
+	_, _, diags := stubbed.foldAt(decls, "/M/allOf/1/properties/p", nil)
 
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
@@ -433,7 +433,7 @@ func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
 		lost, kept := tc.lost, tc.kept
 		lost.order, kept.order = 1, 2
 
-		_, diags := stubbed.foldAt([]declaration{lost, kept}, "/M/allOf/properties/p", nil)
+		_, _, diags := stubbed.foldAt([]declaration{lost, kept}, "/M/allOf/properties/p", nil)
 
 		require.Len(t, diags, 1, name)
 		assert.Contains(t, diags[0].Message, tc.message, name)
@@ -604,7 +604,7 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 
 	for _, sources := range [][2]int{{1, 2}, {2, 1}} {
 		stubbed, _ := stubMerger(membersRegistry())
-		got, diags := stubbed.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p", nil)
+		got, _, diags := stubbed.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p", nil)
 
 		assert.Empty(t, diags, "entries written alike say one thing")
 		assert.Equal(t, 1, got.Unmodeled["openapi:x-tag"].Provenance.Source, "entries from %v", sources)

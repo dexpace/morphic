@@ -74,6 +74,33 @@ func TestGolden_ExtensionGroups(t *testing.T) {
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/extension_groups.golden.json", doc)
 }
 
+// TestGolden_AllOfLentDescription pins GitHub #2152 in the order a fold by
+// declaration order alone got wrong: the allOf entry describing a member comes
+// before the entry whose declaration of it is a bare $ref to a described
+// target. The member keeps the description written, nothing is reported, and
+// the target keeps its own.
+func TestGolden_AllOfLentDescription(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../../testdata/golden/openapi/allof_lent_description.yaml")
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "allof_lent_description.yaml", Data: data}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, diags)
+
+	items, ok := doc.Types["type/anonymous/components/schemas/Response/properties/Warnings/items"].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, items.Properties, 1)
+	assert.Equal(t, "The price before the change.", items.Properties[0].Docs.Description)
+	assert.Empty(t, items.Properties[0].Unmodeled)
+	money, ok := doc.Types["type/openapi/components/schemas/Money"].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "Container for price information.", money.Docs.Description)
+	// Last: under -update the compare refuses a test whose assertions failed.
+	irtest.CompareGolden(t, "../../../testdata/golden/openapi/allof_lent_description.golden.json", doc)
+}
+
 // TestGolden_EncodingNestedReferences pins the IR of references beneath the
 // Encoding Objects OpenAPI 3.2 nests under another's encoding, prefixEncoding
 // and itemEncoding, and of references into them. Each nested one is kept

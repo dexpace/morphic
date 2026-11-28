@@ -79,7 +79,7 @@ type stubbed struct {
 
 // fold is Merger.fold, recording what it reports.
 func (s *stubbed) fold(decls []declaration) ir.Property {
-	merged, diags := s.Merger.fold(decls)
+	merged, _, diags := s.Merger.fold(decls)
 	*s.recorded = append(*s.recorded, diags...)
 	return merged
 }
@@ -94,13 +94,18 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stubbed, *[]ir.Diagnostic) {
 // stubWalk is the walk a test folds under. Mint registers a node in reg under
 // composedAt's ID and counts it in minted, Interned answers for the schemas
 // interned lists, Alike reads every two sites against one base unless apart
-// says they are read apart, and Admits answers untypedAt, exactly.
+// says they are read apart, Admits answers untypedAt, exactly, and Written
+// reads every detail written but those borrowed names at a declaration's
+// pointer, counting each read in reads, and cannot read one unplaced lists.
 type stubWalk struct {
 	reg      map[ir.TypeID]ir.TypeDef
 	interned []jsontext.Pointer
 	apart    bool
 	minted   int
 	brought  map[ir.TypeID][]jsontext.Pointer
+	borrowed map[jsontext.Pointer]Details
+	unplaced []jsontext.Pointer
+	reads    int
 }
 
 // Mint is FieldDeclarationContext.Mint.
@@ -128,6 +133,15 @@ func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
 // /untyped.
 func (w *stubWalk) Admits(at ir.Provenance, _ JSONInstanceKind) (admits, exact bool) {
 	return untypedAt(at), true
+}
+
+// Written is FieldDeclarationContext.Written.
+func (w *stubWalk) Written(property ir.Property) (Details, bool) {
+	w.reads++
+	if slices.Contains(w.unplaced, property.Provenance.Pointer) {
+		return 0, false
+	}
+	return everyDetail &^ w.borrowed[property.Provenance.Pointer], true
 }
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
