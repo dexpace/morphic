@@ -84,8 +84,9 @@ func windowsDeviceName(segment string) (string, bool) {
 		}
 		loweredBytes[i] = character
 	}
-	// The lowered stem stays a byte slice, and a string is made of it only to
-	// return a device name, so a segment naming none allocates nothing.
+	// The lowered stem stays a byte slice: the switch compares it without
+	// allocating, its conversion not escaping, and a string is allocated only
+	// to return a device name, so a segment naming none allocates nothing.
 	lowered := loweredBytes[:len(stem)]
 
 	switch string(lowered) {
