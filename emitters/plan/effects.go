@@ -25,9 +25,10 @@ const (
 )
 
 // effectsOf returns operation's effects under policy, and whether a heuristic
-// decided them. A declared Idempotency decides, unmarked. Where it declares
-// none, ProtocolEffects takes what every binding defines, marked whatever it
-// gives, and with it off the operation is neither.
+// decided them. A declared Idempotency decides, unmarked even where a compiler
+// inferred it, its operation's own provenance naming the heuristic (GitHub
+// #2314). Where it declares none, ProtocolEffects takes what every binding
+// defines, marked whatever it gives, and with it off the operation is neither.
 func effectsOf(operation ir.Operation, policy Policy) (effects Effects, inferred bool) {
 	if declared, ok := declaredEffects(operation.Idempotency.Kind); ok {
 		return declared, false
