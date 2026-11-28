@@ -157,9 +157,10 @@ func TestBuild_ResolvesAnOperationsTier(t *testing.T) {
 }
 
 // authDoc returns a document whose operations take their auth every way an
-// operation can: their own, stated public, inherited, and not inherited by
-// one the API sends. The service's default names two schemes in one option,
-// so a write through the plan into either list moves the document.
+// operation can: their own, an empty option spelt nil and spelt empty among
+// them, stated public, inherited, and not inherited by one the API sends.
+// The service's default names two schemes in one option, so a write through
+// the plan into either list moves the document.
 func authDoc() *ir.Document {
 	serviceDefault := []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: "auth/key"}, {Scheme: "auth/basic"}}}}
 	inboundAs := func(kind ir.HTTPInbound, auth []ir.AuthRequirement) func(*ir.Operation) {
@@ -175,6 +176,7 @@ func authDoc() *ir.Document {
 					{Schemes: []ir.SchemeUse{{Scheme: "auth/oauth", Scopes: []string{"read", "write"}}}},
 					{},
 					{Schemes: []ir.SchemeUse{{Scheme: "auth/key"}}},
+					{Schemes: []ir.SchemeUse{}},
 				}
 			}),
 			operation("operation/public", func(o *ir.Operation) { o.Auth = []ir.AuthRequirement{} }),
@@ -196,8 +198,8 @@ func authDoc() *ir.Document {
 
 // TestBuild_ResolvesAnOperationsAuth holds Auth to the operation's own
 // options, else its service's unless the API sends it, keeping nil, none
-// stated, apart from empty, a stated public requirement, and each option, an
-// empty one included, in its place.
+// stated, apart from empty, a stated public requirement, and each option in
+// its place, an empty one naming nil schemes however it was spelt.
 func TestBuild_ResolvesAnOperationsAuth(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +211,7 @@ func TestBuild_ResolvesAnOperationsAuth(t *testing.T) {
 			{Schemes: []ir.SchemeUse{{Scheme: "auth/oauth", Scopes: []string{"read", "write"}}}},
 			{},
 			{Schemes: []ir.SchemeUse{key}},
+			{},
 		},
 		"operation/public":           {},
 		"operation/inherits":         {{Schemes: []ir.SchemeUse{key, basic}}},
@@ -430,7 +433,7 @@ func TestBuild_LeavesADocumentsOperationsAsItFoundThem(t *testing.T) {
 
 // TestPlan_EncodesItsOperationsAsOneDocument holds a plan's operations to
 // decoding to what encoded them: an Auth that is nil, empty or a list, an
-// empty option inside one, Effects and Inferred.
+// empty option inside one spelt nil and spelt empty, Effects and Inferred.
 func TestPlan_EncodesItsOperationsAsOneDocument(t *testing.T) {
 	t.Parallel()
 	built := build(t, operationsDoc(), plan.Policy{ProtocolEffects: true})
