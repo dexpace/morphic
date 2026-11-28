@@ -76,16 +76,19 @@ against the type and bounds of the parameter it names, though not its own `Encod
 content against the error's type.
 
 A null example of a parameter or a header that is not `Required` stands for the value left out, as a
-source writes one to show that it may be omitted, and is not judged, whatever its type: a query,
-path, cookie or header field has no null to write, so absent is all a null there can mean. The rule
-reads every binding alike, so a parameter a binding could send a null for is read as left out too:
-one a binding's `ContentType` serializes, in a media type that could write a null, or one an RPC
-binding passes. Its type admits no null, so a null example is no value it sends. A parameter written
-in an encoding or by a media type has its null example left alone by this rule, not by theirs, which
-judge a null. Still judged: a null example of a required one, whatever writes it; a null default,
-which is written into code; a property's null example, since an object can hold a member whose value
-is null, a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and
-a scenario's null input, since a scenario leaves a parameter out by not naming it. The emitter
+source writes one to show that it may be omitted, and is not judged, whatever its type, where HTTP
+alone writes it in a style, as a query, path, cookie or header field, its own `Encoding` naming no
+media type included: such a field has no null to write, so absent is all a null there can mean.
+Where a media type writes it instead, through its own `Encoding` naming one alone, as a header
+declared by `content` has, or a binding's `ContentType`, or a binding writes the parameter into the
+body, or the operation has an RPC, message, GraphQL or OTP binding, its null example is judged as a
+property's is: the body, RPC, a message and GraphQL can each write a null, and so can a media type
+such as JSON. One that cannot, such as `application/x-www-form-urlencoded`, is judged all the same,
+since the check reads no media type's grammar, and OTP has no compiler yet to say whether its terms
+can. Still judged: a null example of a required one, whatever writes it; a null default, which is
+written into code; a property's null example, since an object can hold a member whose value is null,
+a state `Property.Required` and `TypeRef.Nullable` keep apart from the member left out; and a
+scenario's null input, since a scenario leaves a parameter out by not naming it. The emitter
 contract still holds a null example of a parameter or a header that is not required to its type
 ([one set of examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to
 change.

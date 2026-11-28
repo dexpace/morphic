@@ -59,14 +59,21 @@ func nullExample(required bool, encoding *ir.Encoding) func(*ir.Parameter) {
 	}
 }
 
+// boundBy is parameterOperation's document of a parameter with a null example,
+// required as required says, whose operation bind also binds.
+func boundBy(required bool, bind func(*ir.OperationBindings)) *ir.Document {
+	doc := parameterOperation(nullExample(required, nil))
+	bind(&doc.Services[0].Groups[0].Operations[0].Bindings)
+	return doc
+}
+
 // TestValidate_ANullExampleOfAParameterLeftOutIsNotReported holds a null
-// example of a parameter or a header that is not required to be the value left
-// out, not judged in any wording (of a kind, an enum or a literal) under any
-// binding, a content type, an encoding or a media type of its own or RPC among
-// them. A required one stays judged, neither excusing a null, as do a null
-// default, a property's null example, which an object can hold as a member
-// whose value is null, and a scenario's null input, which leaves a parameter
-// out by not naming it.
+// example of a parameter or a header that is not required, where HTTP alone
+// writes it in a style, its own encoding included, to be the value left out,
+// unjudged in any wording (of a kind, an enum or a literal). Where a media
+// type, the body or another protocol's binding writes it, which may write a
+// null, it is judged, as are a required one's, a null default, a property's
+// and a scenario's null input, which leaves a parameter out by not naming it.
 func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	t.Parallel()
 	enumT, literalT := ir.TypeRef{Target: "type/e"}, ir.TypeRef{Target: "type/four"}
@@ -81,9 +88,23 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParameterID]ir.Value{"parameter/x/q": *null()}},
 	}}
 	content := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/json" })
+	formContent := bindsQ(func(pb *ir.HTTPParamBinding) { pb.Style, pb.ContentType = "", "application/x-www-form-urlencoded" })
 	encoding, mediaType := &ir.Encoding{Name: "string"}, &ir.Encoding{MediaType: "application/json"}
-	rpc := parameterOperation(nullExample(false, nil))
-	rpc.Services[0].Groups[0].Operations[0].Bindings.RPC = &ir.RPCBinding{System: "jsonrpc", FullMethod: "x"}
+	intoBody := func(location ir.HTTPLocation) ir.HTTPBinding {
+		return bindsQ(func(pb *ir.HTTPParamBinding) { pb.Location, pb.Style = location, "" })
+	}
+	rpc := func(bindings *ir.OperationBindings) {
+		bindings.RPC = &ir.RPCBinding{System: "jsonrpc", FullMethod: "x"}
+	}
+	message := func(bindings *ir.OperationBindings) {
+		bindings.Message = &ir.MessageBinding{Channel: "channel/x", Direction: ir.MessageDirectionSend}
+	}
+	graphQL := func(bindings *ir.OperationBindings) {
+		bindings.GraphQL = &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"x"}}
+	}
+	otp := func(bindings *ir.OperationBindings) {
+		bindings.OTP = &ir.OTPBinding{Behaviour: "gen_server", Kind: "call", Process: "channel/x"}
+	}
 	onDefault := func(operation *ir.Operation, headers []ir.Header) {
 		operation.Default = &ir.Response{Headers: headers}
 	}
@@ -107,10 +128,16 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a parameter not required, of an enum", nullParameter(enumT, false, text("open")), nil},
 		{"a parameter not required, of a literal", nullParameter(literalT, false, number("4")), nil},
 		{"a parameter not required, of a list under form", nullDoc(parameterOperation(withExample(null()), bindsQ(styled("form", nil)))), nil},
-		{"a parameter not required, under a content type", parameterOperation(nullExample(false, nil), content), nil},
 		{"a parameter not required, in an encoding of its own", parameterOperation(nullExample(false, encoding)), nil},
-		{"a parameter not required, in a media type of its own", parameterOperation(nullExample(false, mediaType)), nil},
-		{"a parameter not required, under an RPC binding", rpc, nil},
+		{"a parameter not required, under a content type", parameterOperation(nullExample(false, nil), content), nullOfList},
+		{"a parameter not required, under a content type with no null", parameterOperation(nullExample(false, nil), formContent), nullOfList},
+		{"a parameter not required, in a media type of its own", parameterOperation(nullExample(false, mediaType)), nullOfList},
+		{"a parameter not required, into the body", parameterOperation(nullExample(false, nil), intoBody(ir.HTTPLocationBody)), nullOfList},
+		{"a parameter not required, into a body property", parameterOperation(nullExample(false, nil), intoBody(ir.HTTPLocationBodyProperty)), nullOfList},
+		{"a parameter not required, under an RPC binding", boundBy(false, rpc), nullOfList},
+		{"a parameter not required, under a message binding", boundBy(false, message), nullOfList},
+		{"a parameter not required, under a GraphQL binding", boundBy(false, graphQL), nullOfList},
+		{"a parameter not required, under an OTP binding", boundBy(false, otp), nullOfList},
 		{"a required parameter, under a content type", parameterOperation(nullExample(true, nil), content), nullOfList},
 		{"a required parameter, in an encoding of its own", parameterOperation(nullExample(true, encoding)), nullOfList},
 		{"a required parameter, in a media type of its own", parameterOperation(nullExample(true, mediaType)), nullOfList},
@@ -121,7 +148,7 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a required parameter, of a literal", nullParameter(literalT, true, number("4")),
 			[]finding{{"parameter/x/q", `example "Optional" is not the value of literal type/four`}}},
 		{"a response's header not required", nullHeader(false, nil), nil},
-		{"a response's header not required, declared by content", nullHeader(false, mediaType), nil},
+		{"a response's header not required, declared by content", nullHeader(false, mediaType), nullOfHeader},
 		{"a response's header not required, in an encoding of its own", nullHeader(false, encoding), nil},
 		{"a common error's header not required", commonError(false), nil},
 		{"a default response's header not required", movedHeader(false, onDefault), nil},
