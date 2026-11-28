@@ -408,9 +408,10 @@ func TestBuild_ReadsEveryRegisteredMethodAsTheRegistryRecordsIt(t *testing.T) {
 }
 
 // TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither holds ProtocolEffects
-// to reading as neither each method the registry does not list: every one the
-// IR goldens under testdata spell, and each registered name in lower case,
-// since a method is compared with case (RFC 9110 §9.1).
+// to reading as neither each method the registry does not list: those the IR
+// goldens under testdata spelt when it was written, a list a golden added
+// since does not extend, and each registered name in lower case, since a
+// method is compared with case (RFC 9110 §9.1).
 func TestBuild_ReadsAMethodTheRegistryDoesNotListAsNeither(t *testing.T) {
 	t.Parallel()
 	registered := map[string]bool{}
