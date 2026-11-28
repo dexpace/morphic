@@ -111,7 +111,7 @@ example's `Value` does not say which form it is in, so one position's examples m
 a scalar written as the list's or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged
 at such a position wherever it could be that value written out, as would a Schema Object's `example`
 a lowering placed on the parameter: telling them apart needs `ir.Example` to record the form, a
-decision of its own.
+decision of its own (#2311).
 
 Not judged: a content's and a message's examples, which are in a media type's format, not the type's
 value (whether a JSON content's are held is #1949); a scenario's `Body` and `Output`, which are one
