@@ -390,7 +390,9 @@ func holderProvenance() ir.Provenance {
 // TestBuild_RoutesATagToEveryTypeItNames holds a tag the IR routes to
 // several types, as a sub-subtype inheriting its parent's pinned tag does:
 // the plan routes it to each, in ID order and none twice, and reports nothing
-// (docs/emitters/plan/types.md#a-discriminators-routes).
+// (docs/emitters/plan/types.md#a-discriminators-routes). A subtype's value
+// keys each entry of Pet's Mapping in turn, and adding it to one tag leaves
+// the other its own.
 func TestBuild_RoutesATagToEveryTypeItNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -414,6 +416,14 @@ func TestBuild_RoutesATagToEveryTypeItNames(t *testing.T) {
 		}, "type/pet", map[string][]ir.TypeID{
 			"cat": {"type/cat"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
 			"Puppy": {"type/dog", "type/puppy"}, "Bird": {"type/bird"},
+		}},
+		{"a subtype's value keying an entry naming a type sorting before it", func() *ir.Document {
+			doc := petHierarchy()
+			doc.Types["type/dog"].(*ir.Model).DiscriminatorValue = "cat"
+			return doc
+		}, "type/pet", map[string][]ir.TypeID{
+			"cat": {"type/cat", "type/dog"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
+			"Puppy": {"type/puppy"}, "Bird": {"type/bird"},
 		}},
 		{"a subtype's value keying an entry naming a type sorting after it", func() *ir.Document {
 			doc := petHierarchy()

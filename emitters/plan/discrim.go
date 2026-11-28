@@ -198,17 +198,11 @@ func wireKeyOf(flat ir.Flattening, property ir.PropertyID) string {
 // to, in the order they were added.
 type routeTable map[string][]ir.TypeID
 
-// routesOf returns the routes of mapping, each tag to its one type. The slices
-// share one array, each capped at its one entry, so adding to a tag copies it
-// out rather than writing over the next.
+// routesOf returns the routes of mapping, each tag to its one type.
 func routesOf(mapping map[string]ir.TypeID) routeTable {
 	routes := make(routeTable, len(mapping))
-	targets := make([]ir.TypeID, len(mapping))
-	i := 0
 	for tag, target := range mapping {
-		targets[i] = target
-		routes[tag] = targets[i : i+1 : i+1]
-		i++
+		routes[tag] = []ir.TypeID{target}
 	}
 	return routes
 }
