@@ -131,7 +131,7 @@ func TestDecodeLayer_RefusesAMemberWrittenNull(t *testing.T) {
 			t.Parallel()
 			got, err := options.DecodeLayer(freshDefaults(), []byte(tc.raw))
 			require.ErrorIs(t, err, options.ErrNullMember)
-			assert.EqualError(t, err, strconv.Quote(tc.pointer)+": member written null")
+			assert.EqualError(t, err, strconv.Quote(tc.pointer)+": "+options.ErrNullMember.Error())
 			assert.NotContains(t, err.Error(), "interface {}")
 			assert.Empty(t, cmp.Diff(layer{}, got))
 		})
@@ -218,7 +218,7 @@ func TestDecodeLayer_RefusesNullWhereverJSONDecodes(t *testing.T) {
 			t.Parallel()
 			err := place.decode(place.raw)
 			require.ErrorIs(t, err, options.ErrNullMember)
-			assert.EqualError(t, err, strconv.Quote(place.pointer)+": member written null")
+			assert.EqualError(t, err, strconv.Quote(place.pointer)+": "+options.ErrNullMember.Error())
 		})
 	}
 

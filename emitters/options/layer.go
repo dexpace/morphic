@@ -11,7 +11,7 @@ import (
 )
 
 // ErrNullMember reports a member written null where a layer may not hold one.
-var ErrNullMember = errors.New("member written null")
+var ErrNullMember = errors.New("member written null; a member meaning the default is left out")
 
 // DecodeLayer reads raw, a JSON object stating no version, over a copy of
 // defaults made through their JSON form, leaving defaults unwritten: a map

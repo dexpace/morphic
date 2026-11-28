@@ -59,7 +59,7 @@ func checkTable(table Table) error {
 // lacking either of its members.
 func checkRow(pointer jsontext.Pointer, row Row) error {
 	if row.Type == "" {
-		return invalidMember(pointer.AppendToken("type"), "empty type")
+		return invalidMember(pointer.AppendToken("type"), "a row needs a type")
 	}
 	if dependency := row.Dependency; dependency != nil && (dependency.Module == "" || dependency.MinVersion == "") {
 		return invalidMember(pointer.AppendToken("dependency"), "a dependency needs both a module and a minimum version")
@@ -69,5 +69,5 @@ func checkRow(pointer jsontext.Pointer, row Row) error {
 
 // invalidMember is the refusal of the member at pointer for the reason given.
 func invalidMember(pointer jsontext.Pointer, reason string) error {
-	return fmt.Errorf("type table %s: %s: %w", pointer, reason, ErrInvalidTable)
+	return fmt.Errorf("type table: %q: %s: %w", pointer, reason, ErrInvalidTable)
 }

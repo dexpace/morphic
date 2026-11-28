@@ -73,12 +73,12 @@ type refusal struct {
 
 // nullAt is what Decode's error names a member written null by.
 func nullAt(pointer string) string {
-	return "type table: " + strconv.Quote(pointer) + ": member written null"
+	return "type table: " + strconv.Quote(pointer) + ": " + options.ErrNullMember.Error()
 }
 
 // faultAt is what Decode's error names a member breaking typemap's own rules by.
 func faultAt(pointer string) string {
-	return "type table " + pointer + ": "
+	return "type table: " + strconv.Quote(pointer) + ": "
 }
 
 // rowIn wraps a row's members in a table holding it under string's default.
@@ -176,6 +176,8 @@ func ownRefusals(fullDependency string) []refusal {
 		{name: "an external's empty type", raw: `{"externals":{"erlang:pid":{"type":""}}}`,
 			twin: `{"externals":{"erlang:pid":{"type":"Pid"}}}`, want: fault,
 			contains: faultAt("/externals/erlang:pid/type")},
+		{name: "an identity holding a colon and a space", raw: `{"externals":{"x y: z":{"type":""}}}`,
+			twin: `{"externals":{"x y: z":{"type":"X"}}}`, want: fault, contains: faultAt("/externals/x y: z/type")},
 		{name: "a slash in an encoding name", raw: `{"primitives":{"string":{"A.B.C.D/N":{"type":""}}}}`,
 			twin: `{"primitives":{"string":{"A.B.C.D/N":{"type":"netip.Prefix"}}}}`, want: fault,
 			contains: faultAt("/primitives/string/A.B.C.D~1N/type")},
