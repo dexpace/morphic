@@ -36,12 +36,12 @@ func hierarchyOf(n int, every bool) *ir.Document {
 // rung names the i-th model of a chain.
 func rung(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/rung-%d", i)) }
 
-// TestNearestBases_CostGrowsWithTheRegistry counts the models and edges the
-// descent reads over a chain of n models, at n, 2n and 4n, and holds their
-// growth to the registry's, with a discriminator on every model and on the
-// first alone. Reading each base's subtypes would take the square of n on the
-// first, and walking up from each model to its nearest the square on the
-// second.
+// TestNearestBases_CostGrowsWithTheRegistry counts the models, edges and
+// subtype reads the descent makes over a chain of n models, at n, 2n and 4n,
+// and holds them to one of each and their growth to the registry's, with a
+// discriminator on every model and on the first alone. Reading each base's
+// subtypes would take the square of n on the first, and walking up from each
+// model to its nearest the square on the second.
 func TestNearestBases_CostGrowsWithTheRegistry(t *testing.T) {
 	t.Parallel()
 	const n = 400
@@ -57,6 +57,8 @@ func TestNearestBases_CostGrowsWithTheRegistry(t *testing.T) {
 					want = rung(size - 2)
 				}
 				require.Equal(t, want, bases.nearest[rung(size-1)])
+				require.Equal(t, 3*size-2, bases.steps,
+					"each model, each supertype edge and each subtype read once")
 				return bases.steps
 			}
 			small, double, large := steps(n), steps(2*n), steps(4*n)

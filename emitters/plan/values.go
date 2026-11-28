@@ -72,8 +72,8 @@ func mappedRoutes(types ir.TypeRegistry) map[valueRoute]bool {
 // discriminator, so a cycle of bases ends and a model is settled once.
 type nearestBases struct {
 	nearest map[ir.TypeID]ir.TypeID
-	// steps counts the models and supertype edges the descent read: what it
-	// cost.
+	// steps counts the models, supertype edges and subtype reads the descent
+	// made, not the alias scalars ir.Supertypes reads a supertype through.
 	steps int
 }
 
