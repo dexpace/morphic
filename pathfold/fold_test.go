@@ -196,6 +196,43 @@ func TestDecomposeUncut_KeepsMarksOfOneClassInTheirOrder(t *testing.T) {
 	assert.Equal(t, want, pathfold.DecomposeUncut(string(written)))
 }
 
+// TestFold_HoldsNoFewerCharactersThanItsName holds the fold of every code
+// point, and of seeded strings with bytes that are not UTF-8 among them, to as
+// many characters as it folds at least, which bounds the bytes a spelling of a
+// name can take.
+func TestFold_HoldsNoFewerCharactersThanItsName(t *testing.T) {
+	t.Parallel()
+	pool := make([]rune, 0, 4_000)
+	for r := range rune(unicode.MaxRune + 1) {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		folded := pathfold.Fold(string(r))
+		require.GreaterOrEqual(t, utf8.RuneCountInString(folded), 1, "Fold(%+q) = %+q", string(r), folded)
+		if folded != string(r) {
+			pool = append(pool, r)
+		}
+	}
+
+	const draws = 20_000
+	source := rand.NewPCG(2223, 17)
+	var builder strings.Builder
+	for range draws {
+		builder.Reset()
+		for range 1 + source.Uint64()%40 {
+			if source.Uint64()%20 == 0 {
+				builder.WriteByte(byte(0x80 + source.Uint64()%0x80))
+				continue
+			}
+			builder.WriteRune(pool[source.Uint64()%uint64(len(pool))])
+		}
+		drawn := builder.String()
+		folded := pathfold.Fold(drawn)
+		require.GreaterOrEqual(t, utf8.RuneCountInString(folded), utf8.RuneCountInString(drawn),
+			"Fold(%+q) = %+q", drawn, folded)
+	}
+}
+
 // TestFold_IsIdempotent holds Fold(Fold(r)) == Fold(r) for every valid Unicode
 // scalar value.
 func TestFold_IsIdempotent(t *testing.T) {
