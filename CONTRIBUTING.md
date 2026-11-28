@@ -509,9 +509,11 @@ and does not wait. Nothing proposes a Go or golangci-lint release: the `Makefile
    case-insensitive APFS volume, since the sweeps write their files under `t.TempDir()` and refuse a
    volume where `Probe` and `PROBE`, or a composed and a decomposed `é`, make two files. It needs a
    macOS whose APFS assigns the characters the build's tables do: the character sweep writes every
-   character the build assigns, APFS refuses one it does not know (`EILSEQ`), and the sweep takes no
-   refusal, so `-update` fails until the two agree. The run takes about two minutes. Push the
-   updated records onto the update's branch.
+   assigned character outside private use but `/` and NUL, APFS refuses one it does not know
+   (`EILSEQ`), and the sweep takes no refusal, so `-update` fails until the two agree; where APFS
+   knows characters the tables leave unassigned, it is the check of the code points APFS refused
+   that fails it. The run takes about two minutes. Push the updated records onto the update's
+   branch.
    *Fails if missed:* `TestFold_JoinsWhatAPFSJoins` and `TestFold_EveryCharacterEqualsItsGolden`.
 5. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
    `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.

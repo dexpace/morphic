@@ -58,8 +58,10 @@ the tree the rule exists to prevent.
   own writes would meet it, after the run's verdict. A manifest or pending manifest listing such a
   path is refused as it is decoded, by the same comparison. A listed path is held to no other
   segment rule: a pending manifest lists what stood on disk under another spelling of a held path,
-  which may be longer than a segment the engine writes. No valid document leads a target there: a
-  snapshot label takes a directory other than any of the three names ([contract
+  which may be longer than a segment the engine writes, and a manifest a build with newer Unicode
+  tables wrote may list a character this build's tables leave unassigned, which `Portable` would
+  refuse. No valid document leads a target there: a snapshot label takes a directory other than any
+  of the three names ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and the docs
   route plan refuses a page routed there as its own finding
   ([docs](../docs-and-mock.md#routes-and-links)).
