@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irfacts"
 )
 
 // codeUnlocated reports a discriminator that no one locator places.
@@ -105,11 +104,9 @@ func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.D
 
 // hierarchyDiscrim returns the discriminator facts of model, whose flattening
 // is flat, nil unless it holds a discriminator: its routes are its Mapping's
-// entries and the DiscriminatorValue of each subtype facts derive
-// (docs/ir/models.md#discriminator).
-func hierarchyDiscrim(
-	types ir.TypeRegistry, facts *irfacts.DocumentFacts, model *ir.Model, flat ir.Flattening,
-) (*DiscrimFacts, []ir.Diagnostic) {
+// entries and values, those its subtypes' DiscriminatorValue gives it
+// (docs/emitters/plan/types.md#a-discriminators-routes), and what it finds.
+func hierarchyDiscrim(model *ir.Model, flat ir.Flattening, values []valueRoute) (*DiscrimFacts, []ir.Diagnostic) {
 	discriminator := model.Discriminator
 	if discriminator == nil {
 		return nil, nil
@@ -125,12 +122,8 @@ func hierarchyDiscrim(
 		built.WireKey = wireKeyOf(flat, discriminator.Property)
 	}
 	routes := routesOf(discriminator.Mapping)
-	for _, id := range facts.Subtypes(model.ID) {
-		subtype, isModel := types[id].(*ir.Model)
-		if !isModel || subtype == nil || subtype.DiscriminatorValue == "" {
-			continue
-		}
-		routes.add(subtype.DiscriminatorValue, id)
+	for _, value := range values {
+		routes.add(value.tag, value.subtype)
 	}
 	built.Mapping = routes.sorted()
 	return built, nil

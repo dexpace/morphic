@@ -108,14 +108,30 @@ targets lower a union there as [inheritance](../refine/models.md#inheritance) sa
 ## A discriminator's routes
 
 `Discrim` is set on a discriminated union and on the model holding a discriminator, a polymorphic
-base, and on no other type: a subtype carries its tag in `DiscriminatorValue`, and the plan of each
-base above it routes that tag. A union's routes are the entries of its `Mapping`, or, where that
-holds none, each variant under the source name of its type
-([the tag a variant's value carries](../refine/unions.md#the-tag-a-variants-value-carries)). A
-base's are the entries of its `Mapping` and each subtype's `DiscriminatorValue`, its subtypes being
-those `irfacts` derives, through `Base` and `Implements` at any depth and never through `Mixins`
-([discriminator](../../ir/models.md#discriminator)). `WireKey` is `PropertyName`, or the wire name
-of the flattened member one of whose declarations is `Property`.
+base, and on no other type: a subtype carries its tag in `DiscriminatorValue`, which the plan of the
+base whose discriminator it is a tag of routes. A union's routes are the entries of its `Mapping`,
+or, where that holds none, each variant under the source name of its type ([the tag a variant's
+value carries](../refine/unions.md#the-tag-a-variants-value-carries)). A base's are the entries of
+its `Mapping` and the `DiscriminatorValue` of each subtype whose value is its tag
+([discriminator](../../ir/models.md#discriminator)). A value a hierarchy's `Mapping` keys to the
+subtype carrying it is that discriminator's tag, which the entry routes. Any other, a name the
+source routes the subtype by or a tag a heuristic read off it, is taken as the tag of the subtype's
+nearest ancestor holding a discriminator: read level by level up `Base` and `Implements`, never
+`Mixins`, the one fewest hops away and, of those as near, the one reached through the earlier
+supertype, `Base` before `Implements`, as the OpenAPI compiler reads a subtype's ancestors
+([`discriminator-value`](../../compilers/openapi.md#discriminator-value)). So `Pet`, tagging
+`petType`, routes no `Labrador` that `Dog` composing `Pet` tags by `breed`, `lab: Labrador`, nor one
+`Dog` tags at `petType` itself: `lab` is `Dog`'s tag, not `Pet`'s. `WireKey` is `PropertyName`, or
+the wire name of the flattened member one of whose declarations is `Property`.
+
+The IR does not state which discriminator a value no `Mapping` keys is a tag of, and holds one value
+for each subtype, so the nearest is the plan's reading, the one the OpenAPI compiler reads an
+inferred tag against. Where a second discriminator above the subtype routes it too, the plan gives
+that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
+every schema building on a parent, or a nearer one where a farther `Mapping` keys the value. Routing
+the value from every base above it, the design this replaces, gave `Pet` the route `petType: lab`
+that neither the document nor the IR states, which an encoder writing a `Labrador` through `Pet`
+would have sent.
 
 The IR may route one tag to several types, as two subtypes carrying one value do
 ([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`

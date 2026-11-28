@@ -5,6 +5,7 @@ package plan_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -182,10 +183,10 @@ func petHierarchy() *ir.Document {
 }
 
 // TestBuild_RoutesAHierarchysDiscriminator holds a polymorphic base's routes
-// to its Mapping and to the DiscriminatorValue of each subtype irfacts
-// derives, transitively and through Implements but never through Mixins, and
-// holds the plan's tag key to the wire name of the property it names
-// (docs/ir/models.md#discriminator).
+// to its Mapping and to the DiscriminatorValue of each subtype it is the
+// nearest discriminated ancestor of, through a model holding none, and through
+// Implements but never through Mixins, and holds the plan's tag key to the
+// wire name of the property it names (docs/ir/models.md#discriminator).
 func TestBuild_RoutesAHierarchysDiscriminator(t *testing.T) {
 	t.Parallel()
 	doc := petHierarchy()
@@ -206,25 +207,106 @@ func TestBuild_RoutesAHierarchysDiscriminator(t *testing.T) {
 			assert.Nil(t, typePlan.Discrim, "%s holds no discriminator", id)
 		}
 	}
-	derived, diags := plan.Build(doc, nil, plan.Policy{})
-	require.Empty(t, diags)
-	assert.Empty(t, cmp.Diff(built, derived), "a nil facts is derived from the document")
 }
 
-// TestBuild_RoutesEachBaseAboveASubtype holds a nested hierarchy: a subtype
-// of a base holding a discriminator of its own is a base too, and a value
-// below both routes from each.
-func TestBuild_RoutesEachBaseAboveASubtype(t *testing.T) {
+// below builds the model id, carrying the DiscriminatorValue value, its Base
+// base and each of implements among its Implements.
+func below(id ir.TypeID, value string, base ir.TypeID, implements ...ir.TypeID) *ir.Model {
+	return irtest.ModelOf(id, func(m *ir.Model) {
+		m.DiscriminatorValue = value
+		if base != "" {
+			m.Base = &ir.TypeRef{Target: base}
+		}
+		m.Implements = irtest.RefsTo(implements...)
+	})
+}
+
+// discriminated builds the model id, holding a discriminator at the wire name
+// key.
+func discriminated(id ir.TypeID, key string) *ir.Model {
+	return irtest.ModelOf(id, func(m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: key} })
+}
+
+// TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf holds a subtype below
+// several discriminated bases: its DiscriminatorValue routes from the base
+// whose Mapping keys it to the subtype, by that entry, and otherwise from the
+// nearest, level by level, Base before Implements, and from no other
+// (docs/emitters/plan/types.md#a-discriminators-routes). want holds each
+// holder's Mapping.
+func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 	t.Parallel()
-	doc := petHierarchy()
-	doc.Types["type/dog"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "breed"}
+	petRoutes := func(more map[string][]ir.TypeID) map[string][]ir.TypeID {
+		routes := map[string][]ir.TypeID{
+			"cat": {"type/cat"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
+			"Dog": {"type/dog"}, "Bird": {"type/bird"},
+		}
+		maps.Copy(routes, more)
+		return routes
+	}
+	tests := []struct {
+		name string
+		doc  func() *ir.Document
+		want map[ir.TypeID]map[string][]ir.TypeID
+	}{
+		{"two discriminators at two properties", func() *ir.Document {
+			doc := petHierarchy()
+			doc.Types["type/dog"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "breed"}
+			return doc
+		}, map[ir.TypeID]map[string][]ir.TypeID{
+			"type/pet": petRoutes(nil), "type/dog": {"Puppy": {"type/puppy"}},
+		}},
+		{"two discriminators at one property", func() *ir.Document {
+			doc := petHierarchy()
+			doc.Types["type/dog"].(*ir.Model).Discriminator = &ir.Discriminator{Property: "type/pet/petType"}
+			return doc
+		}, map[ir.TypeID]map[string][]ir.TypeID{
+			"type/pet": petRoutes(nil), "type/dog": {"Puppy": {"type/puppy"}},
+		}},
+		{"a value the farther base's Mapping keys", func() *ir.Document {
+			doc := petHierarchy()
+			doc.Types["type/dog"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "breed"}
+			doc.Types["type/pet"].(*ir.Model).Discriminator.Mapping["pup"] = "type/puppy"
+			doc.Types["type/puppy"].(*ir.Model).DiscriminatorValue = "pup"
+			return doc
+		}, map[ir.TypeID]map[string][]ir.TypeID{
+			"type/pet": petRoutes(map[string][]ir.TypeID{"pup": {"type/puppy"}}), "type/dog": nil,
+		}},
+		{"two bases one hop up, the Base sorting after the other", func() *ir.Document {
+			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
+				below("type/leaf", "Leaf", "type/b", "type/a"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
+		{"two bases one hop up, the Base sorting first", func() *ir.Document {
+			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
+				below("type/leaf", "Leaf", "type/a", "type/b"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"Leaf": {"type/leaf"}}, "type/b": nil}},
+		{"two bases one hop up through Implements, the first", func() *ir.Document {
+			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
+				below("type/leaf", "Leaf", "", "type/b", "type/a"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
+		{"a nearer base through Implements than through the Base", func() *ir.Document {
+			return irtest.DocOf(discriminated("type/a", "a"), below("type/middle", "", "type/a"),
+				discriminated("type/b", "b"), below("type/leaf", "Leaf", "type/middle", "type/b"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
+		{"a cycle of bases below a base", func() *ir.Document {
+			return irtest.DocOf(discriminated("type/x", "x"),
+				below("type/y", "Y", "type/z", "type/x"), below("type/z", "Z", "type/y"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/x": {"Y": {"type/y"}, "Z": {"type/z"}}}},
+		{"a base named through an alias", func() *ir.Document {
+			alias := &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/a"}}
+			return irtest.DocOf(discriminated("type/a", "a"), alias, below("type/leaf", "Leaf", "type/alias"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"Leaf": {"type/leaf"}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			built := build(t, tt.doc(), plan.Policy{})
 
-	built := build(t, doc, plan.Policy{})
-
-	assert.Equal(t, []ir.TypeID{"type/puppy"}, built.Types["type/pet"].Discrim.Mapping["Puppy"])
-	assert.Empty(t, cmp.Diff(&plan.DiscrimFacts{
-		Locator: plan.DiscrimPropertyName, WireKey: "breed", Mapping: map[string][]ir.TypeID{"Puppy": {"type/puppy"}},
-	}, built.Types["type/dog"].Discrim))
+			for holder, want := range tt.want {
+				require.NotNil(t, built.Types[holder].Discrim, holder)
+				assert.Empty(t, cmp.Diff(want, built.Types[holder].Discrim.Mapping), holder)
+			}
+		})
+	}
 }
 
 // TestBuild_ReadsAHierarchysTagKey holds WireKey to the flattened member one

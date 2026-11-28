@@ -260,9 +260,11 @@ of its variants, which owns the tags of the outer variant its own member admits.
 property the discriminator names, or the tuple element at its `TupleElementIndex`. Where the tag
 sits outside the variant's value, in an `Envelope` or as the one key of a key-tagged union, no
 declaration admits or refuses it, so every tag routing to a variant is its own, a key-tagged
-variant's being its wire name. A polymorphic base routes a subtype by its `DiscriminatorValue` as
-well as by its `Mapping` ([discriminator](../../ir/models.md#discriminator)), and the subtype owns
-each of those its member admits.
+variant's being its wire name. A polymorphic base routes a subtype by its `DiscriminatorValue`,
+where that is a tag of the base's discriminator
+([routes](../plan/types.md#a-discriminators-routes)), as well as by its `Mapping`
+([discriminator](../../ir/models.md#discriminator)), and the subtype owns each of those its member
+admits.
 
 - **Encoding.** A variant with one own tag writes it at the tag's member, whatever the value holds
   there, and adds the member where the variant declares none: the variant fixes its tag, so a caller

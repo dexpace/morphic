@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irfacts"
 )
 
 // TypePlan holds what the plan derives of one type
@@ -83,23 +82,23 @@ const (
 	UnionKeyTagged UnionShape = "key_tagged"
 )
 
-// typePlans returns the plan of every type in types under pp, facts being
-// their document's, and the findings planning them reports, in type-ID order.
-// An entry that holds no type, a nil one, plans as the zero TypePlan. No
-// flattening is bounded: each model holds its own, so the plan grows with the
-// square of a composition's depth, and so do the routes of bases nested along
-// it (GitHub #2206).
-func typePlans(
-	types ir.TypeRegistry, facts *irfacts.DocumentFacts, pp Policy,
-) (map[ir.TypeID]TypePlan, []ir.Diagnostic) {
+// typePlans returns the plan of every type in doc's registry under pp, and
+// the findings planning them reports, in type-ID order. An entry that holds no
+// type, a nil one, plans as the zero TypePlan. No flattening is bounded: each
+// model holds its own, so the plan grows with the square of a composition's
+// depth (GitHub #2206).
+func typePlans(doc *ir.Document, pp Policy) (map[ir.TypeID]TypePlan, []ir.Diagnostic) {
+	types := doc.Types
 	if len(types) == 0 {
 		return nil, nil
 	}
 	plans := make(map[ir.TypeID]TypePlan, len(types))
+	ids := slices.Sorted(maps.Keys(types))
 	chains := newBaseChains(types)
+	values := valueRoutes(doc, ids)
 	var diags []ir.Diagnostic
-	for _, id := range slices.Sorted(maps.Keys(types)) {
-		typePlan, found := planType(types, facts, chains, id, pp)
+	for _, id := range ids {
+		typePlan, found := planType(types, values, chains, id, pp)
 		plans[id] = typePlan
 		diags = append(diags, found...)
 	}
@@ -107,9 +106,10 @@ func typePlans(
 }
 
 // planType returns the plan of the type types holds at id under pp, the zero
-// TypePlan for a nil one, and what planning it finds.
+// TypePlan for a nil one, and what planning it finds. values are the routes
+// the DiscriminatorValue of each subtype gives, by the model they route from.
 func planType(
-	types ir.TypeRegistry, facts *irfacts.DocumentFacts, chains *baseChains, id ir.TypeID, pp Policy,
+	types ir.TypeRegistry, values map[ir.TypeID][]valueRoute, chains *baseChains, id ir.TypeID, pp Policy,
 ) (TypePlan, []ir.Diagnostic) {
 	td := types[id]
 	if ir.IsNilTypeDef(td) {
@@ -121,7 +121,7 @@ func planType(
 	case *ir.Model:
 		flat := ir.FlattenedProperties(types, id)
 		typePlan.flatten(flat)
-		typePlan.Discrim, diags = hierarchyDiscrim(types, facts, t, flat)
+		typePlan.Discrim, diags = hierarchyDiscrim(t, flat, values[id])
 		// A model narrowing a union is open where its union is: not read yet,
 		// landing with Composed.
 		typePlan.Open = baseOpen(t, pp)
