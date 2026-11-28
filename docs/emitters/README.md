@@ -222,6 +222,33 @@ Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from
 
 The Kotlin targets read the same plan and lower the same facts as Go.
 
+## A renderer outside Morphic
+
+A target's output may one day be printed outside Morphic. A package on another platform, a Python
+one templating with Jinja2 for instance, would read a target's AST from a JSON artifact and let its
+users change that AST, or the text, before it is written. This is a documented extension point, not
+scheduled work, and no milestone depends on it. It reaches a target that prints a typed AST, as
+every target does unless it opts into templates for structure ([printing](emit/printing.md)). What
+it adds lands with the first such renderer: the AST's codec, a published schema and a version for
+it, as `IRVersion` is the IR's; the hooks, and a check of an AST a hook changed; and the way
+rendered files return to the writer.
+
+The cut is the target AST, not the IR or the plan. By then names are cased, types mapped, collisions
+resolved and every declaration placed, so a template reading the AST only prints. A renderer reading
+the IR and the plan would decide those in its templates, the logic this design keeps out of them
+([deliberate exclusions](#deliberate-exclusions)), and each platform would decide them its own way.
+
+Three rules keep it open, each met from a target's first node:
+
+- **Every node is data** ([target AST](refine/target-ast.md#every-node-is-data)), so the AST can be
+  written out with no node changing shape.
+- **The printer reads the AST alone**
+  ([printing](emit/printing.md#the-printer-reads-the-ast-alone)), so an AST written out holds
+  everything its text depends on, beside the policy values a runtime template interpolates.
+- **Writing never reads the target, its AST or its printer** ([write /
+  integrate](write-integrate.md#every-write-is-planned-before-the-verdict)), so files printed
+  elsewhere are planned, applied and recorded by the same rules.
+
 ## Deliberate exclusions
 
 - **A separate neutral code model.** Rejected in favor of per-language target ASTs. A shared

@@ -35,6 +35,8 @@ stands on comes ahead of the first of them ([the foundation](#the-foundation)).
 Beyond the milestones, a command-line client is a documented extension point rather than a
 scheduled target: a registry entry over `Doc + Plan`, as docs and mocks are, whose inputs and flag
 rules [docs and mocks](docs-and-mock.md#a-command-line-target) sets out. No milestone depends on it.
+A renderer outside Morphic, printing a target's AST on another platform, is an extension point of
+the same kind ([a renderer outside Morphic](README.md#a-renderer-outside-morphic)).
 
 ## What M3 lowers
 
